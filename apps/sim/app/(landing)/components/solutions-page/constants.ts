@@ -15,11 +15,11 @@
 export const SOLUTIONS_SPACING = {
   /**
    * The one horizontal gutter, owned solely by `SolutionsPage`. Matches the
-   * navbar and landing hero exactly (`px-12 max-lg:px-8 max-sm:px-5`) so
+   * navbar and landing hero exactly (`px-20 max-lg:px-8 max-sm:px-5`) so
    * solutions content starts on the wordmark's vertical line at every
    * breakpoint. Sections and cards never set their own gutter.
    */
-  gutter: 'px-12 max-lg:px-8 max-sm:px-5',
+  gutter: 'px-20 max-lg:px-8 max-sm:px-5',
   /**
    * Inter-section vertical rhythm - the gap of the `<main>` flex column that
    * `SolutionsPage` owns. Sections carry no vertical margin/padding of their own,

@@ -97,6 +97,7 @@ function LoadedRichMarkdownField({
   const editor = useEditor({
     extensions,
     editable: !disabled && !isStreaming,
+    enablePasteRules: false,
     autofocus: autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,

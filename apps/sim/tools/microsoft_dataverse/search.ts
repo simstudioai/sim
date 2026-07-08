@@ -3,6 +3,7 @@ import type {
   DataverseSearchParams,
   DataverseSearchResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseSearch')
@@ -93,7 +94,7 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
       return `${baseUrl}/api/data/v9.2/searchquery`
     },
     method: 'POST',

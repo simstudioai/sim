@@ -61,7 +61,8 @@ export const gitlabListIssuesTool: ToolConfig<GitLabListIssuesParams, GitLabList
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Order by field (created_at, updated_at)',
+      description:
+        'Order by field (created_at, updated_at, priority, due_date, relative_position, label_priority, milestone_due, popularity, title, weight)',
     },
     sort: {
       type: 'string',

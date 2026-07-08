@@ -145,6 +145,7 @@ Query and filter Notion database entries with advanced filtering
 | `filter` | string | No | Filter conditions as JSON \(optional\) |
 | `sorts` | string | No | Sort criteria as JSON array \(optional\) |
 | `pageSize` | number | No | Number of results to return \(default: 100, max: 100\) |
+| `startCursor` | string | No | Pagination cursor returned by a previous request |
 
 #### Output
 
@@ -200,6 +201,7 @@ Search across all pages and databases in Notion workspace
 | `query` | string | No | Search terms to find pages and databases \(leave empty to get all pages\) |
 | `filterType` | string | No | Filter by object type: "page", "database", or leave empty for all |
 | `pageSize` | number | No | Number of results to return \(default: 100, max: 100\) |
+| `startCursor` | string | No | Pagination cursor returned by a previous request |
 
 #### Output
 
@@ -302,8 +304,44 @@ Append new block children (content) to a Notion page or block
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
 | `type` | string | Block type |
-| `block` | json | The full updated Notion block object |
-| `archived` | boolean | Whether the block was archived |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
+| `discussion_id` | string | Discussion thread ID |
+| `name` | string | User display name |
+| `avatar_url` | string | User avatar image URL |
+| `email` | string | User email address \(person users only\) |
+
+### `notion_retrieve_block`
+
+Retrieve a single Notion block by its UUID, including its type-specific content
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `blockId` | string | Yes | The UUID of the block to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Page content in markdown format, or comment text for create comment |
+| `title` | string | Page or database title |
+| `url` | string | Notion URL |
+| `id` | string | Page, database, block, comment, or user ID |
+| `created_time` | string | Creation timestamp |
+| `last_edited_time` | string | Last edit timestamp |
+| `results` | array | Array of results \(pages, blocks, comments, or users\) |
+| `has_more` | boolean | Whether more results are available |
+| `next_cursor` | string | Cursor for pagination |
+| `total_results` | number | Number of results returned |
+| `properties` | json | Database properties schema |
+| `appended` | boolean | Whether content was successfully appended |
+| `type` | string | Block type |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
 | `discussion_id` | string | Discussion thread ID |
 | `name` | string | User display name |
 | `avatar_url` | string | User avatar image URL |
@@ -338,8 +376,9 @@ Retrieve the block children (content) of a Notion page or block
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
 | `type` | string | Block type |
-| `block` | json | The full updated Notion block object |
-| `archived` | boolean | Whether the block was archived |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
 | `discussion_id` | string | Discussion thread ID |
 | `name` | string | User display name |
 | `avatar_url` | string | User avatar image URL |
@@ -374,8 +413,9 @@ Update the content or archived state of a single Notion block
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
 | `type` | string | Block type |
-| `block` | json | The full updated Notion block object |
-| `archived` | boolean | Whether the block was archived |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
 | `discussion_id` | string | Discussion thread ID |
 | `name` | string | User display name |
 | `avatar_url` | string | User avatar image URL |
@@ -408,8 +448,9 @@ Delete (move to trash) a single Notion block
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
 | `type` | string | Block type |
-| `block` | json | The full updated Notion block object |
-| `archived` | boolean | Whether the block was archived |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
 | `discussion_id` | string | Discussion thread ID |
 | `name` | string | User display name |
 | `avatar_url` | string | User avatar image URL |
@@ -444,8 +485,9 @@ Create a comment on a Notion page or within an existing discussion thread
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
 | `type` | string | Block type |
-| `block` | json | The full updated Notion block object |
-| `archived` | boolean | Whether the block was archived |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
 | `discussion_id` | string | Discussion thread ID |
 | `name` | string | User display name |
 | `avatar_url` | string | User avatar image URL |
@@ -480,8 +522,9 @@ List unresolved comments on a Notion page or block
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
 | `type` | string | Block type |
-| `block` | json | The full updated Notion block object |
-| `archived` | boolean | Whether the block was archived |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
 | `discussion_id` | string | Discussion thread ID |
 | `name` | string | User display name |
 | `avatar_url` | string | User avatar image URL |
@@ -515,8 +558,9 @@ List all users (members and bots) in the Notion workspace
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
 | `type` | string | Block type |
-| `block` | json | The full updated Notion block object |
-| `archived` | boolean | Whether the block was archived |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
 | `discussion_id` | string | Discussion thread ID |
 | `name` | string | User display name |
 | `avatar_url` | string | User avatar image URL |
@@ -549,8 +593,9 @@ Retrieve a single Notion user by their UUID
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
 | `type` | string | Block type |
-| `block` | json | The full updated Notion block object |
-| `archived` | boolean | Whether the block was archived |
+| `block` | json | The full Notion block object |
+| `has_children` | boolean | Whether the block has nested blocks |
+| `archived` | boolean | Whether the block is archived |
 | `discussion_id` | string | Discussion thread ID |
 | `name` | string | User display name |
 | `avatar_url` | string | User avatar image URL |

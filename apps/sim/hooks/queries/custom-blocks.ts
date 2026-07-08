@@ -58,7 +58,7 @@ export function usePublishCustomBlock(workspaceId?: string) {
   return useMutation({
     mutationFn: (body: PublishCustomBlockBody) => requestJson(publishCustomBlockContract, { body }),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: customBlockKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: customBlockKeys.lists() })
     },
   })
 }
@@ -69,7 +69,7 @@ export function useUpdateCustomBlock(workspaceId?: string) {
     mutationFn: ({ id, ...body }: UpdateCustomBlockBody & { id: string }) =>
       requestJson(updateCustomBlockContract, { params: { id }, body }),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: customBlockKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: customBlockKeys.lists() })
     },
   })
 }
@@ -79,7 +79,7 @@ export function useDeleteCustomBlock(workspaceId?: string) {
   return useMutation({
     mutationFn: (id: string) => requestJson(deleteCustomBlockContract, { params: { id } }),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: customBlockKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: customBlockKeys.lists() })
     },
   })
 }

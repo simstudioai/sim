@@ -3,6 +3,7 @@ import type {
   DataverseAssociateParams,
   DataverseAssociateResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseAssociate')
@@ -75,8 +76,8 @@ export const dataverseAssociateTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})/${params.navigationProperty}/$ref`
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})/${params.navigationProperty.trim()}/$ref`
     },
     method: (params) => (params.navigationType === 'single' ? 'PUT' : 'POST'),
     headers: (params) => ({
@@ -87,9 +88,9 @@ export const dataverseAssociateTool: ToolConfig<
       Accept: 'application/json',
     }),
     body: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
       return {
-        '@odata.id': `${baseUrl}/api/data/v9.2/${params.targetEntitySetName}(${params.targetRecordId})`,
+        '@odata.id': `${baseUrl}/api/data/v9.2/${params.targetEntitySetName.trim()}(${params.targetRecordId.trim()})`,
       }
     },
   },

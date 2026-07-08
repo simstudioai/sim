@@ -34,7 +34,7 @@ export const discordGetMessagesTool: ToolConfig<
   request: {
     url: (params: DiscordGetMessagesParams) => {
       const limit = params.limit ? Number(params.limit) : 10
-      return `https://discord.com/api/v10/channels/${params.channelId}/messages?limit=${Math.min(limit, 100)}`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages?limit=${Math.min(limit, 100)}`
     },
     method: 'GET',
     headers: (params) => {
@@ -43,7 +43,7 @@ export const discordGetMessagesTool: ToolConfig<
       }
 
       if (params.botToken) {
-        headers.Authorization = `Bot ${params.botToken}`
+        headers.Authorization = `Bot ${params.botToken.trim()}`
       }
 
       return headers

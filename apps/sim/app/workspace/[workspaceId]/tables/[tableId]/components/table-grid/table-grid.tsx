@@ -14,6 +14,7 @@ import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup 
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -89,6 +90,11 @@ export interface SelectionSnapshot {
   /** Total running/queued workflow runs across ALL rows. Drives the page-header
    *  RunStatusControl ("N running, Stop all"). */
   totalRunning: number
+  /** Whether any LOADED cell has actually been claimed by a worker
+   *  (`status === 'running'`). False while the in-flight set is all
+   *  queued/pending stamps — the header control then reads "Queueing"
+   *  instead of labeling queued work as running. */
+  hasRunningCell: boolean
   /** Whether any dispatch is active (pending/dispatching). Keeps the RunStatusControl
    *  + Stop-all visible during a run even when the per-row count momentarily reads 0
    *  (e.g. the first window of an auto-fired/capped dispatch before cells stamp). */
@@ -397,13 +403,27 @@ export function TableGrid({
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
   const runningByRowId = tableRunState?.runningByRowId ?? EMPTY_RUNNING_BY_ROW
-  // Actual in-flight cell count = sum of the live per-row map (kept current by
-  // applyCell's SSE deltas, and the same source the per-row gutter uses). The
-  // dispatch-scope `runningCellCount` over-counts already-completed groups on
-  // rows still inside a dispatch's scope — e.g. a cascade where 3 of 4 columns
-  // finished would read "4 running" instead of "1".
+  // In-flight cell count = sum of the server-derived per-row map (refetched on
+  // a throttle as cell SSE events arrive, stamped optimistically on run-click
+  // — the same source the per-row gutter uses).
   const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
   const hasActiveDispatch = (activeDispatches?.length ?? 0) > 0
+  // Claimed-cell signal for the "Queueing" vs "N running" label. Two sources
+  // OR'd: the loaded-rows scan flips instantly via SSE claim events, and the
+  // server's table-wide flag covers runs whose active window has scrolled
+  // past the loaded pages (where the scan alone would read "Queueing" for the
+  // rest of a long run).
+  const hasRunningLoaded = useMemo(() => {
+    for (const row of rows) {
+      const executions = row.executions
+      if (!executions) continue
+      for (const exec of Object.values(executions)) {
+        if (exec?.status === 'running') return true
+      }
+    }
+    return false
+  }, [rows])
+  const hasRunningCell = hasRunningLoaded || (tableRunState?.hasRunning ?? false)
 
   // True "select all" total: the filter-scoped COUNT(*) when a filter is active, else the whole
   // table. Drives the delete-confirm count and the action-bar cell count.
@@ -486,6 +506,10 @@ export function TableGrid({
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
 
+  const timeZone = useTimezone()
+  const timeZoneRef = useRef(timeZone)
+  timeZoneRef.current = timeZone
+
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
   const batchCreateRowsMutation = useBatchCreateTableRows({ workspaceId, tableId })
@@ -503,7 +527,10 @@ export function TableGrid({
     rowIds?: string[],
     limit?: RunLimit
   ) {
-    onRunColumn(groupId, runMode, rowIds, limit)
+    // Table-scoped runs (Run all / Run empty / Run N empty) honor the active
+    // filter; an explicit rowIds scope (Run selected) already names its rows.
+    const filter = rowIds ? undefined : (queryOptions.filter ?? undefined)
+    onRunColumn(groupId, runMode, rowIds, limit, filter)
   }
 
   const handleViewWorkflow = useCallback(
@@ -1409,7 +1436,7 @@ export function TableGrid({
             }
           }
         } else if (column.type === 'date') {
-          text = storageToDisplay(String(val))
+          text = storageToDisplay(String(val), { seconds: true })
         } else {
           text = String(val)
         }
@@ -2717,7 +2744,8 @@ export function TableGrid({
           try {
             rowData[currentCols[targetCol].key] = cleanCellValue(
               pasteRows[r][c],
-              currentCols[targetCol]
+              currentCols[targetCol],
+              timeZoneRef.current
             )
           } catch {
             /* skip invalid values */
@@ -3279,10 +3307,9 @@ export function TableGrid({
   }, [rowSelection, rows])
 
   // `runningByRowId` + `totalRunning` come from `useTableRunState` above —
-  // backend-bootstrapped via `countRunningCells` and kept live by
-  // `applyCell`'s SSE-driven delta. Counts only cells whose worker has
-  // actually claimed the cell (`status === 'running'`), ignoring optimistic
-  // queued/pending stamps.
+  // server-derived via `countRunningCells` (queued/running/pending), refetched
+  // on a throttle as cell SSE events arrive, plus optimistic stamps on
+  // run-click.
 
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
   // Mirror the action bar's Play / Refresh split: Play fills empty/failed,
@@ -3520,6 +3547,7 @@ export function TableGrid({
       sameStats &&
       prev.runningInActionBarSelection === runningInActionBarSelection &&
       prev.totalRunning === totalRunning &&
+      prev.hasRunningCell === hasRunningCell &&
       prev.hasActiveDispatch === hasActiveDispatch &&
       prev.hasWorkflowColumns === hasWorkflowColumns &&
       prev.actionBarRowIds.length === actionBarRowIds.length &&
@@ -3531,6 +3559,7 @@ export function TableGrid({
       actionBarRowIds,
       runningInActionBarSelection,
       totalRunning,
+      hasRunningCell,
       hasActiveDispatch,
       hasWorkflowColumns,
       selectedRunScope,
@@ -3543,6 +3572,7 @@ export function TableGrid({
     actionBarRowIds,
     runningInActionBarSelection,
     totalRunning,
+    hasRunningCell,
     hasActiveDispatch,
     hasWorkflowColumns,
     selectedRunScope,
@@ -3643,6 +3673,7 @@ export function TableGrid({
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                                hasActiveFilter={Boolean(queryOptions.filter)}
                                 selectedRowIds={selectedRowIds}
                                 onInsertLeft={
                                   userPermissions.canEdit ? handleInsertColumnLeft : undefined

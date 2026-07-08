@@ -7,7 +7,7 @@ import { getEmailSubject, renderOnboardingFollowupEmail } from '@/components/ema
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
+import { getHelpEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { LIFECYCLE_EMAIL_TASK_ID, type LifecycleEmailType } from '@/lib/messaging/lifecycle'
 
 const logger = createLogger('LifecycleEmail')
@@ -31,7 +31,8 @@ async function sendLifecycleEmail({ userId, type }: LifecycleEmailParams): Promi
     return
   }
 
-  const { from, replyTo } = getPersonalEmailFrom()
+  const { from } = getPersonalEmailFrom()
+  const replyTo = getHelpEmailAddress()
 
   let html: string
 

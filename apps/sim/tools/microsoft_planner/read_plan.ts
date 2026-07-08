@@ -38,10 +38,11 @@ export const readPlanTool: ToolConfig<
 
   request: {
     url: (params) => {
-      if (!params.planId) {
+      const planId = params.planId?.trim()
+      if (!planId) {
         throw new Error('Plan ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}`
+      return `https://graph.microsoft.com/v1.0/planner/plans/${planId}`
     },
     method: 'GET',
     headers: (params) => {

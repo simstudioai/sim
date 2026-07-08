@@ -118,7 +118,7 @@ export interface EdgeDef {
  * corners. Source/target points are taken at `block.x±width` and
  * `block.y + HANDLE_Y_OFFSET`, matching where the handles render.
  */
-function smoothStep(sx: number, sy: number, tx: number, ty: number, r = 8): string {
+export function smoothStep(sx: number, sy: number, tx: number, ty: number, r = 8): string {
   const midX = (sx + tx) / 2
   const dir = ty >= sy ? 1 : -1
   return [

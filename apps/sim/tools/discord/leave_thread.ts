@@ -33,11 +33,11 @@ export const discordLeaveThreadTool: ToolConfig<
 
   request: {
     url: (params: DiscordLeaveThreadParams) => {
-      return `https://discord.com/api/v10/channels/${params.threadId}/thread-members/@me`
+      return `https://discord.com/api/v10/channels/${params.threadId.trim()}/thread-members/@me`
     },
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

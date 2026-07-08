@@ -10,7 +10,7 @@ import {
   TraceFlags,
   trace,
 } from '@opentelemetry/api'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
   CopilotBranchKind,
@@ -95,10 +95,14 @@ export function isActionableErrorStatus(code: number): boolean {
 export function markSpanForError(span: Span, error: unknown): void {
   const asError = toError(error)
   span.recordException(asError)
+  const described = describeError(error)
+  if (described.code) {
+    span.setAttribute(TraceAttr.ErrorCode, described.code)
+  }
   if (!isExplicitUserStopError(error)) {
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: asError.message,
+      message: described.causeChain ? described.causeChain.join(' <- ') : asError.message,
     })
   }
 }

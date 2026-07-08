@@ -11,7 +11,7 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
   description: 'Manage records in Microsoft Dataverse tables',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, and relevance search. Works with Dynamics 365, Power Platform, and custom Dataverse environments.',
+    'Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_dataverse',
   category: 'tools',
   integrationType: IntegrationType.Databases,
@@ -39,6 +39,7 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
         { label: 'Download File', id: 'download_file' },
         { label: 'Associate Records', id: 'associate' },
         { label: 'Disassociate Records', id: 'disassociate' },
+        { label: 'Get Table Metadata', id: 'get_entity_metadata' },
         { label: 'WhoAmI', id: 'whoami' },
       ],
       value: () => 'list_records',
@@ -66,12 +67,12 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
       placeholder: 'Plural table name (e.g., accounts, contacts)',
       condition: {
         field: 'operation',
-        value: ['whoami', 'search'],
+        value: ['whoami', 'search', 'get_entity_metadata'],
         not: true,
       },
       required: {
         field: 'operation',
-        value: ['whoami', 'search', 'execute_action', 'execute_function'],
+        value: ['whoami', 'search', 'execute_action', 'execute_function', 'get_entity_metadata'],
         not: true,
       },
     },
@@ -203,6 +204,22 @@ Return ONLY valid FetchXML - no explanations, no markdown code blocks.`,
       condition: { field: 'operation', value: 'search' },
       mode: 'advanced',
     },
+    {
+      id: 'facets',
+      title: 'Facets',
+      type: 'long-input',
+      placeholder: 'JSON array of facet specs (e.g., ["entityname,count:100"])',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'skip',
+      title: 'Skip',
+      type: 'short-input',
+      placeholder: 'Number of results to skip for pagination',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
     // Execute Action
     {
       id: 'actionName',
@@ -256,8 +273,25 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       title: 'Table Logical Name',
       type: 'short-input',
       placeholder: 'Singular table name (e.g., account, contact)',
-      condition: { field: 'operation', value: ['create_multiple', 'update_multiple'] },
-      required: { field: 'operation', value: ['create_multiple', 'update_multiple'] },
+      condition: {
+        field: 'operation',
+        value: ['create_multiple', 'update_multiple', 'get_entity_metadata'],
+      },
+      required: {
+        field: 'operation',
+        value: ['create_multiple', 'update_multiple', 'get_entity_metadata'],
+      },
+    },
+    {
+      id: 'includeAttributes',
+      title: 'Include Column Definitions',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'get_entity_metadata' },
     },
     {
       id: 'records',
@@ -318,6 +352,16 @@ Return ONLY a valid JSON array - no explanations, no markdown code blocks.`,
       condition: { field: 'operation', value: 'upload_file' },
       mode: 'advanced',
       required: { field: 'operation', value: 'upload_file' },
+    },
+    // Table metadata
+    {
+      id: 'metadataSelect',
+      title: 'Select Metadata Properties',
+      type: 'short-input',
+      placeholder:
+        'Comma-separated metadata properties (e.g., LogicalName,DisplayName,EntitySetName)',
+      condition: { field: 'operation', value: 'get_entity_metadata' },
+      mode: 'advanced',
     },
     // OData query options (list_records)
     {
@@ -388,8 +432,20 @@ Return ONLY the orderby expression - no $orderby= prefix, no explanations.`,
       id: 'top',
       title: 'Max Results',
       type: 'short-input',
-      placeholder: 'Maximum number of records (default: 5000)',
+      placeholder: 'Maximum number of records to return',
       condition: { field: 'operation', value: ['list_records', 'search'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'count',
+      title: 'Include Total Count',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'list_records' },
       mode: 'advanced',
     },
     {
@@ -463,6 +519,7 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
       'microsoft_dataverse_execute_action',
       'microsoft_dataverse_execute_function',
       'microsoft_dataverse_fetchxml_query',
+      'microsoft_dataverse_get_entity_metadata',
       'microsoft_dataverse_get_record',
       'microsoft_dataverse_list_records',
       'microsoft_dataverse_search',
@@ -498,9 +555,18 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
           // Prevent stale action parameters from overwriting mapped function parameters
           rest.parameters = undefined
         }
+        if (operation === 'get_entity_metadata') {
+          if (rest.metadataSelect) {
+            cleanParams.select = rest.metadataSelect
+          }
+          // The shared `select` subBlock belongs to list/get record operations - clear it so a
+          // stale record-column $select can't override or fight the mapped metadataSelect value
+          rest.select = undefined
+        }
         // Always clean up mapped subBlock IDs so they don't leak through the loop below
         rest.searchEntities = undefined
         rest.functionParameters = undefined
+        rest.metadataSelect = undefined
 
         Object.entries(rest).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
@@ -523,6 +589,10 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     filter: { type: 'string', description: 'OData $filter expression' },
     orderBy: { type: 'string', description: 'OData $orderby expression' },
     top: { type: 'string', description: 'Maximum number of records' },
+    count: {
+      type: 'string',
+      description: 'Set to "true" to include total record count in the response (list records)',
+    },
     expand: { type: 'string', description: 'Navigation properties to expand' },
     navigationProperty: {
       type: 'string',
@@ -540,6 +610,8 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     searchEntities: { type: 'string', description: 'JSON array of search entity configurations' },
     searchMode: { type: 'string', description: 'Search mode: "any" or "all"' },
     searchType: { type: 'string', description: 'Query type: "simple" or "lucene"' },
+    facets: { type: 'string', description: 'JSON array of facet specifications for search' },
+    skip: { type: 'string', description: 'Number of search results to skip for pagination' },
     actionName: { type: 'string', description: 'Dataverse action name to execute' },
     functionName: { type: 'string', description: 'Dataverse function name to execute' },
     functionParameters: {
@@ -547,11 +619,22 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
       description: 'Function parameters as URL-encoded string',
     },
     parameters: { type: 'json', description: 'Action parameters as JSON object' },
-    entityLogicalName: { type: 'string', description: 'Table logical name for @odata.type' },
+    entityLogicalName: {
+      type: 'string',
+      description: 'Table logical name for @odata.type, or to look up table metadata',
+    },
     records: { type: 'json', description: 'Array of record objects for bulk operations' },
     fileColumn: { type: 'string', description: 'File or image column logical name' },
     fileName: { type: 'string', description: 'Name of the file to upload' },
     file: { type: 'json', description: 'File to upload (canonical param)' },
+    metadataSelect: {
+      type: 'string',
+      description: 'Comma-separated table metadata properties to return',
+    },
+    includeAttributes: {
+      type: 'string',
+      description: 'Set to "true" to also return column (attribute) definitions',
+    },
   },
   outputs: {
     records: { type: 'json', description: 'Array of records (list/fetchxml/search)' },
@@ -569,7 +652,8 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     organizationId: { type: 'string', description: 'Organization ID (WhoAmI)' },
     entitySetName: {
       type: 'string',
-      description: 'Source entity set name (associate/disassociate)',
+      description:
+        'Source entity set name (associate/disassociate), or the looked-up entity set name (get table metadata)',
     },
     navigationProperty: {
       type: 'string',
@@ -584,11 +668,39 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     moreRecords: { type: 'boolean', description: 'Whether more records are available (FetchXML)' },
     results: { type: 'json', description: 'Search results array' },
     facets: { type: 'json', description: 'Facet results for search (when facets requested)' },
+    file: { type: 'file', description: 'Downloaded file stored in execution files' },
     fileContent: { type: 'string', description: 'Base64-encoded downloaded file content' },
-    fileName: { type: 'string', description: 'Downloaded file name' },
+    fileName: { type: 'string', description: 'Name of the uploaded or downloaded file' },
     fileSize: { type: 'number', description: 'File size in bytes' },
     mimeType: { type: 'string', description: 'File MIME type' },
-    fileColumn: { type: 'string', description: 'File column name' },
+    fileColumn: {
+      type: 'string',
+      description: 'Logical name of the file column the file was uploaded to or downloaded from',
+    },
+    logicalName: {
+      type: 'string',
+      description: 'Singular table logical name (get table metadata)',
+    },
+    displayName: {
+      type: 'string',
+      description: 'Localized table display name (get table metadata)',
+    },
+    primaryIdAttribute: {
+      type: 'string',
+      description: 'Primary key column logical name (get table metadata)',
+    },
+    primaryNameAttribute: {
+      type: 'string',
+      description: 'Primary name column logical name (get table metadata)',
+    },
+    attributes: {
+      type: 'json',
+      description: 'Column definitions for the table (get table metadata)',
+    },
+    metadata: {
+      type: 'json',
+      description: 'Full raw table metadata response (get table metadata)',
+    },
   },
 }
 
@@ -689,6 +801,12 @@ export const MicrosoftDataverseBlockMeta = {
       description: 'Create or update many Dataverse records in one batch operation.',
       content:
         '# Bulk Write Records\n\nWrite many Dataverse rows efficiently in a single call.\n\n## Steps\n1. Assemble the array of records, mapping each to the table column names.\n2. Use Create Multiple to insert new rows, or Update Multiple to change existing rows by ID.\n3. Verify the operation succeeded and capture any per-record errors.\n\n## Output\nThe count of records written, their IDs, and any rows that failed with their error.',
+    },
+    {
+      name: 'discover-table-schema',
+      description: 'Look up a table entity set name and column logical names before writing data.',
+      content:
+        '# Discover Table Schema\n\nAvoid guessing at column and entity set names when a workflow targets an unfamiliar Dataverse table.\n\n## Steps\n1. Take the singular table logical name (e.g., account, contact, or a custom table).\n2. Use Get Table Metadata, optionally including column definitions.\n3. Use the returned entity set name and column logical names to build the record data and entity set name for other operations.\n\n## Output\nThe entity set name, primary key and primary name columns, and (optionally) the full list of column definitions.',
     },
   ],
 } as const satisfies BlockMeta

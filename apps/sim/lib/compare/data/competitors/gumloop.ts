@@ -37,11 +37,10 @@ export const gumloopProfile: CompetitorProfile = {
       },
     },
     {
-      title: "Natural-language flow building via 'Gen' copilot",
+      title: 'Gen copilot debugs existing flows node-by-node on canvas',
       description:
-        'An AI assistant named Gen can plan, build, modify, and debug workflows from plain-English descriptions directly on the canvas, lowering the barrier for non-technical users.',
-      shortDescription:
-        'An AI copilot builds, edits, and debugs workflows from plain-English prompts.',
+        'Beyond building new flows from a prompt, Gen can step into an already-built workflow and debug it node-by-node directly on the canvas, working from a plain-English description of what is going wrong.',
+      shortDescription: 'Gen debugs an existing workflow node-by-node directly on the canvas.',
       source: {
         url: 'https://www.gumloop.com/blog/agentic-ai-tools',
         label: 'Gumloop blog: agentic AI tools',
@@ -49,11 +48,10 @@ export const gumloopProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Plain-English guardrail policies with human-in-the-loop approval',
+      title: 'Plain-English, org-wide guardrail policy engine',
       description:
-        'Organizations can define app/tool usage policies in plain English at org, team, or agent level; violating actions can be blocked or tagged and logged, and sensitive actions can pause mid-task for a human approval card.',
-      shortDescription:
-        'Plain-English usage policies plus mid-task human approval for sensitive actions.',
+        'Organizations can define app/tool usage policies in plain English at org, team, or agent level; violating actions can be blocked or tagged and logged.',
+      shortDescription: 'Plain-English usage policies enforced at org, team, or agent level.',
       source: {
         url: 'https://www.gumloop.com/solutions/security',
         label: 'Gumloop Security & Trust',
@@ -88,7 +86,7 @@ export const gumloopProfile: CompetitorProfile = {
     {
       title: 'No public self-hosting of the core platform',
       description:
-        "Gumloop is only available as managed SaaS or an enterprise-managed VPC deployment operated by Gumloop inside a customer's cloud project. There is no downloadable, self-managed install of the Gumloop application itself; a separate community project, guMCP, is open source but is not the platform.",
+        "Gumloop is only available as managed SaaS or an enterprise-managed VPC deployment operated by Gumloop inside a customer's cloud project. There is no downloadable, self-managed install of the Gumloop application itself; Gumloop's own guMCP_template repo is a self-hosted MCP-server starter, not an install of the platform.",
       shortDescription: 'No downloadable self-hosted install. Only managed SaaS or enterprise VPC.',
       source: {
         url: 'https://www.gumloop.com/solutions/security',
@@ -163,7 +161,7 @@ export const gumloopProfile: CompetitorProfile = {
         value:
           'No public self-host option for the core Gumloop app; enterprise customers can get a managed Virtual Private Cloud (VPC) deployment into their own cloud (e.g. GCP) instead of full self-hosting',
         detail:
-          "Gumloop deploys and operates the platform inside the customer's cloud project rather than offering a downloadable, self-managed open-source install. A separate community open-source project, guMCP, provides self-hostable MCP servers but is not the Gumloop app itself.",
+          "Gumloop deploys and operates the platform inside the customer's cloud project rather than offering a downloadable, self-managed open-source install. Gumloop's own guMCP_template repo is an open-source starter for self-hosted MCP servers, but it is not an install of the Gumloop app itself.",
         shortValue: 'No self-host; VPC deployment only',
         confidence: 'estimated',
         sources: [
@@ -173,8 +171,8 @@ export const gumloopProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/agoddijn-fern/guMCP-self-hosted',
-            label: 'guMCP self-hosted (community project)',
+            url: 'https://github.com/gumloop/guMCP_template',
+            label: "guMCP_template (Gumloop's self-hosted MCP starter repo)",
             asOf: '2026-07-02',
           },
         ],
@@ -210,7 +208,7 @@ export const gumloopProfile: CompetitorProfile = {
       license: {
         value: 'Proprietary',
         detail:
-          'The core Gumloop application has no open-source license; it is a closed, hosted commercial SaaS product. A separate community MCP-server project, guMCP, is open source but is not the Gumloop platform.',
+          "The core Gumloop application has no open-source license; it is a closed, hosted commercial SaaS product. Gumloop's own guMCP_template repo is an open-source MCP-server starter, but it is not the Gumloop platform.",
         shortValue: 'Proprietary',
         confidence: 'estimated',
         sources: [
@@ -722,6 +720,8 @@ export const gumloopProfile: CompetitorProfile = {
       entryPaidPlan: {
         value:
           'Pro plan at $37/month for 20k+ credits. Includes unlimited seats/teams, 5 concurrent runs, 25 concurrent agent interactions, agent reflections, unified billing, and 1 hosted MCP server instance',
+        detail:
+          "Gumloop's pricing page lists 'MCP Server Hosting (1)' under the Pro plan without clarifying its scope: it is not stated whether this cap limits access to the 100+ pre-built, zero-setup MCP servers described on gumloop.com/mcp, or only applies to a separate custom MCP server that Gumloop hosts on a customer's behalf. That distinction is not resolved anywhere on Gumloop's own pricing or MCP pages.",
         shortValue: '$37/month Pro plan, 20k+ credits',
         confidence: 'verified',
         sources: [
@@ -1117,11 +1117,11 @@ export const gumloopProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          "Founded in Vancouver in April 2023 (originally as 'AgentHub') by Max Brodeur-Urbas and Rahul Behal. Raised a $3.1M seed (July 2024), a $17M Series A in January 2025 (led by Nexus Venture Partners), and a $50M Series B in March 2026 (led by Benchmark). About $70M raised in total across 3 rounds. Y Combinator alum with roughly 37 employees as of mid-2026.",
+          "Founded in Vancouver in April 2023 (originally as 'AgentHub') by Max Brodeur-Urbas and Rahul Behal. Raised a $3.1M seed (July 2024) and a $17M Series A in January 2025 (led by Nexus Venture Partners), both independently corroborated; a self-reported $50M Series B in March 2026 (led by Benchmark) would bring the total to about $70M across 3 rounds. Y Combinator alum with roughly 37 employees as of mid-2026.",
         detail:
-          'Gumloop started as a side project in a Vancouver bedroom in April 2023, founded by Max Brodeur-Urbas and Rahul Behal under the name AgentHub before rebranding to Gumloop. It raised a $3.1M seed round in July 2024, a $17M Series A in January 2025 led by Nexus Venture Partners (with First Round Capital, Y Combinator, and angel investors), and a $50M Series B in March 2026 led by Benchmark (with Nexus Venture Partners, First Round Capital, Y Combinator, Box Group, The Cannon Project, and Shopify Ventures). Total raised is about $70M across 3 rounds. Y Combinator lists a team size of 37.',
-        shortValue: 'Founded 2023, ~$70M raised, Series B in 2026',
-        confidence: 'verified',
+          "Gumloop started as a side project in a Vancouver bedroom in April 2023, founded by Max Brodeur-Urbas and Rahul Behal under the name AgentHub before rebranding to Gumloop. It raised a $3.1M seed round in July 2024 and a $17M Series A in January 2025 led by Nexus Venture Partners (with First Round Capital, Y Combinator, and angel investors), both independently corroborated by TechCrunch. The $50M Series B in March 2026 led by Benchmark (with Nexus Venture Partners, First Round Capital, Y Combinator, Box Group, The Cannon Project, and Shopify Ventures) is self-reported on Gumloop's own blog only, with no independent press or funding-tracker corroboration found. Total raised is about $70M across 3 rounds. Y Combinator lists a team size of 37.",
+        shortValue: 'Founded 2023, ~$70M raised, Series B in 2026 (self-reported)',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://www.gumloop.com/blog/gumloops-17m-series-a',

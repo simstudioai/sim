@@ -59,7 +59,7 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
         }
       },
       body: (params) => ({
-        path: params.path === '/' ? '' : params.path,
+        path: params.path.trim() === '/' ? '' : params.path.trim(),
         recursive: params.recursive ?? false,
         include_deleted: params.includeDeleted ?? false,
         include_media_info: params.includeMediaInfo ?? false,
@@ -96,10 +96,10 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
           type: 'object',
           properties: {
             '.tag': { type: 'string', description: 'Type: file, folder, or deleted' },
-            id: { type: 'string', description: 'Unique identifier' },
+            id: { type: 'string', description: 'Unique identifier', optional: true },
             name: { type: 'string', description: 'Name of the file/folder' },
-            path_display: { type: 'string', description: 'Display path' },
-            size: { type: 'number', description: 'Size in bytes (files only)' },
+            path_display: { type: 'string', description: 'Display path', optional: true },
+            size: { type: 'number', description: 'Size in bytes (files only)', optional: true },
           },
         },
       },

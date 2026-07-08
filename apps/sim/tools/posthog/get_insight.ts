@@ -1,3 +1,4 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetInsightParams {
@@ -5,6 +6,7 @@ interface PostHogGetInsightParams {
   projectId: string
   insightId: string
   region: string
+  host?: string
 }
 
 interface PostHogGetInsightResponse {
@@ -13,13 +15,11 @@ interface PostHogGetInsightResponse {
     id: number
     name: string
     description: string
-    filters: Record<string, any>
     query: Record<string, any> | null
     created_at: string
     created_by: Record<string, any> | null
     last_modified_at: string
     last_modified_by: Record<string, any> | null
-    saved: boolean
     dashboards: number[]
     tags: string[]
     favorited: boolean
@@ -30,8 +30,9 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
   id: 'posthog_get_insight',
   name: 'PostHog Get Insight',
   description:
-    'Get a specific insight by ID from PostHog. Returns detailed insight configuration, filters, and metadata.',
+    'Get a specific insight by ID from PostHog. Returns detailed insight configuration and metadata.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -59,11 +60,18 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
       description: 'PostHog cloud region: "us" or "eu" (default: "us")',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/insights/${params.insightId}/`
     },
     method: 'GET',
@@ -82,13 +90,11 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
         id: data.id,
         name: data.name || '',
         description: data.description || '',
-        filters: data.filters || {},
         query: data.query || null,
         created_at: data.created_at,
         created_by: data.created_by || null,
         last_modified_at: data.last_modified_at,
         last_modified_by: data.last_modified_by || null,
-        saved: data.saved || false,
         dashboards: data.dashboards || [],
         tags: data.tags || [],
         favorited: data.favorited || false,
@@ -108,10 +114,6 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
     description: {
       type: 'string',
       description: 'Description of the insight',
-    },
-    filters: {
-      type: 'object',
-      description: 'Filter configuration for the insight',
     },
     query: {
       type: 'object',
@@ -135,10 +137,6 @@ export const getInsightTool: ToolConfig<PostHogGetInsightParams, PostHogGetInsig
       type: 'object',
       description: 'User who last modified the insight',
       optional: true,
-    },
-    saved: {
-      type: 'boolean',
-      description: 'Whether the insight is saved',
     },
     dashboards: {
       type: 'array',

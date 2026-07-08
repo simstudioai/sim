@@ -21,7 +21,6 @@ vi.mock('@/blocks/types', () => ({
 }))
 
 vi.mock('@/executor/constants', () => ({
-  CREDENTIAL_SET: { PREFIX: 'cred_set_' },
   isUuid: (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
 }))
 
@@ -34,10 +33,6 @@ vi.mock('@/blocks/registry', () => ({
 
 vi.mock('@/lib/workflows/subblocks/context', () => ({
   buildSelectorContextFromBlock: vi.fn(() => ({})),
-}))
-
-vi.mock('@/hooks/queries/utils/fetch-credential-set', () => ({
-  fetchCredentialSetById: vi.fn(),
 }))
 
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({

@@ -6,7 +6,7 @@ export const createMattersHoldsTool: ToolConfig<GoogleVaultCreateMattersHoldsPar
   id: 'google_vault_create_matters_holds',
   name: 'Vault Create Hold',
   description: 'Create a hold in a matter',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,

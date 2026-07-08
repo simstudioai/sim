@@ -961,8 +961,16 @@ export interface ClosePRParams extends BaseGitHubParams {
 // Request reviewers parameters
 export interface RequestReviewersParams extends BaseGitHubParams {
   pullNumber: number
-  reviewers: string
+  reviewers?: string
   team_reviewers?: string
+}
+
+// Create PR review parameters
+export interface CreatePRReviewParams extends BaseGitHubParams {
+  pullNumber: number
+  event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'
+  body?: string
+  commit_id?: string
 }
 
 // Response metadata interfaces
@@ -1587,8 +1595,71 @@ export interface RerunWorkflowResponse extends ToolResponse {
   }
 }
 
+// Get latest release parameters
+export type GetLatestReleaseParams = BaseGitHubParams
+
+// List tags parameters
+export interface ListTagsParams extends BaseGitHubParams {
+  per_page?: number
+  page?: number
+}
+
+// Get README parameters
+export interface GetReadmeParams extends BaseGitHubParams {
+  ref?: string
+}
+
+// Create PR review response
+export interface PRReviewResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      id: number
+      state: string
+      body: string
+      html_url: string
+      commit_id: string
+    }
+  }
+}
+
+// List tags response
+export interface TagsListResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      total_count: number
+      tags: Array<{
+        name: string
+        commit_sha: string
+        zipball_url: string
+        tarball_url: string
+      }>
+    }
+  }
+}
+
+// Get README response
+export interface ReadmeResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      name: string
+      path: string
+      sha: string
+      size: number
+      html_url: string
+      download_url: string
+    }
+  }
+}
+
 export type GitHubResponse =
   | PullRequestResponse
+  | PRReviewResponse
+  | TagsListResponse
+  | ReadmeResponse
+  | ReleaseResponse
   | CreateCommentResponse
   | LatestCommitResponse
   | RepoInfoResponse

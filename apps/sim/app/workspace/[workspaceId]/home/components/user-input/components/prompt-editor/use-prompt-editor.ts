@@ -179,6 +179,15 @@ export function usePromptEditor({
   const slashRangeRef = useRef<{ start: number; end: number } | null>(null)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
 
+  /**
+   * Start offset of a mention/slash token most recently dismissed by the user
+   * (outside click or Escape) without a following keystroke — suppresses a
+   * single reopen of the menu for that exact token when the caret's own
+   * selection-change handler runs immediately after.
+   */
+  const dismissedMentionStartRef = useRef<number | null>(null)
+  const dismissedSlashStartRef = useRef<number | null>(null)
+
   const contextManagement = useContextManagement({ message: value, initialContexts })
   const contextManagementRef = useRef(contextManagement)
   contextManagementRef.current = contextManagement
@@ -327,9 +336,11 @@ export function usePromptEditor({
     plusMenuRef.current?.close()
     mentionRangeRef.current = null
     setMentionQuery(null)
+    dismissedMentionStartRef.current = null
     skillsMenuRef.current?.close()
     slashRangeRef.current = null
     setSlashQuery(null)
+    dismissedSlashStartRef.current = null
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -368,6 +379,7 @@ export function usePromptEditor({
         atInsertPosRef.current = newPos
         mentionRangeRef.current = null
         setMentionQuery(null)
+        dismissedMentionStartRef.current = null
         setValueState(newValue)
       }
 
@@ -423,6 +435,7 @@ export function usePromptEditor({
         valueRef.current = newValue
         slashRangeRef.current = null
         setSlashQuery(null)
+        dismissedSlashStartRef.current = null
         setValueState(newValue)
       }
 
@@ -431,12 +444,24 @@ export function usePromptEditor({
     [textareaRef, addContextNotified]
   )
 
+  /**
+   * Only reachable via Radix's own dismiss detection (outside click /
+   * Escape) — programmatic closes (`skillsMenuRef.current?.close()`) bypass
+   * `onOpenChange` and never call this.
+   */
   const handleSkillsMenuClose = useCallback(() => {
+    dismissedSlashStartRef.current = slashRangeRef.current?.start ?? null
     slashRangeRef.current = null
     setSlashQuery(null)
   }, [])
 
+  /**
+   * Only reachable via Radix's own dismiss detection (outside click /
+   * Escape) — programmatic closes (`plusMenuRef.current?.close()`) bypass
+   * `onOpenChange` and never call this.
+   */
   const handlePlusMenuClose = useCallback(() => {
+    dismissedMentionStartRef.current = mentionRangeRef.current?.start ?? null
     atInsertPosRef.current = null
     mentionRangeRef.current = null
     setMentionQuery(null)
@@ -462,6 +487,15 @@ export function usePromptEditor({
           mentionRangeRef.current = null
           setMentionQuery(null)
           plusMenuRef.current?.close()
+        }
+        dismissedMentionStartRef.current = null
+        return
+      }
+
+      if (active.start === dismissedMentionStartRef.current) {
+        if (mentionRangeRef.current !== null) {
+          mentionRangeRef.current = null
+          setMentionQuery(null)
         }
         return
       }
@@ -490,6 +524,15 @@ export function usePromptEditor({
           slashRangeRef.current = null
           setSlashQuery(null)
           skillsMenuRef.current?.close()
+        }
+        dismissedSlashStartRef.current = null
+        return
+      }
+
+      if (active.start === dismissedSlashStartRef.current) {
+        if (slashRangeRef.current !== null) {
+          slashRangeRef.current = null
+          setSlashQuery(null)
         }
         return
       }
@@ -530,6 +573,7 @@ export function usePromptEditor({
     setValueState(newValue)
     textarea.value = newValue
     textarea.setSelectionRange(newCaret, newCaret)
+    dismissedSlashStartRef.current = null
     syncSlashState(textarea, newValue, newCaret)
   }, [textareaRef, syncSlashState])
 
@@ -584,6 +628,8 @@ export function usePromptEditor({
       const caret = e.target.selectionStart ?? finalValue.length
       valueRef.current = finalValue
       setValueState(finalValue)
+      dismissedMentionStartRef.current = null
+      dismissedSlashStartRef.current = null
       syncMentionState(e.target, finalValue, caret)
       syncSlashState(e.target, finalValue, caret)
     },

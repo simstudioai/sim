@@ -380,6 +380,15 @@
   pointer-events: none;
 }
 
+/*
+ * prosemirror-tables' column-resizing plugin toggles the `resize-cursor` class on the editor root
+ * while the pointer is over a column boundary; without this rule the handle shows but the cursor
+ * never changes to the resize affordance.
+ */
+.rich-markdown-prose.resize-cursor {
+  cursor: col-resize;
+}
+
 .rich-markdown-prose p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--text-subtle);

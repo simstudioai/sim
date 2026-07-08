@@ -64,6 +64,35 @@ Run a CloudWatch Log Insights query against one or more log groups
 |   ↳ `recordsScanned` | number | Total log records scanned |
 | `status` | string | Query completion status \(Complete, Failed, Cancelled, or Timeout\) |
 
+### `cloudwatch_filter_log_events`
+
+Search log events across all streams in a log group by filter pattern and time range, without writing a Log Insights query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `logGroupName` | string | Yes | CloudWatch log group name to search |
+| `filterPattern` | string | No | CloudWatch Logs filter pattern \(e.g., "ERROR", "?ERROR ?Exception"\). Matches all events if omitted. |
+| `logStreamNamePrefix` | string | No | Only search log streams whose name starts with this prefix |
+| `startTime` | number | No | Start time as Unix epoch seconds |
+| `endTime` | number | No | End time as Unix epoch seconds |
+| `startFromHead` | boolean | No | Return the earliest matching events first instead of the latest |
+| `limit` | number | No | Maximum number of events to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Matching log events across all searched streams, sorted by timestamp |
+|   ↳ `logStreamName` | string | Log stream the event belongs to |
+|   ↳ `timestamp` | number | Event timestamp in epoch milliseconds |
+|   ↳ `message` | string | Log event message |
+|   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
+
 ### `cloudwatch_describe_log_groups`
 
 List available CloudWatch log groups
@@ -140,6 +169,28 @@ List log streams within a CloudWatch log group
 |   ↳ `firstEventTimestamp` | number | Timestamp of the first log event in epoch milliseconds |
 |   ↳ `creationTime` | number | Stream creation time in epoch milliseconds |
 |   ↳ `storedBytes` | number | Total stored bytes |
+
+### `cloudwatch_put_log_group_retention`
+
+Set (or clear, for never-expire) the retention period for a CloudWatch log group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `logGroupName` | string | Yes | CloudWatch log group name |
+| `retentionInDays` | number | No | Days to retain log events \(one of 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653\). Omit to make events never expire. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the retention policy was updated |
+| `logGroupName` | string | Log group the policy applies to |
+| `retentionInDays` | number | Retention period in days, or null if events never expire |
 
 ### `cloudwatch_list_metrics`
 
@@ -256,6 +307,35 @@ List and filter CloudWatch alarms
 |   ↳ `namespace` | string | Metric namespace \(MetricAlarm only\) |
 |   ↳ `threshold` | number | Threshold value \(MetricAlarm only\) |
 |   ↳ `stateUpdatedTimestamp` | number | Epoch ms when state last changed |
+
+### `cloudwatch_describe_alarm_history`
+
+Retrieve state-change and configuration history for CloudWatch alarms
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `alarmName` | string | No | Name of a specific alarm to retrieve history for. Omit for all alarms. |
+| `historyItemType` | string | No | Filter by history item type \(ConfigurationUpdate, StateUpdate, Action, AlarmContributorStateUpdate, AlarmContributorAction\) |
+| `startDate` | number | No | Start of the history window as Unix epoch seconds |
+| `endDate` | number | No | End of the history window as Unix epoch seconds |
+| `scanBy` | string | No | Sort order: TimestampDescending \(newest first\) or TimestampAscending |
+| `limit` | number | No | Maximum number of history records to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alarmHistoryItems` | array | Alarm history items sorted per scanBy, newest first by default |
+|   ↳ `alarmName` | string | Name of the alarm this history item belongs to |
+|   ↳ `alarmType` | string | MetricAlarm or CompositeAlarm |
+|   ↳ `timestamp` | number | Epoch ms when the history item occurred |
+|   ↳ `historyItemType` | string | ConfigurationUpdate, StateUpdate, Action, or contributor variants |
+|   ↳ `historySummary` | string | Human-readable summary of the event |
 
 ### `cloudwatch_mute_alarm`
 

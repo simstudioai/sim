@@ -120,7 +120,7 @@ export interface GoogleCalendarCreateCalendarParams {
   timeZone?: string
 }
 
-type GoogleCalendarAclRole = 'freeBusyReader' | 'reader' | 'writer' | 'owner'
+export type GoogleCalendarAclRole = 'freeBusyReader' | 'reader' | 'writer' | 'owner'
 type GoogleCalendarAclScopeType = 'user' | 'group' | 'domain' | 'default'
 
 export interface GoogleCalendarShareCalendarParams {

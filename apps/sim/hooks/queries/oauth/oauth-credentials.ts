@@ -2,8 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { listOAuthCredentialsContract } from '@/lib/api/contracts'
 import type { Credential } from '@/lib/oauth'
-import { CREDENTIAL_SET } from '@/executor/constants'
-import { useCredentialSetDetail } from '@/hooks/queries/credential-sets'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 
 export const OAUTH_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
@@ -128,22 +126,10 @@ export function useCredentialName(
   workflowId?: string,
   workspaceId?: string
 ) {
-  // Check if this is a credential set value
-  const isCredentialSet = credentialId?.startsWith(CREDENTIAL_SET.PREFIX) ?? false
-  const credentialSetId = isCredentialSet
-    ? credentialId?.slice(CREDENTIAL_SET.PREFIX.length)
-    : undefined
-
-  // Fetch credential set by ID directly
-  const { data: credentialSetData, isFetching: credentialSetLoading } = useCredentialSetDetail(
-    credentialSetId,
-    isCredentialSet
-  )
-
   const { data: credentials = [], isFetching: credentialsLoading } = useOAuthCredentials(
     providerId,
     {
-      enabled: Boolean(providerId) && !isCredentialSet,
+      enabled: Boolean(providerId),
       workspaceId,
       workflowId,
     }
@@ -151,9 +137,7 @@ export function useCredentialName(
 
   const selectedCredential = credentials.find((cred) => cred.id === credentialId)
 
-  const shouldFetchDetail = Boolean(
-    credentialId && !selectedCredential && providerId && workflowId && !isCredentialSet
-  )
+  const shouldFetchDetail = Boolean(credentialId && !selectedCredential && providerId && workflowId)
 
   const { data: foreignCredentials = [], isFetching: foreignLoading } = useOAuthCredentialDetail(
     shouldFetchDetail ? credentialId : undefined,
@@ -163,25 +147,17 @@ export function useCredentialName(
 
   // Fallback for credential blocks that have no serviceId/providerId — look up by ID directly
   const { data: workspaceCredential, isFetching: workspaceCredentialLoading } =
-    useWorkspaceCredential(!providerId && !isCredentialSet ? credentialId : undefined)
+    useWorkspaceCredential(!providerId ? credentialId : undefined)
 
   const detailCredential = foreignCredentials[0]
   const hasForeignMeta = foreignCredentials.length > 0
 
   const displayName =
-    credentialSetData?.name ??
-    selectedCredential?.name ??
-    detailCredential?.name ??
-    workspaceCredential?.displayName ??
-    null
+    selectedCredential?.name ?? detailCredential?.name ?? workspaceCredential?.displayName ?? null
 
   return {
     displayName,
-    isLoading:
-      credentialsLoading ||
-      foreignLoading ||
-      workspaceCredentialLoading ||
-      (isCredentialSet && credentialSetLoading && !credentialSetData),
+    isLoading: credentialsLoading || foreignLoading || workspaceCredentialLoading,
     hasForeignMeta,
   }
 }

@@ -9,7 +9,7 @@ import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 export const CUSTOM_BLOCK_TYPE_PREFIX = 'custom_block_'
 
 /** Whether a block type is a published custom block. */
-export function isCustomBlockType(type: string | undefined | null): boolean {
+export function isCustomBlockType(type: string | undefined | null): type is string {
   return typeof type === 'string' && type.startsWith(CUSTOM_BLOCK_TYPE_PREFIX)
 }
 
@@ -21,6 +21,18 @@ export interface CustomBlockOutput {
   blockId: string
   path: string
   name: string
+}
+
+/**
+ * A curated input the admin chose to expose on the block, keyed by the source
+ * Start field's stable `id`, with optional consumer-facing hints.
+ */
+export interface CustomBlockInput {
+  id: string
+  name: string
+  type: string
+  placeholder?: string
+  description?: string
 }
 
 /**
@@ -38,9 +50,16 @@ export interface CustomBlockRow {
 
 /**
  * Params that carry the block's own wiring rather than a mapped Start input.
- * Everything else on the block is collected into the child `inputMapping`.
+ * Everything else on the block is collected into the child `inputMapping`. Shared
+ * with the serializer so "does this custom block declare input sub-blocks?" reads
+ * from one source instead of re-listing the structural ids.
  */
-const RESERVED_PARAMS = new Set(['workflowId', 'inputMapping', 'triggerMode', 'advancedMode'])
+export const RESERVED_PARAMS = new Set([
+  'workflowId',
+  'inputMapping',
+  'triggerMode',
+  'advancedMode',
+])
 
 /** Map a Start input field type to the editor sub-block type used to collect it. */
 function subBlockTypeForField(fieldType: string): SubBlockType {
@@ -79,7 +98,7 @@ function subBlockTypeForField(fieldType: string): SubBlockType {
 export function buildCustomBlockConfig(
   row: CustomBlockRow,
   inputFields: WorkflowInputField[],
-  opts: { icon: BlockIcon; bgColor?: string }
+  opts: { icon: BlockIcon; bgColor?: string; hideFromToolbar?: boolean }
 ): BlockConfig {
   const fieldSubBlocks: SubBlockConfig[] = inputFields.map((field) => {
     const type = subBlockTypeForField(field.type)
@@ -88,6 +107,7 @@ export function buildCustomBlockConfig(
       title: field.name,
       type,
       description: field.description,
+      placeholder: field.placeholder,
     }
     if (field.type === 'object' || field.type === 'array') sub.language = 'json'
     if (field.type === 'file[]') sub.multiple = true
@@ -105,6 +125,11 @@ export function buildCustomBlockConfig(
       'workflow is baked in — no workflow id or input mapping to configure.',
     bgColor: opts.bgColor ?? CUSTOM_BLOCK_TILE_COLOR,
     icon: opts.icon,
+    // A disabled block stays resolvable (so a still-placed instance survives
+    // serialization and fails loudly at run via `getCustomBlockAuthority`, instead
+    // of silently vanishing from the graph) but is hidden from the palette so no
+    // new instance can be placed.
+    hideFromToolbar: opts.hideFromToolbar,
     subBlocks: [
       {
         id: 'workflowId',

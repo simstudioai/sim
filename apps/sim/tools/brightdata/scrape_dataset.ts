@@ -41,14 +41,21 @@ export const brightDataScrapeDatasetTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Output format: "json" or "csv". Defaults to "json"',
     },
+    includeErrors: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to include a per-input error report in the results',
+    },
   },
 
   request: {
     method: 'POST',
     url: (params) => {
       const queryParams = new URLSearchParams()
-      queryParams.set('dataset_id', params.datasetId)
+      queryParams.set('dataset_id', params.datasetId.trim())
       queryParams.set('format', params.format || 'json')
+      if (params.includeErrors) queryParams.set('include_errors', 'true')
       return `https://api.brightdata.com/datasets/v3/trigger?${queryParams.toString()}`
     },
     headers: (params) => ({

@@ -136,15 +136,6 @@ export function rewriteEnvRefsInText(
 }
 
 /**
- * A `credentialSet:<id>` reference points at an ORG-scoped credential set. A fork
- * inherits its parent's org, so the set is already valid in the target — these refs
- * are preserved verbatim and never treated as a workspace credential to remap/flag.
- */
-function isCredentialSetRef(value: string): boolean {
-  return value.startsWith('credentialSet:')
-}
-
-/**
  * Resolves a source-workspace resource id (or env key, for `env-var`) to its
  * mapped target id. Returns the target id (which may equal the source for env
  * keys that exist under the same name), or null/undefined when there is no
@@ -419,7 +410,6 @@ export function remapToolBlockResources(
     if (gates.isDormantMember(paramId)) continue
     const currentValue = params[paramId]
     if (typeof currentValue !== 'string' || !currentValue) continue
-    if (overrideKind === 'credential' && isCredentialSetRef(currentValue)) continue
     const target = opts.resolve(overrideKind, currentValue)
     opts.record?.(overrideKind, currentValue, target != null)
     if (target != null) {
@@ -514,7 +504,6 @@ export function remapToolBlockResources(
       for (const ref of refs) {
         if (seen.has(ref.rawValue)) continue
         seen.add(ref.rawValue)
-        if (forkKind === 'credential' && isCredentialSetRef(ref.rawValue)) continue
         // A canonical param key is also the advanced (manual) member's write target, so it can
         // hold user-owned references (`<start.x>` / `{{ENV}}`). Those are never workspace ids:
         // keep them verbatim (the manual escape hatch), don't record or clear them.
@@ -825,7 +814,6 @@ export function remapForkSubBlocks(
       for (const ref of parsed) {
         if (seen.has(ref.rawValue)) continue
         seen.add(ref.rawValue)
-        if (forkKind === 'credential' && isCredentialSetRef(ref.rawValue)) continue
         const required = REQUIRED_KINDS.has(forkKind)
         const reference: ForkReference = {
           kind: forkKind,

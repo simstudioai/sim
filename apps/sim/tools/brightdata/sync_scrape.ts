@@ -53,7 +53,7 @@ export const brightDataSyncScrapeTool: ToolConfig<
     method: 'POST',
     url: (params) => {
       const queryParams = new URLSearchParams()
-      queryParams.set('dataset_id', params.datasetId)
+      queryParams.set('dataset_id', params.datasetId.trim())
       queryParams.set('format', params.format || 'json')
       if (params.includeErrors) queryParams.set('include_errors', 'true')
       return `https://api.brightdata.com/datasets/v3/scrape?${queryParams.toString()}`
