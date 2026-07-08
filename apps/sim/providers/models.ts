@@ -1863,7 +1863,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 2 },
         },
         contextWindow: 500000,
-        releaseDate: '2026-07-09',
+        releaseDate: '2026-07-08',
         recommended: true,
       },
       {
