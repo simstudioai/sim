@@ -116,6 +116,24 @@ describe('ashbyHandler', () => {
         application: { id: 'app-1', status: 'Active' },
       })
     })
+
+    it('renames currentInterviewStage.type to stageType, matching the trigger output schema', async () => {
+      const result = await ashbyHandler.formatInput!({
+        body: {
+          action: 'candidateStageChange',
+          data: {
+            application: {
+              id: 'app-1',
+              currentInterviewStage: { id: 'stage-1', title: 'Offer', type: 'Offer' },
+            },
+          },
+        },
+      } as any)
+      expect(result.input.application).toEqual({
+        id: 'app-1',
+        currentInterviewStage: { id: 'stage-1', title: 'Offer', stageType: 'Offer' },
+      })
+    })
   })
 
   describe('extractIdempotencyId', () => {

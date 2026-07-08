@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -65,9 +66,26 @@ export const ashbyHandler: WebhookProviderHandler = {
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
+    const data = (b.data as Record<string, unknown>) || {}
+    const application = data.application as Record<string, unknown> | undefined
+    const currentInterviewStage = application?.currentInterviewStage as
+      | Record<string, unknown>
+      | undefined
+
     return {
       input: {
-        ...((b.data as Record<string, unknown>) || {}),
+        ...data,
+        ...(application && currentInterviewStage
+          ? {
+              application: {
+                ...application,
+                currentInterviewStage: {
+                  ...omit(currentInterviewStage, ['type']),
+                  stageType: currentInterviewStage.type,
+                },
+              },
+            }
+          : {}),
         action: b.action,
       },
     }
