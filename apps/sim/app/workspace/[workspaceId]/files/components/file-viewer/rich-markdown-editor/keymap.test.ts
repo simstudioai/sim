@@ -228,3 +228,32 @@ describe('empty list-item Enter', () => {
     editor.destroy()
   })
 })
+
+describe('verbatim block boundary (isolating)', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  function caretIntoNode(editor: Editor, nodeType: string): void {
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === nodeType) editor.commands.setTextSelection(pos + 1)
+    })
+  }
+
+  it.each([
+    ['footnote definition', 'body text[^x]\n\n[^x]: the note', 'footnoteDef'],
+    ['raw HTML block', 'body\n\n<div>\nhello\n</div>', 'rawHtmlBlock'],
+  ])(
+    'Backspace at the start of a %s does not merge across its boundary and destroy it',
+    (_label, markdown, nodeType) => {
+      const editor = editorWith('')
+      editor.commands.setContent(markdown, { contentType: 'markdown' })
+      editor.commands.focus()
+      expect(blockShape(editor)).toContain(nodeType)
+      caretIntoNode(editor, nodeType)
+      pressBackspace(editor)
+      expect(blockShape(editor)).toContain(nodeType)
+      editor.destroy()
+    }
+  )
+})
