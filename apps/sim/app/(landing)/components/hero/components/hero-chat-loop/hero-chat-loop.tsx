@@ -75,18 +75,39 @@ export function HeroChatLoop({ phase, fading }: HeroChatLoopProps) {
       setRevealedWords(0)
       return
     }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setRevealedWords(REPLY_WORDS.length)
-      return
+
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let interval: ReturnType<typeof setInterval> | null = null
+
+    const stream = () => {
+      const startedAt = performance.now()
+      interval = setInterval(() => {
+        const elapsed = performance.now() - startedAt
+        const n = Math.min(Math.floor(elapsed / STREAM_WORD_MS) + 1, REPLY_WORDS.length)
+        setRevealedWords(n)
+        if (n >= REPLY_WORDS.length && interval) clearInterval(interval)
+      }, STREAM_WORD_MS)
     }
-    const startedAt = performance.now()
-    const interval = setInterval(() => {
-      const elapsed = performance.now() - startedAt
-      const n = Math.min(Math.floor(elapsed / STREAM_WORD_MS) + 1, REPLY_WORDS.length)
-      setRevealedWords(n)
-      if (n >= REPLY_WORDS.length) clearInterval(interval)
-    }, STREAM_WORD_MS)
-    return () => clearInterval(interval)
+
+    // Re-synced on 'change' (not just on mount) so toggling the preference
+    // mid-stream - e.g. HeroPlatformLoop's showFinished setting phase to
+    // 'reply' while it's already 'reply' - still snaps the reply to complete
+    // instead of leaving it mid-word until the running interval catches up.
+    const syncMotionPreference = () => {
+      if (interval) clearInterval(interval)
+      if (media.matches) {
+        setRevealedWords(REPLY_WORDS.length)
+        return
+      }
+      stream()
+    }
+
+    syncMotionPreference()
+    media.addEventListener('change', syncMotionPreference)
+    return () => {
+      media.removeEventListener('change', syncMotionPreference)
+      if (interval) clearInterval(interval)
+    }
   }, [showReply])
 
   const replyComplete = revealedWords >= REPLY_WORDS.length
