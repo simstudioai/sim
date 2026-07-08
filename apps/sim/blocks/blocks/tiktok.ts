@@ -379,7 +379,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
     config: {
       tool: (params) => params.operation || 'tiktok_get_user',
       params: (params) => {
-        const credential = params.oauthCredential
         const operation = params.operation || 'tiktok_get_user'
         const toBoolean = (value: unknown): boolean | undefined =>
           value === undefined || value === '' ? undefined : String(value).toLowerCase() === 'true'
@@ -387,29 +386,25 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
         switch (operation) {
           case 'tiktok_get_user':
             return {
-              credential,
               ...(params.fields && { fields: params.fields }),
             }
           case 'tiktok_list_videos':
             return {
-              credential,
               ...(params.maxCount && { maxCount: Number(params.maxCount) }),
               ...(params.cursor && { cursor: Number(params.cursor) }),
             }
           case 'tiktok_query_videos':
             return {
-              credential,
               videoIds: (params.videoIds || '')
                 .split(',')
                 .map((id: string) => id.trim())
                 .filter(Boolean),
             }
           case 'tiktok_query_creator_info':
-            return { credential }
+            return {}
           case 'tiktok_direct_post_video': {
             const file = normalizeFileInput(params.file, { single: true })
             return {
-              credential,
               source: params.videoSource || 'PULL_FROM_URL',
               videoUrl: params.videoUrl,
               file,
@@ -429,7 +424,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
           case 'tiktok_upload_video_draft': {
             const file = normalizeFileInput(params.file, { single: true })
             return {
-              credential,
               source: params.videoSource || 'PULL_FROM_URL',
               videoUrl: params.videoUrl,
               file,
@@ -437,7 +431,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
           }
           case 'tiktok_direct_post_photo':
             return {
-              credential,
               photoImages: (params.photoImages || '')
                 .split('\n')
                 .map((url: string) => url.trim())
@@ -453,7 +446,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
             }
           case 'tiktok_upload_photo_draft':
             return {
-              credential,
               photoImages: (params.photoImages || '')
                 .split('\n')
                 .map((url: string) => url.trim())
@@ -464,11 +456,10 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
             }
           case 'tiktok_get_post_status':
             return {
-              credential,
               publishId: params.publishId,
             }
           default:
-            return { credential }
+            return {}
         }
       },
     },
