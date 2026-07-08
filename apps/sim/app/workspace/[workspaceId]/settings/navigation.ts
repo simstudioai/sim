@@ -293,6 +293,7 @@ export const allNavigationItems: NavigationItem[] = [
     requiresEnterprise: true,
     allowNonOrgAdmin: true,
     selfHostedOverride: isCustomBlocksEnabled,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/custom-blocks',
   },
   {
     id: 'admin',
