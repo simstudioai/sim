@@ -1,0 +1,40 @@
+/*
+ * Line-draw reveal for the loader marks: each path is dash-normalized to its
+ * full length (pathLength=1 on the path + dasharray 1), hidden by a full
+ * dashoffset, then drawn to 0 when the row scrolls into view (.drawn),
+ * staggered left to right. Reduced-motion renders every mark fully drawn.
+ */
+.row path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.drawn svg:nth-child(1) path {
+  animation: draw 1600ms cubic-bezier(0.33, 1, 0.68, 1) 0ms forwards;
+}
+
+.drawn svg:nth-child(2) path {
+  animation: draw 1600ms cubic-bezier(0.33, 1, 0.68, 1) 450ms forwards;
+}
+
+.drawn svg:nth-child(3) path {
+  animation: draw 1600ms cubic-bezier(0.33, 1, 0.68, 1) 900ms forwards;
+}
+
+.drawn svg:nth-child(4) path {
+  animation: draw 1600ms cubic-bezier(0.33, 1, 0.68, 1) 1350ms forwards;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row path {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+    animation: none !important;
+  }
+}

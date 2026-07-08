@@ -20,6 +20,7 @@ export type {
   PlatformPillCta,
 } from './platform-page'
 export { PlatformPage } from './platform-page'
+export { ProductDemo } from './product-demo'
 export { SiteStructuredData } from './site-structured-data'
 export type {
   SolutionsCardConfig,

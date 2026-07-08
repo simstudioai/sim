@@ -103,7 +103,7 @@ export default async function BlogIndex({
         <JsonLd data={collectionJsonLd} />
 
         {/* Section header */}
-        <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
           <div className='flex flex-col gap-4 md:flex-row md:items-end md:justify-between'>
             <h1 className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'>
               Latest from Sim
@@ -118,7 +118,7 @@ export default async function BlogIndex({
         <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
         {/* Content area with vertical border rails */}
-        <div className='mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'>
+        <div className='mx-auto w-full max-w-[1460px] px-20 max-sm:px-5 max-lg:px-8'>
           <div className='border-[var(--border)] border-x'>
             {/* Featured posts */}
             {featured.length > 0 && (
