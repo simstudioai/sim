@@ -28,7 +28,7 @@ export function Cta() {
         Build your first agent today.
       </h2>
       <div className='flex items-center gap-1'>
-        <ChipLink variant='primary' href='/signup'>
+        <ChipLink variant='primary' href='/signup' prefetch={false}>
           Get started
         </ChipLink>
         <ChipLink href='/demo' className='border border-[var(--border-1)]'>

@@ -59,12 +59,12 @@ const CHROME_INTERIOR = { width: 1024, height: 721 } as const
  * chat|stage divider is covered by this region, so the divider users see is
  * the live `border-l`, appearing exactly as it does in the product.
  *
- * The chat pane stays `pointer-events-none` (decorative); the workflow pane is
- * interactive - blocks are draggable. Remounting the stage per cycle
- * (`key={cycleId}`) resets dragged positions and build state.
+ * Both panes stay `pointer-events-none` (decorative, matching the hero's
+ * `aria-hidden` frame) - blocks are static. Remounting the stage per cycle
+ * (`key={cycleId}`) resets build state.
  *
  * Under `prefers-reduced-motion` the loop never starts: the finished exchange,
- * open stage, and fully-built workflow render statically (still draggable).
+ * open stage, and fully-built workflow render statically.
  */
 export function HeroPlatformLoop() {
   const regionRef = useRef<HTMLDivElement>(null)

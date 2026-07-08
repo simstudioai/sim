@@ -40,9 +40,9 @@ import { TrustedBy } from '@/app/(landing)/components/trusted-by'
  * SIDEBAR
  * remains visible from the shot: the {@link HeroPlatformLoop} island overlays
  * the container interior (full-width chat that stages the workflow pane in,
- * replaying the conversation with the goo ThinkingLoader; blocks stay
- * draggable), inset a hair INSIDE the shot's own baked outlines so the visible
- * chrome is the real UI's pixels - never re-drawn.
+ * replaying the conversation with the goo ThinkingLoader), inset a hair INSIDE
+ * the shot's own baked outlines so the visible chrome is the real UI's pixels
+ * - never re-drawn.
  * The frame is `1300/720` and the window `1080/620` at `83.08%` width, centered
  * - matching cursor.com's hero media proportions, with backdrop showing on all
  * four sides. Decorative, `aria-hidden`; the `--surface-3` fill remains as the

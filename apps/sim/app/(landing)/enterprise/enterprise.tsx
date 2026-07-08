@@ -176,7 +176,7 @@ export default function EnterprisePage() {
             Build enterprise AI agents in Sim
           </h2>
           <div className='flex items-center gap-3'>
-            <ChipLink variant='primary' href='/signup'>
+            <ChipLink variant='primary' href='/signup' prefetch={false}>
               Get started
             </ChipLink>
             <ChipLink href='/demo' className='border border-[var(--border-1)]'>
