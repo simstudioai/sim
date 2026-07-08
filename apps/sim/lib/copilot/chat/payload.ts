@@ -305,7 +305,8 @@ export async function buildCopilotRequestPayload(
           f.key,
           filename,
           mediaType,
-          f.size
+          f.size,
+          userMessageId
         )
         // Encode the read path per the percent-encoded VFS convention (matches
         // files/ and the uploads glob output). The materialize_file `fileName`

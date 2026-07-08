@@ -1,13 +1,24 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { checkStorageQuota } from '@/lib/billing/storage'
+import {
+  executeChatFileBlobCopies,
+  filterForkableChatFiles,
+  listForkableChatFiles,
+  planChatFileCopies,
+} from '@/lib/copilot/chat/fork-chat-files'
 import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
+import {
+  rewriteMessageFileRefs,
+  rewriteResourceFileRefs,
+} from '@/lib/copilot/chat/rewrite-file-references'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
@@ -18,6 +29,7 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { removeChatResources } from '@/lib/copilot/resources/persistence'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
@@ -33,7 +45,16 @@ const logger = createLogger('ForkChatAPI')
 /**
  * POST /api/mothership/chats/[chatId]/fork
  * Creates a new chat branched from the given chat, keeping messages up to and
- * including the specified message. Resources and copilot-side state are copied.
+ * including the specified message, along with the chat's uploads born
+ * at-or-before the fork point (a file travels iff the user message that
+ * carried it is kept). Resources and copilot-side state are copied.
+ *
+ * Every copied file gets a fresh row id and storage key, bytes are physically
+ * copied and counted against the storage quota, and every in-transcript file
+ * reference is re-pointed at the copies so the new chat survives deletion of
+ * the source chat. File resources whose chat-owned file was NOT copied
+ * (uploads born after the cut) are dropped from the new chat's resources
+ * rather than left as ghosts pointing at the source chat's files.
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
@@ -82,17 +103,49 @@ export const POST = withRouteHandler(
       }
       const forkedMessages = messages.slice(0, forkIdx + 1)
 
-      // Resources are stored as a jsonb array on the chat row — copy them directly.
+      // Single workspace_files read per fork: every chat-owned upload. The
+      // copied set is timeline-cut to the kept message slice in memory (files
+      // born after the fork point stay behind).
+      const chatOwnedFiles = await listForkableChatFiles(db, chatId)
+      const sourceFiles = filterForkableChatFiles(
+        chatOwnedFiles,
+        new Set(forkedMessages.map((m) => m.id))
+      )
+      // Sum only rows the plan will actually copy — planChatFileCopies skips
+      // rows with no workspaceId, so counting their bytes could reject a fork
+      // whose real copies fit within quota.
+      const totalFileBytes = sourceFiles.reduce(
+        (sum, row) => (row.workspaceId ? sum + row.size : sum),
+        0
+      )
+      if (totalFileBytes > 0) {
+        const quotaCheck = await checkStorageQuota(userId, totalFileBytes)
+        if (!quotaCheck.allowed) {
+          return createBadRequestResponse(quotaCheck.error || 'Storage limit exceeded')
+        }
+      }
+
+      // Resources are stored as a jsonb array on the chat row. They carry no
+      // timestamps, so they can't be timeline-cut like messages — instead,
+      // file resources whose chat-owned file is NOT copied (uploads born
+      // after the cut) are dropped in the rewrite below; everything else is
+      // copied.
       const parentResources = Array.isArray(parent.resources)
         ? (parent.resources as MothershipResource[])
         : []
 
+      // The source chat's chat-owned file ids (no cut) — the "is this
+      // resource a ghost?" test set for the rewrite.
+      const chatOwnedFileIds = new Set(chatOwnedFiles.map((row) => row.id))
+
       const newId = generateId()
+      // Strip a leading "Fork | " so titles don't stack prefixes when forking
+      // a forked chat.
       const baseTitle = (parent.title ?? 'New chat').replace(/^Fork \| /, '')
       const title = `Fork | ${baseTitle}`
       const now = new Date()
 
-      const newChat = await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(copilotChats)
           .values({
@@ -114,12 +167,71 @@ export const POST = withRouteHandler(
 
         if (!row) return null
 
-        await appendCopilotChatMessages(newId, forkedMessages, { chatModel: parent.model }, tx)
-        return row
+        // File rows FK the new chat row, so the plan runs after the insert.
+        const { idMap, keyMap, blobTasks } = await planChatFileCopies({
+          tx,
+          rows: sourceFiles,
+          newChatId: newId,
+          userId,
+          now,
+        })
+
+        const maps = { fileIds: idMap, fileKeys: keyMap }
+        const newChatResources = rewriteResourceFileRefs(parentResources, maps, chatOwnedFileIds)
+        // Skip the redundant update only when the rewrite changed nothing:
+        // no ids re-pointed AND no ghost resources dropped. (idMap and keyMap
+        // are populated in lockstep, so idMap alone decides the first half.)
+        if (idMap.size > 0 || newChatResources.length !== parentResources.length) {
+          await tx
+            .update(copilotChats)
+            .set({ resources: newChatResources })
+            .where(eq(copilotChats.id, newId))
+        }
+
+        await appendCopilotChatMessages(
+          newId,
+          rewriteMessageFileRefs(forkedMessages, maps),
+          { chatModel: parent.model },
+          tx
+        )
+        return { row, blobTasks }
       })
 
-      if (!newChat) {
+      if (!result) {
         return createInternalServerErrorResponse('Failed to create forked chat')
+      }
+      const newChat = result.row
+
+      const { copied, failed, failedCopyIds } = await executeChatFileBlobCopies(result.blobTasks, {
+        userId,
+        workspaceId: parent.workspaceId ?? undefined,
+      })
+      if (failed > 0) {
+        // A failed blob copy leaves a committed row with no bytes behind it.
+        // Cleanly absent beats present-but-broken: hard-delete the dead rows
+        // (they vanish from the VFS listings and name resolution) and drop
+        // their resource chips from the new chat. Inline transcript embeds
+        // can't be healed — those 404 — which is what `failedFileCopies` in
+        // the response warns the user about.
+        try {
+          await db.delete(workspaceFiles).where(inArray(workspaceFiles.id, failedCopyIds))
+          await removeChatResources(
+            newId,
+            failedCopyIds.map((id) => ({ type: 'file' as const, id, title: '' }))
+          )
+        } catch (cleanupError) {
+          logger.error('Failed to clean up dead file rows after blob-copy failure', {
+            newChatId: newId,
+            failedCopyIds,
+            error: cleanupError,
+          })
+        }
+        logger.warn('Some chat file blobs failed to copy during fork', {
+          chatId,
+          newChatId: newId,
+          copied,
+          failed,
+        })
       }
 
       // Clone copilot-service conversation state (messages, active_messages, memory files).
@@ -168,7 +280,11 @@ export const POST = withRouteHandler(
         { groups: { workspace: parent.workspaceId ?? '' } }
       )
 
-      return NextResponse.json({ success: true, id: newId })
+      return NextResponse.json({
+        success: true,
+        id: newId,
+        ...(failed > 0 ? { failedFileCopies: failed } : {}),
+      })
     } catch (error) {
       if (isWorkspaceAccessDeniedError(error)) {
         return createForbiddenResponse('Workspace access denied')

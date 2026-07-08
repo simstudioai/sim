@@ -10,13 +10,14 @@ import {
   ChipModalHeader,
   cn,
   Duplicate,
+  Split,
   ThumbsDown,
   ThumbsUp,
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { GitBranch } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { isLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
@@ -153,6 +154,11 @@ export const MessageActions = memo(function MessageActions({
     if (!chatId || !messageId || forkChat.isPending) return
     try {
       const result = await forkChat.mutateAsync({ chatId, upToMessageId: messageId })
+      if (result.failedFileCopies) {
+        toast.warning(
+          `${result.failedFileCopies} file${result.failedFileCopies === 1 ? '' : 's'} could not be copied to the fork`
+        )
+      }
       useFolderStore.getState().clearChatSelection()
       router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
     } catch {
@@ -162,7 +168,10 @@ export const MessageActions = memo(function MessageActions({
 
   const hasContent = Boolean(content)
   const canSubmitFeedback = Boolean(chatId && userQuery)
-  const canFork = false
+  // A live (just-streamed) assistant message carries a synthetic id that the
+  // persisted transcript doesn't know — forking it would 400. The button
+  // appears once the transcript refetch swaps in the persisted message id.
+  const canFork = Boolean(chatId && messageId && !isLiveAssistantMessageId(messageId))
   if (!hasContent && !canSubmitFeedback && !canFork) return null
 
   return (
@@ -220,15 +229,15 @@ export const MessageActions = memo(function MessageActions({
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                aria-label='Fork from here'
+                aria-label='Branch in new chat'
                 onClick={handleFork}
                 disabled={forkChat.isPending}
                 className={cn(BUTTON_CLASS, forkChat.isPending && 'cursor-not-allowed opacity-50')}
               >
-                <GitBranch className={ICON_CLASS} />
+                <Split className={ICON_CLASS} />
               </button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Fork from here</Tooltip.Content>
+            <Tooltip.Content side='top'>Branch in new chat</Tooltip.Content>
           </Tooltip.Root>
         )}
       </div>
