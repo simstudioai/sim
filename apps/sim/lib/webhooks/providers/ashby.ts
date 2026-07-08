@@ -50,7 +50,8 @@ export const ashbyHandler: WebhookProviderHandler = {
 
     if (application?.id) {
       const discriminator = application.updatedAt ?? buildFallbackDeliveryFingerprint(data)
-      return `ashby:${action}:${application.id}:${discriminator}`
+      const offerSuffix = offer?.id ? `:${offer.id}` : ''
+      return `ashby:${action}:${application.id}:${discriminator}${offerSuffix}`
     }
     if (offer?.id) {
       return `ashby:${action}:${offer.id}`

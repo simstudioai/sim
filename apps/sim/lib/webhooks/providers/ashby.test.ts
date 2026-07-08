@@ -204,6 +204,25 @@ describe('ashbyHandler', () => {
       )
     })
 
+    it('distinguishes candidateHire deliveries sharing application id + updatedAt but differing in offer', () => {
+      const application = { id: 'app-1', status: 'Hired', updatedAt: '2026-01-01T00:00:00Z' }
+      const first = {
+        action: 'candidateHire',
+        data: { application, offer: { id: 'offer-1' } },
+      }
+      const second = {
+        action: 'candidateHire',
+        data: { application, offer: { id: 'offer-2' } },
+      }
+      expect(ashbyHandler.extractIdempotencyId!(first)).not.toBe(
+        ashbyHandler.extractIdempotencyId!(second)
+      )
+      // a genuine retry of `first` (identical offer too) still dedupes
+      expect(ashbyHandler.extractIdempotencyId!({ ...first })).toBe(
+        ashbyHandler.extractIdempotencyId!(first)
+      )
+    })
+
     it('returns null when no recognizable resource is present', () => {
       expect(ashbyHandler.extractIdempotencyId!({ action: 'ping', data: {} })).toBeNull()
       expect(ashbyHandler.extractIdempotencyId!({})).toBeNull()
