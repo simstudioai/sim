@@ -27,6 +27,7 @@ import {
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { getProviderIdFromServiceId, type OAuthProvider, type OAuthService } from '@/lib/oauth'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
@@ -59,7 +60,8 @@ import {
   ActiveSearchTargetProvider,
   useActiveSearchTarget,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import { getAllBlocks } from '@/blocks'
+import { getAllBlocks, getBlock } from '@/blocks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
@@ -543,6 +545,13 @@ export const ToolInput = memo(function ToolInput({
   const { data: customTools = [] } = useCustomTools(shouldFetchCustomTools ? workspaceId : '')
 
   const { mcpTools, isLoading: mcpLoading } = useMcpTools(workspaceId)
+  const mcpToolNamesById = useMemo(() => {
+    const names = new Map<string, string>()
+    for (const t of mcpTools) {
+      if (!names.has(t.id)) names.set(t.id, t.name)
+    }
+    return names
+  }, [mcpTools])
 
   const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
@@ -642,6 +651,7 @@ export const ToolInput = memo(function ToolInput({
 
   const { filterBlocks, config: permissionConfig } = usePermissionConfig()
 
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolBlocks = useMemo(() => {
     const allToolBlocks = getAllBlocks().filter(
       (block) =>
@@ -659,7 +669,7 @@ export const ToolInput = memo(function ToolInput({
         block.type !== 'file'
     )
     return filterBlocks(allToolBlocks)
-  }, [filterBlocks])
+  }, [filterBlocks, customBlockOverlayVersion])
 
   const hasBackfilledRef = useRef(false)
   useEffect(() => {
@@ -1662,9 +1672,11 @@ export const ToolInput = memo(function ToolInput({
           const isCustomTool = tool.type === 'custom-tool'
           const isMcpTool = tool.type === 'mcp'
           const isWorkflowTool = tool.type === 'workflow'
+          // Fall back to the unfiltered registry so chips for types hidden
+          // from the picker (permissions, hideFromToolbar) keep their chrome.
           const toolBlock =
             !isCustomTool && !isMcpTool
-              ? toolBlocks.find((block) => block.type === tool.type)
+              ? (toolBlocks.find((block) => block.type === tool.type) ?? getBlock(tool.type))
               : null
 
           const currentToolId =
@@ -1713,9 +1725,6 @@ export const ToolInput = memo(function ToolInput({
             ? resolveCustomToolFromReference(tool, customTools)
             : null
 
-          const customToolTitle = isCustomTool
-            ? tool.title || resolvedCustomTool?.title || 'Unknown Tool'
-            : null
           const customToolSchema = isCustomTool ? tool.schema || resolvedCustomTool?.schema : null
           const customToolParams =
             isCustomTool && customToolSchema?.function?.parameters?.properties
@@ -1746,6 +1755,11 @@ export const ToolInput = memo(function ToolInput({
                   })
                 )
               : []
+
+          // Canonical name wins; stored title only when nothing resolves
+          // (same policy as the canvas summary — see resolveStoredToolName).
+          const toolDisplayName =
+            resolveStoredToolName(tool, { customTools, mcpToolNamesById }) ?? 'Unknown Tool'
 
           const useSubBlocks = !isCustomTool && !isMcpTool && subBlocksResult?.subBlocks?.length
           const displayParams: ToolParameterConfig[] = isCustomTool
@@ -1854,7 +1868,7 @@ export const ToolInput = memo(function ToolInput({
                     )}
                   </div>
                   <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                    {formatDisplayText((isCustomTool ? customToolTitle : tool.title) ?? '', {
+                    {formatDisplayText(toolDisplayName ?? '', {
                       workflowSearchHighlight: getToolTitleSearchHighlight(toolIndex),
                     })}
                   </span>
