@@ -57,6 +57,25 @@ export const instantlyHandler: WebhookProviderHandler = {
     return true
   },
 
+  extractIdempotencyId(body: unknown): string | null {
+    if (!isRecordLike(body)) return null
+
+    const eventType = typeof body.event_type === 'string' ? body.event_type : undefined
+    if (!eventType) return null
+
+    const emailId = typeof body.email_id === 'string' ? body.email_id : undefined
+    if (emailId) return `instantly:${eventType}:${emailId}`
+
+    const campaignId = typeof body.campaign_id === 'string' ? body.campaign_id : undefined
+    const leadEmail = typeof body.lead_email === 'string' ? body.lead_email : undefined
+    const timestamp = typeof body.timestamp === 'string' ? body.timestamp : undefined
+    if (campaignId && leadEmail && timestamp) {
+      return `instantly:${eventType}:${campaignId}:${leadEmail}:${timestamp}`
+    }
+
+    return null
+  },
+
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const payload = isRecordLike(body) ? body : {}
 
