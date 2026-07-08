@@ -515,11 +515,16 @@ export default function ReadmeTourCapturePage({ searchParams }: CapturePageProps
   const [view, setView] = useState<View>((params.view as View) || 'chat')
   const cameraRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const seededRef = useRef(false)
 
-  useState(() => {
+  // Seed the query cache once, synchronously, before first paint - a useEffect
+  // would flash an empty workspace first. A useState lazy initializer would
+  // do the same but re-runs the store mutation on every Strict Mode
+  // double-invoke; this ref guard makes the seed idempotent instead.
+  if (!seededRef.current) {
+    seededRef.current = true
     seed(queryClient)
-    return true
-  })
+  }
 
   useEffect(() => {
     setTheme('light')
