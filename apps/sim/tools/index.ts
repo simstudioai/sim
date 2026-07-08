@@ -1495,7 +1495,10 @@ function shouldRetryWithoutReadingBody(
   if (!retryConfig || isLastAttempt || !isRetryableFailure(null, status)) {
     return false
   }
-  return (parseRetryAfter(headers.get('retry-after')) ?? 0) <= retryConfig.maxDelayMs
+  return (
+    (parseRetryAfter(headers.get('retry-after'), Number.POSITIVE_INFINITY) ?? 0) <=
+    retryConfig.maxDelayMs
+  )
 }
 
 /**
@@ -1741,7 +1744,10 @@ async function executeToolRequest(
         !response.ok &&
         isRetryableFailure(null, response.status)
       ) {
-        const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+        const retryAfterMs = parseRetryAfter(
+          response.headers.get('retry-after'),
+          Number.POSITIVE_INFINITY
+        )
         if (retryAfterMs !== null && retryAfterMs > retryConfig.maxDelayMs) {
           logger.warn(
             `[${requestId}] Retry-After (${retryAfterMs}ms) exceeds maxDelayMs (${retryConfig.maxDelayMs}ms), skipping retry`
