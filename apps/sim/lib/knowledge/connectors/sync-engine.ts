@@ -7,7 +7,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
@@ -733,8 +733,7 @@ export async function executeSync(
             result.docsFailed++
             logger.error('Failed to hydrate deferred document', {
               connectorId,
-              error:
-                outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+              error: getErrorMessage(outcome.reason),
             })
           }
         }
@@ -799,8 +798,7 @@ export async function executeSync(
           logger.error('Failed to process document', {
             connectorId,
             externalId: batch[j].extDoc.externalId,
-            error:
-              outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+            error: getErrorMessage(outcome.reason),
           })
         }
       }

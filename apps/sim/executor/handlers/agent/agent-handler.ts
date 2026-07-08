@@ -3,6 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { createMcpToolId } from '@/lib/mcp/utils'
@@ -1176,7 +1177,7 @@ export class AgentBlockHandler implements BlockHandler {
       }
     } catch (error) {
       logger.error('LLM did not adhere to structured response format:', {
-        content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
+        content: truncate(content, 200),
         responseFormat: responseFormat,
       })
 

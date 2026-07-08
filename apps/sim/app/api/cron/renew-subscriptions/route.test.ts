@@ -12,6 +12,7 @@ import {
   redisConfigMockFns,
   resetDbChainMock,
 } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockVerifyCronAuth } = vi.hoisted(() => ({
@@ -37,7 +38,7 @@ function createRequest() {
   )
 }
 
-const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
+const flushMicrotasks = () => sleep(0)
 
 describe('Teams subscription renewal route (fire-and-forget)', () => {
   beforeEach(() => {
