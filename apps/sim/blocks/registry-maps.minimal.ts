@@ -9,6 +9,7 @@ import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { FileV5Block } from '@/blocks/blocks/file'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
+import { GmailV2Block } from '@/blocks/blocks/gmail'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { ImapBlock } from '@/blocks/blocks/imap'
@@ -23,6 +24,7 @@ import { RssBlock } from '@/blocks/blocks/rss'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
 import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
+import { SlackBlock } from '@/blocks/blocks/slack'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { TableBlock } from '@/blocks/blocks/table'
 import { TranslateBlock } from '@/blocks/blocks/translate'
@@ -39,7 +41,9 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
  * ~268. The set is drawn from the canonical, toolbar-visible blocks
  * (`category: 'blocks'` / `'triggers'`, not `hideFromToolbar`, always the latest
  * version — never a superseded one). The ~247 `category: 'tools'` integrations
- * are excluded (that is the heavy graph minimal mode exists to skip), and so are
+ * are excluded (that is the heavy graph minimal mode exists to skip) — except
+ * `slack` and `gmail_v2`, kept as the two everyday integrations (their tools are
+ * likewise included in `tools/registry.minimal.ts`) — and so are
  * a few heavy or rarely-core-dev blocks pruned by hand: `mothership` and `pi`
  * (chunkiest configs), the media blocks `tts` / `stt_v2` / `image_generator_v2`
  * / `video_generator_v3`, and the `circleback` meeting-notetaker integration
@@ -58,6 +62,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   file_v5: FileV5Block,
   function: FunctionBlock,
   generic_webhook: GenericWebhookBlock,
+  gmail_v2: GmailV2Block,
   guardrails: GuardrailsBlock,
   human_in_the_loop: HumanInTheLoopBlock,
   imap: ImapBlock,
@@ -72,6 +77,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   schedule: ScheduleBlock,
   search: SearchBlock,
   sim_workspace_event: SimWorkspaceEventBlock,
+  slack: SlackBlock,
   start_trigger: StartTriggerBlock,
   table: TableBlock,
   translate: TranslateBlock,
