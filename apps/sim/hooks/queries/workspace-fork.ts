@@ -11,7 +11,9 @@ import {
   promoteForkContract,
   type RollbackForkBody,
   rollbackForkContract,
+  type UnlinkForkBody,
   type UpdateForkMappingBody,
+  unlinkForkContract,
   updateForkMappingContract,
 } from '@/lib/api/contracts/workspace-fork'
 import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
@@ -160,6 +162,22 @@ export function usePromoteFork() {
       // fresh draft against the stale (pre-sync) deployed snapshot and falsely shows
       // "Update" instead of "Live".
       queryClient.invalidateQueries({ queryKey: deploymentKeys.all })
+    },
+  })
+}
+
+export function useUnlinkFork() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { workspaceId: string; body: UnlinkForkBody }) =>
+      requestJson(unlinkForkContract, { params: { id: vars.workspaceId }, body: vars.body }),
+    onSettled: () => {
+      // Unlink dissolves the edge: lineage loses the row, and the edge's mappings/diff
+      // no longer exist. Workflows and deployments are untouched.
+      queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
+      queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
     },
   })
 }

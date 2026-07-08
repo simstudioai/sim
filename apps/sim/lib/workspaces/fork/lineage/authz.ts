@@ -42,6 +42,24 @@ async function assertForkingEnabled(organizationId: string | null, userId: strin
 }
 
 /**
+ * Non-throwing availability verdict of the exact {@link assertForkingEnabled} gate
+ * (env/plan + AppConfig rollout flag), for surfaces that show/hide fork UI. The
+ * availability route serves this to the client so tab visibility can never drift
+ * from what the fork routes actually enforce.
+ */
+export async function isForkingAvailableForWorkspace(
+  organizationId: string | null,
+  userId: string
+): Promise<boolean> {
+  try {
+    await assertForkingEnabled(organizationId, userId)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Domain error for fork/promote operations. Carries a concrete `statusCode` so
  * `withRouteHandler` maps it to the right HTTP status and forwards the
  * client-safe `message`.
@@ -152,4 +170,30 @@ export async function assertCanRollback(
   userId: string
 ): Promise<WorkspaceWithOwner> {
   return assertWorkspaceAdminAccess(targetWorkspaceId, userId)
+}
+
+export interface UnlinkAuthorization {
+  edge: ForkEdge
+  current: WorkspaceWithOwner
+}
+
+/**
+ * Authorize permanently dissolving the fork edge between `currentWorkspaceId` and
+ * `otherWorkspaceId`. Requires admin on the ACTING side only (mirrors rollback):
+ * either participant may sever the association about itself — unlinking removes
+ * shared edge metadata without reading or writing the other workspace's content,
+ * and requiring both-side admin would strand an edge whose other side lost its
+ * admins.
+ */
+export async function assertCanUnlink(
+  currentWorkspaceId: string,
+  otherWorkspaceId: string,
+  userId: string
+): Promise<UnlinkAuthorization> {
+  const current = await assertWorkspaceAdminAccess(currentWorkspaceId, userId)
+  const edge = await resolveForkEdge(currentWorkspaceId, otherWorkspaceId)
+  if (!edge) {
+    throw new ForkError('These workspaces are not a direct fork edge', 400)
+  }
+  return { edge, current }
 }

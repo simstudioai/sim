@@ -67,6 +67,7 @@ export const POST = withRouteHandler(
       message: `Undid the last sync from "${otherName}"`,
       metadata: {
         actorName: session.user.name ?? undefined,
+        otherWorkspaceId,
         otherWorkspaceName: otherName,
         restored: result.restored,
         removed: result.archived,

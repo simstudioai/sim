@@ -7,7 +7,7 @@ import {
   forkBlockerResolution,
   selectVisibleClearedRefs,
   splitForkClearedRefs,
-} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/cleared-refs-list'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/fork-sync/cleared-refs-list'
 
 type ReferenceRef = Extract<ForkClearedRef, { cause: 'reference' }>
 type WorkflowRef = Extract<ForkClearedRef, { cause: 'workflow' }>
@@ -50,7 +50,7 @@ const dependentRef = (
   parentSourceId,
 })
 
-// The modal's predicate is `mapped || copied`; here we model each disposition as a resolved key so
+// The page's predicate is `mapped || copied`; here we model each disposition as a resolved key so
 // the document-under-KB case is exercised for both a copied parent and a mapped parent.
 const resolvedKeys = (...keys: string[]) => {
   const set = new Set(keys)
@@ -116,7 +116,7 @@ describe('selectVisibleClearedRefs', () => {
     ])
   })
 
-  it('always keeps a workflow reference (it cannot be resolved in the modal)', () => {
+  it('always keeps a workflow reference (it cannot be resolved on the page)', () => {
     const workflowReference = workflowRef('wf-other')
     expect(
       selectVisibleClearedRefs([workflowReference], resolvedKeys('workflow:wf-other'))

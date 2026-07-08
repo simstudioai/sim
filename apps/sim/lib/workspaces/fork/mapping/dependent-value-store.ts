@@ -2,6 +2,7 @@ import { workspaceForkDependentValue } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import type { ForkReferenceResolver } from '@/lib/workspaces/fork/remap/remap-references'
 
 /** One stored dependent-field value for an edge. */
 export interface ForkDependentValue {
@@ -50,6 +51,30 @@ export async function loadForkDependentValues(
     })
     .from(workspaceForkDependentValue)
     .where(where)
+}
+
+/**
+ * Translate dependent values through the promote resolver before they are applied to the
+ * written state and persisted: a value that is a SOURCE knowledge-document id (a pick under a
+ * copy-resolved KB, or a legacy stored row) becomes its copied/mapped counterpart id, so the
+ * dependent-value apply - which runs AFTER the reference remap and wins for its subblock -
+ * never writes a source-workspace document id into the target, and the store stays coherent
+ * for the next sync's (then-mapped) display. Only ids the resolver actually knows are
+ * rewritten: a target document id, a Gmail label, a column id, or any other opaque value
+ * misses the map and is kept verbatim. Documents are the one dependent-selector value that is
+ * itself a copied resource id, so `knowledge-document` is the only kind consulted. Pure.
+ */
+export function translateForkDependentValues(
+  values: ForkDependentValue[],
+  resolve: ForkReferenceResolver
+): ForkDependentValue[] {
+  return values.map((entry) => {
+    if (entry.value === '') return entry
+    const translated = resolve('knowledge-document', entry.value)
+    return translated != null && translated !== entry.value
+      ? { ...entry, value: translated }
+      : entry
+  })
 }
 
 /**

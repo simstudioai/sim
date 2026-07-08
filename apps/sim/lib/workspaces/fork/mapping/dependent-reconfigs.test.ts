@@ -92,6 +92,7 @@ describe('collectForkDependentReconfigs', () => {
         required: true,
         consumesContextKeys: [],
         context: {},
+        sourceValue: 'INBOX',
       },
     ])
   })
@@ -206,6 +207,7 @@ describe('collectForkDependentReconfigs', () => {
         required: true,
         consumesContextKeys: [],
         context: {},
+        sourceValue: 'doc-src',
       },
     ])
   })
@@ -390,6 +392,7 @@ describe('collectForkDependentReconfigs', () => {
         required: true,
         consumesContextKeys: [],
         context: {},
+        sourceValue: 'INBOX',
       },
     ])
   })

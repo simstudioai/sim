@@ -35,6 +35,7 @@ export const POST = withRouteHandler(
       targetWorkspaceId: auth.targetWorkspaceId,
       direction,
       userId: session.user.id,
+      actorName: session.user.name ?? undefined,
       dependentValues,
       copyResources,
       requestId,
@@ -96,6 +97,7 @@ export const POST = withRouteHandler(
       message: direction === 'pull' ? `Pulled from "${otherName}"` : `Pushed to "${otherName}"`,
       metadata: {
         actorName: session.user.name ?? undefined,
+        otherWorkspaceId,
         otherWorkspaceName: otherName,
         direction,
         updated: result.updated,

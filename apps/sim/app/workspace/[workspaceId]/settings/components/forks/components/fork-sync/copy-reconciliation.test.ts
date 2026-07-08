@@ -8,12 +8,13 @@ import {
   forkCopyingKeys,
   forkDefaultCopySelection,
   forkMappedCopyableKeys,
+  forkParentResolution,
   forkRefKey,
   forkRequiredKindsLabel,
   forkRequiredPending,
   forkVisibleCopyables,
   isForkRequiredComplete,
-} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/copy-reconciliation'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/fork-sync/copy-reconciliation'
 
 const entry = (overrides: Partial<ForkMappingEntry>): ForkMappingEntry => ({
   kind: 'credential',
@@ -158,6 +159,51 @@ describe('forkRequiredKindsLabel', () => {
   it('falls back to "references" for any other (or empty) kind set', () => {
     expect(forkRequiredKindsLabel(new Set(['table']))).toBe('references')
     expect(forkRequiredKindsLabel(new Set())).toBe('references')
+  })
+})
+
+describe('forkParentResolution', () => {
+  const kb = entry({ kind: 'knowledge-base', sourceId: 'kb-1' })
+
+  it('is copied when the entry is selected for copy', () => {
+    expect(forkParentResolution(kb, {}, new Set(['knowledge-base:kb-1']))).toBe('copied')
+  })
+
+  it('is mapped with a persisted or in-session target, unresolved with neither', () => {
+    expect(
+      forkParentResolution(
+        entry({ kind: 'knowledge-base', sourceId: 'kb-1', targetId: 'kb-tgt' }),
+        {},
+        new Set()
+      )
+    ).toBe('mapped')
+    expect(forkParentResolution(kb, { 'knowledge-base:kb-1': 'kb-tgt' }, new Set())).toBe('mapped')
+    expect(forkParentResolution(kb, {}, new Set())).toBe('unresolved')
+  })
+
+  it('toggling copy⇄map flips the resolution (the selector scope + seed follow it)', () => {
+    // Copy-selected: the dependent selectors browse the SOURCE parent.
+    const copying = new Set(['knowledge-base:kb-1'])
+    expect(forkParentResolution(kb, {}, copying)).toBe('copied')
+    // The user maps a target instead: the mapped entry drops out of the visible copyables
+    // (copy-vs-map reconciliation), so its copying key disappears and the resolution flips.
+    const targets = { 'knowledge-base:kb-1': 'kb-tgt' }
+    const mappedKeys = forkMappedCopyableKeys([kb], targets)
+    const copyingAfterMap = forkCopyingKeys(
+      forkVisibleCopyables([copyable({ kind: 'knowledge-base', sourceId: 'kb-1' })], mappedKeys),
+      copying
+    )
+    expect(forkParentResolution(kb, targets, copyingAfterMap)).toBe('mapped')
+    // Back to copy ('' target override): the copyable is visible + still selected again.
+    const cleared = { 'knowledge-base:kb-1': '' }
+    const copyingAfterClear = forkCopyingKeys(
+      forkVisibleCopyables(
+        [copyable({ kind: 'knowledge-base', sourceId: 'kb-1' })],
+        forkMappedCopyableKeys([kb], cleared)
+      ),
+      copying
+    )
+    expect(forkParentResolution(kb, cleared, copyingAfterClear)).toBe('copied')
   })
 })
 

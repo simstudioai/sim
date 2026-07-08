@@ -9,8 +9,6 @@ const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
 interface SettingsNavigationOptions {
   section?: SettingsSection
   mcpServerId?: string
-  /** Deep-links the Forks page straight into a flow (read-then-strip on arrival). */
-  forkAction?: 'sync'
 }
 
 interface UseSettingsNavigationReturn {
@@ -29,11 +27,7 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
   const getSettingsHref = useCallback(
     (options?: SettingsNavigationOptions): string => {
       const section = options?.section || 'general'
-      const searchParams = options?.mcpServerId
-        ? `?mcpServerId=${options.mcpServerId}`
-        : options?.forkAction
-          ? `?fork-action=${options.forkAction}`
-          : ''
+      const searchParams = options?.mcpServerId ? `?mcpServerId=${options.mcpServerId}` : ''
       return `${settingsPrefix}${section}${searchParams}`
     },
     [settingsPrefix]

@@ -51,6 +51,7 @@ import {
   type ForkDependentValue,
   loadForkDependentValues,
   reconcileForkDependentValues,
+  translateForkDependentValues,
 } from '@/lib/workspaces/fork/mapping/dependent-value-store'
 import {
   deleteWorkflowIdentityByIds,
@@ -90,6 +91,8 @@ export interface PromoteForkParams {
   targetWorkspaceId: string
   direction: 'push' | 'pull'
   userId: string
+  /** Initiator's display name, stamped on the sync's content-copy Activity row. */
+  actorName?: string
   /**
    * The full stored mapping of dependent-field values the caller is committing (target
    * workflow id + deterministic block id + subblock key -> value). Applied to the target
@@ -310,9 +313,8 @@ interface PromoteTxApplied {
 
 /**
  * Group flat dependent values into the apply map `target workflow -> block id -> subblock -> value`
- * that {@link copyWorkflowStateIntoTarget} consumes. Pure (no DB), so the provided-value path can
- * build it before the transaction (it doesn't depend on the plan); the omitted path feeds it the
- * loaded store rows inside the tx, where the plan's replace targets are known.
+ * that {@link copyWorkflowStateIntoTarget} consumes. Pure (no DB). Built inside the tx from the
+ * TRANSLATED values (see {@link translateForkDependentValues}) once the post-copy resolver exists.
  */
 function groupDependentOverrides(
   values: ForkDependentValue[]
@@ -352,20 +354,20 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   const requestId = params.requestId ?? 'unknown'
 
   // Distinguish an OMITTED dependent mapping (leave the store as-is) from an explicit empty
-  // array (clear it). When values are PROVIDED the apply map is plan-independent, so build it
-  // here - BEFORE the transaction - to keep the advisory lock tight (pure in-memory, no DB),
-  // mirroring how the source states are pre-loaded above. The OMITTED path needs the plan's
-  // replace targets, so it loads + builds inside the tx below.
+  // array (clear it). Provided values are normalized to the store row shape here - BEFORE the
+  // transaction (pure in-memory, no DB) - mirroring how the source states are pre-loaded above.
+  // The apply map itself is built inside the tx: its values are translated through the
+  // post-copy resolver (a source document id picked under a copy-resolved KB must land as the
+  // copied counterpart), which only exists once the copy has run. The OMITTED path loads the
+  // store rows inside the tx too, where the plan's targets are known.
   const dependentValuesProvided = params.dependentValues !== undefined
-  const providedOverridesByWorkflow = dependentValuesProvided
-    ? groupDependentOverrides(
-        (params.dependentValues ?? []).map((entry) => ({
-          targetWorkflowId: entry.workflowId,
-          targetBlockId: entry.blockId,
-          subBlockKey: entry.subBlockKey,
-          value: entry.value,
-        }))
-      )
+  const providedDependentValues: ForkDependentValue[] | null = dependentValuesProvided
+    ? (params.dependentValues ?? []).map((entry) => ({
+        targetWorkflowId: entry.workflowId,
+        targetBlockId: entry.blockId,
+        subBlockKey: entry.subBlockKey,
+        value: entry.value,
+      }))
     : null
 
   // Copied blob bytes (selected workspace files + selected KBs' document blobs) are
@@ -490,11 +492,32 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     let copyContentPlan: ForkContentPlan | null = null
     let copyContentRefMaps: SerializableForkContentRefMaps | null = null
     let copyContentBlobTasks: BlobCopyTask[] = []
-    // Knowledge-document ids the synced workflows reference, taken from the plan's already-scanned
-    // references so the copy never re-scans every source state inside this locked tx.
-    const referencedDocumentIds = plan.references
-      .filter((reference) => reference.kind === 'knowledge-document')
-      .map((reference) => reference.sourceId)
+    // Every dependent value this sync will apply, as flat store rows: the provided payload, or
+    // (omitted) the persisted store for the plan's targets - loaded here, BEFORE the copy, so
+    // document picks can join the copy's discovery set below. The apply map + reconcile further
+    // down consume these after translating them through the post-copy resolver.
+    const flatDependentValues =
+      providedDependentValues ??
+      (await loadForkDependentValues(
+        tx,
+        edge.childWorkspaceId,
+        plan.items.map((item) => item.targetWorkflowId)
+      ))
+
+    // Knowledge-document ids the synced workflows reference, from the plan's already-scanned
+    // references (never a re-scan inside this locked tx) - UNIONED with the dependent-value
+    // picks: a document re-picked in the sync page's reconfigure selector under a copy-resolved
+    // KB isn't referenced by the source STATE, but must still be copied so the applied pick
+    // resolves in the target. Non-document values ride along harmlessly: every consumer filters
+    // candidates through `inArray(document.id, ...)`, so a label or column id matches no row.
+    const referencedDocumentIds = [
+      ...new Set([
+        ...plan.references
+          .filter((reference) => reference.kind === 'knowledge-document')
+          .map((reference) => reference.sourceId),
+        ...flatDependentValues.map((entry) => entry.value).filter((value) => value !== ''),
+      ]),
+    ]
     // Run the copy when the user selected resources to copy OR any document is referenced (a
     // referenced document under an already-mapped KB is auto-copied into that KB so its reference
     // remaps instead of clearing). It runs only after the required-reference gate above, so a
@@ -572,22 +595,18 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // pre-sync target state.
     const targetDraftByWorkflow = await loadTargetDraftSubBlocks(tx, replaceTargetIds)
 
-    // The dependent-value apply map (target workflow -> block id -> subblock -> value). When the
-    // caller PROVIDED values it was built pre-tx (plan-independent); apply it and reconcile the
-    // store below. When OMITTED the store is the sole source of truth - load the existing values
-    // for EVERY plan target (one indexed query) and build the map, skipping the reconcile below
-    // so an omitted field never wipes the saved mapping. Create targets load too: a value
-    // pre-configured in the mapping editor for a never-synced workflow (keyed by its
-    // deterministic target id) must apply on the first sync that creates it.
-    const overridesByWorkflow =
-      providedOverridesByWorkflow ??
-      groupDependentOverrides(
-        await loadForkDependentValues(
-          tx,
-          edge.childWorkspaceId,
-          plan.items.map((item) => item.targetWorkflowId)
-        )
-      )
+    // The dependent-value apply map (target workflow -> block id -> subblock -> value), built
+    // from the flat values loaded above (the provided payload, or - omitted - the stored
+    // mapping, which stays the sole source of truth; the reconcile below is skipped then so an
+    // omitted field never wipes it). Values are translated through the post-copy resolver
+    // FIRST: the apply runs AFTER the reference remap inside `copyWorkflowStateIntoTarget` and
+    // wins for its subblock, so a SOURCE document id picked under a copy-resolved KB must
+    // become the copied counterpart here - otherwise the stale source id would clobber the
+    // remapped value in the written state. Create targets are included: a value pre-configured
+    // for a never-synced workflow (keyed by its deterministic target id) applies on the first
+    // sync that creates it.
+    const appliedDependentValues = translateForkDependentValues(flatDependentValues, resolver)
+    const overridesByWorkflow = groupDependentOverrides(appliedDependentValues)
 
     // New block pairs recorded by the write loop (blocks added since the last sync), using the
     // block map + resolver loaded before the would-clear gate above.
@@ -670,8 +689,11 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
 
     // Persist / prune the stored dependent mapping. When the caller PROVIDED values, replace
     // every written target's stored set (cleared/removed fields drop out so the store equals
-    // exactly what was sent) AND prune the archived targets' now-dead rows (their workflow no
-    // longer exists and has no FK to cascade). Written CREATE targets persist too - they exist
+    // exactly what was applied) AND prune the archived targets' now-dead rows (their workflow
+    // no longer exists and has no FK to cascade). The TRANSLATED values are persisted - a
+    // source document id picked under a copy-resolved KB is stored as its copied counterpart,
+    // so the next sync (whose parent is then MAPPED via the persisted copy mapping) pre-fills
+    // a value that resolves in the target. Written CREATE targets persist too - they exist
     // as of this sync, and their sent values (pre-configured in the mapping editor or the
     // modal) must survive as the stored mapping for future syncs. Scope the inserted values
     // to the delete's workflows so a value for a workflow skipped this pass (its source state
@@ -684,14 +706,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         tx,
         edge.childWorkspaceId,
         [...dependentTargetIds, ...plan.archivedTargetIds],
-        (params.dependentValues ?? [])
-          .filter((entry) => dependentTargetIds.has(entry.workflowId))
-          .map((entry) => ({
-            targetWorkflowId: entry.workflowId,
-            targetBlockId: entry.blockId,
-            subBlockKey: entry.subBlockKey,
-            value: entry.value,
-          }))
+        appliedDependentValues.filter((entry) => dependentTargetIds.has(entry.targetWorkflowId))
       )
     } else if (plan.archivedTargetIds.length > 0) {
       await reconcileForkDependentValues(tx, edge.childWorkspaceId, plan.archivedTargetIds, [])
@@ -916,6 +931,11 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         supersede: false,
         message: 'Copying synced resources',
         metadata: {
+          // The edge's other side, so the partner workspace's Activity surfaces this row too.
+          otherWorkspaceId: direction === 'push' ? targetWorkspaceId : sourceWorkspaceId,
+          // The content fill runs as a background worker with no session; the Activity
+          // actor is the user who initiated the sync, not "System".
+          actorName: params.actorName,
           tables: copyContentPlan.tables.length,
           knowledgeBases: copyContentPlan.knowledgeBases.length,
           files: copyBlobTasks.length,

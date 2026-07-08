@@ -17,7 +17,7 @@ interface DependentFieldSelectorProps {
 }
 
 /**
- * A controlled, standalone selector for the sync modal's pre-sync reconfigure: fetches
+ * A controlled, standalone selector for the sync page's pre-sync reconfigure: fetches
  * options via the shared selector data layer (the same `useSelectorOptions` registry the
  * canvas selectors use) without the canvas store/blockId coupling. Mirrors
  * {@link ConnectorSelectorField}.

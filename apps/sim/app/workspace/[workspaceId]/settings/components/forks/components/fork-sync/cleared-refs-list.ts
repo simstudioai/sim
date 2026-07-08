@@ -21,9 +21,9 @@ const PARENT_KINDS_THAT_PRESERVE_CHILD: ReadonlySet<string> = new Set(['knowledg
  *    using the SAME predicate as `reference` - but ONLY when the child follows that parent (a
  *    document under a KB). A credential- or table-anchored dependent is cleared on any parent remap,
  *    so it stays even after the parent is mapped.
- *  - `workflow`: always stays - a cross-workflow reference cannot be resolved in the modal.
+ *  - `workflow`: always stays - a cross-workflow reference cannot be resolved here.
  *
- * Pure so the reactive list is unit-testable independent of the modal's selection state.
+ * Pure so the reactive list is unit-testable independent of the page's selection state.
  */
 export function selectVisibleClearedRefs(
   clearedRefs: ForkClearedRef[],
@@ -42,7 +42,7 @@ export function selectVisibleClearedRefs(
 /**
  * Split the visible would-clear entries into sync BLOCKERS (cause `reference`/`workflow` - the
  * sync is disabled while any remain) and the informational remainder (`dependent` entries, owned
- * by the reconfigure flow - they clear but never block). Pure, so the modal's gate and the two
+ * by the reconfigure flow - they clear but never block). Pure, so the page's gate and the two
  * sections stay one testable rule.
  */
 export function splitForkClearedRefs(visibleRefs: ForkClearedRef[]): {

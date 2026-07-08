@@ -132,6 +132,13 @@ export const allNavigationItems: NavigationItem[] = [
     docsLink: 'https://docs.sim.ai/platform/enterprise/audit-logs',
   },
   {
+    id: 'forks',
+    label: 'Forks',
+    description: 'Fork this workspace and sync changes with its parent.',
+    icon: Shuffle,
+    section: 'enterprise',
+  },
+  {
     id: 'billing',
     label: 'Billing',
     description: 'Manage your plan, pricing, and invoices.',
@@ -198,13 +205,6 @@ export const allNavigationItems: NavigationItem[] = [
     icon: KeySquare,
     section: 'system',
     requiresHosted: true,
-  },
-  {
-    id: 'forks',
-    label: 'Forks',
-    description: 'Fork this workspace and sync changes with its parent.',
-    icon: Shuffle,
-    section: 'system',
   },
   {
     id: 'copilot',

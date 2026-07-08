@@ -82,6 +82,21 @@ vi.mock('@/lib/workspaces/fork/mapping/block-map-store', () => ({
 vi.mock('@/lib/workspaces/fork/mapping/dependent-value-store', () => ({
   loadForkDependentValues: vi.fn(async () => []),
   reconcileForkDependentValues: vi.fn(),
+  // Faithful mirror of the real pure translation (unit-tested in dependent-value-store.test.ts),
+  // so promote's apply/reconcile paths exercise the actual source-doc-id rewrite.
+  translateForkDependentValues: vi.fn(
+    (
+      values: Array<{ value: string }>,
+      resolve: (kind: string, sourceId: string) => string | null | undefined
+    ) =>
+      values.map((entry) => {
+        if (entry.value === '') return entry
+        const translated = resolve('knowledge-document', entry.value)
+        return translated != null && translated !== entry.value
+          ? { ...entry, value: translated }
+          : entry
+      })
+  ),
 }))
 vi.mock('@/lib/workspaces/fork/mapping/mapping-store', () => ({
   deleteWorkflowIdentityByIds: vi.fn(),
@@ -91,7 +106,16 @@ vi.mock('@/lib/workspaces/fork/promote/cleared-refs', () => ({
   collectForkSyncBlockers: mockCollectBlockers,
 }))
 vi.mock('@/lib/workspaces/fork/promote/copy-unmapped', () => ({
-  augmentForkResolver: vi.fn((base) => base),
+  // Faithful mirror of the real overlay so a copy's id maps resolve through the augmented
+  // resolver (the dependent-value translation and MCP meta read depend on it).
+  augmentForkResolver: vi.fn(
+    (
+      base: (kind: string, sourceId: string) => string | null | undefined,
+      extra: Map<string, Map<string, string>>
+    ) =>
+      (kind: string, sourceId: string) =>
+        extra.get(kind)?.get(sourceId) ?? base(kind, sourceId)
+  ),
   buildPromoteCopySelection: mockBuildCopySelection,
   copyPromoteUnmappedResources: mockCopyUnmapped,
   hasPromoteCopySelection: mockHasCopySelection,
@@ -119,6 +143,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { db } from '@sim/db'
+import { copyWorkflowStateIntoTarget } from '@/lib/workspaces/fork/copy/copy-workflows'
+import { reconcileForkDependentValues } from '@/lib/workspaces/fork/mapping/dependent-value-store'
 import { promoteFork } from '@/lib/workspaces/fork/promote/promote'
 import type { ForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
 
@@ -176,34 +202,52 @@ function promoteParams() {
   }
 }
 
-describe('promoteFork gates', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(db.transaction).mockImplementation(
-      async (cb: (tx: unknown) => unknown) => cb({}) as never
-    )
-    mockGetUsersWithPermissions.mockResolvedValue([])
-    mockLoadSourceDeployedStates.mockResolvedValue({
-      deployedWorkflows: [],
-      sourceStates: new Map(),
-    })
-    mockComputePlan.mockResolvedValue(makePlan())
-    mockBuildCopySelection.mockReturnValue({
-      selection: EMPTY_SELECTION,
-      willResolve: new Set<string>(),
-    })
-    mockHasCopySelection.mockReturnValue(false)
-    mockCollectBlockers.mockResolvedValue([])
-    mockLoadBlockMap.mockResolvedValue(new Map())
-    mockBuildBlockIdResolver.mockReturnValue((_wf: string, blockId: string) => blockId)
-    mockResolveFolderMapping.mockResolvedValue(new Map())
-    mockUpsertPromoteRun.mockResolvedValue('run-1')
-    mockGetMcpServerMeta.mockResolvedValue(new Map())
-    mockCreateTransform.mockReturnValue((subBlocks: unknown) => subBlocks)
-    mockSumForkCopyBytes.mockResolvedValue(0)
-    mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
-  })
+/** A copy result carrying no content/id maps, for tests that only need the copy to run. */
+function emptyCopyResult() {
+  return {
+    contentPlan: {
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'tgt-ws',
+      userId: 'user-1',
+      tables: [],
+      knowledgeBases: [],
+      skills: [],
+      documents: [],
+    },
+    copyIdMapByKind: new Map(),
+    contentRefMaps: {},
+    blobTasks: [],
+  }
+}
 
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.mocked(db.transaction).mockImplementation(
+    async (cb: (tx: unknown) => unknown) => cb({}) as never
+  )
+  mockGetUsersWithPermissions.mockResolvedValue([])
+  mockLoadSourceDeployedStates.mockResolvedValue({
+    deployedWorkflows: [],
+    sourceStates: new Map(),
+  })
+  mockComputePlan.mockResolvedValue(makePlan())
+  mockBuildCopySelection.mockReturnValue({
+    selection: EMPTY_SELECTION,
+    willResolve: new Set<string>(),
+  })
+  mockHasCopySelection.mockReturnValue(false)
+  mockCollectBlockers.mockResolvedValue([])
+  mockLoadBlockMap.mockResolvedValue(new Map())
+  mockBuildBlockIdResolver.mockReturnValue((_wf: string, blockId: string) => blockId)
+  mockResolveFolderMapping.mockResolvedValue(new Map())
+  mockUpsertPromoteRun.mockResolvedValue('run-1')
+  mockGetMcpServerMeta.mockResolvedValue(new Map())
+  mockCreateTransform.mockReturnValue((subBlocks: unknown) => subBlocks)
+  mockSumForkCopyBytes.mockResolvedValue(0)
+  mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
+})
+
+describe('promoteFork gates', () => {
   it('blocks an over-quota copy selection before any lock, read, or write', async () => {
     mockSumForkCopyBytes.mockResolvedValue(999_999)
     mockAssertForkStorageHeadroom.mockRejectedValue(
@@ -397,5 +441,173 @@ describe('promoteFork gates', () => {
       url: 'https://target.example/mcp',
     })
     expect(transformOptions.resolveMcpServerMeta('srv-unknown')).toBeUndefined()
+  })
+})
+
+describe('promoteFork dependent values', () => {
+  it('unions the dependent-value picks into the copy discovery set (a re-picked document must be copied)', async () => {
+    mockComputePlan.mockResolvedValue(
+      makePlan({
+        references: [
+          {
+            kind: 'knowledge-document',
+            sourceId: 'doc-a',
+            subBlockKey: 'documentSelector',
+            required: false,
+          },
+        ],
+      })
+    )
+    // No container selection: the document candidates alone must trigger the copy pass.
+    mockHasCopySelection.mockReturnValue(false)
+    mockCopyUnmapped.mockResolvedValue(emptyCopyResult())
+
+    await promoteFork({
+      ...promoteParams(),
+      dependentValues: [
+        // Duplicates the plan's own scan -> deduped.
+        { workflowId: 'wf-t', blockId: 'b1', subBlockKey: 'documentSelector', value: 'doc-a' },
+        // A fresh pick the source state does not reference -> must join the discovery set.
+        { workflowId: 'wf-t', blockId: 'b2', subBlockKey: 'documentSelector', value: 'doc-b' },
+        // Cleared values are skipped; non-document values ride along (DB-filtered downstream).
+        { workflowId: 'wf-t', blockId: 'b3', subBlockKey: 'folder', value: '' },
+        { workflowId: 'wf-t', blockId: 'b4', subBlockKey: 'folder', value: 'INBOX' },
+      ],
+    })
+
+    expect(mockCopyUnmapped).toHaveBeenCalledTimes(1)
+    expect(mockCopyUnmapped.mock.calls[0][0].referencedDocumentIds).toEqual([
+      'doc-a',
+      'doc-b',
+      'INBOX',
+    ])
+  })
+
+  it('translates a source document id under a copy-resolved KB for BOTH the written state and the store', async () => {
+    const item = {
+      sourceWorkflowId: 'wf-src',
+      targetWorkflowId: 'wf-tgt',
+      targetName: 'Flow',
+      mode: 'replace' as const,
+      sourceMeta: { name: 'Flow', description: null, folderId: null, sortOrder: 0 },
+    }
+    mockComputePlan.mockResolvedValue(makePlan({ items: [item] }))
+    mockLoadSourceDeployedStates.mockResolvedValue({
+      deployedWorkflows: [],
+      sourceStates: new Map([
+        ['wf-src', { blocks: {}, edges: [], loops: {}, parallels: {}, variables: {} }],
+      ]),
+    })
+    // The KB is copy-selected; the copy assigns the picked source document its copied id.
+    mockHasCopySelection.mockReturnValue(true)
+    mockCopyUnmapped.mockResolvedValue({
+      ...emptyCopyResult(),
+      copyIdMapByKind: new Map([['knowledge-document', new Map([['doc-src', 'doc-copy']])]]),
+    })
+    vi.mocked(copyWorkflowStateIntoTarget).mockResolvedValue({
+      targetWorkflowId: 'wf-tgt',
+      mode: 'replace',
+      name: 'Flow',
+      blocksCount: 0,
+      edgesCount: 0,
+      subflowsCount: 0,
+      clearedDependents: [],
+      blockIdMapping: new Map(),
+    })
+
+    const result = await promoteFork({
+      ...promoteParams(),
+      copyResources: { knowledgeBases: ['kb-src'] },
+      dependentValues: [
+        {
+          workflowId: 'wf-tgt',
+          blockId: 'blk-1',
+          subBlockKey: 'documentSelector',
+          value: 'doc-src',
+        },
+      ],
+    })
+
+    expect(result.blocked).toBeNull()
+    // The apply map the workflow write receives carries the COPIED id: the dependent-value
+    // apply runs AFTER the reference remap and wins for its subblock, so a raw source id
+    // would clobber the remapped value in the written state.
+    expect(vi.mocked(copyWorkflowStateIntoTarget)).toHaveBeenCalledTimes(1)
+    const writeParams = vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0]
+    expect(writeParams.dependentOverrides?.get('blk-1')?.get('documentSelector')).toBe('doc-copy')
+    // The store persists the translated value too, so the next sync (whose parent is then
+    // MAPPED via the persisted copy mapping) pre-fills a document id that resolves in the target.
+    expect(vi.mocked(reconcileForkDependentValues)).toHaveBeenCalledWith(
+      expect.anything(),
+      'child-ws',
+      ['wf-tgt'],
+      [
+        {
+          targetWorkflowId: 'wf-tgt',
+          targetBlockId: 'blk-1',
+          subBlockKey: 'documentSelector',
+          value: 'doc-copy',
+        },
+      ]
+    )
+  })
+
+  it('keeps a mapped parent dependent value verbatim (a target-space value never re-translates)', async () => {
+    const item = {
+      sourceWorkflowId: 'wf-src',
+      targetWorkflowId: 'wf-tgt',
+      targetName: 'Flow',
+      mode: 'replace' as const,
+      sourceMeta: { name: 'Flow', description: null, folderId: null, sortOrder: 0 },
+    }
+    mockComputePlan.mockResolvedValue(makePlan({ items: [item] }))
+    mockLoadSourceDeployedStates.mockResolvedValue({
+      deployedWorkflows: [],
+      sourceStates: new Map([
+        ['wf-src', { blocks: {}, edges: [], loops: {}, parallels: {}, variables: {} }],
+      ]),
+    })
+    // The value joins the discovery candidates, so the copy pass runs - and resolves nothing.
+    mockCopyUnmapped.mockResolvedValue(emptyCopyResult())
+    vi.mocked(copyWorkflowStateIntoTarget).mockResolvedValue({
+      targetWorkflowId: 'wf-tgt',
+      mode: 'replace',
+      name: 'Flow',
+      blocksCount: 0,
+      edgesCount: 0,
+      subflowsCount: 0,
+      clearedDependents: [],
+      blockIdMapping: new Map(),
+    })
+
+    await promoteFork({
+      ...promoteParams(),
+      dependentValues: [
+        {
+          workflowId: 'wf-tgt',
+          blockId: 'blk-1',
+          subBlockKey: 'documentSelector',
+          value: 'doc-tgt-existing',
+        },
+      ],
+    })
+
+    const writeParams = vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0]
+    expect(writeParams.dependentOverrides?.get('blk-1')?.get('documentSelector')).toBe(
+      'doc-tgt-existing'
+    )
+    expect(vi.mocked(reconcileForkDependentValues)).toHaveBeenCalledWith(
+      expect.anything(),
+      'child-ws',
+      ['wf-tgt'],
+      [
+        {
+          targetWorkflowId: 'wf-tgt',
+          targetBlockId: 'blk-1',
+          subBlockKey: 'documentSelector',
+          value: 'doc-tgt-existing',
+        },
+      ]
+    )
   })
 })

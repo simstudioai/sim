@@ -313,6 +313,13 @@ export const forkDependentReconfigSchema = z.object({
    * resolves against the new parent.
    */
   currentValue: z.string(),
+  /**
+   * The field's raw value in the SOURCE workflow state (what the source references today),
+   * untouched by the stored/target-draft overlay that `currentValue` carries. Seeds the selector
+   * when the parent is resolved by COPY: the copy brings the source parent's children along, so
+   * the source reference is exactly what the copied parent will contain.
+   */
+  sourceValue: z.string(),
   /** Whether the field is required - a required empty field blocks Sync. */
   required: z.boolean(),
   /**
@@ -606,6 +613,12 @@ export const backgroundWorkMetadataSchema = z
     skillNames: z.array(z.string()).optional(),
     workflowMcpServerNames: z.array(z.string()).optional(),
     // Sync / rollback
+    /**
+     * The other side of the fork edge (by id) for sync/rollback/sync-copy rows. Written so
+     * the activity query can surface a row to BOTH edge workspaces, and so the client can
+     * tell which side a row was recorded on.
+     */
+    otherWorkspaceId: z.string().optional(),
     otherWorkspaceName: z.string().optional(),
     direction: z.enum(['push', 'pull']).optional(),
     updated: z.number().int().optional(),
@@ -640,13 +653,27 @@ export const backgroundWorkItemSchema = z.object({
   completedAt: z.string().nullable(),
 })
 export type BackgroundWorkMetadata = z.output<typeof backgroundWorkMetadataSchema>
+/** Keyset pagination inputs, mirroring the audit log's (`auditLogsQuerySchema`). */
+export const getWorkspaceBackgroundWorkQuerySchema = z.object({
+  /** Opaque cursor from a prior page's `nextCursor`; omit for the first page. */
+  cursor: z.string().optional(),
+  limit: z
+    .string()
+    .optional()
+    .transform((value) => Math.min(Math.max(Number(value) || 50, 1), 100)),
+})
 export const getWorkspaceBackgroundWorkContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/background-work',
   params: workspaceIdParamsSchema,
+  query: getWorkspaceBackgroundWorkQuerySchema,
   response: {
     mode: 'json',
-    schema: z.object({ items: z.array(backgroundWorkItemSchema) }),
+    schema: z.object({
+      items: z.array(backgroundWorkItemSchema),
+      /** Opaque keyset cursor for the next page; null when this page is the last. */
+      nextCursor: z.string().nullable(),
+    }),
   },
 })
 export type BackgroundWorkItem = z.output<typeof backgroundWorkItemSchema>
@@ -675,3 +702,38 @@ export const rollbackForkContract = defineRouteContract({
 })
 export type RollbackForkBody = z.input<typeof rollbackForkBodySchema>
 export type RollbackForkResponse = z.output<typeof rollbackForkContract.response.schema>
+
+export const getForkAvailabilityContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/fork/availability',
+  params: workspaceIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      /** Server-evaluated verdict of the fork gate: env/plan + AppConfig rollout flag. */
+      available: z.boolean(),
+    }),
+  },
+})
+export type GetForkAvailabilityResponse = z.output<
+  typeof getForkAvailabilityContract.response.schema
+>
+
+export const unlinkForkBodySchema = z.object({
+  otherWorkspaceId: workspaceIdSchema,
+})
+export const unlinkForkContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/fork/unlink',
+  params: workspaceIdParamsSchema,
+  body: unlinkForkBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      /** False when the edge was already dissolved by a concurrent unlink (idempotent no-op). */
+      unlinked: z.boolean(),
+    }),
+  },
+})
+export type UnlinkForkBody = z.input<typeof unlinkForkBodySchema>
+export type UnlinkForkResponse = z.output<typeof unlinkForkContract.response.schema>

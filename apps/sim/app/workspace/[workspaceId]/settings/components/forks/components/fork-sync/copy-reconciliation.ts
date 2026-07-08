@@ -63,6 +63,26 @@ export function forkCopyingKeys(
 }
 
 /**
+ * How a mapping entry is resolved under the live selection, for its dependents' behavior:
+ *  - `copied`: selected for copy - dependents stay editable against the SOURCE parent (the copy
+ *    will contain the source's children), seeded from the source reference.
+ *  - `mapped`: has an effective target - dependents re-pick against the TARGET parent.
+ *  - `unresolved`: neither - dependents are disabled; the parent's own gate owns the block.
+ * Mapped and copied are mutually exclusive by construction (a mapped copyable is excluded from
+ * the copy candidates), so the branch order is not load-bearing.
+ */
+export type ForkParentResolution = 'mapped' | 'copied' | 'unresolved'
+
+export function forkParentResolution(
+  entry: ForkMappingEntry,
+  targets: Record<string, string>,
+  copyingKeys: ReadonlySet<string>
+): ForkParentResolution {
+  if (copyingKeys.has(forkRefKey(entry))) return 'copied'
+  return effectiveForkTarget(entry, targets) !== '' ? 'mapped' : 'unresolved'
+}
+
+/**
  * Whether every required reference is satisfied - it has a mapping target OR is selected for copy.
  * The server accepts a copy as resolving a required ref (promote.ts `willResolve`), so the client
  * gate must too. No double-count: a mapped copyable is excluded from the copy candidates, so the two
@@ -83,7 +103,7 @@ export function isForkRequiredComplete(
 
 /**
  * Whether any reference in a kind is required AND still unmapped AND not selected for copy - drives
- * the overview's amber "pending" badge. Mirrors {@link isForkRequiredComplete}'s satisfied rule.
+ * the mapping summary's amber "pending" badge. Mirrors {@link isForkRequiredComplete}'s satisfied rule.
  */
 export function forkRequiredPending(
   items: ForkMappingEntry[],

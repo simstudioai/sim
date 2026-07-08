@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   forkMappableResourceTypeSchema,
+  getWorkspaceBackgroundWorkQuerySchema,
   updateForkMappingBodySchema,
 } from '@/lib/api/contracts/workspace-fork'
 
@@ -30,6 +31,21 @@ describe('forkMappableResourceTypeSchema', () => {
     ]) {
       expect(forkMappableResourceTypeSchema.safeParse(type).success).toBe(true)
     }
+  })
+})
+
+describe('getWorkspaceBackgroundWorkQuerySchema', () => {
+  it('defaults the limit to 50 and clamps it to 1..100 (audit-log behavior)', () => {
+    expect(getWorkspaceBackgroundWorkQuerySchema.parse({}).limit).toBe(50)
+    expect(getWorkspaceBackgroundWorkQuerySchema.parse({ limit: '25' }).limit).toBe(25)
+    expect(getWorkspaceBackgroundWorkQuerySchema.parse({ limit: '5000' }).limit).toBe(100)
+    expect(getWorkspaceBackgroundWorkQuerySchema.parse({ limit: '-3' }).limit).toBe(1)
+    expect(getWorkspaceBackgroundWorkQuerySchema.parse({ limit: 'garbage' }).limit).toBe(50)
+  })
+
+  it('treats the cursor as an optional opaque string', () => {
+    expect(getWorkspaceBackgroundWorkQuerySchema.parse({}).cursor).toBeUndefined()
+    expect(getWorkspaceBackgroundWorkQuerySchema.parse({ cursor: 'abc' }).cursor).toBe('abc')
   })
 })
 

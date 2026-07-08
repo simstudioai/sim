@@ -18,15 +18,12 @@ import {
 import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal } from 'lucide-react'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
-import { useForkLineage } from '@/hooks/queries/workspace-fork'
-import { useForkingAvailable } from '@/hooks/use-forking-available'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -123,14 +120,6 @@ function WorkspaceHeaderImpl({
   }, [])
 
   const { navigateToSettings } = useSettingsNavigation()
-  const forkingAvailable = useForkingAvailable(workspaceId)
-  const { canAdmin } = useUserPermissionsContext()
-  // Forking and sync rewrite workflow state and deployments en masse, so they are
-  // workspace-admin only (org owners/admins derive workspace admin server-side via
-  // the resolved viewer permission). Every fork route re-checks this; gating the
-  // entry points here just keeps the UI honest. The server remains the boundary.
-  const canUseForking = forkingAvailable && canAdmin
-  const { data: forkLineage } = useForkLineage(workspaceId, canUseForking)
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
   const isWorkspaceReady = !isWorkspacesLoading && activeWorkspaceFull !== null
@@ -247,17 +236,6 @@ function WorkspaceHeaderImpl({
   const handleUploadLogoAction = () => {
     if (!capturedWorkspaceRef.current) return
     onUploadLogo(capturedWorkspaceRef.current.id)
-  }
-
-  // Fork management (create, sync, rollback, activity) lives on the Forks settings
-  // page; the context-menu entries are navigation shortcuts. "Sync workspace"
-  // deep-links straight into the sync flow via the read-then-strip param.
-  const handleForkAction = () => {
-    navigateToSettings({ section: 'forks' })
-  }
-
-  const handleSyncAction = () => {
-    navigateToSettings({ section: 'forks', forkAction: 'sync' })
   }
 
   /**
@@ -657,9 +635,6 @@ function WorkspaceHeaderImpl({
         const contextCanAdmin = capturedPermissions === 'admin'
         const capturedWorkspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
         const isOwner = capturedWorkspace && sessionUserId === capturedWorkspace.ownerId
-        // Only the active row can offer fork actions: its lineage/availability is the
-        // data loaded for `workspaceId`. Sync needs a parent; Manage needs children.
-        const showForkInContext = capturedWorkspaceRef.current?.id === workspaceId && canUseForking
 
         return (
           <ContextMenu
@@ -671,13 +646,9 @@ function WorkspaceHeaderImpl({
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
             onUploadLogo={handleUploadLogoAction}
-            onFork={handleForkAction}
-            onSync={handleSyncAction}
             showRename={true}
             showUploadLogo={!!onUploadLogo}
             showLeave={!isOwner && !!onLeaveWorkspace}
-            showFork={showForkInContext}
-            showSync={showForkInContext && Boolean(forkLineage?.parent)}
             disableRename={!contextCanAdmin}
             disableDelete={!contextCanAdmin || workspaces.length <= 1}
             disableUploadLogo={!contextCanAdmin}

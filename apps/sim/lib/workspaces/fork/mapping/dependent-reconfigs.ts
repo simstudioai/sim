@@ -171,6 +171,8 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           typeof dependent.mimeType === 'string' && dependent.mimeType
             ? { ...context, mimeType: dependent.mimeType }
             : context
+        const rawSourceValue =
+          typeof values[dependent.id] === 'string' ? (values[dependent.id] as string) : ''
         out.push({
           parentKind: anchor.parentKind,
           parentSourceId,
@@ -182,12 +184,14 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           selectorKey: dependent.selectorKey,
           title: makeTitle(dependent),
           // Source value, so the always-on listing pre-fills a stable parent's selector.
-          currentValue:
-            typeof values[dependent.id] === 'string' ? (values[dependent.id] as string) : '',
+          // The diff route overlays the stored/target-draft value onto `currentValue`;
+          // `sourceValue` stays the raw source reference (the copy-resolved parent's seed).
+          currentValue: rawSourceValue,
           required: isSubBlockRequired(dependent.required, values),
           providesContextKey,
           consumesContextKeys,
           context: dependentContext,
+          sourceValue: rawSourceValue,
         })
       }
     }

@@ -4,10 +4,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  type ForkDependentValue,
   forkDependentValueKey,
   loadForkDependentValues,
   reconcileForkDependentValues,
+  translateForkDependentValues,
 } from '@/lib/workspaces/fork/mapping/dependent-value-store'
+import type { ForkReferenceResolver } from '@/lib/workspaces/fork/remap/remap-references'
 
 describe('forkDependentValueKey', () => {
   it('builds a stable triple key', () => {
@@ -50,6 +53,46 @@ describe('loadForkDependentValues', () => {
     const rows = await loadForkDependentValues(executor as unknown as DbOrTx, 'ws-1', [])
     expect(executor.select).not.toHaveBeenCalled()
     expect(rows).toEqual([])
+  })
+})
+
+describe('translateForkDependentValues', () => {
+  const value = (overrides: Partial<ForkDependentValue> = {}): ForkDependentValue => ({
+    targetWorkflowId: 'wf-1',
+    targetBlockId: 'blk-1',
+    subBlockKey: 'documentSelector',
+    value: 'doc-src',
+    ...overrides,
+  })
+
+  /** Resolver mapping only the copied/mapped source document ids, like promote's post-copy one. */
+  const resolver: ForkReferenceResolver = (kind, sourceId) =>
+    kind === 'knowledge-document' && sourceId === 'doc-src' ? 'doc-copy' : null
+
+  it('rewrites a SOURCE document id to its copied counterpart (the apply must never write a source id)', () => {
+    expect(translateForkDependentValues([value()], resolver)).toEqual([
+      value({ value: 'doc-copy' }),
+    ])
+  })
+
+  it('keeps values the resolver does not know verbatim (target doc ids, labels, column ids)', () => {
+    const targetDoc = value({ value: 'doc-tgt-existing' })
+    const label = value({ subBlockKey: 'folder', value: 'INBOX' })
+    expect(translateForkDependentValues([targetDoc, label], resolver)).toEqual([targetDoc, label])
+  })
+
+  it('keeps empty (cleared) values untouched without consulting the resolver', () => {
+    const resolve = vi.fn(() => 'never')
+    const cleared = value({ value: '' })
+    expect(translateForkDependentValues([cleared], resolve)).toEqual([cleared])
+    expect(resolve).not.toHaveBeenCalled()
+  })
+
+  it('consults only the knowledge-document kind (documents are the one copied dependent value)', () => {
+    const resolve = vi.fn(() => null)
+    translateForkDependentValues([value()], resolve)
+    expect(resolve).toHaveBeenCalledTimes(1)
+    expect(resolve).toHaveBeenCalledWith('knowledge-document', 'doc-src')
   })
 })
 

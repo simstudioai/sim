@@ -5,8 +5,9 @@ import { describe, expect, it } from 'vitest'
 import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
 import {
   dependentKey,
+  effectiveCopyDependentValue,
   effectiveDependentValue,
-} from '@/app/workspace/[workspaceId]/settings/components/forks/components/promote-workspace-modal/dependent-value'
+} from '@/app/workspace/[workspaceId]/settings/components/forks/components/fork-sync/dependent-value'
 
 const field = (overrides: Partial<ForkDependentReconfig> = {}): ForkDependentReconfig => ({
   parentKind: 'credential',
@@ -22,6 +23,7 @@ const field = (overrides: Partial<ForkDependentReconfig> = {}): ForkDependentRec
   required: false,
   consumesContextKeys: [],
   context: {},
+  sourceValue: '',
   ...overrides,
 })
 
@@ -55,5 +57,43 @@ describe('effectiveDependentValue', () => {
   it('an explicit empty re-pick is respected (not treated as absent)', () => {
     const f = field({ currentValue: 'INBOX' })
     expect(effectiveDependentValue(f, { [dependentKey(f)]: '' }, false)).toBe('')
+  })
+})
+
+describe('effectiveCopyDependentValue', () => {
+  const copyField = (overrides: Partial<ForkDependentReconfig> = {}) =>
+    field({
+      parentKind: 'knowledge-base',
+      parentSourceId: 'kb-src',
+      parentContextKey: 'knowledgeBaseId',
+      subBlockKey: 'documentSelector',
+      selectorKey: 'knowledge.documents',
+      title: 'Document',
+      ...overrides,
+    })
+
+  it('seeds from the raw source reference when nothing is stored (the copy will contain it)', () => {
+    const f = copyField({ currentValue: '', sourceValue: 'doc-src' })
+    expect(effectiveCopyDependentValue(f, {})).toBe('doc-src')
+  })
+
+  it('prefers the stored value over the source reference (a saved re-pick survives reload)', () => {
+    const f = copyField({ currentValue: 'doc-saved', sourceValue: 'doc-src' })
+    expect(effectiveCopyDependentValue(f, {})).toBe('doc-saved')
+  })
+
+  it('an in-session re-pick wins over both', () => {
+    const f = copyField({ currentValue: 'doc-saved', sourceValue: 'doc-src' })
+    expect(effectiveCopyDependentValue(f, { [dependentKey(f)]: 'doc-picked' })).toBe('doc-picked')
+  })
+
+  it('an explicit empty re-pick is respected (a required field then gates as usual)', () => {
+    const f = copyField({ currentValue: '', sourceValue: 'doc-src' })
+    expect(effectiveCopyDependentValue(f, { [dependentKey(f)]: '' })).toBe('')
+  })
+
+  it('is blank when the source never referenced anything and nothing was stored', () => {
+    const f = copyField({ currentValue: '', sourceValue: '' })
+    expect(effectiveCopyDependentValue(f, {})).toBe('')
   })
 })

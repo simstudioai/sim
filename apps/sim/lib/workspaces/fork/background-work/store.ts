@@ -1,7 +1,7 @@
-import { backgroundWorkStatus } from '@sim/db/schema'
+import { backgroundWorkStatus, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, inArray, isNull, lte } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('ForkBackgroundWork')
@@ -27,8 +27,11 @@ const SURFACED_STATUSES: BackgroundWorkStatusValue[] = [
   'failed',
 ]
 
-/** Cap on recent jobs returned for a workspace's Activity tab. */
-const BACKGROUND_WORK_LIST_LIMIT = 20
+/** Default page size for the workspace's Activity tab (mirrors the audit log's). */
+const BACKGROUND_WORK_PAGE_SIZE = 50
+
+/** Server-side cap on the requested page size (mirrors the audit log's). */
+const BACKGROUND_WORK_PAGE_SIZE_MAX = 100
 
 /**
  * An active (pending/processing) row older than this is treated as abandoned: the
@@ -182,27 +185,120 @@ function toMetadataRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
+/** Keyset position of the last row of a page: `updatedAt` plus the `id` tiebreaker. */
+interface BackgroundWorkCursorData {
+  updatedAt: string
+  id: string
+}
+
+/** Encodes the keyset position as an opaque base64 cursor (mirrors the audit log's). */
+function encodeCursor(data: BackgroundWorkCursorData): string {
+  return Buffer.from(JSON.stringify(data)).toString('base64')
+}
+
+function decodeCursor(cursor: string): BackgroundWorkCursorData | null {
+  try {
+    return JSON.parse(Buffer.from(cursor, 'base64').toString())
+  } catch {
+    return null
+  }
+}
+
 /**
- * Recent background-work jobs for a workspace - the durable audit record the Activity
- * tab renders, most-recent first and capped. Fork jobs are append-only (one row per
- * fork), so this is the workspace's fork history; older rows are pruned by the cron.
+ * Keyset condition for rows strictly after the cursor position in
+ * `updatedAt DESC, id DESC` order: older `updatedAt`, or the same `updatedAt`
+ * (which is not unique) with a smaller `id`. Null for an invalid cursor, which
+ * degrades to the first page rather than erroring.
+ */
+function buildCursorCondition(cursor: string): SQL<unknown> | null {
+  const cursorData = decodeCursor(cursor)
+  if (!cursorData?.updatedAt || !cursorData.id) return null
+
+  const cursorDate = new Date(cursorData.updatedAt)
+  if (Number.isNaN(cursorDate.getTime())) return null
+
+  return or(
+    lt(backgroundWorkStatus.updatedAt, cursorDate),
+    and(eq(backgroundWorkStatus.updatedAt, cursorDate), lt(backgroundWorkStatus.id, cursorData.id))
+  )!
+}
+
+export interface BackgroundWorkPage {
+  rows: BackgroundWorkRow[]
+  /** Cursor for the next page; null when this page is the last. */
+  nextCursor: string | null
+}
+
+/**
+ * Recent background-work jobs involving a workspace - the durable audit record the
+ * Activity view renders, most-recent first and keyset-paginated (`updatedAt DESC,
+ * id DESC`, cursor + limit mirroring the audit log's `queryAuditLogs`). Fork jobs
+ * are append-only (one row per fork), so this is the workspace's fork history;
+ * older rows are pruned by the cron.
+ *
+ * Every fork event is recorded ONCE, keyed to the workspace it was initiated from
+ * (fork-create → the parent; sync/rollback/sync-copy → the workspace whose page ran
+ * it), so "involving" matches both sides of each edge without double-writing rows:
+ *
+ * - rows keyed to this workspace (its own forks, syncs it ran, its rollbacks);
+ * - rows whose `metadata.childWorkspaceId` is this workspace (its own creation,
+ *   recorded on the parent);
+ * - rows whose `metadata.otherWorkspaceId` is this workspace (the other side of a
+ *   sync/rollback/sync-copy edge);
+ * - sync/rollback rows keyed to one of this workspace's forks - a fork's only sync
+ *   edge is its parent, so these are guaranteed edge events (covers rows written
+ *   before `metadata.otherWorkspaceId` existed).
  */
 export async function listSurfacedBackgroundWork(
   executor: DbOrTx,
-  workspaceId: string
-): Promise<BackgroundWorkRow[]> {
-  const rows = await executor
+  workspaceId: string,
+  options?: { cursor?: string; limit?: number }
+): Promise<BackgroundWorkPage> {
+  const limit = Math.min(
+    Math.max(options?.limit ?? BACKGROUND_WORK_PAGE_SIZE, 1),
+    BACKGROUND_WORK_PAGE_SIZE_MAX
+  )
+
+  const childRows = await executor
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.forkedFromWorkspaceId, workspaceId), isNull(workspace.archivedAt)))
+  const childWorkspaceIds = childRows.map((row) => row.id)
+
+  const involvesWorkspace = or(
+    eq(backgroundWorkStatus.workspaceId, workspaceId),
+    sql`${backgroundWorkStatus.metadata} ->> 'childWorkspaceId' = ${workspaceId}`,
+    sql`${backgroundWorkStatus.metadata} ->> 'otherWorkspaceId' = ${workspaceId}`,
+    ...(childWorkspaceIds.length > 0
+      ? [
+          and(
+            inArray(backgroundWorkStatus.workspaceId, childWorkspaceIds),
+            inArray(backgroundWorkStatus.kind, ['fork_sync', 'fork_rollback'])
+          ),
+        ]
+      : [])
+  )
+
+  const conditions = [involvesWorkspace, inArray(backgroundWorkStatus.status, SURFACED_STATUSES)]
+  if (options?.cursor) {
+    const cursorCondition = buildCursorCondition(options.cursor)
+    if (cursorCondition) conditions.push(cursorCondition)
+  }
+
+  // Over-fetch by one row to learn whether another page exists (audit-log pattern).
+  const rows = (await executor
     .select()
     .from(backgroundWorkStatus)
-    .where(
-      and(
-        eq(backgroundWorkStatus.workspaceId, workspaceId),
-        inArray(backgroundWorkStatus.status, SURFACED_STATUSES)
-      )
-    )
-    .orderBy(desc(backgroundWorkStatus.updatedAt))
-    .limit(BACKGROUND_WORK_LIST_LIMIT)
-  return rows as BackgroundWorkRow[]
+    .where(and(...conditions))
+    .orderBy(desc(backgroundWorkStatus.updatedAt), desc(backgroundWorkStatus.id))
+    .limit(limit + 1)) as BackgroundWorkRow[]
+
+  const hasMore = rows.length > limit
+  const page = rows.slice(0, limit)
+  const last = page[page.length - 1]
+  const nextCursor =
+    hasMore && last ? encodeCursor({ updatedAt: last.updatedAt.toISOString(), id: last.id }) : null
+  return { rows: page, nextCursor }
 }
 
 /**
@@ -232,7 +328,7 @@ export async function reapStaleBackgroundWork(executor: DbOrTx): Promise<number>
     .returning({ id: backgroundWorkStatus.id })
 
   // Retention: the append-only fork audit trail would otherwise grow forever, so drop
-  // terminal rows past the retention window. The Activity tab caps display separately.
+  // terminal rows past the retention window. The Activity tab paginates separately.
   await executor
     .delete(backgroundWorkStatus)
     .where(
