@@ -74,7 +74,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a comma-separated list of TikTok user info fields based on the user request, choosing only from: open_id, union_id, avatar_url, avatar_url_100, avatar_large_url, display_name, bio_description, profile_deep_link, is_verified, username, follower_count, following_count, likes_count, video_count. Return ONLY the comma-separated field names - no explanations, no extra text.',
+          'Generate a comma-separated list of TikTok user info fields based on the user request, choosing only from: open_id, union_id, avatar_url, avatar_large_url, display_name, bio_description, profile_deep_link, is_verified, username, follower_count, following_count, likes_count, video_count. Return ONLY the comma-separated field names - no explanations, no extra text.',
         placeholder: 'Describe which profile fields you need',
       },
     },

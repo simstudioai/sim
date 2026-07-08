@@ -28,7 +28,7 @@ export const tiktokGetUserTool: ToolConfig<TikTokGetUserParams, TikTokGetUserRes
       visibility: 'user-or-llm',
       default: TIKTOK_USER_FIELDS,
       description:
-        'Comma-separated list of fields to return. Available: open_id, union_id, avatar_url, avatar_url_100, avatar_large_url, display_name, bio_description, profile_deep_link, is_verified, username, follower_count, following_count, likes_count, video_count',
+        'Comma-separated list of fields to return. Available: open_id, union_id, avatar_url, avatar_large_url, display_name, bio_description, profile_deep_link, is_verified, username, follower_count, following_count, likes_count, video_count. Include avatar_url and avatar_large_url to receive the avatarFile output.',
     },
   },
 

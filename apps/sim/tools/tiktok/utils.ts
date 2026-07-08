@@ -3,9 +3,10 @@ import type { TikTokVideo } from '@/tools/tiktok/types'
 /**
  * Default fields requested from TikTok's `/v2/user/info/` endpoint, covering the
  * `user.info.basic`, `user.info.profile`, and `user.info.stats` scopes.
+ * `avatar_url` and `avatar_large_url` feed the file-typed `avatarFile` output.
  */
 export const TIKTOK_USER_FIELDS =
-  'open_id,union_id,avatar_url,avatar_url_100,avatar_large_url,display_name,bio_description,profile_deep_link,is_verified,username,follower_count,following_count,likes_count,video_count'
+  'open_id,union_id,avatar_url,avatar_large_url,display_name,bio_description,profile_deep_link,is_verified,username,follower_count,following_count,likes_count,video_count'
 
 /**
  * Fields requested from TikTok's `/v2/video/list/` and `/v2/video/query/` endpoints.
