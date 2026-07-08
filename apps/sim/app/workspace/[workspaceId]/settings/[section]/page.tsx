@@ -32,7 +32,7 @@ const SECTION_TITLES: Record<string, string> = {
   sso: 'Single Sign-On',
   whitelabeling: 'Whitelabeling',
   copilot: 'Chat Keys',
-  forks: 'Forks',
+  forks: 'Workspace Forks',
   mcp: 'MCP Tools',
   'custom-tools': 'Custom Tools',
   'workflow-mcp-servers': 'MCP Servers',

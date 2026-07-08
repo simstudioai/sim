@@ -157,7 +157,7 @@ function ForkSyncDetailView({
     <>
       <SettingsPanel
         back={{
-          text: 'Forks',
+          text: 'Workspace Forks',
           icon: ArrowLeft,
           onSelect: () =>
             guard.guardBack(() => {
@@ -249,7 +249,7 @@ function ForkActivityDetailView({
 }: ForkActivityDetailViewProps) {
   return (
     <SettingsPanel
-      back={{ text: 'Forks', icon: ArrowLeft, onSelect: onBack }}
+      back={{ text: 'Workspace Forks', icon: ArrowLeft, onSelect: onBack }}
       title='Activity'
       actions={actions}
     >
