@@ -171,6 +171,21 @@ describe('ashbyHandler', () => {
       expect(ashbyHandler.extractIdempotencyId!(different)).not.toBe(key)
     })
 
+    it('distinguishes candidateHire deliveries that share an application snapshot but differ in offer', () => {
+      const application = { id: 'app-1', status: 'Hired' }
+      const first = {
+        action: 'candidateHire',
+        data: { application, offer: { id: 'offer-1' } },
+      }
+      const second = {
+        action: 'candidateHire',
+        data: { application, offer: { id: 'offer-2' } },
+      }
+      expect(ashbyHandler.extractIdempotencyId!(first)).not.toBe(
+        ashbyHandler.extractIdempotencyId!(second)
+      )
+    })
+
     it('returns null when no recognizable resource is present', () => {
       expect(ashbyHandler.extractIdempotencyId!({ action: 'ping', data: {} })).toBeNull()
       expect(ashbyHandler.extractIdempotencyId!({})).toBeNull()
