@@ -41,6 +41,7 @@ const RESOURCE_KINDS: ReadonlyArray<{ key: ResourceKey; label: string }> = [
   { key: 'knowledgeBases', label: 'Knowledge bases' },
   { key: 'customTools', label: 'Custom tools' },
   { key: 'skills', label: 'Skills' },
+  { key: 'mcpServers', label: 'MCP servers' },
   { key: 'workflowMcpServers', label: 'Workflow MCP servers' },
 ]
 
@@ -50,6 +51,7 @@ const emptySelection = (): ResourceSelection => ({
   knowledgeBases: new Set(),
   customTools: new Set(),
   skills: new Set(),
+  mcpServers: new Set(),
   workflowMcpServers: new Set(),
 })
 

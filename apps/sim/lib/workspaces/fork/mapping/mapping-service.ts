@@ -76,10 +76,16 @@ export async function getForkMappingView(
 
   const resourceTypeBySourceId = new Map<string, ForkMappableResourceType>()
   for (const row of mappingRows) {
-    // Workflow identity rows are system-managed and document rows ride their parent KB - neither is
-    // user-mappable. Skip both so a scanned reference can never be labeled with a non-mappable type
-    // and the view stays within the mappable-type contract.
-    if (row.resourceType === 'workflow' || row.resourceType === 'knowledge_document') continue
+    // Workflow + workflow-publishing-server identity rows are system-managed and document rows
+    // ride their parent KB - none is user-mappable. Skip them so a scanned reference can never
+    // be labeled with a non-mappable type and the view stays within the mappable-type contract.
+    if (
+      row.resourceType === 'workflow' ||
+      row.resourceType === 'workflow_mcp_server' ||
+      row.resourceType === 'knowledge_document'
+    ) {
+      continue
+    }
     const key = sourceIsParent ? row.parentResourceId : row.childResourceId
     if (key) resourceTypeBySourceId.set(key, row.resourceType)
   }

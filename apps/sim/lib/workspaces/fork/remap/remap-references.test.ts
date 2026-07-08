@@ -469,13 +469,53 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
     expect(result.arguments.value).toBe('')
   })
 
-  it('fork-create: servers are not copied, so the reference clears and dependents clear with it', () => {
+  it('fork-create: an UNSELECTED server clears, and its tool + arguments clear with it', () => {
     vi.mocked(getBlock).mockReturnValue(mcpBlock())
     const transform = createForkBootstrapTransform(() => null)
     const result = transform(mcpSubBlocks(), 'mcp')
     expect(result.server.value).toBe('')
     expect(result.tool.value).toBe('')
     expect(result.arguments.value).toBe('')
+  })
+
+  it('fork-create: a COPIED server remaps and the tool selection + arguments follow it', () => {
+    // The fork resolver now carries `mcp-server` entries for copied external servers, so the
+    // MCP block is preserved end-to-end: server -> copied id, tool -> embedded id swapped
+    // (name verbatim, re-resolved by the child's first discovery), arguments untouched.
+    vi.mocked(getBlock).mockReturnValue(mcpBlock())
+    const transform = createForkBootstrapTransform(mapServer as never)
+    const result = transform(mcpSubBlocks(), 'mcp')
+    expect(result.server.value).toBe('mcp-tgt9')
+    expect(result.tool.value).toBe('mcp-tgt9-search_docs')
+    expect(result.arguments.value).toBe('{"query":"hello"}')
+  })
+
+  it('fork-create: a COPIED server rewrites an agent tool-input MCP entry (serverId + toolId)', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+    )
+    const transform = createForkBootstrapTransform(mapServer as never)
+    const result = transform(
+      {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'mcp',
+              title: 'Search Docs',
+              params: { serverId: 'mcp-src1', toolName: 'search_docs' },
+              toolId: 'mcp-src1-search_docs',
+            },
+          ],
+        },
+      },
+      'agent'
+    )
+    const [tool] = result.tools.value as Array<{ params: Record<string, unknown>; toolId: string }>
+    expect(tool.params.serverId).toBe('mcp-tgt9')
+    expect(tool.params.toolName).toBe('search_docs')
+    expect(tool.toolId).toBe('mcp-tgt9-search_docs')
   })
 
   it('remap layer: the tool follow-rewrite is not registered as a remapped parent key', () => {
@@ -1150,5 +1190,318 @@ describe('readTargetDraftDependentValue', () => {
       tools: { value: JSON.stringify([{ type: 'gmail', params: { folder: 'SENT' } }]) },
     }
     expect(readTargetDraftDependentValue(target, source, 'tools[0].folder')).toBe('INBOX')
+  })
+})
+
+/** The knowledge block's canonical shape: KB + document pairs, tag fields as KB dependents. */
+const knowledgePairBlock = () =>
+  blockWith([
+    {
+      id: 'knowledgeBaseSelector',
+      title: 'KB',
+      type: 'knowledge-base-selector',
+      canonicalParamId: 'knowledgeBaseId',
+      mode: 'basic',
+    },
+    {
+      id: 'manualKnowledgeBaseId',
+      title: 'KB ID',
+      type: 'short-input',
+      canonicalParamId: 'knowledgeBaseId',
+      mode: 'advanced',
+    },
+    {
+      id: 'documentSelector',
+      title: 'Document',
+      type: 'document-selector',
+      dependsOn: ['knowledgeBaseSelector'],
+    },
+    {
+      id: 'tagFilters',
+      title: 'Tag Filters',
+      type: 'knowledge-tag-filters',
+      dependsOn: ['knowledgeBaseSelector'],
+    },
+    {
+      id: 'documentTags',
+      title: 'Document Tags',
+      type: 'document-tag-entry',
+      dependsOn: ['knowledgeBaseSelector'],
+    },
+  ])
+
+describe('canonical mode policy (fork/promote)', () => {
+  const copyMap: Record<string, string> = {
+    'knowledge-base:kb-src': 'kb-copy',
+    'knowledge-document:doc-src': 'doc-copy',
+  }
+  const resolveCopy = (kind: string, id: string) => copyMap[`${kind}:${id}`] ?? null
+
+  it('basic mode: remaps the selector + document, preserves tag fields, clears the dormant manual member', () => {
+    vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
+    const transform = createForkBootstrapTransform(resolveCopy as never)
+    const result = transform(
+      {
+        knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-src'),
+        manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', 'stale-manual-kb'),
+        documentSelector: entry('documentSelector', 'document-selector', 'doc-src'),
+        tagFilters: entry('tagFilters', 'knowledge-tag-filters', '[{"tagName":"team"}]'),
+        documentTags: entry('documentTags', 'document-tag-entry', '[{"tagName":"team"}]'),
+      },
+      'knowledge',
+      { knowledgeBaseId: 'basic' }
+    )
+    expect(result.knowledgeBaseSelector.value).toBe('kb-copy')
+    expect(result.documentSelector.value).toBe('doc-copy')
+    // Name/slot-based tag fields stay valid on the copy (tag definitions copy verbatim).
+    expect(result.tagFilters.value).toBe('[{"tagName":"team"}]')
+    expect(result.documentTags.value).toBe('[{"tagName":"team"}]')
+    // Only the active mode matters: the dormant manual member's stale value is cleared.
+    expect(result.manualKnowledgeBaseId.value).toBe('')
+  })
+
+  it('advanced (manual) mode: passes the manual value + its dependents through verbatim, clears the dormant selector', () => {
+    vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
+    const transform = createForkBootstrapTransform(resolveCopy as never)
+    const result = transform(
+      {
+        knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-src'),
+        manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', 'kb-manual'),
+        documentSelector: entry('documentSelector', 'document-selector', 'doc-src'),
+        tagFilters: entry('tagFilters', 'knowledge-tag-filters', '[{"tagName":"team"}]'),
+      },
+      'knowledge',
+      { knowledgeBaseId: 'advanced' }
+    )
+    // The manual value is user-owned: kept verbatim, never remapped.
+    expect(result.manualKnowledgeBaseId.value).toBe('kb-manual')
+    // Its dependents ride along verbatim too - no remap, no clear.
+    expect(result.documentSelector.value).toBe('doc-src')
+    expect(result.tagFilters.value).toBe('[{"tagName":"team"}]')
+    // The dormant basic selector is cleared outright (not remapped to the copy).
+    expect(result.knowledgeBaseSelector.value).toBe('')
+  })
+
+  it('advanced mode: nothing is detected as a reference (no mapping requirement)', () => {
+    vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'KB',
+          type: 'knowledge',
+          subBlocks: {
+            knowledgeBaseSelector: entry(
+              'knowledgeBaseSelector',
+              'knowledge-base-selector',
+              'kb-src'
+            ),
+            manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', 'kb-manual'),
+            documentSelector: entry('documentSelector', 'document-selector', 'doc-src'),
+          },
+          canonicalModes: { knowledgeBaseId: 'advanced' },
+        },
+      ],
+      () => null
+    )
+    expect(scan.references).toEqual([])
+  })
+
+  it('does not detect a condition-hidden subblock (its value never executes)', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'mode', title: 'Mode', type: 'dropdown' },
+        {
+          id: 'cloudKb',
+          title: 'Cloud KB',
+          type: 'knowledge-base-selector',
+          condition: { field: 'mode', value: 'cloud' },
+        },
+        {
+          id: 'localKb',
+          title: 'Local KB',
+          type: 'knowledge-base-selector',
+          condition: { field: 'mode', value: 'local' },
+        },
+      ])
+    )
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'Pi',
+          type: 'pi',
+          subBlocks: {
+            mode: entry('mode', 'dropdown', 'local'),
+            cloudKb: entry('cloudKb', 'knowledge-base-selector', 'kb-hidden'),
+            localKb: entry('localKb', 'knowledge-base-selector', 'kb-active'),
+          },
+        },
+      ],
+      () => null
+    )
+    expect(scan.references.map((ref) => ref.sourceId)).toEqual(['kb-active'])
+  })
+
+  it('nested tool: remaps a canonical-keyed param (and both keys when aliased)', () => {
+    const tool = {
+      type: 'tblblock',
+      toolId: 'tblblock_run',
+      params: { tableId: 'tbl-src', tableSelector: 'tbl-src' },
+    }
+    const result = remapToolBlockResources(tool, {
+      resolve: (kind, id) => (kind === 'table' && id === 'tbl-src' ? 'tbl-dst' : null),
+      resolveFileKey: () => null,
+      clearUnresolved: true,
+      blockConfigs: {
+        tblblock: {
+          subBlocks: [
+            {
+              id: 'tableSelector',
+              title: 'Table',
+              type: 'table-selector',
+              canonicalParamId: 'tableId',
+              mode: 'basic',
+            },
+            {
+              id: 'manualTableId',
+              title: 'Table ID',
+              type: 'short-input',
+              canonicalParamId: 'tableId',
+              mode: 'advanced',
+            },
+          ],
+        },
+      },
+    })
+    expect(result.params).toEqual({ tableId: 'tbl-dst', tableSelector: 'tbl-dst' })
+  })
+
+  it('nested tool: keeps a reference-shaped canonical value verbatim (user-owned)', () => {
+    const tool = {
+      type: 'tblblock',
+      toolId: 'tblblock_run',
+      params: { tableId: '<start.tableId>' },
+    }
+    const result = remapToolBlockResources(tool, {
+      resolve: () => null,
+      resolveFileKey: () => null,
+      clearUnresolved: true,
+      blockConfigs: {
+        tblblock: {
+          subBlocks: [
+            {
+              id: 'tableSelector',
+              title: 'Table',
+              type: 'table-selector',
+              canonicalParamId: 'tableId',
+            },
+          ],
+        },
+      },
+    })
+    expect(result).toBe(tool)
+  })
+
+  it('nested tool: preserves tag filters under a remapped parent, clears them under a cleared parent', () => {
+    const kbToolConfigs = {
+      kbblock: {
+        subBlocks: [
+          { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
+          {
+            id: 'tagFilters',
+            title: 'Tag Filters',
+            type: 'knowledge-tag-filters',
+            dependsOn: ['knowledgeBaseId'],
+          },
+        ] as SubBlockConfig[],
+      },
+    }
+    const tool = () => ({
+      type: 'kbblock',
+      toolId: 'kbblock_run',
+      params: { knowledgeBaseId: 'kb-src', tagFilters: '[{"tagName":"team"}]' },
+    })
+    const remapped = remapToolBlockResources(tool(), {
+      resolve: (kind, id) => (kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null),
+      resolveFileKey: () => null,
+      clearUnresolved: true,
+      blockConfigs: kbToolConfigs,
+    })
+    expect(remapped.params).toEqual({
+      knowledgeBaseId: 'kb-dst',
+      tagFilters: '[{"tagName":"team"}]',
+    })
+    const cleared = remapToolBlockResources(tool(), {
+      resolve: () => null,
+      resolveFileKey: () => null,
+      clearUnresolved: true,
+      blockConfigs: kbToolConfigs,
+    })
+    expect(cleared.params).toEqual({ knowledgeBaseId: '', tagFilters: '' })
+  })
+
+  it('preserves a column selection under a COPIED table, clears it under a mapped one', () => {
+    const tableBlock = () =>
+      blockWith([
+        {
+          id: 'tableSelector',
+          title: 'Table',
+          type: 'table-selector',
+          canonicalParamId: 'tableId',
+          mode: 'basic',
+        },
+        {
+          id: 'manualTableId',
+          title: 'Table ID',
+          type: 'short-input',
+          canonicalParamId: 'tableId',
+          mode: 'advanced',
+        },
+        {
+          id: 'conflictColumnSelector',
+          title: 'Conflict Column',
+          type: 'column-selector',
+          dependsOn: ['tableSelector'],
+        },
+      ])
+    const subBlocks = (): SubBlockRecord => ({
+      tableSelector: entry('tableSelector', 'table-selector', 'tbl-src'),
+      conflictColumnSelector: entry('conflictColumnSelector', 'column-selector', 'col_a'),
+    })
+    vi.mocked(getBlock).mockReturnValue(tableBlock())
+    // Fork-create: the table is a COPY (identical column ids) - the column pick survives.
+    const forkTransform = createForkBootstrapTransform(((kind: string, id: string) =>
+      kind === 'table' && id === 'tbl-src' ? 'tbl-copy' : null) as never)
+    const forked = forkTransform(subBlocks(), 'table')
+    expect(forked.tableSelector.value).toBe('tbl-copy')
+    expect(forked.conflictColumnSelector.value).toBe('col_a')
+    // Promote onto a MAPPED (different) table: column ids differ - the pick clears (re-pick flow).
+    const mappedTransform = createForkSubBlockTransform((kind, id) =>
+      kind === 'table' && id === 'tbl-src' ? 'tbl-mapped' : null
+    )
+    const mapped = mappedTransform(subBlocks(), 'table')
+    expect(mapped.tableSelector.value).toBe('tbl-mapped')
+    expect(mapped.conflictColumnSelector.value).toBe('')
+  })
+
+  it('collectClearedDependents skips a dormant canonical member (only the active mode matters)', () => {
+    vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
+    const targetDraft: SubBlockRecord = {
+      knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-old'),
+      manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', 'stale-manual'),
+      documentSelector: entry('documentSelector', 'document-selector', 'doc-old'),
+    }
+    // The merge cleared the dormant manual member and the document; only the document (an
+    // active dependent) is flagged - the dormant manual slot is not a lost configuration.
+    const merged: SubBlockRecord = {
+      knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-new'),
+      manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', ''),
+      documentSelector: entry('documentSelector', 'document-selector', ''),
+    }
+    const fields = collectClearedDependents('knowledge', 'b1', 'KB', targetDraft, merged, {
+      knowledgeBaseId: 'basic',
+    })
+    expect(fields.map((field) => field.subBlockKey)).toEqual(['documentSelector'])
   })
 })

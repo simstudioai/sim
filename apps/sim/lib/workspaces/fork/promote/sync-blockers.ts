@@ -24,15 +24,13 @@ const COPYABLE_BLOCKER_KINDS: ReadonlySet<string> = new Set(forkCopyableKindSche
  *    remove the reference).
  *  - `reference` + source deleted -> `source-deleted` (map the dead id to a live target
  *    resource, or fix/archive the source workflow).
- *  - `reference` + external MCP server -> `unmapped-mcp-server` (map it; MCP servers are never
- *    copied).
- *  - `reference` + copyable kind -> `unmapped-copyable` (map it or select it for copy).
+ *  - `reference` + copyable kind (incl. external MCP servers) -> `unmapped-copyable` (map it
+ *    or select it for copy).
  */
 export function forkSyncBlockerReasonFor(ref: ForkClearedRef): ForkSyncBlockerReason | null {
   if (ref.cause === 'workflow') return 'workflow-missing'
   if (ref.cause !== 'reference') return null
   if (ref.sourceDeleted) return 'source-deleted'
-  if (ref.kind === 'mcp-server') return 'unmapped-mcp-server'
   if (COPYABLE_BLOCKER_KINDS.has(ref.kind)) return 'unmapped-copyable'
   // Credential / env-var / knowledge-document never reach the cleared list (excluded by the
   // collector; the first two gate via the kind-level required gate, documents follow their KB).

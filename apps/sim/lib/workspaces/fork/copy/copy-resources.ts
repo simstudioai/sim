@@ -5,6 +5,7 @@ import {
   embedding,
   knowledgeBase,
   knowledgeBaseTagDefinitions,
+  mcpServers,
   skill,
   userTableDefinitions,
   userTableRows,
@@ -66,6 +67,8 @@ export interface CopyResourcesParams {
   selection: {
     customTools: string[]
     skills: string[]
+    /** External MCP servers, copied as config rows (fork-only; sync resolves them by mapping). */
+    mcpServers: string[]
     workflowMcpServers: string[]
     tables: string[]
     knowledgeBases: string[]
@@ -175,6 +178,7 @@ export interface ForkCopiedResourceNames {
   knowledgeBases: string[]
   customTools: string[]
   skills: string[]
+  mcpServers: string[]
   workflowMcpServers: string[]
 }
 
@@ -239,6 +243,7 @@ export async function copyForkResourceContainers(
     knowledgeBases: [],
     customTools: [],
     skills: [],
+    mcpServers: [],
     workflowMcpServers: [],
   }
 
@@ -322,6 +327,64 @@ export async function copyForkResourceContainers(
     if (inserts.length > 0) await tx.insert(skill).values(inserts)
   }
 
+  if (selection.mcpServers.length > 0) {
+    const rows = await tx
+      .select()
+      .from(mcpServers)
+      .where(
+        and(
+          inArray(mcpServers.id, selection.mcpServers),
+          eq(mcpServers.workspaceId, sourceWorkspaceId),
+          isNull(mcpServers.deletedAt)
+        )
+      )
+    // Copy external MCP servers as CONFIG rows: transport/url/headers (and pre-registered OAuth
+    // client info) verbatim - the forking admin can already read them in the source. OAuth
+    // tokens (`mcp_server_oauth`) are never copied: an oauth-auth server lands disconnected in
+    // the child until re-authorized. Runtime status resets to a clean slate - the tool cache is
+    // workspace-keyed, so the child's first tool-selector open / execution re-discovers tools
+    // fresh; subblock tool SELECTIONS remap onto the copied server id (tool names carry over).
+    // `{{ENV}}` refs in the url/headers are rewritten through the env-name resolver when a sync
+    // renames an env var (fork passes no resolver - names preserve verbatim), mirroring the
+    // custom-tool `code` rewrite.
+    const rewriteEnv = (value: string): string =>
+      resolveEnvName ? rewriteEnvRefsInText(value, resolveEnvName) : value
+    const inserts: (typeof mcpServers.$inferInsert)[] = []
+    for (const row of rows) {
+      const childId = generateId()
+      const headers = isRecord(row.headers)
+        ? Object.fromEntries(
+            Object.entries(row.headers).map(([key, value]) => [
+              key,
+              typeof value === 'string' ? rewriteEnv(value) : value,
+            ])
+          )
+        : row.headers
+      inserts.push({
+        ...row,
+        id: childId,
+        workspaceId: childWorkspaceId,
+        createdBy: userId,
+        url: typeof row.url === 'string' ? rewriteEnv(row.url) : row.url,
+        headers,
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+        statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+        toolCount: 0,
+        lastToolsRefresh: null,
+        totalRequests: 0,
+        lastUsed: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      record('mcp_server', row.id, childId)
+      names.mcpServers.push(row.name)
+    }
+    if (inserts.length > 0) await tx.insert(mcpServers).values(inserts)
+  }
+
   if (selection.workflowMcpServers.length > 0) {
     const rows = await tx
       .select()
@@ -334,20 +397,23 @@ export async function copyForkResourceContainers(
         )
       )
     // Copy workflow-publishing MCP servers as config-only shells: the server definition
-    // (name/description/visibility) with NO `workflow_mcp_tool` rows attached, so the child
-    // re-registers its own workflows. These are fork-copy-only (not referenced by subblocks),
-    // so they are not recorded in the fork resource map.
+    // (name/description/visibility) with NO `workflow_mcp_tool` rows attached - the child's
+    // attachments are seeded by the chat/attachment carry-over and re-derived on deploy. The
+    // shell copy IS recorded in the fork resource map (`workflow_mcp_server` identity), so a
+    // later sync can mirror `workflow_mcp_tool` attachments onto the mapped counterpart.
     const inserts: (typeof workflowMcpServer.$inferInsert)[] = []
     for (const row of rows) {
+      const childId = generateId()
       inserts.push({
         ...row,
-        id: generateId(),
+        id: childId,
         workspaceId: childWorkspaceId,
         createdBy: userId,
         deletedAt: null,
         createdAt: now,
         updatedAt: now,
       })
+      record('workflow_mcp_server', row.id, childId)
       names.workflowMcpServers.push(row.name)
     }
     if (inserts.length > 0) await tx.insert(workflowMcpServer).values(inserts)

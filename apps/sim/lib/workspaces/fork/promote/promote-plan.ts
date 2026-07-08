@@ -39,6 +39,8 @@ export interface ForkPromotePlanItem {
     description: string | null
     folderId: string | null
     sortOrder: number
+    /** Source's public-API flag, carried onto the written target (see copyWorkflowStateIntoTarget). */
+    isPublicApi: boolean
   }
 }
 
@@ -305,6 +307,7 @@ export async function computeForkPromotePlan(params: {
         description: source.description,
         folderId: source.folderId,
         sortOrder: source.sortOrder,
+        isPublicApi: source.isPublicApi,
       },
     })
 

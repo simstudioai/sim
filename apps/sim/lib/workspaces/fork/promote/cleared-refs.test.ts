@@ -951,7 +951,7 @@ describe('collectForkSyncBlockers', () => {
     expect(select).not.toHaveBeenCalled()
   })
 
-  it('blocks an unmapped external MCP server (unmapped-mcp-server), named via the source read', async () => {
+  it('blocks an unmapped external MCP server (unmapped-copyable: map it or copy it), named via the source read', async () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([{ id: 'server', title: 'Server', type: 'mcp-server-selector' }])
     )
@@ -975,7 +975,7 @@ describe('collectForkSyncBlockers', () => {
         kind: 'mcp-server',
         sourceId: 'srv-1',
         sourceLabel: 'Internal Tools',
-        reason: 'unmapped-mcp-server',
+        reason: 'unmapped-copyable',
       }),
     ])
   })

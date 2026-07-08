@@ -39,6 +39,9 @@ const RESOURCE_TYPE_TO_FORK_KIND: Record<ForkResourceType, ForkRemapKind | null>
   knowledge_document: 'knowledge-document',
   file: 'file',
   mcp_server: 'mcp-server',
+  // Identity-only, like `workflow`: nothing in a subblock references a workflow-publishing
+  // server, so these rows never participate in reference remapping.
+  workflow_mcp_server: null,
   custom_tool: 'custom-tool',
   skill: 'skill',
 }

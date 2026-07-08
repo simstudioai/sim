@@ -123,6 +123,15 @@ vi.mock('@/lib/workspaces/fork/promote/copy-unmapped', () => ({
 vi.mock('@/lib/workspaces/fork/promote/promote-plan', () => ({
   computeForkPromotePlan: mockComputePlan,
 }))
+vi.mock('@/lib/workspaces/fork/copy/copy-chats', () => ({
+  copyForkChatDeployments: vi.fn(async () => ({ created: 0 })),
+}))
+vi.mock('@/lib/workspaces/fork/copy/workflow-mcp-attachments', () => ({
+  reconcileForkWorkflowMcpAttachments: vi.fn(async () => ({ affectedServerIds: [] })),
+}))
+vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
+  notifyMcpToolServers: vi.fn(),
+}))
 vi.mock('@/lib/workspaces/fork/promote/promote-run-store', () => ({
   upsertPromoteRun: mockUpsertPromoteRun,
 }))

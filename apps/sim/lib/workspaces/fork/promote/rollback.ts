@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
+import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { inArray } from 'drizzle-orm'
+import { and, inArray, isNull } from 'drizzle-orm'
 import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
@@ -209,6 +209,14 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
         .update(workflow)
         .set({ archivedAt: now, updatedAt: now })
         .where(inArray(workflow.id, created))
+      // Archive their chat deployments too (matching `archiveWorkflow`): the sync carried a
+      // chat onto each created target, and leaving it live would keep a working chat URL (with
+      // the copied auth config) pointing at the archived workflow. The undeploy above already
+      // cleans webhooks + MCP tools via the outbox; chats have no undeploy hook.
+      await tx
+        .update(chat)
+        .set({ archivedAt: now, isActive: false, updatedAt: now })
+        .where(and(inArray(chat.workflowId, created), isNull(chat.archivedAt)))
       // A created target is the child side on pull and the parent side on push.
       await deleteWorkflowIdentityByIds(
         tx,

@@ -10,12 +10,13 @@ import {
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
-  resolveActiveCanonicalValue,
+  isNonEmptyValue,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import { toScannerBlocks } from '@/lib/workspaces/fork/remap/reference-scan'
 import {
+  createCanonicalModeGates,
   isSubBlockRequired,
   scanWorkflowReferences,
 } from '@/lib/workspaces/fork/remap/remap-references'
@@ -106,6 +107,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   } = params
   const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks)
   const canonicalIndex = buildCanonicalIndex(config.subBlocks)
+  const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
   const configById = new Map(config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
   // A field could hang off two anchors (or be reachable via two paths); emit it once.
   const seen = new Set<string>()
@@ -113,14 +115,22 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   for (const anchor of PARENT_ANCHORS) {
     for (const anchorCfg of config.subBlocks) {
       if (anchorCfg.type !== anchor.subBlockType || !anchorCfg.id) continue
-      // Resolve the parent's ACTIVE canonical value: an advanced override (or an advanced-only
-      // value) beats a stale dormant basic selector, so a dependent re-pick is offered when
-      // advanced mode is active (today's raw basic read skips it).
-      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[anchorCfg.id]
-      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
-      const rawValue = group
-        ? resolveActiveCanonicalValue(group, values, canonicalModes)
-        : values[anchorCfg.id]
+      // An anchor whose canonical pair is in ADVANCED (manual) mode is skipped entirely: the
+      // active value is the user-owned manual member's, which is verbatim by policy - a sync
+      // never remaps it, so its dependents are never cleared and there is nothing to re-pick.
+      if (gates.isAdvancedActiveGroup(anchorCfg.id)) continue
+      // Basic mode: the anchor selector's own value. Nested tools can store the pick under the
+      // pair's `canonicalParamId` instead (the tool-input UI writes the canonical key), so fall
+      // back to it - but only when that key is not itself a subblock id (when it is, the key
+      // is the manual member's own field and reading it would leak a manual value).
+      let rawValue = values[anchorCfg.id]
+      if (
+        !isNonEmptyValue(rawValue) &&
+        anchorCfg.canonicalParamId &&
+        !configById.has(anchorCfg.canonicalParamId)
+      ) {
+        rawValue = values[anchorCfg.canonicalParamId]
+      }
       const parentSourceId = typeof rawValue === 'string' ? rawValue : ''
       // Skip empty and org-scoped credential sets (those carry over unchanged).
       if (!parentSourceId || parentSourceId.startsWith('credentialSet:')) continue
@@ -144,6 +154,10 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         // offered, so the user can set a label/sheet during the swap even when the source
         // (or a prior sync) cleared it - the whole point of the in-place re-pick.
         if (dependent.condition && !evaluateSubBlockCondition(dependent.condition, values)) continue
+        // Skip a DORMANT canonical member: when the dependent's own pair is in advanced
+        // (manual) mode, the selector is not the live field - the manual member is, and it
+        // is verbatim by policy (never cleared by a remap), so there's nothing to re-pick.
+        if (gates.isDormantMember(dependent.id)) continue
         // The SelectorContext key this field supplies to its own descendants, so the
         // modal can chain re-picks (re-picked spreadsheet feeds the sheet selector).
         const canonicalKey = canonicalIndex.canonicalIdBySubBlockId[dependent.id] ?? dependent.id
@@ -171,8 +185,14 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           typeof dependent.mimeType === 'string' && dependent.mimeType
             ? { ...context, mimeType: dependent.mimeType }
             : context
-        const rawSourceValue =
-          typeof values[dependent.id] === 'string' ? (values[dependent.id] as string) : ''
+        // Nested tools can store the pick under the pair's `canonicalParamId` (the tool-input
+        // UI writes the canonical key); fall back to it when the key isn't a subblock's own id.
+        const rawDependentValue =
+          values[dependent.id] ??
+          (dependent.canonicalParamId && !configById.has(dependent.canonicalParamId)
+            ? values[dependent.canonicalParamId]
+            : undefined)
+        const rawSourceValue = typeof rawDependentValue === 'string' ? rawDependentValue : ''
         out.push({
           parentKind: anchor.parentKind,
           parentSourceId,

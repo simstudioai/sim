@@ -277,6 +277,7 @@ describe('copyForkResourceContainers custom-tool code env rewrite', () => {
   const customToolSelection = {
     customTools: ['ct-1'],
     skills: [],
+    mcpServers: [],
     workflowMcpServers: [],
     tables: [],
     knowledgeBases: [],
@@ -319,6 +320,87 @@ describe('copyForkResourceContainers custom-tool code env rewrite', () => {
   })
 })
 
+describe('copyForkResourceContainers external MCP server copy', () => {
+  function makeServerTx(rows: Array<Record<string, unknown>>) {
+    const inserted: Array<Record<string, unknown>> = []
+    const tx = {
+      select: () => ({ from: () => ({ where: () => Promise.resolve(rows) }) }),
+      insert: () => ({
+        values: (values: Array<Record<string, unknown>>) => {
+          inserted.push(...values)
+          return Promise.resolve()
+        },
+      }),
+    }
+    return { tx: tx as unknown as DbOrTx, inserted }
+  }
+
+  it('copies the config row with runtime status reset, records the mapping, and never copies tokens', async () => {
+    const { tx, inserted } = makeServerTx([
+      {
+        id: 'mcp-1',
+        workspaceId: 'src-ws',
+        createdBy: 'src-user',
+        name: 'Linear MCP',
+        transport: 'streamable-http',
+        url: 'https://mcp.linear.app/mcp',
+        authType: 'headers',
+        headers: { Authorization: 'Bearer {{LINEAR_KEY}}' },
+        connectionStatus: 'connected',
+        lastConnected: new Date(),
+        lastError: 'old error',
+        statusConfig: { consecutiveFailures: 2, lastSuccessfulDiscovery: 'x' },
+        toolCount: 12,
+        lastToolsRefresh: new Date(),
+        totalRequests: 99,
+        lastUsed: new Date(),
+        deletedAt: null,
+      },
+    ])
+
+    const result = await copyForkResourceContainers({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now: new Date(),
+      selection: {
+        customTools: [],
+        skills: [],
+        mcpServers: ['mcp-1'],
+        workflowMcpServers: [],
+        tables: [],
+        knowledgeBases: [],
+      },
+      workflowIdMap: new Map(),
+    })
+
+    expect(inserted).toHaveLength(1)
+    const child = inserted[0]
+    expect(child.id).not.toBe('mcp-1')
+    expect(child.workspaceId).toBe('child-ws')
+    expect(child.createdBy).toBe('user-1')
+    // Config copies verbatim - url/headers ({{ENV}} refs resolve against the child's env).
+    expect(child.url).toBe('https://mcp.linear.app/mcp')
+    expect(child.headers).toEqual({ Authorization: 'Bearer {{LINEAR_KEY}}' })
+    // Runtime status resets: tools re-discover on first use in the child (cache is
+    // workspace-keyed), and no `mcp_server_oauth` row is ever inserted (re-auth required).
+    expect(child.connectionStatus).toBe('disconnected')
+    expect(child.lastConnected).toBeNull()
+    expect(child.lastError).toBeNull()
+    expect(child.toolCount).toBe(0)
+    expect(child.lastToolsRefresh).toBeNull()
+    // The id map + mapping rows record the copy so subblock references remap onto it.
+    expect(result.idMap.get('mcp_server')?.get('mcp-1')).toBe(child.id)
+    expect(result.mappingEntries).toContainEqual({
+      resourceType: 'mcp_server',
+      parentResourceId: 'mcp-1',
+      childResourceId: child.id,
+    })
+    expect(result.names.mcpServers).toEqual(['Linear MCP'])
+  })
+})
+
 describe('copyForkResourceContainers skill copy', () => {
   function makeSkillTx(rows: Array<Record<string, unknown>>) {
     const inserted: Array<Record<string, unknown>> = []
@@ -337,6 +419,7 @@ describe('copyForkResourceContainers skill copy', () => {
   const skillSelection = {
     customTools: [],
     skills: ['sk-1'],
+    mcpServers: [],
     workflowMcpServers: [],
     tables: [],
     knowledgeBases: [],
@@ -402,6 +485,7 @@ describe('copyForkResourceContainers knowledge-base tag definitions', () => {
   const kbSelection = {
     customTools: [],
     skills: [],
+    mcpServers: [],
     workflowMcpServers: [],
     tables: [],
     knowledgeBases: ['kb-1'],

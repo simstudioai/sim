@@ -45,15 +45,17 @@ const dependentRef = (parentKind: DependentRef['parentKind']): DependentRef => (
 
 describe('forkSyncBlockerReasonFor', () => {
   it('maps a live unmapped copyable-kind reference to unmapped-copyable (map or copy)', () => {
-    for (const kind of ['table', 'knowledge-base', 'file', 'custom-tool', 'skill'] as const) {
+    for (const kind of [
+      'table',
+      'knowledge-base',
+      'file',
+      'custom-tool',
+      'skill',
+      // External MCP servers are copyable too (config rows; OAuth tokens never copied).
+      'mcp-server',
+    ] as const) {
       expect(forkSyncBlockerReasonFor(referenceRef(kind, 'src-1'))).toBe('unmapped-copyable')
     }
-  })
-
-  it('maps a live unmapped MCP server to unmapped-mcp-server (map-only; no copy option)', () => {
-    expect(forkSyncBlockerReasonFor(referenceRef('mcp-server', 'srv-1'))).toBe(
-      'unmapped-mcp-server'
-    )
   })
 
   it('maps a source-deleted reference of ANY kind to source-deleted (no exemption)', () => {
@@ -96,7 +98,7 @@ describe('selectForkSyncBlockingRefs / toForkSyncBlockers', () => {
     const blocking = selectForkSyncBlockingRefs(refs)
     expect(blocking.map(({ ref, reason }) => [ref.sourceId, reason])).toEqual([
       ['tbl-1', 'unmapped-copyable'],
-      ['srv-1', 'unmapped-mcp-server'],
+      ['srv-1', 'unmapped-copyable'],
       ['sk-gone', 'source-deleted'],
       ['wf-other', 'workflow-missing'],
     ])

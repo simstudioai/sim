@@ -29,7 +29,21 @@ export function createForkBootstrapTransform(
   canonicalModes?: CanonicalModeOverrides
 ) => SubBlockRecord {
   return (subBlocks, blockType, canonicalModes) => {
-    const result = remapForkSubBlocks(subBlocks, resolveCopied, 'create')
-    return clearDependentsOnRemap(result.subBlocks, blockType, result.remappedKeys, canonicalModes)
+    // Every resolution at fork-create IS a copy (the resolver is the copy id map), so all
+    // remapped keys carry copy provenance - copy-faithful dependents (column picks) survive.
+    // `blockType`/`canonicalModes` activate the mode policy: active basic remaps, active
+    // advanced (manual) passes through with its dependents, dormant members clear.
+    const result = remapForkSubBlocks(subBlocks, resolveCopied, 'create', {
+      blockType,
+      canonicalModes,
+      isCopiedTarget: (kind, sourceId) => resolveCopied(kind, sourceId) != null,
+    })
+    return clearDependentsOnRemap(
+      result.subBlocks,
+      blockType,
+      result.remappedKeys,
+      canonicalModes,
+      result.copyRemappedKeys
+    )
   }
 }

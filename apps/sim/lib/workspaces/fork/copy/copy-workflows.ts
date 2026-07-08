@@ -318,6 +318,13 @@ export interface CopyWorkflowStateParams {
     description: string | null
     folderId: string | null
     sortOrder: number
+    /**
+     * Whether the source's deployed API is public (unauthenticated). Carried onto sync targets
+     * so a public source stays public after push/pull - the target org's own access-control
+     * gate (`validatePublicApiAllowed`) still applies at execution. Omitted at fork-create:
+     * the child starts undeployed and private (going public is an explicit act there).
+     */
+    isPublicApi?: boolean
   }
   /** source workflow id -> target workflow id, for `workflow-selector` references */
   workflowIdMap: Map<string, string>
@@ -464,7 +471,15 @@ export async function copyWorkflowStateIntoTarget(
     // source carried but the target never set isn't flagged.
     if (mode === 'replace' && targetCurrent) {
       clearedDependents.push(
-        ...collectClearedDependents(block.type, newBlockId, block.name, targetCurrent, subBlocks)
+        ...collectClearedDependents(
+          block.type,
+          newBlockId,
+          block.name,
+          targetCurrent,
+          subBlocks,
+          (block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined)
+            ?.canonicalModes
+        )
       )
     }
 
@@ -553,6 +568,9 @@ export async function copyWorkflowStateIntoTarget(
       runCount: 0,
       locked: false,
       variables: remappedVariables,
+      // Deployment visibility follows the source on sync (a public source stays public in
+      // the target); fork-create omits the field, so the child starts private.
+      ...(sourceMeta.isPublicApi !== undefined ? { isPublicApi: sourceMeta.isPublicApi } : {}),
     })
   } else {
     await tx
@@ -564,6 +582,7 @@ export async function copyWorkflowStateIntoTarget(
         variables: remappedVariables,
         lastSynced: now,
         updatedAt: now,
+        ...(sourceMeta.isPublicApi !== undefined ? { isPublicApi: sourceMeta.isPublicApi } : {}),
       })
       .where(eq(workflow.id, targetWorkflowId))
   }

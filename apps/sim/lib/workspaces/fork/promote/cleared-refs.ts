@@ -12,11 +12,8 @@ import {
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
   type CanonicalModeOverrides,
-  isCanonicalPair,
-  resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { collectForkDependentReconfigs } from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
 import {
@@ -30,6 +27,7 @@ import {
 } from '@/lib/workspaces/fork/promote/sync-blockers'
 import type { ForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
 import {
+  createCanonicalModeGates,
   type ForkReference,
   type ForkReferenceResolver,
   type ForkRemapKind,
@@ -93,25 +91,21 @@ function collectForkWorkflowReferences(
   canonicalModes: CanonicalModeOverrides | undefined
 ): Array<{ workflowId: string; subBlockKey: string }> {
   const out: Array<{ workflowId: string; subBlockKey: string }> = []
-  // Collapse each canonical pair to its ACTIVE member: only the selector members are
-  // remapped/cleared (the advanced `manualWorkflowId`/`manualWorkflowIds` are user-owned and
-  // preserved verbatim), so a DORMANT member's stale value is not a ref that would be cleared -
-  // it must not become an unresolvable sync blocker. Mirrors `isDormantCanonicalMember` in
-  // remap-references.ts: the lookup is per subblock key, so the scalar `workflowId` pair, the
-  // deployments block's scalar `workflowSelector` pair, and the logs block's multi-select
-  // `workflowSelector` (`workflowIds` group) all resolve through their OWN group. A missing
-  // config or a non-pair member is never skipped (legacy/no-pair states keep emitting).
-  const canonicalIndex = config ? buildCanonicalIndex(config.subBlocks) : undefined
-  const values = canonicalIndex ? buildSubBlockValues(subBlocks) : {}
-  const isDormantCanonicalMember = (key: string): boolean => {
-    if (!canonicalIndex) return false
-    const baseKey = baseSubBlockId(key)
-    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[baseKey]
-    const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
-    if (!group || !isCanonicalPair(group)) return false
-    const activeMode = resolveCanonicalMode(group, values, canonicalModes)
-    return (activeMode === 'advanced') !== group.advancedIds.includes(baseKey)
-  }
+  // Collapse each canonical pair to its ACTIVE member and skip condition-hidden fields: only a
+  // value that serializes is a ref that a sync would clear (the advanced
+  // `manualWorkflowId`/`manualWorkflowIds` are user-owned and preserved verbatim, an inactive
+  // operation's selector never executes) - neither may become an unresolvable sync blocker.
+  // Shares {@link createCanonicalModeGates} with the reference scan, so the scalar `workflowId`
+  // pair, the deployments block's scalar `workflowSelector` pair, and the logs block's
+  // multi-select `workflowSelector` (`workflowIds` group) all resolve through their OWN group. A
+  // missing config or a non-pair member is never skipped (legacy/no-pair states keep emitting).
+  const gates = createCanonicalModeGates(
+    config?.subBlocks,
+    buildSubBlockValues(subBlocks),
+    canonicalModes
+  )
+  const detectionSkipped = (key: string) =>
+    gates.isDormantMember(key) || gates.isConditionHidden(key)
   for (const [key, subBlock] of Object.entries(subBlocks)) {
     if (!subBlock || typeof subBlock !== 'object') continue
     const baseKey = baseSubBlockId(key)
@@ -122,13 +116,13 @@ function collectForkWorkflowReferences(
     ) {
       // Only the SELECTOR is remapped/cleared; the manual member is user-owned and preserved
       // verbatim, so skip the dormant selector when advanced/manual mode is active.
-      if (isDormantCanonicalMember(key)) continue
+      if (detectionSkipped(key)) continue
       out.push({ workflowId: subBlock.value, subBlockKey: key })
     } else if (
       baseKey === 'workflowSelector' ||
       (subBlock.type === 'dropdown' && baseKey === 'workflowIds')
     ) {
-      if (isDormantCanonicalMember(key)) continue
+      if (detectionSkipped(key)) continue
       const ids = Array.isArray(subBlock.value)
         ? subBlock.value
         : typeof subBlock.value === 'string'

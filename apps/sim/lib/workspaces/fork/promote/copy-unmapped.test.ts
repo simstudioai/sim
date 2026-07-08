@@ -197,6 +197,7 @@ describe('hasPromoteCopySelection', () => {
         tables: [],
         knowledgeBases: ['kb-1'],
         files: [],
+        mcpServers: [],
       })
     ).toBe(true)
     expect(
@@ -206,6 +207,7 @@ describe('hasPromoteCopySelection', () => {
         tables: [],
         knowledgeBases: [],
         files: [],
+        mcpServers: [],
       })
     ).toBe(false)
     expect(
@@ -215,6 +217,7 @@ describe('hasPromoteCopySelection', () => {
         tables: [],
         knowledgeBases: [],
         files: ['workspace/SRC/file.png'],
+        mcpServers: [],
       })
     ).toBe(true)
   })
@@ -306,6 +309,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
         knowledgeBases: [],
         customTools: [],
         skills: [],
+        mcpServers: [],
         workflowMcpServers: [],
       },
     })
@@ -402,6 +406,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
         knowledgeBases: [],
         customTools: [],
         skills: [],
+        mcpServers: [],
         workflowMcpServers: [],
       },
     })
@@ -453,6 +458,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
         tables: [],
         knowledgeBases: ['kb-1'],
         files: [],
+        mcpServers: [],
       },
       workflowIdMap: new Map(),
       folderIdMap: new Map(),
@@ -467,8 +473,8 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
       expect.objectContaining({
         referencedDocumentIds: ['doc-1', 'doc-2'],
         // Workflow-publishing MCP servers are fork-create-only; a sync always passes the
-        // shared pipeline's slot empty (PromoteCopySelection has no such field).
-        selection: expect.objectContaining({ workflowMcpServers: [] }),
+        // shared pipeline's slot empty. External MCP servers flow through the selection.
+        selection: expect.objectContaining({ mcpServers: [], workflowMcpServers: [] }),
         // The promote-built block-id resolver reaches the table remap unchanged, so copied
         // tables' workflow-group outputs use the persisted-pair ids, not the derive.
         resolveBlockId,
@@ -491,12 +497,7 @@ describe('fork copyable kind drift', () => {
     for (const kind of forkCopyableKindSchema.options) {
       expect(isForkCopyableKind(kind)).toBe(true)
     }
-    const nonCopyable: ForkRemapKind[] = [
-      'credential',
-      'env-var',
-      'knowledge-document',
-      'mcp-server',
-    ]
+    const nonCopyable: ForkRemapKind[] = ['credential', 'env-var', 'knowledge-document']
     for (const kind of nonCopyable) {
       expect(isForkCopyableKind(kind)).toBe(false)
     }

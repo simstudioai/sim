@@ -54,6 +54,7 @@ const COPYABLE_KIND_SECTIONS: ReadonlyArray<{
   { kind: 'knowledge-base', label: 'Knowledge bases' },
   { kind: 'custom-tool', label: 'Custom tools' },
   { kind: 'skill', label: 'Skills' },
+  { kind: 'mcp-server', label: 'MCP servers' },
 ]
 
 /**

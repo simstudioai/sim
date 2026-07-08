@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, workflow } from '@sim/db/schema'
+import { chat, credential, credentialMember, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { ForkSyncBlocker, PromoteCopyResources } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
+import { notifyMcpToolServers } from '@/lib/mcp/workflow-mcp-sync'
 import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
@@ -19,6 +20,7 @@ import {
   type SerializableForkContentRefMaps,
   scheduleForkContentCopy,
 } from '@/lib/workspaces/fork/copy/content-copy-runner'
+import { copyForkChatDeployments } from '@/lib/workspaces/fork/copy/copy-chats'
 import type { BlobCopyTask } from '@/lib/workspaces/fork/copy/copy-files'
 import type { ForkContentPlan } from '@/lib/workspaces/fork/copy/copy-resources'
 import {
@@ -35,6 +37,7 @@ import {
   assertForkStorageHeadroom,
   sumForkCopyBytes,
 } from '@/lib/workspaces/fork/copy/storage-quota'
+import { reconcileForkWorkflowMcpAttachments } from '@/lib/workspaces/fork/copy/workflow-mcp-attachments'
 import {
   acquireForkEdgeLock,
   acquireForkTargetLock,
@@ -79,6 +82,7 @@ import {
   createForkSubBlockTransform,
   type ForkReference,
   type ForkReferenceResolver,
+  type ForkRemapKind,
 } from '@/lib/workspaces/fork/remap/remap-references'
 import { notifyForkWorkflowChanged } from '@/lib/workspaces/fork/socket'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
@@ -309,6 +313,8 @@ interface PromoteTxApplied {
   copyContentRefMaps: SerializableForkContentRefMaps | null
   /** File blob duplications for copied workspace files, run post-commit by the content-copy runner. */
   copyContentBlobTasks: BlobCopyTask[]
+  /** Workflow-publishing MCP servers whose tool attachments changed, notified post-commit. */
+  mcpAttachmentServerIds: string[]
 }
 
 /**
@@ -384,6 +390,15 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   await assertForkStorageHeadroom({ userId, bytes: requestedCopyBytes })
 
   const targetMembers = (await getUsersWithPermissions(targetWorkspaceId)).map((m) => m.userId)
+
+  // The target workspace's display name seeds carried chat identifiers
+  // (`{target-workspace}-{workflow}-{randomnum}`); read pre-tx like the other lookups.
+  const [targetWorkspaceRow] = await db
+    .select({ name: workspace.name })
+    .from(workspace)
+    .where(eq(workspace.id, targetWorkspaceId))
+    .limit(1)
+  const targetWorkspaceName = targetWorkspaceRow?.name ?? 'workspace'
 
   // Read the source's deployed workflows + states BEFORE the transaction so these
   // heavy per-workflow reads never check out a second pooled connection from inside
@@ -522,6 +537,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // referenced document under an already-mapped KB is auto-copied into that KB so its reference
     // remaps instead of clearing). It runs only after the required-reference gate above, so a
     // blocked sync copies nothing.
+    let copyIdMapByKind: Map<ForkRemapKind, Map<string, string>> | null = null
     if (hasPromoteCopySelection(copySelection) || referencedDocumentIds.length > 0) {
       const copyResult = await copyPromoteUnmappedResources({
         tx,
@@ -541,17 +557,18 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         referencedDocumentIds,
       })
       resolver = augmentForkResolver(plan.resolver, copyResult.copyIdMapByKind)
+      copyIdMapByKind = copyResult.copyIdMapByKind
       copyContentPlan = copyResult.contentPlan
       copyContentRefMaps = copyResult.contentRefMaps
       copyContentBlobTasks = copyResult.blobTasks
     }
 
-    // Target rows for the MAPPED MCP servers this sync references, so remapped tool-input
-    // entries rewrite their embedded `serverUrl`/`serverName` from the target server instead of
-    // carrying the source's (which would show a false "URL changed" stale badge in the target
-    // UI). Bounded: the plan's references are deduped per (kind, id), so this is one `inArray`
-    // read over the distinct referenced servers - external MCP servers are never copied, so the
-    // copy augmentation above cannot add mcp-server mappings and the plan resolver is complete.
+    // Target rows for the MAPPED (or just-copied) MCP servers this sync references, so remapped
+    // tool-input entries rewrite their embedded `serverUrl`/`serverName` from the target server
+    // instead of carrying the source's (which would show a false "URL changed" stale badge in
+    // the target UI). Bounded: the plan's references are deduped per (kind, id), so this is one
+    // `inArray` read over the distinct referenced servers. Uses the post-copy resolver, so a
+    // server copied this sync resolves to its fresh row (same name/url - the rewrite is a no-op).
     const mappedMcpServerTargetIds = [
       ...new Set(
         plan.references
@@ -568,6 +585,9 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
 
     const transform = createForkSubBlockTransform(resolver, {
       resolveMcpServerMeta: (targetServerId) => mcpServerMetaById.get(targetServerId),
+      // Copy provenance: a parent resolved through THIS sync's copy selection keeps its
+      // copy-faithful dependents (a copied table's column picks) instead of clearing them.
+      isCopiedTarget: (kind, sourceId) => copyIdMapByKind?.get(kind)?.has(sourceId) ?? false,
     })
 
     // Batch every prior-version read (replace + archive targets) into one query before any
@@ -687,6 +707,49 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       blockPairs
     )
 
+    // Carry chat deployments for written targets that have NO chat row yet (typically
+    // create-mode targets): a fresh `{target-workspace}-{workflow}-{randomnum}` identifier with
+    // the source's config, live once this sync's deploy lands. Targets with any existing chat
+    // (live or archived) are left untouched - an earlier carry-over keeps its URL on every
+    // subsequent sync, and a deliberately archived chat is never resurrected. Targets whose
+    // redeploy this sync SKIPS (required dependents cleared) are excluded: their chat would
+    // squat a live identifier while nothing can serve - the next successful sync carries it.
+    const needsConfigurationTargetIds = new Set(needsConfiguration.map((entry) => entry.workflowId))
+    await copyForkChatDeployments({
+      tx,
+      pairs: writtenItems.flatMap((item) =>
+        needsConfigurationTargetIds.has(item.targetWorkflowId)
+          ? []
+          : [
+              {
+                sourceWorkflowId: item.sourceWorkflowId,
+                targetWorkflowId: item.targetWorkflowId,
+                workflowName: item.sourceMeta.name,
+              },
+            ]
+      ),
+      targetWorkspaceName,
+      userId,
+      now,
+      resolveBlockId,
+      requestId,
+    })
+
+    // Mirror workflow-as-MCP-tool attachments onto MAPPED workflow-publishing servers for the
+    // written pairs: missing target attachments are created, drifted metadata refreshed, and a
+    // detached source's counterpart archived. The deployment outbox re-derives each affected
+    // tool's parameter schema when the target deploys below.
+    const mcpAttachmentResult = await reconcileForkWorkflowMcpAttachments({
+      tx,
+      childWorkspaceId: edge.childWorkspaceId,
+      sourceIsParent,
+      now,
+      writtenPairs: writtenItems.map((item) => ({
+        sourceWorkflowId: item.sourceWorkflowId,
+        targetWorkflowId: item.targetWorkflowId,
+      })),
+    })
+
     // Persist / prune the stored dependent mapping. When the caller PROVIDED values, replace
     // every written target's stored set (cleared/removed fields drop out so the store equals
     // exactly what was applied) AND prune the archived targets' now-dead rows (their workflow
@@ -747,6 +810,15 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         .update(workflow)
         .set({ archivedAt: now, updatedAt: now })
         .where(eq(workflow.id, targetWorkflowId))
+    }
+    // Archive the archived targets' chat deployments too (matching `archiveWorkflow`): a live
+    // chat row would keep squatting its unique identifier and serving a dead workflow. The
+    // undeploy side-effects above cover webhooks + MCP tools; chats have no undeploy hook.
+    if (plan.archivedTargetIds.length > 0) {
+      await tx
+        .update(chat)
+        .set({ archivedAt: now, isActive: false, updatedAt: now })
+        .where(and(inArray(chat.workflowId, plan.archivedTargetIds), isNull(chat.archivedAt)))
     }
 
     const identityEntries: ForkMappingUpsert[] = writtenItems.map((item) => ({
@@ -826,6 +898,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       copyContentPlan,
       copyContentRefMaps,
       copyContentBlobTasks,
+      mcpAttachmentServerIds: mcpAttachmentResult.affectedServerIds,
     }
   })
 
@@ -859,6 +932,12 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         error: getErrorMessage(error),
       })
     }
+  }
+
+  // Post-commit only: tell the affected workflow-publishing MCP servers their tool set changed
+  // (the deploy loop's outbox covers deployed targets; archived-attachment servers need this).
+  if (txResult.mcpAttachmentServerIds.length > 0) {
+    notifyMcpToolServers(txResult.mcpAttachmentServerIds.map((serverId) => ({ serverId })))
   }
 
   let redeployed = 0

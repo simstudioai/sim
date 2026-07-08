@@ -13,6 +13,7 @@ const {
   mockStartBackgroundWork,
   mockFinishBackgroundWork,
   mockScheduleForkContentCopy,
+  mockSeedEdgeMappings,
 } = vi.hoisted(() => ({
   mockSumForkCopyBytes: vi.fn(),
   mockAssertForkStorageHeadroom: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockStartBackgroundWork: vi.fn(),
   mockFinishBackgroundWork: vi.fn(),
   mockScheduleForkContentCopy: vi.fn(),
+  mockSeedEdgeMappings: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -40,8 +42,14 @@ vi.mock('@/lib/workspaces/fork/copy/content-copy-runner', () => ({
   scheduleForkContentCopy: mockScheduleForkContentCopy,
   serializeContentRefMaps: vi.fn(() => ({})),
 }))
+vi.mock('@/lib/workspaces/fork/copy/copy-chats', () => ({
+  copyForkChatDeployments: vi.fn(async () => ({ created: 0 })),
+}))
 vi.mock('@/lib/workspaces/fork/copy/copy-files', () => ({
   planForkFileCopies: mockPlanForkFileCopies,
+}))
+vi.mock('@/lib/workspaces/fork/copy/workflow-mcp-attachments', () => ({
+  copyForkWorkflowMcpAttachments: vi.fn(async () => ({ copied: 0 })),
 }))
 vi.mock('@/lib/workspaces/fork/copy/copy-resources', () => ({
   copyForkResourceContainers: mockCopyForkResourceContainers,
@@ -66,7 +74,7 @@ vi.mock('@/lib/workspaces/fork/mapping/block-map-store', () => ({
   toForkBlockPairs: vi.fn(() => []),
 }))
 vi.mock('@/lib/workspaces/fork/mapping/mapping-store', () => ({
-  seedEdgeMappings: vi.fn(),
+  seedEdgeMappings: mockSeedEdgeMappings,
 }))
 vi.mock('@/lib/workspaces/fork/remap/fork-bootstrap', () => ({
   createForkBootstrapTransform: vi.fn(() => (subBlocks: unknown) => subBlocks),
@@ -106,6 +114,7 @@ function forkParams(selection?: {
       knowledgeBases: selection?.knowledgeBases ?? [],
       customTools: [],
       skills: [],
+      mcpServers: [],
       workflowMcpServers: [],
     },
     requestId: 'test',
@@ -144,6 +153,7 @@ describe('createFork storage headroom gate', () => {
         knowledgeBases: [],
         customTools: [],
         skills: [],
+        mcpServers: [],
         workflowMcpServers: [],
       },
     })
@@ -183,5 +193,23 @@ describe('createFork storage headroom gate', () => {
     })
     expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({ userId: 'user-1', bytes: 500 })
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('seeds identity mappings for copied FILES by storage key (a later sync must not re-offer them)', async () => {
+    mockPlanForkFileCopies.mockResolvedValue({
+      keyMap: new Map([['workspace/src-ws/a.png', 'workspace/child/a.png']]),
+      idMap: new Map([['file-1', 'file-1-copy']]),
+      blobTasks: [],
+    })
+
+    await createFork(forkParams({ files: ['file-1'] }))
+
+    expect(mockSeedEdgeMappings).toHaveBeenCalledTimes(1)
+    const seeded = mockSeedEdgeMappings.mock.calls[0][3] as Array<Record<string, unknown>>
+    expect(seeded).toContainEqual({
+      resourceType: 'file',
+      parentResourceId: 'workspace/src-ws/a.png',
+      childResourceId: 'workspace/child/a.png',
+    })
   })
 })

@@ -689,6 +689,7 @@ export function useForkSync(params: {
         skills: selectedCopyables.filter((c) => c.kind === 'skill').map((c) => c.sourceId),
         // Files are identified by storage key (the copyable candidate's sourceId is the key).
         files: selectedCopyables.filter((c) => c.kind === 'file').map((c) => c.sourceId),
+        mcpServers: selectedCopyables.filter((c) => c.kind === 'mcp-server').map((c) => c.sourceId),
       }
 
       const result = await promote.mutateAsync({
@@ -731,44 +732,17 @@ export function useForkSync(params: {
 
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
-      const needsConfig = result.needsConfiguration
-      const clearedOptional = result.clearedOptional
-      // List the affected blocks, naming the workflow for a single one and falling back to
-      // a count across many. Block names ("Gmail 2") are far more actionable than the
-      // generic field titles ("Label") behind them.
-      const formatWhere = (list: Array<{ workflowName: string; blocks: string[] }>) => {
-        const totalBlocks = list.reduce((sum, workflow) => sum + workflow.blocks.length, 0)
-        if (list.length === 1) return `${list[0].blocks.join(', ')} in ${list[0].workflowName}`
-        return `${totalBlocks} block${totalBlocks === 1 ? '' : 's'} across ${list.length} workflows`
-      }
-      const optionalBlocks = clearedOptional.reduce(
-        (sum, workflow) => sum + workflow.blocks.length,
-        0
-      )
-      // Appended to a higher-priority warning so a cleared optional filter is never hidden.
-      const optionalSuffix =
-        optionalBlocks > 0
-          ? ` (+${optionalBlocks} block${optionalBlocks === 1 ? '' : 's'} with optional fields cleared)`
-          : ''
-      // Surfaced alongside a needs-config warning too, so concurrent deploy failures aren't
-      // only in logs/Activity when both happen (the needs-config branch would otherwise win
-      // alone).
-      const deployFailedSuffix =
-        result.deployFailed > 0
-          ? ` (+${result.deployFailed} workflow${result.deployFailed === 1 ? '' : 's'} failed to deploy)`
-          : ''
-      if (needsConfig.length > 0) {
-        toast.warning(
-          `${label}. Re-check ${formatWhere(needsConfig)}.${deployFailedSuffix}${optionalSuffix}`
-        )
-      } else if (result.deployFailed > 0) {
+      // A sync only commits once every reference is mapped/copied and every required dependent
+      // has a value (the zero-cleared-refs invariant + `reconfigComplete`), so the old
+      // "re-check X block - something may have been cleared" warnings only fired on
+      // preview-vs-commit races and read as false alarms. Those rare cases still land in the
+      // Activity entry (needsConfiguration/clearedOptional are recorded there) and a
+      // needs-config workflow visibly stays undeployed. Deploy FAILURES remain a real,
+      // actionable outcome, so they keep a warning.
+      if (result.deployFailed > 0) {
         const n = result.deployFailed
         toast.warning(
-          `${label}, but ${n} workflow${n === 1 ? '' : 's'} failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.${optionalSuffix}`
-        )
-      } else if (clearedOptional.length > 0) {
-        toast.warning(
-          `${label}. Optional settings cleared — re-check ${formatWhere(clearedOptional)}.`
+          `${label}, but ${n} workflow${n === 1 ? '' : 's'} failed to deploy — open and redeploy ${n === 1 ? 'it' : 'them'}.`
         )
       } else {
         toast.success(label)

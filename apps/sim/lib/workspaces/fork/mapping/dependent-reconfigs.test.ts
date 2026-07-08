@@ -97,7 +97,7 @@ describe('collectForkDependentReconfigs', () => {
     ])
   })
 
-  it('anchors a dependent on the ACTIVE advanced parent member (not the dormant basic selector)', () => {
+  it('skips an anchor whose canonical pair is in advanced (manual) mode - the value passes through', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([
         {
@@ -149,17 +149,10 @@ describe('collectForkDependentReconfigs', () => {
       new Map([['wf-src', advancedState]]),
       resolve
     )
-    // Today (raw basic read) this is skipped because the basic selector is empty; the active-member
-    // resolution anchors the document on the advanced KB id so the re-pick is offered.
-    expect(result).toHaveLength(1)
-    expect(result[0]).toMatchObject({
-      parentKind: 'knowledge-base',
-      parentSourceId: 'kb-active',
-      parentContextKey: 'knowledgeBaseId',
-      subBlockKey: 'documentSelector',
-      selectorKey: 'knowledge.documents',
-      currentValue: 'doc-1',
-    })
+    // Advanced (manual) mode: the manual KB id is user-owned and passes through verbatim on
+    // sync - it is never remapped, so its dependents are never cleared and there is nothing
+    // to re-pick. No reconfig is offered.
+    expect(result).toEqual([])
   })
 
   it('emits a knowledge-base-dependent document selector', () => {
@@ -397,7 +390,7 @@ describe('collectForkDependentReconfigs', () => {
     ])
   })
 
-  it('honors a nested tool-scoped advanced override (anchors on the active member, not the dormant basic)', () => {
+  it('honors a nested tool-scoped advanced override (manual mode passes through - no re-pick)', () => {
     vi.mocked(getBlock).mockImplementation((type) => {
       if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
       if (type === 'gmail')
@@ -460,18 +453,14 @@ describe('collectForkDependentReconfigs', () => {
         variables: {},
       }) as unknown as WorkflowState
 
-    // Scoped override present -> anchors on the ACTIVE advanced member (today's heuristic missed it).
+    // Scoped override present -> advanced (manual) mode: the manual credential passes through
+    // verbatim on sync, so its dependents are never cleared and no re-pick is offered.
     const withOverride = collectForkDependentReconfigs(
       [replaceItem],
       new Map([['wf-src', agentState({ 'gmail:credential': 'advanced' })]]),
       resolve
     )
-    expect(withOverride).toHaveLength(1)
-    expect(withOverride[0]).toMatchObject({
-      parentKind: 'credential',
-      parentSourceId: 'cred-active',
-      subBlockKey: 'tools[0].folder',
-    })
+    expect(withOverride).toEqual([])
 
     // Control: no override -> the value heuristic keeps the non-empty basic (unchanged behavior).
     const heuristic = collectForkDependentReconfigs(

@@ -78,8 +78,6 @@ export function forkBlockerResolution(ref: ForkClearedRef): string | null {
   switch (reason) {
     case 'unmapped-copyable':
       return 'map it to a target or select it for copy'
-    case 'unmapped-mcp-server':
-      return 'map it to an MCP server in the target workspace'
     case 'source-deleted':
       return `deleted in the source — map it to an existing ${BLOCKER_KIND_LABEL[ref.kind] ?? 'resource'} in the target`
     case 'workflow-missing':

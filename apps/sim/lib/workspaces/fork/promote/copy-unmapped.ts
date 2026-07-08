@@ -39,6 +39,8 @@ export interface PromoteCopySelection {
   knowledgeBases: string[]
   /** Workspace files to copy, identified by storage key (not `workspace_files.id`). */
   files: string[]
+  /** External MCP servers to copy as config rows (OAuth tokens never copied - re-auth). */
+  mcpServers: string[]
 }
 
 /**
@@ -55,6 +57,7 @@ export const FORK_COPYABLE_KIND_TO_SELECTION_KEY: Record<
   'custom-tool': 'customTools',
   skill: 'skills',
   file: 'files',
+  'mcp-server': 'mcpServers',
 }
 
 /**
@@ -80,6 +83,7 @@ export function buildPromoteCopySelection(
     tables: [],
     knowledgeBases: [],
     files: [],
+    mcpServers: [],
   }
   const willResolve = new Set<string>()
   const apply = (
@@ -100,6 +104,7 @@ export function buildPromoteCopySelection(
   apply('custom-tool', requested?.customTools)
   apply('skill', requested?.skills)
   apply('file', requested?.files)
+  apply('mcp-server', requested?.mcpServers)
   return { selection, willResolve }
 }
 
@@ -110,7 +115,8 @@ export function hasPromoteCopySelection(selection: PromoteCopySelection): boolea
     selection.skills.length > 0 ||
     selection.tables.length > 0 ||
     selection.knowledgeBases.length > 0 ||
-    selection.files.length > 0
+    selection.files.length > 0 ||
+    selection.mcpServers.length > 0
   )
 }
 
@@ -211,8 +217,9 @@ export async function copyPromoteUnmappedResources(params: {
     selection: {
       customTools: selection.customTools,
       skills: selection.skills,
-      // Workflow-publishing MCP servers are fork-create-only (never a sync-copy candidate);
-      // the shared copy pipeline still takes the slot, so pass it empty.
+      // External MCP servers copy as config rows (like fork); workflow-publishing MCP servers
+      // are fork-create-only shells (the shared pipeline still takes the slot - pass it empty).
+      mcpServers: selection.mcpServers,
       workflowMcpServers: [],
       tables: selection.tables,
       knowledgeBases: selection.knowledgeBases,

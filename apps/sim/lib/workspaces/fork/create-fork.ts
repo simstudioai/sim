@@ -18,6 +18,7 @@ import {
   scheduleForkContentCopy,
   serializeContentRefMaps,
 } from '@/lib/workspaces/fork/copy/content-copy-runner'
+import { copyForkChatDeployments } from '@/lib/workspaces/fork/copy/copy-chats'
 import { planForkFileCopies } from '@/lib/workspaces/fork/copy/copy-files'
 import {
   copyForkResourceContainers,
@@ -34,6 +35,7 @@ import {
   sumForkCopyBytes,
 } from '@/lib/workspaces/fork/copy/storage-quota'
 import { buildForkWorkflowIdMap } from '@/lib/workspaces/fork/copy/workflow-id-map'
+import { copyForkWorkflowMcpAttachments } from '@/lib/workspaces/fork/copy/workflow-mcp-attachments'
 import { setForkLockTimeout } from '@/lib/workspaces/fork/lineage/lineage'
 import {
   type ForkBlockPair,
@@ -45,6 +47,7 @@ import {
   type ForkResourceType,
   seedEdgeMappings,
 } from '@/lib/workspaces/fork/mapping/mapping-store'
+import { deriveForkBlockId } from '@/lib/workspaces/fork/remap/block-identity'
 import { createForkBootstrapTransform } from '@/lib/workspaces/fork/remap/fork-bootstrap'
 import { collectReferencedDocumentIds } from '@/lib/workspaces/fork/remap/reference-scan'
 import type { ForkRemapKind } from '@/lib/workspaces/fork/remap/remap-references'
@@ -61,7 +64,9 @@ export interface ForkResourceSelection {
   knowledgeBases: string[]
   customTools: string[]
   skills: string[]
-  /** Workflow-publishing MCP servers (copied as config-only shells); external MCP is never copied. */
+  /** External MCP servers, copied as config rows (OAuth tokens never copied - re-auth in child). */
+  mcpServers: string[]
+  /** Workflow-publishing MCP servers, copied as config-only shells with no workflows attached. */
   workflowMcpServers: string[]
 }
 
@@ -71,6 +76,7 @@ const EMPTY_SELECTION: ForkResourceSelection = {
   knowledgeBases: [],
   customTools: [],
   skills: [],
+  mcpServers: [],
   workflowMcpServers: [],
 }
 
@@ -91,14 +97,15 @@ export interface CreateForkResult {
   workflowsCopied: number
 }
 
-// External MCP servers are intentionally absent: a fork never copies them, so their
-// references resolve to null here and are cleared on remap (re-add + re-auth in the child).
+// Credentials are intentionally absent: a fork never copies them, so their references
+// resolve to null here and are cleared on remap (re-connect in the child).
 const FORK_KIND_TO_RESOURCE_TYPE: Partial<Record<ForkRemapKind, ForkResourceType>> = {
   'custom-tool': 'custom_tool',
   skill: 'skill',
   table: 'table',
   'knowledge-base': 'knowledge_base',
   'knowledge-document': 'knowledge_document',
+  'mcp-server': 'mcp_server',
 }
 
 /**
@@ -146,6 +153,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     knowledgeBases: [],
     customTools: [],
     skills: [],
+    mcpServers: [],
     workflowMcpServers: [],
   }
   const { result, blobTasks, contentPlan, contentRefMaps } = await db.transaction(async (tx) => {
@@ -240,6 +248,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       selection: {
         customTools: selection.customTools,
         skills: selection.skills,
+        mcpServers: selection.mcpServers,
         workflowMcpServers: selection.workflowMcpServers,
         tables: selection.tables,
         knowledgeBases: selection.knowledgeBases,
@@ -299,6 +308,35 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     }
     await reconcileForkBlockPairs(tx, childWorkspaceId, true, sourceWorkflowIds, blockPairs)
 
+    // Carry each copied workflow's chat deployment(s): a fresh identifier
+    // (`{child-workspace}-{workflow}-{randomnum}`) with the config copied verbatim and its
+    // output block ids remapped onto the derived child blocks. The chat serves at its new URL
+    // as soon as the child workflow is deployed.
+    await copyForkChatDeployments({
+      tx,
+      pairs: deployedWorkflows.flatMap((wf) => {
+        const targetWorkflowId = workflowIdMap.get(wf.id)
+        return targetWorkflowId
+          ? [{ sourceWorkflowId: wf.id, targetWorkflowId, workflowName: wf.name }]
+          : []
+      }),
+      targetWorkspaceName: childName,
+      userId,
+      now,
+      resolveBlockId: deriveForkBlockId,
+      requestId,
+    })
+
+    // Carry workflow-as-MCP-tool attachments onto the copied server shells: an attachment
+    // copies only when BOTH its server and its workflow were copied. Runs after the workflow
+    // rows exist (FK); the child re-derives each tool's parameter schema on first deploy.
+    await copyForkWorkflowMcpAttachments({
+      tx,
+      serverIdMap: resourceResult.idMap.get('workflow_mcp_server') ?? new Map(),
+      workflowIdMap,
+      now,
+    })
+
     // A fork carries only DEPLOYED workflows. When the source has none (e.g. it was
     // itself just forked and never redeployed), seed a default workflow so the child
     // is a usable workspace rather than a blank one with no workflow at all - the same
@@ -332,6 +370,18 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       })
     }
     seedEntries.push(...resourceResult.mappingEntries)
+    // Copied files map by STORAGE KEY (matching `file-upload` references), from the file-copy
+    // plan - files are copied outside `copyForkResourceContainers`, so their identity rows must
+    // be added here explicitly. Without them a later sync re-offers every fork-copied file as a
+    // copy candidate (and a push would duplicate a referenced file into the parent instead of
+    // resolving it back to the parent's original).
+    for (const [sourceKey, childKey] of fileResult.keyMap) {
+      seedEntries.push({
+        resourceType: 'file',
+        parentResourceId: sourceKey,
+        childResourceId: childKey,
+      })
+    }
     await seedEdgeMappings(tx, childWorkspaceId, userId, seedEntries)
 
     logger.info(`[${requestId}] Created fork ${childWorkspaceId} from ${source.id}`, {
@@ -411,6 +461,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         fileNames: blobTasks.map((task) => task.fileName),
         customToolNames: forkedResourceNames.customTools,
         skillNames: forkedResourceNames.skills,
+        mcpServerNames: forkedResourceNames.mcpServers,
         workflowMcpServerNames: forkedResourceNames.workflowMcpServers,
       },
     })

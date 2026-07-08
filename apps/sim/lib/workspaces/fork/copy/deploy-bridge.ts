@@ -26,6 +26,8 @@ export interface DeployedWorkflowSummary {
   description: string | null
   folderId: string | null
   sortOrder: number
+  /** Whether the deployed API accepts unauthenticated calls; carried onto sync targets. */
+  isPublicApi: boolean
 }
 
 /**
@@ -48,6 +50,7 @@ export async function listDeployedWorkflows(
       description: workflow.description,
       folderId: workflow.folderId,
       sortOrder: workflow.sortOrder,
+      isPublicApi: workflow.isPublicApi,
     })
     .from(workflow)
     .where(

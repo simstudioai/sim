@@ -391,7 +391,9 @@ export interface ForkCopyableResources {
   knowledgeBases: ForkResourceCandidate[]
   customTools: ForkResourceCandidate[]
   skills: ForkResourceCandidate[]
-  /** Workflow-publishing MCP servers, copied as config-only shells (external MCP is not copied). */
+  /** External MCP servers, copied as config rows (OAuth tokens never copied - re-auth in child). */
+  mcpServers: ForkResourceCandidate[]
+  /** Workflow-publishing MCP servers, copied as config-only shells with no workflows attached. */
   workflowMcpServers: ForkResourceCandidate[]
   /**
    * Count of deployed workflows that the fork would copy. When 0, the fork modal shows an
@@ -410,44 +412,48 @@ export async function listForkCopyableResources(
   executor: DbOrTx,
   workspaceId: string
 ): Promise<ForkCopyableResources> {
-  const [files, tables, kbs, tools, skills, servers, deployed] = await Promise.all([
-    fileCandidatesWithFolderQuery(executor, workspaceId),
-    tableCandidatesQuery(executor, workspaceId),
-    knowledgeBaseCandidatesQuery(executor, workspaceId),
-    customToolCandidatesQuery(executor, workspaceId),
-    skillCandidatesQuery(executor, workspaceId),
-    executor
-      .select({ id: workflowMcpServer.id, label: workflowMcpServer.name })
-      .from(workflowMcpServer)
-      .where(
-        and(eq(workflowMcpServer.workspaceId, workspaceId), isNull(workflowMcpServer.deletedAt))
-      )
-      .limit(CANDIDATE_LIMIT),
-    executor
-      .select({ value: count() })
-      .from(workflow)
-      // Match listDeployedWorkflows: a workflow only counts as copyable when it has an
-      // actually-active deployment version, not just the isDeployed flag, so the fork
-      // modal's preflight count never over-reports "ghost" deployed workflows.
-      .where(
-        and(
-          eq(workflow.workspaceId, workspaceId),
-          eq(workflow.isDeployed, true),
-          isNull(workflow.archivedAt),
-          exists(
-            executor
-              .select({ one: sql`1` })
-              .from(workflowDeploymentVersion)
-              .where(
-                and(
-                  eq(workflowDeploymentVersion.workflowId, workflow.id),
-                  eq(workflowDeploymentVersion.isActive, true)
-                )
-              )
-          )
+  const [files, tables, kbs, tools, skills, externalServers, servers, deployed] = await Promise.all(
+    [
+      fileCandidatesWithFolderQuery(executor, workspaceId),
+      tableCandidatesQuery(executor, workspaceId),
+      knowledgeBaseCandidatesQuery(executor, workspaceId),
+      customToolCandidatesQuery(executor, workspaceId),
+      skillCandidatesQuery(executor, workspaceId),
+      // External MCP servers copy as config rows (same filter as the mapping candidates).
+      mcpServerCandidatesQuery(executor, workspaceId),
+      executor
+        .select({ id: workflowMcpServer.id, label: workflowMcpServer.name })
+        .from(workflowMcpServer)
+        .where(
+          and(eq(workflowMcpServer.workspaceId, workspaceId), isNull(workflowMcpServer.deletedAt))
         )
-      ),
-  ])
+        .limit(CANDIDATE_LIMIT),
+      executor
+        .select({ value: count() })
+        .from(workflow)
+        // Match listDeployedWorkflows: a workflow only counts as copyable when it has an
+        // actually-active deployment version, not just the isDeployed flag, so the fork
+        // modal's preflight count never over-reports "ghost" deployed workflows.
+        .where(
+          and(
+            eq(workflow.workspaceId, workspaceId),
+            eq(workflow.isDeployed, true),
+            isNull(workflow.archivedAt),
+            exists(
+              executor
+                .select({ one: sql`1` })
+                .from(workflowDeploymentVersion)
+                .where(
+                  and(
+                    eq(workflowDeploymentVersion.workflowId, workflow.id),
+                    eq(workflowDeploymentVersion.isActive, true)
+                  )
+                )
+            )
+          )
+        ),
+    ]
+  )
   return {
     // The shared folder query also selects the storage key (for the label lookup); the copy
     // picker addresses files by `workspace_files.id`, so drop the key here.
@@ -461,6 +467,7 @@ export async function listForkCopyableResources(
     knowledgeBases: kbs,
     customTools: tools,
     skills,
+    mcpServers: externalServers,
     workflowMcpServers: servers,
     deployedWorkflowCount: deployed[0]?.value ?? 0,
   }
@@ -496,20 +503,20 @@ export interface ForkCopyableSourceResource {
  * per-kind {@link CANDIDATE_LIMIT} cap as the copy picker), as sync-copy candidate entries. The
  * promote plan filters these down to the UNREFERENCED-and-unmapped set it offers for copy
  * alongside the referenced candidates. Covers exactly the sync-copyable kinds
- * (`forkCopyableKindSchema`): workflow-publishing MCP servers are fork-copy-only (their copies
- * are not recorded in the fork resource map, so a sync copy could never be idempotent) and
- * external MCP servers / credentials / env vars are never copied.
+ * (`forkCopyableKindSchema`): workflow-publishing MCP servers are fork-copy-only shells, and
+ * credentials / env vars are never copied.
  */
 export async function listForkCopyableSourceResources(
   executor: DbOrTx,
   sourceWorkspaceId: string
 ): Promise<ForkCopyableSourceResource[]> {
-  const [files, tables, kbs, tools, skills] = await Promise.all([
+  const [files, tables, kbs, tools, skills, mcp] = await Promise.all([
     fileCandidatesWithFolderQuery(executor, sourceWorkspaceId),
     tableCandidatesQuery(executor, sourceWorkspaceId),
     knowledgeBaseCandidatesQuery(executor, sourceWorkspaceId),
     customToolCandidatesQuery(executor, sourceWorkspaceId),
     skillCandidatesQuery(executor, sourceWorkspaceId),
+    mcpServerCandidatesQuery(executor, sourceWorkspaceId),
   ])
   const flat = (
     kind: ForkCopyableKind,
@@ -534,6 +541,7 @@ export async function listForkCopyableSourceResources(
     ...flat('knowledge-base', kbs),
     ...flat('custom-tool', tools),
     ...flat('skill', skills),
+    ...flat('mcp-server', mcp),
   ]
 }
 
@@ -558,10 +566,11 @@ export async function loadForkCopyableResourceLabels(
   const tableIds = ids('table')
   const toolIds = ids('custom-tool')
   const skillIds = ids('skill')
+  const mcpIds = ids('mcp-server')
   // Files are keyed by storage key (not `workspace_files.id`), so they label by key.
   const fileKeys = ids('file')
 
-  const [kbs, tables, tools, skills, files] = await Promise.all([
+  const [kbs, tables, tools, skills, mcp, files] = await Promise.all([
     kbIds.length === 0
       ? Promise.resolve([] as Array<{ id: string; label: string }>)
       : knowledgeBaseCandidatesQuery(executor, sourceWorkspaceId, kbIds),
@@ -574,6 +583,9 @@ export async function loadForkCopyableResourceLabels(
     skillIds.length === 0
       ? Promise.resolve([] as Array<{ id: string; label: string }>)
       : skillCandidatesQuery(executor, sourceWorkspaceId, skillIds),
+    mcpIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string; label: string }>)
+      : mcpServerCandidatesQuery(executor, sourceWorkspaceId, mcpIds),
     fileKeys.length === 0
       ? Promise.resolve(
           [] as Array<{
@@ -591,6 +603,7 @@ export async function loadForkCopyableResourceLabels(
   for (const row of tables) labels.set(`table:${row.id}`, flat(row.label))
   for (const row of tools) labels.set(`custom-tool:${row.id}`, flat(row.label))
   for (const row of skills) labels.set(`skill:${row.id}`, flat(row.label))
+  for (const row of mcp) labels.set(`mcp-server:${row.id}`, flat(row.label))
   for (const row of files) {
     labels.set(`file:${row.key}`, {
       label: row.label,

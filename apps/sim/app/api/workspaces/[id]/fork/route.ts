@@ -39,6 +39,7 @@ export const POST = withRouteHandler(
         knowledgeBases: copy?.knowledgeBases ?? [],
         customTools: copy?.customTools ?? [],
         skills: copy?.skills ?? [],
+        mcpServers: copy?.mcpServers ?? [],
         workflowMcpServers: copy?.workflowMcpServers ?? [],
       },
       requestId,

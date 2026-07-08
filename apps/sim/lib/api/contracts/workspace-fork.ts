@@ -27,6 +27,12 @@ export const forkResourceTypeSchema = z.enum([
   'knowledge_document',
   'file',
   'mcp_server',
+  /**
+   * Workflow-publishing MCP server identity (parent shell <-> fork copy), seeded at fork so a
+   * sync can mirror `workflow_mcp_tool` attachments onto the mapped counterpart. System-managed;
+   * never user-mapped (nothing in a workflow references these servers).
+   */
+  'workflow_mcp_server',
   'custom_tool',
   'skill',
 ])
@@ -35,12 +41,16 @@ export const forkResourceTypeSchema = z.enum([
  * Resource types a user may map via the mapping editor. Excludes `workflow` (identity is
  * system-managed - seeded at fork, maintained by promote, dissolved by rollback - and must never
  * be written through the editor, or a crafted entry could repoint a promote at the wrong target
- * workflow) AND `knowledge_document` (a document is never a standalone mapping: it follows its
- * parent knowledge base, re-picked in that KB's reconfigure flow and auto-remapped when the KB is
- * copied - the mapping view never emits one and `listForkResourceCandidates` returns none).
+ * workflow), `workflow_mcp_server` (identity is likewise system-managed - seeded when a fork
+ * copies the server shells - and nothing in a workflow references one, so there is never a
+ * mapping entry to edit), AND `knowledge_document` (a document is never a standalone mapping: it
+ * follows its parent knowledge base, re-picked in that KB's reconfigure flow and auto-remapped
+ * when the KB is copied - the mapping view never emits one and `listForkResourceCandidates`
+ * returns none).
  */
 export const forkMappableResourceTypeSchema = forkResourceTypeSchema.exclude([
   'workflow',
+  'workflow_mcp_server',
   'knowledge_document',
 ])
 export type ForkMappableResourceType = z.infer<typeof forkMappableResourceTypeSchema>
@@ -49,8 +59,8 @@ export const forkDirectionSchema = z.enum(['push', 'pull'])
 
 /**
  * The remappable, copyable resource kinds a sync can copy into the target when they are
- * referenced but unmapped (the fork-style copy at promote time). Excludes credentials, env
- * vars, and external MCP servers (never copied this way); documents are auto-copied with their
+ * unmapped (the fork-style copy at promote time), whether referenced by the synced workflows or
+ * not. Excludes credentials and env vars (never copied); documents are auto-copied with their
  * parent knowledge base, not selected individually. Workspace `file` references are keyed by
  * storage key (not `workspace_files.id`) and copied like fork does.
  */
@@ -60,6 +70,11 @@ export const forkCopyableKindSchema = z.enum([
   'custom-tool',
   'skill',
   'file',
+  /**
+   * External MCP servers copy as CONFIG rows (transport/url/headers verbatim; OAuth tokens
+   * never copied - oauth-auth servers land disconnected until re-authorized in the target).
+   */
+  'mcp-server',
 ])
 export type ForkCopyableKind = z.infer<typeof forkCopyableKindSchema>
 
@@ -109,8 +124,13 @@ export const forkResourceSelectionSchema = z.object({
   knowledgeBases: forkResourceIdList,
   customTools: forkResourceIdList,
   skills: forkResourceIdList,
-  // External MCP servers are never copied (they carry secrets / require re-auth); only
-  // workflow-publishing MCP servers are copyable, as config-only shells with no workflows.
+  /**
+   * External MCP servers, copied as config rows (transport/url/headers) so MCP tool selections
+   * in the forked workflows keep working. OAuth tokens are never copied - an oauth-auth server
+   * lands disconnected in the child until re-authorized; tools re-discover on first use.
+   */
+  mcpServers: forkResourceIdList,
+  /** Workflow-publishing MCP servers, copied as config-only shells with no workflows attached. */
   workflowMcpServers: forkResourceIdList,
 })
 
@@ -162,6 +182,8 @@ export const getForkResourcesContract = defineRouteContract({
       knowledgeBases: z.array(forkCopyableResourceSchema),
       customTools: z.array(forkCopyableResourceSchema),
       skills: z.array(forkCopyableResourceSchema),
+      /** External MCP servers (config rows; OAuth tokens never copied). */
+      mcpServers: z.array(forkCopyableResourceSchema),
       workflowMcpServers: z.array(forkCopyableResourceSchema),
       deployedWorkflowCount: z.number().int(),
     }),
@@ -416,10 +438,9 @@ export type ForkClearedRef = z.output<typeof forkClearedRefSchema>
 
 /**
  * Why a would-clear reference blocks the sync, so clients can phrase the resolution:
- *  - `unmapped-copyable`: a live copyable-kind resource (table / KB / file / custom tool / skill)
- *    with no target mapping - resolve by mapping it or selecting it for copy.
- *  - `unmapped-mcp-server`: a live external MCP server with no target mapping - resolve by mapping
- *    (MCP servers are never copied; create one in the target first if none exists).
+ *  - `unmapped-copyable`: a live copyable-kind resource (table / KB / file / custom tool /
+ *    skill / external MCP server) with no target mapping - resolve by mapping it or selecting
+ *    it for copy.
  *  - `source-deleted`: the referenced resource was deleted in the source - resolve by mapping the
  *    dead id to an existing live target resource, or by fixing/archiving the source workflow.
  *  - `workflow-missing`: a cross-workflow reference to a workflow not carried into the target -
@@ -427,7 +448,6 @@ export type ForkClearedRef = z.output<typeof forkClearedRefSchema>
  */
 export const forkSyncBlockerReasonSchema = z.enum([
   'unmapped-copyable',
-  'unmapped-mcp-server',
   'source-deleted',
   'workflow-missing',
 ])
@@ -539,6 +559,8 @@ export const promoteCopyResourcesSchema = z.object({
   skills: forkResourceIdList,
   /** Workspace files to copy, identified by storage key (not `workspace_files.id`). */
   files: forkResourceIdList,
+  /** External MCP servers to copy as config rows (OAuth tokens never copied - re-auth). */
+  mcpServers: forkResourceIdList,
 })
 export type PromoteCopyResources = z.input<typeof promoteCopyResourcesSchema>
 
@@ -611,6 +633,7 @@ export const backgroundWorkMetadataSchema = z
     fileNames: z.array(z.string()).optional(),
     customToolNames: z.array(z.string()).optional(),
     skillNames: z.array(z.string()).optional(),
+    mcpServerNames: z.array(z.string()).optional(),
     workflowMcpServerNames: z.array(z.string()).optional(),
     // Sync / rollback
     /**
