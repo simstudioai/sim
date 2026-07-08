@@ -36,6 +36,7 @@ export const tiktokQueryCreatorInfoTool: ToolConfig<
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json; charset=UTF-8',
     }),
+    body: () => ({}),
   },
 
   transformResponse: async (response: Response): Promise<TikTokQueryCreatorInfoResponse> => {
