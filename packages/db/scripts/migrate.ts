@@ -112,6 +112,7 @@ try {
   try {
     await runMigrationsWithRetry()
     console.log('Migrations applied successfully.')
+    await assertLockSessionHeld()
     await runScriptMigrations(client)
     await warnOnInvalidIndexes()
   } finally {
@@ -181,17 +182,25 @@ async function acquireMigrationLock(): Promise<void> {
  * Replays are safe: drizzle rolls the batch back on failure, and post-COMMIT
  * CONCURRENTLY statements are idempotent by convention.
  */
+/**
+ * Verify the session still holds the migration advisory lock: a changed
+ * backend pid means the connection was recycled and the lock silently dropped.
+ * Only sound on a direct connection — see `hasDirectMigrationUrl`.
+ */
+async function assertLockSessionHeld(): Promise<void> {
+  if (!hasDirectMigrationUrl) return
+  const [{ pid }] = await client`SELECT pg_backend_pid() AS pid`
+  if (pid !== lockSessionPid) {
+    throw new Error(
+      `Database session changed mid-run (backend pid ${lockSessionPid} -> ${pid}); ` +
+        'the migration advisory lock was lost. Aborting so a fresh runner can retry safely.'
+    )
+  }
+}
+
 async function runMigrationsWithRetry(): Promise<void> {
   for (let attempt = 1; ; attempt++) {
-    if (hasDirectMigrationUrl) {
-      const [{ pid }] = await client`SELECT pg_backend_pid() AS pid`
-      if (pid !== lockSessionPid) {
-        throw new Error(
-          `Database session changed mid-run (backend pid ${lockSessionPid} -> ${pid}); ` +
-            'the migration advisory lock was lost. Aborting so a fresh runner can retry safely.'
-        )
-      }
-    }
+    await assertLockSessionHeld()
     await client.unsafe('SET statement_timeout = 0')
     await client.unsafe(`SET lock_timeout = '${DDL_LOCK_TIMEOUT}'`)
     try {
