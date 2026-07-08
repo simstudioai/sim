@@ -157,9 +157,23 @@ describe('ashbyHandler', () => {
       )
     })
 
-    it('returns null when application updatedAt is missing, rather than risk a false collision', () => {
-      const body = { action: 'candidateStageChange', data: { application: { id: 'app-1' } } }
-      expect(ashbyHandler.extractIdempotencyId!(body)).toBeNull()
+    it('falls back to a content fingerprint when updatedAt is missing, still deduping retries', () => {
+      const body = {
+        action: 'candidateStageChange',
+        data: { application: { id: 'app-1', status: 'Active' } },
+      }
+      const key = ashbyHandler.extractIdempotencyId!(body)
+      expect(key).not.toBeNull()
+      // an identical retry (same bytes) produces the same key
+      expect(ashbyHandler.extractIdempotencyId!({ ...body, data: { ...body.data } })).toBe(key)
+
+      // a genuinely different event on the same application (different
+      // content) must NOT collide with the one above
+      const different = {
+        action: 'candidateStageChange',
+        data: { application: { id: 'app-1', status: 'Hired' } },
+      }
+      expect(ashbyHandler.extractIdempotencyId!(different)).not.toBe(key)
     })
 
     it('returns null when no recognizable resource is present', () => {

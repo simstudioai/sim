@@ -14,6 +14,7 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { buildFallbackDeliveryFingerprint } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Ashby')
 
@@ -54,12 +55,14 @@ export const ashbyHandler: WebhookProviderHandler = {
     const offer = data.offer as Record<string, unknown> | undefined
 
     if (application?.id) {
-      // updatedAt is required by Ashby's schema, but if it's ever absent we
-      // can't tell retries of the same event apart from a genuinely new one
-      // (e.g. a later stage change) — skip dedup rather than risk collapsing
-      // two distinct events into the same key.
-      if (!application.updatedAt) return null
-      return `ashby:${action}:${application.id}:${application.updatedAt}`
+      // updatedAt is required by Ashby's schema and is the cheapest stable
+      // discriminator between a retry and a genuinely later event (e.g. a
+      // second stage change). If it's ever absent, fall back to a content
+      // hash of the full application payload — still stable across retries
+      // of the same delivery (identical bytes hash identically) without
+      // risking a false collision between two distinct events.
+      const discriminator = application.updatedAt ?? buildFallbackDeliveryFingerprint(application)
+      return `ashby:${action}:${application.id}:${discriminator}`
     }
     if (offer?.id) {
       // offerCreate fires exactly once per offer, so the id alone is a
