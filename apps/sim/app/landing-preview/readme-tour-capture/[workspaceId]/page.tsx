@@ -254,7 +254,13 @@ function seed(qc: QueryClient) {
   useWorkflowStore.getState().replaceWorkflowState(DEMO_WORKFLOW)
   useWorkflowRegistry.setState({
     activeWorkflowId: WF_ID,
-    hydration: { phase: 'ready', workspaceId: WS_ID, workflowId: WF_ID },
+    hydration: {
+      phase: 'ready',
+      workspaceId: WS_ID,
+      workflowId: WF_ID,
+      requestId: null,
+      error: null,
+    },
   })
 
   // Tables
