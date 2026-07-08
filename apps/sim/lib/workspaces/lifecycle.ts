@@ -27,8 +27,7 @@ import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceLifecycle')
 
-/** Fallback workspace name for a member auto-provisioned a replacement — matches the
- *  pre-existing "you have no workspaces" client-side recovery naming for consistency. */
+/** Matches the pre-existing "you have no workspaces" client-side recovery naming. */
 const FALLBACK_WORKSPACE_NAME = 'My Workspace'
 
 interface ArchiveWorkspaceOptions {
@@ -106,11 +105,10 @@ export async function archiveWorkspace(
     .from(workflowMcpServer)
     .where(eq(workflowMcpServer.workspaceId, workspaceId))
 
-  // serializable: without it, two concurrent deletions of different workspaces shared by the
-  // same sole member could each read a pre-deletion workspace count, both conclude the member
-  // isn't stranded, and together leave them with zero workspaces without either provisioning a
-  // replacement. Postgres detects this write skew under serializable isolation and aborts one
-  // transaction. Skipped when force is set, since that path never runs this check at all.
+  // serializable: without it, two concurrent deletions sharing a sole member could each read a
+  // pre-deletion workspace count and both skip provisioning a replacement. Postgres detects this
+  // write skew under serializable isolation and aborts one transaction. Skipped when force is
+  // set, since that path never runs the stranded-member check at all.
   const transactionConfig = options.force
     ? undefined
     : ({ isolationLevel: 'serializable' } as const)
