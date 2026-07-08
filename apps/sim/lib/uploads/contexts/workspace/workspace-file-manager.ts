@@ -591,14 +591,20 @@ export async function trackChatUpload(
   s3Key: string,
   fileName: string,
   contentType: string,
-  size: number
+  size: number,
+  messageId?: string
 ): Promise<{ displayName: string }> {
   for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
     const candidate = suffixedName(fileName, n)
     try {
       const updated = await db
         .update(workspaceFiles)
-        .set({ chatId, context: 'mothership', displayName: candidate })
+        .set({
+          chatId,
+          messageId: messageId ?? null,
+          context: 'mothership',
+          displayName: candidate,
+        })
         .where(
           and(
             eq(workspaceFiles.key, s3Key),
@@ -624,6 +630,7 @@ export async function trackChatUpload(
         workspaceId,
         context: 'mothership',
         chatId,
+        messageId: messageId ?? null,
         originalName: fileName,
         displayName: candidate,
         contentType,

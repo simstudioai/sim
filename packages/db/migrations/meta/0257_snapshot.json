@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "id": "c405fc48-c6bb-4786-863f-3d3e686095b5",
+=======
+  "id": "554b063d-95f6-424c-bb2f-bc752b1060a8",
+>>>>>>> bbc79edfc8 (feat(fork-chat): add fork chat to mothership)
   "prevId": "b932608c-c10f-4085-8f59-0621b23071f4",
   "version": "7",
   "dialect": "postgresql",
@@ -1033,6 +1037,7 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+<<<<<<< HEAD
         },
         "background_work_status_meta_child_ws_idx": {
           "name": "background_work_status_meta_child_ws_idx",
@@ -1063,6 +1068,8 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+=======
+>>>>>>> bbc79edfc8 (feat(fork-chat): add fork chat to mothership)
         }
       },
       "foreignKeys": {
@@ -15713,6 +15720,15 @@
           "primaryKey": false,
           "notNull": false
         },
+<<<<<<< HEAD
+=======
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+>>>>>>> bbc79edfc8 (feat(fork-chat): add fork chat to mothership)
         "original_name": {
           "name": "original_name",
           "type": "text",
@@ -16694,7 +16710,10 @@
         "knowledge_document",
         "file",
         "mcp_server",
+<<<<<<< HEAD
         "workflow_mcp_server",
+=======
+>>>>>>> bbc79edfc8 (feat(fork-chat): add fork chat to mothership)
         "custom_tool",
         "skill"
       ]
