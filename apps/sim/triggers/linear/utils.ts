@@ -218,62 +218,6 @@ export const userOutputs = {
 } as const
 
 /**
- * Shared team output schema
- */
-export const teamOutputs = {
-  id: {
-    type: 'string',
-    description: 'Team ID',
-  },
-  name: {
-    type: 'string',
-    description: 'Team name',
-  },
-  key: {
-    type: 'string',
-    description: 'Team key (used in issue identifiers)',
-  },
-  description: {
-    type: 'string',
-    description: 'Team description',
-  },
-  private: {
-    type: 'boolean',
-    description: 'Whether the team is private',
-  },
-  timezone: {
-    type: 'string',
-    description: 'Team timezone',
-  },
-} as const
-
-/**
- * Shared state output schema
- */
-export const stateOutputs = {
-  id: {
-    type: 'string',
-    description: 'State ID',
-  },
-  name: {
-    type: 'string',
-    description: 'State name',
-  },
-  type: {
-    type: 'string',
-    description: 'State type (backlog, unstarted, started, completed, canceled)',
-  },
-  color: {
-    type: 'string',
-    description: 'State color',
-  },
-  position: {
-    type: 'number',
-    description: 'State position in the workflow',
-  },
-} as const
-
-/**
  * Build output schema for issue events
  */
 export function buildIssueOutputs(): Record<string, TriggerOutput> {
