@@ -29,7 +29,7 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
+import { getHelpEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('StripeInvoiceWebhooks')
@@ -337,7 +337,8 @@ async function sendPaymentFailureEmails(
           })
         )
 
-        const { from, replyTo } = getPersonalEmailFrom()
+        const { from } = getPersonalEmailFrom()
+        const replyTo = getHelpEmailAddress()
         await sendEmail({
           to: userToNotify.email,
           subject: 'Payment Failed - Action Required',

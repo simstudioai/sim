@@ -4,6 +4,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { randomInt } from '@sim/utils/random'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { Cron } from 'croner'
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
@@ -770,7 +771,7 @@ async function processScheduleItem(
   let enqueuedJobId: string | null = null
 
   try {
-    const delayMs = Math.floor(Math.random() * SCHEDULE_JITTER_MAX_MS)
+    const delayMs = randomInt(0, SCHEDULE_JITTER_MAX_MS)
 
     const scheduleJobId = buildScheduleExecutionJobId(schedule)
     const existingJob = await jobQueue.getJob(scheduleJobId)

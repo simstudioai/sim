@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto'
 import { db, dbReplica } from '@sim/db'
-import { usageLog, workspace } from '@sim/db/schema'
+import { usageLog, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
@@ -517,6 +518,45 @@ export async function recordCumulativeUsage(
   })
 }
 
+interface UsageLogFilter {
+  source?: UsageLogSource
+  workspaceId?: string
+  startDate?: Date
+  endDate?: Date
+}
+
+function buildUsageLogConditions(userId: string, filter: UsageLogFilter) {
+  const conditions = [eq(usageLog.userId, userId)]
+  if (filter.source) conditions.push(eq(usageLog.source, filter.source))
+  if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
+  if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
+  if (filter.endDate) conditions.push(lte(usageLog.createdAt, filter.endDate))
+  return conditions
+}
+
+/**
+ * Apportions credits across every log matching the filter (not just one
+ * page), so a row's `creditCost` is identical everywhere it's shown — the
+ * paginated list and the CSV export both call this rather than each
+ * apportioning their own subset, which would let the same row disagree
+ * between the two (or between pages of the same list) since apportionment
+ * depends on the complete set's total.
+ */
+export async function getUsageCreditsByLogId(
+  userId: string,
+  filter: UsageLogFilter
+): Promise<Record<string, number>> {
+  const rows = await dbReplica
+    .select({ id: usageLog.id, cost: usageLog.cost })
+    .from(usageLog)
+    .where(and(...buildUsageLogConditions(userId, filter)))
+    .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
+
+  return apportionCredits(
+    rows.map((row) => ({ key: row.id, dollars: Number.parseFloat(row.cost) }))
+  )
+}
+
 /**
  * Options for querying usage logs
  */
@@ -533,6 +573,20 @@ export interface GetUsageLogsOptions {
   limit?: number
   /** Cursor for pagination (log ID) */
   cursor?: string
+  /**
+   * The cursor row's `createdAt`, when the caller already has it (e.g. a
+   * multi-page export loop holding the previous page's rows in memory).
+   * Skips the row lookup that would otherwise resolve it from `cursor`.
+   */
+  cursorCreatedAt?: Date
+  /**
+   * Whether to compute the full-filter `summary` aggregate (default `true`).
+   * A cursor-paginated caller collecting every page (e.g. a CSV export) only
+   * needs `logs` from each page and would otherwise pay for the same
+   * cursor-independent `SUM`/`GROUP BY` scan once per page for a result it
+   * never reads — set `false` to skip it.
+   */
+  includeSummary?: boolean
 }
 
 /**
@@ -548,6 +602,8 @@ interface UsageLogEntry {
   cost: number
   workspaceId?: string
   workflowId?: string
+  /** Name of the referenced workflow, when `workflowId` resolves to one. */
+  workflowName?: string
   executionId?: string
 }
 
@@ -556,6 +612,7 @@ interface UsageLogEntry {
  */
 export interface UsageLogsResult {
   logs: UsageLogEntry[]
+  /** `{ totalCost: 0, bySource: {} }` when `includeSummary` is `false`. */
   summary: {
     totalCost: number
     bySource: Record<string, number>
@@ -573,47 +630,60 @@ export async function getUserUsageLogs(
   userId: string,
   options: GetUsageLogsOptions = {}
 ): Promise<UsageLogsResult> {
-  const { source, workspaceId, startDate, endDate, limit = 50, cursor } = options
+  const {
+    source,
+    workspaceId,
+    startDate,
+    endDate,
+    limit = 50,
+    cursor,
+    cursorCreatedAt,
+    includeSummary = true,
+  } = options
 
   try {
-    const conditions = [eq(usageLog.userId, userId)]
-
-    if (source) {
-      conditions.push(eq(usageLog.source, source))
-    }
-
-    if (workspaceId) {
-      conditions.push(eq(usageLog.workspaceId, workspaceId))
-    }
-
-    if (startDate) {
-      conditions.push(gte(usageLog.createdAt, startDate))
-    }
-
-    if (endDate) {
-      conditions.push(lte(usageLog.createdAt, endDate))
-    }
+    const conditions = buildUsageLogConditions(userId, { source, workspaceId, startDate, endDate })
 
     if (cursor) {
-      // Cursor resolution stays on the primary: the page itself reads a
-      // load-balanced replica, and a laggier sibling replica missing the cursor
-      // row would silently restart pagination from page 1.
-      const cursorLog = await db
-        .select({ createdAt: usageLog.createdAt })
-        .from(usageLog)
-        .where(eq(usageLog.id, cursor))
-        .limit(1)
+      let resolvedCursorCreatedAt = cursorCreatedAt
 
-      if (cursorLog.length > 0) {
-        conditions.push(
-          sql`(${usageLog.createdAt} < ${cursorLog[0].createdAt} OR (${usageLog.createdAt} = ${cursorLog[0].createdAt} AND ${usageLog.id} < ${cursor}))`
+      if (!resolvedCursorCreatedAt) {
+        // Cursor resolution stays on the primary: the page itself reads a
+        // load-balanced replica, and a laggier sibling replica missing the
+        // cursor row would silently restart pagination from page 1.
+        const cursorLog = await db
+          .select({ createdAt: usageLog.createdAt })
+          .from(usageLog)
+          .where(eq(usageLog.id, cursor))
+          .limit(1)
+        resolvedCursorCreatedAt = cursorLog[0]?.createdAt
+      }
+
+      if (resolvedCursorCreatedAt) {
+        const cursorCondition = or(
+          lt(usageLog.createdAt, resolvedCursorCreatedAt),
+          and(eq(usageLog.createdAt, resolvedCursorCreatedAt), lt(usageLog.id, cursor))
         )
+        if (cursorCondition) conditions.push(cursorCondition)
       }
     }
 
     const logs = await dbReplica
-      .select()
+      .select({
+        id: usageLog.id,
+        createdAt: usageLog.createdAt,
+        category: usageLog.category,
+        source: usageLog.source,
+        description: usageLog.description,
+        metadata: usageLog.metadata,
+        cost: usageLog.cost,
+        workspaceId: usageLog.workspaceId,
+        workflowId: usageLog.workflowId,
+        workflowName: workflow.name,
+        executionId: usageLog.executionId,
+      })
       .from(usageLog)
+      .leftJoin(workflow, eq(usageLog.workflowId, workflow.id))
       .where(and(...conditions))
       .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
       .limit(limit + 1)
@@ -631,31 +701,35 @@ export async function getUserUsageLogs(
       cost: Number.parseFloat(log.cost),
       ...(log.workspaceId ? { workspaceId: log.workspaceId } : {}),
       ...(log.workflowId ? { workflowId: log.workflowId } : {}),
+      ...(log.workflowName ? { workflowName: log.workflowName } : {}),
       ...(log.executionId ? { executionId: log.executionId } : {}),
     }))
-
-    const summaryConditions = [eq(usageLog.userId, userId)]
-    if (source) summaryConditions.push(eq(usageLog.source, source))
-    if (workspaceId) summaryConditions.push(eq(usageLog.workspaceId, workspaceId))
-    if (startDate) summaryConditions.push(gte(usageLog.createdAt, startDate))
-    if (endDate) summaryConditions.push(lte(usageLog.createdAt, endDate))
-
-    const summaryResult = await dbReplica
-      .select({
-        source: usageLog.source,
-        totalCost: sql<string>`SUM(${usageLog.cost})`,
-      })
-      .from(usageLog)
-      .where(and(...summaryConditions))
-      .groupBy(usageLog.source)
 
     const bySource: Record<string, number> = {}
     let totalCost = 0
 
-    for (const row of summaryResult) {
-      const sourceCost = Number.parseFloat(row.totalCost || '0')
-      bySource[row.source] = sourceCost
-      totalCost += sourceCost
+    if (includeSummary) {
+      const summaryConditions = buildUsageLogConditions(userId, {
+        source,
+        workspaceId,
+        startDate,
+        endDate,
+      })
+
+      const summaryResult = await dbReplica
+        .select({
+          source: usageLog.source,
+          totalCost: sql<string>`SUM(${usageLog.cost})`,
+        })
+        .from(usageLog)
+        .where(and(...summaryConditions))
+        .groupBy(usageLog.source)
+
+      for (const row of summaryResult) {
+        const sourceCost = Number.parseFloat(row.totalCost || '0')
+        bySource[row.source] = sourceCost
+        totalCost += sourceCost
+      }
     }
 
     return {

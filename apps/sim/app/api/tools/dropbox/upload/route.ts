@@ -89,7 +89,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const dropboxApiArg = {
       path: finalPath,
       mode: validatedData.mode || 'add',
-      autorename: validatedData.autorename ?? true,
+      autorename: validatedData.autorename ?? false,
       mute: validatedData.mute ?? false,
     }
 

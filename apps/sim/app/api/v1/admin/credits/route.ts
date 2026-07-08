@@ -27,6 +27,7 @@ import { db } from '@sim/db'
 import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray } from 'drizzle-orm'
 import { adminV1IssueCreditsContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
@@ -88,7 +89,7 @@ export const POST = withRouteHandler(
           return badRequestResponse('Either userId or email is required')
         }
 
-        const normalizedEmail = email.toLowerCase().trim()
+        const normalizedEmail = normalizeEmail(email)
         const [userData] = await db
           .select({ id: user.id, email: user.email })
           .from(user)

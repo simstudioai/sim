@@ -33,11 +33,11 @@ export const discordDeleteInviteTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteInviteParams) => {
-      return `https://discord.com/api/v10/invites/${params.inviteCode}`
+      return `https://discord.com/api/v10/invites/${params.inviteCode.trim()}`
     },
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

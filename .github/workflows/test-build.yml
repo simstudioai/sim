@@ -116,6 +116,9 @@ jobs:
       - name: API contract boundary audit
         run: bun run check:api-validation:strict
 
+      - name: Shared utils enforcement audit
+        run: bun run check:utils
+
       - name: Zustand v5 selector audit
         run: bun run check:zustand-v5
 

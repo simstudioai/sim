@@ -7,9 +7,25 @@ import { getForkLineageContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertWorkspaceAdminAccess } from '@/lib/workspaces/fork/lineage/authz'
-import { getForkParent } from '@/lib/workspaces/fork/lineage/lineage'
-import { getUndoableRunForTarget } from '@/lib/workspaces/fork/promote/promote-run-store'
+import { getEffectiveWorkspacePermission } from '@/lib/workspaces/permissions/utils'
+import { assertWorkspaceAdminAccess } from '@/ee/workspace-forking/lib/lineage/authz'
+import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { getUndoableRunForTarget } from '@/ee/workspace-forking/lib/promote/promote-run-store'
+
+/**
+ * Annotates a lineage node with whether the viewer holds any access to it (explicit
+ * grant or org-admin derivation, via the canonical workspace-permission resolver).
+ * Lineage rows are visible to any admin of the CURRENT workspace, who may have no
+ * access to the other side of an edge; the flag drives per-action gating in the
+ * Forks UI. Resolved per node - lineage children lists are small and bounded.
+ */
+async function withViewerAccess<T extends { id: string; organizationId: string | null }>(
+  node: T,
+  viewerId: string
+): Promise<T & { viewerAccessible: boolean }> {
+  const permission = await getEffectiveWorkspacePermission(viewerId, node)
+  return { ...node, viewerAccessible: permission !== null }
+}
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -24,9 +40,15 @@ export const GET = withRouteHandler(
 
     await assertWorkspaceAdminAccess(workspaceId, session.user.id)
 
-    const [parent, run] = await Promise.all([
+    const [rawParent, rawChildren, run] = await Promise.all([
       getForkParent(workspaceId),
+      getForkChildren(workspaceId),
       getUndoableRunForTarget(db, workspaceId),
+    ])
+
+    const [parent, children] = await Promise.all([
+      rawParent ? withViewerAccess(rawParent, session.user.id) : null,
+      Promise.all(rawChildren.map((child) => withViewerAccess(child, session.user.id))),
     ])
 
     let undoableRun: {
@@ -50,6 +72,10 @@ export const GET = withRouteHandler(
     return NextResponse.json({
       workspaceId,
       parent,
+      children: children.map((child) => ({
+        ...child,
+        createdAt: child.createdAt.toISOString(),
+      })),
       undoableRun,
     })
   }

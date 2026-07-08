@@ -78,7 +78,7 @@ export const googleMapsElevationTool: ToolConfig<
         elevation: result.elevation,
         lat: result.location.lat,
         lng: result.location.lng,
-        resolution: result.resolution,
+        resolution: result.resolution ?? null,
       },
     }
   },
@@ -100,6 +100,7 @@ export const googleMapsElevationTool: ToolConfig<
       type: 'number',
       description:
         'Maximum distance between data points (meters) from which elevation was interpolated',
+      optional: true,
     },
   },
 }

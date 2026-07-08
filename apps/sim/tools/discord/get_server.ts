@@ -28,7 +28,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
 
   request: {
     url: (params: DiscordGetServerParams) =>
-      `https://discord.com/api/v10/guilds/${params.serverId}`,
+      `https://discord.com/api/v10/guilds/${params.serverId.trim()}?with_counts=true`,
     method: 'GET',
     headers: (params: DiscordGetServerParams) => {
       const headers: Record<string, string> = {
@@ -36,7 +36,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
       }
 
       if (params.botToken) {
-        headers.Authorization = `Bot ${params.botToken}`
+        headers.Authorization = `Bot ${params.botToken.trim()}`
       }
 
       return headers
@@ -67,8 +67,14 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
         description: { type: 'string', description: 'Server description' },
         owner_id: { type: 'string', description: 'Server owner user ID' },
         roles: { type: 'array', description: 'Server roles' },
-        channels: { type: 'array', description: 'Server channels' },
-        member_count: { type: 'number', description: 'Number of members in server' },
+        approximate_member_count: {
+          type: 'number',
+          description: 'Approximate total member count',
+        },
+        approximate_presence_count: {
+          type: 'number',
+          description: 'Approximate online member count',
+        },
       },
     },
   },

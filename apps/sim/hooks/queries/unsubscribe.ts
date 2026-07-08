@@ -8,6 +8,8 @@ import {
   unsubscribePostContract,
 } from '@/lib/api/contracts/user'
 
+export const UNSUBSCRIBE_DETAIL_STALE_TIME = 5 * 60 * 1000
+
 export const unsubscribeKeys = {
   all: ['unsubscribe'] as const,
   details: () => [...unsubscribeKeys.all, 'detail'] as const,
@@ -32,7 +34,7 @@ export function useUnsubscribe(email?: string, token?: string) {
     queryKey: unsubscribeKeys.detail(email, token),
     queryFn: ({ signal }) => fetchUnsubscribe(email as string, token as string, signal),
     enabled: Boolean(email) && Boolean(token),
-    staleTime: 5 * 60 * 1000,
+    staleTime: UNSUBSCRIBE_DETAIL_STALE_TIME,
     retry: false,
   })
 }

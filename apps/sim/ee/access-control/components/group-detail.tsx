@@ -25,6 +25,7 @@ import {
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import { ChevronDown, Plus } from 'lucide-react'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -40,6 +41,7 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { getAllBlocks } from '@/blocks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
@@ -207,10 +209,8 @@ function AddMembersModal({
                           <Checkbox checked={isSelected} />
                           <MemberAvatar name={name} image={member.user?.image ?? null} />
                           <div className='min-w-0 flex-1'>
-                            <div className='truncate text-[14px] text-[var(--text-body)]'>
-                              {name}
-                            </div>
-                            <div className='truncate text-[12px] text-[var(--text-muted)]'>
+                            <div className='truncate text-[var(--text-body)] text-sm'>{name}</div>
+                            <div className='truncate text-[var(--text-muted)] text-caption'>
                               {email}
                             </div>
                           </div>
@@ -615,6 +615,8 @@ export function GroupDetail({
   const { data: roster } = useOrganizationRoster(organizationId)
   const { data: blacklistedProvidersData } = useBlacklistedProviders({ enabled: true })
 
+  // Recompute when custom (deploy-as-block) blocks hydrate into the overlay.
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const allBlocks = useMemo(() => {
     const blocks = getAllBlocks().filter((b) => !isBlockTypeAccessControlExempt(b.type))
     return blocks.sort((a, b) => {
@@ -624,7 +626,7 @@ export function GroupDetail({
       if (catA !== catB) return catA - catB
       return a.name.localeCompare(b.name)
     })
-  }, [])
+  }, [customBlockOverlayVersion])
 
   const allProviderIds = useMemo(() => {
     const allIds = getAllProviderIds()
@@ -1377,7 +1379,7 @@ export function GroupDetail({
                             name={member.userName || member.userEmail || 'Unknown'}
                             email={member.userEmail || member.userName || 'Unknown'}
                             image={member.userImage}
-                            status={`Added ${new Date(member.assignedAt).toLocaleDateString()}`}
+                            status={`Added ${formatDate(new Date(member.assignedAt))}`}
                             menu={
                               <RowActionsMenu
                                 label='Member actions'

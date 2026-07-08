@@ -3,6 +3,7 @@ import type {
   DataverseDeleteRecordParams,
   DataverseDeleteRecordResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseDeleteRecord')
@@ -48,8 +49,8 @@ export const dataverseDeleteRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})`
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})`
     },
     method: 'DELETE',
     headers: (params) => ({

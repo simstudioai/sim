@@ -17,7 +17,7 @@ export const brightDataDiscoverTool: ToolConfig<
   id: 'brightdata_discover',
   name: 'Bright Data Discover',
   description:
-    'AI-powered web discovery that finds and ranks results by intent. Returns up to 1,000 results with optional cleaned page content for RAG and verification.',
+    'AI-powered web discovery that finds and ranks results by intent. Returns up to 20 results with optional cleaned page content for RAG and verification.',
   version: '1.0.0',
 
   params: {
@@ -37,7 +37,14 @@ export const brightDataDiscoverTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to return, up to 1000. Defaults to 10',
+      description: 'Number of results to return (1-20). Defaults to 10',
+    },
+    mode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Search depth and ranking mode: "standard" (balanced), "deep" (exhaustive, broader search), "fast" (optimized for speed), or "zeroRanking" (raw volume without AI filtering). Defaults to "standard"',
     },
     intent: {
       type: 'string',
@@ -56,7 +63,7 @@ export const brightDataDiscoverTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Response format: "json" or "markdown". Defaults to "json"',
+      description: 'Response format: "json" or "md". Defaults to "json"',
     },
     language: {
       type: 'string',
@@ -84,6 +91,7 @@ export const brightDataDiscoverTool: ToolConfig<
         query: params.query,
       }
       if (params.numResults) body.num_results = params.numResults
+      if (params.mode) body.mode = params.mode
       if (params.intent) body.intent = params.intent
       if (params.includeContent != null) body.include_content = params.includeContent
       if (params.format) body.format = params.format

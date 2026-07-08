@@ -25,25 +25,19 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       visibility: 'user-or-llm',
       description: 'Name of the folder to create (e.g., "My Documents", "Project Files")',
     },
-    folderSelector: {
+    folderId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Parent folder ID to create the folder in (e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M")',
     },
-    manualFolderId: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Manually entered parent folder ID (advanced mode)',
-    },
   },
 
   request: {
     url: (params) => {
       // Use specific parent folder URL if parentId is provided
-      const parentFolderId = params.manualFolderId || params.folderSelector
+      const parentFolderId = params.folderId?.trim()
       if (parentFolderId) {
         return `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(parentFolderId)}/children`
       }

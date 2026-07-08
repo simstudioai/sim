@@ -429,7 +429,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
       <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
-      <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+      <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
         <div className='mb-6'>
           <BackLink href='/integrations' label='Back to Integrations' />
         </div>
@@ -505,7 +505,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
       <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
       {/* Border-railed content */}
-      <div className='mx-12 max-w-[1350px] border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8 min-[1446px]:mx-auto'>
+      <div className='mx-20 max-w-[1300px] border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8 min-[1460px]:mx-auto'>
         {/* Overview */}
         {overviewBody && (
           <>

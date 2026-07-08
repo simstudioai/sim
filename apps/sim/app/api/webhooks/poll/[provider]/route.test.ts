@@ -4,6 +4,7 @@
  * @vitest-environment node
  */
 import { createMockRequest, redisConfigMock, redisConfigMockFns } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockVerifyCronAuth, mockPollProvider } = vi.hoisted(() => ({
@@ -32,7 +33,7 @@ function createContext(provider: string) {
   return { params: Promise.resolve({ provider }) }
 }
 
-const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
+const flushMicrotasks = () => sleep(0)
 
 describe('webhook polling route (fire-and-forget)', () => {
   beforeEach(() => {

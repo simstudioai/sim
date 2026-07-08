@@ -3,7 +3,11 @@ import type {
   MicrosoftExcelTableAddResponse,
   MicrosoftExcelTableToolParams,
 } from '@/tools/microsoft_excel/types'
-import { getItemBasePath, getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
+import {
+  escapeODataString,
+  getItemBasePath,
+  getSpreadsheetWebUrl,
+} from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tableAddTool: ToolConfig<
@@ -59,15 +63,27 @@ export const tableAddTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const tableName = encodeURIComponent(params.tableName)
-      const basePath = getItemBasePath(params.spreadsheetId, params.driveId)
-      return `${basePath}/workbook/tables('${tableName}')/rows/add`
+      const spreadsheetId = params.spreadsheetId?.trim()
+      if (!spreadsheetId) {
+        throw new Error('Spreadsheet ID is required')
+      }
+      const tableName = params.tableName?.trim()
+      if (!tableName) {
+        throw new Error('Table name is required')
+      }
+      const basePath = getItemBasePath(spreadsheetId, params.driveId)
+      return `${basePath}/workbook/tables('${encodeURIComponent(escapeODataString(tableName))}')/rows/add`
     },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      if (!params.accessToken) {
+        throw new Error('Access token is required')
+      }
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
+      }
+    },
     body: (params) => {
       let processedValues: any = params.values || []
 

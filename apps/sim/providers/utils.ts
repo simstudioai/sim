@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
@@ -642,7 +643,7 @@ export async function transformBlockTool(
           )
 
           const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
-          sourceIds.forEach((id) => delete result[id])
+          result = omit(result, sourceIds)
 
           if (chosen !== undefined) {
             result[group.canonicalId] = chosen

@@ -28,9 +28,10 @@ export const requestReviewersTool: ToolConfig<RequestReviewersParams, ReviewersR
     },
     reviewers: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated list of user logins to request reviews from',
+      description:
+        'Comma-separated list of user logins to request reviews from (at least one of reviewers or team_reviewers is required)',
     },
     team_reviewers: {
       type: 'string',
@@ -56,12 +57,15 @@ export const requestReviewersTool: ToolConfig<RequestReviewersParams, ReviewersR
       'X-GitHub-Api-Version': '2022-11-28',
     }),
     body: (params) => {
-      const reviewersArray = params.reviewers
-        .split(',')
-        .map((r) => r.trim())
-        .filter((r) => r)
-      const body: Record<string, any> = {
-        reviewers: reviewersArray,
+      const body: Record<string, any> = {}
+      if (params.reviewers) {
+        const reviewersArray = params.reviewers
+          .split(',')
+          .map((r) => r.trim())
+          .filter((r) => r)
+        if (reviewersArray.length > 0) {
+          body.reviewers = reviewersArray
+        }
       }
       if (params.team_reviewers) {
         const teamReviewersArray = params.team_reviewers

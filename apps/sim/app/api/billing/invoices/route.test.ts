@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetSession, mockGetStripeClient, mockStripeInvoicesList } = vi.hoisted(() => ({
@@ -25,7 +26,7 @@ import { GET } from '@/app/api/billing/invoices/route'
 
 function makeInvoice(overrides: Record<string, unknown> = {}) {
   return {
-    id: `in_${Math.random().toString(36).slice(2)}`,
+    id: `in_${generateShortId()}`,
     number: 'INV-1',
     created: 1700000000,
     total: 1000,

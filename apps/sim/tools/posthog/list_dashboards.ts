@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogListDashboardsParams {
   apiKey: string
   projectId: string
   region: string
+  host?: string
   limit?: number
   offset?: number
 }
@@ -39,6 +41,7 @@ export const listDashboardsTool: ToolConfig<
   description:
     'List all dashboards in a PostHog project. Returns dashboard configurations, tiles, and metadata.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     apiKey: {
@@ -60,6 +63,13 @@ export const listDashboardsTool: ToolConfig<
       description: 'PostHog cloud region: "us" or "eu" (default: "us")',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     limit: {
       type: 'number',
       required: false,
@@ -76,7 +86,7 @@ export const listDashboardsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
       let url = `${baseUrl}/api/projects/${params.projectId}/dashboards/`
 
       const queryParams = []

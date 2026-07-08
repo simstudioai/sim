@@ -1,3 +1,4 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogSurveyQuestion {
@@ -15,6 +16,7 @@ interface PostHogCreateSurveyParams {
   apiKey: string
   projectId: string
   region?: 'us' | 'eu'
+  host?: string
   name: string
   description?: string
   type?: 'popover' | 'api'
@@ -60,6 +62,7 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
     description:
       'Create a new survey in PostHog. Supports question types: Basic (open), Link, Rating, and Multiple Choice.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -81,11 +84,18 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
         description: 'PostHog cloud region: us or eu (default: us)',
         default: 'us',
       },
-      name: {
+      host: {
         type: 'string',
         required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+      },
+      name: {
+        type: 'string',
+        required: true,
         visibility: 'user-or-llm',
-        description: 'Survey name (optional)',
+        description: 'Survey name',
       },
       description: {
         type: 'string',
@@ -154,7 +164,7 @@ export const createSurveyTool: ToolConfig<PostHogCreateSurveyParams, PostHogCrea
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+        const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
         return `${baseUrl}/api/projects/${params.projectId}/surveys/`
       },
       method: 'POST',

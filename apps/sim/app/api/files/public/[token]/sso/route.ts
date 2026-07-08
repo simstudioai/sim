@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { publicFileSSOContract } from '@/lib/api/contracts/public-shares'
@@ -53,7 +54,7 @@ export const POST = withRouteHandler(
     const parsed = await parseRequest(publicFileSSOContract, request, context)
     if (!parsed.success) return parsed.response
     const { token } = parsed.data.params
-    const email = parsed.data.body.email.trim().toLowerCase()
+    const email = normalizeEmail(parsed.data.body.email)
 
     const resolved = await resolveActiveShareByToken(token)
     if (!resolved) {

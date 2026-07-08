@@ -76,7 +76,7 @@ export const MemoizedCommandItem = memo(
             className={cn(
               'transition-transform duration-100 group-hover:scale-110',
               showColoredIcon
-                ? `!h-[10px] !w-[10px] ${getTileIconColorClass(bgColor)}`
+                ? `size-[10px] ${getTileIconColorClass(bgColor)}`
                 : 'size-[16px] text-[var(--text-icon)]'
             )}
           />

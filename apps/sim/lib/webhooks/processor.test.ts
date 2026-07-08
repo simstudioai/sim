@@ -139,7 +139,7 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
     workflow: { id: workflowId },
   })
 
-  it('returns all rows when they belong to a single workflow (credential set fan-out)', async () => {
+  it('returns all rows when they belong to a single workflow', async () => {
     mockWebhookLookupResult.rows = [
       makeRow('workflow-1', 'wh-a', new Date('2026-01-01')),
       makeRow('workflow-1', 'wh-b', new Date('2026-01-02')),
@@ -163,7 +163,7 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
     expect(results[0].webhook.workflowId).toBe('victim-workflow')
   })
 
-  it("preserves the owner's full credential-set fan-out while dropping a foreign row", async () => {
+  it("preserves the owner's full multi-webhook match while dropping a foreign row", async () => {
     const victimA = makeRow('victim-workflow', 'victim-wh-a', new Date('2026-01-01'))
     const victimB = makeRow('victim-workflow', 'victim-wh-b', new Date('2026-01-03'))
     const attacker = makeRow('attacker-workflow', 'attacker-wh', new Date('2026-05-01'))

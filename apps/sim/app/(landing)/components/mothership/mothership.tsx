@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import {
   IsoBuildIllustration,
   IsoIngestIllustration,
@@ -19,8 +19,8 @@ import {
  * glyphs (subtle hover breathe/rotate); the section itself stays server-rendered.
  *
  * Inter-section spacing is owned by the `<main>` flex `gap` in `landing.tsx`;
- * this section carries no vertical padding. Horizontal padding (`px-12`) matches
- * the sections above, and the section is capped at the shared `max-w-[1446px]`.
+ * this section carries no vertical padding. Horizontal padding (`px-20`) matches
+ * the sections above, and the section is capped at the shared `max-w-[1460px]`.
  */
 
 type GooMark = ComponentType<{ size?: number; className?: string }>
@@ -35,7 +35,7 @@ interface Area {
    * uniform size makes some look bigger; these equalize their visual footprint.
    */
   size: number
-  definition: string
+  definition: ReactNode
 }
 
 const AREAS: Area[] = [
@@ -43,7 +43,13 @@ const AREAS: Area[] = [
     word: 'Integrate',
     Mark: IsoIntegrateIllustration,
     size: 180,
-    definition: 'One catalog of 1,000+ integrations your agents act through.',
+    definition: (
+      <>
+        One catalog of 1,000+ integrations
+        <br />
+        your agents act through.
+      </>
+    ),
   },
   {
     word: 'Context',
@@ -70,7 +76,7 @@ export function Mothership() {
     <section
       id='mothership'
       aria-labelledby='mothership-heading'
-      className='mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'
+      className='mx-auto w-full max-w-[1460px] px-20 max-sm:px-5 max-lg:px-8'
     >
       <h2
         id='mothership-heading'
@@ -90,7 +96,7 @@ export function Mothership() {
             </div>
             <div className='flex flex-col gap-2'>
               <h3 className='text-[var(--text-primary)] text-lg'>{word}</h3>
-              <p className='text-pretty text-[var(--text-body)] text-sm leading-[1.5]'>
+              <p className='max-w-[250px] text-pretty text-[var(--text-body)] text-sm leading-[1.5]'>
                 {definition}
               </p>
             </div>

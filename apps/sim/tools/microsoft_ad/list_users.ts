@@ -3,6 +3,7 @@ import type {
   MicrosoftAdListUsersResponse,
 } from '@/tools/microsoft_ad/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdListUsersResponse> = {
@@ -40,20 +41,26 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       visibility: 'user-or-llm',
       description: 'Search string to filter users by displayName or mail',
     },
+    nextLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+    },
   },
   request: {
     url: (params) => {
+      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
       const queryParts: string[] = []
       queryParts.push(
         '$select=id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled'
       )
       if (params.top) queryParts.push(`$top=${params.top}`)
-      if (params.search && params.filter) {
-        throw new Error('$search and $filter cannot be used together in Microsoft Graph API')
-      }
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
       if (params.search) {
-        queryParts.push(`$search="${encodeURIComponent(params.search)}"`)
+        const term = params.search.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+        queryParts.push(`$search=${encodeURIComponent(`"displayName:${term}" OR "mail:${term}"`)}`)
         queryParts.push('$count=true')
       }
       return `https://graph.microsoft.com/v1.0/users?${queryParts.join('&')}`
@@ -84,6 +91,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       output: {
         users,
         userCount: users.length,
+        nextLink: getGraphNextPageUrl(data) ?? null,
       },
     }
   },
@@ -94,5 +102,10 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       properties: USER_OUTPUT_PROPERTIES,
     },
     userCount: { type: 'number', description: 'Number of users returned' },
+    nextLink: {
+      type: 'string',
+      description: 'Continuation URL for the next page of results, or null if there are no more',
+      optional: true,
+    },
   },
 }

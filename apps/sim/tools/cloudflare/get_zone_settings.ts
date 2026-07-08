@@ -11,7 +11,7 @@ export const getZoneSettingsTool: ToolConfig<
   id: 'cloudflare_get_zone_settings',
   name: 'Cloudflare Get Zone Settings',
   description:
-    'Gets all settings for a zone including SSL mode, minification, caching level, and security settings.',
+    'Gets all settings for a zone including SSL mode, caching level, and security settings.',
   version: '1.0.0',
 
   params: {
@@ -79,7 +79,7 @@ export const getZoneSettingsTool: ToolConfig<
           id: {
             type: 'string',
             description:
-              'Setting identifier (e.g., ssl, minify, cache_level, security_level, always_use_https)',
+              'Setting identifier (e.g., ssl, cache_level, security_level, always_use_https)',
           },
           value: {
             type: 'string',

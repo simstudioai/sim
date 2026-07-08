@@ -1,3 +1,4 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetDashboardParams {
@@ -5,6 +6,7 @@ interface PostHogGetDashboardParams {
   projectId: string
   dashboardId: string
   region: string
+  host?: string
 }
 
 interface PostHogGetDashboardResponse {
@@ -32,6 +34,7 @@ export const getDashboardTool: ToolConfig<PostHogGetDashboardParams, PostHogGetD
     description:
       'Get a specific dashboard by ID from PostHog. Returns detailed dashboard configuration, tiles, and metadata.',
     version: '1.0.0',
+    errorExtractor: 'posthog-errors',
 
     params: {
       apiKey: {
@@ -59,11 +62,18 @@ export const getDashboardTool: ToolConfig<PostHogGetDashboardParams, PostHogGetD
         description: 'PostHog cloud region: "us" or "eu" (default: "us")',
         default: 'us',
       },
+      host: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+      },
     },
 
     request: {
       url: (params) => {
-        const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+        const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
         return `${baseUrl}/api/projects/${params.projectId}/dashboards/${params.dashboardId}/`
       },
       method: 'GET',

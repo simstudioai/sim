@@ -26,6 +26,12 @@ export const listIncidentsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Comma-separated statuses to filter (triggered, acknowledged, resolved)',
     },
+    urgencies: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated urgencies to filter (high, low)',
+    },
     serviceIds: {
       type: 'string',
       required: false,
@@ -56,6 +62,12 @@ export const listIncidentsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of results (max 100)',
     },
+    offset: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Offset to start pagination search results',
+    },
   },
 
   request: {
@@ -64,6 +76,11 @@ export const listIncidentsTool: ToolConfig<
       if (params.statuses) {
         for (const s of params.statuses.split(',')) {
           query.append('statuses[]', s.trim())
+        }
+      }
+      if (params.urgencies) {
+        for (const u of params.urgencies.split(',')) {
+          query.append('urgencies[]', u.trim())
         }
       }
       if (params.serviceIds) {
@@ -75,6 +92,7 @@ export const listIncidentsTool: ToolConfig<
       if (params.until) query.set('until', params.until)
       if (params.sortBy) query.set('sort_by', params.sortBy)
       if (params.limit) query.set('limit', params.limit)
+      if (params.offset) query.set('offset', params.offset)
       query.append('include[]', 'services')
       const qs = query.toString()
       return `https://api.pagerduty.com/incidents${qs ? `?${qs}` : ''}`
@@ -120,8 +138,9 @@ export const listIncidentsTool: ToolConfig<
             htmlUrl: inc.html_url ?? null,
           })
         ),
-        total: data.total ?? 0,
+        total: data.total ?? null,
         more: data.more ?? false,
+        offset: data.offset ?? 0,
       },
     }
   },
@@ -151,11 +170,17 @@ export const listIncidentsTool: ToolConfig<
     },
     total: {
       type: 'number',
-      description: 'Total number of matching incidents',
+      description:
+        'Total number of matching incidents (null unless explicitly requested by PagerDuty)',
+      optional: true,
     },
     more: {
       type: 'boolean',
       description: 'Whether more results are available',
+    },
+    offset: {
+      type: 'number',
+      description: 'Offset used for this page of results',
     },
   },
 }

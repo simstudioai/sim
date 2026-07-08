@@ -8,7 +8,11 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { readTableEventsSince, type TableEventEntry } from '@/lib/table/events'
+import {
+  getLatestTableEventId,
+  readTableEventsSince,
+  type TableEventEntry,
+} from '@/lib/table/events'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableEventStreamAPI')
@@ -26,10 +30,12 @@ interface RouteContext {
 
 /** GET /api/table/[tableId]/events/stream?from=<lastEventId>
  *
- *  SSE stream of cell-state transitions. Replay-on-reconnect via `from`.
+ *  SSE stream of cell-state transitions. Replay-on-reconnect via `from`;
+ *  absent `from` tails from the latest event id (fresh mount — the client has
+ *  just fetched current state, so replaying history would rewind it).
  *  Pruning (buffer cap exceeded or TTL expired) sends a `pruned` event and
  *  closes; the client responds with a full row-query refetch and reconnects
- *  from the new earliest. */
+ *  tailing from latest. */
 export const GET = withRouteHandler(async (req: NextRequest, context: RouteContext) => {
   const requestId = generateRequestId()
   const parsed = await parseRequest(tableEventStreamContract, req, context)
@@ -52,7 +58,7 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      let lastEventId = fromEventId
+      let lastEventId = fromEventId ?? 0
       const deadline = Date.now() + MAX_STREAM_DURATION_MS
       let nextHeartbeatAt = Date.now() + HEARTBEAT_INTERVAL_MS
 
@@ -92,6 +98,12 @@ export const GET = withRouteHandler(async (req: NextRequest, context: RouteConte
       }
 
       try {
+        // No replay cursor → tail from the latest event id. Resolved inside
+        // the try so a Redis failure errors the stream (client reconnects
+        // with backoff) rather than silently replaying the whole buffer.
+        if (fromEventId === undefined) {
+          lastEventId = await getLatestTableEventId(tableId)
+        }
         // Initial replay from buffer.
         const initial = await readTableEventsSince(tableId, lastEventId)
         if (initial.status === 'pruned') {

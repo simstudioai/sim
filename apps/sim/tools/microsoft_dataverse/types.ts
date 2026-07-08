@@ -315,10 +315,17 @@ export interface DataverseDownloadFileParams {
 
 export interface DataverseDownloadFileResponse extends ToolResponse {
   output: {
+    file: {
+      name: string
+      mimeType: string
+      data: Buffer | string // Buffer for direct use, string for base64-encoded data
+      size: number
+    }
     fileContent: string
     fileName: string
     fileSize: number
     mimeType: string
+    fileColumn: string
     success: boolean
   }
 }
@@ -347,6 +354,27 @@ export interface DataverseSearchResponse extends ToolResponse {
   }
 }
 
+export interface DataverseGetEntityMetadataParams {
+  accessToken: string
+  environmentUrl: string
+  entityLogicalName: string
+  select?: string
+  includeAttributes?: string
+}
+
+export interface DataverseGetEntityMetadataResponse extends ToolResponse {
+  output: {
+    entitySetName: string | null
+    logicalName: string | null
+    displayName: string | null
+    primaryIdAttribute: string | null
+    primaryNameAttribute: string | null
+    attributes: Record<string, unknown>[]
+    metadata: Record<string, unknown>
+    success: boolean
+  }
+}
+
 export type DataverseResponse =
   | DataverseCreateRecordResponse
   | DataverseGetRecordResponse
@@ -365,3 +393,4 @@ export type DataverseResponse =
   | DataverseUploadFileResponse
   | DataverseDownloadFileResponse
   | DataverseSearchResponse
+  | DataverseGetEntityMetadataResponse

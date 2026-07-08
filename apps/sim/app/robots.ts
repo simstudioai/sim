@@ -9,7 +9,6 @@ const DISALLOWED_PATHS = [
   '/invite/',
   '/unsubscribe/',
   '/w/',
-  '/credential-account/',
   '/_next/',
   '/private/',
 ]
@@ -17,6 +16,10 @@ const DISALLOWED_PATHS = [
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: { userAgent: '*', allow: '/', disallow: DISALLOWED_PATHS },
-    sitemap: [`${SITE_URL}/sitemap.xml`, `${SITE_URL}/blog/sitemap-images.xml`],
+    sitemap: [
+      `${SITE_URL}/sitemap.xml`,
+      `${SITE_URL}/blog/sitemap-images.xml`,
+      `${SITE_URL}/library/sitemap-images.xml`,
+    ],
   }
 }

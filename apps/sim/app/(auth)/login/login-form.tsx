@@ -11,6 +11,7 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
@@ -45,7 +46,7 @@ const validateEmailField = (emailValue: string): string[] => {
     return errors
   }
 
-  const validation = quickValidateEmail(emailValue.trim().toLowerCase())
+  const validation = quickValidateEmail(normalizeEmail(emailValue))
   if (!validation.isValid) {
     errors.push(validation.reason || 'Please enter a valid email address.')
   }
@@ -159,7 +160,7 @@ export default function LoginPage({
 
     const formData = new FormData(e.currentTarget)
     const emailRaw = formData.get('email') as string
-    const email = emailRaw.trim().toLowerCase()
+    const email = normalizeEmail(emailRaw)
 
     const emailValidationErrors = validateEmailField(email)
     setEmailErrors(emailValidationErrors)
@@ -277,7 +278,7 @@ export default function LoginPage({
       return
     }
 
-    const emailValidation = quickValidateEmail(forgotPasswordEmail.trim().toLowerCase())
+    const emailValidation = quickValidateEmail(normalizeEmail(forgotPasswordEmail))
     if (!emailValidation.isValid) {
       setResetStatus({
         type: 'error',

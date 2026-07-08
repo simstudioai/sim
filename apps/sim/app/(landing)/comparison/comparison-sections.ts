@@ -67,6 +67,8 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'versionControlDepth', label: 'Version control' },
       { key: 'realtimeCollaboration', label: 'Realtime collaboration' },
       { key: 'nativeFileStorage', label: 'Native file storage' },
+      { key: 'dataTables', label: 'Native data tables' },
+      { key: 'richTextEditor', label: 'Rich-text document editor' },
       { key: 'subWorkflows', label: 'Sub-workflows (composition)' },
     ],
   }),
@@ -142,6 +144,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'asyncExecution', label: 'Async execution' },
       { key: 'executionLimits', label: 'Execution limits' },
       { key: 'partialFailureHandling', label: 'Partial-failure handling' },
+      { key: 'unattendedExecution', label: 'Unattended execution' },
     ],
   }),
   defineSection({

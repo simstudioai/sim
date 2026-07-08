@@ -4,6 +4,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { Badge, ChipCombobox, ChipConfirmModal, Plus, Trash } from '@sim/emcn'
 import { Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { truncate } from '@sim/utils/string'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -108,7 +109,7 @@ function truncateContent(content: string, maxLength = 150, searchQuery = ''): st
     }
   }
 
-  return `${content.substring(0, maxLength)}...`
+  return truncate(content, maxLength)
 }
 
 const CHUNK_COLUMNS: ResourceColumn[] = [

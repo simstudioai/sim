@@ -259,7 +259,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
       const keyCount = getProviderKeys(provider.id).length
       return (
         <div className='flex flex-shrink-0 items-center gap-2'>
-          <span className='text-[12px] text-[var(--text-muted)]'>
+          <span className='text-[var(--text-muted)] text-caption'>
             {keyCount} {keyCount === 1 ? 'key' : 'keys'}
           </span>
           <Chip onClick={() => setManagingProviderId(provider.id)}>Manage</Chip>

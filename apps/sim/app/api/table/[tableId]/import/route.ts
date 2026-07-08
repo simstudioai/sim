@@ -11,6 +11,7 @@ import {
   csvImportModeSchema,
   tableIdParamsSchema,
 } from '@/lib/api/contracts/tables'
+import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
@@ -36,6 +37,7 @@ import {
   wouldExceedRowLimit,
 } from '@/lib/table'
 import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
+import { getUserSettings } from '@/lib/users/queries'
 import {
   accessError,
   checkAccess,
@@ -162,6 +164,18 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       createColumns = createColumnsValidation.data
     }
 
+    let timezone = (await getUserSettings(authResult.userId)).timezone ?? 'UTC'
+    if (fields.timezone) {
+      const timezoneValidation = ianaTimezoneSchema.safeParse(fields.timezone)
+      if (!timezoneValidation.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(timezoneValidation.error) },
+          { status: 400 }
+        )
+      }
+      timezone = timezoneValidation.data
+    }
+
     const delimiter = extensionValidation.data === 'tsv' ? '\t' : ','
     const parser = createCsvParser(delimiter)
     // `.pipe` doesn't forward source errors; forward them so the iterator throws.
@@ -250,7 +264,9 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       )
     }
 
-    const coerced = coerceRowsForTable(rows, prospectiveTable.schema, validation.effectiveMap)
+    const coerced = coerceRowsForTable(rows, prospectiveTable.schema, validation.effectiveMap, {
+      timezone,
+    })
 
     // Atomically claim the table before writing. The pre-check above reads a checkAccess snapshot
     // taken before the parse/validation; a background import could claim the table in that window.

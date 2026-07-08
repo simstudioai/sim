@@ -10,6 +10,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type {
   VfsSnapshotV1,
@@ -20,6 +21,7 @@ import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
+import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { listSkills } from '@/lib/workflows/skills/operations'
 import {
@@ -76,6 +78,7 @@ export interface WorkspaceMdData {
   envVariables: string[]
   tasks?: Array<{ id: string; title: string; updatedAt: Date }>
   customTools?: Array<{ id: string; name: string }>
+  customBlocks?: Array<{ type: string; name: string; description?: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
   skills?: Array<{ id: string; name: string; description: string }>
   jobs?: Array<{
@@ -268,6 +271,13 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     sections.push(`## Custom Tools (${data.customTools.length})\n${lines.join('\n')}`)
   }
 
+  if (data.customBlocks && data.customBlocks.length > 0) {
+    const lines = [...data.customBlocks]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((b) => `- **${b.name}** (${b.type})${b.description ? ` — ${b.description}` : ''}`)
+    sections.push(`## Custom Blocks (${data.customBlocks.length})\n${lines.join('\n')}`)
+  }
+
   if (data.mcpServers && data.mcpServers.length > 0) {
     const lines = [...data.mcpServers].sort(byNameThenId).map((s) => {
       const status = s.enabled ? 'enabled' : 'disabled'
@@ -296,7 +306,7 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
         if (j.lifecycle !== 'persistent') line += ` [${j.lifecycle}]`
         if (j.cronExpression) line += `, cron: ${j.cronExpression}`
         if (j.sourceTaskName) line += `, task: ${j.sourceTaskName}`
-        const promptPreview = j.prompt.length > 80 ? `${j.prompt.slice(0, 77)}...` : j.prompt
+        const promptPreview = j.prompt.length > 80 ? truncate(j.prompt, 77) : j.prompt
         line += `\n  ${promptPreview}`
         return line
       })
@@ -344,6 +354,7 @@ async function buildWorkspaceMdData(
       mcpServerRows,
       skillRows,
       jobRows,
+      customBlockSummaries,
     ] = await Promise.all([
       getUsersWithPermissions(workspaceId),
 
@@ -427,6 +438,8 @@ async function buildWorkspaceMdData(
             isNull(workflowSchedule.archivedAt)
           )
         ),
+
+      listCustomBlockSummariesForWorkspace(workspaceId),
     ])
 
     const kbIds = kbs.map((kb) => kb.id)
@@ -500,6 +513,7 @@ async function buildWorkspaceMdData(
       })),
       envVariables: [],
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
+      customBlocks: customBlockSummaries,
       mcpServers: mcpServerRows,
       skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
       jobs: jobRows

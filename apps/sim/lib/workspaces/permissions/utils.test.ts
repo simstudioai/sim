@@ -772,6 +772,7 @@ describe('Permission Utils', () => {
         canWrite: false,
         canAdmin: false,
         workspace: null,
+        permission: null,
       })
     })
 
@@ -793,6 +794,7 @@ describe('Permission Utils', () => {
         canWrite: true,
         canAdmin: true,
         workspace: { id: 'workspace123', ownerId: 'user123' },
+        permission: 'admin',
       })
     })
 

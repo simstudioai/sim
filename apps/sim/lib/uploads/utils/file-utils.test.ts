@@ -9,6 +9,7 @@ import {
   isInternalFileUrl,
   isNetworkError,
   processSingleFileToUserFile,
+  resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileUtilsTest')
@@ -71,6 +72,26 @@ describe('inferContextFromKey', () => {
   it('throws for empty or unrecognized keys', () => {
     expect(() => inferContextFromKey('')).toThrow()
     expect(() => inferContextFromKey('mystery/x')).toThrow()
+  })
+})
+
+describe('resolveTrustedFileContext', () => {
+  it('derives from the key prefix and ignores a mismatched caller context', () => {
+    expect(resolveTrustedFileContext('workspace/ws/1700000000000-abc-x.pdf', 'og-images')).toBe(
+      'workspace'
+    )
+    expect(resolveTrustedFileContext('chat/x', 'workspace-logos')).toBe('chat')
+    expect(resolveTrustedFileContext('workspace/ws/x', 'mothership')).toBe('workspace')
+  })
+
+  it('honors the caller context for legacy keys with no inferrable prefix', () => {
+    expect(resolveTrustedFileContext('legacy/ws/wf/ex/report.pdf', 'execution')).toBe('execution')
+  })
+
+  it('never resolves an un-inferrable key to a world-readable context', () => {
+    expect(() => resolveTrustedFileContext('legacy/report.pdf', 'og-images')).toThrow()
+    expect(() => resolveTrustedFileContext('legacy/report.pdf', 'profile-pictures')).toThrow()
+    expect(() => resolveTrustedFileContext('legacy/report.pdf')).toThrow()
   })
 })
 

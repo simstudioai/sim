@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { AmplitudeFunnelsParams, AmplitudeFunnelsResponse } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -100,10 +101,7 @@ export const funnelsTool: ToolConfig<AmplitudeFunnelsParams, AmplitudeFunnelsRes
       } catch {
         throw new Error('Amplitude Funnels: "events" must be a valid JSON array of event objects')
       }
-      const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-        Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-
-      if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every(isPlainObject)) {
+      if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every(isRecordLike)) {
         throw new Error(
           'Amplitude Funnels: "events" must be a non-empty JSON array of event objects'
         )

@@ -4,7 +4,10 @@ import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-f
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { FOLDER_LIST_STALE_TIME, mapFolder } from '@/hooks/queries/folders'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import {
+  WORKSPACE_FILES_LIST_STALE_TIME,
+  workspaceFilesKeys,
+} from '@/hooks/queries/workspace-files'
 
 /**
  * Prefetches the home page's secondary lists — folders and workspace files —
@@ -42,7 +45,7 @@ export async function prefetchHomeLists(
         )
         return data.success ? data.files : []
       },
-      staleTime: 30 * 1000,
+      staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     }),
   ])
 }

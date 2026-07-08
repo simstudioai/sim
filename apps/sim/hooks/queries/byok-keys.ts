@@ -20,6 +20,8 @@ export const byokKeysKeys = {
   list: (workspaceId?: string) => [...byokKeysKeys.lists(), workspaceId ?? ''] as const,
 }
 
+export const BYOK_KEY_LIST_STALE_TIME = 60 * 1000
+
 async function fetchBYOKKeys(workspaceId: string, signal?: AbortSignal): Promise<BYOKKeysResponse> {
   const data = await requestJson(listByokKeysContract, {
     params: { id: workspaceId },
@@ -35,7 +37,7 @@ export function useBYOKKeys(workspaceId: string) {
     queryKey: byokKeysKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchBYOKKeys(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000,
+    staleTime: BYOK_KEY_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

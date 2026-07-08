@@ -8,8 +8,7 @@
 
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
-import { and, asc, desc, eq, gt, gte, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { and, asc, desc, eq, gt, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
@@ -75,116 +74,15 @@ export async function maxOrderKey(executor: DbOrTx, tableId: string): Promise<st
   return maxKey ?? null
 }
 
-/** Shifts every row at or after `position` up by one (`position + 1`). */
-export async function shiftRowsUpFrom(trx: DbTransaction, tableId: string, position: number) {
-  await trx
-    .update(userTableRows)
-    .set({ position: sql`position + 1` })
-    .where(and(eq(userTableRows.tableId, tableId), gte(userTableRows.position, position)))
-}
-
-/** Shifts every row after `position` down by one (`position - 1`). */
-export async function shiftRowsDownAfter(trx: DbTransaction, tableId: string, position: number) {
-  await trx
-    .update(userTableRows)
-    .set({ position: sql`position - 1` })
-    .where(and(eq(userTableRows.tableId, tableId), gt(userTableRows.position, position)))
-}
-
-/**
- * Reserves the `position` for a single inserted row and returns where to INSERT.
- * Acquires the row-order lock, then opens a slot at `requestedPosition` (shifting
- * the occupant + tail up) or computes the append position. Caller runs inside a
- * transaction.
- */
-export async function reserveInsertPosition(
-  trx: DbTransaction,
-  tableId: string,
-  requestedPosition?: number
-): Promise<number> {
-  await acquireRowOrderLock(trx, tableId)
-  if (requestedPosition === undefined) {
-    return nextRowPosition(trx, tableId)
-  }
-  const [existing] = await trx
-    .select({ id: userTableRows.id })
-    .from(userTableRows)
-    .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, requestedPosition)))
-    .limit(1)
-  if (existing) {
-    await shiftRowsUpFrom(trx, tableId, requestedPosition)
-  }
-  return requestedPosition
-}
-
-/**
- * Reserves positions for a batch of `count` rows. Opens each requested slot
- * (ascending, preserving prior gaps) and returns the requested positions in
- * original order; otherwise returns a contiguous append range.
- */
-export async function reserveBatchPositions(
-  trx: DbTransaction,
-  tableId: string,
-  count: number,
-  requestedPositions?: number[]
-): Promise<number[]> {
-  await acquireRowOrderLock(trx, tableId)
-  if (requestedPositions && requestedPositions.length > 0) {
-    for (const pos of [...requestedPositions].sort((a, b) => a - b)) {
-      await shiftRowsUpFrom(trx, tableId, pos)
-    }
-    return requestedPositions
-  }
-  const start = await nextRowPosition(trx, tableId)
-  return Array.from({ length: count }, (_, i) => start + i)
-}
-
-/**
- * Recompacts row positions to be contiguous after a bulk delete. With
- * `minDeletedPos`, only rows at/after it are re-numbered; single-row deletes use
- * the cheaper {@link shiftRowsDownAfter}.
- */
-export async function compactPositions(
-  trx: DbTransaction,
-  tableId: string,
-  minDeletedPos?: number
-) {
-  if (minDeletedPos === undefined) {
-    await trx.execute(sql`
-      UPDATE user_table_rows t
-      SET position = r.new_pos
-      FROM (
-        SELECT id, ROW_NUMBER() OVER (ORDER BY position) - 1 AS new_pos
-        FROM user_table_rows
-        WHERE table_id = ${tableId}
-      ) r
-      WHERE t.id = r.id AND t.table_id = ${tableId} AND t.position != r.new_pos
-    `)
-    return
-  }
-  await trx.execute(sql`
-    UPDATE user_table_rows t
-    SET position = r.new_pos
-    FROM (
-      SELECT id, ${minDeletedPos}::int + ROW_NUMBER() OVER (ORDER BY position) - 1 AS new_pos
-      FROM user_table_rows
-      WHERE table_id = ${tableId} AND position >= ${minDeletedPos}
-    ) r
-    WHERE t.id = r.id AND t.table_id = ${tableId} AND t.position != r.new_pos
-  `)
-}
-
 /**
  * Computes the fractional `order_key` for a row inserted at the integer
  * `requestedPosition` (or appended when omitted). Used by position-based callers
  * (mothership tool, v1 API, undo position-fallback, transient old clients).
  *
- * The neighbor at slot `s` is resolved differently per flag state:
- * - **off**: `WHERE position = s` (positions are contiguous, so the row at
- *   position `s` is the `s`-th row — an indexed O(1) lookup).
- * - **on**: the `s`-th row in `order_key, id` order (`OFFSET s`) — positions are
- *   gappy and non-authoritative, so `position = s` would miss; the visual
- *   ordinal is the key's ordinal. O(s), acceptable for these low-volume callers.
+ * The neighbor at slot `s` is the `s`-th row in `order_key, id` order (`OFFSET
+ * s`) — positions are gappy and non-authoritative, so `position = s` would miss;
+ * the visual ordinal is the key's ordinal. O(s), acceptable for these low-volume
+ * callers.
  *
  * Caller holds the row-order lock.
  */
@@ -193,24 +91,15 @@ export async function resolveInsertOrderKey(
   tableId: string,
   requestedPosition?: number
 ): Promise<string> {
-  const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
   const orderKeyAtSlot = async (slot: number): Promise<string | null> => {
     if (slot < 0) return null
-    if (fractionalOrdering) {
-      const [r] = await trx
-        .select({ orderKey: userTableRows.orderKey })
-        .from(userTableRows)
-        .where(eq(userTableRows.tableId, tableId))
-        .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
-        .limit(1)
-        .offset(slot)
-      return r?.orderKey ?? null
-    }
     const [r] = await trx
       .select({ orderKey: userTableRows.orderKey })
       .from(userTableRows)
-      .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, slot)))
+      .where(eq(userTableRows.tableId, tableId))
+      .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
       .limit(1)
+      .offset(slot)
     return r?.orderKey ?? null
   }
   if (requestedPosition === undefined) {
@@ -225,19 +114,17 @@ export async function resolveInsertOrderKey(
  * Resolves the `order_key` for an insert expressed by an anchor row id —
  * `afterRowId` (place directly after) or `beforeRowId` (directly before). Finds
  * the anchor and its adjacent key via the `(table_id, order_key, id)` index
- * (O(1)) and mints a key between them. Also returns a legacy integer `position`
- * (anchor's position ±) so the flag-off shift path still works. Caller holds the
- * row-order lock.
+ * (O(1)) and mints a key between them. Caller holds the row-order lock.
  */
 export async function resolveInsertByNeighbor(
   trx: DbTransaction,
   tableId: string,
   afterRowId?: string,
   beforeRowId?: string
-): Promise<{ orderKey: string; position: number }> {
+): Promise<string> {
   const anchorId = afterRowId ?? beforeRowId!
   const [anchor] = await trx
-    .select({ orderKey: userTableRows.orderKey, position: userTableRows.position })
+    .select({ orderKey: userTableRows.orderKey })
     .from(userTableRows)
     .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.id, anchorId)))
     .limit(1)
@@ -245,12 +132,10 @@ export async function resolveInsertByNeighbor(
   // stale view) is an error, not a silent insert at the front.
   if (!anchor) throw new Error(`Row not found: ${anchorId}`)
   const anchorKey = anchor.orderKey ?? null
-  // A null key on the anchor means the table isn't backfilled. With the flag on
-  // (key is authoritative) the adjacent-key lookup below can't work — fail
-  // loudly rather than mint a wrong key. Flag off keeps `position` authoritative,
-  // so a best-effort key here is fine (the backfill re-keys before the flip).
-  const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
-  if (anchorKey === null && fractionalOrdering) {
+  // A null key on the anchor means the table isn't backfilled. order_key is
+  // authoritative, so the adjacent-key lookup below can't work — fail loudly
+  // rather than mint a wrong key.
+  if (anchorKey === null) {
     throw new Error(`Row ${anchorId} has no order_key yet (table not backfilled)`)
   }
 
@@ -259,82 +144,45 @@ export async function resolveInsertByNeighbor(
     // (not the `(order_key, id)` row tuple) skips past any sibling that shares the
     // anchor's key, so `keyBetween` always gets strictly-ordered bounds and can't
     // throw on a stray duplicate. Identical to the row tuple when keys are distinct.
-    // A null anchorKey (flag off, un-backfilled) has no key to compare — leave the
-    // upper bound open, matching the prior best-effort behavior.
-    let nextKey: string | null = null
-    if (anchorKey !== null) {
-      const [next] = await trx
-        .select({ orderKey: userTableRows.orderKey })
-        .from(userTableRows)
-        .where(and(eq(userTableRows.tableId, tableId), gt(userTableRows.orderKey, anchorKey)))
-        .orderBy(asc(userTableRows.orderKey))
-        .limit(1)
-      nextKey = next?.orderKey ?? null
-    }
-    return {
-      orderKey: keyBetween(anchorKey, nextKey),
-      position: anchor.position + 1,
-    }
+    const [next] = await trx
+      .select({ orderKey: userTableRows.orderKey })
+      .from(userTableRows)
+      .where(and(eq(userTableRows.tableId, tableId), gt(userTableRows.orderKey, anchorKey)))
+      .orderBy(asc(userTableRows.orderKey))
+      .limit(1)
+    return keyBetween(anchorKey, next?.orderKey ?? null)
   }
 
   // beforeRowId: lo = the largest key strictly LESS than the anchor key (distinct,
   // same rationale as the afterRowId branch above).
-  let prevKey: string | null = null
-  if (anchorKey !== null) {
-    const [prev] = await trx
-      .select({ orderKey: userTableRows.orderKey })
-      .from(userTableRows)
-      .where(and(eq(userTableRows.tableId, tableId), lt(userTableRows.orderKey, anchorKey)))
-      .orderBy(desc(userTableRows.orderKey))
-      .limit(1)
-    prevKey = prev?.orderKey ?? null
-  }
-  return {
-    orderKey: keyBetween(prevKey, anchorKey),
-    position: anchor.position,
-  }
+  const [prev] = await trx
+    .select({ orderKey: userTableRows.orderKey })
+    .from(userTableRows)
+    .where(and(eq(userTableRows.tableId, tableId), lt(userTableRows.orderKey, anchorKey)))
+    .orderBy(desc(userTableRows.orderKey))
+    .limit(1)
+  return keyBetween(prev?.orderKey ?? null, anchorKey)
 }
 
 /**
- * Computes fractional `order_key`s for a batch insert. With no `positions`,
- * appends a contiguous run after the current max key. With explicit `positions`
- * (undo restore), keys each row between its pre-shift position neighbors —
- * correct because requested positions are distinct. Caller holds the lock.
- *
- * The explicit-`positions` path is meaningful only when `position` is
- * authoritative (flag off): with the flag on, a saved `position` is a gappy
- * column value, not a visual rank, so feeding it to {@link resolveInsertOrderKey}
- * (which reads `position` as an `OFFSET` rank under the flag) would mint keys at
- * the wrong ranks. Callers needing exact placement under the flag pass
- * `orderKeys` (handled before this function); here we just append a run.
+ * Computes fractional `order_key`s for a batch insert by appending a contiguous
+ * run after the current max key. `order_key` is authoritative, so callers needing
+ * exact placement pass explicit `orderKeys` (handled before this function); here
+ * we just append a run. Caller holds the lock.
  */
 export async function resolveBatchInsertOrderKeys(
   trx: DbTransaction,
   tableId: string,
-  count: number,
-  positions?: number[]
+  count: number
 ): Promise<string[]> {
-  if (
-    !positions ||
-    positions.length === 0 ||
-    (await isFeatureEnabled('tables-fractional-ordering'))
-  ) {
-    return nKeysBetween(await maxOrderKey(trx, tableId), null, count)
-  }
-  const keys: string[] = []
-  for (const pos of positions) {
-    keys.push(await resolveInsertOrderKey(trx, tableId, pos))
-  }
-  return keys
+  return nKeysBetween(await maxOrderKey(trx, tableId), null, count)
 }
 
 /**
- * Inserts a single row in its own transaction. Always assigns a fractional
- * `order_key`. When the fractional-ordering flag is on, `order_key` is
- * authoritative and `position` is a best-effort append (no O(N) shift); when
- * off, `position` is reserved as before (shifting to open the slot). Validation
- * and side-effect dispatch stay with the caller; capacity is enforced by the
- * `increment_user_table_row_count` trigger.
+ * Inserts a single row in its own transaction. Assigns a fractional `order_key`
+ * (authoritative) and a best-effort append `position` (no O(N) shift).
+ * Validation and side-effect dispatch stay with the caller; capacity is enforced
+ * by the `increment_user_table_row_count` trigger.
  */
 export async function insertOrderedRow(params: {
   tableId: string
@@ -360,35 +208,15 @@ export async function insertOrderedRow(params: {
     await setTableTxTimeouts(trx)
     await acquireRowOrderLock(trx, tableId)
 
-    const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
+    // Resolve the authoritative order key from neighbor ids when given, else from
+    // the requested position.
+    const orderKey =
+      afterRowId || beforeRowId
+        ? await resolveInsertByNeighbor(trx, tableId, afterRowId, beforeRowId)
+        : await resolveInsertOrderKey(trx, tableId, position)
 
-    // Resolve the order key (and a legacy slot position for the flag-off shift
-    // path) from neighbor ids when given, else from the requested position.
-    let orderKey: string
-    let slotPosition = position
-    if (afterRowId || beforeRowId) {
-      const resolved = await resolveInsertByNeighbor(trx, tableId, afterRowId, beforeRowId)
-      orderKey = resolved.orderKey
-      slotPosition = resolved.position
-    } else {
-      orderKey = await resolveInsertOrderKey(trx, tableId, position)
-    }
-
-    let targetPosition: number
-    if (fractionalOrdering) {
-      // order_key is authoritative — keep a best-effort, no-shift position.
-      targetPosition = await nextRowPosition(trx, tableId)
-    } else if (slotPosition !== undefined) {
-      const [existing] = await trx
-        .select({ id: userTableRows.id })
-        .from(userTableRows)
-        .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, slotPosition)))
-        .limit(1)
-      if (existing) await shiftRowsUpFrom(trx, tableId, slotPosition)
-      targetPosition = slotPosition
-    } else {
-      targetPosition = await nextRowPosition(trx, tableId)
-    }
+    // order_key is authoritative — keep a best-effort, no-shift position.
+    const targetPosition = await nextRowPosition(trx, tableId)
 
     return trx
       .insert(userTableRows)
@@ -416,8 +244,9 @@ export async function insertOrderedRow(params: {
 }
 
 /**
- * Deletes a single row by id in its own transaction, then closes the positional
- * gap. Returns `false` when no row matched.
+ * Deletes a single row by id in its own transaction. Deleting a row never changes
+ * another row's `order_key`, so no positional reshift is needed. Returns `false`
+ * when no row matched.
  */
 export async function deleteOrderedRow(params: {
   tableId: string
@@ -436,33 +265,27 @@ export async function deleteOrderedRow(params: {
           eq(userTableRows.workspaceId, workspaceId)
         )
       )
-      .returning({ position: userTableRows.position })
-    if (!deleted) return false
-    // Fractional ordering: deleting a row never changes another row's order_key,
-    // so the O(N) position reshift is skipped entirely.
-    if (!(await isFeatureEnabled('tables-fractional-ordering'))) {
-      await shiftRowsDownAfter(trx, tableId, deleted.position)
-    }
-    return true
+      .returning({ id: userTableRows.id })
+    return Boolean(deleted)
   })
 }
 
 /**
- * Deletes the given row ids in batches within one transaction, then recompacts
- * positions from the earliest deleted slot. Returns the deleted rows (id + prior
- * position). The caller resolves which ids to delete (used by both delete-by-ids
- * and delete-by-filter).
+ * Deletes the given row ids in batches within one transaction. Deletes leave
+ * `order_key` untouched, so no positional recompaction is needed. Returns the
+ * deleted row ids. The caller resolves which ids to delete (used by both
+ * delete-by-ids and delete-by-filter).
  */
 export async function deleteOrderedRowsByIds(params: {
   tableId: string
   workspaceId: string
   rowIds: string[]
-}): Promise<{ id: string; position: number }[]> {
+}): Promise<{ id: string }[]> {
   const { tableId, workspaceId, rowIds } = params
   if (rowIds.length === 0) return []
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
-    const deleted: { id: string; position: number }[] = []
+    const deleted: { id: string }[] = []
     for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
       const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
       const rows = await trx
@@ -474,16 +297,8 @@ export async function deleteOrderedRowsByIds(params: {
             inArray(userTableRows.id, batch)
           )
         )
-        .returning({ id: userTableRows.id, position: userTableRows.position })
+        .returning({ id: userTableRows.id })
       deleted.push(...rows)
-    }
-    // Fractional ordering: deletes leave order_key untouched, so no recompaction.
-    if (!(await isFeatureEnabled('tables-fractional-ordering')) && deleted.length > 0) {
-      const minDeletedPos = deleted.reduce(
-        (min, r) => (r.position < min ? r.position : min),
-        deleted[0].position
-      )
-      await compactPositions(trx, tableId, minDeletedPos)
     }
     return deleted
   })

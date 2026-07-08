@@ -62,10 +62,6 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
-  'tables-fractional-ordering': {
-    description: 'Order table rows by fractional order_key instead of legacy integer position',
-    fallback: 'TABLES_FRACTIONAL_ORDERING',
-  },
   'mothership-beta': {
     description:
       'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler. ' +
@@ -114,6 +110,13 @@ const FEATURE_FLAGS = {
       'operators can dark-launch forking to specific orgs/users/admins without touching ' +
       'self-hosted/local behaviour. Fallback mirrors FORKING_ENABLED for off-AppConfig reads.',
     fallback: 'FORKING_ENABLED',
+  },
+  'deploy-as-block': {
+    description:
+      'Publish a deployed workflow as a reusable, org-wide custom block (custom name/SVG icon/' +
+      'description; Start inputs become block inputs). Gates the Deploy-modal "Block" tab and the ' +
+      'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
+    fallback: 'DEPLOY_AS_BLOCK',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

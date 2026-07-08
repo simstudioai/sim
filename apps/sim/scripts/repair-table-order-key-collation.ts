@@ -20,7 +20,8 @@
  * the original backfill also used — minting a fresh, evenly-spaced, distinct run
  * with `nKeysBetween`.
  *
- * Distinct from `backfill-table-order-keys.ts`, which keys tables with NULL keys;
+ * Distinct from the `0001_backfill_table_order_keys` script migration
+ * (`packages/db/script-migrations/`), which keys tables with NULL keys;
  * this one repairs tables that are fully keyed but bytewise-disordered. Run it
  * AFTER migration 0228 so the re-key writes and sorts under `COLLATE "C"`.
  *
@@ -41,7 +42,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { nKeysBetween } from '@/lib/table/order-key'
 
-/** See backfill-table-order-keys.ts — keeps each VALUES list well under the param/stack ceilings. */
+/** Keeps each VALUES list well under Postgres's 65535-bound-param and JS call-stack ceilings. */
 const WRITE_CHUNK_SIZE = 5000
 
 export async function runRepair(): Promise<void> {

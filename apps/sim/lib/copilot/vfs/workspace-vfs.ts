@@ -107,6 +107,7 @@ import {
   listWorkspaceFiles,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import {
   loadWorkflowDeploymentSnapshot,
@@ -122,12 +123,18 @@ import {
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
+import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { getAllBlocks } from '@/blocks/registry'
+import type { BlockIcon } from '@/blocks/types'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
+
+/** Placeholder icon for custom-block configs — `serializeBlockSchema` never reads it. */
+// double-cast-allowed: a no-op stands in for the unused SVG-typed BlockIcon slot
+const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 /** Static component files, computed once and shared across all VFS instances */
@@ -398,6 +405,18 @@ export class WorkspaceVFS {
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
   private _workspaceId = ''
   private _betaEnabled = false
+  /**
+   * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
+   * still resolves/renders). Populated by {@link materializeCustomBlocks}; used to
+   * drop a placed custom block from a workflow's state when its definition has been
+   * deleted, so the copilot never sees a block it can't render.
+   *
+   * `null` means "not loaded" — either not materialized yet or the load FAILED. In
+   * that case {@link dropDeletedCustomBlocks} strips nothing, so a transient failure
+   * can't wrongly nuke every placed custom block. An empty `Set` is distinct: it
+   * means the org genuinely has no custom blocks, so any placed one IS deleted.
+   */
+  private _customBlockTypes: Set<string> | null = null
 
   get workspaceId(): string {
     return this._workspaceId
@@ -418,10 +437,43 @@ export class WorkspaceVFS {
   ): Promise<Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>> {
     let cached = this.normalizedCache.get(workflowId)
     if (!cached) {
-      cached = loadWorkflowFromNormalizedTables(workflowId)
+      cached = loadWorkflowFromNormalizedTables(workflowId).then((n) =>
+        this.dropDeletedCustomBlocks(n)
+      )
       this.normalizedCache.set(workflowId, cached)
     }
     return cached
+  }
+
+  /**
+   * Strip placed custom blocks whose definition no longer exists from a loaded
+   * workflow (and any edges touching them), so the copilot never sees a block it
+   * can't render — mirroring how the serializer drops an unresolvable custom block.
+   * A live definition (enabled or disabled) is kept; only a DELETED one is removed.
+   * Runs lazily (after materialize), so `_customBlockTypes` is populated by then.
+   */
+  private dropDeletedCustomBlocks(
+    normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
+  ): Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> {
+    // `null` = definitions never loaded (or the load failed) — strip nothing rather
+    // than treat every placed custom block as deleted.
+    if (!normalized || this._customBlockTypes === null) return normalized
+    const validTypes = this._customBlockTypes
+    const dropped = new Set<string>()
+    const blocks: Record<string, unknown> = {}
+    for (const [id, block] of Object.entries(normalized.blocks)) {
+      const type = (block as { type?: string }).type
+      if (isCustomBlockType(type) && !validTypes.has(type)) {
+        dropped.add(id)
+        continue
+      }
+      blocks[id] = block
+    }
+    if (dropped.size === 0) return normalized
+    const edges = (normalized.edges ?? []).filter(
+      (e) => !dropped.has(e.source) && !dropped.has(e.target)
+    )
+    return { ...normalized, blocks: blocks as typeof normalized.blocks, edges }
   }
 
   /** Load a workflow's deployment data once per instance (deployment.json + versions.json share it). */
@@ -516,6 +568,7 @@ export class WorkspaceVFS {
     this.lazy = new Map()
     this.normalizedCache = new Map()
     this.deploymentCache = new Map()
+    this._customBlockTypes = null
     this._workspaceId = workspaceId
     this._betaEnabled = await isFeatureEnabled('mothership-beta', { userId })
 
@@ -544,6 +597,7 @@ export class WorkspaceVFS {
               fileSummary,
               envSummary,
               toolsSummary,
+              customBlocksSummary,
               mcpServersSummary,
               skillsSummary,
               taskSummary,
@@ -557,6 +611,7 @@ export class WorkspaceVFS {
               timed('files', this.materializeFiles(workspaceId)),
               timed('environment', this.materializeEnvironment(workspaceId, userId)),
               timed('custom_tools', this.materializeCustomTools(workspaceId, userId)),
+              timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
               timed('skills', this.materializeSkills(workspaceId)),
               timed('tasks', this.materializeTasks(workspaceId, userId)),
@@ -576,6 +631,7 @@ export class WorkspaceVFS {
               envVariables: envSummary.envVariables,
               tasks: taskSummary,
               customTools: toolsSummary,
+              customBlocks: customBlocksSummary,
               mcpServers: mcpServersSummary,
               skills: skillsSummary,
               jobs: jobsSummary,
@@ -1795,6 +1851,54 @@ export class WorkspaceVFS {
       return toolRows.map((t) => ({ id: t.id, name: t.title }))
     } catch (err) {
       logger.warn('Failed to materialize custom tools', {
+        workspaceId,
+        error: toError(err).message,
+      })
+      return []
+    }
+  }
+
+  /**
+   * Materialize the org's published custom (deploy-as-block) blocks as VFS
+   * component files — the same `components/blocks/<type>.json` path + serializer
+   * first-party blocks use — so the agent can grep/read them. Returns the summary
+   * for `WORKSPACE_CONTEXT.md`. Per-request/per-org, so it bypasses the frozen
+   * static component cache. Only enabled blocks are exposed.
+   */
+  private async materializeCustomBlocks(
+    workspaceId: string
+  ): Promise<NonNullable<WorkspaceMdData['customBlocks']>> {
+    try {
+      const blocks = await listCustomBlocksWithInputsForWorkspace(workspaceId)
+      // Every current definition (incl. disabled) — the authoritative set used to
+      // drop deleted-definition instances from workflow state (see loadNormalized).
+      this._customBlockTypes = new Set(blocks.map((cb) => cb.type))
+      const summary: NonNullable<WorkspaceMdData['customBlocks']> = []
+
+      for (const cb of blocks) {
+        if (!cb.enabled) continue
+        const config = buildCustomBlockConfig(
+          {
+            type: cb.type,
+            name: cb.name,
+            description: cb.description,
+            workflowId: cb.workflowId,
+            exposedOutputs: cb.exposedOutputs,
+          },
+          cb.inputFields,
+          { icon: PLACEHOLDER_BLOCK_ICON }
+        )
+        this.files.set(`components/blocks/${config.type}.json`, serializeBlockSchema(config))
+        summary.push({
+          type: cb.type,
+          name: cb.name,
+          ...(cb.description ? { description: cb.description } : {}),
+        })
+      }
+
+      return summary
+    } catch (err) {
+      logger.warn('Failed to materialize custom blocks', {
         workspaceId,
         error: toError(err).message,
       })

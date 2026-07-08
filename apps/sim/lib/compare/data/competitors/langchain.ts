@@ -24,15 +24,15 @@ export const langchainProfile: CompetitorProfile = {
       shortDescription:
         'Snapshots graph state after every node so runs resume, not restart, on failure.',
       source: {
-        url: 'https://www.langchain.com/blog/fault-tolerance-in-langgraph',
-        label: 'Fault Tolerance in LangGraph (LangChain Blog)',
-        asOf: '2026-07-02',
+        url: 'https://docs.langchain.com/oss/python/langgraph/use-time-travel',
+        label: 'Time travel - Docs by LangChain',
+        asOf: '2026-07-08',
       },
     },
     {
       title: 'Dynamic parallel fan-out via the Send API',
       description:
-        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer. This is a native map-reduce pattern, not a fixed number of parallel branches wired at build time.',
+        'A routing function can return a list of Send objects instead of a single next-node key, letting LangGraph spawn a runtime-determined number of parallel branches (e.g. one worker per item in a list of unknown length) that merge back through a state reducer. Because the merge step is arbitrary code, a developer can implement any custom aggregation logic, not just a fixed join behavior.',
       shortDescription:
         'Send API spawns a runtime-determined number of parallel branches that merge via a reducer.',
       source: {
@@ -54,18 +54,6 @@ export const langchainProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'SKILL.md-based reusable agent skills via Deep Agents SkillsMiddleware',
-      description:
-        "The Deep Agents harness (LangChain's batteries-included agent framework) ships a SkillsMiddleware that loads named SKILL.md files from a directory and injects them into the system prompt using progressive disclosure (metadata surfaced first, full instructions pulled in on demand), letting a team define a workflow once and reuse it as a named capability across multiple agents.",
-      shortDescription:
-        'SkillsMiddleware loads named SKILL.md files and injects them via progressive disclosure.',
-      source: {
-        url: 'https://reference.langchain.com/python/deepagents/middleware/skills',
-        label: 'skills | deepagents | LangChain Reference',
-        asOf: '2026-07-02',
-      },
-    },
-    {
       title: 'Native A2A protocol support as both server and client',
       description:
         "A locally run LangGraph dev server exposes A2A protocol endpoints at /a2a/{assistant_id}, and the LangSmith Deployment A2A endpoint maps the protocol's contextId to a LangGraph thread_id for tracing continuity, so any LangChain/LangGraph agent can expose itself as an A2A server and call other A2A-compliant agents built on different frameworks.",
@@ -78,14 +66,15 @@ export const langchainProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'LangGraph Studio: a browser-based visual agent IDE with time-travel debugging',
+      title: 'LangGraph Studio: browser-based execution visualization with hot-reload',
       description:
-        "Studio renders a running agent's graph (nodes, edges, conditional branches) visually, lets a developer inspect state at every node, rewind to a previous checkpoint, edit the state, and fork a new execution path from there, and hot-reloads when a prompt or tool signature changes in code.",
-      shortDescription: 'Visual graph IDE with checkpoint rewind, state editing, and hot-reload.',
+        "Studio is a browser-based UI (hosted at smith.langchain.com/studio) that connects to a locally running agent and shows each execution step, prompt, and tool call, and hot-reloads when a prompt or tool signature changes in code. LangGraph's time-travel capability (inspecting, editing, and forking from a prior checkpoint) is a separate, SDK-level feature exposed via code (get_state_history / update_state), not a point-and-click Studio UI.",
+      shortDescription:
+        'Browser-based execution viewer with hot-reload; checkpoint rewind/fork is a separate SDK capability.',
       source: {
-        url: 'https://www.langchain.com/blog/langgraph-studio-the-first-agent-ide',
-        label: 'LangGraph Studio: The first agent IDE',
-        asOf: '2026-07-02',
+        url: 'https://docs.langchain.com/oss/python/langgraph/studio',
+        label: 'LangGraph Studio - Docs by LangChain',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -103,27 +92,15 @@ export const langchainProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'No native, publicly deployable chat UI shipped with the open-source libraries',
+      title: 'No one-click chat deployment tied to a specific agent',
       description:
-        'Neither LangChain nor LangGraph ships a first-party, hosted chat widget or public chat surface a builder can toggle on for an end user. Teams that want a deployed conversational UI build their own frontend (or use a separate framework like Chainlit/Streamlit) and call the LangGraph Agent Server as a backend.',
+        'Neither LangChain, LangGraph, nor LangSmith Deployment lets a builder toggle a hosted chat surface on for one specific agent the way a platform-managed deployment target would. LangChain does host a shared, generic "Agent Chat UI" instance at agentchat.vercel.app that any team can point at their own LangGraph Agent Server URL and API key, or a team can deploy the open-source Next.js app themselves (or use a separate framework like Chainlit/Streamlit).',
       shortDescription:
-        'No first-party hosted chat UI; teams build their own frontend against the Agent Server.',
+        'No per-agent hosted chat toggle; a shared generic Agent Chat UI instance exists, or self-deploy.',
       source: {
-        url: 'https://docs.langchain.com/langsmith/assistants',
-        label: 'Assistants - Docs by LangChain',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Durability is checkpoint persistence, not automatic failure detection',
-      description:
-        "LangGraph's checkpointer saves state after every node, but nothing automatically detects a crashed process; it only lets a resumed process recover from the last saved state. An operator (or external process supervisor) still has to notice the failure and trigger the resume.",
-      shortDescription:
-        'Checkpointer saves state on failure, but nothing automatically detects a crashed process.',
-      source: {
-        url: 'https://www.diagrid.io/blog/checkpoints-are-not-durable-execution-why-langgraph-crewai-google-adk-and-others-fall-short-for-production-agent-workflows',
-        label: "Why Checkpoints Aren't Durable Execution: LangGraph",
-        asOf: '2026-07-02',
+        url: 'https://github.com/langchain-ai/agent-chat-ui',
+        label: 'langchain-ai/agent-chat-ui (GitHub)',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -133,9 +110,9 @@ export const langchainProfile: CompetitorProfile = {
       shortDescription:
         'Multimodal generation happens only through provider integrations, not a dedicated first-party block.',
       source: {
-        url: 'https://docs.langchain.com/oss/python/langchain/mcp',
-        label: 'Model Context Protocol (MCP) - Docs by LangChain',
-        asOf: '2026-07-02',
+        url: 'https://docs.langchain.com/oss/python/langchain/models',
+        label: 'Models - Docs by LangChain',
+        asOf: '2026-07-04',
       },
     },
     {
@@ -157,15 +134,15 @@ export const langchainProfile: CompetitorProfile = {
         value:
           'Code-first Python/JavaScript framework (LangChain) plus a low-level graph-orchestration library (LangGraph) for building agents in code. LangGraph Studio adds a browser-based visual IDE to render, inspect, and debug an already-coded agent graph, and Deep Agents provides a batteries-included harness on top of both.',
         detail:
-          'There is no drag-and-drop agent authoring surface; developers write Python or TypeScript against LangChain/LangGraph APIs, and Studio visualizes the resulting graph for debugging and time-travel, rather than authoring it visually from scratch.',
+          'There is no drag-and-drop agent authoring surface; developers write Python or TypeScript against LangChain/LangGraph APIs, and Studio visualizes execution steps for debugging (time-travel checkpoint rewind/fork is a separate SDK-level feature) rather than authoring the graph visually from scratch.',
         shortValue:
           'Code framework plus a graph-visualization/debugging Studio, not a visual builder',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/blog/langgraph-studio-the-first-agent-ide',
-            label: 'LangGraph Studio: The first agent IDE',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langgraph/studio',
+            label: 'LangGraph Studio - Docs by LangChain',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://github.com/langchain-ai/deepagents',
@@ -213,9 +190,9 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/langchain-ai/langgraph/blob/main/docs/docs/cloud/deployment/standalone_container.md',
-            label: 'Standalone container deployment docs (langgraph GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
+            label: 'Self-host standalone servers - Docs by LangChain',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -303,7 +280,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          'No: neither LangChain, LangGraph, nor LangSmith provides a Drive-like file storage system with folder hierarchy, link sharing, or a recycle bin. File handling is done in application code via document loaders and external storage integrations (S3, GCS, local filesystem) that a developer wires up themselves',
+          "No: neither LangChain, LangGraph, nor LangSmith provides a Drive-like file storage system with folder hierarchy, link sharing, or a recycle bin. Deep Agents offers a virtual filesystem abstraction (in-memory, local disk, LangGraph store, or custom backends) for an agent's own working context, but persistent storage still relies on external integrations (S3, GCS, local filesystem) a developer wires up themselves",
         detail:
           "Deep Agents provides a virtual/in-memory filesystem abstraction for an agent's own working context (planning, scratch files), which is a per-run working memory concept, not a persistent, user-facing file manager.",
         shortValue: 'No, file handling is via document-loader code, not a built-in file manager',
@@ -312,7 +289,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/deepagents/overview',
             label: 'Deep Agents overview - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -360,16 +337,16 @@ export const langchainProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: LangChain provides a standardized interface (ChatModel/Runnable) to over 100 LLM providers and hundreds of documented integrations across providers, embeddings, and vector stores, including OpenAI, Anthropic, Google, AWS Bedrock, Azure OpenAI, Mistral, Cohere, and local models via Ollama',
+          'Yes: LangChain provides a standardized model interface and advertises 1,000+ documented integrations across providers, embeddings, and vector stores, including OpenAI, Anthropic, Google, AWS, Groq, Hugging Face, Databricks, Mistral, and local models via Ollama',
         detail:
           "This is the framework's foundational design goal: swap providers by changing the model class instantiation, with the rest of a chain/graph remaining unchanged.",
-        shortValue: '100+ LLM providers via a standardized model interface',
+        shortValue: '1,000+ integrations via a standardized model interface',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/langchain',
             label: 'LangChain: Open Source AI Agent Framework',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -408,9 +385,14 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://blog.langchain.com/launching-langgraph-templates/',
-            label: 'Launching LangGraph Templates (LangChain Blog)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langchain/retrieval',
+            label: 'Retrieval - Docs by LangChain',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/integrations/vectorstores',
+            label: 'VectorStore Interface and Integrations - Docs by LangChain',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -472,16 +454,16 @@ export const langchainProfile: CompetitorProfile = {
       },
       dynamicToolUse: {
         value:
-          'Yes: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of tools to a model and lets the model choose, at each step, which tool (if any) to call based on its own reasoning, rather than following a fixed, pre-wired sequence of tool calls',
+          "No: the standard ReAct-style agent pattern in LangChain/LangGraph binds a pool of developer-selected tools to a model at build time, and the model only chooses among that bound pool at each step, rather than browsing or picking from a broader catalog (e.g. an entire MCP server's full tool list) at inference time",
         detail:
-          'This dynamic selection is the core mechanic LangGraph agent templates (e.g. the ReAct Agent template) are built around, and extends to MCP-provided tools loaded at runtime.',
-        shortValue: 'Yes, ReAct-style agents dynamically pick from a bound tool pool at each step',
+          "This is the same closed-list function-calling mechanism as Sim's Agent block: the tool pool, including any MCP-provided tools, is bound ahead of time by the developer, not browsed at runtime.",
+        shortValue: 'No, agent picks only among tools bound in at build time',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://blog.langchain.com/launching-langgraph-templates/',
-            label: 'Launching LangGraph Templates (LangChain Blog)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langchain/models',
+            label: 'Models - Docs by LangChain',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -494,9 +476,9 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://python.langchain.com/v0.2/docs/how_to/fallbacks/',
-            label: 'How to add fallbacks to a runnable | LangChain',
-            asOf: '2026-07-02',
+            url: 'https://reference.langchain.com/python/langchain-core/runnables/fallbacks/RunnableWithFallbacks',
+            label: 'RunnableWithFallbacks - LangChain Reference',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -517,16 +499,16 @@ export const langchainProfile: CompetitorProfile = {
       },
       nativeChatDeployment: {
         value:
-          'No: neither the open-source libraries nor LangGraph Platform ship a first-party, publicly deployable chat widget or hosted chat page. A team deploying a conversational agent builds its own frontend (or uses a separate UI framework) calling the LangGraph Agent Server as a backend',
+          'Partial: neither the open-source libraries nor LangSmith Deployment let a builder toggle a hosted chat surface on for one specific agent. LangChain hosts a shared, generic "Agent Chat UI" instance at agentchat.vercel.app that any team can point at their own LangGraph Agent Server URL and API key, or a team can deploy the open-source Next.js app itself',
         detail:
           'LangGraph Studio itself provides a chat-style interaction panel for testing/debugging a graph during development, but this is a developer tool, not a shippable end-user chat deployment target.',
-        shortValue: 'No first-party public chat surface; teams build and host their own frontend',
+        shortValue: 'Partial: shared generic hosted chat client, no per-agent one-click toggle',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/assistants',
-            label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            url: 'https://github.com/langchain-ai/agent-chat-ui',
+            label: 'langchain-ai/agent-chat-ui (GitHub)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -540,19 +522,19 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://blog.langchain.com/launching-langgraph-templates/',
-            label: 'Launching LangGraph Templates (LangChain Blog)',
-            asOf: '2026-07-02',
+            url: 'https://reference.langchain.com/python/langchain-core/documents/base/Document',
+            label: 'Document - LangChain Reference',
+            asOf: '2026-07-08',
           },
         ],
       },
       parallelExecution: {
         value:
-          'Yes: the Send API lets a routing function dynamically spawn N parallel branches at runtime (not just a fixed number configured ahead of time), each processing a slice of state, with results merged back through a state reducer once all branches complete. This is a native map-reduce/fan-out-fan-in pattern.',
+          'Yes: the Send API lets a routing function dynamically spawn one parallel branch per item in a collection of unknown length at runtime, each processing a slice of state, with results merged back through a state reducer once all branches complete. This is a native map-reduce/fan-out-fan-in pattern.',
         detail:
-          'This differs from a small, statically fixed number of parallel branches: the number of concurrent executions is determined by the routing function at run time, based on the size of whatever collection it is fanning out over.',
+          "This is a code-level equivalent of a 'fan out one branch per list item' pattern: the number of concurrent executions is determined by the routing function at run time, based on the size of whatever collection it is fanning out over, the same run-time-determined-count model that block-based parallel constructs also support alongside a fixed-count mode.",
         shortValue:
-          'Yes, Send API dynamically fans out to N parallel branches, merged via a reducer',
+          'Yes, Send API fans out one branch per list item at runtime, merged via a reducer',
         confidence: 'verified',
         sources: [
           {
@@ -564,7 +546,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          "Yes: LangChain shipped native A2A (Agent2Agent) support via langchain-adk (March 2026), letting any LangChain agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list. The local LangGraph dev server exposes A2A endpoints at /a2a/{assistant_id}.",
+          "Yes: the local LangGraph dev server and the LangSmith Deployment Agent Server both expose native A2A (Agent2Agent) endpoints at /a2a/{assistant_id}, letting any LangChain/LangGraph agent expose itself as an A2A server and call other A2A-compliant agents regardless of the framework that built them, with Agent Cards auto-generated from the agent's name/description/tool list.",
         detail:
           "The LangSmith Deployment A2A endpoint maps the protocol's contextId to a LangGraph thread_id automatically, so A2A conversations get the same tracing/observability as native LangGraph runs.",
         shortValue: 'Yes, native A2A server/client support with auto-generated Agent Cards',
@@ -596,23 +578,22 @@ export const langchainProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value:
-          '1,000+ integrations across model providers, vector stores, document loaders, and tools, with a unified interface to 100+ LLM providers specifically',
+        value: '1,000+ integrations, spanning model providers, data sources, and tools',
         detail:
-          'The langchain-community package hosts many additional community-maintained integrations beyond what is centrally documented, so the true count is larger and harder to pin to one authoritative live number, unlike a connector-count page some workflow builders publish.',
-        shortValue: '1,000+ integrations; 100+ LLM providers via a unified interface',
+          'Community-maintained integrations beyond what LangChain centrally documents also exist across dedicated integration repos, so the true count is larger and harder to pin to one authoritative live number, unlike a connector-count page some workflow builders publish.',
+        shortValue: '1,000+ integrations',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.langchain.com/langchain',
             label: 'LangChain: Open Source AI Agent Framework',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       triggerTypes: {
         value:
-          "Not a workflow-builder concept: agents are invoked programmatically (function/API call) or served over the LangGraph Agent Server's REST/SDK interface. The Agent Server also exposes protocol-level entry points (A2A, MCP), but there is no equivalent to a connector-event/schedule/webhook trigger picker.",
+          "Not a workflow-builder concept: agents are invoked programmatically (function/API call) or served over the LangGraph Agent Server's REST interface. The Agent Server also exposes protocol-level entry points (A2A), but there is no equivalent to a connector-event/schedule/webhook trigger picker.",
         detail:
           'A developer wires up whatever trigger mechanism they need in their own application code (a cron job, a webhook handler, a queue consumer) that then calls the LangGraph SDK or REST API to start a run.',
         shortValue:
@@ -620,9 +601,9 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/assistants',
-            label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/server-api-ref',
+            label: 'Agent Server API reference - Docs by LangChain',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -637,47 +618,57 @@ export const langchainProfile: CompetitorProfile = {
       },
       apiPublishing: {
         value:
-          'Yes: the LangGraph Agent Server exposes deployed graphs over a REST API and SDKs (Python/JS), and additionally supports the Agent Protocol, MCP, and A2A as callable interfaces for the same deployed agent',
+          'Yes: the LangGraph Agent Server exposes deployed graphs over a REST API, and additionally supports A2A as a callable interface for the same deployed agent',
         detail:
-          'A single deployed graph can be called via plain REST, the LangGraph SDK, or one of the standardized agent-interop protocols, depending on the caller.',
-        shortValue: 'Yes, REST/SDK plus Agent Protocol, MCP, and A2A interfaces',
+          'A single deployed graph can be called via plain REST or the standardized A2A agent-interop protocol, depending on the caller.',
+        shortValue: 'Yes, REST API plus an A2A interface',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://forum.langchain.com/t/langgraph-platform-deployment-failing/443',
-            label: 'LangGraph Platform - forum reference on deployment interfaces',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/server-api-ref',
+            label: 'Agent Server API reference - Docs by LangChain',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/server-a2a',
+            label: 'A2A endpoint in Agent Server - Docs by LangChain',
+            asOf: '2026-07-08',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'Official Python and JavaScript/TypeScript SDKs for both LangChain and LangGraph, a public REST API for the Agent Server, and an open, MIT-licensed codebase that any developer can extend, fork, or contribute integrations back to via langchain-community',
+          'Official Python and JavaScript/TypeScript SDKs for both LangChain and LangGraph, a public REST API for the Agent Server, and an open, MIT-licensed codebase that any developer can extend or fork; community integrations now live in their own dedicated repositories rather than the sunset langchain-community package',
         detail:
           'Because the whole product is a set of open-source libraries, extensibility is inherent rather than a separately bolted-on SDK layer, distinct from a workflow builder that offers a custom-node development kit for an otherwise closed core product.',
         shortValue:
-          'Official Python/JS SDKs, open MIT-licensed codebase, community integration package',
+          'Official Python/JS SDKs, open MIT-licensed codebase, integrations in standalone repos',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/langchain-ai/langchain',
             label: 'langchain-ai/langchain (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://pypi.org/project/langchain-community/',
+            label: 'langchain-community on PyPI (sunset notice)',
+            asOf: '2026-07-08',
           },
         ],
       },
       mcpPublishing: {
         value:
-          'Yes: an agent built with LangChain/LangGraph can be exposed as MCP tools/resources for external AI clients to call, via the same langchain-mcp-adapters ecosystem used to consume external MCP servers, in addition to native A2A server exposure',
+          "Yes: a LangGraph agent deployed on LangGraph Server is automatically exposed as an MCP-compatible tool via the server's built-in /mcp endpoint (Streamable HTTP), a separate mechanism from langchain-mcp-adapters, which is used only to consume external MCP servers as LangChain tools. LangGraph also supports native A2A server exposure",
         detail:
           "This is the reverse direction from consuming an external MCP server's tools, publishing a LangGraph agent's own capabilities for other MCP clients to invoke.",
-        shortValue: 'Yes, agents can be exposed as MCP tools via langchain-mcp-adapters',
+        shortValue: 'Yes, LangGraph Server exposes deployed agents via a built-in /mcp endpoint',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://github.com/langchain-ai/langchain-mcp-adapters',
-            label: 'langchain-ai/langchain-mcp-adapters (GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/server-api-ref',
+            label: 'Agent Server API reference - Docs by LangChain',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -715,16 +706,16 @@ export const langchainProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          "Yes: the LangChain/LangGraph open-source libraries are free with no usage limits of their own, and LangSmith's Developer plan is $0/seat/month with up to 5,000 base traces/month and a free, limited self-hosted LangGraph server tier (up to 100,000 nodes executed/month)",
+          "Yes: the LangChain/LangGraph open-source libraries are free with no usage limits of their own, and LangSmith's Developer plan is $0/seat/month with up to 5,000 base traces/month. Self-hosted LangGraph deployment is now an Enterprise (custom-priced) offering rather than a free tier",
         detail:
-          'The free LangSmith Developer tier is capped at a single seat and community-only support; higher usage or team seats require moving to the Plus or Enterprise tier.',
+          'The free LangSmith Developer tier is capped at a single seat and community-only support; higher usage, team seats, or self-hosted deployment require moving to a paid or Enterprise tier.',
         shortValue: 'Free OSS libraries, plus a free single-seat LangSmith Developer tier',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -741,27 +732,23 @@ export const langchainProfile: CompetitorProfile = {
     },
     security: {
       soc2: {
-        value: 'Yes: both LangSmith and LangGraph Platform are SOC 2 Type II compliant.',
+        value:
+          "Yes: LangSmith is SOC 2 Type II certified. LangGraph Platform (now branded LangSmith Deployment) is publicly announced as carrying the same attestation, sharing LangSmith's infrastructure and compliance posture.",
         detail:
-          'Both LangSmith and LangGraph Platform (now branded LangSmith Deployment) carry the same SOC 2 Type II attestation.',
-        shortValue: 'Yes, SOC 2 Type II for both LangSmith and LangGraph Platform',
+          "LangChain's Trust Center (trust.langchain.com) is the canonical source but renders via client-side JavaScript, so it could not be directly verified by an automated fetch; the LangSmith-side certification is independently confirmed on a static docs page.",
+        shortValue: 'Yes, SOC 2 Type II for LangSmith; LangGraph Platform shares it',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://changelog.langchain.com/announcements/langsmith-is-now-soc-2-type-ii-compliant',
-            label: 'LangSmith is now SOC 2 Type II compliant (LangChain Changelog)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://trust.langchain.com/',
-            label: 'LangChain Trust Center',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/regions-faq',
+            label: 'Regions FAQ - Docs by LangChain (confirms SOC 2 Type 2)',
+            asOf: '2026-07-08',
           },
         ],
       },
       dataResidency: {
         value:
-          'Yes: LangSmith offers selectable regions at no extra cost, US (GCP US, default), EU (GCP EU), APAC (GCP APAC), and a separate AWS US region, plus multi-geo data residency options for self-hosted deployments',
+          'Yes: LangSmith offers selectable regions at no extra cost — US (GCP US), EU (GCP EU), APAC (GCP APAC), and a separate AWS US region',
         detail:
           'Migrating an existing organization between regions is not supported; the region must be chosen at signup. Full self-hosting (of the OSS libraries or LangGraph Platform) is a further, absolute form of data residency control.',
         shortValue: 'Yes, US/EU/APAC/AWS-US selectable regions, no migration between them',
@@ -770,7 +757,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/regions-faq',
             label: 'Regions FAQ - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -868,7 +855,7 @@ export const langchainProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          'Yes: LangSmith supports masking sensitive data before it reaches the backend via environment-variable-level hiding of all inputs/outputs, custom masking functions for selective redaction, and regex-based anonymizers (with a reference implementation in langsmith-pii-removal) covering emails, IPs, phone numbers, credit cards, SSNs, and dates. It also integrates with third-party tools like Microsoft Presidio.',
+          'Yes: LangSmith supports masking sensitive data before it reaches the backend via environment-variable-level hiding of all inputs/outputs, custom masking functions for selective redaction, and a reference regex-based anonymizer example covering emails, phone numbers, full names, credit cards, and SSNs. It also integrates with third-party tools like Microsoft Presidio.',
         detail:
           "Redaction happens client-side, before the trace payload is serialized and sent, via a create_anonymizer hook, so sensitive data is stripped in the customer's own process rather than being redacted after ingestion.",
         shortValue: 'Yes, client-side masking/anonymizer hooks with regex PII detection',
@@ -877,7 +864,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/mask-inputs-outputs',
             label: 'Prevent logging of sensitive data in traces - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -890,9 +877,9 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://changelog.langchain.com/announcements/saml-sso-for-unified-access-to-langsmith',
-            label: 'SAML SSO for unified access to LangSmith (LangChain Changelog)',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/user-management',
+            label: 'User management - Docs by LangChain',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -929,9 +916,14 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.langchain.com/blog/langgraph-studio-the-first-agent-ide',
-            label: 'LangGraph Studio: The first agent IDE',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/observability-concepts',
+            label: 'Observability concepts - Docs by LangChain',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-time-travel',
+            label: 'Time travel - Docs by LangChain',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -977,16 +969,16 @@ export const langchainProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          'Yes: the LangGraph Agent Server supports background/async execution. A run can be started and its result polled or streamed later via the SDK/REST API, and interrupt()-paused runs inherently execute asynchronously across a human-response gap by design.',
+          'Yes: the LangGraph Agent Server enqueues each run for a queue worker to pick up, and its result can be polled or streamed later via the REST API, independent of the client connection that started it.',
         detail:
           "This is a natural consequence of the Agent Server's run/thread model, where a run's state persists server-side independent of any single blocking client connection.",
-        shortValue: "Yes, via the Agent Server's run/thread API and checkpoint-backed pausing",
+        shortValue: "Yes, via the Agent Server's queued run/thread API",
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langchain.com/langsmith/assistants',
-            label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/langsmith/agent-server',
+            label: 'Agent Server - Docs by LangChain',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1011,6 +1003,26 @@ export const langchainProfile: CompetitorProfile = {
             url: 'https://deepwiki.com/langchain-ai/langgraph/3.8-error-handling-and-retry-policies',
             label: 'Error Handling and Retry Policies | langchain-ai/langgraph | DeepWiki',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          'Yes, once deployed: a run started against the LangGraph Agent Server (managed LangSmith Deployment cloud, a self-hosted container, or hybrid) executes entirely server-side against its Redis/Postgres backend, with no dependency on a client device staying open, awake, or connected; interrupt()-paused runs likewise sit server-side across an arbitrary human-response gap.',
+        detail:
+          "This requires the graph to already be deployed to the Agent Server; LangChain/LangGraph itself has no built-in trigger picker (schedule, webhook, connector event), so a developer's own cron job, webhook handler, or queue consumer is what calls the Agent Server API to start the run in the first place. Once that call is made, the run's execution has no further tie to the caller's device.",
+        shortValue: 'Yes once deployed to the Agent Server; the trigger itself is hand-wired',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/assistants',
+            label: 'Assistants - Docs by LangChain',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
+            label: 'Self-host standalone servers - Docs by LangChain',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -1078,9 +1090,9 @@ export const langchainProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $260M), with reported headcount in the roughly 260-325 employee range as of mid-2026',
+          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $160M across seed, Series A, and Series B), with reported headcount in the roughly 260-325 employee range as of mid-2026',
         detail:
-          'Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.',
+          "Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). $10M + $25M + $125M totals approximately $160M; some third-party trackers report a higher ~$260M cumulative figure, which appears to double-count TechCrunch's July 2025 report of an in-progress raise (at a reported $1.1B valuation) as a separate round from its October 2025 close (the same round, at $1.25B) rather than an additional close, so $160M is the figure directly supported by LangChain's own funding announcement and primary reporting. Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.",
         shortValue:
           'Founded 2022; $125M Series B (Oct 2025) at $1.25B valuation; ~260-325 employees',
         confidence: 'verified',

@@ -50,6 +50,9 @@ const logger = createLogger('WorkflowQueries')
 
 export { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 
+export const WORKFLOW_STATE_STALE_TIME = 30 * 1000
+export const WORKFLOW_DEPLOYMENT_VERSION_STATE_STALE_TIME = 5 * 60 * 1000
+
 /**
  * Projects the in-state slice of the workflow envelope into the canvas-facing
  * `WorkflowState` shape consumed by preview/editor surfaces.
@@ -78,7 +81,7 @@ export function useWorkflowState(workflowId: string | undefined) {
     queryKey: workflowKeys.state(workflowId),
     queryFn: workflowId ? ({ signal }) => fetchWorkflowEnvelope(workflowId, signal) : skipToken,
     select: mapWorkflowState,
-    staleTime: 30 * 1000,
+    staleTime: WORKFLOW_STATE_STALE_TIME,
   })
 }
 
@@ -98,7 +101,7 @@ export function useWorkflowStates(
       queryKey: workflowKeys.state(id),
       queryFn: ({ signal }: { signal?: AbortSignal }) => fetchWorkflowEnvelope(id, signal),
       select: mapWorkflowState,
-      staleTime: 30 * 1000,
+      staleTime: WORKFLOW_STATE_STALE_TIME,
     })),
   })
   const map = new Map<string, WorkflowState | null>()
@@ -563,7 +566,7 @@ export function useDeploymentVersionState(workflowId: string | null, version: nu
       workflowId && version !== null
         ? ({ signal }) => fetchDeploymentVersionState(workflowId, version, signal)
         : skipToken,
-    staleTime: 5 * 60 * 1000,
+    staleTime: WORKFLOW_DEPLOYMENT_VERSION_STATE_STALE_TIME,
   })
 }
 

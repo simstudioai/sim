@@ -56,12 +56,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const accessToken = await resolveOAuthCredential(
-        webhookData,
-        'google-sheets',
-        requestId,
-        logger
-      )
+      const accessToken = await resolveOAuthCredential(webhookData, 'google-sheets', requestId)
 
       const config = getProviderConfig<GoogleSheetsWebhookConfig>(webhookData.providerConfig)
       // Canonical keys (`spreadsheetId`/`sheetName`) first; the `manual*` keys are a transitional

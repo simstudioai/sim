@@ -48,6 +48,12 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
         visibility: 'user-or-llm',
         description: 'Maximum number of results (max 100)',
       },
+      offset: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Offset to start pagination search results',
+      },
     },
 
     request: {
@@ -66,6 +72,7 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
         if (params.since) query.set('since', params.since)
         if (params.until) query.set('until', params.until)
         if (params.limit) query.set('limit', params.limit)
+        if (params.offset) query.set('offset', params.offset)
         const qs = query.toString()
         return `https://api.pagerduty.com/oncalls${qs ? `?${qs}` : ''}`
       },
@@ -108,8 +115,9 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
         success: true,
         output: {
           oncalls,
-          total: data.total ?? oncalls.length,
+          total: data.total ?? null,
           more: data.more ?? false,
+          offset: data.offset ?? 0,
         },
       }
     },
@@ -135,11 +143,17 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
       },
       total: {
         type: 'number',
-        description: 'Total number of matching on-call entries',
+        description:
+          'Total number of matching on-call entries (null unless explicitly requested by PagerDuty)',
+        optional: true,
       },
       more: {
         type: 'boolean',
         description: 'Whether more results are available',
+      },
+      offset: {
+        type: 'number',
+        description: 'Offset used for this page of results',
       },
     },
   }

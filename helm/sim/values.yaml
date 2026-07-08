@@ -222,8 +222,6 @@ app:
     SSO_TRUSTED_PROVIDER_IDS: ""
 
     # Enterprise Feature Overrides (self-hosted)
-    CREDENTIAL_SETS_ENABLED: ""                           # Enable credential sets (email polling) on self-hosted ("true" to enable)
-    NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED: ""               # Show credential sets settings page ("true" to enable)
     INBOX_ENABLED: ""                                     # Enable Sim Mailer on self-hosted ("true" to enable)
     NEXT_PUBLIC_INBOX_ENABLED: ""                         # Show Sim Mailer settings page ("true" to enable)
     WHITELABELING_ENABLED: ""                             # Enable whitelabeling on self-hosted ("true" to enable)
@@ -823,6 +821,18 @@ pii:
     tag: ""          # defaults to Chart.AppVersion
     digest: ""       # sha256: pin overrides tag
     pullPolicy: IfNotPresent
+
+  # NER engine: "spacy" (default) or "gliner" (opt-in zero-shot transformer NER
+  # for PERSON/LOCATION/NRP/DATE_TIME; regex/checksum recognizers are identical
+  # on both engines). The image ships both engines, so this is a pure env flip
+  # — no image change needed. Note: gliner on CPU is orders of magnitude slower
+  # than spacy; it is intended for GPU nodes.
+  engine: "spacy"
+
+  # Torch device for the gliner engine: "cpu", "cuda", or "cuda:N". Empty
+  # auto-detects (cuda when a GPU is visible, else cpu). GPU resource requests
+  # (nvidia.com/gpu) are not wired yet — GPU scheduling is an infra follow-up.
+  device: ""
 
   # Number of replicas
   replicaCount: 1

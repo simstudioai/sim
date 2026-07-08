@@ -1,3 +1,4 @@
+import { isRecordLike as isRecord } from '@sim/utils/object'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import {
   MothershipStreamV1CompletionStatus,
@@ -173,10 +174,6 @@ function finalizeStaleWorkspaceFiles(model: TurnModel, spanId: string): void {
       node.streamingArgs = undefined
     }
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function asString(value: unknown): string | undefined {

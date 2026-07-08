@@ -33,6 +33,8 @@ export interface WorkspaceAccess {
   canWrite: boolean
   canAdmin: boolean
   workspace: WorkspaceWithOwner | null
+  /** The viewer's raw effective permission, or `null` when the workspace doesn't exist or they have none. */
+  permission: PermissionType | null
 }
 
 /**
@@ -143,7 +145,14 @@ export async function checkWorkspaceAccess(
   const ws = await getWorkspaceWithOwner(workspaceId)
 
   if (!ws) {
-    return { exists: false, hasAccess: false, canWrite: false, canAdmin: false, workspace: null }
+    return {
+      exists: false,
+      hasAccess: false,
+      canWrite: false,
+      canAdmin: false,
+      workspace: null,
+      permission: null,
+    }
   }
 
   const permission = await getEffectiveWorkspacePermission(userId, ws)
@@ -151,7 +160,7 @@ export async function checkWorkspaceAccess(
   const canWrite = permissionSatisfies(permission, 'write')
   const canAdmin = permissionSatisfies(permission, 'admin')
 
-  return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws }
+  return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws, permission }
 }
 
 /**
@@ -200,11 +209,7 @@ export async function getUserEntityPermissions(
   entityId: string
 ): Promise<PermissionType | null> {
   if (entityType === 'workspace') {
-    const ws = await getWorkspaceWithOwner(entityId)
-    if (!ws) {
-      return null
-    }
-    return getEffectiveWorkspacePermission(userId, ws)
+    return (await checkWorkspaceAccess(entityId, userId)).permission
   }
 
   const result = await db
@@ -376,6 +381,44 @@ export async function getWorkspaceMemberProfiles(
   return rows
 }
 
+export interface WorkspacePermissionsForViewer {
+  users: WorkspaceMemberWithRole[]
+  total: number
+  viewer: {
+    userId: string
+    isAdmin: boolean
+    permissionType: PermissionType
+  }
+}
+
+/**
+ * Builds the workspace permissions payload for a viewer: the full member list plus
+ * the viewer's own resolved permission. Shared by `GET /api/workspaces/[id]/permissions`
+ * and the sidebar prefetch so the two never drift.
+ *
+ * @param workspaceId - The workspace ID to build permissions for
+ * @param userId - The viewer's user ID
+ * @returns The permissions payload, or `null` if the workspace doesn't exist or the viewer lacks access
+ */
+export async function getWorkspacePermissionsForViewer(
+  workspaceId: string,
+  userId: string
+): Promise<WorkspacePermissionsForViewer | null> {
+  const ws = await getWorkspaceWithOwner(workspaceId)
+  if (!ws) return null
+
+  const permission = await getEffectiveWorkspacePermission(userId, ws)
+  if (permission === null) return null
+
+  const users = await getUsersWithPermissions(workspaceId)
+
+  return {
+    users,
+    total: users.length,
+    viewer: { userId, isAdmin: permission === 'admin', permissionType: permission },
+  }
+}
+
 /**
  * Check if a user has admin access to a specific workspace
  *
@@ -387,13 +430,7 @@ export async function hasWorkspaceAdminAccess(
   userId: string,
   workspaceId: string
 ): Promise<boolean> {
-  const ws = await getWorkspaceWithOwner(workspaceId)
-
-  if (!ws) {
-    return false
-  }
-
-  return (await getEffectiveWorkspacePermission(userId, ws)) === 'admin'
+  return (await checkWorkspaceAccess(workspaceId, userId)).canAdmin
 }
 
 /**

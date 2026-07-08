@@ -17,6 +17,7 @@ import {
   Trash,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { formatDate } from '@sim/utils/formatting'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import type { DocumentData } from '@/lib/knowledge/types'
@@ -60,13 +61,9 @@ function formatValueForDisplay(value: string, fieldType: string): string {
         const date = new Date(value)
         if (Number.isNaN(date.getTime())) return value
         if (typeof value === 'string' && (value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value))) {
-          return new Date(
-            date.getUTCFullYear(),
-            date.getUTCMonth(),
-            date.getUTCDate()
-          ).toLocaleDateString()
+          return formatDate(new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
         }
-        return date.toLocaleDateString()
+        return formatDate(date)
       } catch {
         return value
       }

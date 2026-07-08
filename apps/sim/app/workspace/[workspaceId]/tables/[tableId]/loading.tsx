@@ -1,12 +1,11 @@
 'use client'
 
 import { Table as TableIcon } from '@sim/emcn/icons'
+import { noop } from '@sim/utils/helpers'
 import {
   type BreadcrumbItem,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
-
-const noop = () => {}
 
 const BREADCRUMBS: BreadcrumbItem[] = [
   { label: 'Tables', icon: TableIcon, onClick: noop },

@@ -68,6 +68,26 @@ export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleRespon
       visibility: 'user-or-llm',
       description: 'MFA token code (6 digits)',
     },
+    policyArns: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated ARNs of up to 10 IAM managed policies to use as session policies',
+    },
+    tags: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of up to 50 session tag key/value pairs for attribute-based access control',
+    },
+    transitiveTagKeys: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated tag keys that propagate through role chaining',
+    },
   },
 
   request: {
@@ -85,6 +105,9 @@ export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleRespon
       externalId: params.externalId,
       serialNumber: params.serialNumber,
       tokenCode: params.tokenCode,
+      policyArns: params.policyArns,
+      tags: params.tags,
+      transitiveTagKeys: params.transitiveTagKeys,
     }),
   },
 

@@ -182,7 +182,7 @@ export default async function ModelsPage({
       <JsonLd data={faqJsonLd} />
 
       <section className='bg-[var(--bg)]'>
-        <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
           <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
             <h1
               id='models-heading'
@@ -199,7 +199,7 @@ export default async function ModelsPage({
 
         <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-        <div className='mx-auto w-full max-w-[1446px] px-12 max-sm:px-5 max-lg:px-8'>
+        <div className='mx-auto w-full max-w-[1460px] px-20 max-sm:px-5 max-lg:px-8'>
           <div className='border-[var(--border)] border-x'>
             {featuredProviders.length > 0 && (
               <>

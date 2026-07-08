@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { TableDefinition } from '@/lib/table'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import { tableKeys } from '@/hooks/queries/utils/table-keys'
+import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-keys'
 
 /**
  * Prefetches the workspace's tables list under the same query key the client
@@ -21,6 +21,6 @@ export async function prefetchTables(queryClient: QueryClient, workspaceId: stri
       )
       return response.data.tables
     },
-    staleTime: 30 * 1000,
+    staleTime: TABLE_LIST_STALE_TIME,
   })
 }

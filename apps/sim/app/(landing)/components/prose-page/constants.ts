@@ -17,9 +17,9 @@ export const PROSE_SPACING = {
    * The one horizontal gutter, matching the navbar and footer so content starts
    * on the wordmark's vertical line at every width.
    */
-  gutter: 'px-12 max-lg:px-8 max-sm:px-5',
-  /** Outer content cap, matching navbar/footer (`mx-auto w-full max-w-[1446px]`). */
-  outerCap: 'mx-auto w-full max-w-[1446px]',
+  gutter: 'px-20 max-lg:px-8 max-sm:px-5',
+  /** Outer content cap, matching navbar/footer (`mx-auto w-full max-w-[1460px]`). */
+  outerCap: 'mx-auto w-full max-w-[1460px]',
   /** Top padding that clears the sticky navbar, matching the platform hero. */
   heroTopPadding: 'pt-[112px] max-sm:pt-20',
   /** Vertical rhythm of the content column - hero → body and section → section. */

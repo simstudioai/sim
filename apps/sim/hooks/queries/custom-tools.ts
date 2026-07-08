@@ -11,6 +11,8 @@ import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 
 const logger = createLogger('CustomToolsQueries')
 
+export const CUSTOM_TOOL_LIST_STALE_TIME = 60 * 1000
+
 interface CustomToolSchema {
   [key: string]: unknown
   type: 'function'
@@ -170,7 +172,7 @@ export function useCustomTools(workspaceId: string) {
     queryKey: customToolsKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchCustomTools(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000, // 1 minute - tools don't change frequently
+    staleTime: CUSTOM_TOOL_LIST_STALE_TIME, // 1 minute - tools don't change frequently
     placeholderData: keepPreviousData,
   })
 }

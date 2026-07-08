@@ -102,8 +102,8 @@ export function createMockSqlOperators() {
  */
 const offset = vi.fn(() => Promise.resolve([] as unknown[]))
 // `.limit()` is awaitable directly AND carries `.offset` for `.limit(n).offset(m)`
-// chains. A `limit.mockResolvedValueOnce(...)` override loses `.offset` — tests
-// exercising offset batches override `dbChainMockFns.offset` instead.
+// keyset/OFFSET paging chains. A `limit.mockResolvedValueOnce(...)` override loses
+// `.offset` — tests exercising offset batches override `dbChainMockFns.offset` instead.
 const limitBuilder = () => {
   const thenable: any = Promise.resolve([] as unknown[])
   thenable.offset = offset

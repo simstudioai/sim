@@ -44,7 +44,7 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
   request: {
     /**
      * Uses the `/diffs` endpoint (the `/changes` endpoint was deprecated in
-     * GitLab 15.7 and removed in 18.0). `/diffs` returns the diff array directly
+     * GitLab 15.7, with removal scheduled for API v5). `/diffs` returns the diff array directly
      * and is paginated; we request the max page size (100) to return the changes
      * in a single call, which covers the vast majority of merge requests.
      */

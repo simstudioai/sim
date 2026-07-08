@@ -24,6 +24,7 @@ import { parseMarkdownToDoc } from './markdown-parse'
 import { useEditorMentions } from './mention'
 import { EditorBubbleMenu } from './menus/bubble-menu'
 import { LinkHoverCard } from './menus/link-hover-card'
+import { TableBubbleMenu } from './menus/table-menu'
 import { normalizeMarkdownContent } from './normalize-content'
 import { isRoundTripSafe } from './round-trip-safety'
 import '@sim/emcn/components/code/code.css'
@@ -249,6 +250,7 @@ export function LoadedRichMarkdownEditor({
   const editor = useEditor({
     extensions: EXTENSIONS,
     editable: isEditable,
+    enablePasteRules: false,
     autofocus: streamingAtMountRef.current ? false : autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
@@ -413,6 +415,15 @@ export function LoadedRichMarkdownEditor({
           emitUpdate: false,
         })
       }
+      // `setContent` maps any pre-existing selection onto the new doc rather than clearing it — a
+      // select-all survives as "select everything," permanently painting every divider/image with the
+      // `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks elsewhere. This must run
+      // on every settle regardless of whether `setContent` ran just above: the last streaming tick
+      // already syncs `lastSyncedBodyRef` to the final body before settle, so `body` usually already
+      // equals it here — collapsing only inside that `if` would skip the common streamed-content case
+      // entirely. `setTextSelection` (not `.focus()`) so this never steals DOM focus from whatever the
+      // user is doing outside the editor.
+      editor.commands.setTextSelection(editor.state.doc.content.size)
       editor.setEditable(canEdit && settledRef.current.verdict)
       if (isInitialSettle && autoFocus) editor.commands.focus('end')
       return
@@ -433,6 +444,7 @@ export function LoadedRichMarkdownEditor({
       className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
       {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+      {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
       {editor && <LinkHoverCard editor={editor} />}
       <input
         ref={imageInputRef}

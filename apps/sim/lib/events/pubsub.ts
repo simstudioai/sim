@@ -7,6 +7,7 @@
 
 import { EventEmitter } from 'events'
 import { createLogger } from '@sim/logger'
+import { noop } from '@sim/utils/helpers'
 import Redis, { type RedisOptions } from 'ioredis'
 import { env } from '@/lib/core/config/env'
 import { getRedisConnectionDefaults } from '@/lib/core/config/redis'
@@ -99,7 +100,6 @@ class RedisPubSubChannel<T> implements PubSubChannel<T> {
     this.disposed = true
     this.handlers.clear()
 
-    const noop = () => {}
     this.pub.removeAllListeners()
     this.sub.removeAllListeners()
     this.pub.on('error', noop)

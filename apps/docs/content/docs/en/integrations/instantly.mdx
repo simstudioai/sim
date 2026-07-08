@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.
+Integrate Instantly API V2 into workflows. Create, update, and list leads, manage lead interest status, delete leads in bulk, list, create, patch, activate, pause, and delete campaigns, reply to emails, and manage lead lists.
 
 
 
@@ -155,6 +155,51 @@ Creates an Instantly V2 lead in a campaign or lead list.
 | `thread_id` | string | Email thread ID |
 | `message` | string | Operation message |
 
+### `instantly_patch_lead`
+
+Updates fields on an existing Instantly V2 lead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `leadId` | string | Yes | Lead ID |
+| `first_name` | string | No | Lead first name |
+| `last_name` | string | No | Lead last name |
+| `company_name` | string | No | Lead company name |
+| `job_title` | string | No | Lead job title |
+| `phone` | string | No | Lead phone number |
+| `website` | string | No | Lead website |
+| `personalization` | string | No | Lead personalization text |
+| `lt_interest_status` | number | No | Lead interest status value |
+| `pl_value_lead` | string | No | Potential value of the lead |
+| `assigned_to` | string | No | ID of the user assigned to the lead |
+| `custom_variables` | json | No | Custom variable object with string, number, boolean, or null values |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
+
 ### `instantly_delete_leads`
 
 Deletes Instantly V2 leads in bulk from a campaign or lead list.
@@ -208,7 +253,7 @@ Retrieves Instantly V2 campaigns with search, status, tag, and pagination filter
 | `starting_after` | string | No | Pagination cursor from next_starting_after |
 | `search` | string | No | Search by campaign name |
 | `tag_ids` | string | No | Comma-separated campaign tag IDs |
-| `ai_sales_agent_id` | string | No | AI Sales Agent ID filter |
+| `ai_sales_agent_id` | string | No | Filter campaigns by AI Sales Agent ID |
 | `status` | number | No | Campaign status enum value |
 
 #### Output
@@ -329,6 +374,74 @@ Updates documented Instantly V2 campaign fields.
 ### `instantly_activate_campaign`
 
 Activates, starts, or resumes an Instantly V2 campaign.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `campaignId` | string | Yes | Campaign ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
+
+### `instantly_pause_campaign`
+
+Pauses a running Instantly V2 campaign, stopping further email sends.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `campaignId` | string | Yes | Campaign ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
+
+### `instantly_delete_campaign`
+
+Permanently deletes an Instantly V2 campaign.
 
 #### Input
 

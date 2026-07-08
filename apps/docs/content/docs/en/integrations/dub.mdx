@@ -48,6 +48,9 @@ Create a new short link with Dub. Supports custom domains, slugs, UTM parameters
 | `domain` | string | No | Custom domain for the short link \(defaults to dub.sh\) |
 | `key` | string | No | Custom slug for the short link \(randomly generated if not provided\) |
 | `externalId` | string | No | External ID for the link in your database |
+| `tenantId` | string | No | Tenant ID for grouping links created on behalf of a customer/tenant |
+| `folderId` | string | No | Folder ID to organize the link into |
+| `trackConversion` | boolean | No | Whether to track conversions \(leads/sales\) for the short link |
 | `tagIds` | string | No | Comma-separated tag IDs to assign to the link |
 | `comments` | string | No | Comments for the short link |
 | `expiresAt` | string | No | Expiration date in ISO 8601 format |
@@ -77,8 +80,12 @@ Create a new short link with Dub. Supports custom domains, slugs, UTM parameters
 | `title` | string | OG title |
 | `description` | string | OG description |
 | `tags` | json | Tags assigned to the link \(id, name, color\) |
+| `folderId` | string | Folder the link is organized into |
+| `tenantId` | string | Tenant ID associated with the link |
+| `trackConversion` | boolean | Whether conversion tracking is enabled |
 | `clicks` | number | Number of clicks |
 | `leads` | number | Number of leads |
+| `conversions` | number | Number of conversions |
 | `sales` | number | Number of sales |
 | `saleAmount` | number | Total sale amount in cents |
 | `lastClicked` | string | Last clicked timestamp |
@@ -103,6 +110,9 @@ Create or update a short link by its URL. If a link with the same URL already ex
 | `domain` | string | No | Custom domain for the short link \(defaults to dub.sh\) |
 | `key` | string | No | Custom slug for the short link \(randomly generated if not provided\) |
 | `externalId` | string | No | External ID for the link in your database |
+| `tenantId` | string | No | Tenant ID for grouping links created on behalf of a customer/tenant |
+| `folderId` | string | No | Folder ID to organize the link into |
+| `trackConversion` | boolean | No | Whether to track conversions \(leads/sales\) for the short link |
 | `tagIds` | string | No | Comma-separated tag IDs to assign to the link |
 | `comments` | string | No | Comments for the short link |
 | `expiresAt` | string | No | Expiration date in ISO 8601 format |
@@ -132,8 +142,12 @@ Create or update a short link by its URL. If a link with the same URL already ex
 | `title` | string | OG title |
 | `description` | string | OG description |
 | `tags` | json | Tags assigned to the link \(id, name, color\) |
+| `folderId` | string | Folder the link is organized into |
+| `tenantId` | string | Tenant ID associated with the link |
+| `trackConversion` | boolean | Whether conversion tracking is enabled |
 | `clicks` | number | Number of clicks |
 | `leads` | number | Number of leads |
+| `conversions` | number | Number of conversions |
 | `sales` | number | Number of sales |
 | `saleAmount` | number | Total sale amount in cents |
 | `lastClicked` | string | Last clicked timestamp |
@@ -174,8 +188,12 @@ Retrieve information about a short link by its link ID, external ID, or domain +
 | `title` | string | OG title |
 | `description` | string | OG description |
 | `tags` | json | Tags assigned to the link \(id, name, color\) |
+| `folderId` | string | Folder the link is organized into |
+| `tenantId` | string | Tenant ID associated with the link |
+| `trackConversion` | boolean | Whether conversion tracking is enabled |
 | `clicks` | number | Number of clicks |
 | `leads` | number | Number of leads |
+| `conversions` | number | Number of conversions |
 | `sales` | number | Number of sales |
 | `saleAmount` | number | Total sale amount in cents |
 | `lastClicked` | string | Last clicked timestamp |
@@ -203,6 +221,9 @@ Update an existing short link. You can modify the destination URL, slug, metadat
 | `title` | string | No | Custom OG title |
 | `description` | string | No | Custom OG description |
 | `externalId` | string | No | External ID for the link |
+| `tenantId` | string | No | Tenant ID for grouping links created on behalf of a customer/tenant |
+| `folderId` | string | No | Folder ID to organize the link into |
+| `trackConversion` | boolean | No | Whether to track conversions \(leads/sales\) for the short link |
 | `tagIds` | string | No | Comma-separated tag IDs |
 | `comments` | string | No | Comments for the short link |
 | `expiresAt` | string | No | Expiration date in ISO 8601 format |
@@ -230,8 +251,12 @@ Update an existing short link. You can modify the destination URL, slug, metadat
 | `title` | string | OG title |
 | `description` | string | OG description |
 | `tags` | json | Tags assigned to the link \(id, name, color\) |
+| `folderId` | string | Folder the link is organized into |
+| `tenantId` | string | Tenant ID associated with the link |
+| `trackConversion` | boolean | Whether conversion tracking is enabled |
 | `clicks` | number | Number of clicks |
 | `leads` | number | Number of leads |
+| `conversions` | number | Number of conversions |
 | `sales` | number | Number of sales |
 | `saleAmount` | number | Total sale amount in cents |
 | `lastClicked` | string | Last clicked timestamp |
@@ -272,9 +297,13 @@ Retrieve a paginated list of short links for the authenticated workspace. Suppor
 | `domain` | string | No | Filter by domain |
 | `search` | string | No | Search query matched against the short link slug and destination URL |
 | `tagIds` | string | No | Comma-separated tag IDs to filter by |
+| `tenantId` | string | No | Filter by tenant ID |
+| `folderId` | string | No | Filter by folder ID |
 | `showArchived` | boolean | No | Whether to include archived links \(defaults to false\) |
-| `page` | number | No | Page number \(default: 1\) |
+| `page` | number | No | Page number \(deprecated by Dub in favor of startingAfter/endingBefore\) |
 | `pageSize` | number | No | Number of links per page \(default: 100, max: 100\) |
+| `startingAfter` | string | No | Cursor: fetch results after this link ID |
+| `endingBefore` | string | No | Cursor: fetch results before this link ID |
 
 #### Output
 
@@ -432,6 +461,7 @@ Generate a customizable QR code (PNG) for a short link, with control over size, 
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Dub API key |
 | `url` | string | Yes | The short link URL to encode in the QR code |
+| `logo` | string | No | URL of a custom logo to embed in the QR code \(requires a paid Dub plan\) |
 | `size` | number | No | QR code size in pixels \(default: 600\) |
 | `level` | string | No | Error correction level: L \(default\), M, Q, or H |
 | `fgColor` | string | No | Foreground color in hex \(default: #000000\) |
@@ -445,5 +475,88 @@ Generate a customizable QR code (PNG) for a short link, with control over size, 
 | --------- | ---- | ----------- |
 | `file` | file | Generated QR code image stored in execution files |
 | `content` | string | Base64-encoded PNG image data |
+
+### `dub_list_domains`
+
+Retrieve the custom domains registered in the workspace, so links can be created against the right domain.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `archived` | boolean | No | Whether to include archived domains \(defaults to false\) |
+| `search` | string | No | Search by domain name |
+| `page` | number | No | Page number \(default: 1\) |
+| `pageSize` | number | No | Number of domains per page \(default: 50, max: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domains` | json | Array of domain objects \(slug, verified, primary, archived\) |
+| `count` | number | Number of domains returned |
+
+### `dub_list_tags`
+
+Retrieve the tags defined in the workspace, so the right tag IDs can be assigned to links.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `search` | string | No | Search by tag name |
+| `sortBy` | string | No | Field to sort by: name \(default\) or createdAt |
+| `sortOrder` | string | No | Sort order: asc \(default\) or desc |
+| `page` | number | No | Page number \(default: 1\) |
+| `pageSize` | number | No | Number of tags per page \(default: 100, max: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | json | Array of tag objects \(id, name, color\) |
+| `count` | number | Number of tags returned |
+
+### `dub_create_tag`
+
+Create a new tag in the workspace for organizing and filtering short links.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `name` | string | Yes | The name of the tag to create \(1-50 characters\) |
+| `color` | string | No | Tag color: red, yellow, green, blue, purple, brown, gray, or pink \(random if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique ID of the created tag |
+| `name` | string | Name of the tag |
+| `color` | string | Color assigned to the tag |
+
+### `dub_list_folders`
+
+Retrieve the folders defined in the workspace, so the right folder ID can be used to organize links.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `search` | string | No | Search by folder name |
+| `page` | number | No | Page number \(default: 1\) |
+| `pageSize` | number | No | Number of folders per page \(default: 50, max: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | json | Array of folder objects \(id, name, accessLevel\) |
+| `count` | number | Number of folders returned |
 
 

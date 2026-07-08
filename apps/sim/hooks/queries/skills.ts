@@ -10,6 +10,8 @@ import {
 
 const logger = createLogger('SkillsQueries')
 
+export const SKILL_LIST_STALE_TIME = 60 * 1000
+
 export type SkillDefinition = Skill
 
 /**
@@ -40,7 +42,7 @@ export function useSkills(workspaceId: string) {
     queryKey: skillsKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchSkills(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000,
+    staleTime: SKILL_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

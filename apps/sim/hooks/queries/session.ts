@@ -5,6 +5,8 @@ import {
   extractSessionDataFromAuthClientResult,
 } from '@/lib/auth/session-response'
 
+export const SESSION_STALE_TIME = 5 * 60 * 1000
+
 export const sessionKeys = {
   all: ['session'] as const,
   detail: () => [...sessionKeys.all, 'detail'] as const,
@@ -29,7 +31,7 @@ export function useSessionQuery() {
   return useQuery({
     queryKey: sessionKeys.detail(),
     queryFn: ({ signal }) => fetchSession(signal),
-    staleTime: 5 * 60 * 1000,
+    staleTime: SESSION_STALE_TIME,
     retry: false,
   })
 }

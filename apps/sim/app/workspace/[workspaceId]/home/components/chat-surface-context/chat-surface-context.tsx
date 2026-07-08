@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
 } from 'react'
+import { noop } from '@sim/utils/helpers'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
@@ -30,8 +31,6 @@ interface ChatSurfaceContextValue {
   /** Opens a workspace resource referenced from rendered message content. */
   onWorkspaceResourceSelect: (resource: MothershipResource) => void
 }
-
-const noop = () => {}
 
 const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
   onContextAdd: noop,

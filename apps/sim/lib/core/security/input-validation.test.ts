@@ -2109,7 +2109,7 @@ describe('validateCallbackUrl', () => {
       ['/invite/abc-123'],
       ['/invite/abc?foo=bar&baz=qux'],
       ['/workspace#section'],
-      ['/credential-account/456'],
+      ['/workspace/456'],
       ['?reset=true'],
       ['/'],
       ['https://sim.app/workspace'],

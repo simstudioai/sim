@@ -11,7 +11,7 @@ export const getSecretTool: ToolConfig<
   id: 'secrets_manager_get_secret',
   name: 'Secrets Manager Get Secret',
   description: 'Retrieve a secret value from AWS Secrets Manager',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {

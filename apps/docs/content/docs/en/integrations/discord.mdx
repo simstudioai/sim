@@ -140,8 +140,8 @@ Retrieve information about a Discord server (guild)
 |   ↳ `description` | string | Server description |
 |   ↳ `owner_id` | string | Server owner user ID |
 |   ↳ `roles` | array | Server roles |
-|   ↳ `channels` | array | Server channels |
-|   ↳ `member_count` | number | Number of members in server |
+|   ↳ `approximate_member_count` | number | Approximate total member count |
+|   ↳ `approximate_presence_count` | number | Approximate online member count |
 
 ### `discord_get_user`
 
@@ -205,6 +205,25 @@ Delete a message from a Discord channel
 | `botToken` | string | Yes | The bot token for authentication |
 | `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
 | `messageId` | string | Yes | The ID of the message to delete, e.g., 123456789012345678 |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+
+### `discord_bulk_delete_messages`
+
+Delete 2-100 messages from a Discord channel in a single request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | The bot token for authentication |
+| `channelId` | string | Yes | The Discord channel ID to delete messages from, e.g., 123456789012345678 |
+| `messageIds` | json | Yes | Array of 2-100 message IDs to delete. Messages older than 2 weeks cannot be bulk deleted. |
 | `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
@@ -292,6 +311,35 @@ Unpin a message in a Discord channel
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+### `discord_get_pinned_messages`
+
+Retrieve all pinned messages in a Discord channel
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | The bot token for authentication |
+| `channelId` | string | Yes | The Discord channel ID to retrieve pinned messages from, e.g., 123456789012345678 |
+| `limit` | number | No | Maximum number of pins to return per page \(1-50\). Defaults to 50. |
+| `before` | string | No | Return pins created before this ISO8601 timestamp, for paging past the first 50 results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | array | Array of pinned Discord messages |
+|   ↳ `id` | string | Message ID |
+|   ↳ `content` | string | Message content |
+|   ↳ `channel_id` | string | Channel ID |
+|   ↳ `timestamp` | string | Message timestamp |
+|   ↳ `pinned_at` | string | When the message was pinned |
+|   ↳ `author` | object | Message author information |
+|     ↳ `id` | string | Author user ID |
+|     ↳ `username` | string | Author username |
+| `hasMore` | boolean | Whether more pinned messages exist beyond this page |
+
 ### `discord_create_thread`
 
 Create a thread in a Discord channel
@@ -305,6 +353,7 @@ Create a thread in a Discord channel
 | `name` | string | Yes | The name of the thread \(1-100 characters\) |
 | `messageId` | string | No | The message ID to create a thread from \(if creating from existing message\), e.g., 123456789012345678 |
 | `autoArchiveDuration` | number | No | Duration in minutes to auto-archive the thread \(60, 1440, 4320, 10080\) |
+| `isPublic` | boolean | No | Whether the standalone thread is public \(visible to everyone in the channel\) or private. Ignored when creating a thread from an existing message, which always inherits the parent channel visibility. Defaults to public if omitted. |
 | `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
@@ -445,6 +494,11 @@ Delete a Discord channel
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
+| `data` | object | The deleted channel, as returned by Discord |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `type` | number | Channel type |
+|   ↳ `guild_id` | string | Server ID |
 
 ### `discord_get_channel`
 
@@ -469,6 +523,30 @@ Get information about a Discord channel
 |   ↳ `type` | number | Channel type |
 |   ↳ `topic` | string | Channel topic |
 |   ↳ `guild_id` | string | Server ID |
+
+### `discord_list_channels`
+
+List all channels in a Discord server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | The bot token for authentication |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | array | Array of Discord channels in the server |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `type` | number | Channel type |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `parent_id` | string | Parent category ID |
+|   ↳ `position` | number | Sort position within the channel list |
 
 ### `discord_create_role`
 
@@ -579,6 +657,30 @@ Remove a role from a member in a Discord server
 | --------- | ---- | ----------- |
 | `message` | string | Success or error message |
 
+### `discord_list_roles`
+
+List all roles in a Discord server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | The bot token for authentication |
+| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `data` | array | Array of Discord roles in the server |
+|   ↳ `id` | string | Role ID |
+|   ↳ `name` | string | Role name |
+|   ↳ `color` | number | Role color |
+|   ↳ `hoist` | boolean | Whether role is hoisted |
+|   ↳ `position` | number | Role position in the hierarchy |
+|   ↳ `mentionable` | boolean | Whether role is mentionable |
+
 ### `discord_kick_member`
 
 Kick a member from a Discord server
@@ -610,7 +712,7 @@ Ban a member from a Discord server
 | `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 | `userId` | string | Yes | The user ID to ban, e.g., 123456789012345678 |
 | `reason` | string | No | Reason for banning the member |
-| `deleteMessageDays` | number | No | Number of days to delete messages for \(0-7\) |
+| `deleteMessageSeconds` | number | No | Seconds of message history to delete, 0-604800 \(7 days\) |
 
 #### Output
 

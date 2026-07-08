@@ -121,10 +121,7 @@ function SignupFormContent({
   }
   const redirectUrl = isValidRedirectUrl ? rawRedirectUrl : ''
   const isInviteFlow = useMemo(
-    () =>
-      searchParams.get('invite_flow') === 'true' ||
-      redirectUrl.startsWith('/invite/') ||
-      redirectUrl.startsWith('/credential-account/'),
+    () => searchParams.get('invite_flow') === 'true' || redirectUrl.startsWith('/invite/'),
     [searchParams, redirectUrl]
   )
 

@@ -12,6 +12,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -178,7 +179,7 @@ export const POST = withRouteHandler(
         new Set(
           invitationEmails
             .map((raw) => {
-              const normalized = raw.trim().toLowerCase()
+              const normalized = normalizeEmail(raw)
               return quickValidateEmail(normalized).isValid ? normalized : null
             })
             .filter((email): email is string => !!email)
@@ -572,7 +573,7 @@ export const POST = withRouteHandler(
           (email) => pendingEmails.includes(email) && !memberUserIdByEmail.has(email)
         ),
         invalidEmails: invitationEmails.filter(
-          (email) => !quickValidateEmail(email.trim().toLowerCase()).isValid
+          (email) => !quickValidateEmail(normalizeEmail(email)).isValid
         ),
         workspaceGrantsPerInvite: validGrants.length,
         ...(seatValidation

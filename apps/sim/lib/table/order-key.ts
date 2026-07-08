@@ -11,10 +11,7 @@
  * repeated same-spot inserts.
  */
 
-import {
-  generateKeyBetween,
-  generateNKeysBetween,
-} from '@/lib/fractional-indexing/fractional-indexing'
+import { generateKeyBetween, generateNKeysBetween } from '@sim/utils/fractional-indexing'
 
 /**
  * Returns a key that sorts strictly between `a` and `b`. Pass `null` for an open

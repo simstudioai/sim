@@ -8,7 +8,7 @@ import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
-import { reapStaleBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
+import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 
 const logger = createLogger('OutboxProcessorAPI')
 

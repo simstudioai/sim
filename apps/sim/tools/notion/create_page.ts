@@ -58,7 +58,7 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       const body: any = {
         parent: {
           type: 'page_id',
-          page_id: params.parentId,
+          page_id: params.parentId.trim(),
         },
       }
 

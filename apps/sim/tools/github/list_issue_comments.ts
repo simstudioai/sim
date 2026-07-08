@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import type { CommentsListResponse, ListIssueCommentsParams } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
@@ -84,7 +85,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
             .slice(0, 5)
             .map(
               (c: any) =>
-                `- ${c.user.login} (${new Date(c.created_at).toLocaleDateString()}): "${c.body.substring(0, 80)}${c.body.length > 80 ? '...' : ''}"`
+                `- ${c.user.login} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body, 80)}"`
             )
             .join('\n')}`
         : ''

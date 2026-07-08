@@ -9,6 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -212,7 +213,7 @@ export const POST = withRouteHandler(
       const { email, role = 'member' } = parsed.data.body
 
       // Validate and normalize email
-      const normalizedEmail = email.trim().toLowerCase()
+      const normalizedEmail = normalizeEmail(email)
       const validation = quickValidateEmail(normalizedEmail)
       if (!validation.isValid) {
         return NextResponse.json(

@@ -1387,6 +1387,10 @@ describe('indexWorkflowSearchMatches', () => {
         custom: {
           subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
         },
+        native: {
+          name: 'Customer Mailer',
+          subBlocks: [],
+        },
       },
     }).filter((match) => match.blockId === 'tool-input-1')
 
@@ -1395,7 +1399,7 @@ describe('indexWorkflowSearchMatches', () => {
         expect.objectContaining({
           subBlockId: 'tools',
           valuePath: [0, 'title'],
-          searchText: 'Customer notifier',
+          searchText: 'Customer Mailer',
         }),
         expect.objectContaining({
           subBlockId: 'tools',
@@ -1404,6 +1408,7 @@ describe('indexWorkflowSearchMatches', () => {
         }),
       ])
     )
+    expect(matches.some((match) => match.searchText === 'Customer notifier')).toBe(false)
     expect(matches.some((match) => match.valuePath.includes('toolId'))).toBe(false)
     expect(matches.some((match) => match.valuePath.includes('operation'))).toBe(false)
     expect(matches.some((match) => match.valuePath.includes('credentialId'))).toBe(false)
@@ -1416,6 +1421,50 @@ describe('indexWorkflowSearchMatches', () => {
       ])
     )
     expect(matches.some((match) => match.valuePath.includes('schema'))).toBe(false)
+  })
+
+  it('indexes canonical MCP and custom-tool names over mutated stored titles', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            { type: 'mcp', toolId: 'mcp-tool-1', title: 'Mutated Title', params: {} },
+            { type: 'custom-tool', customToolId: 'ct-1', title: 'Mutated Title', params: {} },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'customer',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+      customTools: [{ id: 'ct-1', title: 'Customer Records' }],
+      mcpToolNamesById: new Map([['mcp-tool-1', 'customer_lookup']]),
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(matches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ valuePath: [0, 'title'], searchText: 'customer_lookup' }),
+        expect.objectContaining({ valuePath: [1, 'title'], searchText: 'Customer Records' }),
+      ])
+    )
+    expect(matches.some((match) => match.searchText === 'Mutated Title')).toBe(false)
   })
 
   it('indexes explicit secret tool params for intentional replacement', () => {

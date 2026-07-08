@@ -28,7 +28,7 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains, default). Example: "domain"',
+        'Analysis mode: domain (entire domain), prefix (URL prefix), subdomains (include all subdomains, default), exact (exact URL match). Example: "domain"',
     },
     date: {
       type: 'string',
@@ -82,7 +82,7 @@ export const topPagesTool: ToolConfig<AhrefsTopPagesParams, AhrefsTopPagesRespon
       traffic: page.sum_traffic ?? 0,
       keywords: page.keywords ?? null,
       topKeyword: page.top_keyword ?? null,
-      value: page.value ?? null,
+      value: typeof page.value === 'number' ? page.value / 100 : null,
     }))
 
     return {

@@ -55,7 +55,7 @@ export const appendDatasourceTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tinybird API Token with DATASOURCES:CREATE scope',
+      description: 'Tinybird API Token with DATASOURCES:APPEND or DATASOURCES:CREATE scope',
     },
   },
 

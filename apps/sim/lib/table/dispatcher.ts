@@ -207,15 +207,10 @@ export async function insertDispatch(input: {
   return id
 }
 
-/** Read every dispatch on a table whose status is still `pending` or
- *  `dispatching`. Drives the client-side "about to run" overlay: rows in an
- *  active dispatch's scope ahead of its cursor are rendered as queued even
- *  before the dispatcher has reached them, so refresh during a long Run-all
- *  doesn't lose the queued indicators. */
-/** Counts in-flight cells (queued / running / pending) across the entire
- *  table — the authoritative source for the "X running" badge and the per-row
- *  gutter Run/Stop button. All three statuses are user-cancellable, so the
- *  gutter must surface Stop whenever any of them are present (else clicking
+/** Counts in-flight cells (queued / running / pending) per row across the
+ *  entire table — the authoritative source for the "X running" badge and the
+ *  per-row gutter Run/Stop button. All three statuses are user-cancellable, so
+ *  the gutter must surface Stop whenever any of them are present (else clicking
  *  Play during the queued window would re-run an already-queued cell).
  *
  *  Excludes orphan pre-stamps — `pending` rows with no `executionId` — which
@@ -230,7 +225,7 @@ export async function insertDispatch(input: {
 export async function countRunningCells(
   tableId: string,
   opts?: { includeUnclaimedPreStamps?: boolean }
-): Promise<{ total: number; byRowId: Record<string, number> }> {
+): Promise<{ byRowId: Record<string, number>; hasRunning: boolean }> {
   // `pending` + null-executionId rows are unclaimed pre-stamps. With an active
   // dispatch they're real queued work (include); with none they're abandoned
   // orphans that would pin the badge above zero forever (exclude).
@@ -239,6 +234,10 @@ export async function countRunningCells(
     .select({
       rowId: tableRowExecutions.rowId,
       runningCount: sql<number>`count(*)::int`,
+      // Cells actually claimed by a worker — drives the header's
+      // "Queueing" vs "N running" label table-wide (the client can only see
+      // claims on loaded rows; a long run's active window scrolls past them).
+      claimedCount: sql<number>`count(*) FILTER (WHERE ${tableRowExecutions.status} = 'running')::int`,
     })
     .from(tableRowExecutions)
     .where(
@@ -251,62 +250,20 @@ export async function countRunningCells(
       )
     )
     .groupBy(tableRowExecutions.rowId)
-  let total = 0
   const byRowId: Record<string, number> = {}
+  let hasRunning = false
   for (const r of rows) {
-    if (r.runningCount > 0) {
-      byRowId[r.rowId] = r.runningCount
-      total += r.runningCount
-    }
+    if (r.runningCount > 0) byRowId[r.rowId] = r.runningCount
+    if (r.claimedCount > 0) hasRunning = true
   }
-  return { total, byRowId }
+  return { byRowId, hasRunning }
 }
 
-/** Authoritative "cells queued or running" count for the table, derived from
- *  active dispatches so it survives reload and matches the live count. For each
- *  active dispatch every row in scope ahead of the cursor still has to run each
- *  targeted group, so remaining work = (rows ahead of cursor) × |groupIds|.
- *  Exact for Run-all; an upper bound for incomplete/new (rows the eligibility
- *  filter later skips are still counted). Falls back to the sidecar in-flight
- *  count when no dispatch is active (orphan stragglers). `byRowId` stays
- *  sidecar-based — the client overlay renders queued rows ahead of the cursor. */
-export async function countActiveRunCells(
-  tableId: string,
-  dispatches?: DispatchRow[]
-): Promise<{ total: number; byRowId: Record<string, number> }> {
-  const active = dispatches ?? (await listActiveDispatches(tableId))
-  if (active.length === 0) return countRunningCells(tableId)
-
-  const countRowsAhead = async (d: DispatchRow): Promise<number> => {
-    const groupCount = d.scope.groupIds.length
-    if (groupCount === 0) return 0
-    const filters = [eq(userTableRows.tableId, tableId), gt(userTableRows.position, d.cursor)]
-    if (d.scope.rowIds && d.scope.rowIds.length > 0) {
-      filters.push(inArray(userTableRows.id, d.scope.rowIds))
-    }
-    const [row] = await db
-      .select({ rowsAhead: sql<number>`count(*)::int` })
-      .from(userTableRows)
-      .where(and(...filters))
-    let rowsAhead = row?.rowsAhead ?? 0
-    // A `rows` cap means at most `max - processed` more rows will run, even if
-    // many more sit ahead of the cursor — clamp so the badge doesn't over-count.
-    if (d.limit?.type === 'rows') {
-      rowsAhead = Math.min(rowsAhead, Math.max(0, d.limit.max - d.processedCount))
-    }
-    return rowsAhead * groupCount
-  }
-
-  // Include pre-stamps so `byRowId` matches the live SSE count (which counts
-  // `pending`); otherwise the badge flickers 20→0 on each refetch.
-  const [sidecar, perDispatch] = await Promise.all([
-    countRunningCells(tableId, { includeUnclaimedPreStamps: true }),
-    Promise.all(active.map(countRowsAhead)),
-  ])
-  const total = perDispatch.reduce((sum, n) => sum + n, 0)
-  return { total, byRowId: sidecar.byRowId }
-}
-
+/** Read every dispatch on a table whose status is still `pending` or
+ *  `dispatching`. Drives the client-side "about to run" overlay: rows in an
+ *  active dispatch's scope ahead of its cursor are rendered as queued even
+ *  before the dispatcher has reached them, so refresh during a long Run-all
+ *  doesn't lose the queued indicators. */
 export async function listActiveDispatches(tableId: string): Promise<DispatchRow[]> {
   const rows = await db
     .select()
@@ -714,6 +671,34 @@ export async function markDispatchComplete(dispatchId: string): Promise<void> {
     .where(eq(tableRunDispatches.id, dispatchId))
 }
 
+/** Cancel one dispatch by id (if still active) and emit the terminal SSE so
+ *  the client overlay clears. Used when `runWorkflowColumn` fails between
+ *  inserting its dispatch row and firing the dispatcher — without this the
+ *  orphaned `pending` row would pin the "about to run" overlay forever. */
+export async function cancelDispatchById(dispatchId: string): Promise<void> {
+  const [row] = await db
+    .update(tableRunDispatches)
+    .set({ status: 'cancelled', cancelledAt: new Date() })
+    .where(
+      and(
+        eq(tableRunDispatches.id, dispatchId),
+        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+      )
+    )
+    .returning()
+  if (!row) return
+  await appendTableEvent({
+    kind: 'dispatch',
+    tableId: row.tableId,
+    dispatchId: row.id,
+    status: 'cancelled',
+    scope: row.scope as DispatchScope,
+    cursor: row.cursor,
+    mode: row.mode as DispatchMode,
+    isManualRun: row.isManualRun,
+  })
+}
+
 /** Complete a dispatch only if it's still active, returning whether THIS call
  *  performed the transition. Lets concurrent cells that all hit a hard stop
  *  (e.g. usage limit) elect a single owner — only the winner emits the
@@ -752,12 +737,15 @@ export async function markDispatchCancelled(dispatchId: string): Promise<void> {
  *  is that exact filter (a filtered "select all" Stop must not halt
  *  whole-table or differently-filtered runs). Pass `spareExcludedRowIds`
  *  (select-all-minus-deselections Stop) to spare row-scoped dispatches whose
- *  rows are ALL deselected — that work wasn't in the stopped selection. */
+ *  rows are ALL deselected — that work wasn't in the stopped selection. Pass
+ *  `spareDispatchId` when the caller is a manual run cancelling *prior* work:
+ *  its own dispatch row is already inserted (so a concurrent Stop-all has
+ *  something to cancel) and must not cancel itself. */
 export async function markActiveDispatchesCancelled(
   tableId: string,
-  scopeFilter?: Filter,
-  spareExcludedRowIds?: string[]
+  opts?: { scopeFilter?: Filter; spareExcludedRowIds?: string[]; spareDispatchId?: string }
 ): Promise<DispatchRow[]> {
+  const { scopeFilter, spareExcludedRowIds, spareDispatchId } = opts ?? {}
   const cancelled = await db
     .update(tableRunDispatches)
     .set({ status: 'cancelled', cancelledAt: new Date() })
@@ -765,6 +753,7 @@ export async function markActiveDispatchesCancelled(
       and(
         eq(tableRunDispatches.tableId, tableId),
         inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
+        spareDispatchId ? ne(tableRunDispatches.id, spareDispatchId) : undefined,
         scopeFilter
           ? sql`${tableRunDispatches.scope}->'filter' = ${JSON.stringify(scopeFilter)}::jsonb`
           : undefined,

@@ -744,9 +744,6 @@ export const webhook = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     failedCount: integer('failed_count').default(0), // Track consecutive failures
     lastFailedAt: timestamp('last_failed_at'), // When the webhook last failed
-    credentialSetId: text('credential_set_id').references(() => credentialSet.id, {
-      onDelete: 'set null',
-    }), // For credential set webhooks - enables efficient queries
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -761,8 +758,6 @@ export const webhook = pgTable(
         table.workflowId,
         table.deploymentVersionId
       ),
-      // Optimize queries for credential set webhooks
-      credentialSetIdIdx: index('webhook_credential_set_id_idx').on(table.credentialSetId),
       archivedAtPartialIdx: index('webhook_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
@@ -1369,6 +1364,8 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'knowledge_document',
   'file',
   'mcp_server',
+  /** Workflow-publishing MCP server identity (fork shell copy), for attachment sync. */
+  'workflow_mcp_server',
   'custom_tool',
   'skill',
 ])
@@ -1576,6 +1573,14 @@ export const backgroundWorkStatus = pgTable(
     workflowStatusIdx: index('background_work_status_workflow_status_idx').on(
       table.workflowId,
       table.status
+    ),
+    // Expression indexes for listSurfacedBackgroundWork's metadata legs: `->>` equality can't
+    // use a GIN index, and one unindexable leg in its `or()` forces a full-table scan.
+    metaChildWorkspaceIdx: index('background_work_status_meta_child_ws_idx').on(
+      sql`(${table.metadata} ->> 'childWorkspaceId')`
+    ),
+    metaOtherWorkspaceIdx: index('background_work_status_meta_other_ws_idx').on(
+      sql`(${table.metadata} ->> 'otherWorkspaceId')`
     ),
   })
 )
@@ -2838,6 +2843,59 @@ export const workflowMcpTool = pgTable(
   })
 )
 
+/**
+ * Custom Blocks - a deployed workflow published as a reusable, org-wide block.
+ * Scoped to an organization: available across every workspace in the org. Bound to
+ * a source `workflowId` and always executes that workflow's latest deployment. Start
+ * input fields are derived live (not snapshotted). `type` is the stable lowercase
+ * block-type slug (`custom_block_<shortId>`) that flows into the block registry
+ * overlay, the palette, and permission-group `allowedIntegrations` access control.
+ */
+export const customBlock = pgTable(
+  'custom_block',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    /** Uploaded icon image URL (workspace storage), or null for the default icon. */
+    iconUrl: text('icon_url'),
+    /**
+     * Per-input placeholder hints keyed by the source Start field's stable `id`:
+     * `Array<{ id, placeholder? }>`. Only the placeholder is authored — the input
+     * field set and its name/type/description are always derived live from the
+     * deployed Start (so they can never go stale). Absent/empty → no placeholder
+     * overrides; every deployed Start input is still exposed.
+     */
+    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string }>>(),
+    /**
+     * Curated outputs exposed to consumers: `Array<{ blockId, path, name }>`. Each
+     * maps a child-workflow block output (blockId + dot-path) to a friendly output
+     * name on the block. Empty/absent → expose the child's whole `result`. Internal
+     * plumbing (child workflow id, trace spans) is never exposed.
+     */
+    outputs: json('outputs').$type<Array<{ blockId: string; path: string; name: string }>>(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdIdx: index('custom_block_organization_id_idx').on(table.organizationId),
+    workflowIdIdx: index('custom_block_workflow_id_idx').on(table.workflowId),
+    orgTypeUnique: uniqueIndex('custom_block_organization_type_unique').on(
+      table.organizationId,
+      table.type
+    ),
+  })
+)
+
 export const auditLog = pgTable(
   'audit_log',
   {
@@ -3059,99 +3117,6 @@ export const pendingCredentialDraft = pgTable(
       table.providerId,
       table.workspaceId
     ),
-  })
-)
-
-export const credentialSet = pgTable(
-  'credential_set',
-  {
-    id: text('id').primaryKey(),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    description: text('description'),
-    providerId: text('provider_id').notNull(),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    createdByIdx: index('credential_set_created_by_idx').on(table.createdBy),
-    orgNameUnique: uniqueIndex('credential_set_org_name_unique').on(
-      table.organizationId,
-      table.name
-    ),
-    providerIdIdx: index('credential_set_provider_id_idx').on(table.providerId),
-  })
-)
-
-export const credentialSetMemberStatusEnum = pgEnum('credential_set_member_status', [
-  'active',
-  'pending',
-  'revoked',
-])
-
-export const credentialSetMember = pgTable(
-  'credential_set_member',
-  {
-    id: text('id').primaryKey(),
-    credentialSetId: text('credential_set_id')
-      .notNull()
-      .references(() => credentialSet.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    status: credentialSetMemberStatusEnum('status').notNull().default('pending'),
-    joinedAt: timestamp('joined_at'),
-    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    userIdIdx: index('credential_set_member_user_id_idx').on(table.userId),
-    uniqueMembership: uniqueIndex('credential_set_member_unique').on(
-      table.credentialSetId,
-      table.userId
-    ),
-    statusIdx: index('credential_set_member_status_idx').on(table.status),
-  })
-)
-
-export const credentialSetInvitationStatusEnum = pgEnum('credential_set_invitation_status', [
-  'pending',
-  'accepted',
-  'expired',
-  'cancelled',
-])
-
-export const credentialSetInvitation = pgTable(
-  'credential_set_invitation',
-  {
-    id: text('id').primaryKey(),
-    credentialSetId: text('credential_set_id')
-      .notNull()
-      .references(() => credentialSet.id, { onDelete: 'cascade' }),
-    email: text('email'),
-    token: text('token').notNull().unique(),
-    invitedBy: text('invited_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    status: credentialSetInvitationStatusEnum('status').notNull().default('pending'),
-    expiresAt: timestamp('expires_at').notNull(),
-    acceptedAt: timestamp('accepted_at'),
-    acceptedByUserId: text('accepted_by_user_id').references(() => user.id, {
-      onDelete: 'set null',
-    }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    credentialSetIdIdx: index('credential_set_invitation_set_id_idx').on(table.credentialSetId),
-    tokenIdx: index('credential_set_invitation_token_idx').on(table.token),
-    statusIdx: index('credential_set_invitation_status_idx').on(table.status),
-    expiresAtIdx: index('credential_set_invitation_expires_at_idx').on(table.expiresAt),
   })
 )
 
@@ -3434,9 +3399,9 @@ export const userTableRows = pgTable(
     data: jsonb('data').notNull(),
     position: integer('position').notNull().default(0),
     /**
-     * Fractional order key (base-62 string). Authoritative row order when the
-     * `TABLES_FRACTIONAL_ORDERING` flag is on; nullable during the backfill
-     * window. Ordered with `id` as a deterministic tiebreaker.
+     * Fractional order key (base-62 string) — the authoritative row order.
+     * Nullable during the backfill window. Ordered with `id` as a deterministic
+     * tiebreaker.
      *
      * Stored with `COLLATE "C"` (migration 0228) so Postgres compares it bytewise,
      * matching the fractional-indexing library's ASCII ordering. drizzle can't

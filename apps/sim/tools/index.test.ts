@@ -1896,6 +1896,28 @@ describe('MCP Tool Execution', () => {
       expect(result.success).toBe(false)
     })
 
+    it('skips retry when Retry-After exceeds a maxDelayMs configured above the 30s default cap', async () => {
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            makeJsonResponse(429, { error: 'rate limited' }, { 'retry-after': '50' })
+          )
+          .mockResolvedValueOnce(makeJsonResponse(200, { ok: true })),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('http_request', {
+        url: '/api/test',
+        method: 'GET',
+        retries: 3,
+        retryMaxDelayMs: 40000,
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(result.success).toBe(false)
+    })
+
     it('retries when Retry-After header is within maxDelayMs', async () => {
       global.fetch = Object.assign(
         vi

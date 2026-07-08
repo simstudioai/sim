@@ -21,12 +21,14 @@ import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { Executor } from '@/executor'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
@@ -310,7 +312,22 @@ async function finalizeExecutionError(params: {
   }
 }
 
+/**
+ * Establish the custom-block registry overlay for the execution's organization,
+ * then run the core. Wrapping here — the shared choke point for the sync route and
+ * the background job — puts `custom_block_*` types in scope for serialization,
+ * execution, and any nested child-workflow serialization (ALS propagates to the
+ * whole async subtree).
+ */
 export async function executeWorkflowCore(
+  options: ExecuteWorkflowCoreOptions
+): Promise<ExecutionResult> {
+  const workspaceId = options.snapshot.metadata.workspaceId
+  const rows = workspaceId ? await getCustomBlockRowsForWorkspace(workspaceId) : []
+  return withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
+}
+
+async function executeWorkflowCoreImpl(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   const {
@@ -663,12 +680,24 @@ export async function executeWorkflowCore(
     if (piiRedaction.input.enabled) {
       // Redact the input before the workflow sees it. `onFailure: 'throw'` aborts
       // the run (handled by the surrounding catch) rather than feeding a scrub
-      // marker into execution or leaking unredacted input.
-      processedInput = await redactObjectStrings(processedInput, {
+      // marker into execution or leaking unredacted input. A large input may
+      // already be offloaded to a large-value ref (opaque to the string walk), so
+      // hydrate → mask → re-store refs first, then mask inline strings.
+      const inputOpts = {
         entityTypes: piiRedaction.input.entityTypes,
         language: piiRedaction.input.language,
-        onFailure: 'throw',
+        onFailure: 'throw' as const,
+      }
+      processedInput = await redactLargeValueRefsInValue(processedInput, {
+        ...inputOpts,
+        store: {
+          workspaceId: providedWorkspaceId,
+          workflowId,
+          executionId,
+          userId: userId ?? undefined,
+        },
       })
+      processedInput = await redactObjectStrings(processedInput, inputOpts)
     }
 
     if (piiRedaction.blockOutputs.enabled) {

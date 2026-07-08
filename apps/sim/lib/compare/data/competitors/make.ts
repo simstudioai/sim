@@ -31,13 +31,13 @@ export const makeProfile: CompetitorProfile = {
     'Make (make.com) is a closed-source, cloud-only visual workflow-automation platform where users connect app "modules" on a canvas into scenarios. It now also offers AI Agent blocks, an MCP server, and a JS/Python code step, billed on a per-module-execution credit model.',
   standoutFeatures: [
     {
-      title: 'Native MCP Server',
+      title: '3,000+ integrations and an 8,000+ template gallery',
       description:
-        'Make ships a first-party, cloud-hosted Model Context Protocol server that exposes any scenario as a callable tool to external AI agents/clients (Claude, Cursor, etc.) via a generated token and URL, with no local infrastructure to manage.',
-      shortDescription: 'Cloud-hosted MCP server exposes scenarios as tools with zero setup.',
+        'Make lists 3,000+ integration apps and a public gallery of over 8,000 pre-built, importable scenario templates, free to browse on every plan including Free.',
+      shortDescription: '3,000+ integrations and an 8,000+ template gallery, free on every plan.',
       source: {
-        url: 'https://www.make.com/en/blog/model-context-protocol-mcp-server',
-        label: 'Make blog: What is MCP Server?',
+        url: 'https://www.make.com/en/templates',
+        label: 'Make Templates gallery',
         asOf: '2026-07-02',
       },
     },
@@ -53,35 +53,13 @@ export const makeProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Built-in Knowledge/RAG store for agents',
+      title: 'MCP Toolboxes for team-level shared servers',
       description:
-        "Users upload files directly to an agent's 'Knowledge,' which Make automatically chunks, embeds, and stores in a RAG vector database so the agent retrieves only relevant chunks at inference time, reducing token usage.",
-      shortDescription: 'Uploaded files are auto-chunked and embedded into a RAG store for agents.',
+        'Beyond exposing a single scenario as an MCP tool, Make offers MCP Toolboxes: team-level dedicated MCP servers that bundle a curated subset of multiple scenarios behind one shared endpoint for external AI clients to call.',
+      shortDescription: 'Team-level MCP servers bundling multiple scenarios as tools.',
       source: {
-        url: 'https://help.make.com/knowledge',
-        label: 'Make Knowledge help doc',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'In-scenario JS/Python code step',
-      description:
-        "The native 'Make Code' module lets users execute arbitrary JavaScript (Node.js) or Python directly inside a scenario step with no external server, for custom transforms and logic beyond the visual modules.",
-      shortDescription: 'Run JS or Python inline as a scenario step, no external server needed.',
-      source: {
-        url: 'https://www.make.com/en/blog/make-code-app',
-        label: 'Make blog: Make Code App',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: '8,000+ template gallery available on the free tier',
-      description:
-        "Make's public template gallery hosts over 8,000 pre-built scenarios spanning thousands of use cases, browsable and importable free on every plan including Free, with users paying only for the credits consumed when the imported scenario runs.",
-      shortDescription: '8,000+ importable scenario templates, free on every plan including Free.',
-      source: {
-        url: 'https://www.make.com/en/templates',
-        label: 'Make Templates gallery',
+        url: 'https://help.make.com/mcp-toolboxes',
+        label: 'MCP toolboxes - Make Help Center',
         asOf: '2026-07-02',
       },
     },
@@ -101,34 +79,35 @@ export const makeProfile: CompetitorProfile = {
     {
       title: 'Proprietary, closed-source license',
       description:
-        "Unlike open-source workflow tools, Make's codebase is not published; there is no community fork/self-audit path and organizations depend entirely on Make's (Celonis-owned) roadmap and infrastructure.",
+        "Unlike open-source workflow tools, Make's codebase is not published; Celonis (Make's owner) retains exclusive ownership of the Services, and customers are contractually barred from copying, modifying, creating derivative works from, or reverse-engineering the platform, so there is no community fork/self-audit path and organizations depend entirely on Celonis's roadmap and infrastructure.",
       shortDescription: 'Closed-source codebase with no community fork or audit path.',
       source: {
-        url: 'https://www.make.com/en/pricing',
-        label: 'Make Pricing page',
-        asOf: '2026-07-02',
+        url: 'https://www.make.com/master-service-agreement.pdf',
+        label: 'Master Services Agreement for Make, Section 4.4 & 6.1 (Celonis)',
+        asOf: '2026-07-08',
       },
     },
     {
-      title: 'Code step is sandboxed with no network access or package installs',
+      title: 'Code step allows direct HTTP calls; custom package installs need Enterprise',
       description:
-        'The native Make Code (JS/Python) module cannot make HTTP requests, has no external network access, and cannot install npm or PyPI packages, limiting it to pure in-memory data transforms rather than general-purpose custom integration code.',
-      shortDescription: 'Code step blocks network calls and package installs.',
+        "The native Make Code (JS/Python) module can make direct HTTP requests, though Make recommends using the dedicated HTTP module instead to avoid exposing credentials. Enterprise-plan customers can import custom third-party npm/PyPI libraries as declared dependencies; lower tiers only get Make's pre-installed common libraries.",
+      shortDescription:
+        'Code step permits HTTP calls; custom package installs are Enterprise-only.',
       source: {
         url: 'https://apps.make.com/code',
         label: 'Make Code app docs',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
-      title: 'Audit logs and granular RBAC gated to higher tiers',
+      title: 'Granular RBAC gated to the Teams plan and above',
       description:
-        'Audit logs and full team/role-based permission management are only available starting on the Teams plan ($38/mo) and Enterprise, with default log retention of just 30 days even on paid plans; lower tiers (Free, Core, Pro) lack these governance controls.',
-      shortDescription: 'Audit logs and role-based permissions require the Teams plan or above.',
+        "Full team/role-based permission management ('Teams and team roles', letting admins manage unlimited team permissions for scenario apps, templates, and connections) is only listed as a feature starting on the Teams plan ($38/mo) and Enterprise; lower tiers (Free, Core, Pro) get unlimited users but no role-based access controls, unlike Sim, which ships admin/write/read roles on every tier.",
+      shortDescription: 'RBAC needs the Teams plan ($38/mo) or above.',
       source: {
         url: 'https://www.make.com/en/pricing',
         label: 'Make Pricing page',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -157,14 +136,19 @@ export const makeProfile: CompetitorProfile = {
         value:
           'Low for simple linear automations; moderate-to-steep for complex branching/error-handling logic',
         detail:
-          'Marketed as a no-code tool for non-developers building basic scenarios (drag modules, map fields). Complexity rises with routers, iterators/aggregators, error handlers, and AI Agent configuration/reasoning setup, which several reviews describe as requiring more automation experience than simpler tools like Zapier.',
+          'Third-party reviews consistently describe Make as having a steeper learning curve than simpler tools like Zapier: new users need time to understand field mapping and branching, while routers, filters, iterators/aggregators, and error handlers give more control for complex, multi-step workflows once learned.',
         shortValue: 'Easy for basics, steep for advanced logic',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.make.com/en/pricing',
-            label: 'Make Pricing page (Free tier description)',
-            asOf: '2026-07-02',
+            url: 'https://learn.g2.com/make-vs-zapier',
+            label: 'Make vs. Zapier - G2 Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.lindy.ai/blog/make-review',
+            label: 'Make Review 2026 - Lindy',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -225,14 +209,14 @@ export const makeProfile: CompetitorProfile = {
       license: {
         value: 'Proprietary',
         detail:
-          'Make (owned by Celonis) is closed-source commercial software; there is no open-source license or public source repository.',
+          'Make (owned by Celonis) is closed-source commercial software; the Master Services Agreement states Celonis remains the exclusive owner of all right, title, and interest in the Services, and bars customers from copying, modifying, or reverse-engineering the platform, so there is no open-source license or public source repository.',
         shortValue: 'Closed-source, owned by Celonis',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.make.com/en/pricing',
-            label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            url: 'https://www.make.com/master-service-agreement.pdf',
+            label: 'Master Services Agreement for Make, Section 6.1 (Celonis)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -325,11 +309,6 @@ export const makeProfile: CompetitorProfile = {
             label: 'Working with files - Make Help Center',
             asOf: '2026-07-02',
           },
-          {
-            url: 'https://www.make.com/en/help/apps/file-and-document-management',
-            label: 'File and document management - Make Help Center',
-            asOf: '2026-07-02',
-          },
         ],
       },
       dataTables: {
@@ -361,9 +340,9 @@ export const makeProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.make.com/en/help/apps/file-and-document-management',
-            label: 'File and document management - Make Help Center',
-            asOf: '2026-07-02',
+            url: 'https://apps.make.com/google-docs',
+            label: 'Google Docs - Apps Documentation - Make',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://www.make.com/en/help/app/markdown',
@@ -676,10 +655,11 @@ export const makeProfile: CompetitorProfile = {
         ],
       },
       customCodeSteps: {
-        value: "Yes: native 'Make Code' module supporting JavaScript (Node.js) and Python",
+        value:
+          "Yes: native 'Make Code' module supporting JavaScript (Node.js) and Python, plus optional third-party packages on Enterprise",
         detail:
-          'The Make Code app lets users write and run arbitrary JS or Python inside a scenario execution with no external servers; standard-library modules are available in Python, but the sandbox has no external network access and cannot install npm/PyPI packages.',
-        shortValue: 'Native JS/Python step, sandboxed',
+          'The Make Code app lets users write and run JS or Python inside a scenario execution with no external servers; common libraries (moment/lodash for JS, pendulum/toolz/requests for Python) are pre-installed, and Enterprise plans can import additional third-party packages as declared dependencies. Direct outbound API calls are technically possible, but Make recommends using the HTTP module instead to avoid exposing credentials.',
+        shortValue: 'Native JS/Python step; HTTP calls possible, packages on Enterprise',
         confidence: 'verified',
         sources: [
           {
@@ -687,7 +667,7 @@ export const makeProfile: CompetitorProfile = {
             label: 'Make blog: Make Code App',
             asOf: '2026-07-02',
           },
-          { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-07-02' },
+          { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-07-08' },
         ],
       },
       apiPublishing: {
@@ -729,9 +709,10 @@ export const makeProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://developers.make.com/custom-apps-documentation/apps-marketplace/about',
-            label: 'About | Make Developer Hub (Apps Marketplace)',
-            asOf: '2026-07-02',
+            url: 'https://developers.make.com/custom-apps-documentation/app-components',
+            label:
+              'App components (base, connections, modules, RPCs, webhooks) | Make Developer Hub',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://developers.make.com/api-documentation',
@@ -1032,9 +1013,9 @@ export const makeProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://developers.make.com/custom-apps-documentation/apps-marketplace/terms-and-conditions',
-            label: 'Apps Marketplace terms and conditions - Make Developer Hub',
-            asOf: '2026-07-02',
+            url: 'https://developers.make.com/custom-apps-documentation/app-review/prerequisites',
+            label: 'App review prerequisites - Make Developer Hub',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1148,26 +1129,27 @@ export const makeProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          "Make publishes a hard 40-minute maximum run time per single scenario execution, confirmed in its own MCP Server documentation: a called scenario 'continues running in Make for up to 40 minutes.' Individual module/API calls within a run are also documented by users as timing out around 40 seconds. Make additionally lets admins cap how many instant-trigger scenario runs can start per minute, a configurable rate limit available on all plans. Concurrency across scenarios is plan-gated, though Make does not publish the exact concurrent-run numbers per plan tier in its public help docs.",
+          "Make's MCP Server enforces a per-call timeout of 25 seconds (OAuth authentication) or 40 seconds (MCP token authentication) before returning a timeout response, after which the called scenario continues running for up to 40 minutes in the background. Make does not publish a general per-module/API-call timeout figure or documented concurrent-execution caps per plan tier; the commonly cited ~40-second module timeout is user-reported, not officially documented. Make lets admins cap how many instant-trigger scenario runs can start per minute, a configurable rate limit available on all plans, though no specific default number is published.",
         detail:
-          "The 40-minute figure comes directly from Make's developer docs (MCP server page). The per-minute instant-trigger cap is configurable per the 'Scenario rate limits for instant triggers' help page, but that page does not state the exact default numeric ceiling per plan, and Make does not publicly document precise concurrent-execution-count limits per plan tier.",
-        shortValue: '40-min run cap; per-minute trigger rate limit',
+          "Per Make's MCP Server docs, the timeout before a timeout response is returned depends on the authentication method: 25 seconds for OAuth, 40 seconds for an MCP token; the called scenario itself keeps running in the background for up to 40 minutes. help.make.com/scenario-settings, sometimes cited for general module/API-call execution limits, does not document any timeout figure at all. Admins can cap instant-trigger scenario starts per minute via help.make.com/scenario-rate-limits-for-instant-triggers, but that page does not state a specific default numeric ceiling, and Make does not publicly document concurrent-execution-count limits per plan tier.",
+        shortValue:
+          '25s/40s MCP call timeout; 40-min background run; no published module-timeout figure',
         confidence: 'verified',
         sources: [
           {
             url: 'https://developers.make.com/mcp-server',
-            label: 'Make MCP Server docs: 40-minute execution limit',
-            asOf: '2026-07-02',
+            label: 'Make MCP Server docs: 25s/40s call timeout, 40-minute background run',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://help.make.com/scenario-rate-limits-for-instant-triggers',
             label: 'Make Help Center: Scenario rate limits for instant triggers',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://help.make.com/scenario-settings',
-            label: 'Make Help Center: Scenario settings (cycles per run, other execution controls)',
-            asOf: '2026-07-02',
+            label: 'Make Help Center: Scenario settings (no documented timeout figure)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1192,6 +1174,26 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/overview-of-error-handling',
             label: 'Make Help Center: Overview of error handling',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
+      unattendedExecution: {
+        value:
+          "Yes: Make is a fully managed multi-tenant SaaS running on Amazon AWS, so scheduled, webhook, and MCP-triggered scenarios execute entirely on Make's own servers with zero dependency on any client device staying open, awake, or connected.",
+        detail:
+          "Scenario execution happens on Make's AWS infrastructure regardless of trigger type (scheduled, instant/webhook, or MCP tool call); closing the browser tab or shutting down a laptop has no effect on a scheduled or triggered scenario. The only local component Make offers is an optional on-premise agent that bridges Make's cloud to a private network for connectivity, not a requirement for scenarios themselves to run.",
+        shortValue: "Yes: runs server-side on Make's AWS infrastructure, no client dependency",
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.make.com/en/security',
+            label: 'Make Security page',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.make.com/en/on-prem-agents',
+            label: 'Make on-prem agents page',
             asOf: '2026-07-02',
           },
         ],
@@ -1241,7 +1243,7 @@ export const makeProfile: CompetitorProfile = {
         value:
           'Founded 2012 (as Integromat, Prague, Czech Republic; bootstrapped, no VC rounds); acquired by Celonis for $100M+ in October 2020; rebranded to Make in 2022; operates as a business unit of Celonis, whose parent has raised ~$1.77B and is valued at ~$11-13B with 3,000+ employees (2024/2026 figures)',
         detail:
-          "Integromat was conceived in 2012 by Patrik Šimek in Prague and launched publicly in 2016. It grew to roughly $10M revenue and 11,000+ customers entirely bootstrapped, with no VC funding raised, before Celonis (Germany/US) acquired it in October 2020 for a reported $100M+. Sixteen months later, in February 2022, it was rebranded as 'Make' and now operates as a business unit within Celonis. Make has not disclosed separate headcount or funding figures as a standalone entity. Parent company Celonis (founded 2011 by Alex Rinke, Bastian Nominacher, and Martin Klenk) has raised approximately $1.77B in total funding, is valued at an estimated $11-13B, and reported 3,000+ staff across 20+ offices as of 2024.",
+          "Integromat was conceived in 2012 by Patrik Šimek in Prague and launched publicly in 2016. It grew to roughly $10M revenue entirely bootstrapped, with no VC funding raised, before Celonis (Germany/US) acquired it in October 2020 for a reported $100M+. TechCrunch's acquisition-day coverage cites 'more than 11,000 customers,' while a separate Latka estimate for the same year puts total registered users at 250K, a gap likely reflecting paying customers versus all signups rather than a contradiction. Sixteen months later, in February 2022, it was rebranded as 'Make' and now operates as a business unit within Celonis. Make has not disclosed separate headcount or funding figures as a standalone entity. Parent company Celonis (founded 2011 by Alex Rinke, Bastian Nominacher, and Martin Klenk) has raised approximately $1.77B in total funding, is valued at an estimated $11-13B, and reported 3,000+ staff across 20+ offices as of 2024.",
         shortValue: 'Founded 2012, acquired by Celonis in 2020',
         confidence: 'verified',
         sources: [

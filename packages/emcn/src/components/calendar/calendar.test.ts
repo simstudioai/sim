@@ -2,7 +2,33 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { buildRangeBounds, formatDateRangeLabel, parseDateValue } from './calendar'
+import {
+  buildRangeBounds,
+  formatDateRangeLabel,
+  parseDateTimeValue,
+  parseDateValue,
+} from './calendar'
+
+describe('parseDateTimeValue', () => {
+  it('reads bare dates as pure days with no time', () => {
+    expect(parseDateTimeValue('2026-07-06').time).toBeNull()
+  })
+
+  it('keeps the time of T datetime strings, even at exactly midnight', () => {
+    expect(parseDateTimeValue('2026-07-07T00:00:00').time).toBe('00:00')
+    expect(parseDateTimeValue('2026-07-06T16:04:55').time).toBe('16:04:55')
+    expect(parseDateTimeValue('2026-07-06T16:04').time).toBe('16:04')
+  })
+
+  it('treats a coincidental local midnight as no time for Date instances', () => {
+    expect(parseDateTimeValue(new Date(2026, 6, 6)).time).toBeNull()
+    expect(parseDateTimeValue(new Date(2026, 6, 6, 16, 4, 55)).time).toBe('16:04:55')
+  })
+
+  it('returns nulls for unparseable input', () => {
+    expect(parseDateTimeValue('garbage')).toEqual({ date: null, time: null })
+  })
+})
 
 describe('parseDateValue', () => {
   it('parses a YYYY-MM-DD string as a local day', () => {

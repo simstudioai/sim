@@ -4,12 +4,14 @@ import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
   containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { sanitizeInputFormat, sanitizeTools } from '@/lib/workflows/comparison/normalize'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { validateBlockType } from '@/ee/access-control/utils/permission-check'
 import {
   BlockType,
@@ -155,7 +157,7 @@ export class BlockExecutor {
       }
 
       if (blockLog) {
-        blockLog.input = this.sanitizeInputsForLog(inputsForLog)
+        blockLog.input = this.sanitizeInputsForLog(inputsForLog, block.metadata?.id)
       }
     } catch (error) {
       cleanupSelfReference?.()
@@ -227,15 +229,29 @@ export class BlockExecutor {
       }
 
       if (ctx.piiBlockOutputRedaction?.enabled) {
-        // In-flight redaction: mask before compaction (so offloaded large values
-        // are seen) and before the log/state split below, so both the downstream
-        // state copy and the persisted log copy are masked. `onFailure: 'throw'`
-        // aborts the run rather than feeding corrupted/leaked data downstream.
-        normalizedOutput = await redactObjectStrings(normalizedOutput, {
+        // In-flight redaction before the log/state split below, so both the
+        // downstream state copy and the persisted log copy are masked.
+        // `onFailure: 'throw'` aborts the run rather than feeding corrupted/leaked
+        // data downstream.
+        const redactionOptions = {
           entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
           language: ctx.piiBlockOutputRedaction.language,
-          onFailure: 'throw',
+          onFailure: 'throw' as const,
+        }
+        // Tools like the function executor offload large outputs to large-value
+        // refs BEFORE they reach here, and the string walk treats a ref as opaque.
+        // So hydrate → mask → re-store any refs first, then mask inline strings —
+        // otherwise PII inside an offloaded output is never redacted.
+        normalizedOutput = await redactLargeValueRefsInValue(normalizedOutput, {
+          ...redactionOptions,
+          store: {
+            workspaceId: ctx.workspaceId,
+            workflowId: ctx.workflowId,
+            executionId: ctx.executionId,
+            userId: ctx.userId,
+          },
         })
+        normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
       }
 
       normalizedOutput = (await compactExecutionPayload(normalizedOutput, {
@@ -276,7 +292,7 @@ export class BlockExecutor {
           ctx,
           node,
           block,
-          this.sanitizeInputsForLog(inputsForLog),
+          this.sanitizeInputsForLog(inputsForLog, block.metadata?.id),
           displayOutput,
           duration,
           blockLog.startedAt,
@@ -384,7 +400,7 @@ export class BlockExecutor {
       blockLog.durationMs = duration
       blockLog.success = false
       blockLog.error = errorMessage
-      blockLog.input = this.sanitizeInputsForLog(input)
+      blockLog.input = this.sanitizeInputsForLog(input, block.metadata?.id)
       blockLog.output = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
 
       if (ChildWorkflowError.isChildWorkflowError(error) && error.childTraceSpans.length > 0) {
@@ -411,7 +427,7 @@ export class BlockExecutor {
         ctx,
         node,
         block,
-        this.sanitizeInputsForLog(input),
+        this.sanitizeInputsForLog(input, block.metadata?.id),
         displayOutput,
         duration,
         blockLog.startedAt,
@@ -533,7 +549,28 @@ export class BlockExecutor {
    * - Redacts sensitive fields (privateKey, password, tokens, etc.)
    * Returns a new object - does not mutate the original inputs.
    */
-  private sanitizeInputsForLog(inputs: Record<string, any>): Record<string, any> {
+  private sanitizeInputsForLog(
+    inputs: Record<string, any>,
+    blockType?: string
+  ): Record<string, any> {
+    // Custom (deploy-as-block) blocks run via an internal `workflow_executor`; the
+    // baked `workflowId`/`inputMapping` wrapper is plumbing. Log the mapped input
+    // field values (the inputMapping contents) instead.
+    if (isCustomBlockType(blockType)) {
+      const mapping = inputs.inputMapping
+      const parsed =
+        typeof mapping === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(mapping)
+              } catch {
+                return {}
+              }
+            })()
+          : mapping
+      inputs = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    }
+
     const result: Record<string, any> = {}
 
     for (const [key, value] of Object.entries(inputs)) {

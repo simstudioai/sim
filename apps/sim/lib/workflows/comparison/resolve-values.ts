@@ -3,9 +3,8 @@ import { truncate } from '@sim/utils/string'
 import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
 import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
-import { CREDENTIAL_SET, isUuid } from '@/executor/constants'
+import { isUuid } from '@/executor/constants'
 import { fetchOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
-import { fetchCredentialSetById } from '@/hooks/queries/utils/fetch-credential-set'
 import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
@@ -50,12 +49,6 @@ function getSemanticFallback(subBlockConfig: SubBlockConfig): string {
 
 async function resolveCredential(credentialId: string, workflowId: string): Promise<string | null> {
   try {
-    if (credentialId.startsWith(CREDENTIAL_SET.PREFIX)) {
-      const setId = credentialId.slice(CREDENTIAL_SET.PREFIX.length)
-      const credentialSet = await fetchCredentialSetById(setId)
-      return credentialSet?.name ?? null
-    }
-
     const credentials = await fetchOAuthCredentialDetail(credentialId, workflowId)
     if (credentials.length > 0) {
       return credentials[0].name ?? null
@@ -228,7 +221,7 @@ export async function resolveValueForDisplay(
   const isCredentialField =
     subBlockConfig.type === 'oauth-input' || context.subBlockId === 'credential'
 
-  if (isCredentialField && (value.startsWith(CREDENTIAL_SET.PREFIX) || isUuid(value))) {
+  if (isCredentialField && isUuid(value)) {
     const label = await resolveCredential(value, context.workflowId)
     if (label) {
       return { original: value, displayLabel: label, resolved: true }
@@ -281,14 +274,6 @@ export async function resolveValueForDisplay(
   }
 
   if (/^C[A-Z0-9]{8,}$/.test(value) || /^[UW][A-Z0-9]{8,}$/.test(value)) {
-    return { original: value, displayLabel: semanticFallback, resolved: true }
-  }
-
-  if (value.startsWith(CREDENTIAL_SET.PREFIX)) {
-    const label = await resolveCredential(value, context.workflowId)
-    if (label) {
-      return { original: value, displayLabel: label, resolved: true }
-    }
     return { original: value, displayLabel: semanticFallback, resolved: true }
   }
 

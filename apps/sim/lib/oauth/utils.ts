@@ -242,13 +242,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
   'Directory.Read.All': 'Read directory data',
 
-  // Discord scopes
-  identify: 'Read Discord user',
-  bot: 'Read Discord bot',
-  'messages.read': 'Read Discord messages',
-  guilds: 'Read Discord guilds',
-  'guilds.members.read': 'Read Discord guild members',
-
   // Reddit scopes
   identity: 'Access Reddit identity',
   submit: 'Submit posts and comments',

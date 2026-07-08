@@ -15,6 +15,7 @@ import {
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
+import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
@@ -161,20 +162,35 @@ export class Serializer {
       this.validateSubflowsBeforeExecution(blocks, safeLoops, safeParallels)
     }
 
+    // A custom block whose definition was deleted (or is out of scope) no longer
+    // resolves via `getBlock`. Treat it as a removed block — drop it and any edges
+    // touching it — so the rest of the workflow still serializes and runs, instead
+    // of throwing `Invalid block type` and corrupting the whole workflow.
+    const droppedBlockIds = new Set<string>()
+    const serializedBlocks: SerializedBlock[] = []
+    for (const block of Object.values(blocks)) {
+      if (isCustomBlockType(block.type) && !getBlock(block.type)) {
+        droppedBlockIds.add(block.id)
+        logger.warn(`Dropping unresolvable custom block from serialization`, {
+          blockId: block.id,
+          type: block.type,
+        })
+        continue
+      }
+      serializedBlocks.push(this.serializeBlock(block, { validateRequired, allBlocks: blocks }))
+    }
+
     return {
       version: '1.0',
-      blocks: Object.values(blocks).map((block) =>
-        this.serializeBlock(block, {
-          validateRequired,
-          allBlocks: blocks,
-        })
-      ),
-      connections: edges.map((edge) => ({
-        source: edge.source,
-        target: edge.target,
-        sourceHandle: edge.sourceHandle || undefined,
-        targetHandle: edge.targetHandle || undefined,
-      })),
+      blocks: serializedBlocks,
+      connections: edges
+        .filter((edge) => !droppedBlockIds.has(edge.source) && !droppedBlockIds.has(edge.target))
+        .map((edge) => ({
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: edge.sourceHandle || undefined,
+          targetHandle: edge.targetHandle || undefined,
+        })),
       loops: safeLoops,
       parallels: safeParallels,
     }
@@ -316,14 +332,31 @@ export class Serializer {
     const blocks: Record<string, BlockState> = {}
     const edges: Edge[] = []
 
+    // A deleted custom block no longer resolves via `getBlock`. Treat it as a
+    // removed block — skip it and drop any edges touching it — so deserialization
+    // of the rest of the workflow succeeds instead of throwing `Invalid block type`.
+    const droppedBlockIds = new Set<string>()
+
     // Deserialize blocks
     workflow.blocks.forEach((serializedBlock) => {
+      const type = serializedBlock.metadata?.id
+      if (isCustomBlockType(type) && !getBlock(type)) {
+        droppedBlockIds.add(serializedBlock.id)
+        logger.warn(`Dropping unresolvable custom block from deserialization`, {
+          blockId: serializedBlock.id,
+          type,
+        })
+        return
+      }
       const block = this.deserializeBlock(serializedBlock)
       blocks[block.id] = block
     })
 
     // Deserialize connections
     workflow.connections.forEach((connection) => {
+      if (droppedBlockIds.has(connection.source) || droppedBlockIds.has(connection.target)) {
+        return
+      }
       edges.push({
         id: generateId(),
         source: connection.source,
@@ -444,6 +477,14 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   const canonicalModeOverrides = block.data?.canonicalModes
   const isStarterBlock = block.type === 'starter'
   const isAgentBlock = block.type === 'agent'
+  const isCustomBlock = isCustomBlockType(block.type)
+  // A custom block whose config declares its input fields (client overlay, or the
+  // server overlay once it carries curated `inputFields`) can tell a live input
+  // from a deleted one. Only when the config is schema-agnostic (legacy rows with
+  // no curated inputs) do we carry every stored field value forward blindly. A
+  // declared input is any sub-block that isn't the block's own reserved wiring.
+  const customBlockHasDeclaredInputs =
+    isCustomBlock && blockConfig.subBlocks.some((config) => !RESERVED_PARAMS.has(config.id))
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
@@ -475,10 +516,25 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
         )
       )
 
+    // Include a stored input value that has no matching sub-block config only for
+    // schema-agnostic custom blocks. When the config declares its inputs, a value
+    // with no config is a DELETED input — dropping it stops the block passing a
+    // field the child no longer has (and stops resolving its now-stale reference).
+    const isCustomBlockInputField =
+      isCustomBlock && matchingConfigs.length === 0 && !customBlockHasDeclaredInputs
+
+    // A custom block's `workflowId`/`inputMapping` are computed (value-fn) sub-blocks,
+    // not user data. The canvas persists their last-computed value, which goes stale
+    // as input fields change — so never carry the stored value forward; let the value
+    // fn in the pass below recompute them from the current field params.
+    const isCustomBlockWiring = isCustomBlock && (id === 'workflowId' || id === 'inputMapping')
+
     if (
-      (matchingConfigs.length > 0 && shouldInclude) ||
-      hasStarterInputFormatValues ||
-      isLegacyAgentField
+      !isCustomBlockWiring &&
+      ((matchingConfigs.length > 0 && shouldInclude) ||
+        hasStarterInputFormatValues ||
+        isLegacyAgentField ||
+        isCustomBlockInputField)
     ) {
       params[id] = subBlock.value
     }

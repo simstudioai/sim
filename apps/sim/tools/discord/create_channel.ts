@@ -54,12 +54,12 @@ export const discordCreateChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateChannelParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId}/channels`
+      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/channels`
     },
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordCreateChannelParams) => {
       const body: any = {

@@ -103,7 +103,7 @@ export function InboxSettingsTab() {
           <SettingsSection label="Sim's email">
             <div className='flex flex-col gap-1.5'>
               <div className='flex items-center justify-between'>
-                <p className='text-[12px] text-[var(--text-muted)]'>
+                <p className='text-[var(--text-muted)] text-caption'>
                   Send emails here to create tasks.
                 </p>
                 <div className='flex items-center gap-1.5'>
@@ -158,7 +158,7 @@ export function InboxSettingsTab() {
 
         <SettingsSection label='Allowed senders'>
           <div className='flex flex-col gap-1.5'>
-            <p className='text-[12px] text-[var(--text-muted)]'>
+            <p className='text-[var(--text-muted)] text-caption'>
               Only emails from these addresses can create tasks.
             </p>
 
@@ -171,7 +171,7 @@ export function InboxSettingsTab() {
                       className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
                     >
                       <div className='flex items-center gap-2'>
-                        <span className='text-[14px] text-[var(--text-body)]'>{member.email}</span>
+                        <span className='text-[var(--text-body)] text-sm'>{member.email}</span>
                         <Badge variant='gray' className='text-xs'>
                           member
                         </Badge>
@@ -185,9 +185,9 @@ export function InboxSettingsTab() {
                       className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
                     >
                       <div className='flex items-center gap-2'>
-                        <span className='text-[14px] text-[var(--text-body)]'>{sender.email}</span>
+                        <span className='text-[var(--text-body)] text-sm'>{sender.email}</span>
                         {sender.label && (
-                          <span className='text-[12px] text-[var(--text-muted)]'>
+                          <span className='text-[var(--text-muted)] text-caption'>
                             ({sender.label})
                           </span>
                         )}
@@ -203,7 +203,7 @@ export function InboxSettingsTab() {
 
                   {sendersData?.workspaceMembers.length === 0 &&
                     sendersData?.senders.length === 0 && (
-                      <div className='px-3 py-2.5 text-[12px] text-[var(--text-muted)]'>
+                      <div className='px-3 py-2.5 text-[var(--text-muted)] text-caption'>
                         No allowed senders configured.
                       </div>
                     )}
@@ -212,7 +212,7 @@ export function InboxSettingsTab() {
             </div>
 
             {removeSenderError && (
-              <p className='px-3 text-[12px] text-[var(--text-error)] leading-tight'>
+              <p className='px-3 text-[var(--text-error)] text-caption leading-tight'>
                 {removeSenderError}
               </p>
             )}

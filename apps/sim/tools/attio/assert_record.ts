@@ -56,11 +56,11 @@ export const attioAssertRecordTool: ToolConfig<AttioAssertRecordParams, AttioAss
         'Content-Type': 'application/json',
       }),
       body: (params) => {
-        let values: Record<string, unknown> = {}
+        let values: Record<string, unknown>
         try {
           values = typeof params.values === 'string' ? JSON.parse(params.values) : params.values
         } catch {
-          values = {}
+          throw new Error('Invalid JSON provided for record values')
         }
         return { data: { values } }
       },

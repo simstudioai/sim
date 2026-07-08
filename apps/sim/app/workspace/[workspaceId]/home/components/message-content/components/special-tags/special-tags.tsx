@@ -15,6 +15,7 @@ import {
 } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type {
@@ -754,6 +755,9 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
   if (data.type === 'link') {
     // Connecting a credential mutates the workspace — hide it from read-only members.
     if (!data.provider || !canEdit) return null
+    // The connect link value comes from the streamed model output, so only
+    // render it as a clickable link when it resolves to a real http(s) URL.
+    if (!data.value || !isSafeHttpUrl(data.value)) return null
     const Icon = getCredentialIcon(data.provider) ?? LockIcon
     return (
       <a

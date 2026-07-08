@@ -9,6 +9,7 @@ import { RichMarkdownKeymap } from './keymap'
 import { MarkdownPaste } from './markdown-paste'
 import { Mention } from './mention/mention'
 import { MentionChip } from './mention/mention-chip'
+import { FootnoteDefWithView, RawHtmlBlockWithView } from './raw-markdown-snippet'
 import { SlashCommand } from './slash-command/slash-command'
 
 interface MarkdownEditorExtensionOptions {
@@ -36,6 +37,8 @@ export function createMarkdownEditorExtensions({
       codeBlock: CodeBlockWithLanguage,
       image: ResizableImage,
       mention: MentionChip,
+      rawHtmlBlock: RawHtmlBlockWithView,
+      footnoteDef: FootnoteDefWithView,
     }),
     CodeBlockHighlight,
     SlashCommand,

@@ -9,6 +9,7 @@ import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getUserRole } from '@/lib/workspaces/organization'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   allNavigationItems,
@@ -21,6 +22,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
+import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useInboxConfig } from '@/hooks/queries/inbox'
@@ -71,6 +73,10 @@ export function SettingsSidebar({
 
   const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
+  // Mirrors the fork EE gate: the WORKSPACE's plan (not the viewer's) plus
+  // workspace admin - matching the Forks page's own gate and the server check.
+  const forkingAvailable = useForkingAvailable(workspaceId)
+  const { canAdmin: canAdminWorkspace } = useUserPermissionsContext()
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
@@ -118,6 +124,9 @@ export function SettingsSidebar({
       if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
         return false
       }
+      if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
+        return false
+      }
 
       if (item.selfHostedOverride && !isHosted) {
         if (item.id === 'sso') {
@@ -127,13 +136,15 @@ export function SettingsSidebar({
         return true
       }
 
-      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
+      const orgAdminSatisfied = isOrgAdminOrOwner || item.allowNonOrgAdmin
+
+      if (item.requiresTeam && (!hasTeamPlan || !orgAdminSatisfied)) {
         return false
       }
 
       if (
         item.requiresEnterprise &&
-        (!hasEnterprisePlan || !isOrgAdminOrOwner) &&
+        (!hasEnterprisePlan || !orgAdminSatisfied) &&
         !item.showWhenLocked
       ) {
         return false
@@ -170,6 +181,8 @@ export function SettingsSidebar({
     permissionConfig,
     isSuperUser,
     generalSettings?.superUserModeEnabled,
+    forkingAvailable,
+    canAdminWorkspace,
   ])
 
   const activeSection = useMemo(() => {

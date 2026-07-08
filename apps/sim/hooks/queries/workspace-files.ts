@@ -54,6 +54,11 @@ export const workspaceFilesKeys = {
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
 }
 
+export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
+export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
+export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
+export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
+
 /**
  * Storage info type
  */
@@ -76,7 +81,7 @@ export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
     queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
     queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, 'active', signal),
     enabled: !!workspaceId && !!fileId,
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     select: (files) => files.find((f) => f.id === fileId) ?? null,
   })
 }
@@ -109,7 +114,7 @@ export function useWorkspaceFiles(
     queryKey: workspaceFilesKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, scope, signal),
     enabled: !!workspaceId && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds - files can change frequently
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
@@ -145,7 +150,7 @@ export function useWorkspaceFileContent(
     queryFn: ({ signal }) =>
       fetchWorkspaceFileContent(source.buildUrl(key, { raw, bust: true }), signal),
     enabled: !!workspaceId && !!fileId && !!key,
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
     refetchOnWindowFocus: 'always',
   })
 }
@@ -222,7 +227,7 @@ export function useWorkspaceFileBinary(
     // compiled artifact hasn't been written yet — the doc is fetched once, when
     // it's actually ready, instead of hammering the serve URL through generation.
     enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
-    staleTime: 30 * 1000,
+    staleTime: WORKSPACE_FILE_BINARY_STALE_TIME,
     refetchOnWindowFocus: 'always',
     placeholderData: keepPreviousData,
     // While a generated doc is still compiling, serve returns 409. Poll (stay in
@@ -276,7 +281,7 @@ export function useStorageInfo(enabled = true) {
     queryFn: ({ signal }) => fetchStorageInfo(signal),
     enabled,
     retry: false, // Don't retry on 404
-    staleTime: 60 * 1000, // 1 minute - storage info doesn't change often
+    staleTime: WORKSPACE_STORAGE_INFO_STALE_TIME, // 1 minute - storage info doesn't change often
   })
 }
 

@@ -13,6 +13,7 @@
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import { getColumnId } from '@/lib/table/column-keys'
+import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 
 /**
@@ -218,7 +219,8 @@ export function inferSchemaFromCsv(
  */
 export function coerceValue(
   value: unknown,
-  colType: CsvColumnType
+  colType: CsvColumnType,
+  options?: NormalizeDateCellOptions
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
@@ -233,8 +235,7 @@ export function coerceValue(
       return null
     }
     case 'date': {
-      const d = new Date(String(value))
-      return Number.isNaN(d.getTime()) ? String(value) : d.toISOString()
+      return normalizeDateCellValue(String(value), options) ?? String(value)
     }
     case 'json': {
       if (typeof value === 'object') return value as Record<string, unknown> | unknown[]
@@ -407,7 +408,8 @@ export function buildAutoMapping(csvHeaders: string[], tableSchema: TableSchema)
 export function coerceRowsForTable(
   rows: Record<string, unknown>[],
   tableSchema: TableSchema,
-  headerToColumn: Map<string, string>
+  headerToColumn: Map<string, string>,
+  options?: NormalizeDateCellOptions
 ): RowData[] {
   const colByName = new Map(tableSchema.columns.map((c) => [c.name, c]))
 
@@ -419,7 +421,7 @@ export function coerceRowsForTable(
       const col = colByName.get(colName)
       if (!col) continue
       const colType = (col.type as CsvColumnType) ?? 'string'
-      coerced[getColumnId(col)] = coerceValue(value, colType) as RowData[string]
+      coerced[getColumnId(col)] = coerceValue(value, colType, options) as RowData[string]
     }
     return coerced
   })

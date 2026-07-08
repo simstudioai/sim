@@ -1,5 +1,6 @@
 import { gitlabApproveMergeRequestTool } from '@/tools/gitlab/approve_merge_request'
 import { gitlabCancelPipelineTool } from '@/tools/gitlab/cancel_pipeline'
+import { gitlabCompareBranchesTool } from '@/tools/gitlab/compare_branches'
 import { gitlabCreateBranchTool } from '@/tools/gitlab/create_branch'
 import { gitlabCreateFileTool } from '@/tools/gitlab/create_file'
 import { gitlabCreateIssueTool } from '@/tools/gitlab/create_issue'
@@ -7,6 +8,8 @@ import { gitlabCreateIssueNoteTool } from '@/tools/gitlab/create_issue_note'
 import { gitlabCreateMergeRequestTool } from '@/tools/gitlab/create_merge_request'
 import { gitlabCreateMergeRequestNoteTool } from '@/tools/gitlab/create_merge_request_note'
 import { gitlabCreatePipelineTool } from '@/tools/gitlab/create_pipeline'
+import { gitlabCreateReleaseTool } from '@/tools/gitlab/create_release'
+import { gitlabDeleteBranchTool } from '@/tools/gitlab/delete_branch'
 import { gitlabDeleteIssueTool } from '@/tools/gitlab/delete_issue'
 import { gitlabGetFileTool } from '@/tools/gitlab/get_file'
 import { gitlabGetIssueTool } from '@/tools/gitlab/get_issue'
@@ -22,6 +25,7 @@ import { gitlabListMergeRequestsTool } from '@/tools/gitlab/list_merge_requests'
 import { gitlabListPipelineJobsTool } from '@/tools/gitlab/list_pipeline_jobs'
 import { gitlabListPipelinesTool } from '@/tools/gitlab/list_pipelines'
 import { gitlabListProjectsTool } from '@/tools/gitlab/list_projects'
+import { gitlabListReleasesTool } from '@/tools/gitlab/list_releases'
 import { gitlabListRepositoryTreeTool } from '@/tools/gitlab/list_repository_tree'
 import { gitlabMergeMergeRequestTool } from '@/tools/gitlab/merge_merge_request'
 import { gitlabPlayJobTool } from '@/tools/gitlab/play_job'
@@ -68,6 +72,11 @@ export {
   // Branches
   gitlabListBranchesTool,
   gitlabCreateBranchTool,
+  gitlabDeleteBranchTool,
+  gitlabCompareBranchesTool,
   // Commits
   gitlabListCommitsTool,
+  // Releases
+  gitlabListReleasesTool,
+  gitlabCreateReleaseTool,
 }

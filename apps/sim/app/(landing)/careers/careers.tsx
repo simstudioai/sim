@@ -21,8 +21,8 @@ interface CareersProps {
  * crawlable HTML; the interactive {@link JobBoard} hydrates on top to add
  * Team/Location filtering.
  *
- * Both sections share the landing gutter — capped and centered at `max-w-[1446px]`
- * with the navbar-aligned `px-12 max-lg:px-8 max-sm:px-5` so the headline starts on
+ * Both sections share the landing gutter — capped and centered at `max-w-[1460px]`
+ * with the navbar-aligned `px-20 max-lg:px-8 max-sm:px-5` so the headline starts on
  * the same vertical line as the wordmark. The hero carries the single `<h1>`
  * (containing "Sim" and "AI workspace") plus an sr-only product summary for AI
  * citation (landing CLAUDE.md → GEO); the roles section owns its own `<h2>`.
@@ -45,7 +45,7 @@ export default async function Careers({ searchParams }: CareersProps) {
       <section
         id='careers-hero'
         aria-labelledby='careers-heading'
-        className='mx-auto flex w-full max-w-[1446px] flex-col gap-5 px-12 pt-20 pb-10 max-sm:px-5 max-sm:pt-16 max-lg:px-8'
+        className='mx-auto flex w-full max-w-[1460px] flex-col gap-5 px-20 pt-20 pb-10 max-sm:px-5 max-sm:pt-16 max-lg:px-8'
       >
         <p className='sr-only'>
           Careers at Sim, the open-source AI workspace where teams build, deploy, and manage AI
@@ -70,7 +70,7 @@ export default async function Careers({ searchParams }: CareersProps) {
       <section
         id='open-roles'
         aria-labelledby='open-roles-heading'
-        className='mx-auto flex w-full max-w-[1446px] flex-col gap-10 px-12 pt-6 pb-24 max-sm:px-5 max-sm:pb-16 max-lg:px-8'
+        className='mx-auto flex w-full max-w-[1460px] flex-col gap-10 px-20 pt-6 pb-24 max-sm:px-5 max-sm:pb-16 max-lg:px-8'
       >
         <h2
           id='open-roles-heading'

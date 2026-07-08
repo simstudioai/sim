@@ -17,11 +17,11 @@ export const flowiseProfile: CompetitorProfile = {
     'Flowise is an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, available self-hosted or as a managed cloud service, and owned by Workday since August 2025.',
   standoutFeatures: [
     {
-      title: 'Native RAG / Document Store pipeline',
+      title: 'Choice of vector-store backend, with the broadest native text-splitter menu',
       description:
-        "Flowise's Document Store handles the full RAG pipeline in one place: multiple document loaders, the broadest range of native text-splitter types (character, token, recursive character, markdown, code, HTML-to-markdown) with configurable chunk size and overlap, a live preview before processing, per-chunk editing, and upsert into a wide range of vector store backends.",
+        "Flowise's Document Store lets a builder pick from a wide range of vector store backends to upsert into (Pinecone, Weaviate, Milvus, FAISS, and more), and offers the broadest range of native text-splitter types (character, token, recursive character, markdown, code, HTML-to-markdown) with configurable chunk size and overlap, a live preview before processing, and per-chunk editing.",
       shortDescription:
-        'Native RAG pipeline with the broadest built-in text-splitter and chunking options.',
+        'Pick your own vector-store backend, with the broadest built-in text-splitter menu.',
       source: {
         url: 'https://docs.flowiseai.com/using-flowise/document-stores',
         label: 'Flowise Docs: Document Stores',
@@ -29,23 +29,23 @@ export const flowiseProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Agentflow V2 with built-in human-in-the-loop and evaluation',
+      title: 'Built-in dataset-based batch evaluation',
       description:
-        'Agentflow V2 supports loops, conditional branching, and a dedicated Human Input node that pauses execution for approve/reject feedback before sensitive tool calls (bookings, sends, orders) proceed. Flowise also ships a built-in Evaluations feature that runs chatflows/agentflows against a dataset, scoring outputs with string, numeric, or LLM-as-judge evaluators and reporting pass/fail rate, average tokens, and latency.',
+        "Flowise ships an Evaluations feature, available on Flowise Cloud/Enterprise plans (not the open-source self-hosted product), that runs chatflows/agentflows against a saved dataset in one batch, scoring outputs with string, numeric, or LLM-as-judge evaluators and reporting pass/fail rate, average tokens, and latency across the whole run. Sim's own Evaluator block scores individual calls against user-defined metrics, but has no equivalent golden-dataset batch runner. (Flowise's Agentflow V2 also has a Human Input node for pausing on approve/reject feedback, comparable to Sim's own human-in-the-loop approval block.)",
       shortDescription:
-        'Native human-approval node plus built-in dataset-based LLM-judge evaluation reporting.',
+        'Built-in dataset-based batch evaluation (Cloud/Enterprise plans) with LLM-judge scoring and pass/fail reporting.',
       source: {
-        url: 'https://docs.flowiseai.com/tutorials/human-in-the-loop',
-        label: 'Flowise Docs: Human In The Loop',
-        asOf: '2026-07-02',
+        url: 'https://docs.flowiseai.com/using-flowise/evaluations',
+        label: 'Flowise Docs: Evaluations',
+        asOf: '2026-07-08',
       },
     },
     {
-      title: 'Large open-source project with Apache 2.0 core',
+      title: 'Larger existing open-source community, on the same Apache 2.0 license as Sim',
       description:
-        "Flowise's Community Edition is Apache License 2.0, its GitHub repo has roughly 54,000 stars, and it has an active Discord community with full self-hosting support via Docker.",
+        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is community scale: its GitHub repo has roughly 54,000 stars and an active Discord community built up since 2023.',
       shortDescription:
-        'Apache 2.0 licensed, ~54k GitHub stars, actively maintained open-source project.',
+        'Same Apache 2.0 license as Sim, but a larger existing community: ~54k GitHub stars, active Discord.',
       source: {
         url: 'https://github.com/FlowiseAI/Flowise',
         label: 'GitHub: FlowiseAI/Flowise',
@@ -69,12 +69,12 @@ export const flowiseProfile: CompetitorProfile = {
     {
       title: 'No native real-time multiplayer canvas editing',
       description:
-        "Flowise's core canvas supports only one user editing a flow at a time, with no built-in real-time co-editing (like Google Docs) of the same chatflow. Community members have requested true multi-user collaborative editing as a feature.",
+        "Flowise's core canvas supports only one user editing a flow at a time, with no built-in real-time co-editing of the same chatflow. A related multi-user/collaboration feature request (GitHub issue #2661) was closed as not planned.",
       shortDescription: 'No live multi-cursor concurrent editing of the same flow.',
       source: {
         url: 'https://github.com/FlowiseAI/Flowise/issues/2661',
-        label: 'GitHub Issue #2661: Multi User Support',
-        asOf: '2026-07-02',
+        label: 'GitHub Issue #2661: Multi User Support (closed, not planned)',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -85,7 +85,7 @@ export const flowiseProfile: CompetitorProfile = {
           'Flowise is primarily a drag-and-drop visual canvas for wiring chatflow and agentflow nodes together, supplemented by Custom JS Function nodes for arbitrary code and a Custom Tool node for JS-based tools. There is no natural-language "describe it and I\'ll build it" flow generator.',
         detail: 'No natural-language workflow generation feature.',
         shortValue: 'Visual canvas plus custom-code nodes',
-        confidence: 'verified',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
@@ -153,8 +153,8 @@ export const flowiseProfile: CompetitorProfile = {
       },
       license: {
         value:
-          "Flowise's Community Edition is licensed under the Apache License, Version 2.0. Enterprise-only modules (SSO, RBAC, audit logs, organization workspaces) ship under a separate Commercial License.",
-        shortValue: 'Apache 2.0 (core), commercial license for enterprise modules',
+          "Flowise's Community Edition is licensed under the Apache License, Version 2.0. Paid-tier-only modules ship under a separate Commercial License: RBAC, audit/login-activity logs, and organization workspaces are available on both the Cloud and Enterprise plans, while SSO is restricted to the Enterprise plan only.",
+        shortValue: 'Apache 2.0 (core); RBAC/audit on Cloud+Enterprise, SSO Enterprise-only',
         confidence: 'verified',
         sources: [
           {
@@ -163,9 +163,14 @@ export const flowiseProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/FlowiseAI/Flowise/issues/5164',
-            label: 'GitHub Issue #5164: Clarify Licensing Terms for Community vs Enterprise Code',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/workspaces',
+            label: 'Flowise Docs: Workspaces',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.flowiseai.com/configuration/sso',
+            label: 'Flowise Docs: SSO',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -191,16 +196,16 @@ export const flowiseProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          "No: Flowise's canvas supports only one user per session, with no live, multi-cursor editing of the same flow. This has been an open community feature request.",
+          "No: Flowise's canvas supports only one user per session, with no live, multi-cursor editing of the same flow. Cloud/Enterprise multi-user features (workspaces, RBAC) govern access, not concurrent editing.",
         detail:
-          'Cloud/Enterprise multi-user features (workspaces, RBAC) govern access, not concurrent editing.',
+          'No public Flowise GitHub issue specifically tracks multi-cursor/real-time canvas collaboration as a feature request; GitHub issue #2661, sometimes cited for this, is actually a closed request about user authentication, RBAC, and audit trails, not concurrent editing.',
         shortValue: 'No live multi-user concurrent canvas editing',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/FlowiseAI/Flowise/issues/2661',
-            label: 'GitHub Issue #2661: Multi User Support',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/workspaces',
+            label: 'Flowise Docs: Workspaces',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -242,7 +247,7 @@ export const flowiseProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: Flowise integrates a broad set of LLM providers including OpenAI, Azure OpenAI, AWS Bedrock, Google PaLM/Vertex AI, Cohere, HuggingFace Inference, Ollama, Replicate, and Anthropic models (Claude 3.5/4), covering both hosted and self-hosted open-source models.',
+          'Yes: Flowise integrates a broad set of LLM providers including OpenAI, Azure OpenAI, AWS Bedrock, Google Vertex AI, Cohere, HuggingFace Inference, Ollama, and Replicate, plus (via its separate Chat Models integrations, e.g. ChatAnthropic) Anthropic Claude models, covering both hosted and self-hosted open-source models.',
         shortValue: 'Broad support: OpenAI, Azure, Bedrock, Google, Anthropic, Ollama, more',
         confidence: 'verified',
         sources: [
@@ -250,6 +255,11 @@ export const flowiseProfile: CompetitorProfile = {
             url: 'https://docs.flowiseai.com/integrations/langchain/llms',
             label: 'Flowise Docs: LLMs',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.flowiseai.com/integrations/langchain/chat-models',
+            label: 'Flowise Docs: Chat Models (incl. ChatAnthropic)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -268,10 +278,16 @@ export const flowiseProfile: CompetitorProfile = {
       },
       naturalLanguageBuilding: {
         value:
-          'Unknown: no documented feature lets a user describe an automation in plain language and have Flowise generate or edit the flow automatically.',
-        shortValue: 'Unknown, not documented',
-        confidence: 'unknown',
-        sources: [],
+          'No: no documented feature lets a user describe an automation in plain language and have Flowise generate or edit the flow automatically. Flowise is primarily a drag-and-drop visual canvas, supplemented by Custom JS Function nodes for arbitrary code, with no natural-language "describe it and I\'ll build it" flow generator.',
+        shortValue: 'No, not documented as a feature',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
+            label: 'Flowise Docs: Custom JS Function',
+            asOf: '2026-07-02',
+          },
+        ],
       },
       knowledgeBaseRag: {
         value:
@@ -492,9 +508,9 @@ export const flowiseProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
-            label: 'Flowise Docs: Custom JS Function',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
+            label: 'Flowise Docs: Custom Tool (JS function support, built-in/external modules)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -723,9 +739,9 @@ export const flowiseProfile: CompetitorProfile = {
         value:
           "Yes: Flowise's nodes (LLMs, tools, vector stores, document loaders) live in the packages/components/nodes folder of the core FlowiseAI/Flowise monorepo. New nodes are contributed via GitHub pull request and reviewed/merged by the Flowise team before shipping in an official release, rather than published independently by third parties into an open, unreviewed marketplace. The separate Marketplace feature distributes JSON chatflow/agentflow templates, not installable executable code.",
         detail:
-          'Flowise has still had first-party security issues: CVE-2025-59528 (CVSS 10.0) was a critical unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor. It was patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. This was a bug in vetted, first-party code, not a malicious third-party community node.',
+          "That PR-review process has not stopped a critical incident in vetted, first-party code: CVE-2025-59528 (CVSS 10.0) was an unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor. Patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. By contrast, Sim documents its own thirdPartyVetting fact as every one of its 302 blocks being first-party authored and code-reviewed with no public marketplace for third-party executable code either, so the two products share the same no-open-marketplace posture; the difference is that Flowise's own review pipeline has already shipped one CVSS-10 RCE into a first-party node, which is the concrete cost of that model rather than of an unreviewed community ecosystem.",
         shortValue:
-          'Yes, nodes are PR-reviewed into the core repo, no open community-node marketplace',
+          'Yes, PR-reviewed into the core repo, but that pipeline already shipped a CVSS-10 RCE',
         confidence: 'verified',
         sources: [
           {
@@ -822,6 +838,26 @@ export const flowiseProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          'Yes, for the triggers Flowise has: a chat message, a REST API prediction call, or an MCP tool invocation all execute entirely on the Flowise server (self-hosted or Flowise Cloud), with no dependency on a client device staying open, awake, or connected. Flowise has no dedicated cron/schedule trigger of its own, so a genuinely unattended, time-based run has to come from an external scheduler (e.g. a cron job or another system calling the prediction API) rather than a built-in scheduling engine.',
+        detail:
+          'Once a run is invoked by any supported means, closing the browser tab or disconnecting the calling client has no effect on that run completing server-side; the caveat is only that Flowise itself cannot originate a scheduled run without an outside trigger.',
+        shortValue: 'Yes for triggered runs; no built-in scheduler to originate one unattended',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://agentsapis.com/flowise-api/',
+            label: 'Flowise API: Complete Developer Guide',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
+            label: 'Flowise Docs: Running Flowise using Queue',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -845,9 +881,9 @@ export const flowiseProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.aicuflow.com/blog/enterprise-ai-sso-rbac-audit',
-            label: 'Aicuflow: Enterprise AI Platform with SSO, Role-Based Access, and Audit Trails',
-            asOf: '2026-07-02',
+            url: 'https://www.lindy.ai/blog/flowise-pricing',
+            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
+            asOf: '2026-07-08',
           },
         ],
       },

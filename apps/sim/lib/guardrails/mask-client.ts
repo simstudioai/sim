@@ -7,13 +7,15 @@ import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 
 /**
  * Max in-flight mask-batch requests per call. Each request is a CPU-heavy NER
- * batch, so a single Presidio instance is easily saturated — default 4, raise it
- * via `PII_MASK_CHUNK_CONCURRENCY` for a scaled-out/load-balanced service, or set
- * 1 for a single instance. No request timeout: masking a large batch is slow and
- * the (scaled) Presidio service is expected to eventually respond; an unreachable
+ * batch — default 64, sized to saturate the load-balanced Presidio fleet behind
+ * the internal ALB (which spreads each request across tasks). Effective throughput
+ * is capped by fleet worker capacity, so past that this just queues; tune via
+ * `PII_MASK_CHUNK_CONCURRENCY` to the fleet size (and lower to 1 for a single
+ * self-hosted instance). No request timeout: masking a large batch is slow and the
+ * (scaled) Presidio service is expected to eventually respond; an unreachable
  * service still rejects fast (connection refused) so the caller scrubs.
  */
-const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 4
+const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
 
 /**
  * Mask PII across many strings via the internal app-container endpoint.

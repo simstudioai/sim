@@ -31,11 +31,11 @@ export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJ
 
     request: {
       url: (params: DiscordJoinThreadParams) => {
-        return `https://discord.com/api/v10/channels/${params.threadId}/thread-members/@me`
+        return `https://discord.com/api/v10/channels/${params.threadId.trim()}/thread-members/@me`
       },
       method: 'PUT',
       headers: (params) => ({
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
     },
 

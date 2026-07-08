@@ -8,7 +8,6 @@ import {
   hubspotPropertiesSelectorContract,
 } from '@/lib/api/contracts/selectors/hubspot'
 import { getScopesForService } from '@/lib/oauth/utils'
-import { isCredentialSetValue } from '@/executor/constants'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 
@@ -38,7 +37,6 @@ async function fetchHubSpotProperties(blockId: string, objectType: string) {
     | string
     | null
   if (!credentialId) throw new Error('No HubSpot credential selected')
-  if (isCredentialSetValue(credentialId)) return []
   const data = await requestJson(hubspotPropertiesSelectorContract, {
     query: { credentialId, objectType },
   })
@@ -65,7 +63,6 @@ export const hubspotPollingTrigger: TriggerConfig = {
       requiredScopes: getScopesForService('hubspot'),
       required: true,
       mode: 'trigger',
-      supportsCredentialSets: true,
     },
     {
       id: 'objectType',
@@ -107,7 +104,6 @@ export const hubspotPollingTrigger: TriggerConfig = {
           | string
           | null
         if (!credentialId) throw new Error('No HubSpot credential selected')
-        if (isCredentialSetValue(credentialId)) return []
         try {
           const data = await requestJson(hubspotListsSelectorContract, {
             query: { credentialId },
@@ -202,7 +198,6 @@ export const hubspotPollingTrigger: TriggerConfig = {
           | null
         const objectType = resolveSelectedObjectType(blockId) ?? 'contact'
         if (!credentialId) throw new Error('No HubSpot credential selected')
-        if (isCredentialSetValue(credentialId)) return []
         try {
           const data = await requestJson(hubspotPipelinesSelectorContract, {
             query: { credentialId, objectType },
@@ -234,7 +229,6 @@ export const hubspotPollingTrigger: TriggerConfig = {
           | string
           | null
         if (!credentialId) throw new Error('No HubSpot credential selected')
-        if (isCredentialSetValue(credentialId)) return []
         if (!pipelineId) return []
         try {
           const data = await requestJson(hubspotPipelinesSelectorContract, {
@@ -264,7 +258,6 @@ export const hubspotPollingTrigger: TriggerConfig = {
           | string
           | null
         if (!credentialId) throw new Error('No HubSpot credential selected')
-        if (isCredentialSetValue(credentialId)) return []
         try {
           const data = await requestJson(hubspotOwnersSelectorContract, {
             query: { credentialId },

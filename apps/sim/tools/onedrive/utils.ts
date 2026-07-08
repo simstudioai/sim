@@ -1,5 +1,14 @@
 import type { OneDriveToolParams } from '@/tools/onedrive/types'
 
+/**
+ * Escapes a value for embedding in an OData string literal (e.g. search(q='...'),
+ * $filter startswith(name,'...')). OData V4 escapes a literal single quote by doubling
+ * it — encodeURIComponent does not touch `'`, so this must run before URL-encoding.
+ */
+export function escapeODataStringLiteral(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
 export type ExcelCell = string | number | boolean | null
 export type ExcelArrayValues = ExcelCell[][]
 export type ExcelObjectValues = Array<Record<string, ExcelCell>>

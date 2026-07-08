@@ -5,7 +5,7 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const stackaiProfile: CompetitorProfile = {
   id: 'stack-ai',
   name: 'StackAI',
-  website: 'https://www.stack-ai.com',
+  website: 'https://www.stackai.com',
   brand: {
     icon: StackAIIcon,
     selfFramed: true,
@@ -17,9 +17,20 @@ export const stackaiProfile: CompetitorProfile = {
     'StackAI is a proprietary, enterprise-focused visual platform for building, deploying, and governing AI agents, connecting LLMs and business systems through a drag-and-drop, low-code node builder.',
   standoutFeatures: [
     {
-      title: 'Agentic Development Life Cycle (dev/staging/production promotion)',
+      title: 'ISO 27001 certified, with a public Trust Center detailing pen tests and DPAs',
       description:
-        'StackAI provides three default, isolated environments (development, staging, production), plus custom environments. Promotion between them is gated by pull requests, each environment can connect to its own data sources, and an admin approval queue sits before production deploys.',
+        'StackAI publishes a Trust Center (trust.stackai.com) documenting ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic. StackAI also holds a SOC 2 Type II audit, but so does Sim, so ISO 27001 is the actual point of difference here.',
+      shortDescription: 'Public Trust Center with ISO 27001, pen test results, and DPAs.',
+      source: {
+        url: 'https://trust.stackai.com/',
+        label: 'StackAI Trust Center',
+        asOf: '2026-07-02',
+      },
+    },
+    {
+      title: 'PR-gated approval workflow for promoting agents between environments',
+      description:
+        "StackAI provides three default, isolated environments (development, staging, production), plus custom environments. Promotion between them requires a pull request that must be reviewed and approved, with an admin approval queue sitting before production deploys. Sim also supports forking a workspace into dev/qa/prod-style environments with diff and promote/rollback, but without a mandatory PR-review or approval gate, and that capability is itself gated to Sim's Enterprise plan on hosted Sim (or a feature flag on self-hosted deployments).",
       shortDescription: 'PR-gated dev/staging/production promotion with admin approval queues.',
       source: {
         url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
@@ -28,24 +39,13 @@ export const stackaiProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Version history with diff/compare and rollback',
+      title: 'Full version diff/compare on every manual edit, not just AI-generated changes',
       description:
-        'Every save creates a full version snapshot of an agent. A comparison tool shows added or removed nodes, prompt and LLM config changes, and connection changes. Any version can be reverted, and reverting creates a new version rather than erasing history.',
+        'Every save creates a full version snapshot of an agent, regardless of whether the change was made manually or by an AI assistant. A comparison tool shows added or removed nodes, prompt and LLM config changes, and connection changes. Any version can be reverted, and reverting creates a new version rather than erasing history. Sim diffs and reverts Copilot-generated edits, but manual edits only get local undo/redo, not a versioned diff.',
       shortDescription: 'Full version snapshots with diff/compare and one-click rollback.',
       source: {
         url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
         label: 'The Agentic Development Life Cycle - StackAI blog',
-        asOf: '2026-07-02',
-      },
-    },
-    {
-      title: 'Human-in-the-loop approval gating before side effects',
-      description:
-        'A workflow can pause at a decision point and send an approval request, for example via Slack, Teams, or email, before a risky action like sending an email, writing to a database, or provisioning access. The run resumes once a human approves, rejects, or gives feedback.',
-      shortDescription: 'Pauses workflows for human approval before risky tool calls execute.',
-      source: {
-        url: 'https://www.stackai.com/blog/introducing-stackai-human-in-the-loop-agentic-workflows-you-can-trust',
-        label: 'Introducing StackAI Human-in-the-Loop - StackAI blog',
         asOf: '2026-07-02',
       },
     },
@@ -60,28 +60,17 @@ export const stackaiProfile: CompetitorProfile = {
         asOf: '2026-07-02',
       },
     },
-    {
-      title: 'SOC 2 Type II and ISO 27001 certified, with a public Trust Center',
-      description:
-        'StackAI publishes a Trust Center (trust.stackai.com) documenting SOC 2 Type II and ISO 27001 certification, third-party penetration test results, and DPAs with OpenAI and Anthropic.',
-      shortDescription: 'Public Trust Center with SOC 2, ISO 27001, and pen test results.',
-      source: {
-        url: 'https://trust.stackai.com/',
-        label: 'StackAI Trust Center',
-        asOf: '2026-07-02',
-      },
-    },
   ],
   limitations: [
     {
       title: 'Not open source',
       description:
-        'StackAI is a proprietary, closed-source commercial SaaS platform. Its GitHub organization contains only auxiliary tools and integrations, not the core platform, so there is no self-hostable OSS codebase to audit or fork.',
+        'StackAI is a proprietary, closed-source commercial SaaS platform. Its GitHub organization (github.com/stackai) currently has no public repositories at all, so there is no self-hostable OSS codebase to audit or fork.',
       shortDescription: 'Closed-source SaaS with no auditable or forkable codebase.',
       source: {
         url: 'https://github.com/stackai',
         label: 'StackAI GitHub organization',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -124,15 +113,24 @@ export const stackaiProfile: CompetitorProfile = {
       builderType: {
         value: 'Visual/low-code node-based workflow builder',
         detail:
-          'Drag-and-drop canvas of nodes (LLM, tools, logic, multimodal) for building agents; also supports Python code nodes for custom logic.',
-        shortValue: 'Drag-and-drop nodes plus Python code nodes',
+          'A 2D canvas where builders drag and drop nodes and connect them to build a workflow, drawing from Input, Output, Core (e.g. AI Agent, Knowledge Bases), Apps/integration, and Utils/Logic node categories; supports a Code Node for custom logic (the older Python Code node is now deprecated in favor of it).',
+        shortValue: 'Drag-and-drop node canvas plus Code Node',
         confidence: 'verified',
         sources: [
-          { url: 'https://docs.stackai.com/', label: 'StackAI Docs Overview', asOf: '2026-07-02' },
           {
-            url: 'https://docs.stackai.com/logic/python-code',
-            label: 'Python Code node - StackAI Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
+            label: 'Platform Overview - StackAI Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder',
+            label: 'Workflow Builder node index - StackAI Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/python-code',
+            label: 'Python Code node (deprecated) - StackAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -189,14 +187,14 @@ export const stackaiProfile: CompetitorProfile = {
       license: {
         value: 'Proprietary / closed source',
         detail:
-          'Commercial SaaS platform; the GitHub org (github.com/stackai) contains only auxiliary repos, not the core platform.',
+          'Commercial SaaS platform; the GitHub org (github.com/stackai) currently has no public repositories at all — the core platform is not open source.',
         shortValue: 'Closed-source commercial SaaS',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/stackai',
             label: 'StackAI GitHub organization',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -252,9 +250,9 @@ export const stackaiProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.stackai.com/governance-and-security/workspace-and-folder-access',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/workspace-and-folder-access',
             label: 'Workspace and Folder Access docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -300,10 +298,15 @@ export const stackaiProfile: CompetitorProfile = {
       multiLlmSupport: {
         value: 'Yes, broad support across major LLM providers',
         detail:
-          'Supports a wide range of LLMs, with documented data processing agreements with OpenAI and Anthropic.',
+          'The LLM node is provider-agnostic with a model dropdown, and StackAI docs confirm OpenAI models directly and via Azure hosting, plus AWS Bedrock-hosted models including Anthropic Claude, AI21, Cohere, and Amazon Titan. StackAI also documents data processing agreements with OpenAI and Anthropic.',
         shortValue: 'Broad LLM provider support',
         confidence: 'estimated',
         sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/llm-hosting-and-governance/llms-hosted-on-azure-and-aws-bedrock',
+            label: 'LLMs Hosted on Azure & AWS Bedrock - StackAI Docs',
+            asOf: '2026-07-04',
+          },
           {
             url: 'https://trust.stackai.com/',
             label: 'StackAI Trust Center (OpenAI/Anthropic DPAs)',
@@ -371,26 +374,26 @@ export const stackaiProfile: CompetitorProfile = {
           {
             url: 'https://www.stackai.com/blog/introducing-stackai-human-in-the-loop-agentic-workflows-you-can-trust',
             label: 'Introducing StackAI Human-in-the-Loop - StackAI blog',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       generativeMedia: {
         value: 'Yes: image and audio generation nodes; no dedicated video generation node',
         detail:
-          'A Text-to-Audio node uses ElevenLabs for TTS and voice cloning; an Image node generates images from text prompts using models such as OpenAI DALL·E 3 or Stable Diffusion.',
+          'A Text-to-Audio node uses ElevenLabs voice-synthesis models (e.g. eleven_multilingual_v2) for TTS; an Image node generates images from text prompts using models such as OpenAI DALL·E 3 or Stable Diffusion.',
         shortValue: 'Image and audio nodes, no video',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stack-ai.com/stack-ai/workflow-builder/outputs/image-node',
+            url: 'https://docs.stackai.com/workflow-builder/outputs/image-node',
             label: 'Image Node - StackAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://www.stack-ai.com/docs/builder-guide/actions/text-to-audio',
-            label: 'Text to Audio - StackAI Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/workflow-builder/outputs/audio-node',
+            label: 'Audio Node - StackAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -408,16 +411,16 @@ export const stackaiProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          'Yes: StackAI has a Prompt Library where builders save and reuse named prompts/instructions (e.g. a saved "Market Analyst Persona") across agents, rather than re-writing a one-off system prompt each time.',
+          'Yes, but proprietary and platform-locked: a Prompt Library where builders save and reuse named prompts/instructions (e.g. a saved "Market Analyst Persona") across agents, rather than re-writing a one-off system prompt each time.',
         detail:
-          'Documented as a prompt/instruction library, not explicitly branded as "skills" with structured knowledge attachments the way some competitors frame it.',
-        shortValue: 'Yes, via reusable Prompt Library',
-        confidence: 'verified',
+          "Documented as a prompt/instruction library stored inside a StackAI workspace, not an open, portable file format. StackAI's docs do not describe exporting a saved prompt as a standalone file or importing one from an external source or repository URL, the way some competitors build reusable skills on an open, version-controllable format. There is also no documented progressive-disclosure loading mechanism (only a short name/description surfaced until needed); the full prompt appears to load in full whenever it's attached.",
+        shortValue: 'Yes, but a proprietary Prompt Library, not an open/portable format',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.stackai.com/other-views/prompt-library',
+            url: 'https://docs.stackai.com/agentic-adoption-and-security/scalability/prompt-library',
             label: 'Prompt Library docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -441,21 +444,21 @@ export const stackaiProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          "Yes: StackAI's Knowledge Base nodes return retrieved chunks and let builders configure the chunking algorithm, chunk length, and chunk overlap. An output-format toggle switches between chunks, pages, and full documents, and a document preview view lets builders inspect indexed content.",
+          "Yes: StackAI's Knowledge Base node returns results as an array of document snippets/content chunks plus metadata (source, date, tags). Chunk-level indexing is configurable — chunking algorithm, chunk length, and chunk overlap — via the separate Files and Documents nodes used to index content.",
         detail:
-          'Confirms chunk-level granularity is exposed (algorithm, length, overlap, chunk vs page vs doc output). A dedicated chunk-index debugging pane beyond the document preview is unconfirmed.',
-        shortValue: 'Yes, chunk-level config and output',
+          'Knowledge Base node output is chunk-level (results array + metadata), but chunk-size controls live on the Files/Documents nodes used for indexing, not on the Knowledge Base node itself. No output-format toggle between chunks/pages/full documents and no dedicated document preview view is documented.',
+        shortValue: 'Yes, chunk-level results with metadata',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/best-practices/chunking',
+            url: 'https://docs.stackai.com/getting-started/core-ai-concepts/chunking',
             label: 'Chunking docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.stackai.com/workflow-builder/apps/knowledge-base',
             label: 'Knowledge Base docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -478,7 +481,7 @@ export const stackaiProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.stack-ai.com/stack-ai/logic/if-else-node',
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/if-else-node',
             label: 'If/Else Node docs',
             asOf: '2026-07-02',
           },
@@ -517,15 +520,15 @@ export const stackaiProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '100+ enterprise integrations',
+        value: '70+ enterprise integrations',
         detail:
-          'Includes Notion, Airtable, AWS, BigQuery, GitHub, Google Workspace, HubSpot, MongoDB, and MCP.',
-        shortValue: '100+ integrations',
+          'StackAI documentation states it connects to 70+ apps and services, including Notion, Airtable, AWS, BigQuery, GitHub, Google Workspace, HubSpot, MongoDB, and MCP. Some marketing pages cite a higher "100+" figure, but the documented apps list supports 70+.',
+        shortValue: '70+ integrations',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.stackai.com/integrations',
-            label: 'StackAI Integrations page',
+            url: 'https://docs.stackai.com/workflow-builder/apps',
+            label: 'StackAI Apps documentation (70+ apps and services)',
             asOf: '2026-07-02',
           },
         ],
@@ -534,46 +537,52 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           'Scheduled/time-based triggers and outbound webhook calls (e.g., to Make); no native inbound webhook trigger node',
         detail:
-          'Supports scheduled workflows (daily/weekly/monthly automation) and a Make node that can POST to trigger a Make.com scenario. Deployment surfaces include chat, forms, API, Slack, Teams, and batch run.',
+          'Supports scheduled workflows (daily/weekly/monthly automation) and a Make node that can POST to trigger a Make.com scenario. Deployment surfaces (how a finished workflow is exposed, distinct from triggers) include Form, Chat Assistant, API, Website Chatbot, Batch Run, Slack App, and Microsoft Teams.',
         shortValue: 'Scheduled triggers, outbound webhooks only',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.stackai.com/insights/how-to-set-up-scheduled-ai-workflows-and-automated-reports-on-stackai',
             label: 'Scheduled AI Workflows - StackAI insights',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.stackai.com/workflow-builder/apps/make',
             label: 'Make node - StackAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/end-user-interfaces',
+            label: 'End-User Interfaces - StackAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
       customCodeSteps: {
-        value: 'Yes: Python code node',
-        detail: 'A dedicated Python Code node allows custom logic within workflows.',
+        value: 'Yes: Python code node (being migrated to a newer Code Node)',
+        detail:
+          "A Python Code node allows custom logic within workflows; StackAI's docs now note this node is deprecated in favor of a newer Code Node.",
         shortValue: 'Python code node',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/logic/python-code',
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/logic/python-code',
             label: 'Python Code - StackAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       apiPublishing: {
         value: 'Yes: workflows publishable as a REST API with generated client snippets',
         detail:
-          'Any flow can be exported and published as an API. Docs provide request snippets in Python, JavaScript, and cURL, with OAuth2-token authentication and a separate API reference.',
+          'Any flow can be exported and published as an API. Docs provide request snippets in Python, JavaScript, and cURL, authenticated via a Bearer token using a public API key generated in Settings → API Keys.',
         shortValue: 'Publish workflows as REST APIs',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/export-options/api',
+            url: 'https://docs.stackai.com/interface-and-deployment/end-user-interfaces/api',
             label: 'API - StackAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -586,27 +595,22 @@ export const stackaiProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.stackai.com/export-options/api',
+            url: 'https://docs.stackai.com/interface-and-deployment/end-user-interfaces/api',
             label: 'API - StackAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       mcpPublishing: {
         value:
-          'Yes: StackAI provides a hosted MCP server (mcp.stack.ai/mcp) and an open-source stack-ai-mcp server. Either lets external MCP-compatible clients, such as Claude Desktop, run a published StackAI workflow as a callable MCP tool, passing inputs in and getting structured results back.',
-        shortValue: 'Yes, publishes workflows as MCP servers',
+          'Yes: StackAI provides a hosted MCP server (mcp.stack.ai/mcp) that lets external MCP-compatible clients, such as Claude Desktop, Claude Code, or Cursor, run a published StackAI workflow as a callable MCP tool, passing inputs in and getting structured results back.',
+        shortValue: 'Yes, publishes workflows as an MCP server',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/workflow-builder/apps/mcp',
-            label: 'MCP node docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.stackai.com/blog/how-to-use-the-stack-ai-mcp-server',
-            label: 'How to Use the Stack AI MCP Server',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/interface-and-deployment/mcp-reference/stackai-mcp-server',
+            label: 'StackAI MCP Server docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -678,14 +682,22 @@ export const stackaiProfile: CompetitorProfile = {
         ],
       },
       auditLogging: {
-        value: 'Yes: automatic logs of every run, capturing input/output, token usage, and runtime',
-        shortValue: 'Automatic per-run execution logs',
-        confidence: 'verified',
+        value:
+          'Yes: automatic logs of every run, capturing input/output, token usage, and runtime, queryable through a pull-based Analytics API (filterable by status, user, and date range — no run ID filter parameter is documented)',
+        detail:
+          'The Analytics API is request/response only: a builder calls it to list flow runs or an org-level run summary, filtered by user_id, state (status), and date range. There is no documented continuous push/export of these logs to an external destination such as S3, BigQuery, Datadog, or a generic webhook sink, and no separate public audit-log API distinct from execution logs.',
+        shortValue: 'Automatic per-run logs via a pull-based API, no export destination',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
             label: 'StackAI Platform Overview docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/api-reference/analytics.md',
+            label: 'StackAI API Reference: Analytics',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -719,9 +731,14 @@ export const stackaiProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.stackai.com/governance-and-security/workspace-and-folder-access',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/workspace-and-folder-access',
             label: 'Workspace and Folder Access docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-in-stackai/connection-and-knowledge-base-permissions',
+            label: 'Connection and Knowledge Base Permissions docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -748,47 +765,37 @@ export const stackaiProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.stackai.com/security-and-privacy',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/security-and-privacy',
             label: 'Security & Privacy docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       piiRedaction: {
         value:
-          "Yes: StackAI's security page states that built-in mechanisms detect and mask personally identifiable information (PII) during processing. Its guardrails guidance also covers redacting PII in inputs, retrieval, and logs as part of enterprise agent design.",
-        shortValue: 'Yes, built-in PII detection/masking',
-        confidence: 'verified',
+          "Partial: StackAI's guardrails guidance recommends redacting personally identifiable information (PII) in inputs, retrieval, and logs as part of enterprise agent design, but StackAI's own security page does not itself assert a built-in PII detection/masking mechanism.",
+        shortValue: 'Guardrail guidance only, not a confirmed built-in feature',
+        confidence: 'estimated',
         sources: [
-          {
-            url: 'https://www.stackai.com/security',
-            label: 'StackAI Security page',
-            asOf: '2026-07-02',
-          },
           {
             url: 'https://www.stackai.com/insights/how-to-design-ai-agent-guardrails-best-practices-for-input-validation-output-filtering-and-safety-controls',
             label: 'AI Agent Guardrails guide',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       sso: {
         value:
-          'Yes: StackAI supports Single Sign-On through a dedicated SSO settings page, integrating with identity providers like Okta and Entra ID to inherit groups and permissions. Newly provisioned SSO users get a default role, and admins can require SSO for all interfaces org-wide.',
+          'Yes: StackAI supports Single Sign-On, integrating with identity providers like Okta and Entra ID to inherit groups and permissions. Newly provisioned SSO users get a default role, and admins can require SSO for all interfaces org-wide.',
         detail:
-          'Docs confirm SSO login and default-role auto-provisioning behavior. SAML vs OIDC protocol details are not specified beyond the Okta/Entra ID integration.',
+          'Docs confirm SSO login and default-role auto-provisioning behavior, enabled per interface or enforced org-wide via admin policy. SSO configuration is distributed across these governance controls rather than a single dedicated SSO settings page, and SAML vs OIDC protocol details are not specified beyond the Okta/Entra ID integration.',
         shortValue: 'Yes, SSO with Okta/Entra ID',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.stackai.com/sso',
-            label: 'StackAI SSO login page',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.stackai.com/insights/sso-and-rbac-for-ai-agents-how-to-secure-enterprise-ai-deployments',
-            label: 'SSO and RBAC for AI Agents',
-            asOf: '2026-07-02',
+            url: 'https://docs.stackai.com/welcome-to-stackai/security-and-governance/ai-governance',
+            label: 'AI Governance - StackAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -909,15 +916,34 @@ export const stackaiProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          "Yes: StackAI is a multi-tenant cloud SaaS (each org gets an isolated partition on shared AWS/Azure/GCP infrastructure, or a dedicated VPC/on-prem deployment on Enterprise), and scheduled, chat, form, Slack, Teams, and API-triggered runs are executed and logged (runtime, tokens, input/output) through that hosted infrastructure rather than a builder's own machine.",
+        detail:
+          "StackAI's docs do not use explicit language like 'no client device dependency' the way some competitors do; this is inferred from its documented deployment model (cloud SaaS or Enterprise VPC/on-prem) and its scheduled-workflow and execution-log features, none of which describe or require a desktop app, browser tab, or local session staying open.",
+        shortValue: 'Yes, inferred from its hosted SaaS/VPC execution model',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.stackai.com/solutions/self-hosted',
+            label: 'StackAI Self-Hosted Solutions page',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.stackai.com/insights/how-to-set-up-scheduled-ai-workflows-and-automated-reports-on-stackai',
+            label: 'Scheduled AI Workflows - StackAI insights',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
-        value:
-          'Community Discord (free tier); dedicated solution engineers / forward-deployed engineers (Enterprise)',
+        value: 'Community Discord (free tier); dedicated solution engineers (Enterprise)',
         shortValue: 'Discord free, dedicated engineers on Enterprise',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
+          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-08' },
         ],
       },
       sla: {
@@ -928,11 +954,11 @@ export const stackaiProfile: CompetitorProfile = {
       },
       community: {
         value:
-          'Discord community, comprehensive docs, and a StackAI Academy with tutorials and courses',
+          'StackAI community support (Discord, at discord.gg/sSbwawtNsV, not linked from stackai.com/academy), comprehensive docs at docs.stackai.com, and a StackAI Academy with tutorials and courses',
         shortValue: 'Discord, docs, and StackAI Academy',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.stackai.com/academy', label: 'StackAI Academy', asOf: '2026-07-02' },
+          { url: 'https://www.stackai.com/academy', label: 'StackAI Academy', asOf: '2026-07-08' },
         ],
       },
       companyMaturity: {

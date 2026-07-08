@@ -14,6 +14,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
@@ -80,15 +81,6 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
 /** Resolve a Stripe invoice status to its badge presentation. */
 function getInvoiceStatusBadge(status: string | null): InvoiceStatusBadge {
   return INVOICE_STATUS_BADGES[status ?? ''] ?? { variant: 'gray', label: status ?? 'Unknown' }
-}
-
-/** Format a Unix-seconds timestamp as a short human-readable date. */
-function formatInvoiceDate(createdSeconds: number): string {
-  return new Date(createdSeconds * 1000).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
 }
 
 /** Cached currency formatters, keyed by upper-cased ISO currency code. */
@@ -413,7 +405,7 @@ export function Billing() {
 
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
     id: invoice.id,
-    date: formatInvoiceDate(invoice.created),
+    date: formatDate(new Date(invoice.created * 1000)),
     amount: formatInvoiceAmount(invoice.total, invoice.currency),
     badge: getInvoiceStatusBadge(invoice.status),
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
@@ -443,8 +435,8 @@ export function Billing() {
             </div>
           </div>
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate text-[14px] text-[var(--text-body)]'>{planName} plan</span>
-            <span className='truncate text-[12px] text-[var(--text-muted)]'>{priceText}</span>
+            <span className='truncate text-[var(--text-body)] text-sm'>{planName} plan</span>
+            <span className='truncate text-[var(--text-muted)] text-caption'>{priceText}</span>
           </div>
         </div>
         {!subscription.isEnterprise &&
@@ -594,13 +586,13 @@ export function Billing() {
                 'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors'
               const rowContent = (
                 <>
-                  <span className='min-w-0 flex-1 truncate text-[14px] text-[var(--text-body)]'>
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
                     {invoice.date}
                   </span>
                   <Badge variant={invoice.badge.variant} size='sm'>
                     {invoice.badge.label}
                   </Badge>
-                  <span className='flex-shrink-0 text-[12px] text-[var(--text-muted)]'>
+                  <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
                     {invoice.amount}
                   </span>
                   <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
@@ -642,7 +634,7 @@ export function Billing() {
         </SettingsSection>
       )}
 
-      {!subscription.isEnterprise && <CreditUsageSection />}
+      {!subscription.isEnterprise && <CreditUsageSection workspaceId={workspaceId} />}
     </SettingsPanel>
   )
 }

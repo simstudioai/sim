@@ -10,9 +10,22 @@
 
 import type { UsageLogPeriod, UsageLogSource } from '@/lib/api/contracts/user'
 
+export interface UsageLogDateRange {
+  startDate?: string
+  endDate?: string
+}
+
 export const usageLogKeys = {
   all: ['usage-logs'] as const,
   lists: () => [...usageLogKeys.all, 'list'] as const,
-  list: (period: UsageLogPeriod, source?: UsageLogSource) =>
-    [...usageLogKeys.lists(), period, source ?? ''] as const,
+  list: (period: UsageLogPeriod, source?: UsageLogSource, dateRange?: UsageLogDateRange) =>
+    [
+      ...usageLogKeys.lists(),
+      period,
+      source ?? '',
+      dateRange?.startDate ?? '',
+      dateRange?.endDate ?? '',
+    ] as const,
+  summaries: () => [...usageLogKeys.all, 'summary'] as const,
+  summary: (period: UsageLogPeriod) => [...usageLogKeys.summaries(), period] as const,
 }

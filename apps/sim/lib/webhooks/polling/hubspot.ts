@@ -190,7 +190,7 @@ export const hubspotPollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const accessToken = await resolveOAuthCredential(webhookData, 'hubspot', requestId, logger)
+      const accessToken = await resolveOAuthCredential(webhookData, 'hubspot', requestId)
       const config = getProviderConfig<HubSpotWebhookConfig>(webhookData.providerConfig)
 
       if (config.objectType === 'list_membership') {

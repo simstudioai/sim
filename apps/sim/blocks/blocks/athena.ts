@@ -2,12 +2,16 @@ import { AthenaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type {
+  AthenaBatchGetQueryExecutionResponse,
   AthenaCreateNamedQueryResponse,
+  AthenaDeleteNamedQueryResponse,
   AthenaGetNamedQueryResponse,
   AthenaGetQueryExecutionResponse,
   AthenaGetQueryResultsResponse,
+  AthenaListDatabasesResponse,
   AthenaListNamedQueriesResponse,
   AthenaListQueryExecutionsResponse,
+  AthenaListTableMetadataResponse,
   AthenaStartQueryResponse,
   AthenaStopQueryResponse,
 } from '@/tools/athena/types'
@@ -18,9 +22,13 @@ export const AthenaBlock: BlockConfig<
   | AthenaGetQueryResultsResponse
   | AthenaStopQueryResponse
   | AthenaListQueryExecutionsResponse
+  | AthenaBatchGetQueryExecutionResponse
   | AthenaCreateNamedQueryResponse
   | AthenaGetNamedQueryResponse
   | AthenaListNamedQueriesResponse
+  | AthenaDeleteNamedQueryResponse
+  | AthenaListDatabasesResponse
+  | AthenaListTableMetadataResponse
 > = {
   type: 'athena',
   name: 'Athena',
@@ -44,9 +52,13 @@ export const AthenaBlock: BlockConfig<
         { label: 'Get Query Results', id: 'get_query_results' },
         { label: 'Stop Query', id: 'stop_query' },
         { label: 'List Query Executions', id: 'list_query_executions' },
+        { label: 'Batch Get Query Executions', id: 'batch_get_query_execution' },
         { label: 'Create Named Query', id: 'create_named_query' },
         { label: 'Get Named Query', id: 'get_named_query' },
         { label: 'List Named Queries', id: 'list_named_queries' },
+        { label: 'Delete Named Query', id: 'delete_named_query' },
+        { label: 'List Databases', id: 'list_databases' },
+        { label: 'List Table Metadata', id: 'list_table_metadata' },
       ],
       value: () => 'start_query',
     },
@@ -125,7 +137,14 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       placeholder: 'primary',
       condition: {
         field: 'operation',
-        value: ['start_query', 'list_query_executions', 'create_named_query', 'list_named_queries'],
+        value: [
+          'start_query',
+          'list_query_executions',
+          'create_named_query',
+          'list_named_queries',
+          'list_databases',
+          'list_table_metadata',
+        ],
       },
       mode: 'advanced',
     },
@@ -144,12 +163,44 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       },
     },
     {
+      id: 'queryExecutionIds',
+      title: 'Query Execution IDs',
+      type: 'long-input',
+      placeholder: 'Comma-separated IDs, e.g. a1b2c3d4-..., e5f6g7h8-... (up to 50)',
+      condition: { field: 'operation', value: 'batch_get_query_execution' },
+      required: { field: 'operation', value: 'batch_get_query_execution' },
+    },
+    {
       id: 'namedQueryId',
       title: 'Named Query ID',
       type: 'short-input',
       placeholder: 'e.g., a1b2c3d4-5678-90ab-cdef-example11111',
-      condition: { field: 'operation', value: 'get_named_query' },
-      required: { field: 'operation', value: 'get_named_query' },
+      condition: { field: 'operation', value: ['get_named_query', 'delete_named_query'] },
+      required: { field: 'operation', value: ['get_named_query', 'delete_named_query'] },
+    },
+    {
+      id: 'catalogName',
+      title: 'Data Catalog',
+      type: 'short-input',
+      placeholder: 'AwsDataCatalog',
+      condition: { field: 'operation', value: ['list_databases', 'list_table_metadata'] },
+      required: { field: 'operation', value: ['list_databases', 'list_table_metadata'] },
+    },
+    {
+      id: 'databaseName',
+      title: 'Database',
+      type: 'short-input',
+      placeholder: 'my_database',
+      condition: { field: 'operation', value: 'list_table_metadata' },
+      required: { field: 'operation', value: 'list_table_metadata' },
+    },
+    {
+      id: 'expression',
+      title: 'Table Name Filter (regex)',
+      type: 'short-input',
+      placeholder: 'my_table_.*',
+      condition: { field: 'operation', value: 'list_table_metadata' },
+      mode: 'advanced',
     },
     {
       id: 'queryName',
@@ -174,7 +225,13 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       placeholder: '50',
       condition: {
         field: 'operation',
-        value: ['get_query_results', 'list_query_executions', 'list_named_queries'],
+        value: [
+          'get_query_results',
+          'list_query_executions',
+          'list_named_queries',
+          'list_databases',
+          'list_table_metadata',
+        ],
       },
       mode: 'advanced',
     },
@@ -185,7 +242,13 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       placeholder: 'Token from previous request',
       condition: {
         field: 'operation',
-        value: ['get_query_results', 'list_query_executions', 'list_named_queries'],
+        value: [
+          'get_query_results',
+          'list_query_executions',
+          'list_named_queries',
+          'list_databases',
+          'list_table_metadata',
+        ],
       },
       mode: 'advanced',
     },
@@ -197,9 +260,13 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       'athena_get_query_results',
       'athena_stop_query',
       'athena_list_query_executions',
+      'athena_batch_get_query_execution',
       'athena_create_named_query',
       'athena_get_named_query',
       'athena_list_named_queries',
+      'athena_delete_named_query',
+      'athena_list_databases',
+      'athena_list_table_metadata',
     ],
     config: {
       tool: (params) => {
@@ -214,12 +281,20 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
             return 'athena_stop_query'
           case 'list_query_executions':
             return 'athena_list_query_executions'
+          case 'batch_get_query_execution':
+            return 'athena_batch_get_query_execution'
           case 'create_named_query':
             return 'athena_create_named_query'
           case 'get_named_query':
             return 'athena_get_named_query'
           case 'list_named_queries':
             return 'athena_list_named_queries'
+          case 'delete_named_query':
+            return 'athena_delete_named_query'
+          case 'list_databases':
+            return 'athena_list_databases'
+          case 'list_table_metadata':
+            return 'athena_list_table_metadata'
           default:
             throw new Error(`Invalid Athena operation: ${params.operation}`)
         }
@@ -333,6 +408,61 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
 
+          case 'delete_named_query':
+            if (!rest.namedQueryId) {
+              throw new Error('Named query ID is required')
+            }
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              namedQueryId: rest.namedQueryId,
+            }
+
+          case 'batch_get_query_execution':
+            if (!rest.queryExecutionIds) {
+              throw new Error('Query execution IDs are required')
+            }
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              queryExecutionIds: rest.queryExecutionIds,
+            }
+
+          case 'list_databases':
+            if (!rest.catalogName) {
+              throw new Error('Data catalog name is required')
+            }
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              catalogName: rest.catalogName,
+              ...(rest.workGroup && { workGroup: rest.workGroup }),
+              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...(rest.nextToken && { nextToken: rest.nextToken }),
+            }
+
+          case 'list_table_metadata':
+            if (!rest.catalogName) {
+              throw new Error('Data catalog name is required')
+            }
+            if (!rest.databaseName) {
+              throw new Error('Database name is required')
+            }
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              catalogName: rest.catalogName,
+              databaseName: rest.databaseName,
+              ...(rest.expression && { expression: rest.expression }),
+              ...(rest.workGroup && { workGroup: rest.workGroup }),
+              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...(rest.nextToken && { nextToken: rest.nextToken }),
+            }
+
           default:
             throw new Error(`Invalid Athena operation: ${operation}`)
         }
@@ -350,9 +480,16 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
     outputLocation: { type: 'string', description: 'S3 output location for results' },
     workGroup: { type: 'string', description: 'Athena workgroup name' },
     queryExecutionId: { type: 'string', description: 'Query execution ID' },
+    queryExecutionIds: {
+      type: 'string',
+      description: 'Comma-separated query execution IDs (up to 50)',
+    },
     namedQueryId: { type: 'string', description: 'Named query ID' },
     queryName: { type: 'string', description: 'Name for a saved query' },
     queryDescription: { type: 'string', description: 'Description for a saved query' },
+    catalogName: { type: 'string', description: 'Data catalog name to list databases/tables from' },
+    databaseName: { type: 'string', description: 'Database name to list table metadata from' },
+    expression: { type: 'string', description: 'Regex filter that pattern-matches table names' },
     maxResults: { type: 'number', description: 'Maximum number of results' },
     nextToken: { type: 'string', description: 'Pagination token' },
   },
@@ -464,6 +601,22 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
     namedQueryIds: {
       type: 'array',
       description: 'List of named query IDs',
+    },
+    queryExecutions: {
+      type: 'array',
+      description: 'Details for each query execution (from batch get query executions)',
+    },
+    unprocessedQueryExecutionIds: {
+      type: 'array',
+      description: 'Query execution IDs that could not be retrieved, with error details',
+    },
+    databases: {
+      type: 'array',
+      description: 'List of databases (name, description)',
+    },
+    tables: {
+      type: 'array',
+      description: 'Table metadata (name, type, columns, partition keys)',
     },
   },
 }

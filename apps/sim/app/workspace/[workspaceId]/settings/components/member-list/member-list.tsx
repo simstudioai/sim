@@ -5,8 +5,8 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const ROW_CLASSES = 'flex items-center gap-2.5 p-2'
-const ROW_EMAIL_CLASSES = 'min-w-0 flex-1 truncate text-[14px] text-[var(--text-body)]'
-const ROW_STATUS_CLASSES = 'flex-shrink-0 text-[12px] text-[var(--text-muted)]'
+const ROW_EMAIL_CLASSES = 'min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'
+const ROW_STATUS_CLASSES = 'flex-shrink-0 text-[var(--text-muted)] text-caption'
 
 interface MemberAvatarProps {
   name: string

@@ -31,6 +31,12 @@ const logger = createLogger('DeploymentQueries')
 
 export type { ChatDetail, DeploymentVersionsResponse }
 
+export const DEPLOYMENT_INFO_STALE_TIME = 30 * 1000
+export const DEPLOYED_WORKFLOW_STATE_STALE_TIME = 30 * 1000
+export const DEPLOYMENT_VERSIONS_STALE_TIME = 30 * 1000
+export const CHAT_DEPLOYMENT_STATUS_STALE_TIME = 30 * 1000
+export const CHAT_DETAIL_STALE_TIME = 30 * 1000
+
 /**
  * Query key factory for deployment-related queries
  */
@@ -111,7 +117,7 @@ export function useDeploymentInfo(
     queryKey: deploymentKeys.info(workflowId),
     queryFn: ({ signal }) => fetchDeploymentInfo(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: DEPLOYMENT_INFO_STALE_TIME,
     ...(options?.refetchOnMount !== undefined && { refetchOnMount: options.refetchOnMount }),
   })
 }
@@ -142,7 +148,7 @@ export function useDeployedWorkflowState(
     queryKey: deploymentKeys.deployedState(workflowId),
     queryFn: ({ signal }) => fetchDeployedWorkflowState(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000,
+    staleTime: DEPLOYED_WORKFLOW_STATE_STALE_TIME,
   })
 }
 
@@ -171,7 +177,7 @@ export function useDeploymentVersions(workflowId: string | null, options?: { ena
     queryKey: deploymentKeys.versions(workflowId),
     queryFn: ({ signal }) => fetchDeploymentVersions(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: DEPLOYMENT_VERSIONS_STALE_TIME,
   })
 }
 
@@ -204,7 +210,7 @@ export function useChatDeploymentStatus(
     queryKey: deploymentKeys.chatStatus(workflowId),
     queryFn: ({ signal }) => fetchChatDeploymentStatus(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: CHAT_DEPLOYMENT_STATUS_STALE_TIME,
   })
 }
 
@@ -227,7 +233,7 @@ export function useChatDetail(chatId: string | null, options?: { enabled?: boole
     queryKey: deploymentKeys.chatDetail(chatId),
     queryFn: ({ signal }) => fetchChatDetail(chatId!, signal),
     enabled: Boolean(chatId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: CHAT_DETAIL_STALE_TIME,
   })
 }
 
@@ -253,7 +259,7 @@ export function useChatDeploymentInfo(workflowId: string | null, options?: { ena
       await queryClient.fetchQuery({
         queryKey: deploymentKeys.chatDetail(nextChatId),
         queryFn: ({ signal }) => fetchChatDetail(nextChatId, signal),
-        staleTime: 30 * 1000,
+        staleTime: CHAT_DETAIL_STALE_TIME,
       })
     }
   }, [queryClient, statusQuery.refetch])

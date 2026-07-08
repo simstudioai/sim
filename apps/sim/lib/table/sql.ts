@@ -5,6 +5,7 @@
  * Uses text extraction (->>) for comparisons and pattern matching.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -355,7 +356,7 @@ function buildFieldCondition(
 
   const conditions: SQL[] = []
 
-  if (typeof condition === 'object' && condition !== null && !Array.isArray(condition)) {
+  if (isRecordLike(condition)) {
     for (const [op, value] of Object.entries(condition)) {
       // Validate against the legacy `$`-whitelist, then normalize onto the shared
       // `FilterOp` so v1 and v2 emit byte-identical leaf SQL.
@@ -376,7 +377,11 @@ function buildFieldCondition(
   } else {
     // Simple value (primitive or null) - shorthand for equality.
     // Example: { name: 'John' } is equivalent to { name: { $eq: 'John' } }
-    const clause = fieldPredicate(tableName, field, 'eq', condition, columnType)
+    // isRecordLike's negation can't structurally exclude ConditionOperators (no index
+    // signature), so the JsonValue-only shape of this branch is asserted, not inferred.
+    // Routes through the unified `fieldPredicate` leaf ('eq' → containment) like every
+    // other matcher, so equality semantics stay defined in exactly one place.
+    const clause = fieldPredicate(tableName, field, 'eq', condition as JsonValue, columnType)
     if (clause) conditions.push(clause)
   }
 

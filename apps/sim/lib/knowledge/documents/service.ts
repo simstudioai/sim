@@ -20,6 +20,7 @@ import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import {
   buildTagFilterCondition,
@@ -471,22 +472,27 @@ async function dispatchViaBatchTrigger(
   return dispatched
 }
 
+/** Each in-process job runs chunking + embedding + many DB inserts. */
+const IN_PROCESS_DISPATCH_CONCURRENCY = 5
+
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string
 ): Promise<number> {
-  const results = await Promise.allSettled(
-    jobPayloads.map((p) =>
-      processDocumentAsync(p.knowledgeBaseId, p.documentId, p.docData, p.processingOptions)
-    )
+  const results = await mapWithConcurrency(
+    jobPayloads,
+    IN_PROCESS_DISPATCH_CONCURRENCY,
+    async (p) => {
+      try {
+        await processDocumentAsync(p.knowledgeBaseId, p.documentId, p.docData, p.processingOptions)
+        return true
+      } catch (error) {
+        logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(error) })
+        return false
+      }
+    }
   )
-  let dispatched = 0
-  for (const r of results) {
-    if (r.status === 'fulfilled') dispatched++
-    else
-      logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(r.reason) })
-  }
-  return dispatched
+  return results.filter(Boolean).length
 }
 
 export async function processDocumentAsync(
@@ -1844,6 +1850,9 @@ function getKnowledgeBaseStorageKey(fileUrl: string | null): string | null {
   }
 }
 
+/** Each entry deletes a storage object plus its metadata row. */
+const STORAGE_DELETE_CONCURRENCY = 10
+
 export async function deleteDocumentStorageFiles(
   documentsToDelete: Array<{ id: string; fileUrl: string | null; workspaceId?: string | null }>,
   requestId: string
@@ -1870,46 +1879,44 @@ export async function deleteDocumentStorageFiles(
     }
   }
 
-  await Promise.allSettled(
-    entries.map(async ({ doc, storageKey }) => {
-      if (!storageKey) {
+  await mapWithConcurrency(entries, STORAGE_DELETE_CONCURRENCY, async ({ doc, storageKey }) => {
+    if (!storageKey) {
+      return
+    }
+
+    // Only delete a kb/ object when its trusted ownership binding confirms the
+    // deleting document's workspace owns it. Prevents deleting another tenant's
+    // object via a document with a planted fileUrl.
+    if (storageKey.startsWith('kb/')) {
+      const bindingWorkspaceId = ownerByKey.get(storageKey)
+      if (!bindingWorkspaceId) {
+        logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
+          documentId: doc.id,
+          storageKey,
+        })
         return
       }
-
-      // Only delete a kb/ object when its trusted ownership binding confirms the
-      // deleting document's workspace owns it. Prevents deleting another tenant's
-      // object via a document with a planted fileUrl.
-      if (storageKey.startsWith('kb/')) {
-        const bindingWorkspaceId = ownerByKey.get(storageKey)
-        if (!bindingWorkspaceId) {
-          logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
-            documentId: doc.id,
-            storageKey,
-          })
-          return
-        }
-        if (!doc.workspaceId || bindingWorkspaceId !== doc.workspaceId) {
-          logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
-            documentId: doc.id,
-            storageKey,
-            bindingWorkspaceId,
-            documentWorkspaceId: doc.workspaceId ?? null,
-          })
-          return
-        }
-      }
-
-      try {
-        await deleteFile({ key: storageKey, context: 'knowledge-base' })
-        await deleteFileMetadata(storageKey)
-      } catch (error) {
-        logger.warn(`[${requestId}] Failed to delete document storage file`, {
+      if (!doc.workspaceId || bindingWorkspaceId !== doc.workspaceId) {
+        logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
           documentId: doc.id,
-          error: toError(error).message,
+          storageKey,
+          bindingWorkspaceId,
+          documentWorkspaceId: doc.workspaceId ?? null,
         })
+        return
       }
-    })
-  )
+    }
+
+    try {
+      await deleteFile({ key: storageKey, context: 'knowledge-base' })
+      await deleteFileMetadata(storageKey)
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to delete document storage file`, {
+        documentId: doc.id,
+        error: toError(error).message,
+      })
+    }
+  })
 }
 
 async function excludeConnectorDocuments(

@@ -25,7 +25,6 @@ import {
 import {
   isAccessControlEnabled,
   isBillingEnabled,
-  isCredentialSetsEnabled,
   isHosted,
   isInboxEnabled,
   isSsoEnabled,
@@ -337,91 +336,6 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
 }
 
 /**
- * Check if user is an admin or owner of a team or enterprise organization
- * Returns true if:
- * - User is a member of a team/enterprise organization AND
- * - User's role in that organization is 'owner' or 'admin'
- *
- * In non-production environments, returns true for convenience.
- */
-export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
-  try {
-    if (!isBillingEnabled) {
-      return true
-    }
-
-    const [memberRecord] = await db
-      .select({
-        organizationId: member.organizationId,
-        role: member.role,
-      })
-      .from(member)
-      .where(eq(member.userId, userId))
-      .limit(1)
-
-    if (!memberRecord) {
-      return false
-    }
-
-    if (memberRecord.role !== 'owner' && memberRecord.role !== 'admin') {
-      return false
-    }
-
-    const billingStatus = await getEffectiveBillingStatus(userId)
-    if (billingStatus.billingBlocked) {
-      return false
-    }
-
-    const orgSub = await getOrganizationSubscriptionUsable(memberRecord.organizationId)
-
-    const hasTeamPlan = orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
-
-    if (hasTeamPlan) {
-      logger.info('User is team org admin/owner', {
-        userId,
-        organizationId: memberRecord.organizationId,
-        role: memberRecord.role,
-        plan: orgSub.plan,
-      })
-    }
-
-    return !!hasTeamPlan
-  } catch (error) {
-    logger.error('Error checking team org admin/owner status', { error, userId })
-    return false
-  }
-}
-
-/**
- * Check if an organization has team or enterprise plan
- * Used at execution time (e.g., polling services) to check org billing directly
- */
-export async function isOrganizationOnTeamOrEnterprisePlan(
-  organizationId: string
-): Promise<boolean> {
-  try {
-    if (!isBillingEnabled) {
-      return true
-    }
-
-    if (isCredentialSetsEnabled && !isHosted) {
-      return true
-    }
-
-    if (await isOrganizationBillingBlocked(organizationId)) {
-      return false
-    }
-
-    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
-
-    return !!orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
-  } catch (error) {
-    logger.error('Error checking organization plan status', { error, organizationId })
-    return false
-  }
-}
-
-/**
  * Check if an organization has an enterprise plan
  * Used for Access Control (Permission Groups) feature gating
  */
@@ -444,27 +358,6 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
     logger.error('Error checking organization enterprise plan status', { error, organizationId })
-    return false
-  }
-}
-
-/**
- * Check if user has access to credential sets (email polling) feature
- * Returns true if:
- * - CREDENTIAL_SETS_ENABLED env var is set (self-hosted override), OR
- * - User is admin/owner of a team/enterprise organization
- *
- * In non-production environments, returns true for convenience.
- */
-export async function hasCredentialSetsAccess(userId: string): Promise<boolean> {
-  try {
-    if (isCredentialSetsEnabled && !isHosted) {
-      return true
-    }
-
-    return isTeamOrgAdminOrOwner(userId)
-  } catch (error) {
-    logger.error('Error checking credential sets access', { error, userId })
     return false
   }
 }

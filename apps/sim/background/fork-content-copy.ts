@@ -2,7 +2,7 @@ import { task } from '@trigger.dev/sdk'
 import {
   type ForkContentCopyPayload,
   runForkContentCopy,
-} from '@/lib/workspaces/fork/copy/content-copy-runner'
+} from '@/ee/workspace-forking/lib/copy/content-copy-runner'
 
 /**
  * Trigger.dev wrapper for the post-fork heavy-content copy (table rows, KB

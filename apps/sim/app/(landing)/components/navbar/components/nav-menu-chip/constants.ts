@@ -41,7 +41,7 @@ export const PLATFORM_MENU: NavMenu = {
 }
 
 /**
- * The Resources menu - learning and reference surfaces. Five items in a
+ * The Resources menu - learning and reference surfaces. Six items in a
  * three-column grid. Docs is the one off-site link.
  */
 export const RESOURCES_MENU: NavMenu = {
@@ -57,6 +57,11 @@ export const RESOURCES_MENU: NavMenu = {
       title: 'Blog',
       description: 'Ideas, news, and deep dives',
       href: '/blog',
+    },
+    {
+      title: 'Library',
+      description: 'Comparisons, how-tos, and roundups',
+      href: '/library',
     },
     {
       title: 'Changelog',

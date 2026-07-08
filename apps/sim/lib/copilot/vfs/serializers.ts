@@ -2,6 +2,7 @@ import { truncate } from '@sim/utils/string'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig } from '@/tools/types'
@@ -408,7 +409,14 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
  * Serialize a block schema for VFS components/blocks/{type}.json
  */
 export function serializeBlockSchema(block: BlockConfig): string {
-  const hiddenIds = new Set(block.subBlocks.filter(isSubBlockHidden).map((sb) => sb.id))
+  // Custom blocks bake their `workflowId`/`inputMapping` as `hidden` sub-blocks;
+  // treat `hidden` as hidden for them so those never reach the agent's schema.
+  const customBlock = isCustomBlockType(block.type)
+  const hiddenIds = new Set(
+    block.subBlocks
+      .filter((sb) => isSubBlockHidden(sb) || (customBlock && sb.hidden))
+      .map((sb) => sb.id)
+  )
 
   const subBlocks = block.subBlocks
     .filter((sb) => !hiddenIds.has(sb.id))
@@ -438,7 +446,12 @@ export function serializeBlockSchema(block: BlockConfig): string {
       bestPractices: block.bestPractices || undefined,
       triggerAllowed: block.triggerAllowed || undefined,
       singleInstance: block.singleInstance || undefined,
-      tools: block.tools.access,
+      // Custom (deploy-as-block) blocks execute via a baked `workflow_executor`
+      // internally; that's implementation plumbing, not something the agent
+      // configures. Hiding it keeps the block self-contained (fields in, outputs
+      // out) so the agent doesn't treat it like the generic workflow block and
+      // ask for a workflowId/inputMapping.
+      tools: isCustomBlockType(block.type) ? [] : block.tools.access,
       subBlocks,
       inputs,
       outputs: Object.fromEntries(

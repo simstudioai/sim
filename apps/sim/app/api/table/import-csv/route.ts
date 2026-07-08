@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { csvExtensionSchema, csvImportFormSchema } from '@/lib/api/contracts/tables'
+import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
@@ -25,6 +26,7 @@ import {
   type TableDefinition,
   type TableSchema,
 } from '@/lib/table'
+import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   csvProxyBodyCapResponse,
@@ -85,6 +87,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    let timezone = (await getUserSettings(userId)).timezone ?? 'UTC'
+    if (fields.timezone) {
+      const timezoneResult = ianaTimezoneSchema.safeParse(fields.timezone)
+      if (!timezoneResult.success) {
+        return NextResponse.json(
+          { error: getValidationErrorMessage(timezoneResult.error) },
+          { status: 400 }
+        )
+      }
+      timezone = timezoneResult.data
+    }
+
     const ext = file.filename.split('.').pop()?.toLowerCase()
     const extensionResult = csvExtensionSchema.safeParse(ext)
     if (!extensionResult.success) {
@@ -112,7 +126,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       currentRowCount: number
     ) => {
       if (rows.length === 0) return 0
-      const coerced = coerceRowsForTable(rows, state.schema, state.headerToColumn)
+      const coerced = coerceRowsForTable(rows, state.schema, state.headerToColumn, { timezone })
       const result = await batchInsertRows(
         { tableId: state.table.id, rows: coerced, workspaceId, userId },
         // The created table's rowCount is frozen at 0; pass the running total so the

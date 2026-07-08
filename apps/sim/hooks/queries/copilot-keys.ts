@@ -20,6 +20,8 @@ export const copilotKeysKeys = {
   keys: () => [...copilotKeysKeys.all, 'api-keys'] as const,
 }
 
+export const COPILOT_KEY_LIST_STALE_TIME = 30 * 1000
+
 /**
  * Copilot API key type (re-exported from the API contract).
  */
@@ -41,7 +43,7 @@ export function useCopilotKeys() {
     queryKey: copilotKeysKeys.keys(),
     queryFn: ({ signal }) => fetchCopilotKeys(signal),
     enabled: isHosted,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: COPILOT_KEY_LIST_STALE_TIME,
   })
 }
 

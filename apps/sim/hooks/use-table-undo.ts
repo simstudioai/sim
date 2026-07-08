@@ -136,12 +136,11 @@ export function useTableUndo({
               deleteRowMutation.mutate(action.rowId)
             } else {
               // Redo via the batch path so the saved orderKey restores exact placement.
-              // The single-insert API has no orderKey field, and under the fractional-ordering
-              // flag its `position` is read as a rank — a gappy saved position misplaces.
+              // The single-insert API has no orderKey field, and order_key is authoritative —
+              // a gappy saved position would misplace the row.
               batchCreateRowsMutation.mutate(
                 {
                   rows: [action.data ?? {}],
-                  positions: [action.position],
                   orderKeys: action.orderKey ? [action.orderKey] : undefined,
                 },
                 {
@@ -169,7 +168,6 @@ export function useTableUndo({
               batchCreateRowsMutation.mutate(
                 {
                   rows: action.rows.map((r) => r.data),
-                  positions: action.rows.map((r) => r.position),
                   orderKeys: action.rows.every((r) => r.orderKey)
                     ? action.rows.map((r) => r.orderKey as string)
                     : undefined,
@@ -194,7 +192,6 @@ export function useTableUndo({
               batchCreateRowsMutation.mutate(
                 {
                   rows: action.rows.map((row) => row.data),
-                  positions: action.rows.map((row) => row.position),
                   orderKeys: action.rows.every((row) => row.orderKey)
                     ? action.rows.map((row) => row.orderKey as string)
                     : undefined,

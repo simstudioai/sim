@@ -173,7 +173,7 @@ async function readSandboxOutputFile(
   } catch (error) {
     logger.warn('Failed to read requested sandbox output file', {
       outputSandboxPath,
-      error: error instanceof Error ? error.message : String(error),
+      error: getErrorMessage(error),
     })
     return undefined
   }

@@ -87,12 +87,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
     const webhookId = webhookData.id
 
     try {
-      const accessToken = await resolveOAuthCredential(
-        webhookData,
-        'google-drive',
-        requestId,
-        logger
-      )
+      const accessToken = await resolveOAuthCredential(webhookData, 'google-drive', requestId)
 
       const config = getProviderConfig<GoogleDriveWebhookConfig>(webhookData.providerConfig)
 

@@ -13,6 +13,7 @@ import {
   Label,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -106,7 +107,7 @@ export function AccessControl() {
       setNewGroupWorkspaceIds([])
     } catch (error) {
       logger.error('Failed to create permission group', error)
-      setCreateError(error instanceof Error ? error.message : 'Failed to create permission group')
+      setCreateError(getErrorMessage(error, 'Failed to create permission group'))
     }
   }, [
     newGroupName,
@@ -192,16 +193,14 @@ export function AccessControl() {
                 >
                   <div className='flex min-w-0 flex-1 flex-col'>
                     <div className='flex items-center gap-2'>
-                      <span className='truncate text-[14px] text-[var(--text-body)]'>
-                        {group.name}
-                      </span>
+                      <span className='truncate text-[var(--text-body)] text-sm'>{group.name}</span>
                       {group.isDefault && (
                         <ChipTag variant='gray' className='flex-shrink-0'>
                           Default
                         </ChipTag>
                       )}
                     </div>
-                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                    <span className='truncate text-[var(--text-muted)] text-caption'>
                       {group.isDefault
                         ? 'Everyone in the organization'
                         : `${

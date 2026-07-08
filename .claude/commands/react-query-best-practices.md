@@ -31,7 +31,7 @@ Read these before analyzing:
 
 ### Query hooks
 - Every `queryFn` must forward `signal` for request cancellation
-- Every query must have an explicit `staleTime` (default 0 is almost never correct)
+- Every query must have an explicit `staleTime` (default 0 is almost never correct), assigned from a named exported constant — never an inline numeric literal. A server-side prefetch hydrating the same query key must import and reuse that constant instead of restating the number
 - `keepPreviousData` / `placeholderData` only on variable-key queries (where params change), never on static keys
 - Use `enabled` to prevent queries from running without required params
 

@@ -1,7 +1,10 @@
 import type { MetadataRoute } from 'next'
-import { getAllPostMeta } from '@/lib/blog/registry'
+import { getAllPostMeta as getAllBlogPostMeta } from '@/lib/blog/registry'
+import type { ContentMeta } from '@/lib/content/schema'
+import { latestModified } from '@/lib/content/utils'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
+import { getAllPostMeta as getAllLibraryPostMeta } from '@/lib/library/registry'
 import {
   ALL_COMPETITORS,
   getLatestVerifiedDate,
@@ -9,22 +12,38 @@ import {
 } from '@/app/(landing)/comparison/utils'
 import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
+/** One sitemap entry per author, timestamped by their most recently updated post. */
+function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute.Sitemap {
+  const authorsMap = new Map<string, Date>()
+  for (const p of posts) {
+    for (const author of p.authors ?? [p.author]) {
+      const postDate = new Date(p.updated ?? p.date)
+      const existing = authorsMap.get(author.id)
+      if (!existing || postDate > existing) {
+        authorsMap.set(author.id, postDate)
+      }
+    }
+  }
+  return [...authorsMap.entries()].map(([id, date]) => ({
+    url: `${SITE_URL}${basePath}/authors/${id}`,
+    lastModified: date,
+  }))
+}
+
 /**
  * Generate the public sitemap by composing static landing pages with the
- * dynamic catalogs (blog posts, authors, integrations, model providers, and
- * individual models). Per-integration entries are emitted under
- * `/integrations/{slug}` to match the landing route at
+ * dynamic catalogs (blog posts, library posts, authors, integrations, model
+ * providers, and individual models). Per-integration entries are emitted
+ * under `/integrations/{slug}` to match the landing route at
  * `app/(landing)/integrations/[slug]`; slugs are guaranteed unique
  * by the catalog generator in `scripts/generate-docs.ts`.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_URL
-  const posts = await getAllPostMeta()
+  const [posts, libraryPosts] = await Promise.all([getAllBlogPostMeta(), getAllLibraryPostMeta()])
 
-  const latestPostDate =
-    posts.length > 0
-      ? new Date(Math.max(...posts.map((p) => new Date(p.updated ?? p.date).getTime())))
-      : undefined
+  const latestPostDateValue = latestModified(posts)
+  const latestLibraryPostDate = latestModified(libraryPosts)
 
   const modelTimes = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
     provider.models.map((model) => new Date(model.pricing.updatedAt).getTime())
@@ -72,15 +91,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/blog`,
-      lastModified: latestPostDate,
+      lastModified: latestPostDateValue,
     },
     {
       url: `${baseUrl}/blog/tags`,
-      lastModified: latestPostDate,
+      lastModified: latestPostDateValue,
+    },
+    {
+      url: `${baseUrl}/library`,
+      lastModified: latestLibraryPostDate,
+    },
+    {
+      url: `${baseUrl}/library/tags`,
+      lastModified: latestLibraryPostDate,
     },
     {
       url: `${baseUrl}/changelog`,
-      lastModified: latestPostDate,
+      lastModified: latestPostDateValue,
     },
     {
       url: `${baseUrl}/integrations`,
@@ -104,21 +131,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     url: p.canonical,
     lastModified: new Date(p.updated ?? p.date),
   }))
+  const authorPages = buildAuthorPages(posts, '/blog')
 
-  const authorsMap = new Map<string, Date>()
-  for (const p of posts) {
-    for (const author of p.authors ?? [p.author]) {
-      const postDate = new Date(p.updated ?? p.date)
-      const existing = authorsMap.get(author.id)
-      if (!existing || postDate > existing) {
-        authorsMap.set(author.id, postDate)
-      }
-    }
-  }
-  const authorPages: MetadataRoute.Sitemap = [...authorsMap.entries()].map(([id, date]) => ({
-    url: `${baseUrl}/blog/authors/${id}`,
-    lastModified: date,
+  const libraryPages: MetadataRoute.Sitemap = libraryPosts.map((p) => ({
+    url: p.canonical,
+    lastModified: new Date(p.updated ?? p.date),
   }))
+  const libraryAuthorPages = buildAuthorPages(libraryPosts, '/library')
 
   const integrationPages: MetadataRoute.Sitemap = INTEGRATIONS.map((integration) => ({
     url: `${baseUrl}/integrations/${integration.slug}`,
@@ -164,6 +183,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...staticPages,
     ...blogPages,
     ...authorPages,
+    ...libraryPages,
+    ...libraryAuthorPages,
     ...integrationPages,
     ...providerPages,
     ...modelEntries,

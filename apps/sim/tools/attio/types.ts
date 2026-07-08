@@ -1,5 +1,31 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
+/** Raw Attio note tag shape (workspace-member or record variant) */
+export interface AttioNoteTag {
+  type?: string
+  workspace_member_id?: string
+  object?: string
+  record_id?: string
+}
+
+/** Camelcase note tag shape returned in tool outputs */
+export interface NoteTagOutput {
+  type: string | null
+  workspaceMemberId: string | null
+  object: string | null
+  recordId: string | null
+}
+
+/** Maps a raw Attio note tag to the camelCase output shape declared in NOTE_OUTPUT_PROPERTIES */
+export function mapNoteTags(tags: unknown): NoteTagOutput[] {
+  return ((tags as AttioNoteTag[] | undefined) ?? []).map((tag) => ({
+    type: tag.type ?? null,
+    workspaceMemberId: tag.workspace_member_id ?? null,
+    object: tag.object ?? null,
+    recordId: tag.record_id ?? null,
+  }))
+}
+
 /** Reusable actor shape returned by the Attio API */
 export const ACTOR_OUTPUT_PROPERTIES = {
   type: {
@@ -70,8 +96,22 @@ export const NOTE_OUTPUT_PROPERTIES = {
     items: {
       type: 'object',
       properties: {
-        type: { type: 'string', description: 'The tag type (e.g. workspace-member)' },
-        workspaceMemberId: { type: 'string', description: 'The workspace member ID of the tagger' },
+        type: { type: 'string', description: 'The tag type (workspace-member or record)' },
+        workspaceMemberId: {
+          type: 'string',
+          description: 'The workspace member ID (present when type is workspace-member)',
+          optional: true,
+        },
+        object: {
+          type: 'string',
+          description: 'The tagged object slug (present when type is record)',
+          optional: true,
+        },
+        recordId: {
+          type: 'string',
+          description: 'The tagged record ID (present when type is record)',
+          optional: true,
+        },
       },
     },
   },
@@ -89,6 +129,7 @@ export const TASK_OUTPUT_PROPERTIES = {
   content: { type: 'string', description: 'The task content' },
   deadlineAt: { type: 'string', description: 'The task deadline', optional: true },
   isCompleted: { type: 'boolean', description: 'Whether the task is completed' },
+  completedAt: { type: 'string', description: 'When the task was completed', optional: true },
   linkedRecords: {
     type: 'array',
     description: 'Records linked to this task',
@@ -160,6 +201,43 @@ export const MEMBER_OUTPUT_PROPERTIES = {
   emailAddress: { type: 'string', description: 'Email address' },
   accessLevel: { type: 'string', description: 'Access level (admin, member, suspended)' },
   createdAt: { type: 'string', description: 'When the member was added' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Shared output properties for Attio attributes */
+export const ATTRIBUTE_OUTPUT_PROPERTIES = {
+  attributeId: { type: 'string', description: 'The attribute ID' },
+  title: { type: 'string', description: 'The attribute display title' },
+  apiSlug: { type: 'string', description: 'The attribute API slug' },
+  description: { type: 'string', description: 'The attribute description', optional: true },
+  type: {
+    type: 'string',
+    description: 'The attribute value type (e.g. text, number, select, record-reference)',
+  },
+  isSystemAttribute: {
+    type: 'boolean',
+    description: 'Whether this is a built-in system attribute',
+  },
+  isWritable: { type: 'boolean', description: 'Whether the attribute can be written to' },
+  isRequired: { type: 'boolean', description: 'Whether new records must provide a value' },
+  isUnique: { type: 'boolean', description: 'Whether the attribute enforces uniqueness' },
+  isMultiselect: { type: 'boolean', description: 'Whether the attribute supports multiple values' },
+  isDefaultValueEnabled: {
+    type: 'boolean',
+    description: 'Whether this attribute has a default value enabled',
+  },
+  isArchived: { type: 'boolean', description: 'Whether the attribute is archived' },
+  defaultValue: {
+    type: 'json',
+    description: 'The default value for this attribute, if enabled',
+    optional: true,
+  },
+  relationship: {
+    type: 'json',
+    description: 'The related attribute, if this attribute is part of a relationship',
+    optional: true,
+  },
+  config: { type: 'json', description: 'Type-dependent attribute configuration', optional: true },
+  createdAt: { type: 'string', description: 'When the attribute was created' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Shared output properties for Attio comments */
@@ -246,32 +324,6 @@ interface AttioRecord {
   created_at: string
   web_url: string
   values: Record<string, unknown>
-}
-
-/** Raw Attio note shape from the API */
-interface AttioNote {
-  id: { workspace_id: string; note_id: string }
-  parent_object: string
-  parent_record_id: string
-  title: string
-  content_plaintext: string
-  content_markdown: string
-  meeting_id: string | null
-  tags: unknown[]
-  created_by_actor: unknown
-  created_at: string
-}
-
-/** Raw Attio task shape from the API */
-interface AttioTask {
-  id: { workspace_id: string; task_id: string }
-  content_plaintext: string
-  deadline_at: string | null
-  is_completed: boolean
-  linked_records: Array<{ target_object_id: string; target_record_id: string }>
-  assignees: Array<{ referenced_actor_type: string; referenced_actor_id: string }>
-  created_by_actor: unknown
-  created_at: string
 }
 
 /** Params for listing/querying records */
@@ -453,7 +505,7 @@ export interface AttioListNotesResponse extends ToolResponse {
       contentPlaintext: string | null
       contentMarkdown: string | null
       meetingId: string | null
-      tags: unknown[]
+      tags: NoteTagOutput[]
       createdByActor: unknown
       createdAt: string | null
     }>
@@ -471,7 +523,7 @@ export interface AttioCreateNoteResponse extends ToolResponse {
     contentPlaintext: string | null
     contentMarkdown: string | null
     meetingId: string | null
-    tags: unknown[]
+    tags: NoteTagOutput[]
     createdByActor: unknown
     createdAt: string | null
   }
@@ -492,6 +544,7 @@ export interface AttioListTasksResponse extends ToolResponse {
       content: string | null
       deadlineAt: string | null
       isCompleted: boolean
+      completedAt: string | null
       linkedRecords: Array<{ targetObjectId: string | null; targetRecordId: string | null }>
       assignees: Array<{ type: string | null; id: string | null }>
       createdByActor: unknown
@@ -508,6 +561,7 @@ export interface AttioCreateTaskResponse extends ToolResponse {
     content: string | null
     deadlineAt: string | null
     isCompleted: boolean
+    completedAt: string | null
     linkedRecords: Array<{ targetObjectId: string | null; targetRecordId: string | null }>
     assignees: Array<{ type: string | null; id: string | null }>
     createdByActor: unknown
@@ -522,6 +576,7 @@ export interface AttioUpdateTaskResponse extends ToolResponse {
     content: string | null
     deadlineAt: string | null
     isCompleted: boolean
+    completedAt: string | null
     linkedRecords: Array<{ targetObjectId: string | null; targetRecordId: string | null }>
     assignees: Array<{ type: string | null; id: string | null }>
     createdByActor: unknown
@@ -542,6 +597,7 @@ export interface AttioGetTaskResponse extends ToolResponse {
     content: string | null
     deadlineAt: string | null
     isCompleted: boolean
+    completedAt: string | null
     linkedRecords: Array<{ targetObjectId: string | null; targetRecordId: string | null }>
     assignees: Array<{ type: string | null; id: string | null }>
     createdByActor: unknown
@@ -572,7 +628,7 @@ export interface AttioGetNoteResponse extends ToolResponse {
     contentPlaintext: string | null
     contentMarkdown: string | null
     meetingId: string | null
-    tags: unknown[]
+    tags: NoteTagOutput[]
     createdByActor: unknown
     createdAt: string | null
   }
@@ -684,7 +740,7 @@ export interface AttioListListsResponse extends ToolResponse {
       name: string | null
       parentObject: string | null
       workspaceAccess: string | null
-      workspaceMemberAccess: string | null
+      workspaceMemberAccess: unknown
       createdByActor: { type: string | null; id: string | null } | null
       createdAt: string | null
     }>
@@ -706,7 +762,7 @@ export interface AttioGetListResponse extends ToolResponse {
     name: string | null
     parentObject: string | null
     workspaceAccess: string | null
-    workspaceMemberAccess: string | null
+    workspaceMemberAccess: unknown
     createdByActor: { type: string | null; id: string | null } | null
     createdAt: string | null
   }
@@ -730,7 +786,7 @@ export interface AttioCreateListResponse extends ToolResponse {
     name: string | null
     parentObject: string | null
     workspaceAccess: string | null
-    workspaceMemberAccess: string | null
+    workspaceMemberAccess: unknown
     createdByActor: { type: string | null; id: string | null } | null
     createdAt: string | null
   }
@@ -754,7 +810,7 @@ export interface AttioUpdateListResponse extends ToolResponse {
     name: string | null
     parentObject: string | null
     workspaceAccess: string | null
-    workspaceMemberAccess: string | null
+    workspaceMemberAccess: unknown
     createdByActor: { type: string | null; id: string | null } | null
     createdAt: string | null
   }
@@ -906,8 +962,10 @@ export interface AttioCreateCommentParams {
   format?: string
   authorType: string
   authorId: string
-  list: string
-  entryId: string
+  list?: string
+  entryId?: string
+  recordObject?: string
+  recordId?: string
   threadId?: string
   createdAt?: string
 }
@@ -1098,6 +1156,97 @@ export interface AttioDeleteWebhookResponse extends ToolResponse {
   }
 }
 
+/** Params for listing attributes on an object or list */
+export interface AttioListAttributesParams {
+  accessToken: string
+  target: string
+  identifier: string
+  limit?: number
+  offset?: number
+  showArchived?: boolean
+}
+
+/** Attribute shape as returned in tool outputs (camelCase) */
+interface AttioAttributeOutput {
+  attributeId: string | null
+  title: string | null
+  apiSlug: string | null
+  description: string | null
+  type: string | null
+  isSystemAttribute: boolean
+  isWritable: boolean
+  isRequired: boolean
+  isUnique: boolean
+  isMultiselect: boolean
+  isDefaultValueEnabled: boolean
+  isArchived: boolean
+  defaultValue: Record<string, unknown> | null
+  relationship: Record<string, unknown> | null
+  config: Record<string, unknown> | null
+  createdAt: string | null
+}
+
+/** Response for listing attributes */
+export interface AttioListAttributesResponse extends ToolResponse {
+  output: {
+    attributes: AttioAttributeOutput[]
+    count: number
+  }
+}
+
+/** Params for getting a single attribute */
+export interface AttioGetAttributeParams {
+  accessToken: string
+  target: string
+  identifier: string
+  attribute: string
+}
+
+/** Response for getting a single attribute */
+export interface AttioGetAttributeResponse extends ToolResponse {
+  output: AttioAttributeOutput
+}
+
+/** Params for creating an attribute */
+export interface AttioCreateAttributeParams {
+  accessToken: string
+  target: string
+  identifier: string
+  title: string
+  apiSlug: string
+  type: string
+  description?: string
+  isRequired?: boolean
+  isUnique?: boolean
+  isMultiselect?: boolean
+  config?: string
+}
+
+/** Response for creating an attribute */
+export interface AttioCreateAttributeResponse extends ToolResponse {
+  output: AttioAttributeOutput
+}
+
+/** Params for updating an attribute */
+export interface AttioUpdateAttributeParams {
+  accessToken: string
+  target: string
+  identifier: string
+  attribute: string
+  title?: string
+  apiSlug?: string
+  description?: string
+  isRequired?: boolean
+  isUnique?: boolean
+  isArchived?: boolean
+  config?: string
+}
+
+/** Response for updating an attribute */
+export interface AttioUpdateAttributeResponse extends ToolResponse {
+  output: AttioAttributeOutput
+}
+
 export type AttioResponse =
   | AttioListRecordsResponse
   | AttioGetRecordResponse
@@ -1140,3 +1289,7 @@ export type AttioResponse =
   | AttioCreateWebhookResponse
   | AttioUpdateWebhookResponse
   | AttioDeleteWebhookResponse
+  | AttioListAttributesResponse
+  | AttioGetAttributeResponse
+  | AttioCreateAttributeResponse
+  | AttioUpdateAttributeResponse

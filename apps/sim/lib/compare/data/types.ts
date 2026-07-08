@@ -153,6 +153,8 @@ export interface ComparisonFacts {
     executionLimits: Fact
     /** Whether one failing step can be routed to an error-handling path so the rest of the run continues, versus a single failure always halting the entire execution. */
     partialFailureHandling: Fact
+    /** Whether a scheduled or triggered run executes on a server with no dependency on a client device being open, awake, or connected, versus requiring a desktop app/session to remain active. */
+    unattendedExecution: Fact
   }
   support: {
     supportChannels: Fact

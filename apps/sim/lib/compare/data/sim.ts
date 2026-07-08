@@ -18,12 +18,13 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'AI Copilot / Chat agent-building surface',
       description:
-        'A natural-language surface (Chat) and in-editor Copilot that can explain, suggest, and build workflow changes directly, backed by a dedicated copilot module with its own tool registry.',
-      shortDescription: 'Chat and in-editor Copilot suggest and build workflow changes directly.',
+        'A workspace-wide natural-language surface (Chat) that can build workflows, manage data, and take actions across integrations, plus an in-editor Copilot scoped to building and editing a single workflow directly.',
+      shortDescription:
+        'Chat builds and manages work across the workspace; in-editor Copilot edits a single workflow.',
       source: {
         url: 'https://docs.sim.ai/copilot',
         label: 'Sim Docs: Copilot',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -56,7 +57,7 @@ export const simProfile: CompetitorProfile = {
         'Fork a whole workspace into a dev/qa/prod-style child environment, preview a diff, and promote changes bidirectionally. Credential and env-var remapping is required on every promote, so secrets never cross environments silently.',
       shortDescription: 'Fork, diff, and promote environments with mandatory credential remapping.',
       source: {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workspaces/fork/promote/promote.ts',
+        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/ee/workspace-forking/lib/promote/promote.ts',
         label: 'Sim codebase: fork promote engine',
         asOf: '2026-07-02',
       },
@@ -84,18 +85,29 @@ export const simProfile: CompetitorProfile = {
         asOf: '2026-07-02',
       },
     },
+    {
+      title: 'Live multiplayer canvas editing',
+      description:
+        'Real-time cursors, selection broadcasting, and synced concurrent edits over a dedicated realtime backend, so a team can build the same workflow together at the same time.',
+      shortDescription: 'Real-time cursors, selections, and synced edits on the same canvas.',
+      source: {
+        url: 'https://github.com/simstudioai/sim/blob/main/apps/realtime/src/handlers/presence.ts',
+        label: 'Sim codebase: realtime presence handler',
+        asOf: '2026-07-04',
+      },
+    },
   ],
   limitations: [
     {
       title: 'Smaller integration catalog than the largest generalist automation platforms',
       description:
-        "Sim ships 302 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (7,000+ apps) or Pipedream (1,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
+        "Sim ships 266 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (9,000+ apps) or Pipedream (3,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
       shortDescription:
-        "302 blocks and ~3,900 tool actions, versus Zapier and Pipedream's larger raw app counts.",
+        "266 blocks and ~3,900 tool actions, versus Zapier and Pipedream's larger raw app counts.",
       source: {
         url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
         label: 'Sim codebase: BLOCK_REGISTRY count',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -118,22 +130,24 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
-            label: 'Sim codebase: block registry',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/introduction',
+            label: 'Sim Docs: Introduction (visual, natural-language, and API/SDK building)',
+            asOf: '2026-07-08',
           },
         ],
       },
       learningCurve: {
-        value: 'Low for visual building; natural-language Chat surface for non-technical builders',
-        detail: 'Chat lets users describe a workflow in plain language and have Sim build it.',
+        value:
+          'Low for visual building; natural-language Chat surface (with a workflow-scoped Copilot) for non-technical builders',
+        detail:
+          'Chat lets users describe a workflow in plain language and have Sim scaffold or edit it; the visual canvas requires no code to connect blocks.',
         shortValue: 'Low, plus natural-language Chat for non-technical users',
-        confidence: 'verified',
+        confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.sim.ai/copilot',
-            label: 'Sim Docs: Copilot',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/introduction',
+            label: 'Sim Docs: Introduction (visual, natural-language, and API/SDK building)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -163,9 +177,9 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/platform/costs',
-            label: 'Sim Docs: Cost calculation & billing',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/self-hosting',
+            label: 'Sim Docs: Self-Hosting',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://www.sim.ai/pricing',
@@ -176,14 +190,14 @@ export const simProfile: CompetitorProfile = {
       },
       templates: {
         value:
-          'Yes: pre-built workflow template library across categories (Marketing, Sales, Finance, Support, AI)',
-        shortValue: 'Templates across Marketing, Sales, Finance, Support, AI',
+          'No: the pre-built workflow template gallery (landing and in-workspace) was removed platform-wide. Sim now surfaces per-integration starter prompts instead of a template library.',
+        shortValue: 'No template gallery; per-integration starter prompts only',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.sim.ai/blog/openai-vs-n8n-vs-sim',
-            label: 'Sim blog: OpenAI AgentKit vs n8n vs Sim',
-            asOf: '2026-07-02',
+            url: 'https://github.com/simstudioai/sim/commit/df5ad7d45f4fd38ab724e7726b083c2b928a1542',
+            label: 'Sim codebase: templates gallery and APIs removed',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -213,7 +227,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workspaces/fork/promote/promote.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/ee/workspace-forking/lib/promote/promote.ts',
             label: 'Sim codebase: fork promote engine',
             asOf: '2026-07-02',
           },
@@ -266,9 +280,14 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/files',
-            label: 'Sim Docs: Files',
-            asOf: '2026-07-02',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/files/components/share-modal/share-modal.tsx',
+            label: 'Sim codebase: file share modal (password/email/SSO modes)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/settings/components/recently-deleted/recently-deleted.tsx',
+            label: 'Sim codebase: Recently Deleted (files, folders, and other resources)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -318,10 +337,9 @@ export const simProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more)',
-        detail:
-          'apps/sim/providers/models.ts defines 21 provider entries; openrouter/litellm/vllm/ollama resolve models dynamically at runtime rather than from a hardcoded model list.',
-        shortValue: '21 providers incl. OpenAI, Anthropic, Google, Bedrock',
+          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more), with OpenRouter, LiteLLM, vLLM, and Ollama resolving models dynamically at runtime rather than from a fixed list, so effective model reach extends well beyond the 21 named providers',
+        detail: 'apps/sim/providers/models.ts defines 21 provider entries.',
+        shortValue: '21 providers plus dynamic-resolution aggregators (OpenRouter, LiteLLM, etc.)',
         confidence: 'verified',
         sources: [
           {
@@ -359,19 +377,24 @@ export const simProfile: CompetitorProfile = {
       },
       knowledgeBaseRag: {
         value:
-          'Yes: native hybrid vector (pgvector) + keyword search knowledge base, 11 supported file formats, configurable chunking',
-        shortValue: 'Hybrid vector + keyword search, 11 file formats',
+          'Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml), configurable chunking, plus 51 connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload',
+        shortValue: 'Hybrid vector + full-text search, 11 file formats, 51 connectors',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
             label: 'Sim codebase: KB schema (pgvector + tsvector)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.sim.ai/knowledgebase',
-            label: 'Sim Docs: Knowledge Base document types',
-            asOf: '2026-07-02',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/file-parsers/index.ts',
+            label: 'Sim codebase: file-parser registry (11 format families)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/connectors/registry.ts',
+            label: 'Sim codebase: connector registry (51 connectors)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -433,19 +456,29 @@ export const simProfile: CompetitorProfile = {
       },
       generativeMedia: {
         value:
-          'Yes: dedicated image (4 provider families incl. OpenAI, Gemini, Fal.ai proxy), video (5+ provider families incl. Runway, Veo, Luma, Hailuo, Fal.ai proxy), text-to-speech (7 providers), and speech-to-text (5 providers) blocks',
+          'Yes: dedicated image (3 provider families incl. OpenAI, Gemini, Fal.ai proxy), video (5 provider families incl. Runway, Veo, Luma, Hailuo, Fal.ai proxy), text-to-speech (7 providers), and speech-to-text (5 providers) blocks',
         shortValue: 'Image, video, text-to-speech, and speech-to-text blocks',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/image_generator.ts',
             label: 'Sim codebase: Image Generator V2',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/video_generator.ts',
             label: 'Sim codebase: Video Generator V3',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/tts.ts',
+            label: 'Sim codebase: TTS block (7 providers)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/blocks/stt.ts',
+            label: 'Sim codebase: STT block (5 providers)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -569,16 +602,17 @@ export const simProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '302 first-party blocks, ~3,900 underlying tool actions',
+        value:
+          '1,000+ integrations counting individual API actions, built from 266 first-party blocks and roughly 3,900 underlying tool actions',
         detail:
-          'Sim\'s landing page cites "1,000+ integrations," a broader figure counting individual API actions rather than top-level blocks. Both numbers describe the same integration surface.',
-        shortValue: '302 blocks, ~3,900 tool actions',
+          'Sim\'s landing page cites the "1,000+ integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.',
+        shortValue: '1,000+ integrations (266 blocks, ~3,900 tool actions)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
             label: 'Sim codebase: BLOCK_REGISTRY',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.sim.ai/tools',
@@ -594,14 +628,20 @@ export const simProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value:
-          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.)',
-        shortValue: 'Webhook, cron, chat, REST API, triggers for 61 apps',
+          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.), plus a native row-level trigger on Sim Tables that fires on insert/update with an optional column watch-list and emits a before/after diff',
+        shortValue:
+          'Webhook, cron, chat, REST API, 61 app triggers, plus a diff-aware Tables trigger',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/triggers',
             label: 'Sim Docs: Triggers overview',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/triggers/table/poller.ts',
+            label: 'Sim codebase: Table row trigger',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -624,28 +664,40 @@ export const simProfile: CompetitorProfile = {
       },
       apiPublishing: {
         value:
-          'Yes: versioned public REST API (/api/v1) with rollback, streaming (SSE) execution responses with a resumable event buffer, an API-trigger block, and a chat-deployment surface',
-        shortValue: 'Versioned REST API with rollback and streaming execution',
+          'Yes: a public REST API (mostly under /api/, with /api/v1 reserved for logs and audit-log endpoints) supporting API-triggered workflow execution and deployment rollback',
+        detail:
+          'The API reference does not document SSE streaming, a resumable event buffer, a dedicated API-trigger block, or a chat-deployment surface as part of the REST API itself.',
+        shortValue: 'REST API (partially versioned) with rollback support',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/api-reference/getting-started',
             label: 'Sim Docs: API Reference - Getting Started',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.sim.ai/execution/api',
             label: 'Sim Docs: External API',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'No official client SDK. The API is REST-only via an x-api-key header. Extensibility instead comes from MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
-        shortValue: 'No SDK; MCP, code block, and A2A protocol instead',
+          'Official client SDKs exist for Python (simstudio-sdk, pip install simstudio-sdk) and TypeScript/JavaScript (simstudio-ts-sdk, npm install simstudio-ts-sdk), both wrapping the REST API (x-api-key header) with methods like execute_workflow / executeWorkflow, retry-with-backoff, and usage-limit lookups. Extensibility is further extended by MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
+        shortValue: 'Official Python and TypeScript SDKs, plus MCP, code block, and A2A protocol',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.sim.ai/api-reference/python',
+            label: 'Sim Docs: Python SDK',
+            asOf: '2026-07-04',
+          },
+          {
+            url: 'https://docs.sim.ai/api-reference/typescript',
+            label: 'Sim Docs: TypeScript SDK',
+            asOf: '2026-07-04',
+          },
           {
             url: 'https://docs.sim.ai/mcp',
             label: 'Sim Docs: Using MCP Tools',
@@ -700,19 +752,19 @@ export const simProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          'Yes: Free plan with 1,000 monthly credits (worth $5, env-configurable) refreshed daily, no credit card required',
-        shortValue: 'Free plan, 1,000 credits/month, no card required',
+          'Yes: Free plan with 1,000 monthly credits (worth $5, env-configurable), granted monthly with no daily refresh (daily refresh is a paid-plan feature)',
+        shortValue: 'Free plan, 1,000 credits/month',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.sim.ai/pricing',
             label: 'Sim Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/constants.ts',
             label: 'Sim codebase: DEFAULT_FREE_CREDITS',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -778,8 +830,11 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       rbac: {
-        value: 'Yes: admin/write/read workspace permissions, org-level admin/member roles',
-        shortValue: 'Workspace and org-level role permissions',
+        value:
+          'Yes: admin/write/read workspace permissions, org-level admin/member roles, plus Enterprise-tier permission groups that allow/deny-list specific models, tools, and integrations per group on top of those base roles',
+        detail:
+          'See modelAndToolGovernance and credentialGovernance for the finer-grained permission-groups layer.',
+        shortValue: 'Workspace/org roles, plus per-group model and tool allow/deny lists',
         confidence: 'verified',
         sources: [
           {
@@ -791,6 +846,11 @@ export const simProfile: CompetitorProfile = {
             url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
             label: 'Sim codebase: permissionTypeEnum, role columns',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/types.ts',
+            label: 'Sim codebase: permission groups',
+            asOf: '2026-07-04',
           },
         ],
       },
@@ -921,16 +981,16 @@ export const simProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Yes: every one of Sim's 302 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
+          "Yes: every one of Sim's 266 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
         detail:
           "Custom code steps run inside Sim's own isolated-vm sandbox rather than as an installable third-party skill package, so the supply-chain trust boundary is Sim's codebase review, not an open registry.",
-        shortValue: 'All 302 blocks are first-party authored and code-reviewed',
+        shortValue: 'All 266 blocks are first-party authored and code-reviewed',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/simstudioai/sim/tree/main/apps/sim/blocks/blocks',
             label: 'Sim codebase: first-party block directory',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1057,6 +1117,26 @@ export const simProfile: CompetitorProfile = {
           },
         ],
       },
+      unattendedExecution: {
+        value:
+          "Yes: scheduled, webhook, and chat-triggered runs execute as background jobs on trigger.dev workers, entirely on Sim's servers",
+        detail:
+          'No client device needs to be open, awake, or connected for a run to fire or complete; closing the browser tab or shutting down a laptop has no effect on a scheduled or triggered workflow.',
+        shortValue: 'Runs server-side; no dependency on a client device staying open',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/core/async-jobs/backends/trigger-dev.ts',
+            label: 'Sim codebase: trigger.dev background job backend',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.sim.ai/triggers',
+            label: 'Sim Docs: Triggers',
+            asOf: '2026-07-02',
+          },
+        ],
+      },
     },
     support: {
       supportChannels: {
@@ -1076,14 +1156,14 @@ export const simProfile: CompetitorProfile = {
       },
       sla: {
         value:
-          'Yes: the Enterprise plan includes a dedicated support SLA, negotiated per contract; specific response-time and uptime figures are not published on the self-serve pricing page',
-        shortValue: 'Enterprise SLA included (contract-based)',
+          'Yes: the Enterprise plan includes a "Dedicated Support" feature per the pricing plan-comparison table; no SLA terminology, response-time, or uptime figures are published on the enterprise or pricing pages',
+        shortValue: "Enterprise 'Dedicated Support' flag; no published SLA terms",
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai/enterprise',
-            label: 'Sim Enterprise Page',
-            asOf: '2026-07-02',
+            url: 'https://www.sim.ai/pricing',
+            label: 'Sim Pricing Page',
+            asOf: '2026-07-08',
           },
         ],
       },

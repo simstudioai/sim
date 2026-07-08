@@ -195,3 +195,67 @@ export interface CloudWatchUnmuteAlarmResponse extends ToolResponse {
     muteRuleName: string
   }
 }
+
+export type CloudWatchAlarmHistoryItemType =
+  | 'ConfigurationUpdate'
+  | 'StateUpdate'
+  | 'Action'
+  | 'AlarmContributorStateUpdate'
+  | 'AlarmContributorAction'
+
+export type CloudWatchAlarmHistoryScanBy = 'TimestampDescending' | 'TimestampAscending'
+
+export interface CloudWatchDescribeAlarmHistoryParams extends CloudWatchConnectionConfig {
+  alarmName?: string
+  historyItemType?: CloudWatchAlarmHistoryItemType
+  startDate?: number
+  endDate?: number
+  scanBy?: CloudWatchAlarmHistoryScanBy
+  limit?: number
+}
+
+export interface CloudWatchDescribeAlarmHistoryResponse extends ToolResponse {
+  output: {
+    alarmHistoryItems: {
+      alarmName: string | undefined
+      alarmType: string | undefined
+      timestamp: number | undefined
+      historyItemType: string | undefined
+      historySummary: string | undefined
+    }[]
+  }
+}
+
+export interface CloudWatchFilterLogEventsParams extends CloudWatchConnectionConfig {
+  logGroupName: string
+  filterPattern?: string
+  logStreamNamePrefix?: string
+  startTime?: number
+  endTime?: number
+  startFromHead?: boolean
+  limit?: number
+}
+
+export interface CloudWatchFilterLogEventsResponse extends ToolResponse {
+  output: {
+    events: {
+      logStreamName: string | undefined
+      timestamp: number | undefined
+      message: string | undefined
+      ingestionTime: number | undefined
+    }[]
+  }
+}
+
+export interface CloudWatchPutLogGroupRetentionParams extends CloudWatchConnectionConfig {
+  logGroupName: string
+  retentionInDays?: number
+}
+
+export interface CloudWatchPutLogGroupRetentionResponse extends ToolResponse {
+  output: {
+    success: boolean
+    logGroupName: string
+    retentionInDays: number | null
+  }
+}

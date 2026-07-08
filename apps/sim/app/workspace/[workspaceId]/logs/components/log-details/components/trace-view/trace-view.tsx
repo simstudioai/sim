@@ -46,6 +46,7 @@ import {
   isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
@@ -667,7 +668,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   const endedAt = parseTime(span.endTime)
 
   const metaEntries: { label: string; value: string }[] = []
-  metaEntries.push({ label: 'Type', value: span.type })
+  metaEntries.push({
+    label: 'Type',
+    value: isCustomBlockType(span.type) ? 'custom block' : span.type,
+  })
   metaEntries.push({ label: 'Duration', value: formatDuration(duration, { precision: 2 }) || '—' })
   if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
   if (span.model) metaEntries.push({ label: 'Model', value: span.model })

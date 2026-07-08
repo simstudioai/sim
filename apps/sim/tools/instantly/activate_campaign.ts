@@ -1,9 +1,10 @@
 import type {
   InstantlyActivateCampaignParams,
-  InstantlyCampaignResponse,
+  InstantlyCampaignActionResponse,
 } from '@/tools/instantly/types'
 import {
-  campaignOutputs,
+  campaignActionOutputs,
+  getMessage,
   instantlyBaseParamFields,
   instantlyHeaders,
   instantlyUrl,
@@ -14,7 +15,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const activateCampaignTool: ToolConfig<
   InstantlyActivateCampaignParams,
-  InstantlyCampaignResponse
+  InstantlyCampaignActionResponse
 > = {
   id: 'instantly_activate_campaign',
   name: 'Instantly Activate Campaign',
@@ -45,8 +46,9 @@ export const activateCampaignTool: ToolConfig<
         id: campaign.id,
         name: campaign.name,
         status: campaign.status,
+        message: getMessage(data),
       },
     }
   },
-  outputs: campaignOutputs,
+  outputs: campaignActionOutputs,
 }

@@ -3,6 +3,7 @@ import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
@@ -265,7 +266,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           return {
             success: true,
-            message: `Found ${results.length} result(s) for query "${args.query.substring(0, 50)}${args.query.length > 50 ? '...' : ''}"`,
+            message: `Found ${results.length} result(s) for query "${truncate(args.query, 50)}"`,
             data: {
               knowledgeBaseId: args.knowledgeBaseId,
               knowledgeBaseName: kb.name,

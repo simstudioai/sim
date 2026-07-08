@@ -8,7 +8,7 @@ import { ContactForm } from '@/app/(landing)/contact/components/contact-form'
  * right.
  *
  * The section is a two-column CSS grid capped and centered at the shared
- * `max-w-[1446px]` with the navbar-aligned `px-12` gutter, so the headline starts
+ * `max-w-[1460px]` with the navbar-aligned `px-20` gutter, so the headline starts
  * on the same vertical line as the wordmark. The desktop split is `xl:grid-cols-2`
  * with `xl:gap-x-0` — the columns split at the exact horizontal center, so the
  * right card occupies the same rectangle as the hero's right panel. The card is
@@ -23,7 +23,7 @@ import { ContactForm } from '@/app/(landing)/contact/components/contact-form'
  * text sits on the hero's line, while the card top stays on the higher `top-8`
  * line. The customer proof reuses the shared {@link TrustedBy} block,
  * bottom-anchored (`xl:row-start-2 xl:self-end`). The gutter follows the navbar
- * convention (`px-12 max-lg:px-8 max-sm:px-5`), and `max-sm` drops to the smallest
+ * convention (`px-20 max-lg:px-8 max-sm:px-5`), and `max-sm` drops to the smallest
  * type scale.
  *
  * Carries an sr-only product summary for AI citation (landing CLAUDE.md → GEO).
@@ -34,7 +34,7 @@ export default function Contact() {
       <section
         id='contact'
         aria-labelledby='contact-heading'
-        className='mx-auto grid w-full max-w-[1446px] grid-cols-1 gap-y-10 px-12 pt-20 pb-24 max-sm:gap-y-8 max-sm:px-5 max-sm:pt-16 max-sm:pb-16 max-lg:px-8 xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-0 xl:pt-8 xl:pb-8'
+        className='mx-auto grid w-full max-w-[1460px] grid-cols-1 gap-y-10 px-20 pt-20 pb-24 max-sm:gap-y-8 max-sm:px-5 max-sm:pt-16 max-sm:pb-16 max-lg:px-8 xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-0 xl:pt-8 xl:pb-8'
       >
         <div className='flex flex-col gap-5 xl:col-start-1 xl:row-start-1 xl:self-start xl:pt-[80px]'>
           <p className='sr-only'>

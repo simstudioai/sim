@@ -20,7 +20,6 @@ export const googleCalendarPollingTrigger: TriggerConfig = {
       requiredScopes: [],
       required: true,
       mode: 'trigger',
-      supportsCredentialSets: true,
       canonicalParamId: 'oauthCredential',
     },
     {

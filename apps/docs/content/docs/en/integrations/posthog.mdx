@@ -49,6 +49,7 @@ Capture a single event in PostHog. Use this to track user actions, page views, o
 | --------- | ---- | -------- | ----------- |
 | `projectApiKey` | string | Yes | PostHog Project API Key \(public token for event ingestion\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `event` | string | Yes | The name of the event to capture \(e.g., "page_view", "button_clicked"\) |
 | `distinctId` | string | Yes | Unique identifier for the user or device \(e.g., "user123", email, or device UUID\) |
 | `properties` | string | No | JSON string of event properties \(e.g., \{"button_name": "signup", "page": "homepage"\}\) |
@@ -70,6 +71,7 @@ Capture multiple events at once in PostHog. Use this for bulk event ingestion to
 | --------- | ---- | -------- | ----------- |
 | `projectApiKey` | string | Yes | PostHog Project API Key \(public token for event ingestion\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `batch` | string | Yes | JSON array of events to capture. Each event should have: event, distinct_id, and optional properties, timestamp. Example: \[\{"event": "page_view", "distinct_id": "user123", "properties": \{"page": "/"\}\}\] |
 
 #### Output
@@ -89,6 +91,7 @@ List persons (users) in PostHog. Returns user profiles with their properties and
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `limit` | number | No | Number of persons to return \(default: 100, max: 100\) |
 | `offset` | number | No | Number of persons to skip for pagination \(e.g., 0, 100, 200\) |
@@ -117,6 +120,7 @@ Get detailed information about a specific person in PostHog by their ID or UUID.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `personId` | string | Yes | Person ID or UUID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 
@@ -141,6 +145,7 @@ Delete a person from PostHog. This will remove all associated events and data. U
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `personId` | string | Yes | Person ID or UUID to delete \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 
@@ -160,6 +165,7 @@ Execute a HogQL query in PostHog. HogQL is PostHog's SQL-like query language for
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `query` | string | Yes | HogQL query to execute. Example: \{"kind": "HogQLQuery", "query": "SELECT event, count\(\) FROM events WHERE timestamp &gt; now\(\) - INTERVAL 1 DAY GROUP BY event"\} |
 | `values` | string | No | Optional JSON string of parameter values for parameterized queries. Example: \{"user_id": "123"\} |
@@ -176,7 +182,7 @@ Execute a HogQL query in PostHog. HogQL is PostHog's SQL-like query language for
 
 ### `posthog_list_insights`
 
-List all insights in a PostHog project. Returns insight configurations, filters, and metadata.
+List all insights in a PostHog project. Returns insight configurations and metadata.
 
 #### Input
 
@@ -185,6 +191,7 @@ List all insights in a PostHog project. Returns insight configurations, filters,
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
@@ -199,18 +206,16 @@ List all insights in a PostHog project. Returns insight configurations, filters,
 |   ↳ `id` | number | Unique identifier for the insight |
 |   ↳ `name` | string | Name of the insight |
 |   ↳ `description` | string | Description of the insight |
-|   ↳ `filters` | object | Filter configuration for the insight |
 |   ↳ `query` | object | Query configuration for the insight |
 |   ↳ `created_at` | string | ISO timestamp when insight was created |
 |   ↳ `created_by` | object | User who created the insight |
 |   ↳ `last_modified_at` | string | ISO timestamp when insight was last modified |
 |   ↳ `last_modified_by` | object | User who last modified the insight |
-|   ↳ `saved` | boolean | Whether the insight is saved |
 |   ↳ `dashboards` | array | IDs of dashboards this insight appears on |
 
 ### `posthog_get_insight`
 
-Get a specific insight by ID from PostHog. Returns detailed insight configuration, filters, and metadata.
+Get a specific insight by ID from PostHog. Returns detailed insight configuration and metadata.
 
 #### Input
 
@@ -220,6 +225,7 @@ Get a specific insight by ID from PostHog. Returns detailed insight configuratio
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `insightId` | string | Yes | The insight ID to retrieve \(e.g., "42" or short ID like "abc123"\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 
@@ -228,20 +234,18 @@ Get a specific insight by ID from PostHog. Returns detailed insight configuratio
 | `id` | number | Unique identifier for the insight |
 | `name` | string | Name of the insight |
 | `description` | string | Description of the insight |
-| `filters` | object | Filter configuration for the insight |
 | `query` | object | Query configuration for the insight |
 | `created_at` | string | ISO timestamp when insight was created |
 | `created_by` | object | User who created the insight |
 | `last_modified_at` | string | ISO timestamp when insight was last modified |
 | `last_modified_by` | object | User who last modified the insight |
-| `saved` | boolean | Whether the insight is saved |
 | `dashboards` | array | IDs of dashboards this insight appears on |
 | `tags` | array | Tags associated with the insight |
 | `favorited` | boolean | Whether the insight is favorited |
 
 ### `posthog_create_insight`
 
-Create a new insight in PostHog. Requires insight name and configuration filters or query.
+Create a new insight in PostHog. Requires insight name and a query configuration.
 
 #### Input
 
@@ -250,9 +254,9 @@ Create a new insight in PostHog. Requires insight name and configuration filters
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `name` | string | No | Name for the insight \(optional - PostHog will generate a derived name if not provided\) |
 | `description` | string | No | Description of the insight |
-| `filters` | string | No | JSON string of filter configuration for the insight |
 | `query` | string | No | JSON string of query configuration for the insight |
 | `dashboards` | string | No | Comma-separated list of dashboard IDs to add this insight to |
 | `tags` | string | No | Comma-separated list of tags for the insight |
@@ -264,14 +268,46 @@ Create a new insight in PostHog. Requires insight name and configuration filters
 | `id` | number | Unique identifier for the created insight |
 | `name` | string | Name of the insight |
 | `description` | string | Description of the insight |
-| `filters` | object | Filter configuration for the insight |
 | `query` | object | Query configuration for the insight |
 | `created_at` | string | ISO timestamp when insight was created |
 | `created_by` | object | User who created the insight |
 | `last_modified_at` | string | ISO timestamp when insight was last modified |
-| `saved` | boolean | Whether the insight is saved |
 | `dashboards` | array | IDs of dashboards this insight appears on |
 | `tags` | array | Tags associated with the insight |
+
+### `posthog_update_insight`
+
+Update an existing insight in PostHog. Can modify name, description, query, dashboards, tags, and favorited status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `insightId` | string | Yes | The insight ID to update \(e.g., "42" or short ID like "abc123"\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
+| `name` | string | No | Updated name for the insight |
+| `description` | string | No | Updated description for the insight |
+| `query` | string | No | JSON string of updated query configuration for the insight |
+| `dashboards` | string | No | Comma-separated list of dashboard IDs to attach this insight to |
+| `tags` | string | No | Comma-separated list of tags for the insight |
+| `favorited` | boolean | No | Whether to mark the insight as favorited |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the insight |
+| `name` | string | Name of the insight |
+| `description` | string | Description of the insight |
+| `query` | object | Query configuration for the insight |
+| `created_at` | string | ISO timestamp when insight was created |
+| `last_modified_at` | string | ISO timestamp when insight was last modified |
+| `dashboards` | array | IDs of dashboards this insight appears on |
+| `tags` | array | Tags associated with the insight |
+| `favorited` | boolean | Whether the insight is favorited |
 
 ### `posthog_list_dashboards`
 
@@ -284,6 +320,7 @@ List all dashboards in a PostHog project. Returns dashboard configurations, tile
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
@@ -319,6 +356,7 @@ Get a specific dashboard by ID from PostHog. Returns detailed dashboard configur
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `dashboardId` | string | Yes | The dashboard ID to retrieve \(e.g., "42"\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 
@@ -337,6 +375,37 @@ Get a specific dashboard by ID from PostHog. Returns detailed dashboard configur
 | `tags` | array | Tags associated with the dashboard |
 | `restriction_level` | number | Access restriction level for the dashboard |
 
+### `posthog_create_dashboard`
+
+Create a new dashboard in PostHog. Optionally seed it from a built-in template, then attach insights to it afterward.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
+| `name` | string | Yes | Name for the new dashboard |
+| `description` | string | No | Description of the dashboard |
+| `pinned` | boolean | No | Whether to pin the dashboard to the sidebar |
+| `tags` | string | No | Comma-separated list of tags for the dashboard |
+| `useTemplate` | string | No | Name of a built-in PostHog dashboard template to seed this dashboard from \(e.g., "Product analytics"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the created dashboard |
+| `name` | string | Name of the dashboard |
+| `description` | string | Description of the dashboard |
+| `pinned` | boolean | Whether the dashboard is pinned |
+| `created_at` | string | ISO timestamp when dashboard was created |
+| `tiles` | array | Tiles/widgets on the dashboard |
+| `filters` | object | Global filters applied to the dashboard |
+| `tags` | array | Tags associated with the dashboard |
+
 ### `posthog_list_actions`
 
 List all actions in a PostHog project. Returns action definitions, steps, and metadata.
@@ -348,8 +417,10 @@ List all actions in a PostHog project. Returns action definitions, steps, and me
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
+| `search` | string | No | Search term to filter actions by name |
 
 #### Output
 
@@ -383,6 +454,7 @@ List all cohorts in a PostHog project. Returns cohort definitions, filters, and 
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
@@ -421,6 +493,7 @@ Get a specific cohort by ID from PostHog. Returns detailed cohort definition, fi
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `cohortId` | string | Yes | The cohort ID to retrieve \(e.g., "42"\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 
@@ -453,6 +526,7 @@ Create a new cohort in PostHog. Requires cohort name and filter or query configu
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `name` | string | No | Name for the cohort \(optional - PostHog will use "Untitled cohort" if not provided\) |
 | `description` | string | No | Description of the cohort |
 | `filters` | string | No | JSON string of filter configuration for the cohort |
@@ -478,6 +552,44 @@ Create a new cohort in PostHog. Requires cohort name and filter or query configu
 | `is_static` | boolean | Whether the cohort is static |
 | `version` | number | Version number of the cohort |
 
+### `posthog_update_cohort`
+
+Update an existing cohort in PostHog. Can modify name, description, filters, query, static membership, and deleted status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `cohortId` | string | Yes | The cohort ID to update \(e.g., "42"\) |
+| `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
+| `name` | string | No | Updated name for the cohort |
+| `description` | string | No | Updated description of the cohort |
+| `filters` | string | No | JSON string of updated filter configuration for the cohort |
+| `query` | string | No | JSON string of updated query configuration for the cohort |
+| `isStatic` | boolean | No | Whether the cohort is static |
+| `groups` | string | No | JSON string of updated groups that define the cohort |
+| `deleted` | boolean | No | Set to true to archive \(soft-delete\) the cohort |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Unique identifier for the cohort |
+| `name` | string | Name of the cohort |
+| `description` | string | Description of the cohort |
+| `groups` | array | Groups that define the cohort |
+| `deleted` | boolean | Whether the cohort is deleted |
+| `filters` | object | Filter configuration for the cohort |
+| `query` | object | Query configuration for the cohort |
+| `created_at` | string | ISO timestamp when cohort was created |
+| `is_calculating` | boolean | Whether the cohort is being calculated |
+| `count` | number | Number of users in the cohort |
+| `is_static` | boolean | Whether the cohort is static |
+| `version` | number | Version number of the cohort |
+
 ### `posthog_list_annotations`
 
 List all annotations in a PostHog project. Returns annotation content, timestamps, and associated insights.
@@ -489,6 +601,7 @@ List all annotations in a PostHog project. Returns annotation content, timestamp
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
@@ -507,6 +620,7 @@ List all annotations in a PostHog project. Returns annotation content, timestamp
 |   ↳ `updated_at` | string | ISO timestamp when annotation was last updated |
 |   ↳ `created_by` | object | User who created the annotation |
 |   ↳ `dashboard_item` | number | ID of dashboard item this annotation is attached to |
+|   ↳ `dashboard_id` | number | ID of the dashboard this annotation is attached to |
 |   ↳ `insight_short_id` | string | Short ID of the insight this annotation is attached to |
 |   ↳ `insight_name` | string | Name of the insight this annotation is attached to |
 |   ↳ `scope` | string | Scope of the annotation \(project or dashboard\) |
@@ -523,11 +637,12 @@ Create a new annotation in PostHog. Mark important events on your graphs with da
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: "us" or "eu" \(default: "us"\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `content` | string | Yes | Content/text of the annotation |
 | `date_marker` | string | Yes | ISO timestamp marking when the annotation applies \(e.g., "2024-01-15T10:00:00Z"\) |
-| `scope` | string | No | Scope of the annotation: "project" or "dashboard_item" \(default: "project"\) |
-| `dashboard_item` | string | No | ID of dashboard item to attach this annotation to |
-| `insight_short_id` | string | No | Short ID of the insight to attach this annotation to |
+| `scope` | string | No | Scope of the annotation: "project", "organization", "dashboard", or "dashboard_item" \(default: "project"\) |
+| `dashboard_item` | string | No | ID of the dashboard tile \(insight\) to attach this annotation to \(used when scope is "dashboard_item"\) |
+| `dashboard_id` | string | No | ID of the dashboard to attach this annotation to \(used when scope is "dashboard"\) |
 
 #### Output
 
@@ -540,9 +655,10 @@ Create a new annotation in PostHog. Mark important events on your graphs with da
 | `updated_at` | string | ISO timestamp when annotation was last updated |
 | `created_by` | object | User who created the annotation |
 | `dashboard_item` | number | ID of dashboard item this annotation is attached to |
+| `dashboard_id` | number | ID of the dashboard this annotation is attached to |
 | `insight_short_id` | string | Short ID of the insight this annotation is attached to |
 | `insight_name` | string | Name of the insight this annotation is attached to |
-| `scope` | string | Scope of the annotation \(project or dashboard_item\) |
+| `scope` | string | Scope of the annotation \(project, organization, dashboard, or dashboard_item\) |
 | `deleted` | boolean | Whether the annotation is deleted |
 
 ### `posthog_list_feature_flags`
@@ -555,6 +671,7 @@ List all feature flags in a PostHog project
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `limit` | number | No | Number of results to return \(e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
@@ -590,6 +707,7 @@ Get details of a specific feature flag
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `flagId` | string | Yes | The feature flag ID \(e.g., "42"\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 
 #### Output
@@ -621,6 +739,7 @@ Create a new feature flag in PostHog
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `name` | string | No | Feature flag name \(optional - can be empty\) |
 | `key` | string | Yes | Feature flag key \(unique identifier\) |
@@ -657,6 +776,7 @@ Update an existing feature flag in PostHog
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `flagId` | string | Yes | The feature flag ID \(e.g., "42"\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `name` | string | No | Feature flag name |
 | `key` | string | No | Feature flag key \(unique identifier\) |
@@ -693,6 +813,7 @@ Delete a feature flag from PostHog
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `flagId` | string | Yes | The feature flag ID to delete \(e.g., "42"\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 
 #### Output
@@ -711,6 +832,7 @@ Evaluate feature flags for a specific user or group. This is a public endpoint t
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `projectApiKey` | string | Yes | PostHog Project API Key \(not personal API key\) |
 | `distinctId` | string | Yes | The distinct ID of the user to evaluate flags for \(e.g., "user123" or email\) |
 | `groups` | string | No | Groups as JSON string \(e.g., \{"company": "company_id_in_your_db"\}\) |
@@ -735,6 +857,7 @@ List all experiments in a PostHog project
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `limit` | number | No | Number of results to return \(e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
@@ -751,7 +874,6 @@ List all experiments in a PostHog project
 |   ↳ `feature_flag` | object | Feature flag details |
 |   ↳ `parameters` | object | Experiment parameters |
 |   ↳ `filters` | object | Experiment filters |
-|   ↳ `variants` | object | Experiment variants |
 |   ↳ `start_date` | string | Start date |
 |   ↳ `end_date` | string | End date |
 |   ↳ `created_at` | string | Creation timestamp |
@@ -772,6 +894,7 @@ Get details of a specific experiment
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `experimentId` | string | Yes | The experiment ID \(e.g., "42"\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 
 #### Output
@@ -786,7 +909,6 @@ Get details of a specific experiment
 |   ↳ `feature_flag` | object | Feature flag details |
 |   ↳ `parameters` | object | Experiment parameters |
 |   ↳ `filters` | object | Experiment filters |
-|   ↳ `variants` | object | Experiment variants |
 |   ↳ `start_date` | string | Start date |
 |   ↳ `end_date` | string | End date |
 |   ↳ `created_at` | string | Creation timestamp |
@@ -805,13 +927,13 @@ Create a new experiment in PostHog
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
-| `name` | string | No | Experiment name \(optional\) |
+| `name` | string | Yes | Experiment name |
 | `description` | string | No | Experiment description |
 | `featureFlagKey` | string | Yes | Feature flag key to use for the experiment |
 | `parameters` | string | No | Experiment parameters as JSON string |
 | `filters` | string | No | Experiment filters as JSON string |
-| `variants` | string | No | Experiment variants as JSON string |
 | `startDate` | string | No | Experiment start date \(ISO format\) |
 | `endDate` | string | No | Experiment end date \(ISO format\) |
 
@@ -827,11 +949,48 @@ Create a new experiment in PostHog
 |   ↳ `feature_flag` | object | Feature flag details |
 |   ↳ `parameters` | object | Experiment parameters |
 |   ↳ `filters` | object | Experiment filters |
-|   ↳ `variants` | object | Experiment variants |
 |   ↳ `start_date` | string | Start date |
 |   ↳ `end_date` | string | End date |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `created_by` | object | Creator information |
+|   ↳ `archived` | boolean | Whether the experiment is archived |
+
+### `posthog_update_experiment`
+
+Update an existing experiment in PostHog. Use this to change dates, archive an experiment, or adjust its parameters and filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | The PostHog project ID \(e.g., "12345" or project UUID\) |
+| `experimentId` | string | Yes | The experiment ID to update \(e.g., "42"\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `name` | string | No | Updated experiment name |
+| `description` | string | No | Updated experiment description |
+| `parameters` | string | No | Updated experiment parameters as JSON string |
+| `filters` | string | No | Updated experiment filters as JSON string |
+| `startDate` | string | No | Updated start date \(ISO 8601\). Set this to launch a draft experiment. |
+| `endDate` | string | No | Updated end date \(ISO 8601\). Set this to conclude a running experiment. |
+| `archived` | boolean | No | Whether to archive the experiment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `experiment` | object | Updated experiment |
+|   ↳ `id` | number | Experiment ID |
+|   ↳ `name` | string | Experiment name |
+|   ↳ `description` | string | Experiment description |
+|   ↳ `feature_flag_key` | string | Associated feature flag key |
+|   ↳ `feature_flag` | object | Feature flag details |
+|   ↳ `parameters` | object | Experiment parameters |
+|   ↳ `filters` | object | Experiment filters |
+|   ↳ `start_date` | string | Start date |
+|   ↳ `end_date` | string | End date |
+|   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `archived` | boolean | Whether the experiment is archived |
 
 ### `posthog_list_surveys`
@@ -845,6 +1004,7 @@ List all surveys in a PostHog project. Surveys allow you to collect feedback fro
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `limit` | number | No | Number of results to return \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
@@ -878,6 +1038,7 @@ Get details of a specific survey in PostHog by ID.
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `surveyId` | string | Yes | Survey ID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 
@@ -909,7 +1070,8 @@ Create a new survey in PostHog. Supports question types: Basic (open), Link, Rat
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
-| `name` | string | No | Survey name \(optional\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
+| `name` | string | Yes | Survey name |
 | `description` | string | No | Survey description |
 | `type` | string | No | Survey type: popover \(in-app\) or api \(custom implementation\) \(default: popover\) |
 | `questions` | string | Yes | JSON string of survey questions array. Each question must have type \(open/link/rating/multiple_choice\) and question text. Rating questions can have scale \(1-10\), lowerBoundLabel, upperBoundLabel. Multiple choice questions need choices array. Link questions can have buttonText. |
@@ -947,6 +1109,7 @@ Update an existing survey in PostHog. Can modify questions, appearance, conditio
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `surveyId` | string | Yes | Survey ID to update \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `name` | string | No | Survey name |
 | `description` | string | No | Survey description |
 | `type` | string | No | Survey type: popover or api |
@@ -975,6 +1138,26 @@ Update an existing survey in PostHog. Can modify questions, appearance, conditio
 |   ↳ `end_date` | string | Survey end date |
 |   ↳ `archived` | boolean | Whether survey is archived |
 
+### `posthog_delete_survey`
+
+Delete a survey from PostHog. Use this to remove expired or unused surveys.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | PostHog Personal API Key |
+| `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
+| `surveyId` | string | Yes | Survey ID to delete \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
+| `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Status message indicating whether the survey was deleted successfully |
+
 ### `posthog_list_session_recordings`
 
 List session recordings in a PostHog project. Session recordings capture user interactions with your application.
@@ -986,6 +1169,7 @@ List session recordings in a PostHog project. Session recordings capture user in
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `limit` | number | No | Number of results to return \(default: 50, e.g., 10, 25, 50\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 50, 100\) |
 
@@ -1024,6 +1208,7 @@ Get details of a specific session recording in PostHog by ID.
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `recordingId` | string | Yes | Session recording ID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 
@@ -1045,7 +1230,6 @@ Get details of a specific session recording in PostHog by ID.
 |   ↳ `console_error_count` | number | Number of console errors |
 |   ↳ `start_url` | string | Starting URL of the recording |
 |   ↳ `person` | object | Person information |
-|   ↳ `matching_events` | array | Events that occurred during recording |
 
 ### `posthog_list_recording_playlists`
 
@@ -1058,6 +1242,7 @@ List session recording playlists in a PostHog project. Playlists allow you to or
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | No | PostHog cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `limit` | number | No | Number of results to return \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 100, 200\) |
 
@@ -1091,6 +1276,7 @@ List all event definitions in a PostHog project. Event definitions represent tra
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | The initial index from which to return results \(e.g., 0, 100, 200\) |
@@ -1108,8 +1294,6 @@ List all event definitions in a PostHog project. Event definitions represent tra
 |   ↳ `name` | string | Event name |
 |   ↳ `description` | string | Event description |
 |   ↳ `tags` | array | Tags associated with the event |
-|   ↳ `volume_30_day` | number | Number of events received in the last 30 days |
-|   ↳ `query_usage_30_day` | number | Number of times this event was queried in the last 30 days |
 |   ↳ `created_at` | string | ISO timestamp when the event was created |
 |   ↳ `last_seen_at` | string | ISO timestamp when the event was last seen |
 |   ↳ `updated_at` | string | ISO timestamp when the event was updated |
@@ -1126,6 +1310,7 @@ Get details of a specific event definition in PostHog. Returns comprehensive inf
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `eventDefinitionId` | string | Yes | Event Definition ID to retrieve |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 
 #### Output
@@ -1136,8 +1321,6 @@ Get details of a specific event definition in PostHog. Returns comprehensive inf
 | `name` | string | Event name |
 | `description` | string | Event description |
 | `tags` | array | Tags associated with the event |
-| `volume_30_day` | number | Number of events received in the last 30 days |
-| `query_usage_30_day` | number | Number of times this event was queried in the last 30 days |
 | `created_at` | string | ISO timestamp when the event was created |
 | `last_seen_at` | string | ISO timestamp when the event was last seen |
 | `updated_at` | string | ISO timestamp when the event was updated |
@@ -1157,6 +1340,7 @@ Update an event definition in PostHog. Can modify description, tags, and verific
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `eventDefinitionId` | string | Yes | Event Definition ID to update |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `description` | string | No | Updated description for the event |
 | `tags` | string | No | Comma-separated list of tags to associate with the event |
@@ -1170,8 +1354,6 @@ Update an event definition in PostHog. Can modify description, tags, and verific
 | `name` | string | Event name |
 | `description` | string | Updated event description |
 | `tags` | array | Updated tags associated with the event |
-| `volume_30_day` | number | Number of events received in the last 30 days |
-| `query_usage_30_day` | number | Number of times this event was queried in the last 30 days |
 | `created_at` | string | ISO timestamp when the event was created |
 | `last_seen_at` | string | ISO timestamp when the event was last seen |
 | `updated_at` | string | ISO timestamp when the event was updated |
@@ -1190,6 +1372,7 @@ List all property definitions in a PostHog project. Property definitions represe
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `limit` | number | No | Number of results to return per page \(default: 100, e.g., 10, 50, 100\) |
 | `offset` | number | No | The initial index from which to return results \(e.g., 0, 100, 200\) |
@@ -1211,9 +1394,7 @@ List all property definitions in a PostHog project. Property definitions represe
 |   ↳ `is_numerical` | boolean | Whether the property is numerical |
 |   ↳ `is_seen_on_filtered_events` | boolean | Whether the property is seen on filtered events |
 |   ↳ `property_type` | string | The data type of the property |
-|   ↳ `type` | string | Property type: event, person, or group |
-|   ↳ `volume_30_day` | number | Number of times property was seen in the last 30 days |
-|   ↳ `query_usage_30_day` | number | Number of times this property was queried in the last 30 days |
+|   ↳ `type` | string | Property type: event, person, group, or session |
 |   ↳ `created_at` | string | ISO timestamp when the property was created |
 |   ↳ `updated_at` | string | ISO timestamp when the property was updated |
 |   ↳ `updated_by` | object | User who last updated the property |
@@ -1229,6 +1410,7 @@ Get details of a specific property definition in PostHog. Returns comprehensive 
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `propertyDefinitionId` | string | Yes | Property Definition ID to retrieve |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 
 #### Output
@@ -1242,16 +1424,13 @@ Get details of a specific property definition in PostHog. Returns comprehensive 
 | `is_numerical` | boolean | Whether the property is numerical |
 | `is_seen_on_filtered_events` | boolean | Whether the property is seen on filtered events |
 | `property_type` | string | The data type of the property |
-| `type` | string | Property type: event, person, or group |
-| `volume_30_day` | number | Number of times property was seen in the last 30 days |
-| `query_usage_30_day` | number | Number of times this property was queried in the last 30 days |
+| `type` | string | Property type: event, person, group, or session |
 | `created_at` | string | ISO timestamp when the property was created |
 | `updated_at` | string | ISO timestamp when the property was updated |
 | `updated_by` | object | User who last updated the property |
 | `verified` | boolean | Whether the property has been verified |
 | `verified_at` | string | ISO timestamp when the property was verified |
 | `verified_by` | string | User who verified the property |
-| `example` | string | Example value for the property |
 
 ### `posthog_update_property_definition`
 
@@ -1264,6 +1443,7 @@ Update a property definition in PostHog. Can modify description, tags, property 
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `propertyDefinitionId` | string | Yes | Property Definition ID to update |
 | `region` | string | Yes | PostHog cloud region: us or eu |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `description` | string | No | Updated description for the property |
 | `tags` | string | No | Comma-separated list of tags to associate with the property |
@@ -1281,16 +1461,13 @@ Update a property definition in PostHog. Can modify description, tags, property 
 | `is_numerical` | boolean | Whether the property is numerical |
 | `is_seen_on_filtered_events` | boolean | Whether the property is seen on filtered events |
 | `property_type` | string | The data type of the property |
-| `type` | string | Property type: event, person, or group |
-| `volume_30_day` | number | Number of times property was seen in the last 30 days |
-| `query_usage_30_day` | number | Number of times this property was queried in the last 30 days |
+| `type` | string | Property type: event, person, group, or session |
 | `created_at` | string | ISO timestamp when the property was created |
 | `updated_at` | string | ISO timestamp when the property was updated |
 | `updated_by` | object | User who last updated the property |
 | `verified` | boolean | Whether the property has been verified |
 | `verified_at` | string | ISO timestamp when the property was verified |
 | `verified_by` | string | User who verified the property |
-| `example` | string | Example value for the property |
 
 ### `posthog_list_projects`
 
@@ -1302,6 +1479,7 @@ List all projects in the organization. Returns project details including IDs, na
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `region` | string | No | Cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 
@@ -1336,6 +1514,7 @@ Get detailed information about a specific project by ID. Returns comprehensive p
 | `projectId` | string | Yes | Project ID \(e.g., "12345" or project UUID\) |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `region` | string | No | Cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 
@@ -1376,6 +1555,7 @@ List all organizations the user has access to. Returns organization details incl
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `region` | string | No | Cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 
@@ -1403,6 +1583,7 @@ Get detailed information about a specific organization by ID. Returns comprehens
 | `organizationId` | string | Yes | Organization ID \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
 | `apiKey` | string | Yes | PostHog Personal API Key |
 | `region` | string | No | Cloud region: us or eu \(default: us\) |
+| `host` | string | No | Self-hosted PostHog instance host \(e.g., "posthog.mycompany.com"\). Overrides the region setting when provided. |
 
 #### Output
 

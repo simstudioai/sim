@@ -167,6 +167,7 @@ export function Table({
     actionBarRowIds: [],
     runningInActionBarSelection: 0,
     totalRunning: 0,
+    hasRunningCell: false,
     hasActiveDispatch: false,
     hasWorkflowColumns: false,
     selectedRunScope: null,
@@ -657,6 +658,7 @@ export function Table({
               {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
                 <RunStatusControl
                   running={selection.totalRunning}
+                  queueing={!selection.hasRunningCell}
                   onStopAll={onStopAll}
                   isStopping={cancelRunsMutation.isPending}
                 />
@@ -686,6 +688,7 @@ export function Table({
           embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
             <RunStatusControl
               running={selection.totalRunning}
+              queueing={!selection.hasRunningCell}
               onStopAll={onStopAll}
               isStopping={cancelRunsMutation.isPending}
             />

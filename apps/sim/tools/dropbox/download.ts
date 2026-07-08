@@ -32,7 +32,7 @@ export const dropboxDownloadTool: ToolConfig<DropboxDownloadParams, DropboxDownl
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/octet-stream',
-        'Dropbox-API-Arg': httpHeaderSafeJson({ path: params.path }),
+        'Dropbox-API-Arg': httpHeaderSafeJson({ path: params.path.trim() }),
       }
     },
   },
@@ -64,7 +64,7 @@ export const dropboxDownloadTool: ToolConfig<DropboxDownloadParams, DropboxDownl
             Authorization: `Bearer ${params.accessToken}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ path: params.path }),
+          body: JSON.stringify({ path: params.path.trim() }),
         })
         if (linkResponse.ok) {
           const linkData = await linkResponse.json()

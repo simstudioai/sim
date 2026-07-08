@@ -21,6 +21,10 @@ const logger = createLogger('KnowledgeConnectorQueries')
 
 export type { ConnectorData, ConnectorDetailData, SyncLogData }
 
+export const CONNECTOR_LIST_STALE_TIME = 30 * 1000
+export const CONNECTOR_DETAIL_STALE_TIME = 30 * 1000
+export const CONNECTOR_DOCUMENT_LIST_STALE_TIME = 30 * 1000
+
 export const connectorKeys = {
   all: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'connectors'] as const,
@@ -76,7 +80,7 @@ export function useConnectorList(knowledgeBaseId?: string) {
     queryKey: connectorKeys.list(knowledgeBaseId),
     queryFn: ({ signal }) => fetchConnectors(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
-    staleTime: 30 * 1000,
+    staleTime: CONNECTOR_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       const connectors = query.state.data
@@ -92,7 +96,7 @@ export function useConnectorDetail(knowledgeBaseId?: string, connectorId?: strin
     queryFn: ({ signal }) =>
       fetchConnectorDetail(knowledgeBaseId as string, connectorId as string, signal),
     enabled: Boolean(knowledgeBaseId && connectorId),
-    staleTime: 30 * 1000,
+    staleTime: CONNECTOR_DETAIL_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -263,7 +267,7 @@ export function useConnectorDocuments(
         signal
       ),
     enabled: Boolean(knowledgeBaseId && connectorId),
-    staleTime: 30 * 1000,
+    staleTime: CONNECTOR_DOCUMENT_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

@@ -1,8 +1,11 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { getPostHogIngestBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogBatchEventsParams {
   projectApiKey: string
   region?: 'us' | 'eu'
+  host?: string
   batch: string
 }
 
@@ -35,6 +38,13 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
       description: 'PostHog region: us (default) or eu',
       default: 'us',
     },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
+    },
     batch: {
       type: 'string',
       required: true,
@@ -46,8 +56,7 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
 
   request: {
     url: (params) => {
-      const baseUrl =
-        params.region === 'eu' ? 'https://eu.i.posthog.com' : 'https://us.i.posthog.com'
+      const baseUrl = getPostHogIngestBaseUrl(params.region, params.host)
       return `${baseUrl}/batch/`
     },
     method: 'POST',
@@ -55,40 +64,36 @@ export const batchEventsTool: ToolConfig<PostHogBatchEventsParams, PostHogBatchE
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      let batch: any[]
+      let batch: unknown
       try {
         batch = JSON.parse(params.batch)
-      } catch (e) {
-        batch = []
+      } catch (error) {
+        throw new Error(`Invalid batch JSON: ${getErrorMessage(error)}`)
+      }
+      if (!Array.isArray(batch)) {
+        throw new Error('batch must be a JSON array of events')
       }
 
       return {
         api_key: params.projectApiKey,
-        batch: batch,
+        batch,
       }
     },
   },
 
-  transformResponse: async (response: Response) => {
-    if (response.ok) {
-      const data = await response.json()
-      return {
-        success: true,
-        output: {
-          status: 'Batch events captured successfully',
-          events_processed: data.status === 1 ? JSON.parse(data.batch || '[]').length : 0,
-        },
-      }
-    }
+  transformResponse: async (response: Response, params) => {
+    const data = await response.json()
+    const eventsProcessed = params ? (JSON.parse(params.batch) as unknown[]).length : 0
+    const success = data.status === 1
 
-    const error = await response.text()
     return {
-      success: false,
+      success,
       output: {
-        status: 'Failed to capture batch events',
-        events_processed: 0,
+        status: success
+          ? 'Batch events captured successfully'
+          : `Batch events capture failed (status: ${data.status})`,
+        events_processed: success ? eventsProcessed : 0,
       },
-      error: error || 'Unknown error occurred',
     }
   },
 

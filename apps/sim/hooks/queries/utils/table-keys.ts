@@ -10,6 +10,8 @@
 
 export type TableQueryScope = 'active' | 'archived' | 'all'
 
+export const TABLE_LIST_STALE_TIME = 30 * 1000
+
 export const tableKeys = {
   all: ['tables'] as const,
   lists: () => [...tableKeys.all, 'list'] as const,

@@ -31,11 +31,11 @@ export const discordDeleteRoleTool: ToolConfig<DiscordDeleteRoleParams, DiscordD
 
     request: {
       url: (params: DiscordDeleteRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId}/roles/${params.roleId}`
+        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles/${params.roleId.trim()}`
       },
       method: 'DELETE',
       headers: (params) => ({
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
     },
 

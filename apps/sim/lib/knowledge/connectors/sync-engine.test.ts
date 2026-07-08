@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { authOAuthUtilsMock, urlsMock } from '@sim/testing'
+import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({ db: {} }))
@@ -233,7 +234,7 @@ describe('chunkOpsByByteBudget', () => {
   const addOp = (sizeBytes?: number) => ({
     type: 'add' as const,
     extDoc: {
-      externalId: `e-${Math.random()}`,
+      externalId: `e-${generateShortId()}`,
       title: 'f',
       content: 'x',
       contentHash: 'h',
@@ -244,7 +245,7 @@ describe('chunkOpsByByteBudget', () => {
   const skipOp = (sizeBytes: number) => ({
     type: 'skip' as const,
     extDoc: {
-      externalId: `s-${Math.random()}`,
+      externalId: `s-${generateShortId()}`,
       title: 'f',
       content: '',
       contentHash: 'h',

@@ -152,8 +152,8 @@ export const POST = withRouteHandler(async (req: Request) => {
       return NextResponse.json({ ok: true })
     }
 
-    const fromEmail = extractSenderEmail(message.from_) || ''
-    logger.info('Webhook received', { fromEmail, from_raw: message.from_, workspaceId: result.id })
+    const fromEmail = extractSenderEmail(message.from) || ''
+    logger.info('Webhook received', { fromEmail, from_raw: message.from, workspaceId: result.id })
 
     if (result.inboxAddress && fromEmail === result.inboxAddress.toLowerCase()) {
       logger.info('Skipping email from inbox itself', { workspaceId: result.id })
@@ -212,7 +212,7 @@ export const POST = withRouteHandler(async (req: Request) => {
 
     const chatId = parentTaskResult[0]?.chatId ?? null
 
-    const fromName = extractDisplayName(message.from_)
+    const fromName = extractDisplayName(message.from)
 
     const taskId = generateId()
     const bodyText = message.text?.substring(0, 50_000) || null
@@ -334,8 +334,8 @@ async function createRejectedTask(
   await db.insert(mothershipInboxTask).values({
     id: generateId(),
     workspaceId,
-    fromEmail: extractSenderEmail(message.from_) || 'unknown',
-    fromName: extractDisplayName(message.from_),
+    fromEmail: extractSenderEmail(message.from) || 'unknown',
+    fromName: extractDisplayName(message.from),
     subject: message.subject || '(no subject)',
     bodyPreview: (message.text || '').substring(0, 200) || null,
     emailMessageId: message.message_id,
@@ -347,7 +347,7 @@ async function createRejectedTask(
 }
 
 /**
- * Extract the raw email address from AgentMail's from_ field.
+ * Extract the raw email address from AgentMail's from field.
  * Format: "username@domain.com" or "Display Name <username@domain.com>"
  */
 function extractSenderEmail(from: string): string {

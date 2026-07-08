@@ -212,12 +212,32 @@ export const instancesTool: ToolConfig<
   },
 }
 
+interface GoogleCalendarInstancesV2Instance {
+  id: string
+  htmlLink: string
+  status: string
+  summary: string | null
+  description: string | null
+  location: string | null
+  start: GoogleCalendarApiEventResponse['start']
+  end: GoogleCalendarApiEventResponse['end']
+  attendees: GoogleCalendarApiEventResponse['attendees'] | null
+  creator: GoogleCalendarApiEventResponse['creator']
+  organizer: GoogleCalendarApiEventResponse['organizer']
+  recurringEventId: string
+  originalStartTime: {
+    dateTime?: string
+    date?: string
+    timeZone?: string
+  }
+}
+
 interface GoogleCalendarInstancesV2Response {
   success: boolean
   output: {
     nextPageToken: string | null
     timeZone: string | null
-    instances: Array<Record<string, any>>
+    instances: GoogleCalendarInstancesV2Instance[]
   }
 }
 

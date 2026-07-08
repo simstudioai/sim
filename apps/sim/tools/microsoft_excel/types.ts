@@ -4,8 +4,6 @@ import type { ToolResponse } from '@/tools/types'
 export type ExcelCellValue = string | number | boolean | null
 
 interface MicrosoftExcelRange {
-  sheetId?: number
-  sheetName?: string
   range: string
   values: ExcelCellValue[][]
 }
@@ -13,14 +11,6 @@ interface MicrosoftExcelRange {
 interface MicrosoftExcelMetadata {
   spreadsheetId: string
   spreadsheetUrl?: string
-  title?: string
-  sheets?: {
-    sheetId: number
-    title: string
-    index: number
-    rowCount?: number
-    columnCount?: number
-  }[]
 }
 
 export interface MicrosoftExcelReadResponse extends ToolResponse {
@@ -67,10 +57,7 @@ export interface MicrosoftExcelToolParams {
   range?: string
   values?: ExcelCellValue[][]
   valueInputOption?: 'RAW' | 'USER_ENTERED'
-  insertDataOption?: 'OVERWRITE' | 'INSERT_ROWS'
   includeValuesInResponse?: boolean
-  responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
-  majorDimension?: 'ROWS' | 'COLUMNS'
 }
 
 export interface MicrosoftExcelTableToolParams {
@@ -79,7 +66,6 @@ export interface MicrosoftExcelTableToolParams {
   driveId?: string
   tableName: string
   values: ExcelCellValue[][]
-  rowIndex?: number
 }
 
 export interface MicrosoftExcelWorksheetToolParams {
@@ -217,7 +203,6 @@ export interface MicrosoftExcelV2ToolParams {
   values?: ExcelCellValue[][]
   valueInputOption?: 'RAW' | 'USER_ENTERED'
   includeValuesInResponse?: boolean
-  majorDimension?: 'ROWS' | 'COLUMNS'
 }
 
 export interface MicrosoftExcelV2ReadResponse extends ToolResponse {

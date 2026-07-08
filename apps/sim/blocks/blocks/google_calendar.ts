@@ -37,7 +37,10 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         { label: 'Invite Attendees', id: 'invite' },
         { label: 'Check Free/Busy', id: 'freebusy' },
         { label: 'Create Calendar', id: 'create_calendar' },
+        { label: 'Update Calendar', id: 'update_calendar' },
+        { label: 'Delete Calendar', id: 'delete_calendar' },
         { label: 'Share Calendar', id: 'share_calendar' },
+        { label: 'Update Sharing', id: 'update_acl' },
         { label: 'List Sharing', id: 'list_acl' },
         { label: 'Remove Sharing', id: 'unshare_calendar' },
       ],
@@ -621,14 +624,36 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Time Zone',
       type: 'short-input',
       placeholder: 'America/Los_Angeles',
-      condition: { field: 'operation', value: ['create_calendar', 'freebusy'] },
+      condition: { field: 'operation', value: ['create_calendar', 'freebusy', 'update_calendar'] },
+    },
+
+    {
+      id: 'summary',
+      title: 'New Calendar Name',
+      type: 'short-input',
+      placeholder: 'Team Calendar',
+      condition: { field: 'operation', value: 'update_calendar' },
+    },
+    {
+      id: 'description',
+      title: 'New Calendar Description',
+      type: 'long-input',
+      placeholder: 'Shared team events and milestones',
+      condition: { field: 'operation', value: 'update_calendar' },
+    },
+    {
+      id: 'location',
+      title: 'New Calendar Location',
+      type: 'short-input',
+      placeholder: 'San Francisco, CA',
+      condition: { field: 'operation', value: 'update_calendar' },
     },
 
     {
       id: 'role',
       title: 'Access Role',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'share_calendar' },
+      condition: { field: 'operation', value: ['share_calendar', 'update_acl'] },
       required: true,
       options: [
         { label: 'See free/busy only', id: 'freeBusyReader' },
@@ -668,7 +693,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'sendNotifications',
       title: 'Send Notification Email',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'share_calendar' },
+      condition: { field: 'operation', value: ['share_calendar', 'update_acl'] },
       mode: 'advanced',
       options: [
         { label: 'Yes', id: 'true' },
@@ -682,7 +707,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'ACL Rule ID',
       type: 'short-input',
       placeholder: 'user:person@example.com',
-      condition: { field: 'operation', value: 'unshare_calendar' },
+      condition: { field: 'operation', value: ['unshare_calendar', 'update_acl'] },
       required: true,
     },
 
@@ -716,7 +741,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'google_calendar_invite',
       'google_calendar_freebusy',
       'google_calendar_create_calendar',
+      'google_calendar_update_calendar',
+      'google_calendar_delete_calendar',
       'google_calendar_share_calendar',
+      'google_calendar_update_acl',
       'google_calendar_list_acl',
       'google_calendar_unshare_calendar',
     ],
@@ -747,8 +775,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'google_calendar_freebusy'
           case 'create_calendar':
             return 'google_calendar_create_calendar'
+          case 'update_calendar':
+            return 'google_calendar_update_calendar'
+          case 'delete_calendar':
+            return 'google_calendar_delete_calendar'
           case 'share_calendar':
             return 'google_calendar_share_calendar'
+          case 'update_acl':
+            return 'google_calendar_update_acl'
           case 'list_acl':
             return 'google_calendar_list_acl'
           case 'unshare_calendar':
@@ -803,7 +837,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             processedParams.addGoogleMeet === 'true' || processedParams.addGoogleMeet === true
         }
 
-        if (operation === 'share_calendar' && processedParams.sendNotifications !== undefined) {
+        if (
+          ['share_calendar', 'update_acl'].includes(operation) &&
+          processedParams.sendNotifications !== undefined
+        ) {
           processedParams.sendNotifications =
             processedParams.sendNotifications === 'true' ||
             processedParams.sendNotifications === true
@@ -907,7 +944,10 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
       'google_calendar_invite_v2',
       'google_calendar_freebusy_v2',
       'google_calendar_create_calendar_v2',
+      'google_calendar_update_calendar_v2',
+      'google_calendar_delete_calendar_v2',
       'google_calendar_share_calendar_v2',
+      'google_calendar_update_acl_v2',
       'google_calendar_list_acl_v2',
       'google_calendar_unshare_calendar_v2',
     ],
@@ -946,6 +986,7 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
     scope: { type: 'json', description: 'Grantee scope (share operation)' },
     rules: { type: 'json', description: 'List of ACL sharing rules (list sharing operation)' },
     ruleId: { type: 'string', description: 'Removed ACL rule ID (remove sharing operation)' },
+    calendarId: { type: 'string', description: 'Deleted calendar ID (delete calendar operation)' },
     nextPageToken: { type: 'string', description: 'Next page token' },
     timeZone: { type: 'string', description: 'Calendar time zone' },
   },

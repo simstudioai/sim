@@ -234,8 +234,10 @@ List notes in Attio, optionally filtered by parent record
 |   ↳ `contentMarkdown` | string | The note content as markdown |
 |   ↳ `meetingId` | string | The linked meeting ID |
 |   ↳ `tags` | array | Tags on the note |
-|     ↳ `type` | string | The tag type \(e.g. workspace-member\) |
-|     ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
+|     ↳ `type` | string | The tag type \(workspace-member or record\) |
+|     ↳ `workspaceMemberId` | string | The workspace member ID \(present when type is workspace-member\) |
+|     ↳ `object` | string | The tagged object slug \(present when type is record\) |
+|     ↳ `recordId` | string | The tagged record ID \(present when type is record\) |
 |   ↳ `createdByActor` | object | The actor who created the note |
 |     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
 |     ↳ `id` | string | The actor ID |
@@ -264,8 +266,10 @@ Get a single note by ID from Attio
 | `contentMarkdown` | string | The note content as markdown |
 | `meetingId` | string | The linked meeting ID |
 | `tags` | array | Tags on the note |
-|   ↳ `type` | string | The tag type \(e.g. workspace-member\) |
-|   ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
+|   ↳ `type` | string | The tag type \(workspace-member or record\) |
+|   ↳ `workspaceMemberId` | string | The workspace member ID \(present when type is workspace-member\) |
+|   ↳ `object` | string | The tagged object slug \(present when type is record\) |
+|   ↳ `recordId` | string | The tagged record ID \(present when type is record\) |
 | `createdByActor` | object | The actor who created the note |
 |   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
 |   ↳ `id` | string | The actor ID |
@@ -299,8 +303,10 @@ Create a note on a record in Attio
 | `contentMarkdown` | string | The note content as markdown |
 | `meetingId` | string | The linked meeting ID |
 | `tags` | array | Tags on the note |
-|   ↳ `type` | string | The tag type \(e.g. workspace-member\) |
-|   ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
+|   ↳ `type` | string | The tag type \(workspace-member or record\) |
+|   ↳ `workspaceMemberId` | string | The workspace member ID \(present when type is workspace-member\) |
+|   ↳ `object` | string | The tagged object slug \(present when type is record\) |
+|   ↳ `recordId` | string | The tagged record ID \(present when type is record\) |
 | `createdByActor` | object | The actor who created the note |
 |   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
 |   ↳ `id` | string | The actor ID |
@@ -334,7 +340,7 @@ List tasks in Attio, optionally filtered by record, assignee, or completion stat
 | `linkedRecordId` | string | No | Record ID to filter tasks by \(requires linkedObject\) |
 | `assignee` | string | No | Assignee email or member ID to filter by |
 | `isCompleted` | boolean | No | Filter by completion status |
-| `sort` | string | No | Sort order: created_at:asc or created_at:desc |
+| `sort` | string | No | Sort order: created_at:asc, created_at:desc, completed_at:asc, or completed_at:desc |
 | `limit` | number | No | Maximum number of tasks to return \(default 500\) |
 | `offset` | number | No | Number of tasks to skip for pagination |
 
@@ -347,6 +353,7 @@ List tasks in Attio, optionally filtered by record, assignee, or completion stat
 |   ↳ `content` | string | The task content |
 |   ↳ `deadlineAt` | string | The task deadline |
 |   ↳ `isCompleted` | boolean | Whether the task is completed |
+|   ↳ `completedAt` | string | When the task was completed |
 |   ↳ `linkedRecords` | array | Records linked to this task |
 |     ↳ `targetObjectId` | string | The linked object ID |
 |     ↳ `targetRecordId` | string | The linked record ID |
@@ -377,6 +384,7 @@ Get a single task by ID from Attio
 | `content` | string | The task content |
 | `deadlineAt` | string | The task deadline |
 | `isCompleted` | boolean | Whether the task is completed |
+| `completedAt` | string | When the task was completed |
 | `linkedRecords` | array | Records linked to this task |
 |   ↳ `targetObjectId` | string | The linked object ID |
 |   ↳ `targetRecordId` | string | The linked record ID |
@@ -410,6 +418,7 @@ Create a task in Attio
 | `content` | string | The task content |
 | `deadlineAt` | string | The task deadline |
 | `isCompleted` | boolean | Whether the task is completed |
+| `completedAt` | string | When the task was completed |
 | `linkedRecords` | array | Records linked to this task |
 |   ↳ `targetObjectId` | string | The linked object ID |
 |   ↳ `targetRecordId` | string | The linked record ID |
@@ -443,6 +452,7 @@ Update a task in Attio (deadline, completion status, linked records, assignees)
 | `content` | string | The task content |
 | `deadlineAt` | string | The task deadline |
 | `isCompleted` | boolean | Whether the task is completed |
+| `completedAt` | string | When the task was completed |
 | `linkedRecords` | array | Records linked to this task |
 |   ↳ `targetObjectId` | string | The linked object ID |
 |   ↳ `targetRecordId` | string | The linked record ID |
@@ -835,9 +845,11 @@ Create a comment on a list entry in Attio
 | `format` | string | No | Content format: plaintext or markdown \(default plaintext\) |
 | `authorType` | string | Yes | Author type \(e.g. workspace-member\) |
 | `authorId` | string | Yes | Author workspace member ID |
-| `list` | string | Yes | The list ID or slug the entry belongs to |
-| `entryId` | string | Yes | The entry ID to comment on |
-| `threadId` | string | No | Thread ID to reply to \(omit to start a new thread\) |
+| `list` | string | No | The list ID or slug the entry belongs to \(used with entryId; omit if threadId or recordId is set\) |
+| `entryId` | string | No | The list entry ID to comment on \(used with list; omit if threadId or recordId is set\) |
+| `recordObject` | string | No | The object ID or slug the record belongs to \(used with recordId; omit if threadId or entryId is set\) |
+| `recordId` | string | No | The record ID to comment on directly \(used with recordObject; omit if threadId or entryId is set\) |
+| `threadId` | string | No | Thread ID to reply to \(omit to start a new thread on a record or list entry\) |
 | `createdAt` | string | No | Backdate the comment \(ISO 8601 format\) |
 
 #### Output
@@ -1071,6 +1083,156 @@ Delete a webhook from Attio
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the webhook was deleted |
+
+### `attio_list_attributes`
+
+List the attributes (schema fields) defined on an Attio object or list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | Whether the attributes belong to an object or a list: objects or lists |
+| `identifier` | string | Yes | The object or list ID or slug \(e.g. people, companies\) |
+| `limit` | number | No | Maximum number of attributes to return |
+| `offset` | number | No | Number of attributes to skip for pagination |
+| `showArchived` | boolean | No | Whether to include archived attributes \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attributes` | array | Array of attributes |
+|   ↳ `attributeId` | string | The attribute ID |
+|   ↳ `title` | string | The attribute display title |
+|   ↳ `apiSlug` | string | The attribute API slug |
+|   ↳ `description` | string | The attribute description |
+|   ↳ `type` | string | The attribute value type \(e.g. text, number, select, record-reference\) |
+|   ↳ `isSystemAttribute` | boolean | Whether this is a built-in system attribute |
+|   ↳ `isWritable` | boolean | Whether the attribute can be written to |
+|   ↳ `isRequired` | boolean | Whether new records must provide a value |
+|   ↳ `isUnique` | boolean | Whether the attribute enforces uniqueness |
+|   ↳ `isMultiselect` | boolean | Whether the attribute supports multiple values |
+|   ↳ `isDefaultValueEnabled` | boolean | Whether this attribute has a default value enabled |
+|   ↳ `isArchived` | boolean | Whether the attribute is archived |
+|   ↳ `defaultValue` | json | The default value for this attribute, if enabled |
+|   ↳ `relationship` | json | The related attribute, if this attribute is part of a relationship |
+|   ↳ `config` | json | Type-dependent attribute configuration |
+|   ↳ `createdAt` | string | When the attribute was created |
+| `count` | number | Number of attributes returned |
+
+### `attio_get_attribute`
+
+Get a single attribute (schema field) on an Attio object or list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | Whether the attribute belongs to an object or a list: objects or lists |
+| `identifier` | string | Yes | The object or list ID or slug \(e.g. people, companies\) |
+| `attribute` | string | Yes | The attribute ID or slug |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attributeId` | string | The attribute ID |
+| `title` | string | The attribute display title |
+| `apiSlug` | string | The attribute API slug |
+| `description` | string | The attribute description |
+| `type` | string | The attribute value type \(e.g. text, number, select, record-reference\) |
+| `isSystemAttribute` | boolean | Whether this is a built-in system attribute |
+| `isWritable` | boolean | Whether the attribute can be written to |
+| `isRequired` | boolean | Whether new records must provide a value |
+| `isUnique` | boolean | Whether the attribute enforces uniqueness |
+| `isMultiselect` | boolean | Whether the attribute supports multiple values |
+| `isDefaultValueEnabled` | boolean | Whether this attribute has a default value enabled |
+| `isArchived` | boolean | Whether the attribute is archived |
+| `defaultValue` | json | The default value for this attribute, if enabled |
+| `relationship` | json | The related attribute, if this attribute is part of a relationship |
+| `config` | json | Type-dependent attribute configuration |
+| `createdAt` | string | When the attribute was created |
+
+### `attio_create_attribute`
+
+Create a new attribute (schema field) on an Attio object or list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | Whether to create the attribute on an object or a list: objects or lists |
+| `identifier` | string | Yes | The object or list ID or slug \(e.g. people, companies\) |
+| `title` | string | Yes | The attribute display title |
+| `apiSlug` | string | Yes | The attribute API slug \(unique, snake_case\) |
+| `type` | string | Yes | The attribute value type \(e.g. text, number, checkbox, currency, date, timestamp, rating, status, select, record-reference, actor-reference, location, domain, email-address, phone-number\) |
+| `description` | string | No | A description of the attribute |
+| `isRequired` | boolean | No | Whether new records must provide a value \(default false\) |
+| `isUnique` | boolean | No | Whether the attribute enforces uniqueness on new data \(default false\) |
+| `isMultiselect` | boolean | No | Whether the attribute supports multiple values \(default false\) |
+| `config` | string | No | JSON object of type-dependent configuration \(e.g. currency or record-reference settings\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attributeId` | string | The attribute ID |
+| `title` | string | The attribute display title |
+| `apiSlug` | string | The attribute API slug |
+| `description` | string | The attribute description |
+| `type` | string | The attribute value type \(e.g. text, number, select, record-reference\) |
+| `isSystemAttribute` | boolean | Whether this is a built-in system attribute |
+| `isWritable` | boolean | Whether the attribute can be written to |
+| `isRequired` | boolean | Whether new records must provide a value |
+| `isUnique` | boolean | Whether the attribute enforces uniqueness |
+| `isMultiselect` | boolean | Whether the attribute supports multiple values |
+| `isDefaultValueEnabled` | boolean | Whether this attribute has a default value enabled |
+| `isArchived` | boolean | Whether the attribute is archived |
+| `defaultValue` | json | The default value for this attribute, if enabled |
+| `relationship` | json | The related attribute, if this attribute is part of a relationship |
+| `config` | json | Type-dependent attribute configuration |
+| `createdAt` | string | When the attribute was created |
+
+### `attio_update_attribute`
+
+Update an attribute (schema field) on an Attio object or list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `target` | string | Yes | Whether the attribute belongs to an object or a list: objects or lists |
+| `identifier` | string | Yes | The object or list ID or slug \(e.g. people, companies\) |
+| `attribute` | string | Yes | The attribute ID or slug to update |
+| `title` | string | No | New attribute display title |
+| `apiSlug` | string | No | New attribute API slug |
+| `description` | string | No | New attribute description |
+| `isRequired` | boolean | No | Whether new records must provide a value |
+| `isUnique` | boolean | No | Whether the attribute enforces uniqueness on new data |
+| `isArchived` | boolean | No | Archive or unarchive the attribute |
+| `config` | string | No | JSON object of type-dependent configuration |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attributeId` | string | The attribute ID |
+| `title` | string | The attribute display title |
+| `apiSlug` | string | The attribute API slug |
+| `description` | string | The attribute description |
+| `type` | string | The attribute value type \(e.g. text, number, select, record-reference\) |
+| `isSystemAttribute` | boolean | Whether this is a built-in system attribute |
+| `isWritable` | boolean | Whether the attribute can be written to |
+| `isRequired` | boolean | Whether new records must provide a value |
+| `isUnique` | boolean | Whether the attribute enforces uniqueness |
+| `isMultiselect` | boolean | Whether the attribute supports multiple values |
+| `isDefaultValueEnabled` | boolean | Whether this attribute has a default value enabled |
+| `isArchived` | boolean | Whether the attribute is archived |
+| `defaultValue` | json | The default value for this attribute, if enabled |
+| `relationship` | json | The related attribute, if this attribute is part of a relationship |
+| `config` | json | Type-dependent attribute configuration |
+| `createdAt` | string | When the attribute was created |
 
 
 

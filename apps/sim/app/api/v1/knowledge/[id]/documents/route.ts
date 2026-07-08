@@ -6,6 +6,11 @@ import {
 } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  isPayloadSizeLimitError,
+  MAX_MULTIPART_OVERHEAD_BYTES,
+  readFormDataWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSingleDocument,
@@ -96,8 +101,14 @@ export const POST = withRouteHandler(
 
       let formData: FormData
       try {
-        formData = await request.formData()
-      } catch {
+        formData = await readFormDataWithLimit(request, {
+          maxBytes: MAX_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
+          label: 'knowledge document upload body',
+        })
+      } catch (error) {
+        if (isPayloadSizeLimitError(error)) {
+          return NextResponse.json({ error: error.message }, { status: 413 })
+        }
         return NextResponse.json(
           { error: 'Request body must be valid multipart form data' },
           { status: 400 }

@@ -88,6 +88,40 @@ describe('redactLargeValueRefs', () => {
     expect(result.finalOutput).toBe('[REDACTION_FAILED]')
   })
 
+  it('hydrates+masks refs across multiple payload keys (parallel, cross-key)', async () => {
+    const refA = { ...REF, id: 'lv_aaaaaaaaaaaa' }
+    const refB = { ...REF, id: 'lv_bbbbbbbbbbbb' }
+    mockMaterializeRef.mockImplementation(async (ref: { id: string }) =>
+      ref.id === 'lv_aaaaaaaaaaaa' ? { note: 'call bob' } : { note: 'email amy' }
+    )
+
+    const result = await redactLargeValueRefs(
+      { finalOutput: refA, traceSpans: [{ output: refB }] },
+      { entityTypes: [], language: 'en', store: STORE }
+    )
+
+    expect(result.finalOutput).toEqual({ note: 'MASKED(call bob)' })
+    expect((result.traceSpans as any[])[0].output).toEqual({ note: 'MASKED(email amy)' })
+    expect(mockMaterializeRef).toHaveBeenCalledTimes(2)
+    expect(mockCompact).toHaveBeenCalledTimes(2)
+  })
+
+  it('aborts (throws) when one of several refs fails in throw mode', async () => {
+    const refA = { ...REF, id: 'lv_aaaaaaaaaaaa' }
+    const refB = { ...REF, id: 'lv_bbbbbbbbbbbb' }
+    // refA materializes fine; refB can't — in throw mode the whole redaction must abort.
+    mockMaterializeRef.mockImplementation(async (ref: { id: string }) =>
+      ref.id === 'lv_aaaaaaaaaaaa' ? { note: 'ok' } : undefined
+    )
+
+    await expect(
+      redactLargeValueRefs(
+        { finalOutput: refA, traceSpans: [{ output: refB }] },
+        { entityTypes: [], language: 'en', store: STORE, onFailure: 'throw' }
+      )
+    ).rejects.toBeInstanceOf(PiiRedactionError)
+  })
+
   it('leaves payloads without refs untouched', async () => {
     const payload = { finalOutput: { answer: 'world', count: 5 } }
     const result = await redactLargeValueRefs(payload, {

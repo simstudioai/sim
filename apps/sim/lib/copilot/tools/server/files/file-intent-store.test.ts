@@ -1,3 +1,4 @@
+import { generateShortId } from '@sim/utils/id'
 import { describe, expect, it, vi } from 'vitest'
 import {
   consumeLatestFileIntent,
@@ -23,7 +24,7 @@ function makeIntent(overrides: Partial<PendingFileIntent>): PendingFileIntent {
 }
 
 function uniqueWorkspace(): string {
-  return `ws-${Math.random().toString(36).slice(2)}`
+  return `ws-${generateShortId()}`
 }
 
 describe('file-intent-store channel scoping', () => {

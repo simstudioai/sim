@@ -8,9 +8,20 @@ import type { UserFile } from '@/executor/types'
  * Simplified input field representation for workflow input mapping
  */
 export interface WorkflowInputField {
+  /**
+   * Stable per-field id seeded at field creation (`InputFormatFieldState.id`).
+   * Custom blocks anchor their input sub-block on this so renaming a field
+   * never orphans a consumer's placed value. Absent on legacy fields.
+   */
+  id?: string
   name: string
   type: string
   description?: string
+  /**
+   * Consumer-facing placeholder hint for a custom block's curated input. Authored
+   * in the Custom Blocks settings UI; has no source on the workflow's Start block.
+   */
+  placeholder?: string
 }
 
 /**
@@ -165,7 +176,9 @@ export function extractInputFieldsFromBlocks(
   if (Array.isArray(inputFormat)) {
     return inputFormat
       .filter(
-        (field: unknown): field is { name: string; type?: string; description?: string } =>
+        (
+          field: unknown
+        ): field is { id?: unknown; name: string; type?: string; description?: string } =>
           typeof field === 'object' &&
           field !== null &&
           'name' in field &&
@@ -173,6 +186,7 @@ export function extractInputFieldsFromBlocks(
           (field as { name: string }).name.trim() !== ''
       )
       .map((field) => ({
+        ...(typeof field.id === 'string' && field.id ? { id: field.id } : {}),
         name: field.name,
         type: field.type || 'string',
         ...(field.description && { description: field.description }),
@@ -186,7 +200,9 @@ export function extractInputFieldsFromBlocks(
   if (Array.isArray(legacyFormat)) {
     return legacyFormat
       .filter(
-        (field: unknown): field is { name: string; type?: string; description?: string } =>
+        (
+          field: unknown
+        ): field is { id?: unknown; name: string; type?: string; description?: string } =>
           typeof field === 'object' &&
           field !== null &&
           'name' in field &&
@@ -194,6 +210,7 @@ export function extractInputFieldsFromBlocks(
           (field as { name: string }).name.trim() !== ''
       )
       .map((field) => ({
+        ...(typeof field.id === 'string' && field.id ? { id: field.id } : {}),
         name: field.name,
         type: field.type || 'string',
         ...(field.description && { description: field.description }),

@@ -32,6 +32,12 @@ export const listServicesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of results (max 100)',
     },
+    offset: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Offset to start pagination search results',
+    },
   },
 
   request: {
@@ -39,6 +45,7 @@ export const listServicesTool: ToolConfig<
       const query = new URLSearchParams()
       if (params.query) query.set('query', params.query)
       if (params.limit) query.set('limit', params.limit)
+      if (params.offset) query.set('offset', params.offset)
       const qs = query.toString()
       return `https://api.pagerduty.com/services${qs ? `?${qs}` : ''}`
     },
@@ -72,8 +79,9 @@ export const listServicesTool: ToolConfig<
             htmlUrl: svc.html_url ?? null,
           })
         ),
-        total: data.total ?? 0,
+        total: data.total ?? null,
         more: data.more ?? false,
+        offset: data.offset ?? 0,
       },
     }
   },
@@ -98,11 +106,17 @@ export const listServicesTool: ToolConfig<
     },
     total: {
       type: 'number',
-      description: 'Total number of matching services',
+      description:
+        'Total number of matching services (null unless explicitly requested by PagerDuty)',
+      optional: true,
     },
     more: {
       type: 'boolean',
       description: 'Whether more results are available',
+    },
+    offset: {
+      type: 'number',
+      description: 'Offset used for this page of results',
     },
   },
 }

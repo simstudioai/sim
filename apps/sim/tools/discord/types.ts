@@ -1,7 +1,7 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolFileData } from '@/tools/types'
 
-interface DiscordMessage {
+export interface DiscordMessage {
   id: string
   content: string
   channel_id: string
@@ -33,8 +33,8 @@ export interface DiscordGuild {
   description?: string
   owner_id: string
   roles: any[]
-  channels?: any[]
-  member_count?: number
+  approximate_member_count?: number
+  approximate_presence_count?: number
 }
 
 export interface DiscordUser {
@@ -193,6 +193,7 @@ export interface DiscordCreateThreadParams extends DiscordAuthParams {
   name: string
   messageId?: string
   autoArchiveDuration?: number
+  isPublic?: boolean
 }
 
 export interface DiscordCreateThreadResponse extends BaseDiscordResponse {
@@ -269,6 +270,7 @@ export interface DiscordDeleteChannelParams extends DiscordAuthParams {
 export interface DiscordDeleteChannelResponse extends BaseDiscordResponse {
   output: {
     message: string
+    data?: any
   }
 }
 
@@ -360,7 +362,7 @@ export interface DiscordKickMemberResponse extends BaseDiscordResponse {
 export interface DiscordBanMemberParams extends DiscordAuthParams {
   userId: string
   reason?: string
-  deleteMessageDays?: number
+  deleteMessageSeconds?: number
 }
 
 export interface DiscordBanMemberResponse extends BaseDiscordResponse {
@@ -489,6 +491,50 @@ export interface DiscordDeleteWebhookResponse extends BaseDiscordResponse {
   }
 }
 
+// Channel / role listing operations
+export type DiscordListChannelsParams = DiscordAuthParams
+
+export interface DiscordListChannelsResponse extends BaseDiscordResponse {
+  output: {
+    message: string
+    data?: any[]
+  }
+}
+
+export type DiscordListRolesParams = DiscordAuthParams
+
+export interface DiscordListRolesResponse extends BaseDiscordResponse {
+  output: {
+    message: string
+    data?: any[]
+  }
+}
+
+export interface DiscordGetPinnedMessagesParams extends DiscordAuthParams {
+  channelId: string
+  limit?: number
+  before?: string
+}
+
+export interface DiscordGetPinnedMessagesResponse extends BaseDiscordResponse {
+  output: {
+    message: string
+    data?: Array<DiscordMessage & { pinned_at: string }>
+    hasMore?: boolean
+  }
+}
+
+export interface DiscordBulkDeleteMessagesParams extends DiscordAuthParams {
+  channelId: string
+  messageIds: string[]
+}
+
+export interface DiscordBulkDeleteMessagesResponse extends BaseDiscordResponse {
+  output: {
+    message: string
+  }
+}
+
 export type DiscordResponse =
   | DiscordSendMessageResponse
   | DiscordGetMessagesResponse
@@ -525,3 +571,7 @@ export type DiscordResponse =
   | DiscordExecuteWebhookResponse
   | DiscordGetWebhookResponse
   | DiscordDeleteWebhookResponse
+  | DiscordListChannelsResponse
+  | DiscordListRolesResponse
+  | DiscordGetPinnedMessagesResponse
+  | DiscordBulkDeleteMessagesResponse

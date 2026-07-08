@@ -67,3 +67,21 @@ export const listAuditLogsContract = defineRouteContract({
     schema: listAuditLogsResponseSchema,
   },
 })
+
+export const exportAuditLogsQuerySchema = auditLogsQuerySchema.omit({ limit: true, cursor: true })
+export type ExportAuditLogsQuery = z.output<typeof exportAuditLogsQuerySchema>
+
+/**
+ * CSV download of every audit log matching the filter (no pagination). `mode:
+ * 'text'` because a CSV response has no JSON schema to validate; the client
+ * triggers this via `fetch` + blob (not `requestJson`), so there's no
+ * response shape for a consumer to type.
+ */
+export const exportAuditLogsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/audit-logs/export',
+  query: exportAuditLogsQuerySchema,
+  response: {
+    mode: 'text',
+  },
+})

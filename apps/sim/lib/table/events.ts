@@ -277,6 +277,33 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
 }
 
 /**
+ * The latest eventId assigned for a table, or 0 when the buffer is empty or
+ * expired. Used by the stream route to tail from "now" when a client connects
+ * without a replay cursor (fresh mount — its caches were just fetched from
+ * the DB, so replaying history would only rewind them).
+ *
+ * Redis errors propagate: silently falling back to 0 would replay the whole
+ * buffer over fresh state — the exact churn tail-from-latest exists to avoid.
+ * The stream route errors the stream instead and the client reconnects with
+ * backoff.
+ */
+export async function getLatestTableEventId(tableId: string): Promise<number> {
+  const redis = getRedisClient()
+  if (!redis) {
+    if (canUseMemoryBuffer()) {
+      // Pure read — getMemoryStream() would allocate a stream as a side effect.
+      const stream = memoryTableStreams.get(tableId)
+      return stream ? stream.nextEventId - 1 : 0
+    }
+    return 0
+  }
+  const raw = await redis.get(getSeqKey(tableId))
+  if (!raw) return 0
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+/**
  * Read events for a table where eventId > afterEventId. Returns 'pruned' if
  * the caller has fallen off the back of the buffer (TTL expired or cap rolled
  * past their lastEventId). Caller should respond by full-refetching from DB

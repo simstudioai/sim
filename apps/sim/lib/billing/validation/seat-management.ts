@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { invitation, member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
@@ -231,7 +232,7 @@ export async function validateBulkInvitations(
   try {
     const uniqueEmails = [...new Set(emailList)]
     const validEmails = uniqueEmails.filter(
-      (email) => quickValidateEmail(email.trim().toLowerCase()).isValid
+      (email) => quickValidateEmail(normalizeEmail(email)).isValid
     )
     const duplicateEmails = emailList.filter((email, index) => emailList.indexOf(email) !== index)
 

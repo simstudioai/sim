@@ -81,19 +81,8 @@ interface TextractBlock {
   }
 }
 
-interface TextractDocumentMetadataRaw {
-  Pages: number
-}
-
 interface TextractDocumentMetadata {
   pages: number
-}
-
-interface TextractApiResponse {
-  Blocks: TextractBlock[]
-  DocumentMetadata: TextractDocumentMetadataRaw
-  AnalyzeDocumentModelVersion?: string
-  DetectDocumentTextModelVersion?: string
 }
 
 interface TextractNormalizedOutput {
@@ -102,20 +91,112 @@ interface TextractNormalizedOutput {
   modelVersion?: string
 }
 
-interface TextractAsyncJobResponse {
-  JobStatus: 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED' | 'PARTIAL_SUCCESS'
-  StatusMessage?: string
-  Blocks?: TextractBlock[]
-  DocumentMetadata?: TextractDocumentMetadataRaw
-  NextToken?: string
-  AnalyzeDocumentModelVersion?: string
-  DetectDocumentTextModelVersion?: string
-}
-
-interface TextractStartJobResponse {
-  JobId: string
-}
-
 export interface TextractParserOutput extends ToolResponse {
   output: TextractNormalizedOutput
+}
+
+export interface TextractAnalyzeExpenseInput {
+  accessKeyId: string
+  secretAccessKey: string
+  region: string
+  processingMode?: TextractProcessingMode
+  filePath?: string
+  file?: RawFileInput
+  s3Uri?: string
+}
+
+export interface TextractAnalyzeExpenseV2Input {
+  accessKeyId: string
+  secretAccessKey: string
+  region: string
+  processingMode?: TextractProcessingMode
+  file?: UserFile
+  filePath?: string
+  s3Uri?: string
+}
+
+interface TextractCurrency {
+  code?: string
+  confidence?: number
+}
+
+interface TextractExpenseFieldValue {
+  text?: string
+  confidence?: number
+}
+
+interface TextractExpenseField {
+  type?: TextractExpenseFieldValue
+  valueDetection?: TextractExpenseFieldValue
+  labelDetection?: TextractExpenseFieldValue
+  pageNumber?: number
+  currency?: TextractCurrency
+  groupProperties?: { id: string; types: string[] }[]
+}
+
+interface TextractLineItem {
+  lineItemExpenseFields: TextractExpenseField[]
+}
+
+interface TextractLineItemGroup {
+  lineItemGroupIndex?: number
+  lineItems: TextractLineItem[]
+}
+
+interface TextractExpenseDocument {
+  expenseIndex?: number
+  summaryFields: TextractExpenseField[]
+  lineItemGroups: TextractLineItemGroup[]
+}
+
+export interface TextractAnalyzeExpenseOutput extends ToolResponse {
+  output: {
+    expenseDocuments: TextractExpenseDocument[]
+    documentMetadata: TextractDocumentMetadata
+    modelVersion?: string
+  }
+}
+
+export interface TextractAnalyzeIdInput {
+  accessKeyId: string
+  secretAccessKey: string
+  region: string
+  filePath?: string
+  file?: RawFileInput
+  filePathBack?: string
+  fileBack?: RawFileInput
+}
+
+export interface TextractAnalyzeIdV2Input {
+  accessKeyId: string
+  secretAccessKey: string
+  region: string
+  file?: UserFile
+  filePath?: string
+  fileBack?: UserFile
+  filePathBack?: string
+}
+
+interface TextractIdFieldValue {
+  text?: string
+  confidence?: number
+  normalizedValue?: { value?: string; valueType?: string }
+}
+
+interface TextractIdentityDocumentField {
+  type?: TextractIdFieldValue
+  valueDetection?: TextractIdFieldValue
+}
+
+interface TextractIdentityDocument {
+  documentIndex?: number
+  identityDocumentFields: TextractIdentityDocumentField[]
+}
+
+export interface TextractAnalyzeIdOutput extends ToolResponse {
+  output: {
+    identityDocuments: TextractIdentityDocument[]
+    documentMetadata: TextractDocumentMetadata
+    modelVersion?: string
+  }
 }

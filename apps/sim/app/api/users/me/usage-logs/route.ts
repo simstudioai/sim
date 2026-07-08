@@ -3,20 +3,16 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getUsageLogsContract } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
+import {
+  getUsageCreditsByLogId,
+  getUserUsageLogs,
+  type UsageLogSource,
+} from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
 
 const logger = createLogger('UsageLogsAPI')
-
-const PERIOD_TO_DAYS: Record<'1d' | '7d' | '30d', number> = { '1d': 1, '7d': 7, '30d': 30 }
-
-function resolveStartDate(period: '1d' | '7d' | '30d' | 'all'): Date | undefined {
-  if (period === 'all') return undefined
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - PERIOD_TO_DAYS[period])
-  return startDate
-}
 
 /**
  * Lists the authenticated user's credit-consuming usage events (model, tool,
@@ -30,23 +26,32 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(getUsageLogsContract, request, {})
   if (!parsed.success) return parsed.response
-  const { source, workspaceId, period, limit, cursor } = parsed.data.query
+  const { source, workspaceId, period, startDate, endDate, limit, cursor, includeCredits } =
+    parsed.data.query
 
-  const result = await getUserUsageLogs(auth.userId, {
+  const dateRange = resolveDateRange(period, startDate, endDate)
+
+  const filter = {
     source: source as UsageLogSource | undefined,
     workspaceId,
-    startDate: resolveStartDate(period),
-    endDate: new Date(),
-    limit,
-    cursor,
-  })
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+  }
+
+  const [result, creditsByLogId] = await Promise.all([
+    getUserUsageLogs(auth.userId, { ...filter, limit, cursor }),
+    includeCredits
+      ? getUsageCreditsByLogId(auth.userId, filter)
+      : Promise.resolve<Record<string, number>>({}),
+  ])
 
   const logs = result.logs.map((log) => ({
     id: log.id,
     createdAt: log.createdAt,
     source: log.source,
-    description: log.description,
-    creditCost: dollarsToCredits(log.cost),
+    workflowName: log.workflowName ?? null,
+    creditCost: creditsByLogId[log.id] ?? 0,
+    dollarCost: log.cost,
   }))
 
   const bySourceCredits = Object.fromEntries(

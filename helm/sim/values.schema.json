@@ -711,6 +711,15 @@
           "type": "boolean",
           "description": "Enable the Presidio PII redaction service"
         },
+        "engine": {
+          "type": "string",
+          "enum": ["spacy", "gliner"],
+          "description": "NER engine (spacy default, gliner opt-in; both ship in the image)"
+        },
+        "device": {
+          "type": "string",
+          "description": "Torch device for the gliner engine (cpu, cuda, cuda:N); empty auto-detects"
+        },
         "replicaCount": {
           "type": "integer",
           "minimum": 1,

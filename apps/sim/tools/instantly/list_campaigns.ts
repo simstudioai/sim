@@ -52,7 +52,7 @@ export const listCampaignsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'AI Sales Agent ID filter',
+      description: 'Filter campaigns by AI Sales Agent ID',
     },
     status: {
       type: 'number',

@@ -59,7 +59,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
         ownerEmail: data.owner?.email ?? '',
         createdAt: data.created_at ?? '',
         updatedAt: data.updated_at ?? '',
-        webUrl: data.web_url ?? null,
+        webUrl: data.web_url ?? '',
         summaryText: data.summary_text ?? '',
         summaryMarkdown: data.summary_markdown ?? null,
         attendees: (data.attendees ?? []).map((a: { name: string | null; email: string }) => ({
@@ -79,13 +79,14 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
         transcript: data.transcript
           ? data.transcript.map(
               (t: {
-                speaker: { source: string; diarization_label?: string }
+                speaker: { source: string; diarization_label?: string; name?: string }
                 text: string
                 start_time: string
                 end_time: string
               }) => ({
                 speaker: t.speaker?.source ?? 'unknown',
                 speakerLabel: t.speaker?.diarization_label ?? null,
+                speakerName: t.speaker?.name ?? null,
                 text: t.text ?? '',
                 startTime: t.start_time ?? '',
                 endTime: t.end_time ?? '',
@@ -103,7 +104,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
     ownerEmail: { type: 'string', description: 'Note owner email' },
     createdAt: { type: 'string', description: 'Creation timestamp' },
     updatedAt: { type: 'string', description: 'Last update timestamp' },
-    webUrl: { type: 'string', description: 'URL to view the note in Granola', optional: true },
+    webUrl: { type: 'string', description: 'URL to view the note in Granola' },
     summaryText: { type: 'string', description: 'Plain text summary of the meeting' },
     summaryMarkdown: {
       type: 'string',
@@ -153,6 +154,11 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
         speakerLabel: {
           type: 'string',
           description: 'Diarization label for the speaker (e.g., Speaker A)',
+          optional: true,
+        },
+        speakerName: {
+          type: 'string',
+          description: 'Resolved name of the identified speaker, when available',
           optional: true,
         },
         text: { type: 'string', description: 'Transcript text' },

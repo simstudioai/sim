@@ -18,6 +18,7 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { AlertTriangle, Check } from 'lucide-react'
 import { GeneratedPasswordInput } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -623,7 +624,7 @@ function AuthSelector({
   const addEmail = (email: string): boolean => {
     if (!email.trim()) return false
 
-    const normalized = email.trim().toLowerCase()
+    const normalized = normalizeEmail(email)
     const isDomainPattern = normalized.startsWith('@')
     const validation = quickValidateEmail(normalized)
     const isValid = validation.isValid || isDomainPattern

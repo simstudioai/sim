@@ -39,12 +39,12 @@ export const discordUnbanMemberTool: ToolConfig<
 
   request: {
     url: (params: DiscordUnbanMemberParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId}/bans/${params.userId}`
+      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/bans/${params.userId.trim()}`
     },
     method: 'DELETE',
     headers: (params) => {
       const headers: Record<string, string> = {
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }
       if (params.reason) {
         headers['X-Audit-Log-Reason'] = encodeURIComponent(params.reason)

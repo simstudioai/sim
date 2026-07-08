@@ -11,6 +11,8 @@ export const copilotChatsKeys = {
   list: (workflowId?: string) => [...copilotChatsKeys.lists(), workflowId ?? ''] as const,
 }
 
+export const COPILOT_CHAT_LIST_STALE_TIME = 30 * 1000
+
 async function fetchCopilotChats(
   workflowId: string,
   signal?: AbortSignal
@@ -33,6 +35,6 @@ export function useCopilotChats(workflowId?: string) {
   return useQuery<CopilotChatListItem[]>({
     queryKey: copilotChatsKeys.list(workflowId),
     queryFn: workflowId ? ({ signal }) => fetchCopilotChats(workflowId, signal) : skipToken,
-    staleTime: 30 * 1000,
+    staleTime: COPILOT_CHAT_LIST_STALE_TIME,
   })
 }

@@ -101,7 +101,6 @@ async function handleBatchInsert(
         rows,
         workspaceId: validated.workspaceId,
         userId,
-        positions: validated.positions,
         orderKeys: validated.orderKeys,
       },
       table,

@@ -34,6 +34,10 @@ export const DubBlock: BlockConfig<DubResponse> = {
         { label: 'Get Analytics', id: 'get_analytics' },
         { label: 'List Events', id: 'get_events' },
         { label: 'Get QR Code', id: 'get_qr_code' },
+        { label: 'List Domains', id: 'list_domains' },
+        { label: 'List Tags', id: 'list_tags' },
+        { label: 'Create Tag', id: 'create_tag' },
+        { label: 'List Folders', id: 'list_folders' },
       ],
       value: () => 'create_link',
     },
@@ -90,6 +94,34 @@ export const DubBlock: BlockConfig<DubResponse> = {
       title: 'Tag IDs',
       type: 'short-input',
       placeholder: 'Comma-separated tag IDs',
+      condition: { field: 'operation', value: ['create_link', 'upsert_link', 'update_link'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'tenantId',
+      title: 'Tenant ID',
+      type: 'short-input',
+      placeholder: 'ID of the tenant this link belongs to',
+      condition: { field: 'operation', value: ['create_link', 'upsert_link', 'update_link'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'folderId',
+      title: 'Folder ID',
+      type: 'short-input',
+      placeholder: 'Folder to organize this link into',
+      condition: { field: 'operation', value: ['create_link', 'upsert_link', 'update_link'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'trackConversion',
+      title: 'Track Conversions',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
       condition: { field: 'operation', value: ['create_link', 'upsert_link', 'update_link'] },
       mode: 'advanced',
     },
@@ -251,6 +283,22 @@ export const DubBlock: BlockConfig<DubResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'listTenantId',
+      title: 'Filter by Tenant ID',
+      type: 'short-input',
+      placeholder: 'Tenant ID',
+      condition: { field: 'operation', value: 'list_links' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listFolderId',
+      title: 'Filter by Folder ID',
+      type: 'short-input',
+      placeholder: 'Folder ID',
+      condition: { field: 'operation', value: 'list_links' },
+      mode: 'advanced',
+    },
+    {
       id: 'showArchived',
       title: 'Show Archived',
       type: 'dropdown',
@@ -275,6 +323,22 @@ export const DubBlock: BlockConfig<DubResponse> = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '100 (max: 100)',
+      condition: { field: 'operation', value: 'list_links' },
+      mode: 'advanced',
+    },
+    {
+      id: 'startingAfter',
+      title: 'Starting After (Cursor)',
+      type: 'short-input',
+      placeholder: 'Link ID to fetch results after',
+      condition: { field: 'operation', value: 'list_links' },
+      mode: 'advanced',
+    },
+    {
+      id: 'endingBefore',
+      title: 'Ending Before (Cursor)',
+      type: 'short-input',
+      placeholder: 'Link ID to fetch results before',
       condition: { field: 'operation', value: 'list_links' },
       mode: 'advanced',
     },
@@ -649,6 +713,14 @@ export const DubBlock: BlockConfig<DubResponse> = {
       required: { field: 'operation', value: 'get_qr_code' },
     },
     {
+      id: 'qrLogo',
+      title: 'Custom Logo URL',
+      type: 'short-input',
+      placeholder: 'https://example.com/logo.png (paid plans only)',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
       id: 'qrSize',
       title: 'Size (px)',
       type: 'short-input',
@@ -707,6 +779,138 @@ export const DubBlock: BlockConfig<DubResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'domainsSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search by domain name',
+      condition: { field: 'operation', value: 'list_domains' },
+    },
+    {
+      id: 'domainsArchived',
+      title: 'Include Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'list_domains' },
+      mode: 'advanced',
+    },
+    {
+      id: 'domainsPage',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'list_domains' },
+      mode: 'advanced',
+    },
+    {
+      id: 'domainsPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '50 (max: 100)',
+      condition: { field: 'operation', value: 'list_domains' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tagsSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search by tag name',
+      condition: { field: 'operation', value: 'list_tags' },
+    },
+    {
+      id: 'tagsSortBy',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Name', id: 'name' },
+        { label: 'Created At', id: 'createdAt' },
+      ],
+      value: () => 'name',
+      condition: { field: 'operation', value: 'list_tags' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tagsSortOrder',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Ascending', id: 'asc' },
+        { label: 'Descending', id: 'desc' },
+      ],
+      value: () => 'asc',
+      condition: { field: 'operation', value: 'list_tags' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tagsPage',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'list_tags' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tagsPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '100 (max: 100)',
+      condition: { field: 'operation', value: 'list_tags' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tagName',
+      title: 'Tag Name',
+      type: 'short-input',
+      placeholder: 'e.g., Q3-campaign',
+      condition: { field: 'operation', value: 'create_tag' },
+      required: { field: 'operation', value: 'create_tag' },
+    },
+    {
+      id: 'tagColor',
+      title: 'Color',
+      type: 'dropdown',
+      options: [
+        { label: 'Random', id: '' },
+        { label: 'Red', id: 'red' },
+        { label: 'Yellow', id: 'yellow' },
+        { label: 'Green', id: 'green' },
+        { label: 'Blue', id: 'blue' },
+        { label: 'Purple', id: 'purple' },
+        { label: 'Brown', id: 'brown' },
+        { label: 'Gray', id: 'gray' },
+        { label: 'Pink', id: 'pink' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'create_tag' },
+      mode: 'advanced',
+    },
+    {
+      id: 'foldersSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search by folder name',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+    {
+      id: 'foldersPage',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'list_folders' },
+      mode: 'advanced',
+    },
+    {
+      id: 'foldersPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '50 (max: 50)',
+      condition: { field: 'operation', value: 'list_folders' },
+      mode: 'advanced',
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -730,18 +934,62 @@ export const DubBlock: BlockConfig<DubResponse> = {
       'dub_get_analytics',
       'dub_get_events',
       'dub_get_qr_code',
+      'dub_list_domains',
+      'dub_list_tags',
+      'dub_create_tag',
+      'dub_list_folders',
     ],
     config: {
       tool: (params) => `dub_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (
+        const isLinkMutation =
           params.operation === 'create_link' ||
           params.operation === 'upsert_link' ||
           params.operation === 'update_link'
+
+        // The executor merges { ...inputs, ...transformedParams }, so a raw subBlock
+        // id that shares its name with a tool param (e.g. 'domain', 'linkId') passes
+        // through untouched unless explicitly cleared here. These fields are only
+        // shown for the operations below; every other operation must null them out
+        // so a value left over from a previous operation selection can't leak in.
+        if (!isLinkMutation) {
+          result.domain = undefined
+          result.key = undefined
+          result.title = undefined
+          result.description = undefined
+          result.externalId = undefined
+          result.tagIds = undefined
+          result.tenantId = undefined
+          result.folderId = undefined
+          result.trackConversion = undefined
+        }
+        if (params.operation !== 'create_link' && params.operation !== 'upsert_link') {
+          result.url = undefined
+        }
+        if (
+          params.operation !== 'get_link' &&
+          params.operation !== 'update_link' &&
+          params.operation !== 'delete_link'
         ) {
+          result.linkId = undefined
+        }
+        if (params.operation !== 'list_links') {
+          result.search = undefined
+          result.showArchived = undefined
+          result.page = undefined
+          result.pageSize = undefined
+        }
+
+        if (isLinkMutation) {
           if (params.linkRewrite === 'true') result.rewrite = true
           if (params.linkArchived === 'true') result.archived = true
+          if (params.tenantId) result.tenantId = params.tenantId
+          if (params.folderId) result.folderId = params.folderId
+          // Only ever send `true` or omit — an explicit `false` on update_link would
+          // silently disable conversion tracking on links that already had it enabled,
+          // since Dub's update is a partial PATCH (matches linkRewrite/linkArchived).
+          result.trackConversion = params.trackConversion === 'true' ? true : undefined
         }
         if (params.operation === 'get_link') {
           if (params.getLinkExternalId) result.externalId = params.getLinkExternalId
@@ -754,9 +1002,13 @@ export const DubBlock: BlockConfig<DubResponse> = {
         if (params.operation === 'list_links') {
           if (params.listDomain) result.domain = params.listDomain
           if (params.listTagIds) result.tagIds = params.listTagIds
+          if (params.listTenantId) result.tenantId = params.listTenantId
+          if (params.listFolderId) result.folderId = params.listFolderId
           if (params.showArchived && params.showArchived !== 'false') result.showArchived = true
           if (params.page) result.page = Number(params.page)
           if (params.pageSize) result.pageSize = Number(params.pageSize)
+          if (params.startingAfter) result.startingAfter = params.startingAfter
+          if (params.endingBefore) result.endingBefore = params.endingBefore
         }
         if (params.operation === 'get_analytics') {
           if (params.analyticsEvent) result.event = params.analyticsEvent
@@ -806,12 +1058,35 @@ export const DubBlock: BlockConfig<DubResponse> = {
         }
         if (params.operation === 'get_qr_code') {
           if (params.qrUrl) result.url = params.qrUrl
+          if (params.qrLogo) result.logo = params.qrLogo
           if (params.qrSize) result.size = Number(params.qrSize)
           if (params.qrLevel) result.level = params.qrLevel
           if (params.qrFgColor) result.fgColor = params.qrFgColor
           if (params.qrBgColor) result.bgColor = params.qrBgColor
           if (params.qrHideLogo === 'true') result.hideLogo = true
           if (params.qrMargin) result.margin = Number(params.qrMargin)
+        }
+        if (params.operation === 'list_domains') {
+          if (params.domainsSearch) result.search = params.domainsSearch
+          if (params.domainsArchived === 'true') result.archived = true
+          if (params.domainsPage) result.page = Number(params.domainsPage)
+          if (params.domainsPageSize) result.pageSize = Number(params.domainsPageSize)
+        }
+        if (params.operation === 'list_tags') {
+          if (params.tagsSearch) result.search = params.tagsSearch
+          if (params.tagsSortBy) result.sortBy = params.tagsSortBy
+          if (params.tagsSortOrder) result.sortOrder = params.tagsSortOrder
+          if (params.tagsPage) result.page = Number(params.tagsPage)
+          if (params.tagsPageSize) result.pageSize = Number(params.tagsPageSize)
+        }
+        if (params.operation === 'create_tag') {
+          if (params.tagName) result.name = params.tagName
+          if (params.tagColor) result.color = params.tagColor
+        }
+        if (params.operation === 'list_folders') {
+          if (params.foldersSearch) result.search = params.foldersSearch
+          if (params.foldersPage) result.page = Number(params.foldersPage)
+          if (params.foldersPageSize) result.pageSize = Number(params.foldersPageSize)
         }
         return result
       },
@@ -830,7 +1105,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
     linkIds: { type: 'string', description: 'Comma-separated link IDs for bulk operations' },
   },
   outputs: {
-    id: { type: 'string', description: 'Link ID' },
+    id: { type: 'string', description: 'Link ID, or Tag ID for Create Tag' },
     domain: { type: 'string', description: 'Domain of the short link' },
     key: { type: 'string', description: 'Slug of the short link' },
     url: { type: 'string', description: 'Destination URL' },
@@ -840,9 +1115,17 @@ export const DubBlock: BlockConfig<DubResponse> = {
     externalId: { type: 'string', description: 'External ID' },
     title: { type: 'string', description: 'OG title' },
     description: { type: 'string', description: 'OG description' },
-    tags: { type: 'json', description: 'Tags assigned to the link (id, name, color)' },
+    tags: {
+      type: 'json',
+      description:
+        'Tags assigned to the link (id, name, color), or the full array of workspace tags for List Tags',
+    },
+    folderId: { type: 'string', description: 'Folder the link is organized into' },
+    tenantId: { type: 'string', description: 'Tenant ID associated with the link' },
+    trackConversion: { type: 'boolean', description: 'Whether conversion tracking is enabled' },
     clicks: { type: 'number', description: 'Number of clicks' },
     leads: { type: 'number', description: 'Number of leads' },
+    conversions: { type: 'number', description: 'Number of conversions' },
     sales: { type: 'number', description: 'Number of sales' },
     saleAmount: { type: 'number', description: 'Total sale amount in cents' },
     lastClicked: { type: 'string', description: 'Last clicked timestamp' },
@@ -885,6 +1168,26 @@ export const DubBlock: BlockConfig<DubResponse> = {
     deletedCount: { type: 'number', description: 'Bulk delete: number of links deleted' },
     file: { type: 'file', description: 'QR code image (PNG) stored in execution files' },
     content: { type: 'string', description: 'QR code as base64-encoded PNG data' },
+    domains: {
+      type: 'json',
+      description: 'List Domains: array of domain objects (slug, verified, primary, archived)',
+      condition: { field: 'operation', value: 'list_domains' },
+    },
+    folders: {
+      type: 'json',
+      description: 'List Folders: array of folder objects (id, name, accessLevel)',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+    name: {
+      type: 'string',
+      description: 'Create Tag: name of the created tag',
+      condition: { field: 'operation', value: 'create_tag' },
+    },
+    color: {
+      type: 'string',
+      description: 'Create Tag: color assigned to the created tag',
+      condition: { field: 'operation', value: 'create_tag' },
+    },
   },
 }
 

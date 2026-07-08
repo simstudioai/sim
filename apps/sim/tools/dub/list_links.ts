@@ -33,6 +33,18 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
       visibility: 'user-or-llm',
       description: 'Comma-separated tag IDs to filter by',
     },
+    tenantId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by tenant ID',
+    },
+    folderId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by folder ID',
+    },
     showArchived: {
       type: 'boolean',
       required: false,
@@ -43,13 +55,25 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number (default: 1)',
+      description: 'Page number (deprecated by Dub in favor of startingAfter/endingBefore)',
     },
     pageSize: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
       description: 'Number of links per page (default: 100, max: 100)',
+    },
+    startingAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor: fetch results after this link ID',
+    },
+    endingBefore: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor: fetch results before this link ID',
     },
   },
 
@@ -59,10 +83,14 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
       if (params.domain) url.searchParams.set('domain', params.domain)
       if (params.search) url.searchParams.set('search', params.search)
       if (params.tagIds) url.searchParams.set('tagIds', params.tagIds)
+      if (params.tenantId) url.searchParams.set('tenantId', params.tenantId)
+      if (params.folderId) url.searchParams.set('folderId', params.folderId)
       if (params.showArchived !== undefined)
         url.searchParams.set('showArchived', String(params.showArchived))
       if (params.page) url.searchParams.set('page', String(params.page))
       if (params.pageSize) url.searchParams.set('pageSize', String(params.pageSize))
+      if (params.startingAfter) url.searchParams.set('startingAfter', params.startingAfter)
+      if (params.endingBefore) url.searchParams.set('endingBefore', params.endingBefore)
       return url.toString()
     },
     method: 'GET',
@@ -97,12 +125,16 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
           description: (link.description as string) ?? null,
           clicks: (link.clicks as number) ?? 0,
           leads: (link.leads as number) ?? 0,
+          conversions: (link.conversions as number) ?? 0,
           sales: (link.sales as number) ?? 0,
           saleAmount: (link.saleAmount as number) ?? 0,
           lastClicked: (link.lastClicked as string) ?? null,
           createdAt: (link.createdAt as string) ?? '',
           updatedAt: (link.updatedAt as string) ?? '',
           tags: (link.tags as Array<{ id: string; name: string; color: string }>) ?? [],
+          folderId: (link.folderId as string) ?? null,
+          tenantId: (link.tenantId as string) ?? null,
+          trackConversion: (link.trackConversion as boolean) ?? false,
           utm_source: (link.utm_source as string) ?? null,
           utm_medium: (link.utm_medium as string) ?? null,
           utm_campaign: (link.utm_campaign as string) ?? null,

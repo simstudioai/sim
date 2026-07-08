@@ -27,6 +27,8 @@ export const apiKeysKeys = {
   combined: (workspaceId: string) => [...apiKeysKeys.combineds(), workspaceId] as const,
 }
 
+export const API_KEYS_COMBINED_STALE_TIME = 60 * 1000
+
 type CombinedApiKeysData = {
   workspaceKeys: ApiKey[]
   personalKeys: ApiKey[]
@@ -67,7 +69,7 @@ export function useApiKeys(workspaceId: string) {
     queryKey: apiKeysKeys.combined(workspaceId),
     queryFn: ({ signal }) => fetchApiKeys(workspaceId, signal),
     enabled: !!workspaceId,
-    staleTime: 60 * 1000,
+    staleTime: API_KEYS_COMBINED_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }

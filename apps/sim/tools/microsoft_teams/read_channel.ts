@@ -68,7 +68,9 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       const encodedTeamId = encodeURIComponent(teamId)
       const encodedChannelId = encodeURIComponent(channelId)
 
-      const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages`
+      // Graph API's default page size for channel messages is 20; request the max of 50
+      // so a single call surfaces more history without requiring pagination.
+      const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages?$top=50`
 
       return url
     },

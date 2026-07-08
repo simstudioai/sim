@@ -3,6 +3,7 @@ import type {
   DataverseExecuteActionParams,
   DataverseExecuteActionResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseExecuteAction')
@@ -65,14 +66,16 @@ export const dataverseExecuteActionTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const actionName = params.actionName.trim()
       if (params.entitySetName) {
+        const entitySetName = params.entitySetName.trim()
         if (params.recordId) {
-          return `${baseUrl}/api/data/v9.2/${params.entitySetName}(${params.recordId})/Microsoft.Dynamics.CRM.${params.actionName}`
+          return `${baseUrl}/api/data/v9.2/${entitySetName}(${params.recordId.trim()})/Microsoft.Dynamics.CRM.${actionName}`
         }
-        return `${baseUrl}/api/data/v9.2/${params.entitySetName}/Microsoft.Dynamics.CRM.${params.actionName}`
+        return `${baseUrl}/api/data/v9.2/${entitySetName}/Microsoft.Dynamics.CRM.${actionName}`
       }
-      return `${baseUrl}/api/data/v9.2/${params.actionName}`
+      return `${baseUrl}/api/data/v9.2/${actionName}`
     },
     method: 'POST',
     headers: (params) => ({

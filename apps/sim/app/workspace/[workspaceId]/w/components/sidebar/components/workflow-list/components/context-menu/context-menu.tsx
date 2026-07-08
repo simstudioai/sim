@@ -18,8 +18,6 @@ import {
   Mail,
   Pencil,
   Plus,
-  Rocket,
-  Shuffle,
   SquareArrowUpRight,
   Trash,
   Unlock,
@@ -70,10 +68,6 @@ interface ContextMenuProps {
   onUploadLogo?: () => void
   showUploadLogo?: boolean
   disableUploadLogo?: boolean
-  onFork?: () => void
-  onSync?: () => void
-  showFork?: boolean
-  showSync?: boolean
 }
 
 /**
@@ -124,10 +118,6 @@ export function ContextMenu({
   onUploadLogo,
   showUploadLogo = false,
   disableUploadLogo = false,
-  onFork,
-  onSync,
-  showFork = false,
-  showSync = false,
 }: ContextMenuProps) {
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
   const hasStatusSection =
@@ -141,7 +131,6 @@ export function ContextMenu({
     (showLock && onToggleLock) ||
     (showUploadLogo && onUploadLogo)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
-  const hasForkSection = (showFork && onFork) || (showSync && onSync)
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -305,35 +294,6 @@ export function ContextMenu({
         )}
 
         {(hasNavigationSection || hasStatusSection || hasEditSection || hasCopySection) &&
-          hasForkSection && <DropdownMenuSeparator />}
-        {showFork && onFork && (
-          <DropdownMenuItem
-            onSelect={() => {
-              onFork()
-              onClose()
-            }}
-          >
-            <Shuffle />
-            Manage Forks
-          </DropdownMenuItem>
-        )}
-        {showSync && onSync && (
-          <DropdownMenuItem
-            onSelect={() => {
-              onSync()
-              onClose()
-            }}
-          >
-            <Rocket />
-            Sync workspace
-          </DropdownMenuItem>
-        )}
-
-        {(hasNavigationSection ||
-          hasStatusSection ||
-          hasEditSection ||
-          hasCopySection ||
-          hasForkSection) &&
           (showLeave || showDelete) && <DropdownMenuSeparator />}
         {showLeave && onLeave && (
           <DropdownMenuItem

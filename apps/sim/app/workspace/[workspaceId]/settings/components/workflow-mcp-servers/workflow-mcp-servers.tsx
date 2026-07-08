@@ -414,10 +414,8 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                     {tools.map((tool) => (
                       <div key={tool.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                          <span className='text-[14px] text-[var(--text-body)]'>
-                            {tool.toolName}
-                          </span>
-                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                          <span className='text-[var(--text-body)] text-sm'>{tool.toolName}</span>
+                          <p className='truncate text-[var(--text-muted)] text-caption'>
                             {tool.toolDescription || 'No description'}
                           </p>
                         </div>
@@ -960,7 +958,7 @@ export function WorkflowMcpServers() {
                   <div key={server.id} className='flex items-center justify-between gap-3'>
                     <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                       <div className='flex items-center gap-1.5'>
-                        <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
+                        <span className='max-w-[200px] truncate text-[var(--text-body)] text-sm'>
                           {server.name}
                         </span>
                         {server.isPublic && (
@@ -969,7 +967,7 @@ export function WorkflowMcpServers() {
                           </Badge>
                         )}
                       </div>
-                      <p className='truncate text-[12px] text-[var(--text-muted)]'>{toolsLabel}</p>
+                      <p className='truncate text-[var(--text-muted)] text-caption'>{toolsLabel}</p>
                     </div>
                     <div className='flex flex-shrink-0 items-center gap-1'>
                       <RowActionsMenu

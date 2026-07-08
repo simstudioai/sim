@@ -142,9 +142,65 @@ export interface MicrosoftTeamsListMembersResponse extends ToolResponse {
   output: {
     members: MicrosoftTeamsMember[]
     memberCount: number
+    hasMore?: boolean
     metadata: {
       teamId?: string
       channelId?: string
+      chatId?: string
+    }
+  }
+}
+
+// Joined team summary (from GET /me/joinedTeams)
+interface MicrosoftTeamsTeamSummary {
+  id: string
+  displayName: string
+  description?: string
+  isArchived?: boolean
+}
+
+export interface MicrosoftTeamsListTeamsResponse extends ToolResponse {
+  output: {
+    teams: MicrosoftTeamsTeamSummary[]
+    teamCount: number
+    hasMore: boolean
+  }
+}
+
+// Chat summary (from GET /me/chats)
+interface MicrosoftTeamsChatSummary {
+  id: string
+  topic: string | null
+  chatType: string
+  webUrl?: string
+  createdDateTime?: string
+  lastUpdatedDateTime?: string
+}
+
+export interface MicrosoftTeamsListChatsResponse extends ToolResponse {
+  output: {
+    chats: MicrosoftTeamsChatSummary[]
+    chatCount: number
+    hasMore: boolean
+  }
+}
+
+// Channel summary (from GET /teams/{team-id}/channels)
+interface MicrosoftTeamsChannelSummary {
+  id: string
+  displayName: string
+  description?: string | null
+  membershipType?: string
+  webUrl?: string
+}
+
+export interface MicrosoftTeamsListChannelsResponse extends ToolResponse {
+  output: {
+    channels: MicrosoftTeamsChannelSummary[]
+    channelCount: number
+    hasMore: boolean
+    metadata: {
+      teamId: string
     }
   }
 }
@@ -174,3 +230,6 @@ export type MicrosoftTeamsResponse =
   | MicrosoftTeamsDeleteResponse
   | MicrosoftTeamsListMembersResponse
   | MicrosoftTeamsReactionResponse
+  | MicrosoftTeamsListTeamsResponse
+  | MicrosoftTeamsListChatsResponse
+  | MicrosoftTeamsListChannelsResponse

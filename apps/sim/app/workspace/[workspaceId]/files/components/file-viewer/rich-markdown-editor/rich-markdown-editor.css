@@ -277,6 +277,35 @@
   line-height: 21px;
 }
 
+/* Raw, unrendered markdown constructs the schema has no real node/mark for (raw HTML blocks,
+   comments, footnotes) — held verbatim and re-emitted byte-for-byte on save (./raw-markdown-snippet.ts).
+   Same neutral surface as `code`/`pre` below (no color tint — a tint reads as a warning/error state,
+   which isn't the signal here); the hover "Raw HTML"/"Footnote" badge is what conveys "not interpreted". */
+.rich-markdown-prose .raw-markdown-block,
+.rich-markdown-prose .raw-markdown-inline {
+  font-family: var(--font-martian-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  color: var(--text-muted);
+  background: var(--surface-5);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dark .rich-markdown-prose .raw-markdown-block,
+.dark .rich-markdown-prose .raw-markdown-inline {
+  background: var(--code-bg);
+}
+
+.rich-markdown-prose .raw-markdown-block {
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.rich-markdown-prose .raw-markdown-inline {
+  border-radius: 4px;
+  padding: 0.0625rem 0.3rem;
+}
+
 .rich-markdown-prose hr {
   border: none;
   border-top: 1px solid var(--divider);
@@ -349,6 +378,15 @@
   width: 3px;
   background: var(--brand-secondary);
   pointer-events: none;
+}
+
+/*
+ * prosemirror-tables' column-resizing plugin toggles the `resize-cursor` class on the editor root
+ * while the pointer is over a column boundary; without this rule the handle shows but the cursor
+ * never changes to the resize affordance.
+ */
+.rich-markdown-prose.resize-cursor {
+  cursor: col-resize;
 }
 
 .rich-markdown-prose p.is-editor-empty:first-child::before {

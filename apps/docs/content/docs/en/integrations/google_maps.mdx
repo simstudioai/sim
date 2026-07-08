@@ -289,6 +289,43 @@ Get detailed information about a specific place
 | `vicinity` | string | Simplified address \(neighborhood/street\) |
 | `businessStatus` | string | Business status \(OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY\) |
 
+### `google_maps_places_nearby`
+
+Search for places of a given type within a radius of a location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Maps API key |
+| `lat` | number | Yes | Latitude of the center point to search around |
+| `lng` | number | Yes | Longitude of the center point to search around |
+| `radius` | number | Yes | Search radius in meters \(up to 50000\) |
+| `includedTypes` | array | No | Place types to include in the results \(e.g., restaurant, cafe\) |
+| `maxResultCount` | number | No | Maximum number of results to return \(1-20, defaults to 20\) |
+| `rankPreference` | string | No | How to rank results: POPULARITY \(default\) or DISTANCE |
+| `languageCode` | string | No | Language code for the response \(e.g., en, es\) |
+| `regionCode` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `places` | array | List of places found near the given location |
+|   ↳ `placeId` | string | Google Place resource ID |
+|   ↳ `name` | string | Place name |
+|   ↳ `formattedAddress` | string | Formatted address |
+|   ↳ `lat` | number | Latitude |
+|   ↳ `lng` | number | Longitude |
+|   ↳ `types` | array | Place types |
+|   ↳ `rating` | number | Average rating \(1-5\) |
+|   ↳ `userRatingsTotal` | number | Number of ratings |
+|   ↳ `priceLevel` | string | Price level \(e.g., PRICE_LEVEL_MODERATE\) |
+|   ↳ `openNow` | boolean | Whether currently open |
+|   ↳ `businessStatus` | string | Business status |
+
 ### `google_maps_places_search`
 
 Search for places using a text query
@@ -304,6 +341,7 @@ Search for places using a text query
 | `type` | string | No | Place type filter \(e.g., restaurant, cafe, hotel\) |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
 | `region` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
+| `pageToken` | string | No | Token from a previous search response to fetch the next page of results. Wait a couple seconds after receiving the token before using it, or the API returns INVALID_REQUEST |
 | `pricing` | per_request | No | No description |
 | `rateLimit` | string | No | No description |
 
@@ -457,6 +495,7 @@ Get speed limits for road segments. Requires either path coordinates or placeIds
 | `apiKey` | string | Yes | Google Maps API key with Roads API enabled |
 | `path` | string | No | Pipe-separated list of lat,lng coordinates \(required if placeIds not provided\) |
 | `placeIds` | array | No | Array of Place IDs for road segments \(required if path not provided\) |
+| `units` | string | No | Units for the returned speed limits: KPH \(default\) or MPH |
 
 #### Output
 

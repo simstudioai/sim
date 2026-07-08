@@ -6,26 +6,26 @@ import { getForkDiffContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { loadTargetDraftSubBlocks } from '@/lib/workspaces/fork/copy/copy-workflows'
-import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
-import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
-import { loadForkBlockMap } from '@/lib/workspaces/fork/mapping/block-map-store'
+import { loadTargetDraftSubBlocks } from '@/ee/workspace-forking/lib/copy/copy-workflows'
+import { loadSourceDeployedStates } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
+import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
 import {
   collectForkDependentReconfigs,
   collectForkResourceUsages,
-} from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
+} from '@/ee/workspace-forking/lib/mapping/dependent-reconfigs'
 import {
   forkDependentValueKey,
   loadForkDependentValues,
-} from '@/lib/workspaces/fork/mapping/dependent-value-store'
-import { listForkResourceCandidates } from '@/lib/workspaces/fork/mapping/resources'
+} from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
+import { listForkResourceCandidates } from '@/ee/workspace-forking/lib/mapping/resources'
 import {
   annotateForkClearedRefSourceLiveness,
   collectForkClearedRefCandidates,
-} from '@/lib/workspaces/fork/promote/cleared-refs'
-import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
-import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
-import { readTargetDraftDependentValue } from '@/lib/workspaces/fork/remap/remap-references'
+} from '@/ee/workspace-forking/lib/promote/cleared-refs'
+import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
+import { readTargetDraftDependentValue } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -62,17 +62,20 @@ export const GET = withRouteHandler(
     const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
 
     // Stored dependent values are the source of truth for what each selector is set to. Overlay
-    // them as each field's currentValue so the modal pre-fills what the user actually saved. For
-    // an edge that predates the store the fallback is the TARGET's own configured value (loaded
-    // from its draft) - never the source's, which would overwrite the target's selection on the
-    // first sync. Both the stored read and the draft read are scoped to the plan's replace
-    // targets, the only workflows with dependents to reconfigure.
+    // them as each field's currentValue so the modal pre-fills what the user actually saved.
+    // Before the FIRST sync populates the store (fork-create seeds mappings but no dependent
+    // values), the fallback is the TARGET's own configured value (loaded from its draft) - never
+    // the source's, which would overwrite the target's selection. The stored read spans EVERY
+    // plan target: a create-mode (never-synced) workflow's deterministic target id is what the
+    // first sync will use, so values pre-configured for it in the mapping editor pre-fill here
+    // too. The draft read stays replace-scoped (creates have no target draft to fall back to).
     const replaceTargetIds = plan.items
       .filter((item) => item.mode === 'replace')
       .map((item) => item.targetWorkflowId)
+    const allTargetIds = plan.items.map((item) => item.targetWorkflowId)
     const [storedValues, targetDraftByWorkflow, sourceCandidates, sourceWorkflowRows] =
       await Promise.all([
-        loadForkDependentValues(db, auth.edge.childWorkspaceId, replaceTargetIds),
+        loadForkDependentValues(db, auth.edge.childWorkspaceId, allTargetIds),
         loadTargetDraftSubBlocks(db, replaceTargetIds),
         // Source resource labels (per kind) + workflow names, for the cleared-ref list's display.
         listForkResourceCandidates(db, auth.sourceWorkspaceId),
@@ -105,22 +108,36 @@ export const GET = withRouteHandler(
       sourceBlocksByTarget.set(item.targetWorkflowId, byBlock)
     }
 
-    const dependentReconfigs = collectForkDependentReconfigs(
-      plan.items,
-      sourceStates,
-      resolveBlockId
-    ).map((field) => ({
-      ...field,
-      currentValue:
-        storedByKey.get(
-          forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
-        ) ??
-        readTargetDraftDependentValue(
-          targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId),
-          sourceBlocksByTarget.get(field.targetWorkflowId)?.get(field.targetBlockId),
-          field.subBlockKey
-        ),
-    }))
+    // Replace-target fields pre-fill from the store, falling back to the TARGET's own draft
+    // value before the first sync populates the store (never the source's, which would
+    // overwrite the target's selection). Create-target fields (never-synced workflows)
+    // pre-fill from the store, falling back to the SOURCE value the collector emitted -
+    // that's exactly what the first sync copies verbatim, so the pre-fill is honest and
+    // configuring it ahead of the first sync is possible (the deterministic target ids
+    // already exist).
+    const dependentReconfigs = [
+      ...collectForkDependentReconfigs(plan.items, sourceStates, resolveBlockId).map((field) => ({
+        ...field,
+        currentValue:
+          storedByKey.get(
+            forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
+          ) ??
+          readTargetDraftDependentValue(
+            targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId),
+            sourceBlocksByTarget.get(field.targetWorkflowId)?.get(field.targetBlockId),
+            field.subBlockKey
+          ),
+      })),
+      ...collectForkDependentReconfigs(plan.items, sourceStates, resolveBlockId, 'create').map(
+        (field) => ({
+          ...field,
+          currentValue:
+            storedByKey.get(
+              forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
+            ) ?? field.currentValue,
+        })
+      ),
+    ]
 
     // References this sync will blank in the target (per block/field), for the pre-sync cleared-ref
     // list. Labels resolve from the source candidate lists + workflow names loaded above.

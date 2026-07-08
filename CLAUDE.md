@@ -290,6 +290,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
 
+export const ENTITY_LIST_STALE_TIME = 60 * 1000
+
 async function fetchEntities(workspaceId: string, signal?: AbortSignal): Promise<EntityList> {
   const data = await requestJson(listEntitiesContract, {
     query: { workspaceId },
@@ -303,7 +305,7 @@ export function useEntityList(workspaceId?: string) {
     queryKey: entityKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: ENTITY_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -326,7 +328,7 @@ export const entityKeys = {
 ### Query Hooks
 
 - Every `queryFn` must forward `signal` for request cancellation
-- Every query must have an explicit `staleTime`
+- Every query must have an explicit `staleTime`, assigned from a named exported constant, never an inline numeric literal — a server-side prefetch hydrating the same query key must import and reuse that constant so the two never drift out of sync
 - Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
 
 ```typescript
@@ -335,7 +337,7 @@ export function useEntityList(workspaceId?: string) {
     queryKey: entityKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchEntities(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: ENTITY_LIST_STALE_TIME,
     placeholderData: keepPreviousData, // OK: workspaceId varies
   })
 }

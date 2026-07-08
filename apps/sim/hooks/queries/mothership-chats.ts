@@ -63,6 +63,7 @@ export const mothershipChatKeys = {
 
 /** Shared by the `useMothershipChats` hook and the workspace sidebar prefetch. */
 export const MOTHERSHIP_CHAT_LIST_STALE_TIME = 60 * 1000
+export const MOTHERSHIP_CHAT_HISTORY_STALE_TIME = 30 * 1000
 
 function assertValid(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -262,7 +263,7 @@ export function useMothershipChatHistory(chatId: string | undefined) {
   return useQuery({
     queryKey: mothershipChatKeys.detail(chatId),
     queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
-    staleTime: 30 * 1000,
+    staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
   })
 }
 

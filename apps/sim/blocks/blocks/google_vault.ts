@@ -8,11 +8,11 @@ import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 export const GoogleVaultBlock: BlockConfig = {
   type: 'google_vault',
   name: 'Google Vault',
-  description: 'Search, export, and manage holds/exports for Vault matters',
+  description: 'Search, export, and manage matters, holds, exports, and saved queries in Vault',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Connect Google Vault to create exports, list exports, and manage holds within matters.',
-  docsLink: 'https://developers.google.com/vault',
+    'Connect Google Vault to manage the full matter lifecycle, create and manage holds and exports, and save reusable search queries for eDiscovery and compliance.',
+  docsLink: 'https://docs.sim.ai/integrations/google_vault',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#E8F0FE',
@@ -25,11 +25,26 @@ export const GoogleVaultBlock: BlockConfig = {
       options: [
         { label: 'Create Export', id: 'create_matters_export' },
         { label: 'List Exports', id: 'list_matters_export' },
+        { label: 'Delete Export', id: 'delete_matters_export' },
         { label: 'Download Export File', id: 'download_export_file' },
         { label: 'Create Hold', id: 'create_matters_holds' },
         { label: 'List Holds', id: 'list_matters_holds' },
+        { label: 'Update Hold', id: 'update_matters_holds' },
+        { label: 'Delete Hold', id: 'delete_matters_holds' },
+        { label: 'Add Held Accounts', id: 'add_held_accounts' },
+        { label: 'Remove Held Accounts', id: 'remove_held_accounts' },
         { label: 'Create Matter', id: 'create_matters' },
         { label: 'List Matters', id: 'list_matters' },
+        { label: 'Update Matter', id: 'update_matters' },
+        { label: 'Close Matter', id: 'close_matters' },
+        { label: 'Reopen Matter', id: 'reopen_matters' },
+        { label: 'Delete Matter', id: 'delete_matters' },
+        { label: 'Undelete Matter', id: 'undelete_matters' },
+        { label: 'Add Matter Collaborator', id: 'add_matters_permissions' },
+        { label: 'Remove Matter Collaborator', id: 'remove_matters_permissions' },
+        { label: 'Create Saved Query', id: 'create_saved_query' },
+        { label: 'List Saved Queries', id: 'list_saved_queries' },
+        { label: 'Delete Saved Query', id: 'delete_saved_query' },
       ],
       value: () => 'list_matters_export',
     },
@@ -55,7 +70,6 @@ export const GoogleVaultBlock: BlockConfig = {
       required: true,
     },
     ...SERVICE_ACCOUNT_SUBBLOCKS,
-    // Create Hold inputs
     {
       id: 'matterId',
       title: 'Matter ID',
@@ -66,11 +80,61 @@ export const GoogleVaultBlock: BlockConfig = {
         value: [
           'create_matters_export',
           'list_matters_export',
+          'delete_matters_export',
           'download_export_file',
           'create_matters_holds',
           'list_matters_holds',
+          'update_matters_holds',
+          'delete_matters_holds',
+          'add_held_accounts',
+          'remove_held_accounts',
+          'update_matters',
+          'close_matters',
+          'reopen_matters',
+          'delete_matters',
+          'undelete_matters',
+          'add_matters_permissions',
+          'remove_matters_permissions',
+          'create_saved_query',
+          'list_saved_queries',
+          'delete_saved_query',
         ],
       }),
+      required: () => ({
+        field: 'operation',
+        value: [
+          'create_matters_export',
+          'list_matters_export',
+          'delete_matters_export',
+          'download_export_file',
+          'create_matters_holds',
+          'list_matters_holds',
+          'update_matters_holds',
+          'delete_matters_holds',
+          'add_held_accounts',
+          'remove_held_accounts',
+          'update_matters',
+          'close_matters',
+          'reopen_matters',
+          'delete_matters',
+          'undelete_matters',
+          'add_matters_permissions',
+          'remove_matters_permissions',
+          'create_saved_query',
+          'list_saved_queries',
+          'delete_saved_query',
+        ],
+      }),
+    },
+    // Dedicated optional matter-id filter for list_matters — kept separate from the
+    // required matterId above so a value left over from another operation can never
+    // silently turn "List Matters" into a single-matter get.
+    {
+      id: 'listMatterId',
+      title: 'Matter ID',
+      type: 'short-input',
+      placeholder: 'Enter Matter ID (optional to fetch a specific matter)',
+      condition: { field: 'operation', value: 'list_matters' },
     },
     // Download Export File inputs
     {
@@ -125,7 +189,7 @@ Return ONLY the export name - no explanations, no quotes, no extra text.`,
       title: 'Hold Name',
       type: 'short-input',
       placeholder: 'Name of the hold',
-      condition: { field: 'operation', value: 'create_matters_holds' },
+      condition: { field: 'operation', value: ['create_matters_holds', 'update_matters_holds'] },
       required: true,
       wandConfig: {
         enabled: true,
@@ -155,7 +219,15 @@ Return ONLY the hold name - no explanations, no quotes, no extra text.`,
         { id: 'HANGOUTS_CHAT', label: 'HANGOUTS_CHAT' },
         { id: 'VOICE', label: 'VOICE' },
       ],
-      condition: { field: 'operation', value: ['create_matters_holds', 'create_matters_export'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'create_matters_holds',
+          'update_matters_holds',
+          'create_matters_export',
+          'create_saved_query',
+        ],
+      },
       required: true,
     },
     {
@@ -163,14 +235,53 @@ Return ONLY the hold name - no explanations, no quotes, no extra text.`,
       title: 'Account Emails',
       type: 'long-input',
       placeholder: 'Comma-separated emails (alternative to Org Unit)',
-      condition: { field: 'operation', value: ['create_matters_holds', 'create_matters_export'] },
+      condition: {
+        field: 'operation',
+        value: ['create_matters_holds', 'create_matters_export'],
+      },
     },
     {
       id: 'orgUnitId',
       title: 'Org Unit ID',
       type: 'short-input',
       placeholder: 'Org Unit ID (alternative to emails)',
-      condition: { field: 'operation', value: ['create_matters_holds', 'create_matters_export'] },
+      condition: {
+        field: 'operation',
+        value: ['create_matters_holds', 'create_matters_export'],
+      },
+    },
+    // Dedicated scope fields for update_matters_holds and create_saved_query — kept
+    // separate from the create_matters_holds/create_matters_export accountEmails/orgUnitId
+    // above so a stale value left over from a different operation can never silently win
+    // in the accountEmails-before-orgUnitId scope priority (each field is only ever
+    // populated by the user while its own operation is selected).
+    {
+      id: 'updateHoldAccountEmails',
+      title: 'Account Emails',
+      type: 'long-input',
+      placeholder: 'Comma-separated emails (alternative to Org Unit)',
+      condition: { field: 'operation', value: 'update_matters_holds' },
+    },
+    {
+      id: 'updateHoldOrgUnitId',
+      title: 'Org Unit ID',
+      type: 'short-input',
+      placeholder: 'Org Unit ID (alternative to emails)',
+      condition: { field: 'operation', value: 'update_matters_holds' },
+    },
+    {
+      id: 'savedQueryAccountEmails',
+      title: 'Account Emails',
+      type: 'long-input',
+      placeholder: 'Comma-separated emails (alternative to Org Unit)',
+      condition: { field: 'operation', value: 'create_saved_query' },
+    },
+    {
+      id: 'savedQueryOrgUnitId',
+      title: 'Org Unit ID',
+      type: 'short-input',
+      placeholder: 'Org Unit ID (alternative to emails)',
+      condition: { field: 'operation', value: 'create_saved_query' },
     },
     // Date filtering for exports (works with all corpus types)
     {
@@ -178,7 +289,7 @@ Return ONLY the hold name - no explanations, no quotes, no extra text.`,
       title: 'Start Time',
       type: 'short-input',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
-      condition: { field: 'operation', value: 'create_matters_export' },
+      condition: { field: 'operation', value: ['create_matters_export', 'create_saved_query'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp in GMT based on the user's description for Google Vault date filtering.
@@ -200,7 +311,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'End Time',
       type: 'short-input',
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
-      condition: { field: 'operation', value: 'create_matters_export' },
+      condition: { field: 'operation', value: ['create_matters_export', 'create_saved_query'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp in GMT based on the user's description for Google Vault date filtering.
@@ -225,7 +336,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
       condition: {
         field: 'operation',
-        value: 'create_matters_holds',
+        value: ['create_matters_holds', 'update_matters_holds'],
         and: { field: 'corpus', value: ['MAIL', 'GROUPS'] },
       },
       wandConfig: {
@@ -251,7 +362,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
       condition: {
         field: 'operation',
-        value: 'create_matters_holds',
+        value: ['create_matters_holds', 'update_matters_holds'],
         and: { field: 'corpus', value: ['MAIL', 'GROUPS'] },
       },
       wandConfig: {
@@ -276,7 +387,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Search Terms',
       type: 'long-input',
       placeholder: 'Enter search query (e.g., from:user@example.com subject:confidential)',
-      condition: { field: 'operation', value: 'create_matters_export' },
+      condition: { field: 'operation', value: ['create_matters_export', 'create_saved_query'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a Google Vault search query based on the user's description.
@@ -305,7 +416,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       placeholder: 'Enter search query (e.g., from:user@example.com subject:confidential)',
       condition: {
         field: 'operation',
-        value: 'create_matters_holds',
+        value: ['create_matters_holds', 'update_matters_holds'],
         and: { field: 'corpus', value: ['MAIL', 'GROUPS'] },
       },
       wandConfig: {
@@ -329,7 +440,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       type: 'switch',
       condition: {
         field: 'operation',
-        value: 'create_matters_holds',
+        value: ['create_matters_holds', 'update_matters_holds'],
         and: { field: 'corpus', value: 'DRIVE' },
       },
     },
@@ -337,11 +448,41 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       id: 'exportId',
       title: 'Export ID',
       type: 'short-input',
+      placeholder: 'Enter Export ID',
+      condition: { field: 'operation', value: 'delete_matters_export' },
+      required: true,
+    },
+    // Dedicated optional export-id filter for list_matters_export — kept separate from
+    // the required exportId above so a value left over from Delete Export can never
+    // silently turn "List Exports" into a single-export get.
+    {
+      id: 'listExportId',
+      title: 'Export ID',
+      type: 'short-input',
       placeholder: 'Enter Export ID (optional to fetch a specific export)',
       condition: { field: 'operation', value: 'list_matters_export' },
     },
     {
       id: 'holdId',
+      title: 'Hold ID',
+      type: 'short-input',
+      placeholder: 'Enter Hold ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'update_matters_holds',
+          'delete_matters_holds',
+          'add_held_accounts',
+          'remove_held_accounts',
+        ],
+      },
+      required: true,
+    },
+    // Dedicated optional hold-id filter for list_matters_holds — kept separate from the
+    // required-everywhere holdId above so a value left over from another operation can
+    // never silently turn "List Holds" into a single-hold get.
+    {
+      id: 'listHoldId',
       title: 'Hold ID',
       type: 'short-input',
       placeholder: 'Enter Hold ID (optional to fetch a specific hold)',
@@ -354,7 +495,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       placeholder: 'Number of items to return',
       condition: {
         field: 'operation',
-        value: ['list_matters_export', 'list_matters_holds', 'list_matters'],
+        value: ['list_matters_export', 'list_matters_holds', 'list_matters', 'list_saved_queries'],
       },
     },
     {
@@ -364,7 +505,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       placeholder: 'Pagination token',
       condition: {
         field: 'operation',
-        value: ['list_matters_export', 'list_matters_holds', 'list_matters'],
+        value: ['list_matters_export', 'list_matters_holds', 'list_matters', 'list_saved_queries'],
       },
     },
 
@@ -373,7 +514,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       title: 'Matter Name',
       type: 'short-input',
       placeholder: 'Enter Matter name',
-      condition: { field: 'operation', value: 'create_matters' },
+      condition: { field: 'operation', value: ['create_matters', 'update_matters'] },
       required: true,
       wandConfig: {
         enabled: true,
@@ -397,7 +538,7 @@ Return ONLY the matter name - no explanations, no quotes, no extra text.`,
       title: 'Description',
       type: 'short-input',
       placeholder: 'Optional description for the matter',
-      condition: { field: 'operation', value: 'create_matters' },
+      condition: { field: 'operation', value: ['create_matters', 'update_matters'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a professional description for a Google Vault matter based on the user's request.
@@ -410,24 +551,113 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe the purpose of this matter...',
       },
     },
-    // Optional get specific matter by ID
+    // Held account management
     {
-      id: 'matterId',
-      title: 'Matter ID',
+      id: 'heldAccountEmails',
+      title: 'Account Emails',
+      type: 'long-input',
+      placeholder: 'Comma-separated emails (e.g., user1@example.com, user2@example.com)',
+      condition: { field: 'operation', value: 'add_held_accounts' },
+      required: true,
+    },
+    {
+      id: 'heldAccountIds',
+      title: 'Account IDs',
+      type: 'long-input',
+      placeholder: 'Comma-separated Admin SDK account IDs',
+      condition: { field: 'operation', value: 'remove_held_accounts' },
+      required: true,
+    },
+    // Matter collaborator management
+    {
+      id: 'accountId',
+      title: 'Account ID',
       type: 'short-input',
-      placeholder: 'Enter Matter ID (optional to fetch a specific matter)',
-      condition: { field: 'operation', value: 'list_matters' },
+      placeholder: 'Admin SDK account ID',
+      condition: {
+        field: 'operation',
+        value: ['add_matters_permissions', 'remove_matters_permissions'],
+      },
+      required: true,
+    },
+    {
+      id: 'role',
+      title: 'Role',
+      type: 'dropdown',
+      options: [
+        { id: 'COLLABORATOR', label: 'Collaborator' },
+        { id: 'OWNER', label: 'Owner' },
+      ],
+      condition: { field: 'operation', value: 'add_matters_permissions' },
+      required: true,
+      value: () => 'COLLABORATOR',
+    },
+    {
+      id: 'sendEmails',
+      title: 'Send Notification Email',
+      type: 'switch',
+      condition: { field: 'operation', value: 'add_matters_permissions' },
+      mode: 'advanced',
+    },
+    {
+      id: 'ccMe',
+      title: 'CC Me',
+      type: 'switch',
+      condition: { field: 'operation', value: 'add_matters_permissions' },
+      mode: 'advanced',
+    },
+    // Saved query management
+    {
+      id: 'displayName',
+      title: 'Saved Query Name',
+      type: 'short-input',
+      placeholder: 'Name for the saved query',
+      condition: { field: 'operation', value: 'create_saved_query' },
+      required: true,
+    },
+    {
+      id: 'savedQueryId',
+      title: 'Saved Query ID',
+      type: 'short-input',
+      placeholder: 'Enter Saved Query ID',
+      condition: { field: 'operation', value: 'delete_saved_query' },
+      required: true,
+    },
+    // Dedicated optional saved-query-id filter for list_saved_queries — kept separate
+    // from the required savedQueryId above so a value left over from Delete Saved Query
+    // can never silently turn "List Saved Queries" into a single-query get.
+    {
+      id: 'listSavedQueryId',
+      title: 'Saved Query ID',
+      type: 'short-input',
+      placeholder: 'Enter Saved Query ID (optional to fetch a specific saved query)',
+      condition: { field: 'operation', value: 'list_saved_queries' },
     },
   ],
   tools: {
     access: [
       'google_vault_create_matters_export',
       'google_vault_list_matters_export',
+      'google_vault_delete_matters_export',
       'google_vault_download_export_file',
       'google_vault_create_matters_holds',
       'google_vault_list_matters_holds',
+      'google_vault_update_matters_holds',
+      'google_vault_delete_matters_holds',
+      'google_vault_add_held_accounts',
+      'google_vault_remove_held_accounts',
       'google_vault_create_matters',
       'google_vault_list_matters',
+      'google_vault_update_matters',
+      'google_vault_close_matters',
+      'google_vault_reopen_matters',
+      'google_vault_delete_matters',
+      'google_vault_undelete_matters',
+      'google_vault_add_matters_permissions',
+      'google_vault_remove_matters_permissions',
+      'google_vault_create_saved_query',
+      'google_vault_list_saved_queries',
+      'google_vault_delete_saved_query',
     ],
     config: {
       tool: (params) => {
@@ -436,22 +666,68 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
             return 'google_vault_create_matters_export'
           case 'list_matters_export':
             return 'google_vault_list_matters_export'
+          case 'delete_matters_export':
+            return 'google_vault_delete_matters_export'
           case 'download_export_file':
             return 'google_vault_download_export_file'
           case 'create_matters_holds':
             return 'google_vault_create_matters_holds'
           case 'list_matters_holds':
             return 'google_vault_list_matters_holds'
+          case 'update_matters_holds':
+            return 'google_vault_update_matters_holds'
+          case 'delete_matters_holds':
+            return 'google_vault_delete_matters_holds'
+          case 'add_held_accounts':
+            return 'google_vault_add_held_accounts'
+          case 'remove_held_accounts':
+            return 'google_vault_remove_held_accounts'
           case 'create_matters':
             return 'google_vault_create_matters'
           case 'list_matters':
             return 'google_vault_list_matters'
+          case 'update_matters':
+            return 'google_vault_update_matters'
+          case 'close_matters':
+            return 'google_vault_close_matters'
+          case 'reopen_matters':
+            return 'google_vault_reopen_matters'
+          case 'delete_matters':
+            return 'google_vault_delete_matters'
+          case 'undelete_matters':
+            return 'google_vault_undelete_matters'
+          case 'add_matters_permissions':
+            return 'google_vault_add_matters_permissions'
+          case 'remove_matters_permissions':
+            return 'google_vault_remove_matters_permissions'
+          case 'create_saved_query':
+            return 'google_vault_create_saved_query'
+          case 'list_saved_queries':
+            return 'google_vault_list_saved_queries'
+          case 'delete_saved_query':
+            return 'google_vault_delete_saved_query'
           default:
             throw new Error(`Invalid Google Vault operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { oauthCredential, holdStartTime, holdEndTime, holdTerms, ...rest } = params
+        const {
+          oauthCredential,
+          holdStartTime,
+          holdEndTime,
+          holdTerms,
+          heldAccountEmails,
+          heldAccountIds,
+          listMatterId,
+          updateHoldAccountEmails,
+          updateHoldOrgUnitId,
+          savedQueryAccountEmails,
+          savedQueryOrgUnitId,
+          listExportId,
+          listHoldId,
+          listSavedQueryId,
+          ...rest
+        } = params
         return {
           ...rest,
           oauthCredential,
@@ -459,6 +735,22 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           ...(holdStartTime && { startTime: holdStartTime }),
           ...(holdEndTime && { endTime: holdEndTime }),
           ...(holdTerms && { terms: holdTerms }),
+          ...(heldAccountEmails && { accountEmails: heldAccountEmails }),
+          ...(heldAccountIds && { accountIds: heldAccountIds }),
+          // Map operation-scoped fields (kept separate in the UI so a stale value from
+          // another operation can never silently override these) to their tool parameter names
+          ...(listMatterId && { matterId: listMatterId }),
+          // These operation-scoped accountEmails/orgUnitId fields are mutually exclusive —
+          // each is only ever populated while its own single 'operation' value is selected,
+          // so at most one of the four spreads below is ever truthy at once. Ordered here
+          // defensively anyway so precedence stays correct even if that invariant changes.
+          ...(savedQueryAccountEmails && { accountEmails: savedQueryAccountEmails }),
+          ...(savedQueryOrgUnitId && { orgUnitId: savedQueryOrgUnitId }),
+          ...(updateHoldAccountEmails && { accountEmails: updateHoldAccountEmails }),
+          ...(updateHoldOrgUnitId && { orgUnitId: updateHoldOrgUnitId }),
+          ...(listExportId && { exportId: listExportId }),
+          ...(listHoldId && { holdId: listHoldId }),
+          ...(listSavedQueryId && { savedQueryId: listSavedQueryId }),
         }
       },
     },
@@ -508,9 +800,56 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     pageSize: { type: 'number', description: 'Number of items per page' },
     pageToken: { type: 'string', description: 'Pagination token' },
 
-    // Create matter inputs
+    // Create/update matter inputs
     name: { type: 'string', description: 'Matter name' },
     description: { type: 'string', description: 'Matter description' },
+
+    // Hold account management inputs
+    heldAccountEmails: { type: 'string', description: 'Comma-separated emails to add to a hold' },
+    heldAccountIds: {
+      type: 'string',
+      description: 'Comma-separated account IDs to remove from a hold',
+    },
+
+    // Matter collaborator inputs
+    accountId: { type: 'string', description: 'Admin SDK account ID for collaborator management' },
+    role: { type: 'string', description: 'Matter permission role (COLLABORATOR or OWNER)' },
+    sendEmails: { type: 'boolean', description: 'Send a notification email to the added account' },
+    ccMe: { type: 'boolean', description: 'CC the requestor on the notification email' },
+
+    // Saved query inputs
+    displayName: { type: 'string', description: 'Name for the saved query' },
+    savedQueryId: { type: 'string', description: 'Specific saved query ID to fetch or delete' },
+
+    // Operation-scoped fields kept separate from their shared counterparts above so a
+    // stale value from another operation can never silently carry over
+    listMatterId: { type: 'string', description: 'Specific matter ID to fetch (list_matters)' },
+    updateHoldAccountEmails: {
+      type: 'string',
+      description: 'Comma-separated emails covered by the hold (update_matters_holds)',
+    },
+    updateHoldOrgUnitId: {
+      type: 'string',
+      description: 'Org unit ID covered by the hold (update_matters_holds, alternative to emails)',
+    },
+    savedQueryAccountEmails: {
+      type: 'string',
+      description: 'Comma-separated emails to scope the saved query (create_saved_query)',
+    },
+    savedQueryOrgUnitId: {
+      type: 'string',
+      description:
+        'Org unit ID to scope the saved query (create_saved_query, alternative to emails)',
+    },
+    listExportId: {
+      type: 'string',
+      description: 'Specific export ID to fetch (list_matters_export)',
+    },
+    listHoldId: { type: 'string', description: 'Specific hold ID to fetch (list_matters_holds)' },
+    listSavedQueryId: {
+      type: 'string',
+      description: 'Specific saved query ID to fetch (list_saved_queries)',
+    },
   },
   outputs: {
     matters: {
@@ -543,6 +882,32 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     nextPageToken: {
       type: 'string',
       description: 'Token for fetching next page of results (for list operations)',
+    },
+    success: {
+      type: 'boolean',
+      description: 'Whether the delete/remove operation succeeded',
+    },
+    responses: {
+      type: 'json',
+      description:
+        '[{account: {accountId, email}, status: {code, message}}] (for add_held_accounts)',
+    },
+    statuses: {
+      type: 'json',
+      description: '[{code, message}] per-account removal status (for remove_held_accounts)',
+    },
+    permission: {
+      type: 'json',
+      description: 'Matter permission (accountId, role) (for add_matters_permissions)',
+    },
+    savedQuery: {
+      type: 'json',
+      description:
+        'Single saved query object (for create_saved_query or list_saved_queries with savedQueryId)',
+    },
+    savedQueries: {
+      type: 'json',
+      description: 'Array of saved query objects (for list_saved_queries without savedQueryId)',
     },
   },
 }
@@ -638,6 +1003,20 @@ export const GoogleVaultBlockMeta = {
         'List Vault matters and their holds to produce a custodian preservation status report.',
       content:
         '# Audit Active Holds\n\nGenerate a status report of which matters and custodians are currently preserved.\n\n## Steps\n1. List all matters and capture their IDs, names, and states.\n2. For each open matter, list its holds and the custodians and services covered.\n3. Flag matters with no holds and custodians that appear across multiple matters.\n\n## Output\nReturn a per-matter summary listing holds, services, and custodians, plus a flagged section for matters missing holds. Suitable for a monthly legal review.',
+    },
+    {
+      name: 'close-out-matter',
+      description:
+        'Wind down a resolved matter by closing it, and permanently delete it once retention requirements are satisfied.',
+      content:
+        '# Close Out Matter\n\nRetire a matter once the underlying investigation or litigation is resolved.\n\n## Steps\n1. List the holds on the matter and confirm none still need to be preserved; delete any holds that are no longer required.\n2. Close the matter.\n3. If the matter should be permanently removed and your retention policy allows it, delete the closed matter (reopen or undelete if this was done in error).\n\n## Output\nReturn the matterId, its final state, and which holds (if any) were deleted before close-out.',
+    },
+    {
+      name: 'manage-hold-scope',
+      description:
+        'Add or remove custodians from an existing legal hold as the custodian list for a matter changes.',
+      content:
+        '# Manage Hold Scope\n\nKeep an existing hold in sync with the current custodian list without recreating it.\n\n## Steps\n1. List the holds on the matter and identify the target hold.\n2. Add newly relevant custodians to the hold by email.\n3. Remove custodians who have left the investigation scope by account ID.\n4. Fetch the hold again by its ID to confirm the accounts field reflects the change.\n\n## Output\nReturn the holdId and the accounts added and removed, noting any that failed with their error status.',
     },
   ],
 } as const satisfies BlockMeta

@@ -3,9 +3,17 @@ import { headers } from 'next/headers'
 import { getSession } from '@/lib/auth'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { getUserProfile, getUserSettings } from '@/lib/users/queries'
-import { generalSettingsKeys, mapGeneralSettingsResponse } from '@/hooks/queries/general-settings'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
-import { mapUserProfileResponse, userProfileKeys } from '@/hooks/queries/user-profile'
+import {
+  GENERAL_SETTINGS_STALE_TIME,
+  generalSettingsKeys,
+  mapGeneralSettingsResponse,
+} from '@/hooks/queries/general-settings'
+import { SUBSCRIPTION_DATA_STALE_TIME, subscriptionKeys } from '@/hooks/queries/subscription'
+import {
+  mapUserProfileResponse,
+  USER_PROFILE_STALE_TIME,
+  userProfileKeys,
+} from '@/hooks/queries/user-profile'
 
 /**
  * Prefetch general settings server-side via the shared data layer.
@@ -20,7 +28,7 @@ export function prefetchGeneralSettings(queryClient: QueryClient) {
       const data = await getUserSettings(session?.user?.id ?? null)
       return mapGeneralSettingsResponse(data)
     },
-    staleTime: 60 * 60 * 1000,
+    staleTime: GENERAL_SETTINGS_STALE_TIME,
   })
 }
 
@@ -46,7 +54,7 @@ export function prefetchSubscriptionData(queryClient: QueryClient) {
       if (!response.ok) throw new Error(`Subscription prefetch failed: ${response.status}`)
       return response.json()
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: SUBSCRIPTION_DATA_STALE_TIME,
   })
 }
 
@@ -65,6 +73,6 @@ export function prefetchUserProfile(queryClient: QueryClient) {
       if (!user) throw new Error('User not found')
       return mapUserProfileResponse(user)
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: USER_PROFILE_STALE_TIME,
   })
 }

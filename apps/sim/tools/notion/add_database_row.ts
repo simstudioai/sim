@@ -67,7 +67,7 @@ export const notionAddDatabaseRowTool: ToolConfig<
       return {
         parent: {
           type: 'database_id',
-          database_id: params.databaseId,
+          database_id: params.databaseId.trim(),
         },
         properties: params.properties,
       }

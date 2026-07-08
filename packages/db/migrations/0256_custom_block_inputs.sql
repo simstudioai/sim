@@ -1,0 +1,1 @@
+ALTER TABLE "custom_block" ADD COLUMN "inputs" json;

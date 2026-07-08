@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import type { BlockState, SubBlockState } from '@sim/workflow-types/workflow'
 
 export const DEFAULT_SUBBLOCK_TYPE = 'short-input'
@@ -60,7 +61,7 @@ export function mergeSubblockStateWithValues(
       const blockSubBlocks = block.subBlocks || {}
       const blockValues = subBlockValues[id] || {}
       const filteredValues = Object.fromEntries(
-        Object.entries(blockValues).filter(([, value]) => value !== null && value !== undefined)
+        Object.entries(filterUndefined(blockValues)).filter(([, value]) => value !== null)
       )
 
       const mergedSubBlocks = mergeSubBlockValues(blockSubBlocks, filteredValues) as Record<

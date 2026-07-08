@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react'
+import {
+  CHASE_REST_GAP,
+  createSmoothBottomChase,
+  SMOOTH_CHASE_RATE,
+} from '@/lib/core/utils/smooth-bottom-chase'
 
 /** Tolerance for keeping stickiness during programmatic auto-scroll. */
 const STICK_THRESHOLD = 30
@@ -61,7 +66,6 @@ export function useAutoScroll(
   const prevScrollTopRef = useRef(0)
   const prevScrollHeightRef = useRef(0)
   const touchStartYRef = useRef(0)
-  const rafIdRef = useRef(0)
   const scrollOnMountRef = useRef(scrollOnMount)
   /**
    * Whether the user is actively dragging the scrollbar — a pointer press on the
@@ -92,13 +96,33 @@ export function useAutoScroll(
     const el = containerRef.current
     if (!el) return
 
+    /**
+     * Eased bottom-chase shared by the mutation observer and the seed below —
+     * the same glide the subagent viewport uses, instead of snapping to
+     * `scrollHeight` on every content mutation. Chase writes only ever move
+     * `scrollTop` down, so the detach logic in `onScroll` (which requires an
+     * upward move) never mistakes the glide for a user scroll; the helper's
+     * own upward-move interrupt and the per-frame sticky check are extra
+     * layers of the same guarantee.
+     */
+    const chase = createSmoothBottomChase(
+      {
+        getTop: () => el.scrollTop,
+        getBottomTop: () => el.scrollHeight - el.clientHeight,
+        setTop: (top) => {
+          el.scrollTop = top
+        },
+      },
+      () => stickyRef.current
+    )
+
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     const isNearBottom = distanceFromBottom <= STICK_THRESHOLD
     stickyRef.current = isNearBottom
     userDetachedRef.current = !isNearBottom
     prevScrollTopRef.current = el.scrollTop
     prevScrollHeightRef.current = el.scrollHeight
-    if (isNearBottom) scrollToBottom()
+    if (isNearBottom) chase.kick()
 
     const detach = () => {
       stickyRef.current = false
@@ -164,25 +188,20 @@ export function useAutoScroll(
       prevScrollHeightRef.current = scrollHeight
     }
 
-    const guardedScroll = () => {
-      if (stickyRef.current) scrollToBottom()
-    }
-
     const onMutation = () => {
       prevScrollHeightRef.current = el.scrollHeight
       if (!stickyRef.current) return
-      cancelAnimationFrame(rafIdRef.current)
-      rafIdRef.current = requestAnimationFrame(guardedScroll)
+      chase.kick()
     }
 
     /**
-     * Chase the bottom every frame for `durationMs`. Catches height growth that
-     * arrives over several frames with no observed DOM mutation — a CSS height
-     * animation, or end-of-turn content and the virtualizer's re-measure settling
-     * after streaming stops.
+     * Chase the bottom every frame for `durationMs` with the same eased step.
+     * Catches height growth that arrives over several frames with no observed
+     * DOM mutation — a CSS height animation, or end-of-turn content and the
+     * virtualizer's re-measure settling after streaming stops.
      *
-     * Self-interrupting: height growth leaves `scrollTop` exactly where we last
-     * put it, whereas a user scroll moves it up from there — so the moment
+     * Self-interrupting: our eased writes leave `scrollTop` exactly where we
+     * last put it, whereas a user scroll moves it up from there — so the moment
      * `scrollTop` drops below our last write, we stop and never fight a real
      * scroll, even with the gesture listeners already torn down.
      */
@@ -193,7 +212,10 @@ export function useAutoScroll(
       const follow = () => {
         if (performance.now() > until || !stickyRef.current) return
         if (lastTop >= 0 && el.scrollTop < lastTop - 1) return
-        scrollToBottom()
+        const gap = el.scrollHeight - el.clientHeight - el.scrollTop
+        if (gap > CHASE_REST_GAP) {
+          el.scrollTop = el.scrollTop + Math.max(1, gap * SMOOTH_CHASE_RATE)
+        }
         lastTop = el.scrollTop
         requestAnimationFrame(follow)
       }
@@ -232,7 +254,7 @@ export function useAutoScroll(
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', onPointerUp)
       observer.disconnect()
-      cancelAnimationFrame(rafIdRef.current)
+      chase.cancel()
       pointerDownRef.current = false
       lastUserGestureAtRef.current = Number.NEGATIVE_INFINITY
       followToBottom(POST_STREAM_SETTLE_WINDOW)

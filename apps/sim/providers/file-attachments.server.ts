@@ -2,9 +2,8 @@ import { FileState, GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import type { StorageContext } from '@/lib/uploads'
 import { StorageService } from '@/lib/uploads'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
@@ -85,7 +84,7 @@ export async function attachLargeFileRemoteUrls(
       )
     }
 
-    const context = (file.context as StorageContext) || inferContextFromKey(file.key)
+    const context = resolveTrustedFileContext(file.key, file.context)
     const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context, false)
     if (!hasAccess) {
       throw new Error(`File "${file.name}" is not accessible for provider "${providerId}"`)
@@ -147,7 +146,7 @@ async function assertFileAccessForUpload(
   if (!userId) {
     throw new Error(`File "${file.name}" requires an authenticated user to upload`)
   }
-  const context = (file.context as StorageContext) || inferContextFromKey(file.key)
+  const context = resolveTrustedFileContext(file.key, file.context)
   const hasAccess = await verifyFileAccess(file.key, userId, undefined, context, false)
   if (!hasAccess) {
     throw new Error(`File "${file.name}" is not accessible`)

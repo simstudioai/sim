@@ -34,6 +34,10 @@
       "types": "./src/formatting.ts",
       "default": "./src/formatting.ts"
     },
+    "./fractional-indexing": {
+      "types": "./src/fractional-indexing.ts",
+      "default": "./src/fractional-indexing.ts"
+    },
     "./object": {
       "types": "./src/object.ts",
       "default": "./src/object.ts"

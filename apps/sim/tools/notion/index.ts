@@ -15,6 +15,7 @@ import { notionListUsersTool, notionListUsersV2Tool } from '@/tools/notion/list_
 import { notionQueryDatabaseTool, notionQueryDatabaseV2Tool } from '@/tools/notion/query_database'
 import { notionReadTool, notionReadV2Tool } from '@/tools/notion/read'
 import { notionReadDatabaseTool, notionReadDatabaseV2Tool } from '@/tools/notion/read_database'
+import { notionRetrieveBlockTool, notionRetrieveBlockV2Tool } from '@/tools/notion/retrieve_block'
 import {
   notionRetrieveBlockChildrenTool,
   notionRetrieveBlockChildrenV2Tool,
@@ -37,6 +38,7 @@ export {
   notionCreateDatabaseTool,
   notionAddDatabaseRowTool,
   notionAppendBlocksTool,
+  notionRetrieveBlockTool,
   notionRetrieveBlockChildrenTool,
   notionUpdateBlockTool,
   notionDeleteBlockTool,
@@ -55,6 +57,7 @@ export {
   notionCreateDatabaseV2Tool,
   notionAddDatabaseRowV2Tool,
   notionAppendBlocksV2Tool,
+  notionRetrieveBlockV2Tool,
   notionRetrieveBlockChildrenV2Tool,
   notionUpdateBlockV2Tool,
   notionDeleteBlockV2Tool,

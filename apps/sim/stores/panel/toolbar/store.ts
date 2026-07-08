@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 
-export type ToolbarSectionKey = 'triggers' | 'blocks' | 'tools'
+export type ToolbarSectionKey = 'triggers' | 'blocks' | 'customBlocks' | 'tools'
 
 interface ToolbarState {
   expandedSections: Record<ToolbarSectionKey, boolean>
@@ -9,7 +9,7 @@ interface ToolbarState {
 }
 
 const initialState: Pick<ToolbarState, 'expandedSections'> = {
-  expandedSections: { triggers: true, blocks: true, tools: true },
+  expandedSections: { triggers: true, blocks: true, customBlocks: true, tools: true },
 }
 
 export const useToolbarStore = create<ToolbarState>()(

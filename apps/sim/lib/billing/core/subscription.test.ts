@@ -33,7 +33,6 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 vi.mock('@/lib/core/config/env-flags', () => ({
   isAccessControlEnabled: false,
   isBillingEnabled: true,
-  isCredentialSetsEnabled: false,
   isHosted: true,
   isInboxEnabled: false,
   isSsoEnabled: false,

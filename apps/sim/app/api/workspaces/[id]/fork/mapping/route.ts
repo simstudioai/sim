@@ -7,13 +7,14 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
-import { acquireForkEdgeLock, setForkLockTimeout } from '@/lib/workspaces/fork/lineage/lineage'
+import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
+import { acquireForkEdgeLock, setForkLockTimeout } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { reconcileForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
 import {
   applyForkMappingEntries,
   getForkMappingView,
   validateForkMappingTargets,
-} from '@/lib/workspaces/fork/mapping/mapping-service'
+} from '@/ee/workspace-forking/lib/mapping/mapping-service'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -55,7 +56,7 @@ export const PUT = withRouteHandler(
     const parsed = await parseRequest(updateForkMappingContract, req, context)
     if (!parsed.success) return parsed.response
     const { id } = parsed.data.params
-    const { otherWorkspaceId, direction, entries } = parsed.data.body
+    const { otherWorkspaceId, direction, entries, dependentValues } = parsed.data.body
 
     const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
 
@@ -67,7 +68,35 @@ export const PUT = withRouteHandler(
     const updated = await db.transaction(async (tx) => {
       await setForkLockTimeout(tx)
       await acquireForkEdgeLock(tx, auth.edge.childWorkspaceId)
-      return applyForkMappingEntries(tx, auth.edge, session.user.id, direction, entries)
+      const applied = await applyForkMappingEntries(
+        tx,
+        auth.edge,
+        session.user.id,
+        direction,
+        entries
+      )
+      // Store dependent-field values with the mapping (each named workflow's stored set is
+      // replaced by exactly what was sent - promote's reconcile semantics, scoped to the
+      // payload's workflows since a mapping save has no promote plan). Omitted = untouched;
+      // rows for a workflow that never becomes a sync replace target are inert (promote
+      // loads the store scoped to its plan's targets).
+      if (dependentValues !== undefined) {
+        const targetWorkflowIds = Array.from(
+          new Set(dependentValues.map((entry) => entry.workflowId))
+        )
+        await reconcileForkDependentValues(
+          tx,
+          auth.edge.childWorkspaceId,
+          targetWorkflowIds,
+          dependentValues.map((entry) => ({
+            targetWorkflowId: entry.workflowId,
+            targetBlockId: entry.blockId,
+            subBlockKey: entry.subBlockKey,
+            value: entry.value,
+          }))
+        )
+      }
+      return applied
     })
 
     return NextResponse.json({ success: true as const, updated })

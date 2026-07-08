@@ -48,7 +48,7 @@ export const discordExecuteWebhookTool: ToolConfig<
 
   request: {
     url: (params: DiscordExecuteWebhookParams) => {
-      return `https://discord.com/api/v10/webhooks/${params.webhookId}/${params.webhookToken}?wait=true`
+      return `https://discord.com/api/v10/webhooks/${params.webhookId.trim()}/${params.webhookToken.trim()}?wait=true`
     },
     method: 'POST',
     headers: () => ({

@@ -4,6 +4,7 @@ import type {
   DataverseFetchXmlQueryResponse,
 } from '@/tools/microsoft_dataverse/types'
 import { DATAVERSE_RECORDS_ARRAY_OUTPUT } from '@/tools/microsoft_dataverse/types'
+import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseFetchXmlQuery')
@@ -51,9 +52,9 @@ export const dataverseFetchXmlQueryTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.environmentUrl.replace(/\/$/, '')
+      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
       const encodedFetchXml = encodeURIComponent(params.fetchXml)
-      return `${baseUrl}/api/data/v9.2/${params.entitySetName}?fetchXml=${encodedFetchXml}`
+      return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}?fetchXml=${encodedFetchXml}`
     },
     method: 'GET',
     headers: (params) => ({
