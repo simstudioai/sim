@@ -402,7 +402,7 @@ export const n8nProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-workflow-builder.md',
+            url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-workflow-builder',
             label: 'n8n AI Workflow Builder docs',
             asOf: '2026-07-08',
           },
