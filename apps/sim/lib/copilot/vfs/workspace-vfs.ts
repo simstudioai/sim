@@ -410,6 +410,13 @@ export class WorkspaceVFS {
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
   private _workspaceId = ''
   private _betaEnabled = false
+  /**
+   * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
+   * still resolves/renders). Populated by {@link materializeCustomBlocks}; used to
+   * drop a placed custom block from a workflow's state when its definition has been
+   * deleted, so the copilot never sees a block it can't render.
+   */
+  private _customBlockTypes = new Set<string>()
 
   get workspaceId(): string {
     return this._workspaceId
@@ -430,10 +437,40 @@ export class WorkspaceVFS {
   ): Promise<Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>> {
     let cached = this.normalizedCache.get(workflowId)
     if (!cached) {
-      cached = loadWorkflowFromNormalizedTables(workflowId)
+      cached = loadWorkflowFromNormalizedTables(workflowId).then((n) =>
+        this.dropDeletedCustomBlocks(n)
+      )
       this.normalizedCache.set(workflowId, cached)
     }
     return cached
+  }
+
+  /**
+   * Strip placed custom blocks whose definition no longer exists from a loaded
+   * workflow (and any edges touching them), so the copilot never sees a block it
+   * can't render — mirroring how the serializer drops an unresolvable custom block.
+   * A live definition (enabled or disabled) is kept; only a DELETED one is removed.
+   * Runs lazily (after materialize), so `_customBlockTypes` is populated by then.
+   */
+  private dropDeletedCustomBlocks(
+    normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
+  ): Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> {
+    if (!normalized) return normalized
+    const dropped = new Set<string>()
+    const blocks: Record<string, unknown> = {}
+    for (const [id, block] of Object.entries(normalized.blocks)) {
+      const type = (block as { type?: string }).type
+      if (isCustomBlockType(type) && !this._customBlockTypes.has(type)) {
+        dropped.add(id)
+        continue
+      }
+      blocks[id] = block
+    }
+    if (dropped.size === 0) return normalized
+    const edges = (normalized.edges ?? []).filter(
+      (e) => !dropped.has(e.source) && !dropped.has(e.target)
+    )
+    return { ...normalized, blocks: blocks as typeof normalized.blocks, edges }
   }
 
   /** Load a workflow's deployment data once per instance (deployment.json + versions.json share it). */
@@ -528,6 +565,7 @@ export class WorkspaceVFS {
     this.lazy = new Map()
     this.normalizedCache = new Map()
     this.deploymentCache = new Map()
+    this._customBlockTypes = new Set()
     this._workspaceId = workspaceId
     this._betaEnabled = await isFeatureEnabled('mothership-beta', { userId })
 
@@ -1829,6 +1867,9 @@ export class WorkspaceVFS {
   ): Promise<NonNullable<WorkspaceMdData['customBlocks']>> {
     try {
       const blocks = await listCustomBlocksWithInputsForWorkspace(workspaceId)
+      // Every current definition (incl. disabled) — the authoritative set used to
+      // drop deleted-definition instances from workflow state (see loadNormalized).
+      this._customBlockTypes = new Set(blocks.map((cb) => cb.type))
       const summary: NonNullable<WorkspaceMdData['customBlocks']> = []
 
       for (const cb of blocks) {
