@@ -1,0 +1,241 @@
+---
+title: TikTok
+description: Access TikTok profiles and videos, and publish content
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tiktok"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos and photos directly to TikTok (or send them to the inbox as drafts) from a public URL or a file uploaded in the workflow, then track post status.
+
+
+
+## Actions
+
+### `tiktok_get_user`
+
+Get the authenticated TikTok user profile information including display name, avatar, bio, follower count, and video statistics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fields` | string | No | Comma-separated list of fields to return. Available: open_id, union_id, avatar_url, avatar_url_100, avatar_large_url, display_name, bio_description, profile_deep_link, is_verified, username, follower_count, following_count, likes_count, video_count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `openId` | string | Unique TikTok user ID for this application |
+| `unionId` | string | Unique TikTok user ID across all apps from the same developer |
+| `displayName` | string | User display name |
+| `avatarUrl` | string | Profile image URL |
+| `avatarUrl100` | string | Profile image URL \(100x100\) |
+| `avatarLargeUrl` | string | Profile image URL \(large\) |
+| `bioDescription` | string | User bio description |
+| `profileDeepLink` | string | Deep link to user TikTok profile |
+| `isVerified` | boolean | Whether the account is verified |
+| `username` | string | TikTok username |
+| `followerCount` | number | Number of followers |
+| `followingCount` | number | Number of accounts the user follows |
+| `likesCount` | number | Total likes received across all videos |
+| `videoCount` | number | Total number of public videos |
+
+### `tiktok_list_videos`
+
+Get a list of the authenticated user's TikTok videos with cover images, titles, and metadata. Supports pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `maxCount` | number | No | Maximum number of videos to return \(1-20\) |
+| `cursor` | number | No | Cursor for pagination \(from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videos` | array | List of TikTok videos |
+|   ↳ `id` | string | Video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `coverImageUrl` | string | Cover image URL \(may expire\) |
+|   ↳ `embedLink` | string | Embeddable video URL |
+|   ↳ `duration` | number | Video duration in seconds |
+|   ↳ `createTime` | number | Unix timestamp when video was created |
+|   ↳ `shareUrl` | string | Shareable video URL |
+|   ↳ `videoDescription` | string | Video description/caption |
+|   ↳ `width` | number | Video width in pixels |
+|   ↳ `height` | number | Video height in pixels |
+|   ↳ `viewCount` | number | Number of views |
+|   ↳ `likeCount` | number | Number of likes |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `shareCount` | number | Number of shares |
+| `cursor` | number | Cursor for fetching the next page of results |
+| `hasMore` | boolean | Whether there are more videos to fetch |
+
+### `tiktok_query_videos`
+
+Query specific TikTok videos by their IDs to get fresh metadata including cover images, embed links, and video details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `videoIds` | array | Yes | Array of video IDs to query \(maximum 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videos` | array | List of queried TikTok videos |
+|   ↳ `id` | string | Video ID |
+|   ↳ `title` | string | Video title |
+|   ↳ `coverImageUrl` | string | Cover image URL \(fresh URL\) |
+|   ↳ `embedLink` | string | Embeddable video URL |
+|   ↳ `duration` | number | Video duration in seconds |
+|   ↳ `createTime` | number | Unix timestamp when video was created |
+|   ↳ `shareUrl` | string | Shareable video URL |
+|   ↳ `videoDescription` | string | Video description/caption |
+|   ↳ `width` | number | Video width in pixels |
+|   ↳ `height` | number | Video height in pixels |
+|   ↳ `viewCount` | number | Number of views |
+|   ↳ `likeCount` | number | Number of likes |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `shareCount` | number | Number of shares |
+
+### `tiktok_query_creator_info`
+
+Check if the authenticated TikTok user can post content and retrieve their available privacy options, interaction settings, and maximum video duration. Required before any post per TikTok UX guidelines.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `creatorAvatarUrl` | string | URL of the creator avatar |
+| `creatorUsername` | string | TikTok username of the creator |
+| `creatorNickname` | string | Display name/nickname of the creator |
+| `privacyLevelOptions` | array | Available privacy levels for posting \(e.g., PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY\) |
+| `commentDisabled` | boolean | Whether the creator has disabled comments by default |
+| `duetDisabled` | boolean | Whether the creator has disabled duets by default |
+| `stitchDisabled` | boolean | Whether the creator has disabled stitches by default |
+| `maxVideoPostDurationSec` | number | Maximum allowed video duration in seconds |
+
+### `tiktok_direct_post_video`
+
+Publish a video to TikTok, either by public URL (TikTok fetches it) or by uploading a file from the workflow. Rate limit: 6 requests per minute per user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `source` | string | Yes | Media transfer method: 'PULL_FROM_URL' or 'FILE_UPLOAD'. |
+| `videoUrl` | string | No | Public URL of the video to post \(used when source is PULL_FROM_URL\). The domain/URL prefix must be verified in the TikTok developer portal. |
+| `file` | file | No | Video file to upload from the workflow \(used when source is FILE_UPLOAD\). |
+| `title` | string | No | Video caption/description. Maximum 2200 characters. |
+| `privacyLevel` | string | Yes | Privacy level for the video. Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY. Must match one of the privacyLevelOptions returned by Query Creator Info. Note: unaudited apps \(including sandbox apps\) are restricted to SELF_ONLY. |
+| `disableDuet` | boolean | No | Disable duet for this video. Defaults to false. |
+| `disableStitch` | boolean | No | Disable stitch for this video. Defaults to false. |
+| `disableComment` | boolean | No | Disable comments for this video. Defaults to false. |
+| `videoCoverTimestampMs` | number | No | Timestamp in milliseconds to use as the video cover image. |
+| `isAigc` | boolean | No | Set to true if the video is AI-generated content \(AIGC\). |
+| `brandContentToggle` | boolean | No | Set to true if the video is a paid partnership promoting a third-party business. Branded content cannot be posted with Only Me privacy. |
+| `brandOrganicToggle` | boolean | No | Set to true if the video is promoting the creator's own business. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `publishId` | string | Unique identifier for tracking the post status. Use this with the Get Post Status tool to check if the video was successfully published. |
+
+### `tiktok_upload_video_draft`
+
+Send a video to the authenticated user's TikTok inbox (by public URL or uploaded file) for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `source` | string | Yes | Media transfer method: 'PULL_FROM_URL' or 'FILE_UPLOAD'. |
+| `videoUrl` | string | No | Public URL of the video to upload \(used when source is PULL_FROM_URL\). The domain/URL prefix must be verified in the TikTok developer portal. |
+| `file` | file | No | Video file to upload from the workflow \(used when source is FILE_UPLOAD\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `publishId` | string | Unique identifier for tracking the draft status. Use this with the Get Post Status tool to check when the user has completed posting from their inbox. |
+
+### `tiktok_direct_post_photo`
+
+Publish one or more photos to TikTok from public URLs. TikTok will fetch each image and post them as a photo carousel. Photos only support PULL_FROM_URL (no file upload). Rate limit: 6 requests per minute per user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `photoImages` | array | Yes | Public, verified-domain URLs of the images to post \(up to 35\). Must be JPEG or WEBP — TikTok rejects PNG. |
+| `photoCoverIndex` | number | No | Index \(starting from 0\) of the photo to use as the cover. |
+| `title` | string | No | Post title. Maximum 90 characters. |
+| `description` | string | No | Post description. Maximum 4000 characters. |
+| `privacyLevel` | string | Yes | Privacy level for the post. Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY. Must match one of the privacyLevelOptions returned by Query Creator Info. Note: unaudited apps \(including sandbox apps\) are restricted to SELF_ONLY. |
+| `disableComment` | boolean | No | Disable comments for this post. Defaults to false. |
+| `autoAddMusic` | boolean | No | Automatically add recommended music to the photo post. Defaults to false. |
+| `brandContentToggle` | boolean | No | Set to true if the post is a paid partnership promoting a third-party business. Branded content cannot be posted with Only Me privacy. |
+| `brandOrganicToggle` | boolean | No | Set to true if the post is promoting the creator's own business. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `publishId` | string | Unique identifier for tracking the post status. Use this with the Get Post Status tool to check if the photos were successfully published. |
+
+### `tiktok_upload_photo_draft`
+
+Send one or more photos (from public URLs) to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Photos only support PULL_FROM_URL (no file upload). Rate limit: 6 requests per minute per user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `photoImages` | array | Yes | Public, verified-domain URLs of the images to upload \(up to 35\). Must be JPEG or WEBP — TikTok rejects PNG. |
+| `photoCoverIndex` | number | No | Index \(starting from 0\) of the photo to use as the cover. |
+| `title` | string | No | Post title. Maximum 90 characters. |
+| `description` | string | No | Post description. Maximum 4000 characters. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `publishId` | string | Unique identifier for tracking the draft status. Use this with the Get Post Status tool to check when the user has completed posting from their inbox. |
+
+### `tiktok_get_post_status`
+
+Check the status of a post initiated with Direct Post Video, Upload Video Draft, Direct Post Photo, or Upload Photo Draft. Use the publishId returned from the post request to track progress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `publishId` | string | Yes | The publish ID returned from a post/upload tool. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Current status of the post. Values: PROCESSING_UPLOAD/PROCESSING_DOWNLOAD \(TikTok is processing the media\), SEND_TO_USER_INBOX \(draft delivered, awaiting user action\), PUBLISH_COMPLETE \(successfully posted\), FAILED \(check failReason\). |
+| `failReason` | string | Reason for failure if status is FAILED. Null otherwise. |
+| `publiclyAvailablePostId` | array | Array of public post IDs \(as strings\) once the content is published and publicly viewable. Can be used to construct the TikTok post URL. |
+
+

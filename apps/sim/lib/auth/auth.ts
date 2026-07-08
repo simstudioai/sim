@@ -1939,6 +1939,77 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'tiktok',
+          clientId: env.TIKTOK_CLIENT_ID as string,
+          clientSecret: env.TIKTOK_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.tiktok.com/v2/auth/authorize/',
+          tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
+          scopes: getCanonicalScopesForProvider('tiktok'),
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/tiktok`,
+          // TikTok requires the app identifier under `client_key`, not the standard
+          // `client_id`. The library always sends `client_id` too, but TikTok ignores
+          // unrecognized params, so adding `client_key` here (for both the authorize
+          // redirect and the token exchange) is sufficient without patching the library.
+          //
+          // TikTok also requires a comma-separated `scope` list, but the library always
+          // joins scopes with a space (no configurable separator in the generic-oauth
+          // plugin's authorize route). `additionalParams` is applied via
+          // `url.searchParams.set(key, value)` after the default scope is set, so
+          // overriding `scope` here replaces the space-joined value with a comma-joined
+          // one that TikTok can actually parse.
+          authorizationUrlParams: {
+            client_key: env.TIKTOK_CLIENT_ID as string,
+            scope: getCanonicalScopesForProvider('tiktok').join(','),
+          },
+          tokenUrlParams: { client_key: env.TIKTOK_CLIENT_ID as string },
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch(
+                'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url',
+                {
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                }
+              )
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Error fetching TikTok user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await response.json()
+              const user = profile.data?.user
+
+              if (!user?.open_id) {
+                logger.error('Invalid TikTok profile response:', profile)
+                return null
+              }
+
+              const now = new Date()
+
+              return {
+                id: `${user.open_id}-${generateId()}`,
+                name: user.display_name || 'TikTok User',
+                email: `${user.open_id}@tiktok.user`,
+                image: user.avatar_url || undefined,
+                emailVerified: false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in TikTok getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        {
           providerId: 'confluence',
           clientId: env.CONFLUENCE_CLIENT_ID as string,
           clientSecret: env.CONFLUENCE_CLIENT_SECRET as string,

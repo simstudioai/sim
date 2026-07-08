@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-07",
+  "updatedAt": "2026-07-08",
   "integrations": [
     {
       "type": "onepassword",
@@ -18607,6 +18607,62 @@
       "category": "tools",
       "integrationType": "hr",
       "tags": ["content-management", "knowledge-base", "automation"]
+    },
+    {
+      "type": "tiktok",
+      "slug": "tiktok",
+      "name": "TikTok",
+      "description": "Access TikTok profiles and videos, and publish content",
+      "longDescription": "Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos and photos directly to TikTok (or send them to the inbox as drafts) from a public URL or a file uploaded in the workflow, then track post status.",
+      "bgColor": "#000000",
+      "iconName": "TikTokIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/tiktok",
+      "operations": [
+        {
+          "name": "Get User Info",
+          "description": "Get the authenticated TikTok user profile information including display name, avatar, bio, follower count, and video statistics."
+        },
+        {
+          "name": "List Videos",
+          "description": "Get a list of the authenticated user's TikTok videos with cover images, titles, and metadata. Supports pagination."
+        },
+        {
+          "name": "Query Videos",
+          "description": "Query specific TikTok videos by their IDs to get fresh metadata including cover images, embed links, and video details."
+        },
+        {
+          "name": "Query Creator Info",
+          "description": "Check if the authenticated TikTok user can post content and retrieve their available privacy options, interaction settings, and maximum video duration. Required before any post per TikTok UX guidelines."
+        },
+        {
+          "name": "Direct Post Video",
+          "description": "Publish a video to TikTok, either by public URL (TikTok fetches it) or by uploading a file from the workflow. Rate limit: 6 requests per minute per user."
+        },
+        {
+          "name": "Upload Video Draft",
+          "description": "Send a video to the authenticated user's TikTok inbox (by public URL or uploaded file) for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user."
+        },
+        {
+          "name": "Direct Post Photo",
+          "description": "Publish one or more photos to TikTok from public URLs. TikTok will fetch each image and post them as a photo carousel. Photos only support PULL_FROM_URL (no file upload). Rate limit: 6 requests per minute per user."
+        },
+        {
+          "name": "Upload Photo Draft",
+          "description": "Send one or more photos (from public URLs) to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Photos only support PULL_FROM_URL (no file upload). Rate limit: 6 requests per minute per user."
+        },
+        {
+          "name": "Get Post Status",
+          "description": "Check the status of a post initiated with Direct Post Video, Upload Video Draft, Direct Post Photo, or Upload Photo Draft. Use the publishId returned from the post request to track progress."
+        }
+      ],
+      "operationCount": 9,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "tiktok",
+      "category": "tools",
+      "integrationType": "communication",
+      "tags": ["marketing", "content-management"]
     },
     {
       "type": "tinybird",
