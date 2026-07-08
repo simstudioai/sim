@@ -1797,8 +1797,13 @@
     {
       "idx": 257,
       "version": "7",
+<<<<<<< HEAD
       "when": 1783531236677,
       "tag": "0257_majestic_chat",
+=======
+      "when": 1783532515066,
+      "tag": "0257_workspace_files_message_id",
+>>>>>>> bbc79edfc8 (feat(fork-chat): add fork chat to mothership)
       "breakpoints": true
     }
   ]

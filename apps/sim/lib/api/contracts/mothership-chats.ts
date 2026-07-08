@@ -276,6 +276,13 @@ export const forkMothershipChatContract = defineRouteContract({
     schema: z.object({
       success: z.literal(true),
       id: z.string(),
+      /**
+       * Present (and > 0) when some file blobs could not be byte-copied: the
+       * new chat exists and its transcript references those copies, but their
+       * bytes are missing (blob copies are best-effort, post-transaction).
+       * Callers should surface a warning.
+       */
+      failedFileCopies: z.number().optional(),
     }),
   },
 })
