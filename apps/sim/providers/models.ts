@@ -1844,7 +1844,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'xAI',
     description: "xAI's Grok models",
-    defaultModel: 'grok-4.3',
+    defaultModel: 'grok-4.5',
     modelPatterns: [/^grok/],
     icon: xAIIcon,
     color: '#555555',
