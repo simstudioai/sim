@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { WizaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -394,9 +395,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             try {
               parsed[field] = JSON.parse(value)
             } catch (err) {
-              throw new Error(
-                `Invalid JSON in Wiza "${field}" filter: ${err instanceof Error ? err.message : String(err)}`
-              )
+              throw new Error(`Invalid JSON in Wiza "${field}" filter: ${getErrorMessage(err)}`)
             }
           }
         }

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { SquareIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -723,7 +724,7 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
               parsed = JSON.parse(value)
             } catch (error) {
               throw new Error(
-                `Invalid JSON in "${field}": ${error instanceof Error ? error.message : 'unknown error'}`
+                `Invalid JSON in "${field}": ${getErrorMessage(error, 'unknown error')}`
               )
             }
           }

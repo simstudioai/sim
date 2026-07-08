@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { getErrorMessage } from '@sim/utils/errors'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,7 +33,7 @@ vi.mock('@/app/api/v1/knowledge/utils', () => ({
   resolveKnowledgeBase: mockResolveKnowledgeBase,
   serializeDate: (date: unknown) => (date instanceof Date ? date.toISOString() : date),
   handleError: (_requestId: string, error: unknown) =>
-    new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'error' }), {
+    new Response(JSON.stringify({ error: getErrorMessage(error, 'error') }), {
       status: 500,
     }),
 }))

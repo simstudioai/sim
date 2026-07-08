@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -89,7 +90,7 @@ async function flush() {
   await act(async () => {
     for (let i = 0; i < 5; i++) {
       await Promise.resolve()
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await sleep(0)
     }
   })
 }

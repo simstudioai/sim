@@ -48,7 +48,15 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
     return timezoneMap[timezone].standard
   }
 
-  return timezone
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'short',
+    }).formatToParts(date)
+    return parts.find((p) => p.type === 'timeZoneName')?.value || timezone
+  } catch {
+    return timezone
+  }
 }
 
 /**

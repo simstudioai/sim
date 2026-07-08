@@ -302,7 +302,7 @@ export const getDisplayValue = (value: unknown): string => {
     try {
       const json = JSON.stringify(parsedValue)
       if (json.length <= 40) return json
-      return `${json.slice(0, 37)}...`
+      return truncate(json, 37)
     } catch {
       return '-'
     }

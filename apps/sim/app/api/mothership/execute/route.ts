@@ -326,12 +326,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                   : 'Mothership execute error',
                 {
                   requestId,
-                  error: error instanceof Error ? error.message : 'Unknown error',
+                  error: getErrorMessage(error, 'Unknown error'),
                 }
               )
               send({
                 type: 'error',
-                error: error instanceof Error ? error.message : 'Internal server error',
+                error: getErrorMessage(error, 'Internal server error'),
               })
             } finally {
               allowExplicitAbort = false

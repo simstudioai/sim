@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { CloudFormationIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -379,9 +380,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
             try {
               return JSON.parse(value)
             } catch (parseError) {
-              throw new Error(
-                `Invalid JSON in ${fieldName}: ${parseError instanceof Error ? parseError.message : String(parseError)}`
-              )
+              throw new Error(`Invalid JSON in ${fieldName}: ${getErrorMessage(parseError)}`)
             }
           }
           return undefined
