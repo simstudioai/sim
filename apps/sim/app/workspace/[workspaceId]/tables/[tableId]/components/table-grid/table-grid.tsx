@@ -1017,14 +1017,13 @@ export function TableGrid({
     const anchorId = contextMenu.row.id
     // Fractional ordering: express intent by neighbor id, not integer position.
     const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
-    const position = contextMenu.row.position + offset
     createRef.current(
       { data: {}, ...intent },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+            pushUndoRef.current({ type: 'create-row', rowId: newRowId })
           }
         },
       }
@@ -1096,7 +1095,6 @@ export function TableGrid({
     const contextRow = contextMenu.row
     if (!contextRow) return
     const rowData = { ...contextRow.data }
-    const position = contextRow.position + 1
     const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
@@ -1108,7 +1106,6 @@ export function TableGrid({
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position,
               data: rowData,
             })
           }
@@ -1143,11 +1140,9 @@ export function TableGrid({
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            const maxPosition = rowsRef.current.reduce((max, r) => Math.max(max, r.position), -1)
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position: maxPosition + 1,
             })
           }
         },
@@ -2187,7 +2182,7 @@ export function TableGrid({
             onSuccess: (response: Record<string, unknown>) => {
               const newRowId = extractCreatedRowId(response)
               if (newRowId) {
-                pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+                pushUndoRef.current({ type: 'create-row', rowId: newRowId })
               }
               setSelectionAnchor({ rowIndex: anchor.rowIndex + 1, colIndex })
               setSelectionFocus(null)
