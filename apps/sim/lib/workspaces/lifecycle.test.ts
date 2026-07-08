@@ -105,7 +105,10 @@ describe('workspace lifecycle', () => {
       callback(tx)
     )
 
-    const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
+    const result = await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
+    })
 
     expect(result).toEqual({
       archived: true,
@@ -113,10 +116,10 @@ describe('workspace lifecycle', () => {
     })
     expect(mockArchiveWorkflowsForWorkspace).toHaveBeenCalledWith('workspace-1', {
       requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
     })
     expect(tx.update).toHaveBeenCalledTimes(8)
     expect(tx.delete).toHaveBeenCalledTimes(1)
-    expect(mockListAccessibleWorkspaceRowsForUser).not.toHaveBeenCalled()
     expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
     expect(mockTransaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: 'serializable',
@@ -142,6 +145,7 @@ describe('workspace lifecycle', () => {
 
     const result = await archiveWorkspace('workspace-1', {
       requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
       actorId: 'admin-1',
       actorName: 'Admin',
       actorEmail: 'admin@example.com',
@@ -172,7 +176,6 @@ describe('workspace lifecycle', () => {
         }),
       })
     )
-    // Deletion is never blocked — the workspace is still archived alongside the fallback creation.
     expect(tx.update).toHaveBeenCalledTimes(8)
     expect(tx.delete).toHaveBeenCalledTimes(1)
   })
@@ -194,7 +197,10 @@ describe('workspace lifecycle', () => {
       callback(tx)
     )
 
-    await archiveWorkspace('workspace-1', { requestId: 'req-1' })
+    await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
+    })
 
     expect(mockCreateWorkspaceRecord).toHaveBeenCalled()
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
@@ -219,7 +225,10 @@ describe('workspace lifecycle', () => {
       callback(tx)
     )
 
-    const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
+    const result = await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
+    })
 
     expect(result).toEqual({
       archived: true,
@@ -240,8 +249,6 @@ describe('workspace lifecycle', () => {
       archivedAt: null,
     })
     mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
-    // The org admin's only *explicit* permission row is on workspace-1, but they still have
-    // access to workspace-2 purely through their organization admin role.
     mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
       accessibleWorkspaceRow('workspace-1'),
       accessibleWorkspaceRow('workspace-2'),
@@ -252,7 +259,10 @@ describe('workspace lifecycle', () => {
       callback(tx)
     )
 
-    const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
+    const result = await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
+    })
 
     expect(result).toEqual({
       archived: true,
@@ -280,18 +290,20 @@ describe('workspace lifecycle', () => {
       callback(tx)
     )
 
-    const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
+    const result = await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
+    })
 
     expect(result).toEqual({
       archived: true,
       workspaceName: 'Workspace 1',
     })
     expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
-    // No knowledge bases found, so the two KB-dependent updates (document, knowledgeConnector) are skipped.
     expect(tx.update).toHaveBeenCalledTimes(8)
   })
 
-  it('skips the stranded-member check and provisioning entirely when force is set (ban flow)', async () => {
+  it('never checks or provisions when provisionFallbackForStrandedMembers is not set (ban flow default)', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       name: 'Workspace 1',
@@ -305,7 +317,7 @@ describe('workspace lifecycle', () => {
       callback(tx)
     )
 
-    const result = await archiveWorkspace('workspace-1', { requestId: 'req-1', force: true })
+    const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
 
     expect(result).toEqual({
       archived: true,

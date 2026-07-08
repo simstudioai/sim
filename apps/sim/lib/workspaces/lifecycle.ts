@@ -34,11 +34,13 @@ const FALLBACK_WORKSPACE_NAME = 'My Workspace'
 interface ArchiveWorkspaceOptions {
   requestId: string
   /**
-   * Skips auto-provisioning replacement workspaces for members who'd otherwise be stranded.
-   * Only for account-disable flows: a banned user's owned workspaces must be fully disabled, and
-   * the banned user specifically should not be handed a fresh workspace as a side effect.
+   * Opts into auto-provisioning a replacement workspace for any member who'd otherwise be left
+   * with zero active workspaces. Off by default so archival stays a pure "delete this workspace"
+   * primitive for callers that don't ask for it (e.g. the account-disable flow, where a banned
+   * user's workspaces must be fully archived without handing the banned user a fresh one).
+   * Only the interactive DELETE route should set this.
    */
-  force?: boolean
+  provisionFallbackForStrandedMembers?: boolean
   /** Attributed as the actor on the audit log entry for any auto-provisioned replacement workspace. */
   actorId?: string
   actorName?: string | null
@@ -112,43 +114,44 @@ export async function archiveWorkspace(
 
   // serializable: without it, two concurrent deletions sharing a sole member could each read a
   // pre-deletion workspace count and both skip provisioning a replacement. Postgres detects this
-  // write skew under serializable isolation and aborts one transaction. Skipped when force is
-  // set, since that path never runs the stranded-member check at all.
-  const transactionConfig = options.force
-    ? undefined
-    : ({ isolationLevel: 'serializable' } as const)
+  // write skew under serializable isolation and aborts one transaction. Only needed when the
+  // stranded-member check actually runs.
+  const transactionConfig = options.provisionFallbackForStrandedMembers
+    ? ({ isolationLevel: 'serializable' } as const)
+    : undefined
 
-  let provisionedWorkspaceUserIds: string[] = []
+  const provisionedWorkspaceUserIds = await db.transaction(async (tx) => {
+    if (!options.provisionFallbackForStrandedMembers) {
+      return []
+    }
 
-  await db.transaction(async (tx) => {
-    if (!options.force) {
-      const strandedUserIds = await findMembersStrandedByArchival(tx, workspaceId)
-      for (const userId of strandedUserIds) {
-        const fallbackWorkspace = await createWorkspaceRecord({
-          userId,
-          name: FALLBACK_WORKSPACE_NAME,
-          organizationId: null,
-          workspaceMode: WORKSPACE_MODE.PERSONAL,
-          billedAccountUserId: userId,
-          executor: tx,
+    const strandedUserIds = await findMembersStrandedByArchival(tx, workspaceId)
+    for (const userId of strandedUserIds) {
+      // Intentionally bypasses getWorkspaceCreationPolicy: this is a system-provisioned safety
+      // net (never blocked by "who can create a workspace" rules), not user self-service.
+      const fallbackWorkspace = await createWorkspaceRecord({
+        userId,
+        name: FALLBACK_WORKSPACE_NAME,
+        organizationId: null,
+        workspaceMode: WORKSPACE_MODE.PERSONAL,
+        billedAccountUserId: userId,
+        executor: tx,
+      })
+
+      if (options.actorId) {
+        recordAudit({
+          workspaceId: fallbackWorkspace.id,
+          actorId: options.actorId,
+          actorName: options.actorName,
+          actorEmail: options.actorEmail,
+          action: AuditAction.WORKSPACE_CREATED,
+          resourceType: AuditResourceType.WORKSPACE,
+          resourceId: fallbackWorkspace.id,
+          resourceName: fallbackWorkspace.name,
+          description: `Auto-created replacement workspace "${fallbackWorkspace.name}" for a member left with no workspace after deleting "${workspaceRecord.name}"`,
+          metadata: { deletedWorkspaceId: workspaceId, recipientUserId: userId },
         })
-
-        if (options.actorId) {
-          recordAudit({
-            workspaceId: fallbackWorkspace.id,
-            actorId: options.actorId,
-            actorName: options.actorName,
-            actorEmail: options.actorEmail,
-            action: AuditAction.WORKSPACE_CREATED,
-            resourceType: AuditResourceType.WORKSPACE,
-            resourceId: fallbackWorkspace.id,
-            resourceName: fallbackWorkspace.name,
-            description: `Auto-created replacement workspace "${fallbackWorkspace.name}" for a member left with no workspace after deleting "${workspaceRecord.name}"`,
-            metadata: { deletedWorkspaceId: workspaceId, recipientUserId: userId },
-          })
-        }
       }
-      provisionedWorkspaceUserIds = strandedUserIds
     }
 
     await tx
@@ -272,6 +275,8 @@ export async function archiveWorkspace(
         updatedAt: now,
       })
       .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+
+    return strandedUserIds
   }, transactionConfig)
 
   await archiveWorkflowsForWorkspace(workspaceId, options)

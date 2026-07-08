@@ -250,6 +250,7 @@ export const DELETE = withRouteHandler(
 
       const archiveResult = await archiveWorkspace(workspaceId, {
         requestId: `workspace-${workspaceId}`,
+        provisionFallbackForStrandedMembers: true,
         actorId: session.user.id,
         actorName: session.user.name,
         actorEmail: session.user.email,

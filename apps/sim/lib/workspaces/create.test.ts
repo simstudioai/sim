@@ -29,7 +29,7 @@ vi.mock('@/lib/workspaces/colors', () => ({
 
 import { createWorkspaceRecord } from './create'
 
-function createTx() {
+function createInsertOnlyTx() {
   return {
     insert: vi.fn().mockImplementation(() => ({
       values: vi.fn().mockResolvedValue([]),
@@ -43,7 +43,7 @@ describe('createWorkspaceRecord', () => {
   })
 
   it('opens its own transaction when no executor is provided', async () => {
-    const tx = createTx()
+    const tx = createInsertOnlyTx()
     mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
       callback(tx)
     )
@@ -66,7 +66,7 @@ describe('createWorkspaceRecord', () => {
   })
 
   it('runs directly against a provided executor instead of opening a nested transaction', async () => {
-    const tx = createTx()
+    const tx = createInsertOnlyTx()
 
     await createWorkspaceRecord({
       userId: 'user-1',
@@ -82,7 +82,7 @@ describe('createWorkspaceRecord', () => {
   })
 
   it('skips the default workflow insert when skipDefaultWorkflow is set', async () => {
-    const tx = createTx()
+    const tx = createInsertOnlyTx()
 
     await createWorkspaceRecord({
       userId: 'user-1',
@@ -100,7 +100,7 @@ describe('createWorkspaceRecord', () => {
   })
 
   it('adds a second admin permission row for the billed account when it differs from the owner in org mode', async () => {
-    const tx = createTx()
+    const tx = createInsertOnlyTx()
 
     await createWorkspaceRecord({
       userId: 'user-1',

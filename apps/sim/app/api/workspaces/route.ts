@@ -12,7 +12,7 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { createWorkspaceRecord } from '@/lib/workspaces/create'
+import { type CreateWorkspaceRecordParams, createWorkspaceRecord } from '@/lib/workspaces/create'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   evaluateWorkspaceInvitePolicy,
@@ -261,15 +261,7 @@ async function createDefaultWorkspace(
   })
 }
 
-interface CreateWorkspaceParams {
-  userId: string
-  name: string
-  skipDefaultWorkflow?: boolean
-  explicitColor?: string
-  organizationId: string | null
-  workspaceMode: WorkspaceMode
-  billedAccountUserId: string
-}
+type CreateWorkspaceParams = Omit<CreateWorkspaceRecordParams, 'executor'>
 
 async function createWorkspace({
   userId,
