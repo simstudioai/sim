@@ -31,6 +31,11 @@ export interface TikTokGetUserResponse extends ToolResponse {
     followingCount: number | null
     likesCount: number | null
     videoCount: number | null
+    avatarFile?: {
+      name: string
+      mimeType: string
+      url: string
+    }
   }
 }
 

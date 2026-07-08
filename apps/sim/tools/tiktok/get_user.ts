@@ -95,6 +95,9 @@ export const tiktokGetUserTool: ToolConfig<TikTokGetUserParams, TikTokGetUserRes
       }
     }
 
+    const avatarSourceUrl = user.avatar_large_url ?? user.avatar_url
+    const avatarFileName = `${user.username || user.open_id || 'tiktok-user'}-avatar.jpg`
+
     return {
       success: true,
       output: {
@@ -112,6 +115,13 @@ export const tiktokGetUserTool: ToolConfig<TikTokGetUserParams, TikTokGetUserRes
         followingCount: user.following_count ?? null,
         likesCount: user.likes_count ?? null,
         videoCount: user.video_count ?? null,
+        ...(avatarSourceUrl && {
+          avatarFile: {
+            name: avatarFileName,
+            mimeType: 'image/jpeg',
+            url: avatarSourceUrl,
+          },
+        }),
       },
     }
   },
@@ -183,6 +193,12 @@ export const tiktokGetUserTool: ToolConfig<TikTokGetUserParams, TikTokGetUserRes
     videoCount: {
       type: 'number',
       description: 'Total number of public videos',
+      optional: true,
+    },
+    avatarFile: {
+      type: 'file',
+      description:
+        'Downloadable copy of the profile avatar image (largest available variant), stored as a workflow file so it can be chained into file-consuming blocks (e.g. attached to an email).',
       optional: true,
     },
   },

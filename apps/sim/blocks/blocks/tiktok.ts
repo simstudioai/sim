@@ -584,6 +584,12 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       description: 'Total number of public videos',
       condition: { field: 'operation', value: 'tiktok_get_user' },
     },
+    avatarFile: {
+      type: 'file',
+      description:
+        'Downloadable copy of the profile avatar image, stored as a workflow file so it can be chained into file-consuming blocks (e.g. attached to an email).',
+      condition: { field: 'operation', value: 'tiktok_get_user' },
+    },
 
     // List/Query Videos
     videos: {
