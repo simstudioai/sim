@@ -1713,9 +1713,6 @@ export const ToolInput = memo(function ToolInput({
             ? resolveCustomToolFromReference(tool, customTools)
             : null
 
-          const customToolTitle = isCustomTool
-            ? tool.title || resolvedCustomTool?.title || 'Unknown Tool'
-            : null
           const customToolSchema = isCustomTool ? tool.schema || resolvedCustomTool?.schema : null
           const customToolParams =
             isCustomTool && customToolSchema?.function?.parameters?.properties
@@ -1747,11 +1744,14 @@ export const ToolInput = memo(function ToolInput({
                 )
               : []
 
-          // Display name comes from static sources (registry / canonical records),
-          // never from the workflow JSON's mutable `title`, so edits to the stored
-          // state cannot change what the UI shows.
+          // Display name comes from static sources (registry / canonical records)
+          // where available; the stored `title` is only a last-resort fallback for
+          // MCP tools while server data is loading and for deleted custom-tool records.
           const toolDisplayName = isCustomTool
-            ? resolvedCustomTool?.title || customToolTitle
+            ? resolvedCustomTool?.title ||
+              resolvedCustomTool?.schema?.function?.name ||
+              tool.title ||
+              'Unknown Tool'
             : isMcpTool
               ? mcpTool?.name || tool.title
               : isWorkflowTool

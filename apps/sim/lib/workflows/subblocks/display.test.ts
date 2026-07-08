@@ -128,6 +128,13 @@ describe('resolveToolsLabel', () => {
     ).toBe('not_a_real_block')
   })
 
+  it('renders the static label for workflow-as-tool entries regardless of stored title', () => {
+    expect(
+      resolveToolsLabel(toolInput, [{ type: 'workflow', title: 'Renamed By Copilot' }], [])
+    ).toBe('Workflow')
+    expect(resolveToolsLabel(toolInput, [{ type: 'workflow_input' }], [])).toBe('Workflow')
+  })
+
   it('prefers the custom tool record over the stored title', () => {
     expect(
       resolveToolsLabel(

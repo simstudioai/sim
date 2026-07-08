@@ -458,6 +458,8 @@ export function resolveToolsLabel(
         return t.type
       }
 
+      if (t.type === 'workflow' || t.type === 'workflow_input') return 'Workflow'
+
       if (t.type === 'custom-tool' && typeof t.customToolId === 'string') {
         const customTool = customTools.find((candidate) => candidate.id === t.customToolId)
         if (customTool?.title) return customTool.title
