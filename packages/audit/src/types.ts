@@ -179,6 +179,7 @@ export const AuditAction = {
   WORKSPACE_FORKED: 'workspace.forked',
   WORKSPACE_FORK_PROMOTED: 'workspace.fork_promoted',
   WORKSPACE_FORK_ROLLED_BACK: 'workspace.fork_rolled_back',
+  WORKSPACE_FORK_UNLINKED: 'workspace.fork_unlinked',
 } as const
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction]

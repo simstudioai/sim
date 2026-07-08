@@ -11,6 +11,7 @@ import {
   Server,
   Settings,
   ShieldCheck,
+  Shuffle,
   TerminalWindow,
   TrashOutline,
   Upload,
@@ -35,6 +36,7 @@ export type SettingsSection =
   | 'sso'
   | 'whitelabeling'
   | 'copilot'
+  | 'forks'
   | 'mcp'
   | 'custom-tools'
   | 'workflow-mcp-servers'
@@ -126,6 +128,13 @@ export const allNavigationItems: NavigationItem[] = [
     requiresEnterprise: true,
     selfHostedOverride: isAuditLogsEnabled,
     docsLink: 'https://docs.sim.ai/platform/enterprise/audit-logs',
+  },
+  {
+    id: 'forks',
+    label: 'Forks',
+    description: 'Fork this workspace and sync changes with its parent.',
+    icon: Shuffle,
+    section: 'enterprise',
   },
   {
     id: 'billing',
