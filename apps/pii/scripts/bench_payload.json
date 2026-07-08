@@ -1,0 +1,97 @@
+[
+  { "text": "My name is John Smith and I live in Paris with my wife Marie.", "language": "en" },
+  {
+    "text": "Dr. Angela Rodriguez will see you on March 14, 2026 at 3:30 PM in the Boston clinic.",
+    "language": "en"
+  },
+  {
+    "text": "Contact Sarah O'Connor at sarah.oconnor@example.com or call (212) 555-0123.",
+    "language": "en"
+  },
+  { "text": "The package ships to 45 Queen Street, Toronto, next Tuesday.", "language": "en" },
+  {
+    "text": "Ahmed is a practicing Muslim from Egypt who moved to Berlin in 2019.",
+    "language": "en"
+  },
+  { "text": "She is a Catholic Norwegian citizen born on 12/05/1988.", "language": "en" },
+  {
+    "text": "Payment with card 4111111111111111 was declined yesterday at 10am.",
+    "language": "en"
+  },
+  {
+    "text": "The vehicle VIN 1HGCM82633A004352 was registered to James Wilson in Ohio.",
+    "language": "en"
+  },
+  {
+    "text": "His National Insurance number is AB123456C and he lives in Manchester.",
+    "language": "en"
+  },
+  {
+    "text": "Meeting rescheduled: Friday, 9 January 2026, 14:00, with Priya Natarajan from Mumbai.",
+    "language": "en"
+  },
+  { "text": "Send the invoice to accounts@acme.io before the end of Q1 2026.", "language": "en" },
+  {
+    "text": "Klaus, a German engineer, and his Buddhist colleague Mei flew from Munich to Osaka.",
+    "language": "en"
+  },
+  {
+    "text": "The Democrats and Republicans debated in Washington on election night.",
+    "language": "en"
+  },
+  {
+    "text": "No PII here: the quarterly revenue grew 14% and margins held steady.",
+    "language": "en"
+  },
+  {
+    "text": "Server request id a7f3k2m9x1q8w5z2b is not a VIN and not a person.",
+    "language": "en"
+  },
+  {
+    "text": "Me llamo María García y vivo en Madrid desde el 3 de mayo de 2020.",
+    "language": "es"
+  },
+  { "text": "Mi NIF es 12345678Z y mi correo es maria.garcia@ejemplo.es.", "language": "es" },
+  {
+    "text": "El señor Javier Morales, ciudadano mexicano, llegó a Barcelona el lunes.",
+    "language": "es"
+  },
+  { "text": "La reunión con Carmen será el 15 de junio de 2026 en Sevilla.", "language": "es" },
+  {
+    "text": "Los musulmanes y los católicos convivieron durante siglos en Córdoba.",
+    "language": "es"
+  },
+  { "text": "Mi chiamo Marco Rossi e abito a Roma vicino al Colosseo.", "language": "it" },
+  {
+    "text": "Il codice fiscale di Maria Rossi è RSSMRA85T10A562S, nata il 10 dicembre 1985.",
+    "language": "it"
+  },
+  {
+    "text": "Giulia Bianchi, cittadina italiana, si trasferì a Milano nel gennaio 2021.",
+    "language": "it"
+  },
+  {
+    "text": "L'appuntamento con il dottor Ferrari è fissato per il 20 marzo 2026 a Torino.",
+    "language": "it"
+  },
+  { "text": "Nazywam się Jan Kowalski i mieszkam w Warszawie od 2015 roku.", "language": "pl" },
+  {
+    "text": "Mój numer PESEL to 44051401359, urodziłem się 14 maja 1944 w Krakowie.",
+    "language": "pl"
+  },
+  {
+    "text": "Anna Nowak, obywatelka polska, spotka się z nami we wtorek 12 maja 2026.",
+    "language": "pl"
+  },
+  { "text": "Katolicy i protestanci wspólnie świętowali w Gdańsku.", "language": "pl" },
+  {
+    "text": "Nimeni on Matti Virtanen ja asun Helsingissä Töölön kaupunginosassa.",
+    "language": "fi"
+  },
+  {
+    "text": "Henkilötunnukseni on 131052-308T ja synnyin Tampereella lokakuussa 1952.",
+    "language": "fi"
+  },
+  { "text": "Liisa Korhonen muutti Ouluun maanantaina 5. tammikuuta 2026.", "language": "fi" },
+  { "text": "Suomalaiset ja ruotsalaiset kilpailevat jääkiekossa joka vuosi.", "language": "fi" }
+]
