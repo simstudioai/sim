@@ -9,11 +9,13 @@ const {
   mockTransaction,
   mockArchiveWorkflowsForWorkspace,
   mockListAccessibleWorkspaceRowsForUser,
+  mockCreateWorkspaceRecord,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockTransaction: vi.fn(),
   mockArchiveWorkflowsForWorkspace: vi.fn(),
   mockListAccessibleWorkspaceRowsForUser: vi.fn(),
+  mockCreateWorkspaceRecord: vi.fn(),
 }))
 
 const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
@@ -33,6 +35,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/workspaces/utils', () => ({
   listAccessibleWorkspaceRowsForUser: mockListAccessibleWorkspaceRowsForUser,
+}))
+
+vi.mock('@/lib/workspaces/create', () => ({
+  createWorkspaceRecord: mockCreateWorkspaceRecord,
 }))
 
 import { archiveWorkspace } from './lifecycle'
@@ -80,6 +86,7 @@ describe('workspace lifecycle', () => {
         where: vi.fn().mockResolvedValue([]),
       }),
     })
+    mockCreateWorkspaceRecord.mockResolvedValue({ id: 'fallback-workspace' })
   })
 
   it('archives workspace and dependent resources under serializable isolation', async () => {
@@ -108,18 +115,20 @@ describe('workspace lifecycle', () => {
     expect(tx.update).toHaveBeenCalledTimes(8)
     expect(tx.delete).toHaveBeenCalledTimes(1)
     expect(mockListAccessibleWorkspaceRowsForUser).not.toHaveBeenCalled()
+    expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
     expect(mockTransaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: 'serializable',
     })
   })
 
-  it('blocks archival when a member would be left with zero workspaces', async () => {
+  it('auto-provisions a replacement workspace for a member who would be stranded, and still archives', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       name: 'Workspace 1',
       ownerId: 'user-1',
       archivedAt: null,
     })
+    mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
     mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
       accessibleWorkspaceRow('workspace-1'),
     ])
@@ -132,22 +141,33 @@ describe('workspace lifecycle', () => {
     const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
 
     expect(result).toEqual({
-      archived: false,
+      archived: true,
       workspaceName: 'Workspace 1',
-      strandedUserIds: ['user-victim'],
+      provisionedWorkspaceUserIds: ['user-victim'],
     })
     expect(mockListAccessibleWorkspaceRowsForUser).toHaveBeenCalledWith('user-victim', 'active', tx)
-    expect(tx.update).not.toHaveBeenCalled()
-    expect(tx.delete).not.toHaveBeenCalled()
+    expect(mockCreateWorkspaceRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-victim',
+        workspaceMode: 'personal',
+        organizationId: null,
+        billedAccountUserId: 'user-victim',
+        executor: tx,
+      })
+    )
+    // Deletion is never blocked — the workspace is still archived alongside the fallback creation.
+    expect(tx.update).toHaveBeenCalledTimes(8)
+    expect(tx.delete).toHaveBeenCalledTimes(1)
   })
 
-  it('blocks archival when only one of several members would be stranded', async () => {
+  it('only provisions a fallback for the one member who would actually be stranded', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       name: 'Workspace 1',
       ownerId: 'user-1',
       archivedAt: null,
     })
+    mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
     mockListAccessibleWorkspaceRowsForUser.mockImplementation(async (userId: string) =>
       userId === 'user-victim'
         ? [accessibleWorkspaceRow('workspace-1')]
@@ -162,11 +182,14 @@ describe('workspace lifecycle', () => {
     const result = await archiveWorkspace('workspace-1', { requestId: 'req-1' })
 
     expect(result).toEqual({
-      archived: false,
+      archived: true,
       workspaceName: 'Workspace 1',
-      strandedUserIds: ['user-victim'],
+      provisionedWorkspaceUserIds: ['user-victim'],
     })
-    expect(tx.update).not.toHaveBeenCalled()
+    expect(mockCreateWorkspaceRecord).toHaveBeenCalledTimes(1)
+    expect(mockCreateWorkspaceRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-victim' })
+    )
   })
 
   it('does not strand an org admin who has no explicit permission row on another workspace', async () => {
@@ -195,10 +218,11 @@ describe('workspace lifecycle', () => {
       archived: true,
       workspaceName: 'Workspace 1',
     })
+    expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
     expect(tx.update).toHaveBeenCalledTimes(8)
   })
 
-  it('proceeds when every member has another active workspace', async () => {
+  it('proceeds without provisioning when every member has another active workspace', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       name: 'Workspace 1',
@@ -222,11 +246,12 @@ describe('workspace lifecycle', () => {
       archived: true,
       workspaceName: 'Workspace 1',
     })
+    expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
     // No knowledge bases found, so the two KB-dependent updates (document, knowledgeConnector) are skipped.
     expect(tx.update).toHaveBeenCalledTimes(8)
   })
 
-  it('skips the stranded-member check and serializable isolation when force is set', async () => {
+  it('skips the stranded-member check and provisioning entirely when force is set (ban flow)', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       name: 'Workspace 1',
@@ -235,7 +260,7 @@ describe('workspace lifecycle', () => {
     })
     mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
 
-    const tx = createTx([{ userId: 'user-victim' }])
+    const tx = createTx([{ userId: 'user-banned' }])
     mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
       callback(tx)
     )
@@ -248,6 +273,7 @@ describe('workspace lifecycle', () => {
     })
     expect(tx.selectDistinct).not.toHaveBeenCalled()
     expect(mockListAccessibleWorkspaceRowsForUser).not.toHaveBeenCalled()
+    expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
     expect(mockTransaction).toHaveBeenCalledWith(expect.any(Function), undefined)
   })
 

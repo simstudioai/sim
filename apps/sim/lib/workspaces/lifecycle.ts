@@ -20,16 +20,23 @@ import type { DbOrTx } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
+import { createWorkspaceRecord } from '@/lib/workspaces/create'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceLifecycle')
 
+/** Fallback workspace name for a member auto-provisioned a replacement — matches the
+ *  pre-existing "you have no workspaces" client-side recovery naming for consistency. */
+const FALLBACK_WORKSPACE_NAME = 'My Workspace'
+
 interface ArchiveWorkspaceOptions {
   requestId: string
   /**
-   * Skips the "would strand a member" safety check. Only for account-disable flows where every
-   * workspace owned by the disabled user must be archived regardless of member workspace counts.
+   * Skips auto-provisioning replacement workspaces for members who'd otherwise be stranded.
+   * Only for account-disable flows: a banned user's owned workspaces must be fully disabled, and
+   * the banned user specifically should not be handed a fresh workspace as a side effect.
    */
   force?: boolean
 }
@@ -37,15 +44,9 @@ interface ArchiveWorkspaceOptions {
 interface ArchiveWorkspaceResult {
   archived: boolean
   workspaceName?: string
-  /** Present only when archival was blocked because it would leave these members with zero workspaces. */
-  strandedUserIds?: string[]
-}
-
-class WorkspaceArchiveBlockedError extends Error {
-  constructor(readonly strandedUserIds: string[]) {
-    super('Archiving this workspace would leave one or more members with no workspace')
-    this.name = 'WorkspaceArchiveBlockedError'
-  }
+  /** userIds who were auto-provisioned a replacement workspace because this deletion would
+   *  otherwise have left them with zero active workspaces. */
+  provisionedWorkspaceUserIds?: string[]
 }
 
 /**
@@ -107,158 +108,163 @@ export async function archiveWorkspace(
 
   // serializable: without it, two concurrent deletions of different workspaces shared by the
   // same sole member could each read a pre-deletion workspace count, both conclude the member
-  // isn't stranded, and together leave them with zero workspaces. Postgres detects this write
-  // skew under serializable isolation and aborts one transaction. Skipped when force is set,
-  // since that path never runs the stranded check in the first place.
+  // isn't stranded, and together leave them with zero workspaces without either provisioning a
+  // replacement. Postgres detects this write skew under serializable isolation and aborts one
+  // transaction. Skipped when force is set, since that path never runs this check at all.
   const transactionConfig = options.force
     ? undefined
     : ({ isolationLevel: 'serializable' } as const)
 
-  try {
-    await db.transaction(async (tx) => {
-      if (!options.force) {
-        const strandedUserIds = await findMembersStrandedByArchival(tx, workspaceId)
-        if (strandedUserIds.length > 0) {
-          throw new WorkspaceArchiveBlockedError(strandedUserIds)
-        }
-      }
+  let provisionedWorkspaceUserIds: string[] = []
 
-      await tx
-        .update(knowledgeBase)
-        .set({
-          deletedAt: now,
-          updatedAt: now,
+  await db.transaction(async (tx) => {
+    if (!options.force) {
+      const strandedUserIds = await findMembersStrandedByArchival(tx, workspaceId)
+      for (const userId of strandedUserIds) {
+        await createWorkspaceRecord({
+          userId,
+          name: FALLBACK_WORKSPACE_NAME,
+          organizationId: null,
+          workspaceMode: WORKSPACE_MODE.PERSONAL,
+          billedAccountUserId: userId,
+          executor: tx,
         })
-        .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
-
-      const workspaceKbIds = await tx
-        .select({ id: knowledgeBase.id })
-        .from(knowledgeBase)
-        .where(eq(knowledgeBase.workspaceId, workspaceId))
-
-      const knowledgeBaseIds = workspaceKbIds.map((entry) => entry.id)
-      if (knowledgeBaseIds.length > 0) {
-        await tx
-          .update(document)
-          .set({ archivedAt: now })
-          .where(
-            and(
-              inArray(document.knowledgeBaseId, knowledgeBaseIds),
-              isNull(document.archivedAt),
-              isNull(document.deletedAt)
-            )
-          )
-
-        await tx
-          .update(knowledgeConnector)
-          .set({ archivedAt: now, status: 'paused', updatedAt: now })
-          .where(
-            and(
-              inArray(knowledgeConnector.knowledgeBaseId, knowledgeBaseIds),
-              isNull(knowledgeConnector.archivedAt),
-              isNull(knowledgeConnector.deletedAt)
-            )
-          )
       }
+      provisionedWorkspaceUserIds = strandedUserIds
+    }
 
+    await tx
+      .update(knowledgeBase)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+
+    const workspaceKbIds = await tx
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.workspaceId, workspaceId))
+
+    const knowledgeBaseIds = workspaceKbIds.map((entry) => entry.id)
+    if (knowledgeBaseIds.length > 0) {
       await tx
-        .update(userTableDefinitions)
-        .set({
-          archivedAt: now,
-          updatedAt: now,
-        })
+        .update(document)
+        .set({ archivedAt: now })
         .where(
           and(
-            eq(userTableDefinitions.workspaceId, workspaceId),
-            isNull(userTableDefinitions.archivedAt)
+            inArray(document.knowledgeBaseId, knowledgeBaseIds),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
           )
         )
 
       await tx
-        .update(workspaceFiles)
-        .set({
-          deletedAt: now,
-        })
-        .where(and(eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
-
-      await tx
-        .update(invitation)
-        .set({
-          status: 'cancelled',
-          updatedAt: now,
-        })
+        .update(knowledgeConnector)
+        .set({ archivedAt: now, status: 'paused', updatedAt: now })
         .where(
           and(
-            eq(invitation.status, 'pending'),
-            sql`${invitation.id} IN (
+            inArray(knowledgeConnector.knowledgeBaseId, knowledgeBaseIds),
+            isNull(knowledgeConnector.archivedAt),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
+    }
+
+    await tx
+      .update(userTableDefinitions)
+      .set({
+        archivedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(userTableDefinitions.workspaceId, workspaceId),
+          isNull(userTableDefinitions.archivedAt)
+        )
+      )
+
+    await tx
+      .update(workspaceFiles)
+      .set({
+        deletedAt: now,
+      })
+      .where(and(eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
+
+    await tx
+      .update(invitation)
+      .set({
+        status: 'cancelled',
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(invitation.status, 'pending'),
+          sql`${invitation.id} IN (
             SELECT ${invitationWorkspaceGrant.invitationId}
             FROM ${invitationWorkspaceGrant}
             WHERE ${invitationWorkspaceGrant.workspaceId} = ${workspaceId}
           )`
-          )
         )
+      )
 
-      await tx
-        .delete(apiKey)
-        .where(and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.type, 'workspace')))
+    await tx
+      .delete(apiKey)
+      .where(and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.type, 'workspace')))
 
-      await tx
-        .update(workflowMcpServer)
-        .set({
-          deletedAt: now,
-          isPublic: false,
-          updatedAt: now,
-        })
-        .where(eq(workflowMcpServer.workspaceId, workspaceId))
+    await tx
+      .update(workflowMcpServer)
+      .set({
+        deletedAt: now,
+        isPublic: false,
+        updatedAt: now,
+      })
+      .where(eq(workflowMcpServer.workspaceId, workspaceId))
 
-      await tx
-        .update(mcpServers)
-        .set({
-          deletedAt: now,
-          enabled: false,
-          updatedAt: now,
-        })
-        .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
+    await tx
+      .update(mcpServers)
+      .set({
+        deletedAt: now,
+        enabled: false,
+        updatedAt: now,
+      })
+      .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
 
-      await tx
-        .update(workflowSchedule)
-        .set({
-          archivedAt: now,
-          updatedAt: now,
-          status: 'disabled',
-          nextRunAt: null,
-          lastQueuedAt: null,
-        })
-        .where(
-          and(
-            eq(workflowSchedule.sourceWorkspaceId, workspaceId),
-            eq(workflowSchedule.sourceType, 'job'),
-            isNull(workflowSchedule.archivedAt)
-          )
+    await tx
+      .update(workflowSchedule)
+      .set({
+        archivedAt: now,
+        updatedAt: now,
+        status: 'disabled',
+        nextRunAt: null,
+        lastQueuedAt: null,
+      })
+      .where(
+        and(
+          eq(workflowSchedule.sourceWorkspaceId, workspaceId),
+          eq(workflowSchedule.sourceType, 'job'),
+          isNull(workflowSchedule.archivedAt)
         )
+      )
 
-      await tx
-        .update(workspace)
-        .set({
-          archivedAt: now,
-          updatedAt: now,
-        })
-        .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-    }, transactionConfig)
-  } catch (error) {
-    if (error instanceof WorkspaceArchiveBlockedError) {
-      return {
-        archived: false,
-        workspaceName: workspaceRecord.name,
-        strandedUserIds: error.strandedUserIds,
-      }
-    }
-    throw error
-  }
+    await tx
+      .update(workspace)
+      .set({
+        archivedAt: now,
+        updatedAt: now,
+      })
+      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+  }, transactionConfig)
 
   await archiveWorkflowsForWorkspace(workspaceId, options)
 
   logger.info(`[${options.requestId}] Archived workspace ${workspaceId}`)
+  if (provisionedWorkspaceUserIds.length > 0) {
+    logger.info(
+      `[${options.requestId}] Provisioned replacement workspaces for members stranded by archiving ${workspaceId}`,
+      { userIds: provisionedWorkspaceUserIds }
+    )
+  }
 
   await mcpService.clearCache(workspaceId).catch(() => undefined)
 
@@ -274,5 +280,6 @@ export async function archiveWorkspace(
   return {
     archived: true,
     workspaceName: workspaceRecord.name,
+    ...(provisionedWorkspaceUserIds.length > 0 && { provisionedWorkspaceUserIds }),
   }
 }

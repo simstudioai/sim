@@ -61,22 +61,6 @@ describe('DELETE /api/workspaces/[id]', () => {
     expect(mockArchiveWorkspace).not.toHaveBeenCalled()
   })
 
-  it('returns 400 and does not record an audit entry when archival would strand a member', async () => {
-    mockArchiveWorkspace.mockResolvedValue({
-      archived: false,
-      workspaceName: 'Victim Workspace',
-      strandedUserIds: ['user-victim'],
-    })
-
-    const response = await callDelete()
-    const body = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(body.error).toMatch(/no other workspace/i)
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
-  })
-
   it('returns 404 when the workspace does not exist', async () => {
     mockArchiveWorkspace.mockResolvedValue({ archived: false })
 
@@ -112,6 +96,27 @@ describe('DELETE /api/workspaces/[id]', () => {
       'workspace_deleted',
       expect.objectContaining({ workspace_id: 'workspace-1' }),
       expect.objectContaining({ groups: { workspace: 'workspace-1' } })
+    )
+  })
+
+  it('succeeds and records which members were auto-provisioned a replacement workspace', async () => {
+    mockArchiveWorkspace.mockResolvedValue({
+      archived: true,
+      workspaceName: 'Test Workspace',
+      provisionedWorkspaceUserIds: ['user-victim'],
+    })
+
+    const response = await callDelete('workspace-1')
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ success: true })
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          provisionedWorkspaceUserIds: ['user-victim'],
+        }),
+      })
     )
   })
 

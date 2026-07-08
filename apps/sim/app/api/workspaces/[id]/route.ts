@@ -252,16 +252,6 @@ export const DELETE = withRouteHandler(
         requestId: `workspace-${workspaceId}`,
       })
 
-      if (archiveResult.strandedUserIds?.length) {
-        return NextResponse.json(
-          {
-            error:
-              'Cannot delete this workspace: one or more members have no other workspace to fall back to',
-          },
-          { status: 400 }
-        )
-      }
-
       if (!archiveResult.archived) {
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
       }
@@ -281,6 +271,9 @@ export const DELETE = withRouteHandler(
             workflows: workflowIds.length,
           },
           archived: archiveResult.archived,
+          ...(archiveResult.provisionedWorkspaceUserIds?.length && {
+            provisionedWorkspaceUserIds: archiveResult.provisionedWorkspaceUserIds,
+          }),
         },
         request,
       })
