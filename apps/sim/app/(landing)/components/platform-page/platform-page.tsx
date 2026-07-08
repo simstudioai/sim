@@ -14,7 +14,7 @@ import type { PlatformPageConfig } from '@/app/(landing)/components/platform-pag
  * near-zero ceremony. A route renders the shared shell and drops in one
  * `<PlatformPage config={…} />`.
  *
- * This component owns the entire `<main>`: the shared `max-w-[1446px]` content
+ * This component owns the entire `<main>`: the shared `max-w-[1460px]` content
  * column (centered with `mx-auto`, matching the navbar and landing sections), the
  * one horizontal gutter (`PLATFORM_SPACING.gutter`), and the inter-section
  * vertical rhythm (`PLATFORM_SPACING.sectionRhythm`, the `<main>` flex gap). The
@@ -43,7 +43,7 @@ export function PlatformPage({ config }: PlatformPageProps) {
       <main
         id='main-content'
         className={cn(
-          'mx-auto flex w-full max-w-[1446px] flex-col',
+          'mx-auto flex w-full max-w-[1460px] flex-col',
           PLATFORM_SPACING.sectionRhythm,
           PLATFORM_SPACING.gutter
         )}

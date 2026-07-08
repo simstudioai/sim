@@ -1,4 +1,11 @@
-import { Cta, Features, Hero, HomeStructuredData, Mothership } from '@/app/(landing)/components'
+import {
+  Cta,
+  Features,
+  Hero,
+  HomeStructuredData,
+  Mothership,
+  ProductDemo,
+} from '@/app/(landing)/components'
 
 /**
  * Landing page root - owns the section order and the `<main>` content region.
@@ -19,6 +26,7 @@ export default function Landing() {
     <main id='main-content' className='flex flex-col gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'>
       <HomeStructuredData />
       <Hero />
+      <ProductDemo />
       <Mothership />
       <Features />
       <Cta />

@@ -9,11 +9,7 @@
  * assertion and rows would display out of order. These tests would catch that.
  */
 import { describe, expect, it } from 'vitest'
-import {
-  BASE_62_DIGITS,
-  generateKeyBetween,
-  generateNKeysBetween,
-} from '@/lib/fractional-indexing/fractional-indexing'
+import { BASE_62_DIGITS, generateKeyBetween, generateNKeysBetween } from './fractional-indexing'
 
 /** Bytewise (ASCII / UTF-16 code-unit) comparator — what `COLLATE "C"` and the library use. */
 const byteCompare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)

@@ -14,7 +14,7 @@ import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
  * hairline separates it from the page and spans the full viewport width
  * (edge-to-edge): the border lives on the full-width `<footer>` landmark while
  * an inner container caps and centers the content at the shared
- * `max-w-[1446px]` with the same `px-12` gutter as every section above.
+ * `max-w-[1460px]` with the same `px-20` gutter as every section above.
  */
 
 const LINK_CLASS =
@@ -131,7 +131,7 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
 export function Footer() {
   return (
     <footer className='mt-[120px] w-full border-[var(--border)] border-t max-sm:mt-16 max-lg:mt-[88px]'>
-      <div className='mx-auto w-full max-w-[1446px] px-12 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
+      <div className='mx-auto w-full max-w-[1460px] px-20 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
         <nav
           aria-label='Footer navigation'
           itemScope

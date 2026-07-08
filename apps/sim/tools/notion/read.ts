@@ -30,7 +30,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
 
   request: {
     url: (params: NotionReadParams) => {
-      return `https://api.notion.com/v1/pages/${params.pageId}`
+      return `https://api.notion.com/v1/pages/${params.pageId.trim()}`
     },
     method: 'GET',
     headers: (params: NotionReadParams) => {
@@ -64,7 +64,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     }
 
     // Now fetch the page content using blocks endpoint
-    const pageId = params?.pageId
+    const pageId = params?.pageId?.trim()
     const accessToken = params?.accessToken
 
     if (!pageId || !accessToken) {
@@ -212,7 +212,7 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
       }
     }
 
-    const pageId = params?.pageId
+    const pageId = params?.pageId?.trim()
     const accessToken = params?.accessToken
 
     if (!pageId || !accessToken) {

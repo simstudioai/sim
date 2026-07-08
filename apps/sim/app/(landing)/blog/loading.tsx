@@ -3,9 +3,9 @@ import { Skeleton } from '@sim/emcn'
 export default function BlogLoading() {
   return (
     <section className='bg-[var(--bg)]'>
-      <div className='mx-auto w-full max-w-[1446px]'>
+      <div className='mx-auto w-full max-w-[1460px]'>
         {/* Header skeleton */}
-        <div className='px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className='px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
           <Skeleton className='mb-5 h-[20px] w-[60px] rounded-md bg-[var(--surface-hover)]' />
           <div className='flex flex-col gap-4 md:flex-row md:items-end md:justify-between'>
             <Skeleton className='h-[40px] w-[240px] rounded-[4px] bg-[var(--surface-hover)]' />
@@ -14,7 +14,7 @@ export default function BlogLoading() {
         </div>
 
         {/* Content area with vertical border rails */}
-        <div className='mx-12 mt-8 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+        <div className='mx-20 mt-8 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
           <div className='h-px w-full bg-[var(--border)]' />
 
           {/* Featured skeleton */}

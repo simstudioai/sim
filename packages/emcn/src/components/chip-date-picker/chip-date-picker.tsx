@@ -41,6 +41,11 @@ interface ChipDatePickerSingleProps extends ChipDatePickerBaseProps {
   value?: string
   /** Called with the picked date in `YYYY-MM-DD` format. */
   onChange?: (value: string) => void
+  /**
+   * Today's calendar day (`YYYY-MM-DD`) in the caller's effective timezone;
+   * defaults to the runtime's local day (mirrors `Calendar`'s `today`).
+   */
+  today?: string
 }
 
 interface ChipDatePickerRangeProps extends ChipDatePickerBaseProps {
@@ -152,6 +157,7 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
             ) : (
               <Calendar
                 value={props.value}
+                today={props.today}
                 onChange={(next) => {
                   props.onChange?.(next)
                   setOpen(false)

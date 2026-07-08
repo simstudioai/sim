@@ -137,8 +137,12 @@ describe('import', () => {
       expect(coerceValue('yes', 'boolean')).toBeNull()
     })
 
-    it('coerces dates to ISO strings and falls back to the original string', () => {
-      expect(coerceValue('2024-01-01', 'date')).toBe(new Date('2024-01-01').toISOString())
+    it('keeps date-only values as calendar dates, preserves datetime wall times with their offset, and falls back to the original string', () => {
+      expect(coerceValue('2024-01-01', 'date')).toBe('2024-01-01')
+      expect(coerceValue('2024-01-01T12:30:00-07:00', 'date')).toBe('2024-01-01T12:30:00-07:00')
+      expect(coerceValue('2024-01-01 12:30', 'date', { timezone: 'America/New_York' })).toBe(
+        '2024-01-01T12:30:00-05:00'
+      )
       expect(coerceValue('not-a-date', 'date')).toBe('not-a-date')
     })
   })
