@@ -415,8 +415,13 @@ export class WorkspaceVFS {
    * still resolves/renders). Populated by {@link materializeCustomBlocks}; used to
    * drop a placed custom block from a workflow's state when its definition has been
    * deleted, so the copilot never sees a block it can't render.
+   *
+   * `null` means "not loaded" — either not materialized yet or the load FAILED. In
+   * that case {@link dropDeletedCustomBlocks} strips nothing, so a transient failure
+   * can't wrongly nuke every placed custom block. An empty `Set` is distinct: it
+   * means the org genuinely has no custom blocks, so any placed one IS deleted.
    */
-  private _customBlockTypes = new Set<string>()
+  private _customBlockTypes: Set<string> | null = null
 
   get workspaceId(): string {
     return this._workspaceId
@@ -455,12 +460,15 @@ export class WorkspaceVFS {
   private dropDeletedCustomBlocks(
     normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
   ): Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> {
-    if (!normalized) return normalized
+    // `null` = definitions never loaded (or the load failed) — strip nothing rather
+    // than treat every placed custom block as deleted.
+    if (!normalized || this._customBlockTypes === null) return normalized
+    const validTypes = this._customBlockTypes
     const dropped = new Set<string>()
     const blocks: Record<string, unknown> = {}
     for (const [id, block] of Object.entries(normalized.blocks)) {
       const type = (block as { type?: string }).type
-      if (isCustomBlockType(type) && !this._customBlockTypes.has(type)) {
+      if (isCustomBlockType(type) && !validTypes.has(type)) {
         dropped.add(id)
         continue
       }
@@ -565,7 +573,7 @@ export class WorkspaceVFS {
     this.lazy = new Map()
     this.normalizedCache = new Map()
     this.deploymentCache = new Map()
-    this._customBlockTypes = new Set()
+    this._customBlockTypes = null
     this._workspaceId = workspaceId
     this._betaEnabled = await isFeatureEnabled('mothership-beta', { userId })
 
