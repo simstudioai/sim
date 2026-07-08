@@ -33,10 +33,35 @@ function firstPosOf(editor: Editor, type: string): number {
   return pos
 }
 
-function pressBackspace(editor: Editor): void {
+function pressKey(editor: Editor, key: string): void {
   editor.view.dom.dispatchEvent(
-    new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })
+    new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
   )
+}
+
+function pressBackspace(editor: Editor): void {
+  pressKey(editor, 'Backspace')
+}
+
+/** Empties the item whose text is `word` (caret left at its start), the state before a boundary key. */
+function emptyItem(editor: Editor, word: string): void {
+  let from = -1
+  let to = -1
+  editor.state.doc.descendants((node, pos) => {
+    if (from < 0 && node.isText && node.text === word) {
+      from = pos
+      to = pos + word.length
+    }
+  })
+  editor.commands.setTextSelection({ from, to })
+  editor.commands.deleteSelection()
+}
+
+/** Serialized markdown after re-parsing it once — equal to `getMarkdown()` only if it round-trips. */
+function markdownRoundTrip(editor: Editor): { md: string; reparsed: string } {
+  const md = editor.getMarkdown()
+  editor.commands.setContent(md, { contentType: 'markdown' })
+  return { md, reparsed: editor.getMarkdown() }
 }
 
 describe('suggestion-aware arrow keymap', () => {
@@ -142,40 +167,64 @@ describe('divider Backspace', () => {
   })
 })
 
-describe('empty list-item Backspace', () => {
+describe('empty wrapped-block Backspace', () => {
   beforeEach(() => {
     Element.prototype.scrollIntoView = vi.fn()
   })
 
   it.each([
-    ['bullet list', '- one\n- two\n- three', 'bulletList'],
-    ['ordered list', '1. one\n2. two\n3. three', 'orderedList'],
-    ['task list', '- [ ] one\n- [ ] two\n- [ ] three', 'taskList'],
+    ['bullet middle', '- one\n- two\n- three', 'two', '- one\n- three'],
+    ['bullet first', '- one\n- two\n- three', 'one', '- two\n- three'],
+    ['bullet last', '- one\n- two', 'two', '- one'],
+    ['ordered middle', '1. one\n2. two\n3. three', 'two', '1. one\n2. three'],
+    ['task middle', '- [ ] one\n- [ ] two\n- [ ] three', 'two', '- [ ] one\n- [ ] three'],
+    ['blockquote middle', '> one\n>\n> two\n>\n> three', 'two', '> one\n>\n> three'],
+    ['nested item', '- one\n  - two\n- three', 'two', '- one\n- three'],
   ])(
-    'joins an empty middle %s item into the previous item instead of splitting the list',
-    (_label, markdown, listType) => {
+    'removes the emptied %s cleanly — one container, no stray paragraph, round-trips',
+    (_label, markdown, word, expected) => {
       const editor = editorWith('')
       editor.commands.setContent(markdown, { contentType: 'markdown' })
       editor.commands.focus()
-      let from = -1
-      let to = -1
-      editor.state.doc.descendants((node, pos) => {
-        if (from < 0 && node.isText && node.text === 'two') {
-          from = pos
-          to = pos + node.text.length
-        }
-      })
-      editor.commands.setTextSelection({ from, to })
-      editor.commands.deleteSelection()
+      emptyItem(editor, word)
       pressBackspace(editor)
 
-      expect(blockShape(editor).filter((type) => type === listType)).toEqual([listType])
-      const items: string[] = []
-      editor.state.doc.descendants((node) => {
-        if (node.type.name === 'paragraph' && node.textContent) items.push(node.textContent)
-      })
-      expect(items).toEqual(['one', 'three'])
+      const { md, reparsed } = markdownRoundTrip(editor)
+      expect(md.trim()).toBe(expected)
+      expect(reparsed).toBe(md)
       editor.destroy()
     }
   )
+})
+
+describe('empty list-item Enter', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  it('removes an empty MIDDLE item instead of splitting the list into a stranded paragraph', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('- one\n- two\n- three', { contentType: 'markdown' })
+    editor.commands.focus()
+    emptyItem(editor, 'two')
+    pressKey(editor, 'Enter')
+
+    const { md, reparsed } = markdownRoundTrip(editor)
+    expect(md.trim()).toBe('- one\n- three')
+    expect(reparsed).toBe(md)
+    editor.destroy()
+  })
+
+  it('leaves an empty TRAILING item to the default (exits the list)', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('- one\n- two', { contentType: 'markdown' })
+    editor.commands.focus()
+    emptyItem(editor, 'two')
+    pressKey(editor, 'Enter')
+
+    const list = editor.getJSON().content?.find((node) => node.type === 'bulletList')
+    expect(list?.content).toHaveLength(1)
+    expect(editor.getJSON().content?.some((node) => node.type === 'paragraph')).toBe(true)
+    editor.destroy()
+  })
 })
