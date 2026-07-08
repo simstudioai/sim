@@ -68,6 +68,14 @@ export interface NavigationItem {
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
+  /**
+   * Exempt this item from the org admin/owner requirement that `requiresTeam` /
+   * `requiresEnterprise` otherwise impose in the sidebar. The plan/hosted
+   * entitlement still applies; the page enforces its own per-resource authz. Use
+   * for workspace-admin-managed features (e.g. custom blocks) that live in the
+   * Enterprise section but aren't org-admin concerns.
+   */
+  allowNonOrgAdmin?: boolean
   /** Show in the sidebar even when the user lacks the required plan, with an upgrade badge. */
   showWhenLocked?: boolean
   /** Hide for enterprise plans, which manage billing out-of-band. */
@@ -274,6 +282,7 @@ export const allNavigationItems: NavigationItem[] = [
     section: 'enterprise',
     requiresHosted: true,
     requiresEnterprise: true,
+    allowNonOrgAdmin: true,
     selfHostedOverride: isCustomBlocksEnabled,
   },
   {
