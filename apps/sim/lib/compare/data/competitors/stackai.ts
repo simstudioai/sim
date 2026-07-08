@@ -293,6 +293,26 @@ export const stackaiProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: StackAI has no feature for publishing a project as a named, iconed block that appears in a shared toolbar/library for every builder in the organization. The closest capability is the StackAI Project Node, which lets a builder reference another saved project by picking it from a dropdown inside their own workflow, and Subflow Tools, which do the same from an AI Agent node.',
+        detail:
+          "The Project Node docs describe manually matching the calling workflow's inputs to the target project's inputs (not an auto-derived input schema) and returning results as a single opaque JSON blob covering all of that project's outputs, reshaped afterward with the Output Node's Template feature, rather than the caller picking and naming individual outputs to expose. Neither the Project Node nor Subflow Tools docs describe the referenced project appearing as a distinct block in a shared, org-wide toolbar alongside built-in nodes, hiding its internal steps/credentials from the caller, or automatically tracking a separately published/deployed version of the source project.",
+        shortValue: 'No, only same-workspace Project Node / Subflow Tool references',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.stackai.com/workflow-builder/utils-logic-and-others/utils/stackai-project-node',
+            label: 'StackAI Project Node docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.stackai.com/workflow-builder/core-nodes/ai-agent-node/subflow-tools',
+            label: 'Subflow Tools docs',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

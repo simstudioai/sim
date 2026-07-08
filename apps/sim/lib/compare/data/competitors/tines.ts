@@ -331,6 +331,32 @@ export const tinesProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Tines has no feature that lets a builder publish a Story as its own named, iconed entry in a shared block toolbar. The closest features are (1) Private/Public Templates, which are scoped to configuring a single action (e.g. a pre-built HTTP Request) with parameterized 'Action inputs' that hide that one action's underlying config, and can be shared team-wide or org-wide; and (2) Send to Story, one generic action type used to call any sub-story via a picker — the caller selects the target sub-story and enters its defined parameters, without needing view/edit access to the sub-story's own actions. Neither meets the bar: templates wrap one action, not a multi-step Story, and Send to Story is a single generic action a builder configures per call site, not a distinct block appearing in the toolbar for each published Story.",
+        detail:
+          "Public docs describe template edits as letting a builder 'optionally replace storyboard actions that use the template in one step,' confirming propagation is a manual, opt-in action rather than always running the source's latest deployed version automatically. Send to Story does genuinely hide a sub-story's internals from a caller without permission on it ('will not be able to view or modify the contents of the story unless you have the relevant permissions'), but it is one generic action configured with a target-story picker each time, not a separate published block per Story.",
+        shortValue:
+          'No: templates are single-action; Send to Story is a generic picker, not a block',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/docs/actions/templates/private-templates/',
+            label: 'Private Templates | Docs | Tines',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.tines.com/docs/actions/templates/templates/',
+            label: 'Public Templates | Docs | Tines',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.tines.com/docs/stories/send-to-story/',
+            label: 'Send to Story | Docs | Tines',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

@@ -329,6 +329,26 @@ export const claudeCoworkProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Claude Cowork has no visual workflow builder, so there is no completed workflow to publish as a reusable block. The closest adjacent capability is org-wide Skills sharing: a member enables 'Share with organization' on a Skill (a SKILL.md instruction file, optionally with reference docs/scripts), and it becomes available to everyone in Customize > Skills. Recipients can enable and use a shared Skill but cannot edit its contents.",
+        detail:
+          "This does not meet the bar of a published-workflow-as-block. A Skill is read-only prompt/instruction text Claude consults at runtime, not an encapsulated, deployed multi-step workflow with auto-derived inputs, hand-picked named outputs, and a hidden internal implementation that always tracks the source's latest version. Cowork Projects, the closest thing to a saved unit of work, explicitly do not support sharing for members of Team and Enterprise plans; separately, Anthropic notes projects are 'desktop-only and stored locally,' with no cloud sync.",
+        shortValue: 'No: no publish-workflow-as-block feature exists',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13119606-provision-and-manage-skills-for-your-organization',
+            label: 'Provision and manage skills for your organization',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
+            label: 'Organize your tasks with projects in Claude Cowork',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
