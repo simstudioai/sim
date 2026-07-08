@@ -103,7 +103,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       id: 'videoIds',
       title: 'Video IDs',
       type: 'long-input',
-      placeholder: 'Comma-separated video IDs (e.g., 7077642457847994444,7080217258529732386)',
+      placeholder: 'One video ID per line or comma-separated (e.g., 7077642457847994444)',
       condition: { field: 'operation', value: 'tiktok_query_videos' },
       required: { field: 'operation', value: 'tiktok_query_videos' },
     },
@@ -397,7 +397,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
           case 'tiktok_query_videos':
             return {
               videoIds: (params.videoIds || '')
-                .split(',')
+                .split(/[,\n]+/)
                 .map((id: string) => id.trim())
                 .filter(Boolean),
             }
@@ -479,7 +479,10 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
     fields: { type: 'string', description: 'Comma-separated list of user fields to return' },
     maxCount: { type: 'number', description: 'Maximum number of videos to return (1-20)' },
     cursor: { type: 'number', description: 'Pagination cursor from previous response' },
-    videoIds: { type: 'string', description: 'Comma-separated list of video IDs to query' },
+    videoIds: {
+      type: 'string',
+      description: 'List of video IDs to query, one per line or comma-separated',
+    },
     videoSource: {
       type: 'string',
       description: 'Video transfer method (PULL_FROM_URL/FILE_UPLOAD)',
