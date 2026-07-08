@@ -113,6 +113,30 @@ describe('resolveToolsLabel', () => {
       null
     )
   })
+
+  it('ignores the stored title on registry-backed tools so state edits cannot rename them', () => {
+    const slackName = resolveToolsLabel(toolInput, [{ type: 'slack' }], [])
+    expect(slackName).not.toBe(null)
+    expect(resolveToolsLabel(toolInput, [{ type: 'slack', title: 'Renamed By Copilot' }], [])).toBe(
+      slackName
+    )
+  })
+
+  it('falls back to the raw type id for unregistered block-backed tools', () => {
+    expect(
+      resolveToolsLabel(toolInput, [{ type: 'not_a_real_block', title: 'Sneaky Title' }], [])
+    ).toBe('not_a_real_block')
+  })
+
+  it('prefers the custom tool record over the stored title', () => {
+    expect(
+      resolveToolsLabel(
+        toolInput,
+        [{ type: 'custom-tool', customToolId: 'ct-1', title: 'Renamed By Copilot' }],
+        [{ id: 'ct-1', title: 'My Tool' }]
+      )
+    ).toBe('My Tool')
+  })
 })
 
 describe('resolveSkillsLabel', () => {

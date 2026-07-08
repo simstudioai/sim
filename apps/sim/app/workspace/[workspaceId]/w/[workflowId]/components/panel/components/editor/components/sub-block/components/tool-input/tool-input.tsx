@@ -1747,6 +1747,17 @@ export const ToolInput = memo(function ToolInput({
                 )
               : []
 
+          // Display name comes from static sources (registry / canonical records),
+          // never from the workflow JSON's mutable `title`, so edits to the stored
+          // state cannot change what the UI shows.
+          const toolDisplayName = isCustomTool
+            ? resolvedCustomTool?.title || customToolTitle
+            : isMcpTool
+              ? mcpTool?.name || tool.title
+              : isWorkflowTool
+                ? 'Workflow'
+                : toolBlock?.name || tool.type
+
           const useSubBlocks = !isCustomTool && !isMcpTool && subBlocksResult?.subBlocks?.length
           const displayParams: ToolParameterConfig[] = isCustomTool
             ? customToolParams
@@ -1854,7 +1865,7 @@ export const ToolInput = memo(function ToolInput({
                     )}
                   </div>
                   <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                    {formatDisplayText((isCustomTool ? customToolTitle : tool.title) ?? '', {
+                    {formatDisplayText(toolDisplayName ?? '', {
                       workflowSearchHighlight: getToolTitleSearchHighlight(toolIndex),
                     })}
                   </span>

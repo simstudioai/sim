@@ -427,10 +427,11 @@ export function resolveVariablesLabel(
 }
 
 /**
- * Resolves a tool-input value to a tool-name summary. Stored tool entries
- * come in several historical shapes, checked in priority order: explicit
- * title, custom tool referenced by id, inline schema name, OpenAI function
- * name, then the block registry.
+ * Resolves a tool-input value to a tool-name summary. Names come from static
+ * sources first (block registry, custom-tool records) so that edits to the
+ * stored entry's `title` cannot change what the UI shows; the stored title
+ * and inline schema names are only fallbacks for shapes with no canonical
+ * source (MCP snapshots, legacy entries).
  */
 export function resolveToolsLabel(
   subBlock: SubBlockConfig | undefined,
@@ -445,20 +446,6 @@ export function resolveToolsLabel(
       if (!tool || typeof tool !== 'object') return null
       const t = tool as Record<string, unknown>
 
-      if (typeof t.title === 'string' && t.title) return t.title
-
-      if (t.type === 'custom-tool' && typeof t.customToolId === 'string') {
-        const customTool = customTools.find((candidate) => candidate.id === t.customToolId)
-        if (customTool?.title) return customTool.title
-        if (customTool?.schema?.function?.name) return customTool.schema.function.name
-      }
-
-      const schema = t.schema as { function?: { name?: string } } | undefined
-      if (schema?.function?.name) return schema.function.name
-
-      const fn = t.function as { name?: string } | undefined
-      if (fn?.name) return fn.name
-
       if (
         typeof t.type === 'string' &&
         t.type !== 'custom-tool' &&
@@ -468,7 +455,22 @@ export function resolveToolsLabel(
       ) {
         const blockConfig = getBlock(t.type)
         if (blockConfig?.name) return blockConfig.name
+        return t.type
       }
+
+      if (t.type === 'custom-tool' && typeof t.customToolId === 'string') {
+        const customTool = customTools.find((candidate) => candidate.id === t.customToolId)
+        if (customTool?.title) return customTool.title
+        if (customTool?.schema?.function?.name) return customTool.schema.function.name
+      }
+
+      if (typeof t.title === 'string' && t.title) return t.title
+
+      const schema = t.schema as { function?: { name?: string } } | undefined
+      if (schema?.function?.name) return schema.function.name
+
+      const fn = t.function as { name?: string } | undefined
+      if (fn?.name) return fn.name
 
       return null
     })
