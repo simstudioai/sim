@@ -2,7 +2,7 @@
  * Type definitions for user-defined tables.
  */
 
-import type { COLUMN_TYPES } from '@/lib/table/constants'
+import type { COLUMN_TYPES, FILTER_OPS } from '@/lib/table/constants'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -432,29 +432,7 @@ export interface Filter {
  * This is the canonical operator set the shared `fieldPredicate` leaf
  * understands; the legacy `$`-operators normalize onto it.
  */
-export type FilterOp =
-  | 'eq'
-  | 'ne'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'in'
-  | 'nin'
-  | 'contains'
-  | 'ncontains'
-  | 'startsWith'
-  | 'endsWith'
-  | 'like'
-  | 'ilike'
-  | 'nlike'
-  | 'nilike'
-  | 'match'
-  | 'imatch'
-  | 'isEmpty'
-  | 'isNotEmpty'
-  | 'isNull'
-  | 'isNotNull'
+export type FilterOp = (typeof FILTER_OPS)[number]
 
 /** A single v2 leaf predicate: `field op value`. `value` is omitted for `isEmpty`/`isNotEmpty`. */
 export interface Predicate {

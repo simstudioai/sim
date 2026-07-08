@@ -4,7 +4,6 @@
 
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { predicateToPostgrest, sortSpecToPostgrestOrder } from '@/lib/table/query-builder/postgrest'
 import type {
   Filter,
   FilterOp,
@@ -316,22 +315,6 @@ export function sortRulesToSortSpec(rules: SortRule[]): SortSpec | null {
     if (rule.column) spec.push({ field: rule.column, direction: rule.direction })
   }
   return spec.length > 0 ? spec : null
-}
-
-/**
- * Serializes UI filter-builder rules straight to a PostgREST filter querystring,
- * so the v2 block can offer the visual builder while the wire stays PostgREST.
- * Returns `null` when the builder is empty.
- */
-export function filterRulesToPostgrest(rules: FilterRule[]): string | null {
-  const predicate = filterRulesToPredicate(rules)
-  return predicate ? predicateToPostgrest(predicate) : null
-}
-
-/** Serializes UI sort-builder rules to a PostgREST `order` string, or `null`. */
-export function sortRulesToPostgrestOrder(rules: SortRule[]): string | null {
-  const spec = sortRulesToSortSpec(rules)
-  return spec ? sortSpecToPostgrestOrder(spec) : null
 }
 
 function predicateLeafToFilterValue(p: Predicate): Filter[string] {

@@ -3834,6 +3834,11 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'Array of column names to delete at once (for delete_column). Preferred over columnName when deleting multiple columns.',
           },
+          cursor: {
+            type: 'string',
+            description:
+              'Opaque pagination cursor for query_rows (optional). Omit for the first page; to fetch the next page, pass back the nextCursor from the previous result\'s "more available" message verbatim. Cannot be combined with a fresh order — the cursor already encodes the paging position.',
+          },
           data: {
             type: 'object',
             description: 'Row data as key-value pairs (required for insert_row, update_row)',
@@ -3863,9 +3868,9 @@ export const UserTable: ToolCatalogEntry = {
               'Canonical workspace file VFS path for create_from_file/import_file, e.g. files/{path}/{name}.',
           },
           filter: {
-            type: 'string',
+            type: 'object',
             description:
-              'PostgREST querystring filter for query_rows, update_rows_by_filter, delete_rows_by_filter. A filter is a querystring fragment of field=op.value params joined by & (AND). Ops: eq, neq, gt, gte, lt, lte, in, like, ilike (use * as the wildcard), match, imatch (regex), is.null. Lists: in.(a,b,c) — never empty. Negate with a not. prefix (not.eq, not.in, not.is.null, not.like, not.ilike). Groups: or=(status.eq.active,status.eq.pending) and and=(...) — never empty; nest groups with the function form or(...)/and(...). Use ilike.*x* for case-insensitive substring match. Examples: "status=eq.active"; "wins=gte.18&status=eq.pending"; "or=(status.eq.active,status.eq.pending)"; "name=ilike.*jo*"; "slack_user_id=in.(U1,U2)".',
+              'Predicate filter object for query_rows, update_rows_by_filter, delete_rows_by_filter. A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {field, op, value} or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (use * as the wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array value. Examples: {"all":[{"field":"status","op":"eq","value":"active"}]}; {"all":[{"field":"wins","op":"gte","value":18},{"field":"status","op":"eq","value":"pending"}]}; {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}; {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}; {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}.',
           },
           groupId: {
             type: 'string',
@@ -3900,7 +3905,7 @@ export const UserTable: ToolCatalogEntry = {
           limit: {
             type: 'number',
             description:
-              'Maximum rows per page for query_rows (optional). Omit to fetch the ENTIRE matching result in one response — the call fails if the result exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a page may end early at the byte budget with more remaining; a non-null nextCursor in the result means more rows exist (continue with offset). On update_rows_by_filter / delete_rows_by_filter, caps affected rows; omit to act on every match.',
+              'Maximum rows per page for query_rows (optional). Omit to fetch the ENTIRE matching result in one response — the call fails if the result exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a page may end early at the byte budget with more remaining; a non-null nextCursor in the result means more rows exist (continue with cursor). On update_rows_by_filter / delete_rows_by_filter, caps affected rows; omit to act on every match.',
           },
           mapping: {
             type: 'object',
@@ -3951,15 +3956,10 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'New column type (optional for update_column). Types: string, number, boolean, date, json',
           },
-          offset: {
-            type: 'number',
-            description:
-              'Number of rows to skip for query_rows (optional, default 0; works with or without limit). Use the offset from the previous result\'s "more available" message to fetch the next page.',
-          },
           order: {
-            type: 'string',
+            type: 'array',
             description:
-              'PostgREST order string for query_rows (optional). Comma-separated column.dir terms where dir is asc or desc, e.g. "wins.desc,name.asc".',
+              'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
           },
           outputColumnNames: {
             type: 'object',

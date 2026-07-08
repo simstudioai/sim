@@ -407,6 +407,13 @@ export function fieldPredicate(
 ): SQL | undefined {
   validateFieldName(field)
 
+  // System columns (`createdAt`/`updatedAt`) are real timestamptz columns, not
+  // JSONB keys — dispatch before the `data->>` builders below, which would
+  // silently match nothing (the key never exists in `data`).
+  if (isSystemColumn(field)) {
+    return buildSystemColumnClause(tableName, field, op, value)
+  }
+
   switch (op) {
     case 'eq':
       return buildContainmentClause(tableName, field, value as JsonValue)
@@ -521,6 +528,67 @@ function buildLogicalClause(
   if (clauses.length === 1) return clauses[0]
 
   return sql`(${sql.join(clauses, sql.raw(` ${operator} `))})`
+}
+
+/**
+ * Row-level system columns exposed for filter/sort: their wire name → the real
+ * `timestamptz` column. Not stored in `data`, so they need real-column SQL, not
+ * the `data->>'field'` extraction every other builder uses.
+ */
+const SYSTEM_COLUMNS: Readonly<Record<string, string>> = {
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+}
+
+function isSystemColumn(field: string): boolean {
+  return Object.hasOwn(SYSTEM_COLUMNS, field)
+}
+
+/**
+ * Builds a predicate against a `timestamptz` system column. Values are ISO
+ * strings cast to `timestamptz`. Only comparison/equality/null ops make sense;
+ * text/pattern ops are rejected with an actionable error.
+ */
+function buildSystemColumnClause(
+  tableName: string,
+  field: string,
+  op: FilterOp,
+  value: JsonValue | undefined
+): SQL | undefined {
+  const col = sql.raw(`${tableName}.${SYSTEM_COLUMNS[field]}`)
+  const ts = (v: JsonValue | undefined) => sql`${String(v)}::timestamptz`
+  switch (op) {
+    case 'eq':
+      return sql`${col} = ${ts(value)}`
+    case 'ne':
+      return sql`${col} <> ${ts(value)}`
+    case 'gt':
+      return sql`${col} > ${ts(value)}`
+    case 'gte':
+      return sql`${col} >= ${ts(value)}`
+    case 'lt':
+      return sql`${col} < ${ts(value)}`
+    case 'lte':
+      return sql`${col} <= ${ts(value)}`
+    case 'in': {
+      if (!Array.isArray(value) || value.length === 0) return undefined
+      return sql`${col} IN (${sql.join(value.map(ts), sql.raw(', '))})`
+    }
+    case 'nin': {
+      if (!Array.isArray(value) || value.length === 0) return undefined
+      return sql`${col} NOT IN (${sql.join(value.map(ts), sql.raw(', '))})`
+    }
+    case 'isNull':
+    case 'isEmpty':
+      return sql`${col} IS NULL`
+    case 'isNotNull':
+    case 'isNotEmpty':
+      return sql`${col} IS NOT NULL`
+    default:
+      throw new TableQueryValidationError(
+        `Operator "${op}" is not supported on the timestamp column "${field}" — use eq, neq, gt, gte, lt, lte, in, is.null.`
+      )
+  }
 }
 
 /** Builds JSONB containment clause: `data @> '{"field": value}'::jsonb` (uses GIN index) */
@@ -715,8 +783,8 @@ function buildSortFieldClause(
   const escapedField = field.replace(/'/g, "''")
   const directionSql = direction.toUpperCase()
 
-  if (field === 'createdAt' || field === 'updatedAt') {
-    return sql.raw(`${tableName}.${escapedField} ${directionSql}`)
+  if (isSystemColumn(field)) {
+    return sql.raw(`${tableName}.${SYSTEM_COLUMNS[field]} ${directionSql}`)
   }
 
   const jsonbExtract = `${tableName}.data->>'${escapedField}'`

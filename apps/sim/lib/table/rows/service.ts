@@ -28,7 +28,12 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { nKeysBetween } from '@/lib/table/order-key'
-import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
+import {
+  type DbExecutor,
+  type DbTransaction,
+  withReadGuards,
+  withSeqscanOff,
+} from '@/lib/table/planner'
 import { encodeCursor } from '@/lib/table/rows/cursor'
 import {
   applyExecutionsPatch,
@@ -1030,11 +1035,15 @@ export async function queryRows(
   const countPromise = includeTotal
     ? hasFilter
       ? countRowsTenantBounded(whereClause)
-      : db
-          .select({ count: count() })
-          .from(userTableRows)
-          .where(whereClause ?? baseConditions)
-          .then((r) => Number(r[0].count))
+      : // Unfiltered count plans an index-only scan on the table_id prefix, but
+        // still runs under the read timeout so it can't pin a connection.
+        withReadGuards(async (trx) => {
+          const [r] = await trx
+            .select({ count: count() })
+            .from(userTableRows)
+            .where(whereClause ?? baseConditions)
+          return Number(r.count)
+        })
     : null
 
   // The inbound seek is honored whenever there's no custom sort (matching the
@@ -1184,12 +1193,13 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
         .limit(ask)
       return batchOffset > 0 ? query.offset(batchOffset) : query
     }
-    // Custom column sorts order by `data->>'col'` — unestimatable, so left
-    // alone the planner seq-scans and sorts the whole shared relation on every
-    // page (9.7s measured on a 1M-row table; 0.76s tenant-bounded). One tx per
-    // batch: SET LOCAL dies with the tx, and holding a tx across JS accounting
-    // between batches would pin a pooled connection.
-    return sorted ? withSeqscanOff(async (trx) => buildQuery(trx)) : buildQuery(db)
+    // One tx per batch (SET LOCAL dies with it; holding a tx across JS
+    // accounting between batches would pin a pooled connection). Custom sorts
+    // order by `data->>'col'` — unestimatable — so they also penalize seq scans
+    // (9.7s→0.76s on a 1M-row table); default-order pages stream the index and
+    // just need the read timeout. Either way the batch runs under a statement
+    // timeout so a pathological filter can't scan unbounded.
+    return withReadGuards(async (trx) => buildQuery(trx), { seqscanOff: sorted })
   }
 
   for (let iteration = 0; iteration < MAX_QUERY_BATCHES; iteration++) {
@@ -1208,7 +1218,8 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
         // ~budget bytes at this point, never the whole table).
         if (limit === undefined) {
           throw new TableQueryValidationError(
-            `Query result exceeds the ${Math.floor(budgetBytes / (1024 * 1024))}MB limit. Add a filter or a limit to narrow the result.`
+            `Query result exceeds the ${Math.floor(budgetBytes / (1024 * 1024))}MB limit. Add a filter or a limit to narrow the result.`,
+            'TABLE_QUERY_RESULT_TOO_LARGE'
           )
         }
         // Bounded page: byte cut with `row` as the witness. Requires a

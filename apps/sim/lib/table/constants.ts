@@ -135,6 +135,37 @@ export function getTablePlanLimits(): TablePlanLimitsByPlan {
 
 export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
 
+/**
+ * The v2 filter operators, as a runtime tuple so both the `FilterOp` type and
+ * the boundary Zod enum derive from one source. Order is not significant.
+ */
+export const FILTER_OPS = [
+  'eq',
+  'ne',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'in',
+  'nin',
+  'contains',
+  'ncontains',
+  'startsWith',
+  'endsWith',
+  'like',
+  'ilike',
+  'nlike',
+  'nilike',
+  'match',
+  'imatch',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+] as const
+
+export const SORT_DIRECTIONS = ['asc', 'desc'] as const
+
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
 
 export const USER_TABLE_ROWS_SQL_NAME = 'user_table_rows'

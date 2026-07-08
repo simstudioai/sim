@@ -28,29 +28,33 @@ import {
 import { buildIdByName, predicateNamesToIds } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
-import { parsePostgrestFilter } from '@/lib/table/query-builder/postgrest'
+import { validatePredicate } from '@/lib/table/query-builder/validate'
 import { queryRows } from '@/lib/table/rows/service'
+import type { TablePredicate } from '@/lib/table/types'
 import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
 
+function isTablePredicate(raw: TablePredicate | Filter): raw is TablePredicate {
+  return 'all' in raw || 'any' in raw
+}
+
 /**
- * Resolves a bulk-op filter to a storage-id-keyed legacy `Filter`. PostgREST
- * strings are column-NAME-keyed by construction (the parser validates against
- * names), so they translate names → ids unconditionally — unlike the legacy
- * object form, whose keying follows the caller's wire dialect (`wire.filterIn`:
- * ids from the UI, names from workflow tools).
+ * Resolves a bulk-op filter to a storage-id-keyed legacy `Filter`. The v2
+ * predicate tree is column-NAME-keyed by construction (the caller authors
+ * names), so it validates then translates names → ids unconditionally — unlike
+ * the legacy object form, whose keying follows the caller's wire dialect
+ * (`wire.filterIn`: ids from the UI, names from workflow tools).
  */
 function resolveBulkFilter(
-  raw: string | Filter,
+  raw: TablePredicate | Filter,
   schema: TableSchema,
   wire: RowWireTranslators
 ): Filter {
-  if (typeof raw === 'string') {
-    return predicateToFilter(
-      predicateNamesToIds(parsePostgrestFilter(raw, schema.columns), buildIdByName(schema))
-    )
+  if (isTablePredicate(raw)) {
+    validatePredicate(raw, schema.columns)
+    return predicateToFilter(predicateNamesToIds(raw, buildIdByName(schema)))
   }
   return wire.filterIn(raw)
 }
@@ -377,7 +381,7 @@ export const PUT = withRouteHandler(
         table,
         {
           filter: resolveBulkFilter(
-            validated.filter as string | Filter,
+            validated.filter as TablePredicate | Filter,
             table.schema as TableSchema,
             wire
           ),
@@ -486,7 +490,7 @@ export const DELETE = withRouteHandler(
         table,
         {
           filter: resolveBulkFilter(
-            validated.filter as string | Filter,
+            validated.filter as TablePredicate | Filter,
             table.schema as TableSchema,
             wire
           ),

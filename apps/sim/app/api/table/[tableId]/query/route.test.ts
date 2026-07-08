@@ -92,12 +92,17 @@ describe('POST /api/table/[tableId]/query', () => {
     mockQueryRows.mockResolvedValue(EMPTY_RESULT)
   })
 
-  it('translates filter/order column names to storage ids for SESSION auth too', async () => {
+  it('translates predicate/sort column names to storage ids for SESSION auth too', async () => {
     authAs('session')
     const res = await callQuery({
       workspaceId: 'workspace-1',
-      filter: 'name=eq.John&wins=gte.10',
-      order: 'wins.desc',
+      predicate: {
+        all: [
+          { field: 'name', op: 'eq', value: 'John' },
+          { field: 'wins', op: 'gte', value: 10 },
+        ],
+      },
+      sort: [{ field: 'wins', direction: 'desc' }],
     })
 
     expect(res.status).toBe(200)
@@ -112,18 +117,23 @@ describe('POST /api/table/[tableId]/query', () => {
     expect(options.withExecutions).toBe(false)
   })
 
-  it('rejects a keyset cursor combined with a custom order', async () => {
+  it('rejects a keyset cursor combined with a custom sort', async () => {
     authAs('internal_jwt')
     const cursor = encodeCursor({
       lastRow: { id: 'row_1', orderKey: 'a1' },
       keysetValid: true,
       nextOffset: 1,
     })
-    const res = await callQuery({ workspaceId: 'workspace-1', order: 'wins.desc', cursor })
+    const res = await callQuery({
+      workspaceId: 'workspace-1',
+      sort: [{ field: 'wins', direction: 'desc' }],
+      cursor,
+    })
 
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/not valid for a sorted query/)
+    expect(body.code).toBe('CURSOR_SORT_CONFLICT')
     expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
@@ -135,15 +145,20 @@ describe('POST /api/table/[tableId]/query', () => {
     })
 
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toBe('Invalid cursor')
+    const body = await res.json()
+    expect(body.error).toBe('Invalid cursor')
+    expect(body.code).toBe('INVALID_CURSOR')
   })
 
-  it('returns 400 with the parser message for an invalid filter', async () => {
+  it('returns 400 for a predicate referencing an unknown column', async () => {
     authAs('internal_jwt')
-    const res = await callQuery({ workspaceId: 'workspace-1', filter: 'wins=bogus.1' })
+    const res = await callQuery({
+      workspaceId: 'workspace-1',
+      predicate: { all: [{ field: 'nope', op: 'eq', value: 1 }] },
+    })
 
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/Unknown filter operator/)
+    expect((await res.json()).error).toMatch(/Unknown filter column/)
   })
 
   it('passes nextCursor through the response envelope and skips the count on later pages', async () => {

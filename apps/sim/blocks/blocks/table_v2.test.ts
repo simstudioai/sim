@@ -40,43 +40,42 @@ describe('table_v2 query_rows transformer', () => {
     expect(out3.cursor).toBe('tok')
   })
 
-  it('serializes builder rules to PostgREST when the builder holds rules', () => {
+  it('compiles builder rules (basic canonical value) to a predicate + sort spec', () => {
     const out = params({
       operation: 'query_rows',
       tableId: 't',
       limit: '10',
-      filterMode: 'builder',
-      filterBuilder: [
+      // filterInput/sortInput carry the ACTIVE canonical mode's value; the visual
+      // builders (basic) emit rule arrays.
+      filterInput: [
         { id: '1', logicalOperator: 'and', column: 'wins', operator: 'gte', value: '10' },
       ],
-      sortBuilder: [{ id: '1', column: 'wins', direction: 'desc' }],
-      filter: 'name=eq.ignored',
+      sortInput: [{ id: '1', column: 'wins', direction: 'desc' }],
     })
-    expect(out.filter).toBe('wins=gte.10')
-    expect(out.order).toBe('wins.desc')
+    expect(out.filter).toEqual({ all: [{ field: 'wins', op: 'gte', value: 10 }] })
+    expect(out.order).toEqual([{ field: 'wins', direction: 'desc' }])
   })
 
-  it('falls back to the raw PostgREST string when the builder value is not a non-empty array', () => {
+  it('parses the editor JSON string (advanced canonical value) into a predicate', () => {
     const out = params({
       operation: 'query_rows',
       tableId: 't',
       limit: '10',
-      filterMode: 'builder',
-      filterBuilder: {},
-      filter: 'name=eq.test',
+      filterInput: '{"all":[{"field":"name","op":"eq","value":"test"}]}',
     })
-    expect(out.filter).toBe('name=eq.test')
+    expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'test' }] })
   })
 })
 
 describe('table_v2 bulk transformers', () => {
+  const editorFilter = '{"all":[{"field":"name","op":"eq","value":"x"}]}'
+
   it('fails fast on a non-numeric bulk limit instead of widening to every match', () => {
     expect(() =>
       params({
         operation: 'delete_rows_by_filter',
         tableId: 't',
-        filterMode: 'editor',
-        filter: 'name=eq.x',
+        filterInput: editorFilter,
         limit: 'abc',
       })
     ).toThrow(/Invalid Limit/)
@@ -86,10 +85,9 @@ describe('table_v2 bulk transformers', () => {
     const out = params({
       operation: 'delete_rows_by_filter',
       tableId: 't',
-      filterMode: 'editor',
-      filter: 'name=eq.x',
+      filterInput: editorFilter,
     })
     expect(out.limit).toBeUndefined()
-    expect(out.filter).toBe('name=eq.x')
+    expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'x' }] })
   })
 })

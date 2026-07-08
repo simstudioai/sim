@@ -395,12 +395,12 @@ describe('SQL Builder', () => {
       expect(out).toBe(`(${TABLE}.data->>'birthDate')::timestamptz ASC NULLS LAST`)
     })
 
-    it('sorts createdAt / updatedAt as direct column refs', () => {
+    it('sorts createdAt / updatedAt as direct snake_case column refs', () => {
       expect(render(buildSortClause({ createdAt: 'desc' }, TABLE, NO_COLUMNS))).toBe(
-        `${TABLE}.createdAt DESC`
+        `${TABLE}.created_at DESC`
       )
       expect(render(buildSortClause({ updatedAt: 'asc' }, TABLE, NO_COLUMNS))).toBe(
-        `${TABLE}.updatedAt ASC`
+        `${TABLE}.updated_at ASC`
       )
     })
 
@@ -565,6 +565,28 @@ describe('fieldPredicate (shared leaf)', () => {
     expect(() => fieldPredicate(TABLE, 'wins', 'bogus' as never, 1, undefined)).toThrow(
       'Invalid operator'
     )
+  })
+
+  it('filters createdAt / updatedAt as real timestamptz columns, not JSONB keys', () => {
+    const gte = render(fieldPredicate(TABLE, 'createdAt', 'gte', '2026-01-01', 'date'))
+    expect(gte).toContain(`${TABLE}.created_at`)
+    expect(gte).toContain('::timestamptz')
+    expect(gte).not.toContain("data->>'createdAt'")
+
+    const lt = render(fieldPredicate(TABLE, 'updatedAt', 'lt', '2026-06-01', 'date'))
+    expect(lt).toContain(`${TABLE}.updated_at`)
+    expect(lt).toContain('::timestamptz')
+  })
+
+  it('supports in / isNull on system columns', () => {
+    expect(render(fieldPredicate(TABLE, 'createdAt', 'isNull', undefined, 'date'))).toContain(
+      `${TABLE}.created_at IS NULL`
+    )
+    const inClause = render(
+      fieldPredicate(TABLE, 'createdAt', 'in', ['2026-01-01', '2026-02-01'], 'date')
+    )
+    expect(inClause).toContain(`${TABLE}.created_at`)
+    expect(inClause).toContain('::timestamptz')
   })
 })
 

@@ -45,7 +45,8 @@ import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
-import { parsePostgrestFilter, parsePostgrestOrder } from '@/lib/table/query-builder/postgrest'
+import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
+import { decodeCursor } from '@/lib/table/rows/cursor'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -64,8 +65,10 @@ import type {
   ColumnDefinition,
   Filter,
   RowData,
+  SortSpec,
   TableDefinition,
   TableDeleteJobPayload,
+  TablePredicate,
   TableUpdateJobPayload,
   WorkflowGroup,
   WorkflowGroupDependencies,
@@ -604,39 +607,62 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
           const nameById = buildNameById(table.schema)
-          // PostgREST filter/order strings, parsed with the schema (column NAMES
-          // → coercion) then translated to storage ids.
-          const predicate = args.filter
-            ? predicateNamesToIds(parsePostgrestFilter(args.filter, table.schema.columns), idByName)
-            : undefined
-          const orderSpec = args.order
-            ? sortSpecNamesToIds(parsePostgrestOrder(args.order, table.schema.columns), idByName)
-            : undefined
+          // Typed predicate/sort objects, validated against the schema (column
+          // NAMES) then translated to storage ids.
+          let predicate: TablePredicate | undefined
+          if (args.filter) {
+            validatePredicate(args.filter, table.schema.columns)
+            predicate = predicateNamesToIds(args.filter, idByName)
+          }
+          let orderSpec = args.order as SortSpec | undefined
+          if (orderSpec?.length) {
+            validateSortSpec(orderSpec, table.schema.columns)
+            orderSpec = sortSpecNamesToIds(orderSpec, idByName)
+          }
           const sort = orderSpec?.length
             ? Object.fromEntries(orderSpec.map((s) => [s.field, s.direction]))
             : undefined
+
+          // Opaque cursor pagination (keyset seek on the default order; the token
+          // hides an internal offset only for custom-sorted views, which a keyset
+          // physically can't page). A keyset cursor is bound to the default order,
+          // so it can't be combined with a fresh sort.
+          const cursor = args.cursor ? decodeCursor(args.cursor) : undefined
+          if (cursor?.after && sort) {
+            return {
+              success: false,
+              message:
+                'Cursor is not valid for a sorted query. Restart paging without the cursor (omit it on the first sorted page).',
+            }
+          }
+
           // No limit returns the ENTIRE matching result, failing fast once the
           // 5MB byte budget is exceeded (caught below → structured tool error
           // the model can react to by adding a filter or a limit). An explicit
-          // limit pages; byte-cut pages set nextCursor and the message says how
-          // to continue with `offset`.
+          // limit pages; byte-cut pages set nextCursor and the message says to
+          // continue with the opaque cursor.
           const result = await queryRows(
             table,
             {
               predicate,
               sort,
               limit: args.limit,
-              offset: args.offset,
+              after: cursor?.after,
+              offset: cursor?.offset,
+              // Only the first page (no inbound cursor) pays for the COUNT(*).
+              includeTotal: !args.cursor,
               withExecutions: false,
             },
             requestId
           )
 
           // nextCursor covers both cut kinds (explicit limit or the 5MB byte
-          // budget) — either way the truthful signal is "more rows exist".
+          // budget) — either way the truthful signal is "more rows exist". The
+          // token is opaque; the agent echoes it back as `cursor` to continue.
+          const countSuffix = result.totalCount != null ? ` of ${result.totalCount}` : ''
           const message = result.nextCursor
-            ? `Returned ${result.rows.length} of ${result.totalCount} rows (more available — pass offset=${result.offset + result.rows.length} to continue)`
-            : `Returned ${result.rows.length} of ${result.totalCount} rows`
+            ? `Returned ${result.rows.length}${countSuffix} rows (more available — pass cursor=${result.nextCursor} to continue)`
+            : `Returned ${result.rows.length}${countSuffix} rows`
           return {
             success: true,
             message,
@@ -745,11 +771,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          // Agent authors a PostgREST filter string; parse → predicate → Filter
-          // for the bulk engine (same fieldPredicate leaf → identical SQL).
-          const idFilter = predicateToFilter(
-            predicateNamesToIds(parsePostgrestFilter(args.filter, table.schema.columns), idByName)
-          )
+          // Agent authors a predicate object; validate → translate → Filter for
+          // the bulk engine (same fieldPredicate leaf → identical SQL).
+          validatePredicate(args.filter, table.schema.columns)
+          const idFilter = predicateToFilter(predicateNamesToIds(args.filter, idByName))
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -844,11 +869,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          // Agent authors a PostgREST filter string; parse → predicate → Filter
-          // for the bulk engine (same fieldPredicate leaf → identical SQL).
-          const idFilter = predicateToFilter(
-            predicateNamesToIds(parsePostgrestFilter(args.filter, table.schema.columns), idByName)
-          )
+          // Agent authors a predicate object; validate → translate → Filter for
+          // the bulk engine (same fieldPredicate leaf → identical SQL).
+          validatePredicate(args.filter, table.schema.columns)
+          const idFilter = predicateToFilter(predicateNamesToIds(args.filter, idByName))
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background

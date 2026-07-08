@@ -228,7 +228,7 @@ describe('GET /api/table/[tableId]/rows', () => {
   })
 })
 
-describe('PUT/DELETE /api/table/[tableId]/rows — PostgREST string filters', () => {
+describe('PUT/DELETE /api/table/[tableId]/rows — predicate filters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
@@ -254,11 +254,11 @@ describe('PUT/DELETE /api/table/[tableId]/rows — PostgREST string filters', ()
     return DELETE(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
   }
 
-  it('PUT translates a name-keyed PostgREST string to an id-keyed filter under SESSION auth', async () => {
+  it('PUT translates a name-keyed predicate to an id-keyed filter under SESSION auth', async () => {
     authAs('session')
     const res = await callPut({
       workspaceId: 'workspace-1',
-      filter: 'Name=eq.Ada',
+      filter: { all: [{ field: 'Name', op: 'eq', value: 'Ada' }] },
       data: { col_aaa: 'Grace' },
     })
 
@@ -267,15 +267,21 @@ describe('PUT/DELETE /api/table/[tableId]/rows — PostgREST string filters', ()
     expect(args.filter).toEqual({ $and: [{ col_aaa: 'Ada' }] })
   })
 
-  it('DELETE accepts the PostgREST string and rejects an invalid one with 400', async () => {
+  it('DELETE accepts the predicate and rejects an unknown column with 400', async () => {
     authAs('internal_jwt')
-    const ok = await callDelete({ workspaceId: 'workspace-1', filter: 'Age=gte.30' })
+    const ok = await callDelete({
+      workspaceId: 'workspace-1',
+      filter: { all: [{ field: 'Age', op: 'gte', value: 30 }] },
+    })
     expect(ok.status).toBe(200)
     const args = mockDeleteRowsByFilter.mock.calls[0][1]
     expect(args.filter).toEqual({ $and: [{ col_bbb: { $gte: 30 } }] })
 
-    const bad = await callDelete({ workspaceId: 'workspace-1', filter: 'Age=bogus.1' })
+    const bad = await callDelete({
+      workspaceId: 'workspace-1',
+      filter: { all: [{ field: 'Nope', op: 'eq', value: 1 }] },
+    })
     expect(bad.status).toBe(400)
-    expect((await bad.json()).error).toMatch(/Unknown filter operator/)
+    expect((await bad.json()).error).toMatch(/Unknown filter column/)
   })
 })

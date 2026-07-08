@@ -13,9 +13,22 @@
  *   the unkeyed rows consumed after it.
  */
 
+import { TableQueryValidationError } from '@/lib/table/errors'
 import type { TableRow, TableRowsCursor } from '@/lib/table/types'
 
-type CursorPayload = { k: string; i: string } | { o: number } | { k: string; i: string; o: number }
+/**
+ * Cursor payload version. Every encoded token carries `v`; decode rejects any
+ * other value so a future shape change (new `v`) fails cleanly instead of being
+ * misread against the current field set.
+ */
+const CURSOR_VERSION = 1
+
+type CursorBody = { k: string; i: string } | { o: number } | { k: string; i: string; o: number }
+type CursorPayload = CursorBody & { v: number }
+
+function invalidCursor(): never {
+  throw new TableQueryValidationError('Invalid cursor', 'INVALID_CURSOR')
+}
 
 function toBase64Url(json: string): string {
   return Buffer.from(json, 'utf8').toString('base64url')
@@ -43,22 +56,23 @@ export function encodeCursor(args: {
   nextOffset: number
   seekBase?: { anchor: TableRowsCursor; offsetFromAnchor: number }
 }): string {
-  let payload: CursorPayload
+  let body: CursorBody
   if (args.keysetValid && args.lastRow.orderKey) {
-    payload = { k: args.lastRow.orderKey, i: args.lastRow.id }
+    body = { k: args.lastRow.orderKey, i: args.lastRow.id }
   } else if (args.seekBase) {
     // An anchor is in effect (inbound seek or last keyed row) but a plain
     // keyset can't stand alone — resume by seeking the anchor then offsetting
     // past the rows consumed after it. Never valid under a custom sort, where
     // callers must not pass a seekBase.
-    payload = {
+    body = {
       k: args.seekBase.anchor.orderKey,
       i: args.seekBase.anchor.id,
       o: args.seekBase.offsetFromAnchor,
     }
   } else {
-    payload = { o: args.nextOffset }
+    body = { o: args.nextOffset }
   }
+  const payload: CursorPayload = { ...body, v: CURSOR_VERSION }
   return toBase64Url(JSON.stringify(payload))
 }
 
@@ -68,13 +82,14 @@ export function decodeCursor(token: string): { after?: TableRowsCursor; offset?:
   try {
     payload = JSON.parse(fromBase64Url(token))
   } catch {
-    throw new Error('Invalid cursor')
+    invalidCursor()
   }
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
-    throw new Error('Invalid cursor')
+    invalidCursor()
   }
 
   const record = payload as Record<string, unknown>
+  if (record.v !== CURSOR_VERSION) invalidCursor()
   const hasKeyset = typeof record.k === 'string' && typeof record.i === 'string'
   const hasOffset = typeof record.o === 'number' && Number.isInteger(record.o) && record.o >= 0
 
@@ -90,5 +105,5 @@ export function decodeCursor(token: string): { after?: TableRowsCursor; offset?:
   if (hasOffset) {
     return { offset: record.o as number }
   }
-  throw new Error('Invalid cursor')
+  invalidCursor()
 }

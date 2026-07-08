@@ -12,7 +12,12 @@ import { authenticateV1Request } from '@/app/api/v1/auth'
 const logger = createLogger('V1Middleware')
 const rateLimiter = new RateLimiter()
 
-export type V1Endpoint =
+/**
+ * Endpoint labels for public API auth/rate-limit telemetry. Version-neutral: the
+ * v1 and v2 public surfaces share the same `authenticateV1Request` + `api-endpoint`
+ * rate bucket, so the label is only a log/metric dimension, not a policy switch.
+ */
+export type ApiEndpoint =
   | 'logs'
   | 'logs-detail'
   | 'workflows'
@@ -31,6 +36,8 @@ export type V1Endpoint =
   | 'knowledge-detail'
   | 'knowledge-search'
   | 'copilot-chat'
+  | 'v2-tables'
+  | 'v2-table-rows'
 
 export interface RateLimitResult {
   allowed: boolean
@@ -52,7 +59,7 @@ export interface AuthorizedRequest {
 
 export async function checkRateLimit(
   request: NextRequest,
-  endpoint: V1Endpoint = 'logs'
+  endpoint: ApiEndpoint = 'logs'
 ): Promise<RateLimitResult> {
   try {
     const auth = await authenticateV1Request(request)
@@ -115,7 +122,7 @@ export async function checkRateLimit(
  */
 export async function authenticateRequest(
   request: NextRequest,
-  endpoint: V1Endpoint
+  endpoint: ApiEndpoint
 ): Promise<AuthorizedRequest | NextResponse> {
   const requestId = generateRequestId()
   const rateLimit = await checkRateLimit(request, endpoint)

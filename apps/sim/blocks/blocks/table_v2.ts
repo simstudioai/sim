@@ -1,18 +1,15 @@
 import { toError } from '@sim/utils/errors'
 import { TableIcon } from '@/components/icons'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import {
-  filterRulesToPostgrest,
-  sortRulesToPostgrestOrder,
-} from '@/lib/table/query-builder/converters'
-import type { FilterRule, SortRule } from '@/lib/table/types'
+import { filterRulesToPredicate, sortRulesToSortSpec } from '@/lib/table/query-builder/converters'
+import type { FilterRule, SortRule, SortSpec, TablePredicate } from '@/lib/table/types'
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryV2Response } from '@/tools/table/types'
 import { getTrigger } from '@/triggers'
 
 /**
- * Table v2 — same operations as the v1 Table block, but the filter grammar is
- * PostgREST (`wins=gte.10&status=in.(active,pending)`), parsed + validated
+ * Table v2 — same operations as the v1 Table block, but the filter grammar is a
+ * typed predicate tree (`{all:[{field:'wins',op:'gte',value:10}]}`), validated
  * server-side. Pagination is an opaque cursor (no offset). The filter compiler,
  * upsert conflict probe, and unique checks share one case-sensitive containment
  * leaf, so upserts can't wedge on a case-mismatched unique value the way they
@@ -44,47 +41,36 @@ interface TableBlockParams {
   rowId?: string
   data?: string | unknown
   rows?: string | unknown
-  filterMode?: string
-  filterBuilder?: unknown
-  sortBuilder?: unknown
-  filter?: string
-  order?: string
+  filterInput?: unknown
+  sortInput?: unknown
   limit?: string
   cursor?: string
   conflictColumn?: string
 }
 
 /**
- * Resolves the effective PostgREST filter/order from either the visual builders
- * (when Filter Mode is "builder") or the raw querystring fields. Both modes
- * serialize to the same PostgREST wire format the route parses. Mode defaults to
- * "builder" to match the dropdown default.
+ * Resolves the effective predicate from the `filterInput` canonical param, which
+ * carries whichever mode's value the ⟷ toggle has active: a FilterRule[] (visual
+ * builder / basic) or a predicate-JSON string (editor / advanced, agent-authored).
+ * An array is builder rules; a string is raw JSON. Both compile to the same
+ * `TablePredicate` the route consumes.
  */
-function resolveFilter(params: TableBlockParams): string | undefined {
-  // Serialize the visual builder only when it holds real rules. The builder
-  // shape is a UI affordance — the agent authors the PostgREST `filter` string
-  // directly and never populates it, so anything that isn't a non-empty
-  // FilterRule[] falls back to the string (never iterate a non-array, which
-  // threw "rules is not iterable" at runtime).
-  if (
-    params.filterMode !== 'editor' &&
-    Array.isArray(params.filterBuilder) &&
-    params.filterBuilder.length > 0
-  ) {
-    return filterRulesToPostgrest(params.filterBuilder as FilterRule[]) ?? undefined
+function resolveFilter(params: TableBlockParams): TablePredicate | undefined {
+  const raw = params.filterInput
+  if (Array.isArray(raw)) {
+    return raw.length > 0 ? (filterRulesToPredicate(raw as FilterRule[]) ?? undefined) : undefined
   }
-  return params.filter || undefined
+  const parsed = parseJSON(raw, 'Filter')
+  return (parsed as TablePredicate | undefined) || undefined
 }
 
-function resolveOrder(params: TableBlockParams): string | undefined {
-  if (
-    params.filterMode !== 'editor' &&
-    Array.isArray(params.sortBuilder) &&
-    params.sortBuilder.length > 0
-  ) {
-    return sortRulesToPostgrestOrder(params.sortBuilder as SortRule[]) ?? undefined
+function resolveOrder(params: TableBlockParams): SortSpec | undefined {
+  const raw = params.sortInput
+  if (Array.isArray(raw)) {
+    return raw.length > 0 ? (sortRulesToSortSpec(raw as SortRule[]) ?? undefined) : undefined
   }
-  return params.order || undefined
+  const parsed = parseJSON(raw, 'Sort')
+  return (parsed as SortSpec | undefined) || undefined
 }
 
 interface ParsedParams {
@@ -92,8 +78,8 @@ interface ParsedParams {
   rowId?: string
   data?: unknown
   rows?: unknown
-  filter?: string
-  order?: string
+  filter?: TablePredicate
+  order?: SortSpec
   limit?: number
   cursor?: string
   conflictTarget?: string
@@ -144,7 +130,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     data: parseJSON(params.data, 'Row Data'),
   }),
 
-  // Bulk write-by-filter takes a PostgREST string, parsed server-side.
+  // Bulk write-by-filter takes a predicate object, validated server-side.
   update_rows_by_filter: (params) => ({
     tableId: params.tableId,
     filter: resolveFilter(params),
@@ -189,20 +175,21 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
   description: 'User-defined data tables',
   longDescription:
     'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. ' +
-    'Query Rows filters with a PostgREST querystring — `wins=gte.10&status=in.(active,pending)` (top-level ' +
-    'params AND; `or=(a.eq.1,b.eq.2)` / `and=(...)` for groups). Operators: eq, neq, gt, gte, lt, lte, in, ' +
-    'like, ilike, match, imatch, is.null (negate with not., e.g. not.in, not.is.null). Order is `wins.desc,name.asc`. ' +
-    'Query Rows returns every matching row when Limit is omitted (fails if the result exceeds 5MB — add a filter ' +
-    'or a Limit). With a Limit, responses page: a non-null nextCursor means more rows exist — pass it back as the cursor.',
+    'Query Rows filters with a predicate tree — `{"all":[{"field":"wins","op":"gte","value":10}]}` ' +
+    '(`all` = AND, `any` = OR; groups nest). Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, ' +
+    'nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort ' +
+    'spec `[{"field":"wins","direction":"desc"}]`. Query Rows returns every matching row when Limit is omitted ' +
+    '(fails if the result exceeds 5MB — add a filter or a Limit). With a Limit, responses page: a non-null ' +
+    'nextCursor means more rows exist — pass it back as the cursor.',
   bestPractices: `
-- To fetch specific rows, use Query Rows with a PostgREST filter (e.g. slack_user_id=in.(U1,U2)) — do NOT read every row and filter downstream with a Condition block.
-- Use "Get Row by ID" only when you have the row's id; otherwise filter with the querystring.
-- Top-level params AND together; use or=(...) / and=(...) for explicit or nested logic.
-- Example: players who won ≥10 and are active → wins=gte.10&status=eq.active.
-- like/ilike use * as the wildcard (e.g. name=ilike.*jo*); match/imatch are regex.
+- To fetch specific rows, use Query Rows with a predicate filter (e.g. {"all":[{"field":"slack_user_id","op":"in","value":["U1","U2"]}]}) — do NOT read every row and filter downstream with a Condition block.
+- Use "Get Row by ID" only when you have the row's id; otherwise filter with a predicate.
+- A group is {"all":[...]} (AND) or {"any":[...]} (OR); nest groups as members for mixed logic.
+- Example: players who won ≥10 and are active → {"all":[{"field":"wins","op":"gte","value":10},{"field":"status","op":"eq","value":"active"}]}.
+- like/ilike use * as the wildcard (e.g. {"field":"name","op":"ilike","value":"*jo*"}).
 - Omit Limit to get the entire matching result in one response — the query fails with a clear error if it exceeds 5MB (narrow with a filter or set a Limit).
 - With a Limit, pages can end at the Limit or the 5MB byte budget, whichever comes first — pass nextCursor back as the cursor and loop until it is null; never infer completion from page size.
-- Columns are scalar (string/number/boolean/date) or opaque json — there are no array columns, so cs/cd/ov (containment/overlap) are unsupported; for substring use ilike.*x*.`,
+- Columns are scalar (string/number/boolean/date) or opaque json — there are no array columns; for substring use ilike with *x*.`,
   docsLink: 'https://docs.simstudio.ai/tools/table',
   category: 'blocks',
   bgColor: '#10B981',
@@ -336,109 +323,80 @@ Return ONLY the rows array:`,
       },
     },
 
-    // Filter mode — visual builders vs raw PostgREST querystring (query + bulk).
-    // Builder UI is human-only; the agent authors the PostgREST `filter`/`order`
-    // strings, so the mode + builders are hidden from the tool-input context.
-    {
-      id: 'filterMode',
-      title: 'Filter Mode',
-      type: 'dropdown',
-      paramVisibility: 'user-only',
-      options: [
-        { label: 'Builder', id: 'builder' },
-        { label: 'Editor', id: 'editor' },
-      ],
-      value: () => 'builder',
-      condition: {
-        field: 'operation',
-        value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
-      },
-    },
-
-    // Visual filter builder (builder mode) — query + bulk update/delete
+    // Filter — canonical Builder⟷Editor toggle (the ⟷ swap icon on the field),
+    // query + bulk update/delete. Basic = visual builder (human-only); Advanced
+    // = predicate JSON the agent authors directly. Both members are deliberately
+    // NOT `required` (the canonical group must share required status): the service
+    // fails closed when no filter resolves for a bulk op ("Filter is required...").
     {
       id: 'filterBuilder',
-      title: 'Filter Conditions',
+      title: 'Filter',
       type: 'filter-builder',
+      canonicalParamId: 'filterInput',
+      mode: 'basic',
       paramVisibility: 'user-only',
-      // Deliberately NOT `required`: an agent can satisfy the bulk ops with the
-      // `filter` string while filterMode sits at its 'builder' default, and the
-      // serializer hard-blocks execution on missing required fields. The service
-      // itself fails closed when no filter resolves ("Filter is required...").
       condition: {
         field: 'operation',
         value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
-        and: { field: 'filterMode', value: 'builder' },
       },
     },
-
-    // Visual sort builder (builder mode) — query only
-    {
-      id: 'sortBuilder',
-      title: 'Sort Order',
-      type: 'sort-builder',
-      paramVisibility: 'user-only',
-      condition: {
-        field: 'operation',
-        value: 'query_rows',
-        and: { field: 'filterMode', value: 'builder' },
-      },
-    },
-
-    // Filter — PostgREST querystring (editor mode), query + bulk update/delete
     {
       id: 'filter',
       title: 'Filter',
-      type: 'long-input',
-      rows: 2,
-      placeholder: 'wins=gte.10&status=in.(active,pending)',
-      required: {
-        field: 'operation',
-        value: ['update_rows_by_filter', 'delete_rows_by_filter'],
-        and: { field: 'filterMode', value: 'editor' },
-      },
+      type: 'code',
+      canonicalParamId: 'filterInput',
+      mode: 'advanced',
+      placeholder: '{"all":[{"field":"wins","op":"gte","value":10}]}',
       condition: {
         field: 'operation',
         value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
-        and: { field: 'filterMode', value: 'editor' },
       },
       wandConfig: {
         enabled: true,
         maintainHistory: true,
-        prompt: `Generate a PostgREST filter querystring for selecting rows.
+        prompt: `Generate a predicate filter object (JSON) for selecting rows.
 
 ### CONTEXT
 {context}
 
 ### INSTRUCTION
-Return ONLY the querystring. No explanations, surrounding quotes, or markdown.
+Return ONLY the JSON object. No explanations, surrounding quotes, or markdown.
 
-Top-level params join with & (AND). Use or=(a.op.v,b.op.v) / and=(...) for OR or nested logic.
+A predicate is a tree: {"all":[...]} (AND) or {"any":[...]} (OR); members are leaves {"field","op","value"} or nested groups.
 
 ### OPERATORS
-eq, neq, gt, gte, lt, lte; in.(a,b); like / ilike (use * as the wildcard); match / imatch (regex); is.null. Negate with not. (e.g. not.in.(...), not.is.null).
+eq, ne, gt, gte, lt, lte, in, nin (in/nin take an array value), like, ilike (use * as the wildcard), nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty.
 
 ### EXAMPLES
-"status is active" → status=eq.active
-"wins at least 10 and active" → wins=gte.10&active=is.true
-"status active or pending" → or=(status.eq.active,status.eq.pending)
-"name contains jo (any case)" → name=ilike.*jo*
+"status is active" → {"all":[{"field":"status","op":"eq","value":"active"}]}
+"wins at least 10 and active" → {"all":[{"field":"wins","op":"gte","value":10},{"field":"active","op":"eq","value":true}]}
+"status active or pending" → {"any":[{"field":"status","op":"eq","value":"active"},{"field":"status","op":"eq","value":"pending"}]}
+"name contains jo (any case)" → {"all":[{"field":"name","op":"ilike","value":"*jo*"}]}
 
-Return ONLY the querystring:`,
+Return ONLY the JSON object:`,
         generationType: 'table-schema',
       },
     },
-    // Order — PostgREST order (editor mode), query only
+
+    // Order — canonical Builder⟷Editor toggle, query only. Basic = visual sort
+    // builder (human-only); Advanced = sort-spec JSON the agent authors.
+    {
+      id: 'sortBuilder',
+      title: 'Order',
+      type: 'sort-builder',
+      canonicalParamId: 'sortInput',
+      mode: 'basic',
+      paramVisibility: 'user-only',
+      condition: { field: 'operation', value: 'query_rows' },
+    },
     {
       id: 'order',
       title: 'Order',
       type: 'short-input',
-      placeholder: 'wins.desc,name.asc',
-      condition: {
-        field: 'operation',
-        value: 'query_rows',
-        and: { field: 'filterMode', value: 'editor' },
-      },
+      canonicalParamId: 'sortInput',
+      mode: 'advanced',
+      placeholder: '[{"field":"wins","direction":"desc"}]',
+      condition: { field: 'operation', value: 'query_rows' },
     },
     {
       id: 'limit',
@@ -506,15 +464,16 @@ Return ONLY the querystring:`,
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
-    filterMode: { type: 'string', description: 'Filter input mode: builder or editor' },
-    filterBuilder: { type: 'json', description: 'Visual filter builder conditions' },
-    sortBuilder: { type: 'json', description: 'Visual sort builder conditions' },
-    filter: {
-      type: 'string',
+    filterInput: {
+      type: 'json',
       description:
-        'PostgREST filter querystring, e.g. wins=gte.10&status=in.(active,pending). Used by query and bulk update/delete.',
+        'Filter — a predicate object {"all":[{"field":"wins","op":"gte","value":10}]} (or visual builder conditions). Used by query and bulk update/delete.',
     },
-    order: { type: 'string', description: 'PostgREST order, e.g. wins.desc,name.asc' },
+    sortInput: {
+      type: 'json',
+      description:
+        'Order — a sort spec [{"field":"wins","direction":"desc"}] (or visual sort conditions). Query only.',
+    },
     limit: {
       type: 'number',
       description:

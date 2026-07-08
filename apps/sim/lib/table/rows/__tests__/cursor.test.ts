@@ -54,10 +54,27 @@ describe('cursor codec', () => {
     expect(token).toMatch(/^[A-Za-z0-9_-]+$/)
   })
 
+  it('stamps a version field and rejects any other version', () => {
+    const token = encodeCursor({
+      lastRow: { id: 'r', orderKey: 'a' },
+      keysetValid: true,
+      nextOffset: 0,
+    })
+    expect(JSON.parse(Buffer.from(token, 'base64url').toString('utf8')).v).toBe(1)
+    // A future/unknown version fails cleanly instead of being misread.
+    expect(() => decodeCursor(Buffer.from('{"v":2,"o":0}').toString('base64url'))).toThrow(
+      'Invalid cursor'
+    )
+    // A pre-version token (no `v`) is no longer accepted.
+    expect(() => decodeCursor(Buffer.from('{"o":0}').toString('base64url'))).toThrow(
+      'Invalid cursor'
+    )
+  })
+
   it('throws on a malformed cursor', () => {
     expect(() => decodeCursor('not-base64-$$$')).toThrow('Invalid cursor')
     // Valid base64url but wrong shape.
-    expect(() => decodeCursor(Buffer.from('{"x":1}').toString('base64url'))).toThrow(
+    expect(() => decodeCursor(Buffer.from('{"v":1,"x":1}').toString('base64url'))).toThrow(
       'Invalid cursor'
     )
   })
@@ -69,10 +86,10 @@ describe('cursor codec', () => {
   })
 
   it('rejects negative and non-integer offsets', () => {
-    expect(() => decodeCursor(Buffer.from('{"o":-1}').toString('base64url'))).toThrow(
+    expect(() => decodeCursor(Buffer.from('{"v":1,"o":-1}').toString('base64url'))).toThrow(
       'Invalid cursor'
     )
-    expect(() => decodeCursor(Buffer.from('{"o":1.5}').toString('base64url'))).toThrow(
+    expect(() => decodeCursor(Buffer.from('{"v":1,"o":1.5}').toString('base64url'))).toThrow(
       'Invalid cursor'
     )
   })
