@@ -389,6 +389,7 @@ export async function publishCustomBlock(params: {
     organizationId,
     workflowId,
     workflowName: wf.name,
+    workspaceId: wf.workspaceId,
     workspaceName: ws?.name ?? null,
     type,
     name,
