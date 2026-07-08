@@ -35,11 +35,35 @@ function validateAshbySignature(secretToken: string, signature: string, body: st
 }
 
 export const ashbyHandler: WebhookProviderHandler = {
+  /**
+   * Ashby webhook payloads carry no delivery/event id (confirmed against the
+   * live OpenAPI spec — every webhookType only has `action` + `data`), so we
+   * derive a stable key from the affected resource's id plus its
+   * `updatedAt`/`createdAt` (when present) to distinguish a retried delivery
+   * of the same event from a genuinely new one.
+   */
   extractIdempotencyId(body: unknown): string | null {
     const obj = body as Record<string, unknown>
-    const webhookActionId = obj.webhookActionId
-    if (typeof webhookActionId === 'string' && webhookActionId) {
-      return `ashby:${webhookActionId}`
+    const action = typeof obj.action === 'string' ? obj.action : undefined
+    const data = obj.data as Record<string, unknown> | undefined
+    if (!action || !data) return null
+
+    const application = data.application as Record<string, unknown> | undefined
+    const candidate = data.candidate as Record<string, unknown> | undefined
+    const job = data.job as Record<string, unknown> | undefined
+    const offer = data.offer as Record<string, unknown> | undefined
+
+    if (application?.id) {
+      return `ashby:${action}:${application.id}:${application.updatedAt ?? ''}`
+    }
+    if (offer?.id) {
+      return `ashby:${action}:${offer.id}:${offer.decidedAt ?? ''}`
+    }
+    if (candidate?.id) {
+      return `ashby:${action}:${candidate.id}`
+    }
+    if (job?.id) {
+      return `ashby:${action}:${job.id}`
     }
     return null
   },
@@ -185,6 +209,13 @@ export const ashbyHandler: WebhookProviderHandler = {
         } else if (ashbyResponse.status === 403) {
           userFriendlyMessage =
             'Access denied. Please ensure your Ashby API Key has the apiKeysWrite permission.'
+        } else if (/duplicate webhook/i.test(errorMessage)) {
+          // Ashby has no webhook.list endpoint, so a lost externalId (e.g. a
+          // prior attempt succeeded in Ashby but we failed to persist the
+          // result) can't be self-healed by looking the webhook up — the
+          // user must remove the stale one in Ashby before retrying.
+          userFriendlyMessage =
+            'A webhook for this URL and event already exists in Ashby. This usually happens when a previous save succeeded in Ashby but Sim failed to record it. Delete the duplicate webhook under Ashby Settings > API/Webhooks, then re-save this trigger.'
         } else if (errorMessage && errorMessage !== 'Unknown Ashby API error') {
           userFriendlyMessage = `Ashby error: ${errorMessage}`
         }
