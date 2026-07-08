@@ -90,12 +90,6 @@ jobs:
             ecr_repo_secret: ECR_REALTIME
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
-          # Opt-in GLiNER variant of the pii image (torch + gliner + baked
-          # model). Deployed by setting PII_ENGINE=gliner on the pii service.
-          - dockerfile: ./docker/pii.Dockerfile
-            ecr_repo_secret: ECR_PII
-            target: gliner
-            tag_suffix: -gliner
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -132,8 +126,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev${{ matrix.tag_suffix || '' }}
-          target: ${{ matrix.target || '' }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
           provenance: false
           sbom: false
 
@@ -208,13 +201,6 @@ jobs:
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
-          # Opt-in GLiNER variant of the pii image (torch + gliner + baked
-          # model). amd64 only — the deploy fleet is amd64; no arm64/manifest.
-          - dockerfile: ./docker/pii.Dockerfile
-            ghcr_image: ghcr.io/simstudioai/pii
-            ecr_repo_secret: ECR_PII
-            target: gliner
-            tag_suffix: -gliner
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -258,35 +244,26 @@ jobs:
           ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
           ECR_REPO="${{ steps.ecr-repo.outputs.name }}"
           GHCR_IMAGE="${{ matrix.ghcr_image }}"
-          TAG_SUFFIX="${{ matrix.tag_suffix }}"
-
-          # Suffixed variants (e.g. pii -gliner) are amd64-only and skip the
-          # manifest merge, so their GHCR tags are plain — no -amd64 alias.
-          if [ -n "$TAG_SUFFIX" ]; then
-            ARCH_SUFFIX=""
-          else
-            ARCH_SUFFIX="-amd64"
-          fi
 
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            ECR_TAG="latest${TAG_SUFFIX}"
+            ECR_TAG="latest"
           else
-            ECR_TAG="staging${TAG_SUFFIX}"
+            ECR_TAG="staging"
           fi
           ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPO}:${ECR_TAG}"
 
           TAGS="${ECR_IMAGE}"
 
           if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$GHCR_IMAGE" ]; then
-            GHCR_AMD64="${GHCR_IMAGE}:latest${TAG_SUFFIX}${ARCH_SUFFIX}"
-            GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}${TAG_SUFFIX}${ARCH_SUFFIX}"
+            GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
+            GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
             TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
 
             if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
               VERSION="${{ needs.detect-version.outputs.version }}"
-              GHCR_VERSION="${GHCR_IMAGE}:${VERSION}${TAG_SUFFIX}${ARCH_SUFFIX}"
+              GHCR_VERSION="${GHCR_IMAGE}:${VERSION}-amd64"
               TAGS="${TAGS},$GHCR_VERSION"
-              echo "📦 Adding version tag: ${VERSION}${TAG_SUFFIX}${ARCH_SUFFIX}"
+              echo "📦 Adding version tag: ${VERSION}-amd64"
             fi
           fi
 
@@ -300,7 +277,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          target: ${{ matrix.target || '' }}
           provenance: false
           sbom: false
 

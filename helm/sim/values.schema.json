@@ -714,7 +714,7 @@
         "engine": {
           "type": "string",
           "enum": ["spacy", "gliner"],
-          "description": "NER engine; gliner requires the -gliner image variant"
+          "description": "NER engine (spacy default, gliner opt-in; both ship in the image)"
         },
         "device": {
           "type": "string",

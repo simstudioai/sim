@@ -4,10 +4,10 @@ Requires the models present, so run inside the built images (gated behind
 RUN_PII_INTEGRATION to keep plain `pytest` runs model-free):
 
     # spacy regression (default engine)
-    docker run --rm -e RUN_PII_INTEGRATION=1 sim-pii:gliner python -m pytest tests
+    docker run --rm -e RUN_PII_INTEGRATION=1 <pii-image> python -m pytest tests
 
     # gliner engine
-    docker run --rm -e RUN_PII_INTEGRATION=1 -e PII_ENGINE=gliner sim-pii:gliner \
+    docker run --rm -e RUN_PII_INTEGRATION=1 -e PII_ENGINE=gliner <pii-image> \
         python -m pytest tests/test_integration.py
 
 The suite adapts to PII_ENGINE: shared assertions always run, engine-specific

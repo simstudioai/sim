@@ -225,14 +225,15 @@ def build_gliner_analyzer(model_name: str, device: str | None) -> AnalyzerEngine
     :param device: torch device ("cpu", "cuda", "cuda:0"); None auto-detects
         via Presidio's device_detector (cuda when available, else cpu).
     """
-    # Fail fast with an actionable message on the lean image. Without these
-    # checks Presidio would try to pip-download the missing spaCy models at
-    # startup (a silent network fallback that dies with an unrelated pip
-    # permission error), and the gliner ImportError would surface only later.
+    # Fail fast with an actionable message when gliner deps are missing (e.g.
+    # a custom-built image without them). Without these checks Presidio would
+    # try to pip-download the missing spaCy models at startup (a silent
+    # network fallback that dies with an unrelated pip permission error), and
+    # the gliner ImportError would surface only later.
     if importlib.util.find_spec("gliner") is None:
         raise RuntimeError(
-            "PII_ENGINE=gliner requires the gliner image variant "
-            "(docker build --target gliner); the gliner package is not installed"
+            "PII_ENGINE=gliner but the gliner package is not installed; "
+            "use the stock pii image (docker/pii.Dockerfile ships torch + gliner)"
         )
     missing = [
         m["model_name"]
@@ -242,7 +243,7 @@ def build_gliner_analyzer(model_name: str, device: str | None) -> AnalyzerEngine
     if missing:
         raise RuntimeError(
             f"PII_ENGINE=gliner needs spaCy models {missing}; "
-            "use the gliner image variant (docker build --target gliner)"
+            "use the stock pii image (docker/pii.Dockerfile ships them)"
         )
     nlp_engine = NlpEngineProvider(nlp_configuration=GLINER_NLP_CONFIGURATION).create_engine()
     analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=SUPPORTED_LANGUAGES)

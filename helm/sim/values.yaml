@@ -824,10 +824,9 @@ pii:
 
   # NER engine: "spacy" (default) or "gliner" (opt-in zero-shot transformer NER
   # for PERSON/LOCATION/NRP/DATE_TIME; regex/checksum recognizers are identical
-  # on both engines). gliner requires the gliner image variant — the `-gliner`
-  # published tag (e.g. image.tag: latest-gliner) or a local
-  # `docker build --target gliner -f docker/pii.Dockerfile` — and fails fast at
-  # startup on the default image.
+  # on both engines). The image ships both engines, so this is a pure env flip
+  # — no image change needed. Note: gliner on CPU is orders of magnitude slower
+  # than spacy; it is intended for GPU nodes.
   engine: "spacy"
 
   # Torch device for the gliner engine: "cpu", "cuda", or "cuda:N". Empty

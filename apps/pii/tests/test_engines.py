@@ -70,7 +70,7 @@ def test_invalid_pii_engine_fails_import():
     reason="fail-fast path only exists when gliner is not installed",
 )
 def test_build_gliner_analyzer_fails_fast_without_gliner():
-    with pytest.raises(RuntimeError, match="gliner image variant"):
+    with pytest.raises(RuntimeError, match="gliner package is not installed"):
         engines.build_gliner_analyzer(model_name="fake/model", device="cpu")
 
 

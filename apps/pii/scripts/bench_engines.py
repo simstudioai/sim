@@ -7,10 +7,10 @@ Non-NER (regex/checksum) results must be identical between engines — both
 register the same recognizers — so any mismatch there is a wiring bug and the
 script exits non-zero.
 
-Meant to run inside the gliner image (the only one with both engines):
+Meant to run inside the pii image (both engines ship in it):
 
-    docker run --rm sim-pii:gliner python scripts/bench_engines.py
-    docker run --rm -v $PWD/texts.json:/data.json sim-pii:gliner \\
+    docker run --rm <pii-image> python scripts/bench_engines.py
+    docker run --rm -v $PWD/texts.json:/data.json <pii-image> \\
         python scripts/bench_engines.py --payload /data.json
 
 Payload format: JSON list of {"text": str, "language": str} objects.

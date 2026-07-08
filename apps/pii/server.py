@@ -7,7 +7,7 @@ endpoints so a single PRESIDIO_URL serves both.
 NER engine selection (see engines.py):
 - PII_ENGINE=spacy (default): the 5 large spaCy models, unchanged behavior.
 - PII_ENGINE=gliner: one multilingual GLiNER model for PERSON/LOCATION/NRP/
-  DATE_TIME; requires the `gliner` image target (torch + gliner installed).
+  DATE_TIME. The stock image ships both engines, so this is a pure env flip.
   PII_DEVICE picks cpu/cuda (unset = auto-detect), PII_GLINER_MODEL overrides
   the model id. The same code runs on CPU and GPU. Each uvicorn worker
   (PII_WORKERS) loads its own GLiNER model copy — into GPU memory when on
