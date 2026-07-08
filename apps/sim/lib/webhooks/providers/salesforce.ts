@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { sha256Hex } from '@sim/security/hash'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -8,7 +7,7 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
+import { buildFallbackDeliveryFingerprint, verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 
 export function extractSalesforceObjectTypeFromPayload(
   body: Record<string, unknown>
@@ -96,25 +95,6 @@ function pickTimestamp(body: Record<string, unknown>, record: Record<string, unk
     }
   }
   return ''
-}
-
-function stableSerialize(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableSerialize(item)).join(',')}]`
-  }
-
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, nested]) => `${JSON.stringify(key)}:${stableSerialize(nested)}`)
-      .join(',')}}`
-  }
-
-  return JSON.stringify(value)
-}
-
-function buildFallbackDeliveryFingerprint(body: Record<string, unknown>): string {
-  return sha256Hex(stableSerialize(body))
 }
 
 function pickRecordId(body: Record<string, unknown>, record: Record<string, unknown>): string {
