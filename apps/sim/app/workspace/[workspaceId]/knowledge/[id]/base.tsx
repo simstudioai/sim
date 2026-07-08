@@ -344,7 +344,7 @@ export function KnowledgeBase({
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
   const [showDocumentTagsModal, setShowDocumentTagsModal] = useState(false)
-  const [documentForTags, setDocumentForTags] = useState<DocumentData | null>(null)
+  const [documentForTagsId, setDocumentForTagsId] = useState<string | null>(null)
   const showAddConnectorModal = addConnectorType != null
   const updateAddConnectorParam = useCallback(
     (value: string | null) => {
@@ -538,7 +538,7 @@ export function KnowledgeBase({
    * Opens the document tags modal
    */
   const handleViewDocumentTags = (doc: DocumentData) => {
-    setDocumentForTags(doc)
+    setDocumentForTagsId(doc.id)
     setShowDocumentTagsModal(true)
   }
 
@@ -1356,14 +1356,14 @@ export function KnowledgeBase({
         />
       )}
 
-      {documentForTags && (
+      {documentForTagsId && (
         <DocumentTagsModal
           open={showDocumentTagsModal}
           onOpenChange={setShowDocumentTagsModal}
           knowledgeBaseId={id}
-          documentId={documentForTags.id}
-          documentData={documentForTags}
-          onDocumentUpdate={(updates) => updateDocument(documentForTags.id, updates)}
+          documentId={documentForTagsId}
+          documentData={documents.find((doc) => doc.id === documentForTagsId) ?? null}
+          onDocumentUpdate={(updates) => updateDocument(documentForTagsId, updates)}
         />
       )}
 
