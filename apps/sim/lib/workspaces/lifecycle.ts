@@ -120,37 +120,23 @@ export async function archiveWorkspace(
     ? ({ isolationLevel: 'serializable' } as const)
     : undefined
 
-  const provisionedWorkspaceUserIds = await db.transaction(async (tx) => {
-    if (!options.provisionFallbackForStrandedMembers) {
-      return []
-    }
+  const provisionedFallbacks = await db.transaction(async (tx) => {
+    const fallbacks: Array<{ userId: string; workspaceId: string; name: string }> = []
 
-    const strandedUserIds = await findMembersStrandedByArchival(tx, workspaceId)
-    for (const userId of strandedUserIds) {
-      // Intentionally bypasses getWorkspaceCreationPolicy: this is a system-provisioned safety
-      // net (never blocked by "who can create a workspace" rules), not user self-service.
-      const fallbackWorkspace = await createWorkspaceRecord({
-        userId,
-        name: FALLBACK_WORKSPACE_NAME,
-        organizationId: null,
-        workspaceMode: WORKSPACE_MODE.PERSONAL,
-        billedAccountUserId: userId,
-        executor: tx,
-      })
-
-      if (options.actorId) {
-        recordAudit({
-          workspaceId: fallbackWorkspace.id,
-          actorId: options.actorId,
-          actorName: options.actorName,
-          actorEmail: options.actorEmail,
-          action: AuditAction.WORKSPACE_CREATED,
-          resourceType: AuditResourceType.WORKSPACE,
-          resourceId: fallbackWorkspace.id,
-          resourceName: fallbackWorkspace.name,
-          description: `Auto-created replacement workspace "${fallbackWorkspace.name}" for a member left with no workspace after deleting "${workspaceRecord.name}"`,
-          metadata: { deletedWorkspaceId: workspaceId, recipientUserId: userId },
+    if (options.provisionFallbackForStrandedMembers) {
+      const strandedUserIds = await findMembersStrandedByArchival(tx, workspaceId)
+      for (const userId of strandedUserIds) {
+        // Intentionally bypasses getWorkspaceCreationPolicy: this is a system-provisioned safety
+        // net (never blocked by "who can create a workspace" rules), not user self-service.
+        const fallbackWorkspace = await createWorkspaceRecord({
+          userId,
+          name: FALLBACK_WORKSPACE_NAME,
+          organizationId: null,
+          workspaceMode: WORKSPACE_MODE.PERSONAL,
+          billedAccountUserId: userId,
+          executor: tx,
         })
+        fallbacks.push({ userId, workspaceId: fallbackWorkspace.id, name: fallbackWorkspace.name })
       }
     }
 
@@ -276,8 +262,30 @@ export async function archiveWorkspace(
       })
       .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
 
-    return strandedUserIds
+    return fallbacks
   }, transactionConfig)
+
+  // Recorded only after the transaction commits — recordAudit is fire-and-forget and doesn't
+  // participate in the transaction, so recording it earlier could leave a phantom audit entry
+  // pointing at a fallback workspace that got rolled back (e.g. on a serialization failure).
+  if (options.actorId) {
+    for (const fallback of provisionedFallbacks) {
+      recordAudit({
+        workspaceId: fallback.workspaceId,
+        actorId: options.actorId,
+        actorName: options.actorName,
+        actorEmail: options.actorEmail,
+        action: AuditAction.WORKSPACE_CREATED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: fallback.workspaceId,
+        resourceName: fallback.name,
+        description: `Auto-created replacement workspace "${fallback.name}" for a member left with no workspace after deleting "${workspaceRecord.name}"`,
+        metadata: { deletedWorkspaceId: workspaceId, recipientUserId: fallback.userId },
+      })
+    }
+  }
+
+  const provisionedWorkspaceUserIds = provisionedFallbacks.map((fallback) => fallback.userId)
 
   await archiveWorkflowsForWorkspace(workspaceId, options)
 

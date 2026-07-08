@@ -206,6 +206,37 @@ describe('workspace lifecycle', () => {
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
+  it('does not record an audit entry for a fallback workspace whose transaction subsequently fails', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace 1',
+      ownerId: 'user-1',
+      archivedAt: null,
+    })
+    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
+      accessibleWorkspaceRow('workspace-1'),
+    ])
+
+    const tx = createTx([{ userId: 'user-victim' }])
+    mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) => {
+      await callback(tx)
+      throw new Error('serialization_failure')
+    })
+
+    await expect(
+      archiveWorkspace('workspace-1', {
+        requestId: 'req-1',
+        provisionFallbackForStrandedMembers: true,
+        actorId: 'admin-1',
+      })
+    ).rejects.toThrow('serialization_failure')
+
+    // recordAudit must only ever be called after the transaction has committed — otherwise a
+    // failed transaction (e.g. a serialization abort) would leave a phantom audit entry pointing
+    // at a fallback workspace that was rolled back.
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+  })
+
   it('only provisions a fallback for the one member who would actually be stranded', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
@@ -327,6 +358,11 @@ describe('workspace lifecycle', () => {
     expect(mockListAccessibleWorkspaceRowsForUser).not.toHaveBeenCalled()
     expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
     expect(mockTransaction).toHaveBeenCalledWith(expect.any(Function), undefined)
+    // The archival writes must still run even when fallback provisioning is skipped entirely —
+    // this is the exact regression a prior version of this fix introduced (an early return that
+    // skipped all archival writes whenever the flag was off).
+    expect(tx.update).toHaveBeenCalledTimes(8)
+    expect(tx.delete).toHaveBeenCalledTimes(1)
   })
 
   it('is idempotent for already archived workspaces', async () => {
