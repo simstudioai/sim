@@ -32,7 +32,6 @@ export type TableUndoAction =
   | {
       type: 'create-row'
       rowId: string
-      position: number
       orderKey?: string
       data?: Record<string, unknown>
     }
@@ -40,7 +39,6 @@ export type TableUndoAction =
       type: 'create-rows'
       rows: Array<{
         rowId: string
-        position: number
         orderKey?: string
         data: Record<string, unknown>
       }>
