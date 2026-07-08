@@ -187,7 +187,8 @@ function jobReport(job: BackgroundWorkItem): JobReport {
   addGroup('Skills', m.skillNames)
   addGroup('MCP servers', m.mcpServerNames)
   addGroup('Workflow MCP servers', m.workflowMcpServerNames)
-  // Pre-names entries fall back to the per-kind counts.
+  // Sync content-copy rows record per-kind COUNTS only (fork rows carry names), so fall back
+  // to the counts when no named group rendered.
   if (groups.length === 0) {
     const counts = [
       [m.workflowsCopied, 'workflow'],

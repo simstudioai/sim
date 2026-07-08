@@ -56,7 +56,7 @@ export async function loadForkDependentValues(
 /**
  * Translate dependent values through the promote resolver before they are applied to the
  * written state and persisted: a value that is a SOURCE knowledge-document id (a pick under a
- * copy-resolved KB, or a legacy stored row) becomes its copied/mapped counterpart id, so the
+ * copy-resolved KB) becomes its copied/mapped counterpart id, so the
  * dependent-value apply - which runs AFTER the reference remap and wins for its subblock -
  * never writes a source-workspace document id into the target, and the store stays coherent
  * for the next sync's (then-mapped) display. Only ids the resolver actually knows are

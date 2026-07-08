@@ -62,13 +62,13 @@ export const GET = withRouteHandler(
     const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
 
     // Stored dependent values are the source of truth for what each selector is set to. Overlay
-    // them as each field's currentValue so the modal pre-fills what the user actually saved. For
-    // an edge that predates the store the fallback is the TARGET's own configured value (loaded
-    // from its draft) - never the source's, which would overwrite the target's selection on the
-    // first sync. The stored read spans EVERY plan target: a create-mode (never-synced) workflow's
-    // deterministic target id is what the first sync will use, so values pre-configured for it in
-    // the mapping editor pre-fill here too. The draft read stays replace-scoped (creates have no
-    // target draft to fall back to).
+    // them as each field's currentValue so the modal pre-fills what the user actually saved.
+    // Before the FIRST sync populates the store (fork-create seeds mappings but no dependent
+    // values), the fallback is the TARGET's own configured value (loaded from its draft) - never
+    // the source's, which would overwrite the target's selection. The stored read spans EVERY
+    // plan target: a create-mode (never-synced) workflow's deterministic target id is what the
+    // first sync will use, so values pre-configured for it in the mapping editor pre-fill here
+    // too. The draft read stays replace-scoped (creates have no target draft to fall back to).
     const replaceTargetIds = plan.items
       .filter((item) => item.mode === 'replace')
       .map((item) => item.targetWorkflowId)
@@ -109,11 +109,12 @@ export const GET = withRouteHandler(
     }
 
     // Replace-target fields pre-fill from the store, falling back to the TARGET's own draft
-    // value (never the source's, which would overwrite the target's selection on the first
-    // sync of a pre-store edge). Create-target fields (never-synced workflows) pre-fill from
-    // the store, falling back to the SOURCE value the collector emitted - that's exactly what
-    // the first sync copies verbatim, so the pre-fill is honest and configuring it ahead of
-    // the first sync is possible (the deterministic target ids already exist).
+    // value before the first sync populates the store (never the source's, which would
+    // overwrite the target's selection). Create-target fields (never-synced workflows)
+    // pre-fill from the store, falling back to the SOURCE value the collector emitted -
+    // that's exactly what the first sync copies verbatim, so the pre-fill is honest and
+    // configuring it ahead of the first sync is possible (the deterministic target ids
+    // already exist).
     const dependentReconfigs = [
       ...collectForkDependentReconfigs(plan.items, sourceStates, resolveBlockId).map((field) => ({
         ...field,

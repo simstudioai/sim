@@ -229,7 +229,8 @@ const NO_GATES: CanonicalModeGates = {
  * index and one mode resolution feed every gate, so all surfaces answer identically. Mode
  * resolution uses the RAW values (member ids only); condition evaluation uses a separate view
  * augmented with each pair's ACTIVE value under its canonical id, mirroring how the serializer
- * exposes params to conditions. With no configs every gate is a no-op (legacy behavior).
+ * exposes params to conditions. With no configs (unknown block type) every gate is a no-op:
+ * everything is detected and nothing passes through, the conservative default.
  */
 export function createCanonicalModeGates(
   configSubBlocks: SubBlockConfig[] | undefined,
@@ -780,8 +781,9 @@ export function remapForkSubBlocks(
   // active ADVANCED (manual) member - and every dependent scoped to it - passes through VERBATIM
   // (user-owned, never remapped, never a mapping requirement); a DORMANT member's value is
   // CLEARED outright (below) so no stale id ever survives in an inactive slot. A condition-hidden
-  // subblock is still rewritten but not detected. Needs `blockType` for the config; without it
-  // everything keeps legacy behavior.
+  // subblock is still rewritten but not detected. Needs `blockType` for the config; an unknown
+  // block type gets no gating (everything detected, nothing passed through - the conservative
+  // default).
   const gates = createCanonicalModeGates(
     context?.blockType ? getBlock(context.blockType)?.subBlocks : undefined,
     buildSubBlockValues(subBlocks),
@@ -1265,9 +1267,10 @@ export function parseNestedDependentKey(
 
 /**
  * Read a dependent field's currently-configured value from a target block's draft subBlocks -
- * the first-sync fallback used when the stored mapping has no entry yet. Seeds the diff pre-fill
- * from the TARGET (never the source, which would overwrite the target's own selection on an edge
- * that predates the store). Identity-aware: for a nested `toolInput[index].paramId` key it only
+ * the first-sync fallback used when the stored mapping has no entry yet (fork-create seeds
+ * mappings but no dependent values, so every edge starts here). Seeds the diff pre-fill from
+ * the TARGET (never the source, which would overwrite the target's own selection).
+ * Identity-aware: for a nested `toolInput[index].paramId` key it only
  * reads the target draft's param when the target tool at that index is the SAME tool type the
  * SOURCE dependent hangs off; otherwise that index holds a different tool whose value isn't this
  * field's. Returns '' when unset or when identity can't be verified.

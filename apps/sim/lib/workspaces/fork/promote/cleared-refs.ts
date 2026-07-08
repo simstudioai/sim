@@ -82,7 +82,7 @@ function baseSubBlockId(key: string): string {
  * {@link remapWorkflowReferencesInSubBlocks} so the cleared-ref list flags exactly the refs that
  * remap would clear - the free-form manual fields (`manualWorkflowId`, `manualWorkflowIds`) are
  * user-owned and never remapped/cleared, so they are intentionally excluded (the `workflowIds`
- * branch is gated on TYPE `dropdown` because the legacy logs block's `workflowIds` is a manual
+ * branch is gated on TYPE `dropdown` because the logs block's `workflowIds` is a manual
  * `short-input`). Returns one entry per referenced workflow id with its owning subblock key.
  */
 function collectForkWorkflowReferences(
@@ -98,7 +98,7 @@ function collectForkWorkflowReferences(
   // Shares {@link createCanonicalModeGates} with the reference scan, so the scalar `workflowId`
   // pair, the deployments block's scalar `workflowSelector` pair, and the logs block's
   // multi-select `workflowSelector` (`workflowIds` group) all resolve through their OWN group. A
-  // missing config or a non-pair member is never skipped (legacy/no-pair states keep emitting).
+  // missing config or a non-pair member is never skipped (no-pair states keep emitting).
   const gates = createCanonicalModeGates(
     config?.subBlocks,
     buildSubBlockValues(subBlocks),

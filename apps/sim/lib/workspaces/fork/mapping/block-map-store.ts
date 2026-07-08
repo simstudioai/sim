@@ -15,8 +15,8 @@ export interface ForkBlockPair {
 /**
  * Load an edge's persisted block-identity pairs into both lookup directions, each entry
  * carrying its target-side workflow so the resolver can scope a reuse to the right workflow
- * (see {@link buildForkBlockIdResolver}). Empty for an edge that predates the map (every
- * block id then derives, exactly as before).
+ * (see {@link buildForkBlockIdResolver}). Blocks without a pair (added since the last sync)
+ * fall back to the deterministic derive.
  */
 export async function loadForkBlockMap(
   executor: DbOrTx,
