@@ -49,6 +49,7 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
+import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   ActionBar,
   AddConnectorModal,
@@ -342,6 +343,8 @@ export function KnowledgeBase({
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
+  const [showDocumentTagsModal, setShowDocumentTagsModal] = useState(false)
+  const [documentForTags, setDocumentForTags] = useState<DocumentData | null>(null)
   const showAddConnectorModal = addConnectorType != null
   const updateAddConnectorParam = useCallback(
     (value: string | null) => {
@@ -529,6 +532,14 @@ export function KnowledgeBase({
   const handleRenameDocument = (doc: DocumentData) => {
     setDocumentToRename(doc)
     setShowRenameModal(true)
+  }
+
+  /**
+   * Opens the document tags modal
+   */
+  const handleViewDocumentTags = (doc: DocumentData) => {
+    setDocumentForTags(doc)
+    setShowDocumentTagsModal(true)
   }
 
   /**
@@ -1345,6 +1356,17 @@ export function KnowledgeBase({
         />
       )}
 
+      {documentForTags && (
+        <DocumentTagsModal
+          open={showDocumentTagsModal}
+          onOpenChange={setShowDocumentTagsModal}
+          knowledgeBaseId={id}
+          documentId={documentForTags.id}
+          documentData={documentForTags}
+          onDocumentUpdate={(updates) => updateDocument(documentForTags.id, updates)}
+        />
+      )}
+
       <ChipModal
         open={showConnectorsModal}
         onOpenChange={setShowConnectorsModal}
@@ -1371,11 +1393,6 @@ export function KnowledgeBase({
         onClose={handleContextMenuClose}
         hasDocument={contextMenuDocument !== null}
         isDocumentEnabled={contextMenuDocument?.enabled ?? true}
-        hasTags={
-          contextMenuDocument
-            ? getDocumentTags(contextMenuDocument, tagDefinitions).length > 0
-            : false
-        }
         selectedCount={selectedDocuments.size}
         enabledCount={enabledCount}
         disabledCount={disabledCount}
@@ -1414,15 +1431,7 @@ export function KnowledgeBase({
         }
         onViewTags={
           contextMenuDocument && selectedDocuments.size === 1
-            ? () => {
-                const urlParams = new URLSearchParams({
-                  kbName: knowledgeBaseName,
-                  docName: contextMenuDocument.filename || 'Document',
-                })
-                router.push(
-                  `/workspace/${workspaceId}/knowledge/${id}/${contextMenuDocument.id}?${urlParams.toString()}`
-                )
-              }
+            ? () => handleViewDocumentTags(contextMenuDocument)
             : undefined
         }
         onDelete={
