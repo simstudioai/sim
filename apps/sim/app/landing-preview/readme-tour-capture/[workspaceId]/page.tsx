@@ -19,7 +19,7 @@ import { SocketProvider } from '@/app/workspace/providers/socket-provider'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { connectorKeys } from '@/hooks/queries/kb/connectors'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
-import { logKeys } from '@/hooks/queries/logs'
+import { type LogFilters, logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { sessionKeys } from '@/hooks/queries/session'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
@@ -373,7 +373,7 @@ function seed(qc: QueryClient) {
   qc.setQueryData(workspaceFileFolderKeys.list(WS_ID, 'active'), [])
 
   // Logs
-  const logFilters = {
+  const logFilters: LogFilters = {
     timeRange: 'All time',
     startDate: undefined,
     endDate: undefined,
@@ -632,7 +632,7 @@ export default function ReadmeTourCapturePage({ searchParams }: CapturePageProps
                 <SandboxWorkspacePermissionsProvider>
                   <WorkspaceChrome>
                     {view === 'workflow' ? (
-                      <Workflow workspaceId={WS_ID} workflowId={WF_ID} sandbox />
+                      <Workflow workspaceId={WS_ID} workflowId={WF_ID} embedded />
                     ) : view === 'integrations' ? (
                       <Suspense fallback={null}>
                         <Integrations />
