@@ -10,12 +10,14 @@ const {
   mockArchiveWorkflowsForWorkspace,
   mockListAccessibleWorkspaceRowsForUser,
   mockCreateWorkspaceRecord,
+  mockGetActivelyBannedUserIds,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockTransaction: vi.fn(),
   mockArchiveWorkflowsForWorkspace: vi.fn(),
   mockListAccessibleWorkspaceRowsForUser: vi.fn(),
   mockCreateWorkspaceRecord: vi.fn(),
+  mockGetActivelyBannedUserIds: vi.fn(),
 }))
 
 const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
@@ -39,6 +41,10 @@ vi.mock('@/lib/workspaces/utils', () => ({
 
 vi.mock('@/lib/workspaces/create', () => ({
   createWorkspaceRecord: mockCreateWorkspaceRecord,
+}))
+
+vi.mock('@/lib/auth/ban', () => ({
+  getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -65,9 +71,18 @@ function accessibleWorkspaceRow(workspaceId: string) {
   return { workspace: { id: workspaceId }, permissionType: 'admin' as const }
 }
 
-function createTx(members: Array<{ userId: string }>) {
+function createTx(
+  members: Array<{ userId: string }>,
+  orgAdminMembers: Array<{ userId: string }> = []
+) {
+  const selectDistinct = vi.fn()
+  // First call is always the explicit-permissions query; the second (only reached when the
+  // workspace has an organizationId) is the org-admin query.
+  selectDistinct.mockReturnValueOnce(createMembersChain(members))
+  selectDistinct.mockReturnValueOnce(createMembersChain(orgAdminMembers))
+
   return {
-    selectDistinct: vi.fn().mockReturnValue(createMembersChain(members)),
+    selectDistinct,
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([]),
@@ -89,6 +104,7 @@ describe('workspace lifecycle', () => {
       }),
     })
     mockCreateWorkspaceRecord.mockResolvedValue({ id: 'fallback-workspace', name: 'My Workspace' })
+    mockGetActivelyBannedUserIds.mockResolvedValue([])
   })
 
   it('archives workspace and dependent resources under serializable isolation', async () => {
@@ -301,6 +317,74 @@ describe('workspace lifecycle', () => {
     })
     expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
     expect(tx.update).toHaveBeenCalledTimes(8)
+  })
+
+  it('provisions a fallback for an org admin who is stranded but has no explicit permission row', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace 1',
+      ownerId: 'user-1',
+      organizationId: 'org-1',
+      archivedAt: null,
+    })
+    mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
+    // The org admin has no row in `permissions` for this workspace at all — they only appear as
+    // an org-admin candidate. Their only accessible workspace is this one, so they're stranded.
+    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
+      accessibleWorkspaceRow('workspace-1'),
+    ])
+
+    const tx = createTx([], [{ userId: 'user-org-admin-no-row' }])
+    mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
+      callback(tx)
+    )
+
+    const result = await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
+    })
+
+    expect(result).toEqual({
+      archived: true,
+      workspaceName: 'Workspace 1',
+      provisionedWorkspaceUserIds: ['user-org-admin-no-row'],
+    })
+    expect(tx.selectDistinct).toHaveBeenCalledTimes(2)
+    expect(mockCreateWorkspaceRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-org-admin-no-row' })
+    )
+  })
+
+  it('does not provision a fallback for an actively banned stranded member', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace 1',
+      ownerId: 'user-1',
+      archivedAt: null,
+    })
+    mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
+    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
+      accessibleWorkspaceRow('workspace-1'),
+    ])
+    mockGetActivelyBannedUserIds.mockResolvedValue(['user-banned'])
+
+    const tx = createTx([{ userId: 'user-banned' }])
+    mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
+      callback(tx)
+    )
+
+    const result = await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
+      actorId: 'admin-1',
+    })
+
+    expect(result).toEqual({
+      archived: true,
+      workspaceName: 'Workspace 1',
+    })
+    expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('proceeds without provisioning when every member has another active workspace', async () => {

@@ -8,6 +8,7 @@ import {
   knowledgeBase,
   knowledgeConnector,
   mcpServers,
+  member,
   permissions,
   userTableDefinitions,
   workflowMcpServer,
@@ -16,7 +17,9 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import type { DbOrTx } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
@@ -55,11 +58,14 @@ interface ArchiveWorkspaceResult {
 }
 
 /**
- * Returns the userIds of explicit workspace members for whom `workspaceId` is their only
- * accessible active (non-archived) workspace. "Accessible" includes workspaces granted through
- * an explicit permission row AND workspaces derived from organization owner/admin role — an org
- * admin can always fall back to the rest of the organization's workspaces even without an
- * explicit permission row on any of them, so they are never stranded by this deletion.
+ * Returns the userIds who would be left with zero accessible active (non-archived) workspaces if
+ * `workspaceId` were archived. Candidates are the union of explicit workspace members AND the
+ * organization's admins/owners — an org admin can access a workspace purely through their org
+ * role with no permission row at all, so they must be checked even though they never show up as
+ * an explicit member. "Accessible" (via `listAccessibleWorkspaceRowsForUser`) already accounts for
+ * that same org-admin-derived access when deciding whether a candidate has another workspace to
+ * fall back to. Actively banned users are excluded from the result — they should never receive a
+ * new resource as a side effect of someone else's action.
  *
  * Must be called against the same executor used to perform the archival, under
  * `serializable` isolation, so the check and the write are atomic with respect to a concurrent
@@ -67,19 +73,34 @@ interface ArchiveWorkspaceResult {
  */
 async function findMembersStrandedByArchival(
   executor: DbOrTx,
-  workspaceId: string
+  workspaceId: string,
+  organizationId: string | null
 ): Promise<string[]> {
-  const members = await executor
+  const explicitMembers = await executor
     .selectDistinct({ userId: permissions.userId })
     .from(permissions)
     .where(and(eq(permissions.entityId, workspaceId), eq(permissions.entityType, 'workspace')))
 
-  if (members.length === 0) {
+  const candidateUserIds = new Set(explicitMembers.map((row) => row.userId))
+
+  if (organizationId) {
+    const orgAdmins = await executor
+      .selectDistinct({ userId: member.userId })
+      .from(member)
+      .where(
+        and(eq(member.organizationId, organizationId), inArray(member.role, [...ORG_ADMIN_ROLES]))
+      )
+    for (const { userId } of orgAdmins) {
+      candidateUserIds.add(userId)
+    }
+  }
+
+  if (candidateUserIds.size === 0) {
     return []
   }
 
   const strandedUserIds: string[] = []
-  for (const { userId } of members) {
+  for (const userId of candidateUserIds) {
     const accessible = await listAccessibleWorkspaceRowsForUser(userId, 'active', executor)
     const hasOtherWorkspace = accessible.some((row) => row.workspace.id !== workspaceId)
     if (!hasOtherWorkspace) {
@@ -87,7 +108,12 @@ async function findMembersStrandedByArchival(
     }
   }
 
-  return strandedUserIds
+  if (strandedUserIds.length === 0) {
+    return []
+  }
+
+  const bannedUserIds = new Set(await getActivelyBannedUserIds(strandedUserIds))
+  return strandedUserIds.filter((userId) => !bannedUserIds.has(userId))
 }
 
 export async function archiveWorkspace(
@@ -123,7 +149,11 @@ export async function archiveWorkspace(
     const fallbacks: Array<{ userId: string; workspaceId: string; name: string }> = []
 
     if (options.provisionFallbackForStrandedMembers) {
-      const strandedUserIds = await findMembersStrandedByArchival(tx, workspaceId)
+      const strandedUserIds = await findMembersStrandedByArchival(
+        tx,
+        workspaceId,
+        workspaceRecord.organizationId
+      )
       for (const userId of strandedUserIds) {
         // Intentionally bypasses getWorkspaceCreationPolicy: this is a system-provisioned safety
         // net (never blocked by "who can create a workspace" rules), not user self-service.
