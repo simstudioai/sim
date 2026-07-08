@@ -330,3 +330,53 @@ describe('link href sanitization — dangerous schemes from file content are neu
     expect(hrefs).toContain('mailto:x@y.com')
   })
 })
+
+describe('paragraph leading block-marker escaping', () => {
+  /** Serialize a doc whose first paragraph literally starts with `text`, then re-parse its first node. */
+  function serializeParagraph(text: string): {
+    md: string
+    reparsedType: string
+    idempotent: boolean
+  } {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent(
+      { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+      { contentType: 'json' }
+    )
+    const md = postProcessSerializedMarkdown(editor.getMarkdown())
+    editor.commands.setContent(md, { contentType: 'markdown' })
+    const reparsedType = editor.getJSON().content?.[0]?.type ?? ''
+    const idempotent = postProcessSerializedMarkdown(editor.getMarkdown()) === md
+    editor.destroy()
+    editor = null
+    return { md, reparsedType, idempotent }
+  }
+
+  it.each([
+    ['# note', '\\# note'],
+    ['###### note', '\\###### note'],
+    ['#', '\\#'],
+    ['- item', '\\- item'],
+    ['+ item', '\\+ item'],
+    ['1. step', '1\\. step'],
+    ['1) step', '1\\) step'],
+    ['---', '\\---'],
+    ['- - -', '\\- - -'],
+  ])('escapes a paragraph starting with %j so it stays a paragraph', (text, expectedMd) => {
+    const { md, reparsedType, idempotent } = serializeParagraph(text)
+    expect(md.trim()).toBe(expectedMd)
+    expect(reparsedType).toBe('paragraph')
+    expect(idempotent).toBe(true)
+  })
+
+  it.each([
+    ['#hashtag'], // no space after # → not a heading
+    ['-5 degrees'], // no space after - → not a bullet
+    ['plain text'],
+  ])('does not over-escape %j', (text) => {
+    const { md, reparsedType, idempotent } = serializeParagraph(text)
+    expect(md.trim()).toBe(text)
+    expect(reparsedType).toBe('paragraph')
+    expect(idempotent).toBe(true)
+  })
+})

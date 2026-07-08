@@ -1,6 +1,7 @@
 import type { Extensions, JSONContent, MarkdownRendererHelpers, Node } from '@tiptap/core'
 import { Code } from '@tiptap/extension-code'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
+import { Paragraph } from '@tiptap/extension-paragraph'
 import {
   renderTableToMarkdown,
   Table,
@@ -58,6 +59,32 @@ const PipeSafeTable = Table.extend({
 })
 
 /**
+ * Backslash-escapes a leading block marker so paragraph text like `# note`, `- item`, `1. step`, or a
+ * bare `---` serializes as a paragraph rather than re-parsing into a heading / list / thematic break on
+ * the next load. The upstream serializer escapes inline delimiters (`* _ \` [ ] ~`, so `*` bullets and
+ * `>` quotes already round-trip) but not these block-starting markers. Escaping is idempotent: parsing
+ * consumes the backslash, so the stored ProseMirror text never carries it and re-serialization is stable.
+ */
+function escapeLeadingBlockMarker(text: string): string {
+  if (/^(#{1,6}([ \t]|$)|[-+][ \t]|-(?:[ \t]*-){2,}[ \t]*$)/.test(text)) {
+    return `\\${text}`
+  }
+  const ordered = /^(\d{1,9})([.)][ \t])/.exec(text)
+  return ordered ? `${ordered[1]}\\${text.slice(ordered[1].length)}` : text
+}
+
+/**
+ * Paragraph that escapes a leading block marker on serialize (see {@link escapeLeadingBlockMarker}) —
+ * otherwise a paragraph beginning with `#`/`-`/`+`/`1.`/`1)`/`---` silently becomes that block on the
+ * next load. Block separators are owned by the parent joiner, so a paragraph renders as just its inline
+ * children; this override wraps that with the leading-marker guard.
+ */
+const BlockSafeParagraph = Paragraph.extend({
+  renderMarkdown: (node: JSONContent, h: MarkdownRendererHelpers) =>
+    escapeLeadingBlockMarker(h.renderChildren(node.content ?? [])),
+})
+
+/**
  * Node-view variants the live editor injects in place of the headless defaults — the code-block
  * language picker, the resizable image, and the mention chip. The mention chip pulls the block registry
  * (for brand icons), so the headless round-trip path omits it: passing nothing keeps
@@ -92,7 +119,9 @@ export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}
       underline: false,
       codeBlock: false,
       code: false,
+      paragraph: false,
     }),
+    BlockSafeParagraph,
     InlineCode,
     codeBlock,
     (nodeViews.image ?? MarkdownImage).configure({ allowBase64: true }),
