@@ -46,7 +46,14 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
 
   const [updated] = await db
     .update(workspaceFiles)
-    .set({ context: 'workspace', chatId: null, originalName: row.displayName ?? row.originalName })
+    .set({
+      context: 'workspace',
+      // A workspace file has no birth chat or message — clear both provenance
+      // fields so the row reads as workspace-owned, not stale chat-owned.
+      chatId: null,
+      messageId: null,
+      originalName: row.displayName ?? row.originalName,
+    })
     .where(and(eq(workspaceFiles.id, row.id), isNull(workspaceFiles.deletedAt)))
     .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
 

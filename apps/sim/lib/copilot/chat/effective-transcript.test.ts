@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildEffectiveChatTranscript,
   getLiveAssistantMessageId,
+  isLiveAssistantMessageId,
 } from '@/lib/copilot/chat/effective-transcript'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -259,5 +260,13 @@ describe('buildEffectiveChatTranscript', () => {
         }),
       ])
     )
+  })
+})
+
+describe('isLiveAssistantMessageId', () => {
+  it('recognizes the synthetic live-assistant id and nothing else', () => {
+    expect(isLiveAssistantMessageId(getLiveAssistantMessageId('stream-1'))).toBe(true)
+    expect(isLiveAssistantMessageId('f620fceb-4e9d-4e7f-ab7f-890a2a823564')).toBe(false)
+    expect(isLiveAssistantMessageId('')).toBe(false)
   })
 })
