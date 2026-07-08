@@ -113,7 +113,7 @@ export function Hero() {
               fill
               priority
               sizes='(max-width: 1460px) 83vw, 1080px'
-              className='object-cover object-top-left'
+              className='object-cover object-left-top'
             />
             <HeroPlatformLoop />
           </div>

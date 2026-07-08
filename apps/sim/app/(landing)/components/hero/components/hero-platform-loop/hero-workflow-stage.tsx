@@ -1,6 +1,6 @@
 'use client'
 
-import { type CSSProperties, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { type CSSProperties, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
 import {
@@ -26,6 +26,8 @@ type Positions = Record<string, { x: number; y: number }>
 
 const initialPositions = (): Positions =>
   Object.fromEntries(STAGE_BLOCKS.map((b) => [b.id, { x: b.x, y: b.y }]))
+
+const STAGE_BLOCKS_BY_ID = new Map(STAGE_BLOCKS.map((b) => [b.id, b]))
 
 /**
  * The hero window's live workflow canvas - the right-pane counterpart of the
@@ -121,8 +123,10 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
     dragRef.current = null
   }, [])
 
-  const byId = new Map(STAGE_BLOCKS.map((b) => [b.id, b]))
-  const builtIds = new Set(STAGE_BLOCKS.slice(0, builtCount).map((b) => b.id))
+  const builtIds = useMemo(
+    () => new Set(STAGE_BLOCKS.slice(0, builtCount).map((b) => b.id)),
+    [builtCount]
+  )
 
   return (
     <div
@@ -154,8 +158,8 @@ export function HeroWorkflowStage({ builtCount }: HeroWorkflowStageProps) {
             aria-hidden='true'
           >
             {STAGE_EDGES.map(([from, to]) => {
-              const source = byId.get(from)
-              const target = byId.get(to)
+              const source = STAGE_BLOCKS_BY_ID.get(from)
+              const target = STAGE_BLOCKS_BY_ID.get(to)
               if (!source || !target) return null
               const visible = builtIds.has(from) && builtIds.has(to)
               const s = handleAnchors(source, positions[from]).out

@@ -91,16 +91,22 @@ export function HeroPlatformLoop() {
   }, [])
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let timers: ReturnType<typeof setTimeout>[] = []
+
+    const clearScheduled = () => {
+      timers.forEach(clearTimeout)
+      timers = []
+    }
+
+    const showFinished = () => {
+      clearScheduled()
       setPhase('reply')
       setStageOpen(true)
       setBuiltCount(STAGE_BLOCKS.length)
-      return
     }
-    let timers: ReturnType<typeof setTimeout>[] = []
-    let cancelled = false
+
     const runCycle = () => {
-      if (cancelled) return
       setFading(false)
       setPhase('idle')
       setStageOpen(false)
@@ -118,10 +124,21 @@ export function HeroPlatformLoop() {
         setTimeout(runCycle, TOTAL_MS),
       ]
     }
-    runCycle()
+
+    const syncMotionPreference = () => {
+      clearScheduled()
+      if (media.matches) {
+        showFinished()
+        return
+      }
+      runCycle()
+    }
+
+    syncMotionPreference()
+    media.addEventListener('change', syncMotionPreference)
     return () => {
-      cancelled = true
-      timers.forEach(clearTimeout)
+      media.removeEventListener('change', syncMotionPreference)
+      clearScheduled()
     }
   }, [])
 

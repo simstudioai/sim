@@ -3,6 +3,7 @@
 import { Suspense, use, useEffect, useRef, useState } from 'react'
 import { ToastProvider } from '@sim/emcn'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+import { notFound } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { Files } from '@/app/workspace/[workspaceId]/files/files'
@@ -38,7 +39,9 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
  * WorkspaceChrome sidebar) with the main view switched IN PLACE as the capture
  * cursor clicks sidebar nav items, so one continuous screencast shows a user
  * navigating chat → integrations → knowledge → tables → files → workflow → logs.
- * No auth/network (everything seeded), light mode. Not committed.
+ * No auth/network (everything seeded), light mode. 404s in production
+ * (see the `NODE_ENV` guard below) — only reachable in dev/preview builds
+ * for the capture script.
  */
 export const dynamic = 'force-dynamic'
 
@@ -499,6 +502,8 @@ interface CapturePageProps {
 }
 
 export default function ReadmeTourCapturePage({ searchParams }: CapturePageProps) {
+  if (process.env.NODE_ENV === 'production') notFound()
+
   const params = use(searchParams)
   const camW = Number(params.w ?? 1280)
   const camH = Number(params.h ?? 800)
