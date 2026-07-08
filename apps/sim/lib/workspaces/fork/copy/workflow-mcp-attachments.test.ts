@@ -26,10 +26,11 @@ function makeTx(selectResults: unknown[][]) {
   const inserted: Array<Record<string, unknown>> = []
   const updates: Array<Record<string, unknown>> = []
   let call = 0
+  const select = vi.fn(() => ({
+    from: () => ({ where: () => Promise.resolve(selectResults[call++] ?? []) }),
+  }))
   const tx = {
-    select: () => ({
-      from: () => ({ where: () => Promise.resolve(selectResults[call++] ?? []) }),
-    }),
+    select,
     insert: () => ({
       values: (values: Array<Record<string, unknown>>) => {
         inserted.push(...values)
@@ -45,7 +46,7 @@ function makeTx(selectResults: unknown[][]) {
       }),
     }),
   }
-  return { tx: tx as unknown as DbOrTx, inserted, updates }
+  return { tx: tx as unknown as DbOrTx, inserted, updates, select }
 }
 
 const attachment = (overrides: Record<string, unknown> = {}) => ({
@@ -69,7 +70,8 @@ const serverMappingRow = {
 describe('reconcileForkWorkflowMcpAttachments', () => {
   it('creates the target attachment for a mapped server + written pair (push: child -> parent)', async () => {
     mockGetEdgeMappingRows.mockResolvedValue([serverMappingRow])
-    const { tx, inserted } = makeTx([
+    mockAcquireLock.mockClear()
+    const { tx, inserted, select } = makeTx([
       [{ id: 'srv-child' }, { id: 'srv-parent' }], // both mapped servers still live
       [attachment({ serverId: 'srv-child', workflowId: 'wf-child' })],
       [], // no existing target attachments
@@ -89,6 +91,11 @@ describe('reconcileForkWorkflowMcpAttachments', () => {
     })
     expect(result.affectedServerIds).toEqual(['srv-parent'])
     expect(mockAcquireLock).toHaveBeenCalledWith(tx, 'srv-parent')
+    // The lock must precede every read: locking after the diff is computed would let a
+    // concurrent attach commit in between and abort the promote on the unique constraint.
+    expect(mockAcquireLock.mock.invocationCallOrder[0]).toBeLessThan(
+      select.mock.invocationCallOrder[0]
+    )
   })
 
   it('archives a target attachment whose source counterpart was detached', async () => {

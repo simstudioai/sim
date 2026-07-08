@@ -122,10 +122,21 @@ export async function reconcileForkWorkflowMcpAttachments(params: {
   }
   if (serverMap.size === 0) return { affectedServerIds: [] }
 
+  // Same per-server serialization as the deploy-time tool sync and the attach/delete routes,
+  // in sorted order so two concurrent syncs can't deadlock on each other's server locks.
+  // Acquired BEFORE the reads below: every other attachment writer locks first, so locking
+  // after computing the diff would let a concurrent attach commit in between and turn our
+  // insert into a unique-constraint abort of the whole promote transaction (and a concurrent
+  // server delete into an FK abort).
+  for (const serverId of [...new Set(serverMap.values())].sort()) {
+    await acquireWorkflowMcpServerLock(tx, serverId)
+  }
+
   // Liveness guard: a mapped server may have been deleted since the fork (server deletion is a
   // hard delete that cascades its tools but leaves the identity row). A dead SOURCE server has
   // nothing to mirror; a dead TARGET server must be skipped or the insert below would violate
-  // the `server_id` FK and abort the whole promote transaction.
+  // the `server_id` FK and abort the whole promote transaction. Target liveness is stable for
+  // the rest of the transaction: the delete route takes the per-server lock we now hold.
   const mappedServerIds = [...new Set([...serverMap.keys(), ...serverMap.values()])]
   const liveServerIds = new Set(
     (
@@ -268,12 +279,6 @@ export async function reconcileForkWorkflowMcpAttachments(params: {
 
   if (inserts.length === 0 && updates.length === 0 && archiveIds.length === 0) {
     return { affectedServerIds: [] }
-  }
-
-  // Same per-server serialization as the deploy-time tool sync, in sorted order so two
-  // concurrent syncs can't deadlock on each other's server locks.
-  for (const serverId of [...affectedServerIds].sort()) {
-    await acquireWorkflowMcpServerLock(tx, serverId)
   }
 
   if (inserts.length > 0) await tx.insert(workflowMcpTool).values(inserts)
