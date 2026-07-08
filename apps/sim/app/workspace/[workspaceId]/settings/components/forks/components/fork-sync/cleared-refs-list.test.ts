@@ -153,7 +153,7 @@ describe('forkBlockerResolution', () => {
       'map it to a target or select it for copy'
     )
     expect(forkBlockerResolution(referenceRef('mcp-server', 'srv-1'))).toBe(
-      'map it to an MCP server in the target workspace'
+      'map it to a target or select it for copy'
     )
     expect(forkBlockerResolution(referenceRef('knowledge-base', 'kb-gone', 'KB', true))).toBe(
       'deleted in the source — map it to an existing knowledge base in the target'
