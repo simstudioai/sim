@@ -3,17 +3,12 @@ title: Custom Blocks
 description: Publish a deployed workflow as a reusable block for your organization
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
 Custom blocks let you package a deployed workflow as a reusable block for your whole organization. Once published, the block appears in the workflow editor's block toolbar alongside built-in blocks like Agent and Function. Anyone in your organization can drop it into a workflow, fill in its inputs, and use its outputs — without needing access to the workflow behind it.
 
 A custom block always runs the **latest deployed version** of its source workflow, so improving the block is as simple as redeploying that workflow.
-
-<Callout type="info">
-Custom blocks are an Enterprise feature. Publishing requires the Enterprise plan and workspace admin access.
-</Callout>
 
 ---
 
@@ -32,7 +27,7 @@ Custom blocks turn a workflow one team owns into infrastructure the whole organi
 ## Before you start
 
 - **Deploy the workflow first.** Only deployed workflows can be published as a block. If the workflow isn't deployed, deploy it, then come back.
-- **Be a workspace admin.** Publishing and managing custom blocks requires admin access on an Enterprise workspace.
+- **Be a workspace admin.** Publishing and managing custom blocks requires workspace admin access.
 
 ---
 
@@ -110,6 +105,7 @@ Open a block from **Settings → Enterprise → Custom blocks** to edit or delet
 ## Good to know
 
 - **Always current.** A custom block runs the source workflow's latest deployment. There are no versions to pin or manage.
+- **Access control.** Custom blocks appear in [Access Control](/platform/enterprise/access-control) alongside built-in blocks, so you can allowlist or restrict them per permission group.
 - **Disabled blocks.** A disabled block can't be added to new workflows, but existing placements keep working.
 - **Removed blocks.** Deleting a block (or deleting its source workflow) removes it from workflows that used it.
 - **Not deployed.** If the source workflow is undeployed, the block shows a clear error when run. Redeploy the workflow to fix it.
@@ -119,7 +115,7 @@ Open a block from **Settings → Enterprise → Custom blocks** to edit or delet
 <FAQ items={[
   {
     question: "Who can publish custom blocks?",
-    answer: "Workspace admins on an Enterprise-entitled workspace. On Sim Cloud this requires the Enterprise plan."
+    answer: "Workspace admins. Once a block is published, anyone in your organization can use it in their workflows unless it's restricted with Access Control."
   },
   {
     question: "Which version of the workflow does the block run?",
