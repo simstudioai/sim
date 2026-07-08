@@ -12,7 +12,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params
   const posts = (await getAllPostMeta()).filter((p) => p.author.id === id)
-  return buildAuthorMetadata(posts[0]?.author)
+  return buildAuthorMetadata(id, posts[0]?.author)
 }
 
 export default async function AuthorPage({ params }: { params: Promise<{ id: string }> }) {

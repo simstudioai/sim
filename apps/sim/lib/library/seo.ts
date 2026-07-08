@@ -42,8 +42,8 @@ export function buildTagsBreadcrumbJsonLd() {
   return buildTagsBreadcrumbJsonLdGeneric(LIBRARY_SECTION)
 }
 
-export function buildAuthorMetadata(author?: Author) {
-  return buildAuthorMetadataGeneric(LIBRARY_SECTION, author)
+export function buildAuthorMetadata(id: string, author?: Author) {
+  return buildAuthorMetadataGeneric(LIBRARY_SECTION, id, author)
 }
 
 export function buildAuthorGraphJsonLd(author: Author) {

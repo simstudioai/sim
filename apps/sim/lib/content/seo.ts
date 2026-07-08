@@ -270,9 +270,13 @@ export function buildTagsBreadcrumbJsonLd(section: ContentSection) {
   }
 }
 
-export function buildAuthorMetadata(section: ContentSection, author?: Author): Metadata {
+export function buildAuthorMetadata(
+  section: ContentSection,
+  id: string,
+  author?: Author
+): Metadata {
   const name = author?.name ?? 'Author'
-  const canonical = `${SITE_URL}${section.basePath}/authors/${author?.id ?? ''}`
+  const canonical = `${SITE_URL}${section.basePath}/authors/${id}`
   const description = `Read articles by ${name} on the Sim ${section.name.toLowerCase()}.`
   return {
     title: `${name} | Sim ${section.name}`,
