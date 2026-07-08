@@ -34,9 +34,9 @@ export const vellumProfile: CompetitorProfile = {
         'Enterprise customers can get a Vellum-managed dedicated deployment inside a single-tenant AWS, Azure, or GCP VPC via a Replicated-based install. Sim offers self-hosting (Docker Compose or Kubernetes/Helm) but has no documented managed single-tenant/VPC hosting tier.',
       shortDescription: 'Vendor-managed single-tenant VPC tier that Sim does not offer.',
       source: {
-        url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
-        label: 'Self-Hosted Vellum: Vellum Docs',
-        asOf: '2026-07-02',
+        url: 'https://www.vellum.ai/blog/announcing-vellum-vpc',
+        label: 'Announcing Vellum VPC',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -54,21 +54,27 @@ export const vellumProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'BYOK not documented on pricing',
+      title: 'Enterprise BYOK policy no longer verifiable',
       description:
-        "Vellum's pricing pages describe a prepaid-credit model that passes through LLM costs at cost, with no bring-your-own-API-key option mentioned as an alternative.",
-      shortDescription: 'No bring-your-own-key option mentioned on pricing pages.',
-      source: { url: 'https://www.vellum.ai/pricing', label: 'Vellum Pricing', asOf: '2026-07-02' },
+        "Vellum's pricing page has been replaced by a consumer 'Personal Intelligence' pricing model (subscription plus pay-as-you-go credits); the original enterprise LLM-cost-pass-through pricing this claim describes, including any bring-your-own-API-key policy, is no longer published at this URL.",
+      shortDescription:
+        'Pricing page now shows a different consumer product; enterprise BYOK policy unconfirmed.',
+      source: {
+        url: 'https://www.vellum.ai/pricing',
+        label: 'Vellum Pricing (now shows the consumer product)',
+        asOf: '2026-07-08',
+      },
     },
     {
-      title: 'No enterprise SLA published',
+      title: 'Enterprise SLA no longer verifiable',
       description:
-        'No uptime or response-time SLA commitments are published on the enterprise or pricing pages.',
-      shortDescription: 'No public SLA commitments found.',
+        "The /enterprise page has been repurposed for Vellum's consumer product and no longer represents its (formerly documented) enterprise LLMOps offering, so SLA absence can no longer be verified against genuine enterprise-tier content at this URL.",
+      shortDescription:
+        'SLA status unverifiable after the /enterprise page pivoted to the consumer product.',
       source: {
         url: 'https://www.vellum.ai/enterprise',
-        label: 'Vellum Enterprise',
-        asOf: '2026-07-02',
+        label: 'Vellum Enterprise (now shows the consumer product)',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -133,14 +139,20 @@ export const vellumProfile: CompetitorProfile = {
         ],
       },
       deploymentOptions: {
-        value: 'Vellum Cloud (SaaS), self-hosted, and VPC install on AWS/Azure/GCP or on-prem',
-        shortValue: 'Cloud, self-hosted, or VPC install',
+        value:
+          'Vellum Managed (fully managed hosted service), self-hosted, and Vellum VPC install on AWS, Azure, or GCP',
+        shortValue: 'Managed, self-hosted, or VPC install',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
             label: 'Self-Hosted Vellum: Vellum Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.vellum.ai/blog/announcing-vellum-vpc',
+            label: 'Announcing Vellum VPC',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -294,14 +306,14 @@ export const vellumProfile: CompetitorProfile = {
       },
       agentReasoningBlocks: {
         value:
-          "Vellum's 'Agent Node' (formerly 'Tool Calling Node') is its dedicated agent/reasoning-and-tool-execution block within Workflows, supporting raw code, subworkflows, MCP tools, and Composio SaaS actions side by side in one node.",
-        shortValue: 'Agent Node handles reasoning + tool execution',
+          "Vellum's 'Agent Node' (formerly 'Tool Calling Node') is its dedicated agent/reasoning-and-tool-execution block within Workflows, currently documenting raw code, subworkflows, and Composio SaaS actions as tool types in one node; MCP tool support is not documented on the current Agent Node page.",
+        shortValue: 'Agent Node handles reasoning + tool execution; MCP not currently documented',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/workflows/nodes/agent-node',
             label: 'Vellum Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -674,13 +686,18 @@ export const vellumProfile: CompetitorProfile = {
         ],
       },
       byok: {
-        value: 'Not mentioned on current pricing pages',
+        value:
+          "Unconfirmed for the enterprise platform: Vellum's pricing page has been replaced by an unrelated consumer 'Personal Intelligence' product page, so BYOK availability can no longer be verified from vellum.ai/pricing.",
         detail:
-          'Pricing is structured around Vellum-provided credits passed through at cost, with no bring-your-own-API-key option described.',
-        shortValue: 'No BYOK option documented',
+          "The current pricing page describes Vellum-provided credits for the consumer product, not the enterprise platform's LLM-cost pass-through model; no bring-your-own-API-key policy is described for either product on this page.",
+        shortValue: 'Unverifiable after the pricing page pivoted to the consumer product',
         confidence: 'unknown',
         sources: [
-          { url: 'https://www.vellum.ai/pricing', label: 'Vellum Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.vellum.ai/pricing',
+            label: 'Vellum Pricing (now shows the consumer product)',
+            asOf: '2026-07-08',
+          },
         ],
       },
     },
@@ -872,14 +889,19 @@ export const vellumProfile: CompetitorProfile = {
       },
       durabilityModel: {
         value:
-          "Vellum supports 'Retry Node Adornments' (organized under an 'Error Handling' section of node Settings) that automatically re-invoke a failed node up to a configured max-attempts count.",
+          "Vellum supports a 'Retry Node Adornment' — a standalone adornment applied to a node (separate from that node's Settings) that automatically re-invokes the node until it succeeds or reaches a configured max-attempts count.",
         shortValue: 'Automatic node-level retries',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.vellum.ai/product/workflows/node-types',
-            label: 'Vellum Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/workflows/nodes/overview',
+            label: 'Vellum Docs: Nodes Overview (adornments, error handling)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.vellum.ai/changelog/2025/2025-03',
+            label: 'Vellum Changelog, March 2025 (Try/Retry node adornments)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -916,17 +938,17 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://docs.vellum.ai/changelog/2025/2025-11',
             label: 'Vellum Changelog, November 2025 (async workflow execution)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.vellum.ai/developers/client-sdk/workflows/execute-workflow',
-            label: 'Vellum Docs: Execute Workflow (synchronous SDK call)',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/developers/client-sdk/workflows/execute-workflow-async',
+            label: 'Vellum Docs: Execute Workflow Async',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.vellum.ai/api-reference/workflows/execute-workflow-stream',
-            label: 'Vellum API Reference: Execute Workflow as Stream',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/developers/client-sdk/workflows/execute-workflow-stream',
+            label: 'Vellum Docs: Execute Workflow as Stream',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -970,30 +992,30 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://docs.vellum.ai/changelog/2025/2025-11',
             label: 'Vellum Changelog, November 2025 (Scheduled and Integration Triggers)',
-            asOf: '2026-07-04',
-          },
-          {
-            url: 'https://docs.vellum.ai/product/workflows/api-integration',
-            label: 'Vellum Docs: Easy Integration with Vellum API for Workflows',
-            asOf: '2026-07-04',
+            asOf: '2026-07-08',
           },
         ],
       },
     },
     support: {
       supportChannels: {
-        value: 'Discord community; priority support included on paid plans',
+        value:
+          'Email, an in-app chat, a shared Slack channel for active customers, and a Discord community',
         detail:
-          'The pricing and enterprise pages reference a Discord community channel and note that the Pro plan includes priority support.',
-        shortValue: 'Discord community + priority support',
+          "Vellum's help center lists email (support@vellum.ai), in-app chat via the dashboard's 'Get Help' button, and a shared Slack channel for active customers; the enterprise page separately links a public Discord community. vellum.ai/pricing has since been repurposed for a different 'personal AI assistant' product, so its 'priority support' mention describes that product's paid add-on, not the workflow platform's support tiers — no priority-support or SLA claim is made here.",
+        shortValue: 'Email, in-app chat, Slack (customers), Discord community',
         confidence: 'estimated',
         sources: [
           {
+            url: 'https://docs.vellum.ai/home/getting-started/support',
+            label: "Vellum's Help Center",
+            asOf: '2026-07-08',
+          },
+          {
             url: 'https://www.vellum.ai/enterprise',
             label: 'Vellum Enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
-          { url: 'https://www.vellum.ai/pricing', label: 'Vellum Pricing', asOf: '2026-07-02' },
         ],
       },
       sla: {
@@ -1018,24 +1040,24 @@ export const vellumProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Founded 2023 (Y Combinator W23) by Noa Flaherty, Sidd Seethepalli, and Akash Sharma. Raised a $5M seed (2023) and a $20M Series A (July 2025, led by Leaders Fund). Crunchbase reports $25.5M raised in total across three funding rounds, implying additional undisclosed funding beyond these two rounds. Based in New York City, with 150+ reported customers as of the Series A announcement.',
-        shortValue: 'YC W23, ~$25.5M raised across 3 rounds, NYC-based',
+          'Founded 2023 (Y Combinator W23) by Noa Flaherty, Sidd Seethepalli, and Akash Sharma. Raised a $5M seed (July 2023) and a $20M Series A (July 2025, led by Leaders Fund). Based in New York City, with 150+ reported customers as of the Series A announcement.',
+        shortValue: 'YC W23, $25M raised across 2 rounds, NYC-based',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.vellum.ai/blog/announcing-our-20m-series-a',
-            label: 'Announcing our $20m Series A: Vellum',
-            asOf: '2026-07-02',
+            url: 'https://www.ycombinator.com/companies/vellum',
+            label: 'Vellum: Y Combinator',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://www.crunchbase.com/organization/vellum-74f3',
-            label: 'Vellum: Crunchbase Company Profile & Funding',
-            asOf: '2026-07-02',
+            url: 'https://www.vellum.ai/blog/announcing-our-20m-series-a',
+            label: 'Announcing our $20m Series A: Vellum',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://voicebot.ai/2023/07/13/generative-ai-prompt-engineering-startup-vellum-ai-raises-5m/',
             label: 'Generative AI Prompt Engineering Startup Vellum.ai Raises $5M: Voicebot.ai',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },

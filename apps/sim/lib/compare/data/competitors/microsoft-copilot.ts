@@ -56,13 +56,13 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     {
       title: 'Deep, per-session orchestration traces',
       description:
-        'Conversation transcripts capture which topic fired, which knowledge sources were consulted, which tools and child agents or MCP servers were invoked, the orchestration plan, and how long each step took. They are viewable per-session in the Analytics area for the last 28 days and extendable via export to Azure Data Lake Storage.',
+        "Session tracking in the Monitor tab (part of Copilot Studio's new agent experience, currently in preview) lists each conversation session's status, duration, message count, and which tools were used, and selecting a session opens its full transcript with tool-invocation and knowledge-source usage detail.",
       shortDescription:
-        'Per-session traces cover topics, tools, knowledge, sub-agents, and timing.',
+        'Per-session transcripts in the Monitor tab cover status, tools, and knowledge used.',
       source: {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/analytics-overview',
         label: 'Monitor an agent overview (preview) - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -94,16 +94,16 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Session transcript detail defaults to a 28-day window',
+      title: 'Session transcript detail defaults to a 29-day window',
       description:
-        "An agent's per-session transcripts, showing which topic fired, tools called, and knowledge consulted, are available in the Analytics area for the last 28 days by default. Retaining that detail longer requires a separate export pipeline (Azure Synapse Link for Dataverse into Azure Data Lake Storage Gen2), not a built-in retention setting.",
+        "An agent's per-session transcripts, showing which topic fired, tools called, and knowledge consulted, are downloadable from the Analytics area for roughly the last 29 days by default. Retaining that detail longer requires a separate export pipeline, not a built-in retention setting.",
       shortDescription:
-        'Detailed session transcripts default to 28 days; longer retention needs a manual export.',
+        'Detailed session transcripts default to ~29 days; longer retention needs a manual export.',
       source: {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/analytics-transcripts-studio',
         label:
           'Understand downloaded session data from Copilot Studio - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -220,7 +220,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       templates: {
         value:
-          'Yes: an Agent Library of ready-to-use, pre-built agent templates (e.g. Employee Self-Service, Prompt Coach, IT Helpdesk, Financial Insights) with preconfigured instructions, actions, topics, and starter knowledge, deployable into an environment and then customized',
+          'Yes: an Agent Library of ready-to-use, pre-built agent templates (e.g. My Company Policy, Request Tracker, Know Your Customer, Plan My Day, Executive Brief) with preconfigured instructions, actions, topics, and starter knowledge, deployable into an environment and then customized',
         detail:
           'Templates are distributed as a visual, guided-deployment catalog on Microsoft Marketplace and as raw solution files on GitHub.',
         shortValue: 'Yes, Agent Library of pre-built, customizable templates',
@@ -230,13 +230,13 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/agent-library-overview',
             label:
               'Configure and deploy agents from the Agent Library - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/template-fundamentals',
             label:
               'Create a custom agent from a template - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -324,16 +324,22 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          'No: Copilot Studio does not offer a lightweight, spreadsheet-like data table with arrow-key navigation and copy-paste. Its native structured-data store is Microsoft Dataverse, a full relational database with tables, relationships, and business rules, used both as an agent knowledge source and for storing conversation transcripts and custom analytics.',
+          'No: Copilot Studio does not offer a lightweight, spreadsheet-like data table with arrow-key navigation and copy-paste. Its native structured-data store is Microsoft Dataverse, a full relational database with tables, relationships, and business rules, used both as an agent knowledge source and, via dedicated bot/botcomponent/conversationtranscript tables, for storing conversation transcripts and custom analytics.',
         detail:
-          'Dataverse is the same underlying data platform Power Automate uses. It serves as the agent data platform for grounding, but it is a relational database product, not a simple spreadsheet-grid UI.',
+          "Dataverse is the same underlying data platform Power Automate uses, offering rich metadata/relationships plus business rules and workflows for data validation, not a simple spreadsheet-grid UI. Copilot Studio's custom-analytics guidance documents the ConversationTranscript, Copilot (bot), and Copilot component (botcomponent) tables it writes usage data into.",
         shortValue: 'Dataverse tables are a full DB, not a spreadsheet grid',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.microsoft.com/en-us/power-platform/blog/2026/05/05/dataverse-agent-data-platform/',
-            label: 'Dataverse Is Your Agent Data Platform - Microsoft Power Platform Blog',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-apps/maker/data-platform/data-platform-intro',
+            label: 'What is Microsoft Dataverse? - Power Apps | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/custom-analytics-strategy',
+            label:
+              'Develop a custom analytics strategy - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -363,15 +369,9 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/flow-designer',
-            label:
-              'Edit and manage your agent flow in the designer - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-use-flow',
-            label: 'Call an agent flow from an agent - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/flows-overview',
+            label: 'Agent flows overview - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -400,7 +400,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       agentReasoningBlocks: {
         value:
-          "Yes: generative orchestration is an LLM-driven planning layer that selects among an agent's topics, tools, knowledge sources, and child agents at runtime, and an optional deep reasoning model (GPT-5.5 Reasoning) can be enabled for tasks requiring step-by-step logical analysis, distinct from a fixed decision-tree topic flow",
+          "Yes: generative orchestration is an LLM-driven planning layer that selects among an agent's topics, tools, knowledge sources, and child agents at runtime, and an optional deep reasoning model (the Azure OpenAI o3 model) can be enabled for tasks requiring step-by-step logical analysis, distinct from a fixed decision-tree topic flow",
         detail:
           'Deep reasoning is regionally limited to the United States and the EU (excluding the UK) and trades response speed for accuracy on complex tasks. The agent decides when to apply it, or a maker can force it via a "reason" keyword in instructions.',
         shortValue: 'Generative orchestration planning plus an optional deep reasoning model',
@@ -416,7 +416,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-reasoning-models',
             label:
               'Add a deep reasoning model for complex tasks (preview) - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -606,18 +606,21 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          "Partial: Copilot Studio's test/preview panel shows a trace of which knowledge sources an agent consulted for an answer, with footnote-style citations tied to specific chunk metadata (e.g. document and page), and a maker can navigate from a citation to the source component to edit it, but there is no dedicated raw chunk-content inspector distinct from citation footnotes.",
+          "Partial: generative answers return citation links back to the knowledge source consulted for an answer, rendered automatically in the chat surface (Copilot Studio's own chat and Microsoft Teams, unless the response is customized), letting a user trace an answer to its source, but there is no documented chunk-level metadata (such as document/page numbers) or a dedicated raw chunk-content inspector distinct from the citation link itself.",
         detail:
-          'Some knowledge formats, such as local JSON, lack citation metadata entirely, so chunk-level detail is not uniformly available across every knowledge-source type.',
-        shortValue:
-          'Test panel shows citations/trace with chunk metadata, not a full chunk inspector',
+          "Citations returned from a knowledge source currently can't be used as inputs to other tools or actions, per Copilot Studio's own knowledge-sources documentation, and citation rendering must be explicitly re-added when a generative answer is customized before being sent to Teams.",
+        shortValue: 'Citation links trace an answer to its source; no chunk-inspector documented',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/knowledge-test',
-            label:
-              "Test your agent's knowledge sources - Microsoft Copilot Studio | Microsoft Learn",
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/knowledge-copilot-studio',
+            label: 'Knowledge sources summary - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/nlu-boost-node',
+            label: 'Add a generative answers node - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -688,32 +691,34 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '1,000+ pre-built connectors',
+        value: 'Many pre-built connectors from the shared Power Platform connector catalog',
         detail:
-          'Copilot Studio shares the same underlying Power Platform connector catalog that Power Automate and Power Apps use, split into standard connectors (included with all plans) and premium connectors (available on select plans), plus custom connectors for any other API.',
-        shortValue: '1,000+ connectors from the shared Power Platform catalog',
+          'Copilot Studio shares the same underlying Power Platform connector catalog that Power Automate and Power Apps use, split into standard connectors (included with all plans) and premium connectors (available on select plans), plus custom connectors for any other API. Microsoft does not publish a single current total connector count on this catalog documentation.',
+        shortValue:
+          'Many connectors from the shared Power Platform catalog, standard/premium/custom',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
             label:
               'Use connectors in Copilot Studio agents - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-04',
+            asOf: '2026-07-08',
           },
         ],
       },
       triggerTypes: {
         value:
-          'Conversational trigger phrases (topics), autonomous event-based triggers that wait for a specific event to fire the agent without a user prompting it, connector-event triggers, and schedule-based triggers for agent flows',
+          'Conversational trigger phrases (topics) that fire only when a user types a matching phrase, plus event triggers that let an agent act autonomously without user input in response to a connector-sourced event, such as a new SharePoint item, an added OneDrive file, a completed Planner task, or a changed Dataverse row, including a built-in, schedule-based Recurrence trigger',
         detail:
-          'Autonomous triggers let an agent proactively respond to events, such as a new record or an incoming email, rather than only reacting to a live conversation.',
-        shortValue: 'Trigger phrases, autonomous event triggers, connector events, schedules',
-        confidence: 'estimated',
+          "Event triggers require generative orchestration and deliver a JSON or plain-text payload describing the event to the agent, whose instructions then choose which action or topic to call in response. The Recurrence trigger is Copilot Studio's schedule-based event-trigger type, firing after a configured amount of time passes.",
+        shortValue:
+          'Topic trigger phrases, plus connector-sourced and schedule-based event triggers',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://adoption.microsoft.com/files/copilot-studio/Autonomous-agents-with-Microsoft-Copilot-Studio.pdf',
-            label: 'Autonomous Agents with Microsoft Copilot Studio',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-triggers-about',
+            label: 'Event triggers overview - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -951,9 +956,10 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://learn.microsoft.com/en-us/power-platform/admin/wp-data-loss-prevention',
-            label: 'Data policies - Power Platform | Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-data-loss-prevention',
+            label:
+              'Configure data policies for agents - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -990,17 +996,24 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       dataRetention: {
         value:
-          'Partial: session/transcript detail in the Analytics area defaults to a 28-day window (conversation transcripts downloadable for 29 days), extendable only via a separate export pipeline (Azure Synapse Link for Dataverse into Azure Data Lake Storage Gen2) rather than a built-in, admin-configurable retention setting for that transcript detail',
+          'Partial: conversation transcripts downloaded directly from Copilot Studio only cover the past 29 days, while the underlying Dataverse conversation-transcript and custom-analytics tables default to a 30-day retention period; extending retention beyond that default requires either an admin changing the Dataverse retention setting or exporting the data via Azure Synapse Link for Dataverse into Azure Data Lake Storage Gen2',
         detail:
-          "This differs from Power Automate's flow-run-history retention, which is directly admin-configurable in the Power Platform admin center (28/14/7 days or a custom Dataverse field edit). Copilot Studio's session-transcript detail requires the export workaround instead.",
-        shortValue: '28-day default transcript window; longer retention needs a manual export',
-        confidence: 'estimated',
+          "Copilot Studio's own download experience is capped at the past 29 days regardless of the underlying Dataverse retention window. Microsoft's custom-analytics guidance documents the 30-day default retention on the Dataverse-side bot/botcomponent/conversationtranscript tables and recommends Synapse Link as the export path for longer-term or custom-reporting needs.",
+        shortValue:
+          '29-day direct download; 30-day default Dataverse retention, extendable via export',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/analytics-transcripts-studio',
             label:
               'Understand downloaded session data from Copilot Studio - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/custom-analytics-strategy',
+            label:
+              'Develop a custom analytics strategy - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1013,10 +1026,10 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/purview/ai-copilot-studio',
+            url: 'https://learn.microsoft.com/en-us/purview/dlp-microsoft365-copilot-location-learn-about',
             label:
-              'Use Microsoft Purview to manage data security & compliance for Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+              'Microsoft Purview DLP for Microsoft 365 Copilot and Copilot Chat | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1183,21 +1196,21 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       unattendedExecution: {
         value:
-          "Yes: autonomous event-triggered agent runs and agent flows execute on Microsoft-operated cloud infrastructure (the same Commercial/GCC/GCC High/DoD environments Copilot Studio's authoring and runtime services run in), not on a maker's own device or browser session",
+          "Yes in Commercial environments: autonomous event-triggered agent runs and agent flows execute on Microsoft-operated cloud infrastructure, not on a maker's own device or browser session. Per Microsoft's own GCC/GCC High licensing documentation, Triggers/Autonomous Agents are currently NOT available in GCC or GCC High government cloud environments.",
         detail:
-          "Autonomous triggers let an agent proactively respond to a connector event or schedule without a live conversation open, and agent flows run on the Power Automate flow engine's server-side runtime. Closing the authoring browser tab or shutting down a laptop has no effect on a published agent's ability to fire on a trigger or complete a run.",
-        shortValue: 'Yes, runs server-side on Microsoft-operated infrastructure',
+          "Autonomous triggers let an agent proactively respond to a connector event or schedule without a live conversation open, and agent flows run on the Power Automate flow engine's server-side runtime in Commercial environments. Closing the authoring browser tab or shutting down a laptop has no effect on a published agent's ability to fire on a trigger or complete a run, but Microsoft's GCC/GCC High feature-availability table lists Triggers/Autonomous Agents as unavailable in those government-cloud environments.",
+        shortValue: 'Yes in Commercial cloud; not available in GCC/GCC High per Microsoft docs',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
             label: 'US Government customers - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-04',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://adoption.microsoft.com/files/copilot-studio/Autonomous-agents-with-Microsoft-Copilot-Studio.pdf',
             label: 'Autonomous Agents with Microsoft Copilot Studio',
-            asOf: '2026-07-04',
+            asOf: '2026-07-08',
           },
         ],
       },

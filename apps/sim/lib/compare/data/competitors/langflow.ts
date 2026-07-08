@@ -766,32 +766,42 @@ export const langflowProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          'Partial: Langflow disclosed CVE-2025-3248, an unauthenticated remote code execution flaw in the custom-component code-validation endpoint, actively exploited in the wild to deploy the Flodrix botnet on unpatched instances before it was fixed in version 1.3.0. That incident reflects the underlying trust model: most built-in integration bundles are contributed as pull requests to the official langflow-ai/langflow codebase and merged by core maintainers, but Langflow also ships a community Store where users can share and install flows and components with lighter, informal vetting, plus a custom-component system that lets any user author and run their own Python code with full server access, the same trust level as the core server itself.',
+          'Partial: Langflow disclosed CVE-2025-3248, an unauthenticated remote code execution flaw in the custom-component code-validation endpoint, fixed in version 1.3.0; security researchers confirmed it was actively exploited in the wild to deploy the Flodrix botnet on unpatched instances before the fix shipped. That incident reflects the underlying trust model: built-in integration bundles are contributed by third-party contributors as pull requests to the official langflow-ai/langflow codebase and reviewed and merged by core maintainers, but Langflow also ships a custom-component system that lets any user author and run their own Python code with full server access, the same trust level as the core server itself.',
         detail:
-          "Langflow documents that it does not enforce isolation between users or restrict local disk/network access, so both bundle and custom-component code run with the same trust level as the core server. By contrast, every one of Sim's blocks is first-party authored and code-reviewed through Sim's own pull-request process, and Sim has no public marketplace where a third party can publish installable executable tool code.",
+          "Langflow documents that it does not enforce isolation between users or restrict local disk/network access, so custom-component code runs with the same trust level as the core server. By contrast, every one of Sim's blocks is first-party authored and code-reviewed through Sim's own pull-request process, and Sim has no public marketplace where a third party can publish installable executable tool code.",
         shortValue:
-          'Partial: disclosed CVE-2025-3248 RCE; lighter-vetted community Store and custom code',
+          'Partial: disclosed CVE-2025-3248 RCE exploited via Flodrix botnet; custom code runs at full server trust',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langflow.org/components-bundle-components',
             label: 'Langflow Docs - About bundles',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.langflow.org/contributing-components',
+            label: 'Langflow Docs - Contribute components',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.langflow.org/components-custom-components',
             label: 'Langflow Docs - Create custom Python components',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.langflow.org/security',
             label: 'Langflow Docs - Security',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://github.com/langflow-ai/langflow/security/advisories/GHSA-vwmf-pq79-vjvx',
-            label: 'GitHub Security Advisory GHSA-vwmf-pq79-vjvx (CVE-2025-3248)',
-            asOf: '2026-07-02',
+            url: 'https://github.com/langflow-ai/langflow/security/advisories/GHSA-rvqx-wpfh-mfx7',
+            label: 'GitHub Security Advisory GHSA-rvqx-wpfh-mfx7 (CVE-2025-3248)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.securityweek.com/recent-langflow-vulnerability-exploited-by-flodrix-botnet/',
+            label: 'SecurityWeek - Langflow Vulnerability Exploited by Flodrix Botnet',
+            asOf: '2026-07-08',
           },
         ],
       },
