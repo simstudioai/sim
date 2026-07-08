@@ -1,6 +1,6 @@
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
-import { rewriteForkContentRefs } from '@/lib/workspaces/fork/remap/remap-content-refs'
+import { rewriteForkContentRefs } from '@/ee/workspace-forking/lib/remap/remap-content-refs'
 
 /**
  * Old->new translation tables produced while copying a chat's files
