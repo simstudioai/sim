@@ -195,6 +195,7 @@ export const authorizeOAuth2QuerySchema = z.object({
   providerId: z.string().min(1, 'providerId is required'),
   workspaceId: workspaceIdSchema,
   callbackURL: z.string().min(1).optional(),
+  credentialId: z.string().min(1).optional(),
 })
 
 export const authorizeOAuth2Contract = defineRouteContract({
