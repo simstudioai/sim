@@ -293,13 +293,12 @@ export function buildOfferCreateOutputs(): Record<string, TriggerOutput> {
       applicationId: { type: 'string', description: 'Associated application UUID' },
       acceptanceStatus: {
         type: 'string',
-        description:
-          'Offer acceptance status (Accepted, Declined, Pending, Created, Cancelled, WaitingOnResponse)',
+        description: 'Offer acceptance status (Accepted, Declined, Pending, Created, Cancelled)',
       },
       offerStatus: {
         type: 'string',
         description:
-          'Offer process status (WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnCandidateResponse, CandidateAccepted, CandidateRejected, OfferCancelled)',
+          'Offer process status (WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnApprovalDefinition, WaitingOnCandidateResponse, CandidateRejected, CandidateAccepted, OfferCancelled)',
       },
       decidedAt: {
         type: 'string',
