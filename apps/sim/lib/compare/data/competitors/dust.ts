@@ -337,6 +337,26 @@ export const dustProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: Dust has no way to publish an agent as a named, encapsulated block that appears in a shared builder toolbox for other users, with its internals hidden and the source kept in sync',
+        detail:
+          'The closest Dust feature is Skills, a reusable package of instructions, knowledge, and tools attached to multiple agents with edits auto-propagating, but Dust\'s own docs describe Skills as explicitly transparent rather than encapsulated: a read-only summary of every referenced instruction, tool, and knowledge source is shown to whoever authors it in the Skill Editor, not hidden behind an interface exposing only defined inputs/outputs. The separate "Run agent" tool (see subWorkflows) lets one agent call another saved agent, but that is picking an existing agent to call from a list, not publishing a workflow as a distinct, iconed block in a builder toolbox with only its inputs/outputs exposed.',
+        shortValue: 'No: Skills are transparent, not encapsulated; no publish-as-block toolbox',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/skills',
+            label: 'Skills | Dust Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/run-agent',
+            label: 'Run agent | Dust Docs',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

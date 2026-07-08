@@ -243,6 +243,26 @@ export const flowiseProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Flowise has no feature for publishing a deployed chatflow/agentflow as a named, encapsulated block that appears in the node palette for other users across an organization. Its closest feature, the Execute Flow node, only lets a flow call another saved flow by name or ID from within the same Flowise instance, passing input and receiving output; the docs describe this as invoking an existing flow, not publishing a version-synced, credential-hidden component into a shared toolbar. Flowise's Custom Tool node is likewise scoped to inline JavaScript written within a single flow, not a published workflow-as-block. There is no documented mechanism that hides a source flow's internal steps/credentials from consumers, restricts a published block via access control/permission groups, or automatically points every consumer at the source flow's latest deployed version.",
+        detail:
+          "This is distinct from Flowise's Execute Flow sub-workflow calling (see subWorkflows above), which is same-instance flow-to-flow composition, not org-wide reuse of a hidden, centrally-updated block by other users.",
+        shortValue: 'No, only same-instance Execute Flow calls; no published org-wide block',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise Docs: Agentflow V2 (Execute Flow node)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
+            label: 'Flowise Docs: Custom Tool',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

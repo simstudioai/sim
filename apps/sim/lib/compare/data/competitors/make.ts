@@ -371,6 +371,31 @@ export const makeProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Make has no feature to publish an existing scenario as an encapsulated, named block that appears in a shared module toolbar for other users across the organization to drop into their own separate scenarios. The closest capabilities are each narrower: 'Call a Scenario' (Subscenarios) can only invoke a scenario already created within the same team, is not exposed as a general block in a module picker, and Make's own docs don't describe it as hiding internal steps or always tracking a source's latest published version. 'Scenarios as AI Agent tools' lets a scenario's defined inputs/outputs be used as a callable tool, but only inside that specific AI Agent's own tool configuration, not as a general-purpose block any builder can add to any regular scenario. The Custom Apps SDK builds brand-new integration connectors that wrap third-party REST APIs; it has no mechanism to package an existing scenario itself as a block.",
+        detail:
+          "Per Make's Subscenarios help doc, you can 'only call a scenario created in your team,' scoping reuse to team boundaries rather than an org-wide block toolbar, with no documented internals-hiding or auto-latest-version guarantee. Per the Scenarios-for-AI-agents help doc, scenario-as-tool configuration happens inside AI Agents' own tab/module, not as a block available to all scenario builders. Per the Custom Apps Developer Hub, Custom Apps exist to integrate a third-party application that has no existing Make app, mapping REST endpoints and auth, not to publish an existing scenario as a reusable block.",
+        shortValue: 'No: no publish-scenario-as-org-wide-block feature',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.make.com/subscenarios',
+            label: 'Subscenarios - Make Help Center',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://help.make.com/scenarios-for-ai-agents',
+            label: 'Scenarios for AI agents - Make Help Center',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://developers.make.com/custom-apps-documentation',
+            label: 'Overview | Custom Apps Documentation | Make Developer Hub',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

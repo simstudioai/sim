@@ -356,6 +356,26 @@ export const retoolProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: Retool has no way to publish a deployed workflow as a named, encapsulated block that shows up in a shared block library for other builders to drop into their own workflows. The closest primitive is the generic Workflow block (see subWorkflows), which requires manually selecting which saved workflow to call each time it is added, rather than appearing as its own distinct, iconed, org-wide toolbar entry. A public forum feature request asking for exactly this ("Workflow Block Library," save a block once and reuse it across workflows) is still open, with a Retool team member confirming only an internal, unshipped feature request exists for it.',
+        detail:
+          "The Workflow block abstracts away the called workflow's internal steps, but it is one generic block type, not a per-source-workflow custom block, and Retool's docs do not document automatic org-wide distribution or live-sync-to-latest-deploy behavior the way a dedicated published-block feature would.",
+        shortValue: 'No, only a generic workflow-calling block; no published block library',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://community.retool.com/t/workflow-block-library/45360',
+            label: 'Workflow Block Library (Feature Request) - Retool Forum',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.retool.com/workflows/guides/blocks/run-workflow',
+            label: 'Run another workflow with the Workflow block | Retool Docs',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

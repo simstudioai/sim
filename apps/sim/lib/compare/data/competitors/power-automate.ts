@@ -368,6 +368,27 @@ export const powerAutomateProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: Power Automate has no feature to publish a deployed flow as a named, iconed, encapsulated block that shows up in the action picker for the whole tenant/organization. The closest mechanisms are child flows ("Run a Child Flow"), which are scoped to makers with access to the same Dataverse solution, and manually wrapping a flow behind a Custom Connector, which requires hand-authoring an OpenAPI/Swagger definition instead of auto-deriving inputs from the flow.',
+        detail:
+          'Child-flow docs state a maker only sees "the flows only to which you have access and are located in a solution," so reuse is scoped to that solution\'s makers, not the whole org, and a caller can still open the child flow and see its steps and connections, no encapsulation. A Custom Connector can wrap any REST API (including a flow\'s own HTTP-triggered URL) so it appears as a reusable action, but the maker must hand-author or import an OpenAPI/Swagger definition describing its request/response shape, and the connector can be shared within the organization once created; it is the same generic API-wrapping mechanic Power Automate uses for any third-party API, not a one-click "publish this flow as a block" feature with live input derivation, hand-picked outputs, or automatic latest-deployed-version tracking.',
+        shortValue:
+          'No: closest is solution-scoped child flows or manually wrapped custom connectors',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/create-child-flows',
+            label: 'Create child flows - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/connectors/custom-connectors/define-openapi-definition',
+            label: 'Create a custom connector from an OpenAPI definition - Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
