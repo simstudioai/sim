@@ -6,26 +6,26 @@ import { getForkDiffContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { loadTargetDraftSubBlocks } from '@/lib/workspaces/fork/copy/copy-workflows'
-import { loadSourceDeployedStates } from '@/lib/workspaces/fork/copy/deploy-bridge'
-import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
-import { loadForkBlockMap } from '@/lib/workspaces/fork/mapping/block-map-store'
+import { loadTargetDraftSubBlocks } from '@/ee/workspace-forking/lib/copy/copy-workflows'
+import { loadSourceDeployedStates } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
+import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
 import {
   collectForkDependentReconfigs,
   collectForkResourceUsages,
-} from '@/lib/workspaces/fork/mapping/dependent-reconfigs'
+} from '@/ee/workspace-forking/lib/mapping/dependent-reconfigs'
 import {
   forkDependentValueKey,
   loadForkDependentValues,
-} from '@/lib/workspaces/fork/mapping/dependent-value-store'
-import { listForkResourceCandidates } from '@/lib/workspaces/fork/mapping/resources'
+} from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
+import { listForkResourceCandidates } from '@/ee/workspace-forking/lib/mapping/resources'
 import {
   annotateForkClearedRefSourceLiveness,
   collectForkClearedRefCandidates,
-} from '@/lib/workspaces/fork/promote/cleared-refs'
-import { computeForkPromotePlan } from '@/lib/workspaces/fork/promote/promote-plan'
-import { buildForkBlockIdResolver } from '@/lib/workspaces/fork/remap/block-identity'
-import { readTargetDraftDependentValue } from '@/lib/workspaces/fork/remap/remap-references'
+} from '@/ee/workspace-forking/lib/promote/cleared-refs'
+import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
+import { readTargetDraftDependentValue } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {

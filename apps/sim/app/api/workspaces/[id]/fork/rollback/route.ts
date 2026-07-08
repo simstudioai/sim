@@ -10,9 +10,9 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { recordBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
-import { assertCanRollback } from '@/lib/workspaces/fork/lineage/authz'
-import { rollbackFork } from '@/lib/workspaces/fork/promote/rollback'
+import { recordBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
+import { assertCanRollback } from '@/ee/workspace-forking/lib/lineage/authz'
+import { rollbackFork } from '@/ee/workspace-forking/lib/promote/rollback'
 
 const logger = createLogger('WorkspaceForkRollbackAPI')
 

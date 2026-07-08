@@ -8,9 +8,9 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { recordBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
-import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
-import { promoteFork } from '@/lib/workspaces/fork/promote/promote'
+import { recordBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
+import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
+import { promoteFork } from '@/ee/workspace-forking/lib/promote/promote'
 
 const logger = createLogger('WorkspaceForkPromoteAPI')
 

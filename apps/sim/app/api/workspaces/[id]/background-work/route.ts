@@ -4,8 +4,8 @@ import { getWorkspaceBackgroundWorkContract } from '@/lib/api/contracts/workspac
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { listSurfacedBackgroundWork } from '@/lib/workspaces/fork/background-work/store'
-import { assertWorkspaceAdminAccess } from '@/lib/workspaces/fork/lineage/authz'
+import { listSurfacedBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
+import { assertWorkspaceAdminAccess } from '@/ee/workspace-forking/lib/lineage/authz'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {

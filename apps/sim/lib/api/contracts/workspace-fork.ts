@@ -82,6 +82,12 @@ export const forkLineageNodeSchema = z.object({
   id: z.string(),
   name: z.string(),
   organizationId: z.string().nullable(),
+  /**
+   * Whether the viewer has any access (read or higher, explicit or org-derived) to this
+   * lineage workspace. Drives the Forks page's row-action gating - lineage rows are visible
+   * to any admin of the CURRENT workspace, who may hold no access to the other side.
+   */
+  viewerAccessible: z.boolean(),
 })
 
 /** A live fork of this workspace, listed read-only on the Forks settings page. */

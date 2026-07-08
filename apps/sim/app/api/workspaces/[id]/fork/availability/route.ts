@@ -3,8 +3,8 @@ import { getForkAvailabilityContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { isForkingAvailableForWorkspace } from '@/lib/workspaces/fork/lineage/authz'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
 
 /**
  * Whether forking is available for this workspace: the server-evaluated verdict of the

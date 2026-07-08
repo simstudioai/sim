@@ -5,8 +5,8 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertCanUnlink } from '@/lib/workspaces/fork/lineage/authz'
-import { unlinkForkEdge } from '@/lib/workspaces/fork/lineage/unlink'
+import { assertCanUnlink } from '@/ee/workspace-forking/lib/lineage/authz'
+import { unlinkForkEdge } from '@/ee/workspace-forking/lib/lineage/unlink'
 
 export const POST = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {

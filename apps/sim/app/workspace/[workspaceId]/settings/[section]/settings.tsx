@@ -25,9 +25,7 @@ const BYOK = dynamic(() =>
 const Copilot = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then((m) => m.Copilot)
 )
-const Forks = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/forks/forks').then((m) => m.Forks)
-)
+const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').then((m) => m.Forks))
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )

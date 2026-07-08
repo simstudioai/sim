@@ -3,6 +3,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  forkLineageChildSchema,
+  forkLineageNodeSchema,
   forkMappableResourceTypeSchema,
   getWorkspaceBackgroundWorkQuerySchema,
   updateForkMappingBodySchema,
@@ -31,6 +33,28 @@ describe('forkMappableResourceTypeSchema', () => {
     ]) {
       expect(forkMappableResourceTypeSchema.safeParse(type).success).toBe(true)
     }
+  })
+})
+
+describe('forkLineageNodeSchema', () => {
+  const baseNode = { id: 'ws-1', name: 'Parent', organizationId: null }
+
+  it('requires viewerAccessible on every node (both accessible and inaccessible parse)', () => {
+    expect(forkLineageNodeSchema.safeParse(baseNode).success).toBe(false)
+    expect(forkLineageNodeSchema.safeParse({ ...baseNode, viewerAccessible: true }).success).toBe(
+      true
+    )
+    expect(forkLineageNodeSchema.safeParse({ ...baseNode, viewerAccessible: false }).success).toBe(
+      true
+    )
+  })
+
+  it('requires viewerAccessible on child nodes too', () => {
+    const child = { ...baseNode, createdAt: '2026-01-01T00:00:00.000Z' }
+    expect(forkLineageChildSchema.safeParse(child).success).toBe(false)
+    expect(forkLineageChildSchema.safeParse({ ...child, viewerAccessible: false }).success).toBe(
+      true
+    )
   })
 })
 

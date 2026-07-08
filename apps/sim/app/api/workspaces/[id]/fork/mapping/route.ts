@@ -7,14 +7,14 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertCanPromote } from '@/lib/workspaces/fork/lineage/authz'
-import { acquireForkEdgeLock, setForkLockTimeout } from '@/lib/workspaces/fork/lineage/lineage'
-import { reconcileForkDependentValues } from '@/lib/workspaces/fork/mapping/dependent-value-store'
+import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
+import { acquireForkEdgeLock, setForkLockTimeout } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { reconcileForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
 import {
   applyForkMappingEntries,
   getForkMappingView,
   validateForkMappingTargets,
-} from '@/lib/workspaces/fork/mapping/mapping-service'
+} from '@/ee/workspace-forking/lib/mapping/mapping-service'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
