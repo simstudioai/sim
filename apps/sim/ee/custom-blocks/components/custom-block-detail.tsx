@@ -82,8 +82,15 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   const update = useUpdateCustomBlock(workspaceId)
   const remove = useDeleteCustomBlock(workspaceId)
 
-  // Source picker (create only). Editing a block never re-points its source.
-  const { data: workspaces = [] } = useWorkspacesQuery(isCreate)
+  // Needed in both modes: the source picker (create) and the manage gate (edit).
+  const { data: workspaces = [] } = useWorkspacesQuery()
+
+  // A block is manageable only by an admin of its SOURCE workspace — the same authz
+  // the publish/update/delete routes enforce. Everyone else gets a read-only view
+  // (no Save/Discard, no Delete, disabled fields). Create is always manageable: the
+  // list gates the entry on workspace-admin and the picker only offers admin workspaces.
+  const canManageBlock =
+    isCreate || workspaces.some((w) => w.id === existing?.workspaceId && w.permissions === 'admin')
   // Custom blocks are org-scoped and the settings list only shows the current org's
   // blocks, so a block published to another org's workspace would silently never
   // appear here. Restrict the picker to workspaces in the current workspace's org.
@@ -91,11 +98,32 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     () => workspaces.find((w) => w.id === workspaceId)?.organizationId ?? null,
     [workspaces, workspaceId]
   )
+  // Only workspaces the user can publish from (admin) — the publish route requires
+  // admin on the source workspace, so a member/read workspace can never be a source.
   const orgWorkspaces = useMemo(
-    () => (currentOrgId ? workspaces.filter((w) => w.organizationId === currentOrgId) : []),
+    () =>
+      currentOrgId
+        ? workspaces.filter((w) => w.organizationId === currentOrgId && w.permissions === 'admin')
+        : [],
     [workspaces, currentOrgId]
   )
+  const eligibleDefaultWorkspaceId = useMemo(
+    () =>
+      orgWorkspaces.some((w) => w.id === workspaceId)
+        ? workspaceId
+        : (orgWorkspaces[0]?.id ?? workspaceId),
+    [orgWorkspaces, workspaceId]
+  )
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId)
+  // Once the eligible list loads, snap an ineligible selection (e.g. the current
+  // workspace when the user isn't its admin) to the first workspace they can publish from.
+  if (
+    isCreate &&
+    orgWorkspaces.length > 0 &&
+    !orgWorkspaces.some((w) => w.id === selectedWorkspaceId)
+  ) {
+    setSelectedWorkspaceId(eligibleDefaultWorkspaceId)
+  }
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
   const { data: workflows = [] } = useWorkflows(isCreate ? selectedWorkspaceId : undefined)
 
@@ -235,7 +263,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
         name.trim() ||
           description.trim() ||
           selectedWorkflowId ||
-          selectedWorkspaceId !== workspaceId ||
+          selectedWorkspaceId !== eligibleDefaultWorkspaceId ||
           iconUrl ||
           visibleOutputs.length > 0 ||
           visibleInputs.some((i) => i.placeholder?.trim())
@@ -286,7 +314,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
 
   function handleDiscard() {
     if (isCreate) {
-      setSelectedWorkspaceId(workspaceId)
+      setSelectedWorkspaceId(eligibleDefaultWorkspaceId)
       setSelectedWorkflowId('')
     }
     setName(existing?.name ?? '')
@@ -366,14 +394,16 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
         title={existing?.name || 'New block'}
         description='Publish a deployed workflow as a reusable, org-wide block.'
         actions={[
-          ...saveDiscardActions({
-            dirty,
-            saving,
-            onSave: handleSave,
-            onDiscard: handleDiscard,
-            saveDisabled,
-          }),
-          ...(existing
+          ...(canManageBlock
+            ? saveDiscardActions({
+                dirty,
+                saving,
+                onSave: handleSave,
+                onDiscard: handleDiscard,
+                saveDisabled,
+              })
+            : []),
+          ...(existing && canManageBlock
             ? [
                 {
                   text: remove.isPending ? 'Deleting...' : 'Delete',
@@ -446,11 +476,11 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
 
           <SettingRow label='Icon' labelTooltip='Square image (PNG, JPEG, or SVG). Optional.'>
             <div className='flex items-center gap-4'>
-              <DropZone onDrop={iconUpload.handleFileDrop}>
+              <DropZone onDrop={canManageBlock ? iconUpload.handleFileDrop : () => {}}>
                 <button
                   type='button'
                   onClick={iconUpload.handleThumbnailClick}
-                  disabled={iconUpload.isUploading}
+                  disabled={iconUpload.isUploading || !canManageBlock}
                   className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                 >
                   {iconUpload.isUploading ? (
@@ -468,7 +498,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                   variant='outline'
                   size='sm'
                   onClick={iconUpload.handleThumbnailClick}
-                  disabled={iconUpload.isUploading}
+                  disabled={iconUpload.isUploading || !canManageBlock}
                   className='text-[13px]'
                 >
                   {iconUrl ? 'Change' : 'Upload'}
@@ -479,7 +509,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                     variant='ghost'
                     size='sm'
                     onClick={iconUpload.handleRemove}
-                    disabled={iconUpload.isUploading}
+                    disabled={iconUpload.isUploading || !canManageBlock}
                     className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   >
                     <X className='size-[14px]' />
@@ -502,6 +532,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               onChange={(e) => setName(e.target.value)}
               placeholder='Invoice Parser'
               maxLength={60}
+              disabled={!canManageBlock}
             />
           </SettingRow>
 
@@ -512,6 +543,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               placeholder='What this block does'
               rows={2}
               maxLength={280}
+              disabled={!canManageBlock}
             />
           </SettingRow>
 
@@ -579,6 +611,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                                 onChange={(e) => setPlaceholder(i.id, e.target.value)}
                                 placeholder='Shown in the empty field'
                                 maxLength={200}
+                                disabled={!canManageBlock}
                               />
                             </div>
                           </div>
@@ -602,7 +635,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               className='w-full'
               dropdownWidth='trigger'
               maxHeight={280}
-              disabled={deployed.isLoading || outputGroups.length === 0}
+              disabled={deployed.isLoading || outputGroups.length === 0 || !canManageBlock}
               emptyMessage={deployed.isLoading ? 'Loading workflow…' : 'No outputs found.'}
               options={[]}
               groups={outputGroups}
@@ -634,6 +667,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                         placeholder='name'
                         className='w-[140px]'
                         maxLength={60}
+                        disabled={!canManageBlock}
                       />
                     </div>
                   )

@@ -136,13 +136,15 @@ export function SettingsSidebar({
         return true
       }
 
-      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
+      const orgAdminSatisfied = isOrgAdminOrOwner || item.allowNonOrgAdmin
+
+      if (item.requiresTeam && (!hasTeamPlan || !orgAdminSatisfied)) {
         return false
       }
 
       if (
         item.requiresEnterprise &&
-        (!hasEnterprisePlan || !isOrgAdminOrOwner) &&
+        (!hasEnterprisePlan || !orgAdminSatisfied) &&
         !item.showWhenLocked
       ) {
         return false
