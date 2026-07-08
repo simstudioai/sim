@@ -1,6 +1,8 @@
 # Landing Page - Build & Optimization Instructions
 
-This route group owns `/` and the entire public marketing surface - the home page, platform/solutions pages, pricing, legal, and the marketing subroutes (`/blog`, `/models`, `/integrations`, `/demo`, `/partners`, `/changelog`). Read this file in full before adding or changing anything here. Positioning and language rules live in `.claude/rules/constitution.md`; SEO/GEO rules in `.claude/rules/landing-seo-geo.md`. Both apply to every file in this directory.
+This route group owns `/` and the entire public marketing surface - the home page, platform/solutions pages, pricing, legal, and the marketing subroutes (`/blog`, `/library`, `/models`, `/integrations`, `/demo`, `/partners`, `/changelog`). Read this file in full before adding or changing anything here. Positioning and language rules live in `.claude/rules/constitution.md`; SEO/GEO rules in `.claude/rules/landing-seo-geo.md`. Both apply to every file in this directory.
+
+`/blog` (editorial/company-voice posts) and `/library` (AEO/GEO content - listicles, comparisons, how-tos) are two separate route trees over one shared engine: `apps/sim/lib/content/` (generic registry factory, MDX components, SEO builders) instantiated per-section by the thin `apps/sim/lib/blog/` and `apps/sim/lib/library/` modules, rendered through the shared `Content*Page` components in `components/`. Content lives in `apps/sim/content/blog/` and `apps/sim/content/library/`; both share `apps/sim/content/authors/`. Adding a post to either section, or adding a new content section entirely, must reuse this engine - never hand-roll a divergent registry or page layout. Every new marketing subroute (including any future content section) needs `app/sitemap.ts` and `app/robots.ts` updated, same as `/blog` and `/library` were.
 
 ## What this is
 
