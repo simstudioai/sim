@@ -59,29 +59,36 @@ const PipeSafeTable = Table.extend({
 })
 
 /**
- * Backslash-escapes a leading block marker so paragraph text like `# note`, `- item`, `1. step`, or a
- * bare `---` serializes as a paragraph rather than re-parsing into a heading / list / thematic break on
- * the next load. The upstream serializer escapes inline delimiters (`* _ \` [ ] ~`, so `*` bullets and
- * `>` quotes already round-trip) but not these block-starting markers. Escaping is idempotent: parsing
- * consumes the backslash, so the stored ProseMirror text never carries it and re-serialization is stable.
+ * Guards a paragraph's serialized text so its leading characters don't re-parse it into a different
+ * block on the next load:
+ *
+ * - **Leading whitespace** is stripped. It never renders in a paragraph (CommonMark strips up to three
+ *   leading spaces, and four or more would re-parse the paragraph as an indented code block), so
+ *   removing it is lossless and makes the round-trip idempotent.
+ * - **A leading block marker** (`#`, `-`, `+`, `1.`, `1)`, or a bare `---`) is backslash-escaped so the
+ *   paragraph doesn't become a heading / list / thematic break. The upstream serializer escapes inline
+ *   delimiters (`* _ \` [ ] ~`, so `*` bullets and `>` quotes already round-trip) but not these
+ *   block-starting markers. Escaping is idempotent: parsing consumes the backslash, so the stored
+ *   ProseMirror text never carries it and re-serialization is stable.
  */
-function escapeLeadingBlockMarker(text: string): string {
-  if (/^(#{1,6}([ \t]|$)|[-+][ \t]|-(?:[ \t]*-){2,}[ \t]*$)/.test(text)) {
-    return `\\${text}`
+function guardParagraphLeading(text: string): string {
+  const stripped = text.replace(/^[ \t]+/, '')
+  if (/^(#{1,6}([ \t]|$)|[-+][ \t]|-(?:[ \t]*-){2,}[ \t]*$)/.test(stripped)) {
+    return `\\${stripped}`
   }
-  const ordered = /^(\d{1,9})([.)][ \t])/.exec(text)
-  return ordered ? `${ordered[1]}\\${text.slice(ordered[1].length)}` : text
+  const ordered = /^(\d{1,9})([.)][ \t])/.exec(stripped)
+  return ordered ? `${ordered[1]}\\${stripped.slice(ordered[1].length)}` : stripped
 }
 
 /**
- * Paragraph that escapes a leading block marker on serialize (see {@link escapeLeadingBlockMarker}) —
- * otherwise a paragraph beginning with `#`/`-`/`+`/`1.`/`1)`/`---` silently becomes that block on the
- * next load. Block separators are owned by the parent joiner, so a paragraph renders as just its inline
- * children; this override wraps that with the leading-marker guard.
+ * Paragraph that guards its leading characters on serialize (see {@link guardParagraphLeading}) —
+ * otherwise a paragraph beginning with a block marker or an indent silently becomes a heading / list /
+ * thematic break / code block on the next load. Block separators are owned by the parent joiner, so a
+ * paragraph renders as just its inline children; this override wraps that with the leading guard.
  */
 const BlockSafeParagraph = Paragraph.extend({
   renderMarkdown: (node: JSONContent, h: MarkdownRendererHelpers) =>
-    escapeLeadingBlockMarker(h.renderChildren(node.content ?? [])),
+    guardParagraphLeading(h.renderChildren(node.content ?? [])),
 })
 
 /**

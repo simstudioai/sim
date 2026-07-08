@@ -331,7 +331,7 @@ describe('link href sanitization — dangerous schemes from file content are neu
   })
 })
 
-describe('paragraph leading block-marker escaping', () => {
+describe('paragraph leading guard (marker escaping + indent stripping)', () => {
   /** Serialize a doc whose first paragraph literally starts with `text`, then re-parse its first node. */
   function serializeParagraph(text: string): {
     md: string
@@ -379,4 +379,58 @@ describe('paragraph leading block-marker escaping', () => {
     expect(reparsedType).toBe('paragraph')
     expect(idempotent).toBe(true)
   })
+
+  it.each([
+    ['    four spaces', 'four spaces'],
+    ['\ttab indent', 'tab indent'],
+    ['        eight spaces', 'eight spaces'],
+    ['   # indented marker', '\\# indented marker'],
+  ])(
+    'strips leading indent so %j stays a paragraph instead of an indented code block',
+    (text, expectedMd) => {
+      const { md, reparsedType, idempotent } = serializeParagraph(text)
+      expect(md.trim()).toBe(expectedMd)
+      expect(reparsedType).toBe('paragraph')
+      expect(idempotent).toBe(true)
+    }
+  )
+})
+
+describe('consecutive empty paragraphs', () => {
+  /** Doc with `a`, then `count` empty paragraphs, then `b`; serialized and round-tripped. */
+  function serializeEmpties(count: number) {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    const emptyParas = Array.from({ length: count }, () => ({ type: 'paragraph', content: [] }))
+    editor.commands.setContent(
+      {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+          ...emptyParas,
+          { type: 'paragraph', content: [{ type: 'text', text: 'b' }] },
+        ],
+      },
+      { contentType: 'json' }
+    )
+    const md = postProcessSerializedMarkdown(editor.getMarkdown())
+    editor.commands.setContent(md, { contentType: 'markdown' })
+    const emptyCount = (editor.getJSON().content ?? []).filter(
+      (n) => n.type === 'paragraph' && !n.content?.length
+    ).length
+    const idempotent = postProcessSerializedMarkdown(editor.getMarkdown()) === md
+    editor.destroy()
+    editor = null
+    return { md, emptyCount, idempotent }
+  }
+
+  it.each([[1], [2], [3], [4]])(
+    'preserves %i empty paragraph(s) via blank lines (no &nbsp;, idempotent, no read-only trigger)',
+    (count) => {
+      const { md, emptyCount, idempotent } = serializeEmpties(count)
+      expect(md).not.toContain('&nbsp;')
+      expect(md).not.toContain(String.fromCharCode(0x00a0))
+      expect(emptyCount).toBe(count)
+      expect(idempotent).toBe(true)
+    }
+  )
 })
