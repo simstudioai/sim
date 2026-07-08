@@ -25,26 +25,26 @@ export const gumloopProfile: CompetitorProfile = {
     'Gumloop is a hosted, no-code visual platform for building and deploying AI agents and automations: a drag-and-drop canvas, an AI copilot ("Gen") for natural-language flow creation, and native MCP (Model Context Protocol) integration support.',
   standoutFeatures: [
     {
-      title: '100+ fully hosted MCP servers',
+      title: '250+ fully hosted MCP servers',
       description:
-        'Gumloop offers 100+ pre-built, zero-setup hosted MCP servers, plus any custom MCP server over HTTPS, with both native-MCP and backend-connector execution modes.',
-      shortDescription:
-        '100+ zero-setup hosted MCP servers, plus any custom MCP server over HTTPS.',
+        'Gumloop offers 250+ pre-built, zero-setup hosted MCP servers spanning popular services, letting agents connect to external tools without manual configuration.',
+      shortDescription: '250+ zero-setup hosted MCP servers across popular services.',
       source: {
         url: 'https://www.gumloop.com/mcp',
         label: 'Gumloop: Fully Hosted MCP Servers',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
-      title: 'Gen copilot debugs existing flows node-by-node on canvas',
+      title: 'Gummie copilot builds, edits, and debugs flows from natural language',
       description:
-        'Beyond building new flows from a prompt, Gen can step into an already-built workflow and debug it node-by-node directly on the canvas, working from a plain-English description of what is going wrong.',
-      shortDescription: 'Gen debugs an existing workflow node-by-node directly on the canvas.',
+        "Beyond building new flows from a prompt, Gumloop's AI copilot, Gummie, can edit, debug, and run existing workflows: users describe what they want changed or fixed in plain English and Gummie figures out the implementation.",
+      shortDescription:
+        'Gummie copilot can build, edit, debug, and run workflows from natural-language prompts.',
       source: {
-        url: 'https://www.gumloop.com/blog/agentic-ai-tools',
-        label: 'Gumloop blog: agentic AI tools',
-        asOf: '2026-07-02',
+        url: 'https://www.gumloop.com/changelog',
+        label: 'Gumloop Changelog',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -97,24 +97,24 @@ export const gumloopProfile: CompetitorProfile = {
     {
       title: 'Proprietary license, closed source',
       description:
-        'The core Gumloop application has no open-source license; it is a closed commercial product, unlike some workflow-automation competitors that ship an open-source core.',
+        'The core Gumloop application has no open-source license; Gumloop\'s own Terms of Service state the Service, its features, and its functionality "are and will remain the exclusive property of AgentHub Inc. (doing business as Gumloop) and its licensors," unlike some workflow-automation competitors that ship an open-source core.',
       shortDescription: 'Closed commercial product with no open-source core.',
       source: {
-        url: 'https://www.gumloop.com/pricing',
-        label: 'Gumloop Pricing',
-        asOf: '2026-07-02',
+        url: 'https://www.gumloop.com/tos',
+        label: 'Gumloop Terms of Service',
+        asOf: '2026-07-08',
       },
     },
     {
       title: 'Inconsistent/unclear integration count across vendor pages',
       description:
-        "Gumloop's own pages give differing figures for integrations ('100+ nodes and integrations' vs '100+ MCP servers'), and the dedicated /integrations directory page returns a 404, making an exact, citable integration count hard to pin down from primary sources.",
+        "Gumloop's own pages give differing figures for integrations: its docs introduction cites '100+ pre-built nodes and integrations,' while its dedicated MCP page separately advertises '250+ MCP servers.' These may be different countable categories (native nodes vs MCP-protocol connectors), but neither page cross-references the other, and the dedicated /integrations directory page still returns a 404, making an exact, citable integration count hard to pin down from primary sources.",
       shortDescription:
         'Vendor pages cite different integration counts with no single authoritative figure.',
       source: {
-        url: 'https://www.gumloop.com/mcp',
-        label: 'Gumloop: Fully Hosted MCP Servers',
-        asOf: '2026-07-02',
+        url: 'https://docs.gumloop.com/getting-started/introduction',
+        label: 'Getting Started - Gumloop docs',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -134,17 +134,17 @@ export const gumloopProfile: CompetitorProfile = {
     platform: {
       builderType: {
         value:
-          "Visual, no-code canvas builder with an AI copilot ('Gen') that can generate/modify flows from natural-language prompts",
+          "Visual, no-code canvas builder with an AI copilot ('Gummie') that can generate/modify flows from natural-language prompts",
         detail:
-          "Gumloop is a visual/no-code drag-and-drop canvas for chaining nodes (AI, integration, logic) into agent 'flows'; a chat-based AI copilot named Gen can build and edit these flows from plain-English instructions.",
-        shortValue: 'Visual canvas plus Gen AI copilot for building flows',
+          "Gumloop is a visual/no-code drag-and-drop canvas for chaining nodes (AI, integration, logic) into agent 'flows'; a chat-based AI agent named Gummie can build and edit these flows from plain-English instructions.",
+        shortValue: 'Visual canvas plus Gummie AI copilot for building flows',
         confidence: 'estimated',
         sources: [
-          { url: 'https://www.gumloop.com', label: 'Gumloop homepage', asOf: '2026-07-02' },
+          { url: 'https://www.gumloop.com', label: 'Gumloop homepage', asOf: '2026-07-08' },
           {
             url: 'https://www.gumloop.com/blog/agentic-ai-tools',
             label: 'Gumloop blog: agentic AI tools',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -330,12 +330,7 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://docs.gumloop.com/core-concepts/subflows',
             label: 'Subflows - Gumloop docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/university/lessons/subflows',
-            label: 'Gumloop University: Subflows',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -372,14 +367,14 @@ export const gumloopProfile: CompetitorProfile = {
       },
       naturalLanguageBuilding: {
         value:
-          "Yes: an AI copilot named 'Gen' builds/edits flows from natural-language descriptions",
-        shortValue: 'Gen copilot builds and edits flows from prompts',
+          "Yes: an AI copilot named 'Gummie' builds/edits flows from natural-language descriptions",
+        shortValue: 'Gummie copilot builds and edits flows from prompts',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.gumloop.com/blog/agentic-ai-tools',
             label: 'Gumloop blog: agentic AI tools',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -393,21 +388,21 @@ export const gumloopProfile: CompetitorProfile = {
       },
       mcpSupport: {
         value:
-          'Yes: native MCP client/server support with 100+ pre-built hosted MCP servers plus custom MCP server connections',
+          'Yes: native MCP client/server support with 250+ pre-built hosted MCP servers plus custom MCP server connections',
         detail:
-          "Gumloop can connect to any MCP server (custom URL over HTTPS), offers 100+ fully-hosted MCP servers with zero setup, and supports both 'native MCP' (model connects directly) and a 'backend connector' mode (Gumloop executes tool calls).",
-        shortValue: '100+ hosted MCP servers plus custom MCP',
+          "Gumloop can connect to any MCP server (custom URL over HTTPS), offers 250+ fully-hosted MCP servers with zero setup, and supports both 'native MCP' (model connects directly) and a 'backend connector' mode (Gumloop executes tool calls).",
+        shortValue: '250+ hosted MCP servers plus custom MCP',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/mcp',
             label: 'Gumloop: Fully Hosted MCP Servers',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.gumloop.com/nodes/mcp/custom_mcp_servers',
             label: 'Gumloop docs: Custom MCP Servers',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -422,12 +417,7 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://www.gumloop.com/changelog',
             label: 'Gumloop Changelog',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust (guardrails/RBAC)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -581,21 +571,16 @@ export const gumloopProfile: CompetitorProfile = {
       },
       loopIteration: {
         value:
-          "Partial: Gumloop's only documented iteration primitive is 'Loop Mode', the same mechanism covered under parallelExecution, which auto-triggers when a list is connected to a node or Subflow and runs that node once per list item. Per Gumloop's docs this is concurrent (2 items at once on Free, 15 on Pro), not a strictly one-at-a-time sequential container, and no separate while-loop or fixed-iteration-count node is documented, only iteration over an existing list.",
+          "Partial: Gumloop's only documented iteration primitive is 'Loop Mode', the same mechanism covered under parallelExecution, which a user manually enables on a node so it runs once per item in a connected list. Per Gumloop's docs this is concurrent (2 items at once on Free, 15 on Pro), not a strictly one-at-a-time sequential container, and no separate while-loop or fixed-iteration-count node is documented, only manually-enabled iteration over an existing list.",
         detail:
-          "Gumloop docs describe Loop Mode as processing 'multiple items simultaneously' with concurrency capped by plan tier, distinct from a classic for-each node that guarantees one iteration finishes before the next starts. No dedicated while-loop (condition-based) or fixed-count repeat node is documented; all iteration is driven by connecting a list as input.",
-        shortValue: 'Partial: list-driven Loop Mode is concurrent, not a sequential loop node',
+          "Gumloop docs describe Loop Mode as a mode a user enables on a node ('When you enable Loop Mode on a node...'), which then processes multiple list items simultaneously with concurrency capped by plan tier, distinct from a classic for-each node that guarantees one iteration finishes before the next starts. No dedicated while-loop (condition-based) or fixed-count repeat node is documented; all iteration requires manually enabling Loop Mode with a list as input.",
+        shortValue: 'Partial: manually-enabled Loop Mode is concurrent, not a sequential loop node',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.gumloop.com/core-concepts/loop_mode',
             label: 'Loop Mode - Gumloop docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/university/lessons/lists-loop-mode',
-            label: 'Gumloop University: Lists & Loop mode',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -603,16 +588,21 @@ export const gumloopProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          "Vendor-claimed figures vary by page: 100+ nodes/integrations, 100+ hosted MCP servers; third-party reviews cite '130+ native integrations'",
+          'Vendor-claimed figures vary by page: 100+ pre-built nodes and integrations (per docs.gumloop.com), 250+ hosted MCP servers (per gumloop.com/mcp)',
         detail:
-          "No single authoritative exact count is published on a primary Gumloop page. gumloop.com/mcp cites '100+ MCP servers, fully hosted, zero setup' while other Gumloop copy references '100+ pre-built nodes and integrations,' and the dedicated /integrations directory page returns a 404.",
-        shortValue: '100+ integrations and MCP servers (vendor figures vary)',
+          "No single authoritative exact count is published on a primary Gumloop page. docs.gumloop.com's introduction cites '100+ pre-built nodes and integrations' while gumloop.com/mcp separately cites '250+ MCP servers, zero setup'; the two pages do not cross-reference each other, and the dedicated /integrations directory page returns a 404.",
+        shortValue: '100+ nodes/integrations, 250+ MCP servers (vendor figures vary)',
         confidence: 'estimated',
         sources: [
           {
+            url: 'https://docs.gumloop.com/getting-started/introduction',
+            label: 'Getting Started - Gumloop docs',
+            asOf: '2026-07-08',
+          },
+          {
             url: 'https://www.gumloop.com/mcp',
             label: 'Gumloop: Fully Hosted MCP Servers',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -683,7 +673,7 @@ export const gumloopProfile: CompetitorProfile = {
       },
       mcpPublishing: {
         value:
-          "No: Gumloop's MCP capability mainly runs in the consuming direction. It connects agents/workflows to 100+ fully hosted MCP servers (Slack, Notion, GitHub, etc.) and lets users add custom MCP servers as tool sources. No official Gumloop documentation describes publishing a user's deployed workflow itself as a callable MCP server for external AI tools to consume.",
+          "No: Gumloop's MCP capability mainly runs in the consuming direction. It connects agents/workflows to 250+ fully hosted MCP servers and lets users add custom MCP servers as tool sources. No official Gumloop documentation describes publishing a user's deployed workflow itself as a callable MCP server for external AI tools to consume.",
         detail:
           'A third-party, unofficial open-source project ("gumloop-mcp" on GitHub) wraps the Gumloop management API as an MCP server, but that is not the same as natively publishing a specific deployed workflow as an MCP tool, and it is not an official Gumloop product.',
         shortValue: "No: consumes MCP servers, doesn't publish flows as one",
@@ -692,7 +682,7 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://www.gumloop.com/mcp',
             label: 'Fully Hosted MCP Servers for Your AI Agents - Gumloop',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.gumloop.com/nodes/mcp/custom_mcp_servers',
@@ -1152,7 +1142,7 @@ export const gumloopProfile: CompetitorProfile = {
       },
       academy: {
         value:
-          'Yes: Gumloop runs "Gumloop University," a structured learning resource with self-paced courses (e.g. "Gumloop 101"), live webinars, and week-long "Learning Cohorts" that award a certificate of completion for finishing practical challenges.',
+          'Yes: Gumloop runs "Gumloop University," a structured learning resource with self-paced courses (e.g. "Getting Started with Gumloop"), live webinars, and week-long "Learning Cohorts" that award a certificate of completion for finishing practical challenges.',
         detail:
           'Certification is tied to completing cohort challenges rather than a formal exam-based program, but it is a structured curriculum beyond ad hoc docs/blog posts.',
         shortValue: 'Yes: Gumloop University with courses and certificates',
@@ -1161,17 +1151,12 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://university.gumloop.com/',
             label: 'Gumloop University',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://www.gumloop.com/cohorts',
             label: 'Gumloop Learning Cohorts',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.gumloop.com/university/courses/gumloop-101',
-            label: 'Gumloop 101 course',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },

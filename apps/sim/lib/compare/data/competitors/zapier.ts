@@ -50,12 +50,12 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Zapier Copilot (natural-language build assistant)',
       description:
-        'Copilot (open beta) lets users describe an automation or agent in plain language and generates a draft Zap or agent, including custom code steps to fill integration gaps. Sim offers the same natural-language building capability via Chat and in-editor Copilot.',
+        'Copilot lets users describe an automation or agent in plain language and generates a draft Zap or agent, including custom code steps to fill integration gaps. Sim offers the same natural-language building capability via Chat and in-editor Copilot.',
       shortDescription: 'Describe an automation and Copilot builds the Zap or agent for you.',
       source: {
         url: 'https://zapier.com/blog/zapier-copilot-guide/',
         label: 'Zapier Copilot: Build systems even faster with AI',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -163,7 +163,11 @@ export const zapierProfile: CompetitorProfile = {
         shortValue: 'Large library of prebuilt templates',
         confidence: 'estimated',
         sources: [
-          { url: 'https://zapier.com/apps', label: 'Zapier App Directory', asOf: '2026-07-02' },
+          {
+            url: 'https://zapier.com/templates',
+            label: 'Zapier Workflow Automation Templates',
+            asOf: '2026-07-08',
+          },
         ],
       },
       license: {
@@ -172,9 +176,10 @@ export const zapierProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://zapier.com/pricing',
-            label: 'Zapier Plans & Pricing',
-            asOf: '2026-07-02',
+            url: 'https://zapier.com/legal/terms-of-service',
+            label:
+              'Zapier Terms of Service (Zapier and its licensors retain all right, title, and interest in the Service; no open-source license is offered)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -275,21 +280,21 @@ export const zapierProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          'Yes: Zapier Tables is a native, spreadsheet-like data table feature (distinct from external DB connectors), with a spreadsheet-style grid interface and plan-based record limits (Free plan up to 2,500 records). Deleted records and fields go to a Trash with a 30-day recovery window.',
+          'Yes: Zapier Tables is a native, spreadsheet-like data table feature (distinct from external DB connectors), with a spreadsheet-style grid interface and plan-based record limits (see zapier.com/pricing for current tier limits, as the usage-limits help page no longer states the Free plan figure directly). Deleted records and fields go to a Trash with a 30-day recovery window.',
         detail:
           'Table components embedded in Interfaces/Forms display 20 rows by default (switchable to 10/20/50); keyboard-navigation parity with classic spreadsheets is not separately documented.',
-        shortValue: 'Yes: native Zapier Tables with record limits',
+        shortValue: 'Yes: native Zapier Tables with plan-based record limits',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.zapier.com/hc/en-us/articles/15721386410765-Zapier-Tables-usage-limits',
             label: 'Zapier Tables usage limits',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/45396606105741-Restore-deleted-records-and-fields-from-Trash-in-Zapier-Tables',
             label: 'Restore deleted records and fields from Trash in Zapier Tables',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -337,19 +342,19 @@ export const zapierProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'OpenAI (GPT family), Anthropic (Claude family), and Google (Gemini family), with BYOK for OpenAI, Anthropic, Gemini, and Azure OpenAI in Chatbots',
-        shortValue: 'OpenAI, Anthropic, and Google models, with BYOK',
+          'OpenAI (GPT family), Anthropic (Claude family), and Google (Gemini family), with BYOK for OpenAI and Anthropic only in Chatbots',
+        shortValue: 'OpenAI, Anthropic, and Google models; BYOK for OpenAI/Anthropic only',
         confidence: 'verified',
         sources: [
           {
             url: 'https://zapier.com/blog/ai-models-on-zapier/',
             label: 'Which AI models can you automate on Zapier?',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/21959873616013-Use-your-own-API-key-with-a-Zapier-Chatbot',
             label: 'Use your own API key with a Zapier Chatbot',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -390,16 +395,25 @@ export const zapierProfile: CompetitorProfile = {
       mcpSupport: {
         value: 'Yes',
         detail:
-          'Zapier operates a hosted MCP server (Streamable HTTP) exposing 9,000+ app connections and 30,000+ actions to any MCP client, and also offers an "MCP Client by Zapier" integration for calling external MCP servers from within Zaps. Costs 2 tasks per tool call on all plans.',
+          'Zapier operates a hosted MCP server (Streamable HTTP) exposing 9,000+ app connections and 40,000+ actions to any MCP client, and also offers an "MCP Client by Zapier" integration for calling external MCP servers from within Zaps. Costs 2 tasks per tool call on all plans.',
         shortValue: 'Hosted MCP server plus an MCP client to call others',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://zapier.com/blog/zapier-mcp-guide/',
-            label: 'Zapier MCP: Perform 30,000+ actions in your AI tool',
-            asOf: '2026-07-02',
+            url: 'https://docs.zapier.com/mcp/home',
+            label: 'Zapier MCP docs (9,000+ apps and 40,000+ actions)',
+            asOf: '2026-07-08',
           },
-          { url: 'https://docs.zapier.com/mcp/home', label: 'Zapier MCP docs', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.zapier.com/mcp/clients',
+            label: 'Zapier MCP docs — Clients (requires Streamable HTTP; SSE not supported)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.zapier.com/mcp/usage/overview',
+            label: 'Zapier MCP docs — Usage overview (2 tasks per tool call)',
+            asOf: '2026-07-08',
+          },
         ],
       },
       evaluationGuardrails: {
@@ -501,21 +515,27 @@ export const zapierProfile: CompetitorProfile = {
       },
       nativeChatDeployment: {
         value:
-          'Yes: Zapier Chatbots let a builder create a conversational AI agent connected to knowledge sources and 9,000+ apps, then deploy it via a public shareable URL or embed it on a website, Slack, or Teams.',
+          'Yes: Zapier Chatbots let a builder create a conversational AI agent connected to knowledge sources, deployed via a public shareable URL or embedded on a website (pop-up, inline, or via Zapier Forms); Slack can also be connected via a separate Zap that triggers the chatbot\'s Generate Reply action and posts the reply back, rather than a direct "embed" option.',
         detail:
           "Chatbots and Interfaces are public by default unless restricted on a paid plan; the 'Built on Zapier' footer label can be removed on paid plans as well.",
-        shortValue: 'Yes: public chatbot URL or embed',
+        shortValue: 'Yes: public chatbot URL or website embed; Slack via a separate Zap',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.zapier.com/hc/en-us/articles/21958023866381-Share-and-embed-a-chatbot',
             label: 'Share and embed a chatbot',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/21960697323533-Set-up-a-chatbot',
             label: 'Set up a chatbot',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://community.zapier.com/featured-articles-65/how-to-connect-your-zapier-chatbot-to-slack-for-smart-replies-46213',
+            label:
+              'How to Connect Your Zapier Chatbot to Slack for Smart Replies (Zapier Community)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -685,17 +705,23 @@ export const zapierProfile: CompetitorProfile = {
         detail:
           'A task is one completed action step in a Zap; trigger steps are free. MCP tool calls cost 2 tasks each. Plans are sold as monthly task blocks (e.g., 750, 2,000) with per-user limits on Team/Enterprise.',
         shortValue: 'Metered per-task pricing, tiered by monthly allotment',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.activepieces.com/blog/zapier-pricing',
-            label: 'Zapier Pricing Breakdown (third-party)',
-            asOf: '2026-07-02',
+            url: 'https://zapier.com/pricing',
+            label:
+              'Zapier Pricing (task tiers from 100 to 2M/month; seat limits on Team/Enterprise)',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://zapier.com/blog/zapier-mcp-guide/',
-            label: 'Zapier MCP guide (task cost per tool call)',
-            asOf: '2026-07-02',
+            url: 'https://help.zapier.com/hc/en-us/articles/8496196837261-How-is-task-usage-measured-in-Zapier',
+            label: 'How is task usage measured in Zapier? (Zap triggers never use tasks)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.zapier.com/mcp/usage/overview',
+            label: 'Zapier MCP usage overview (task cost per tool call)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -729,14 +755,14 @@ export const zapierProfile: CompetitorProfile = {
       byok: {
         value: 'Yes, for Chatbots/AI steps',
         detail:
-          "Zapier Chatbots default to GPT-4.1 mini but let users add their own API key for OpenAI, Anthropic Claude, Google Gemini, or Azure OpenAI, with usage billed directly to the user's provider account.",
-        shortValue: 'Bring your own key for Chatbots/AI steps',
+          "Zapier Chatbots default to GPT-4.1 mini but let users add their own API key for OpenAI or Anthropic Claude, with usage billed directly to the user's provider account. (Gemini/Azure OpenAI BYOK is not documented.)",
+        shortValue: 'Bring your own key for OpenAI/Anthropic in Chatbots',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.zapier.com/hc/en-us/articles/21959873616013-Use-your-own-API-key-with-a-Zapier-Chatbot',
             label: 'Use your own API key with a Zapier Chatbot',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -838,41 +864,41 @@ export const zapierProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          "Yes, but coarser than per-role credential controls: Zapier lets an owner share a specific app connection with chosen users or teams (Enterprise), and Enterprise 'managed apps' let admins mark specific apps as admin-only, so only admins can create or share connections for that app while members still use admin-shared ones. This governs connections at the app/sharing level, not a fine-grained per-role permission matrix over individual stored credentials.",
+          "Yes, but coarser than per-role credential controls: Zapier lets an owner share a specific app connection with chosen individual users (Team plan) or with teams as a unit (Enterprise), and Enterprise 'managed apps' let admins mark specific apps as admin-only, so only admins can create or share connections for that app while members still use admin-shared ones. This governs connections at the app/sharing level, not a fine-grained per-role permission matrix over individual stored credentials.",
         detail:
           'Admins can also globally restrict connection sharing account-wide via a toggle in the Admin Center.',
-        shortValue: 'Coarse: connection sharing plus admin-managed apps',
+        shortValue: 'Coarse: connection sharing (Team) plus admin-managed apps (Enterprise)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.zapier.com/hc/en-us/articles/8496326497037-Share-app-connections-with-members-of-your-Team-or-Enterprise-account',
             label: 'Share app connections with members of your Team or Enterprise account',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/44795921426317-Manage-app-connections-with-managed-apps',
             label: 'Manage app connections with managed apps',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       whiteLabeling: {
         value:
-          "Yes, but partial and tiered: Zapier offers a White Label product for embedding automation UI into a customer's own product (Company/Enterprise pricing). Separately, paid-plan customers can remove the 'Built on Zapier' label from Chatbots and Forms and apply custom brand colors and a logo to Forms. There is no platform-wide white-labeling of the core Zap editor or workspace itself.",
+          "Yes, but partial and tiered: Zapier offers a White Label product for embedding automation UI into a customer's own product (currently limited access, contact sales). Separately, Team/Enterprise Forms customers can remove the 'Built on Zapier' label, while Professional/Team/Enterprise customers can apply custom brand colors and a logo to Forms (Free cannot). There is no platform-wide white-labeling of the core Zap editor or workspace itself.",
         detail:
-          'White Label is a distinct embedded product for SaaS builders; branding removal on Chatbots/Forms is a separate, narrower feature gated behind paid plans.',
+          'White Label is a distinct embedded product for SaaS builders; branding removal on Forms is a separate, narrower feature gated behind paid plans, with label removal itself requiring Team/Enterprise.',
         shortValue: 'Partial: White Label embed product, tiered branding removal',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.zapier.com/white-label/getting-started',
             label: 'White Label getting started',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/15932034572685-Customize-branding-and-colors-in-Zapier-Forms',
             label: 'Customize branding and colors in Zapier Forms',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1055,21 +1081,21 @@ export const zapierProfile: CompetitorProfile = {
       },
       dataDrains: {
         value:
-          "Yes: Zapier offers 'Log streams' (Enterprise) that continuously stream Zap configuration-change and run-outcome events to an external SIEM/monitoring destination such as Datadog or Splunk, in addition to an in-product account-wide audit log with a Zap Runs API for pulling history.",
+          "Yes: Zapier offers 'Log streams' (Enterprise) that continuously stream Zap configuration-change and run-outcome events to an external SIEM/monitoring destination such as Datadog or Splunk, in addition to an in-product account-wide audit log (Teams/Enterprise) for change and run-outcome history. (Note: a Zap Runs/Workflow API for programmatically pulling history exists only as an experimental, non-public feature, not generally available.)",
         detail:
           "Log streams capture events only from when they're configured, not historical backfill.",
-        shortValue: 'Yes: log streams to Datadog, Splunk, SIEM',
+        shortValue: 'Yes: log streams to Datadog, Splunk, SIEM, plus in-product audit log',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.zapier.com/hc/en-us/articles/43732241361421-Set-up-log-streams-to-monitor-Zap-activity',
             label: 'Set up log streams to monitor Zap activity',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://zapier.com/blog/mpe-admin-center-audit-logs/',
             label: 'Complete Control: Multi-Product Experience & Admin Center',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1158,15 +1184,15 @@ export const zapierProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Email/ticket support for all paid plans, Zapier Community forum (public, no account required), plus premium support (chat/priority) on Team and above',
-        shortValue: 'Email support, community forum, premium chat on Team+',
+          'Email/ticket support for all paid plans (Professional and above, with faster SLAs on Team/Enterprise), Zapier Community forum (public, no account required to browse), plus live chat support starting on higher-tier Professional plans and 24/7 priority chat plus a dedicated Technical Account Manager on Enterprise',
+        shortValue: 'Email support from Professional+, community forum, chat on higher tiers',
         confidence: 'estimated',
         sources: [
-          { url: 'https://community.zapier.com/', label: 'Zapier Community', asOf: '2026-07-02' },
+          { url: 'https://community.zapier.com/', label: 'Zapier Community', asOf: '2026-07-08' },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/8496213764877-Get-help-and-support-with-Zapier',
             label: 'Get help and support with Zapier',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1225,21 +1251,32 @@ export const zapierProfile: CompetitorProfile = {
       },
       academy: {
         value:
-          'Yes: Zapier operates Zapier Academy (learn.zapier.com), a structured hub of self-paced courses, tutorials, and learning paths, plus a Certified Zapier Expert program with an application, an exam, and an expert directory listing.',
+          'Yes: Zapier operates Zapier Academy (learn.zapier.com), a hub of courses and tutorials, plus a Solution Partner Program (the rebranded successor to the former Zapier Experts/Certified Zapier Expert program) that requires an application and, per third-party accounts of the process, an invitation-only certification exam, leading to a partner directory listing at zapier.com/experts.',
         detail:
-          'Zapier Academy covers beginner to advanced automation topics. Certification is a separate application-based exam program leading to a badge and directory listing.',
-        shortValue: 'Yes: Academy plus expert certification program',
-        confidence: 'verified',
+          'Zapier Academy covers beginner to advanced automation topics. The former "Certified Zapier Expert" branding has been folded into the Solution Partner Program: applicants submit an application form, and if approved are invited to complete certification before earning a directory listing.',
+        shortValue: 'Yes: Academy plus Solution Partner Program (application-based)',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://learn.zapier.com/',
             label: 'Zapier Academy',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://community.zapier.com/show-tell-5/zapier-certification-42220',
-            label: 'Zapier Certification community thread',
-            asOf: '2026-07-02',
+            url: 'https://community.zapier.com/how-do-i-3/how-do-you-become-zapier-certified-3817',
+            label: 'How do you become Zapier Certified? (application process, Zapier Community)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://easyaiz.com/becoming-a-zapier-expert/',
+            label:
+              'Becoming a Zapier Solution Partner: Step-by-Step Guide (third-party account of the certification exam)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://zapier.com/experts',
+            label: 'Zapier Solution Partner Directory',
+            asOf: '2026-07-08',
           },
         ],
       },

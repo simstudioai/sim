@@ -52,12 +52,12 @@ export const n8nProfile: CompetitorProfile = {
     {
       title: 'Built-in Evaluations for AI workflows',
       description:
-        "A dedicated Evaluations feature runs a workflow against a test dataset with expected outputs. 'Light evaluations' are for dev-time spot checks, while 'Metric-based evaluations' score at production scale using built-in metrics (AI-judged helpfulness, string similarity, categorization, tools used) plus custom metrics.",
+        "A dedicated Evaluations feature runs a workflow against a test dataset with expected outputs. 'Light evaluations' are for dev-time spot checks, while 'Metric-based evaluations' score at production scale using built-in metrics (AI-judged Correctness and Helpfulness, String Similarity, Categorization, and Tools Used) plus custom metrics.",
       shortDescription: 'Native test-dataset evaluations for dev checks and production monitoring.',
       source: {
-        url: 'https://docs.n8n.io/advanced-ai/evaluations/overview/',
-        label: 'n8n Evaluations docs',
-        asOf: '2026-07-02',
+        url: 'https://docs.n8n.io/build/integrate-ai/test-and-improve-ai-workflows/use-metrics-to-measure-quality.md',
+        label: 'n8n docs: Use metrics to measure quality',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -127,19 +127,19 @@ export const n8nProfile: CompetitorProfile = {
       builderType: {
         value: 'Hybrid visual/code node-based builder',
         detail:
-          "n8n's core interface is a visual, drag-and-drop node canvas where each node is a step. It supports a Custom Code node (JavaScript/Python) and an HTTP Request Tool for arbitrary API calls, plus a beta natural-language AI Workflow Builder that generates an editable draft workflow from a text prompt.",
+          "n8n's core interface is a visual, drag-and-drop node canvas where each node is a step. It supports a Custom Code node (JavaScript/Python) and an HTTP Request Tool for arbitrary API calls, plus a natural-language AI Workflow Builder, gated by pricing tier rather than a beta flag, that generates an editable draft workflow from a text prompt.",
         shortValue: 'Visual canvas plus code node and AI builder',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/advanced-ai/ai-workflow-builder/',
+            url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-workflow-builder',
             label: 'n8n AI Workflow Builder docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent',
-            label: 'n8n Tools Agent docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.code',
+            label: 'n8n Code node docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -222,19 +222,14 @@ export const n8nProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/source-control-environments/understand/environments/',
-            label: 'Environments in n8n | n8n Docs',
-            asOf: '2026-07-02',
-          },
-          {
             url: 'https://docs.n8n.io/administer/use-source-control-and-environments/push-and-pull-changes',
             label: 'Push and pull changes | Administer | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.n8n.io/source-control-environments/using/push-pull/',
-            label: 'Push and pull | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/deploy/host-n8n/community-edition-features.md',
+            label: 'Community edition features | n8n Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -267,14 +262,14 @@ export const n8nProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/source-control-environments/',
-            label: 'Source control and environments | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/deploy/host-n8n/community-edition-features.md',
+            label: 'Community edition features | n8n Docs',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.n8n.io/hosting/community-edition-features/',
-            label: 'Community edition features | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/administer/use-source-control-and-environments',
+            label: 'Use source control and environments | Administer | n8n Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -327,9 +322,9 @@ export const n8nProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/workflows/components/sticky-notes/',
+            url: 'https://docs.n8n.io/build/understand-workflows/workflow-components/add-notes-and-documentation.md',
             label: 'Sticky Notes | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://www.createwith.com/tool/n8n/updates/n8n-adds-markdown-support-to-workflow-sticky-notes-for-embedded-images-and-video',
@@ -391,24 +386,25 @@ export const n8nProfile: CompetitorProfile = {
             label: 'n8n Tools Agent docs',
             asOf: '2026-07-02',
           },
-          {
-            url: 'https://docs.n8n.io/advanced-ai/examples/understand-agents/',
-            label: "n8n docs: What's an agent in AI?",
-            asOf: '2026-07-02',
-          },
         ],
       },
       naturalLanguageBuilding: {
-        value: 'Yes: beta AI Workflow Builder, Cloud only currently',
+        value:
+          'Yes: AI Workflow Builder, generally available on Starter, Pro, and Enterprise Cloud',
         detail:
-          'Users describe a workflow in plain text and the beta AI Workflow Builder generates a draft, editable node-based workflow with iterative multi-turn refinement. Available in beta on Cloud (Trial, Starter, Pro plans), with Enterprise and self-hosted support planned for later.',
-        shortValue: 'Beta builder, Cloud plans only',
+          'Users describe a workflow in plain text and the AI Workflow Builder generates a draft, editable node-based workflow with iterative multi-turn refinement. Launched in beta in late 2025, it reached general availability for n8n Cloud customers on the Starter, Pro, and Enterprise plans; self-hosted availability is not documented.',
+        shortValue: 'GA on Starter/Pro/Enterprise Cloud plans',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/advanced-ai/ai-workflow-builder/',
+            url: 'https://blog.n8n.io/ai-workflow-builder-best-practices/',
+            label: 'n8n Blog: AI Workflow Builder Best Practices',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.n8n.io/build/ways-of-building-workflows/ai-workflow-builder',
             label: 'n8n AI Workflow Builder docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -555,9 +551,9 @@ export const n8nProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.n8n.io/advanced-ai/chat-hub/',
+            url: 'https://docs.n8n.io/build/ways-of-building-workflows/chat-hub',
             label: 'Chat Hub | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -591,9 +587,9 @@ export const n8nProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.n8n.io/flow-logic/execution-order/',
+            url: 'https://docs.n8n.io/build/flow-logic/understand-execution-order',
             label: 'Execution order in multi-branch workflows | n8n Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.n8n.io/build/flow-logic/merge-data',
@@ -640,16 +636,16 @@ export const n8nProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: '1,921 integrations (per n8n.io/integrations)',
+        value: '1,936 integrations (per n8n.io/integrations)',
         detail:
-          "The n8n.io integrations directory page lists 1,921 integrations. n8n's GitHub repo description separately advertises a rounder '400+ integrations,' so the two vendor sources disagree slightly.",
-        shortValue: '1,921 listed integrations',
+          "The n8n.io integrations directory page lists 1,936 integrations. n8n's GitHub repo description separately advertises a rounder '400+ integrations,' so the two vendor sources disagree slightly.",
+        shortValue: '1,936 listed integrations',
         confidence: 'verified',
         sources: [
           {
             url: 'https://n8n.io/integrations/',
             label: 'n8n.io Integrations directory',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -667,9 +663,9 @@ export const n8nProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp/',
-            label: 'MCP Client/Server Trigger docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger',
+            label: 'MCP Server Trigger docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -681,9 +677,14 @@ export const n8nProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent',
-            label: 'n8n Tools Agent docs (mentions Custom Code Tool)',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.code',
+            label: 'Code node docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolcode/',
+            label: 'Code Tool docs (AI agent custom code tool)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -696,9 +697,14 @@ export const n8nProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp/',
-            label: 'MCP Server/Client Tool docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/',
+            label: 'Webhook trigger docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcptrigger',
+            label: 'MCP Server Trigger docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -711,9 +717,9 @@ export const n8nProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/api/',
-            label: 'n8n public REST API Documentation | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/connect/n8n-api',
+            label: 'n8n API | Connect | n8n Docs',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://www.npmjs.com/package/@n8n/rest-api-client',
@@ -721,9 +727,9 @@ export const n8nProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.n8n.io/integrations/creating-nodes/build/reference/code-standards/',
-            label: 'Code standards | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/connect/create-nodes/build-your-node/using-the-n8n-node-tool',
+            label: 'Using the n8n-node tool | Connect | n8n Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -741,9 +747,9 @@ export const n8nProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.n8n.io/advanced-ai/mcp/accessing-n8n-mcp-server/',
-            label: 'Set up and use n8n MCP server | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/connect/connect-to-n8n-mcp-server',
+            label: 'Connect to n8n MCP server | n8n Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -760,10 +766,10 @@ export const n8nProfile: CompetitorProfile = {
       entryPaidPlan: {
         value: 'Starter plan: €20/month (billed annually), 2,500 executions/month, cloud-hosted',
         detail:
-          'Starter includes 2,500 workflow executions per month, 5 concurrent executions, 1 shared project, unlimited users, 50 AI credits, and forum support.',
+          'Starter includes 2,500 workflow executions per month, 5 concurrent executions, 1 shared project, unlimited users, 2,300 AI credits, and forum support.',
         shortValue: '€20/month, 2,500 executions',
         confidence: 'verified',
-        sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' }],
+        sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-08' }],
       },
       freeTier: {
         value: 'Yes: free self-hosted Community Edition, plus a free cloud trial (no credit card)',
@@ -782,12 +788,23 @@ export const n8nProfile: CompetitorProfile = {
       },
       byok: {
         value:
-          'De facto yes: all Chat Model nodes require users\' own provider API credentials, though n8n does not name this "BYOK"',
+          'De facto yes: Chat Model nodes require users\' own provider API credentials, though n8n does not name this "BYOK"',
         detail:
-          "n8n's pricing page describes plan-included 'AI credits' (50/150/1,000 depending on tier) for its own hosted AI features, but doesn't name a bring-your-own-API-key policy. Since all Chat Model nodes require users to supply their own provider API credentials to call OpenAI, Anthropic, and others directly, BYOK is the de facto default for workflow-level LLM calls.",
+          "n8n's OpenAI and Anthropic credential docs both walk users through generating an API key in the provider's own console and entering it as the node credential; no n8n-hosted key is supplied for these Chat Model nodes. Separately, n8n's pricing page describes plan-included 'AI credits' (2,300 on Starter, up to 13,700+ on higher tiers) for n8n's own in-app AI Assistant feature, which is distinct from the provider credentials Chat Model nodes require. n8n does not name a bring-your-own-API-key policy, but requiring each provider's own key for Chat Model nodes makes BYOK the de facto default for workflow-level LLM calls.",
         shortValue: 'De facto via provider API keys, not named',
         confidence: 'estimated',
-        sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' }],
+        sources: [
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/credentials/openai',
+            label: 'n8n docs: OpenAI credentials',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.n8n.io/integrations/builtin/credentials/anthropic',
+            label: 'n8n docs: Anthropic credentials',
+            asOf: '2026-07-08',
+          },
+        ],
       },
     },
     security: {
@@ -858,22 +875,22 @@ export const n8nProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'GDPR (as data processor) and a publicly downloadable SOC 3 report; SOC 2 report available on request, not a certified SOC 2 Type II; no HIPAA, ISO 27001, PCI, or FedRAMP certification found',
+          'GDPR (as data processor), SOC 2 Type II certification, and a publicly downloadable SOC 3 report; no HIPAA, ISO 27001, PCI, or FedRAMP certification found',
         detail:
-          "n8n's Trust Center (SafeBase-hosted) and legal/security page list GDPR compliance (as a data processor with a standard DPA), CAIQ self-assessment questionnaires for both cloud and self-hosted deployments, and a SOC 3 report that is publicly downloadable from the Security page. Its security program is aligned to the SOC 2 framework with annual independent audits, but n8n does not claim a certified SOC 2 Type II attestation, and the SOC 2 report itself is provided to enterprise customers on request rather than published. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.",
-        shortValue: 'GDPR, public SOC 3, SOC 2 aligned (report on request)',
+          "n8n's Trust Center (SafeBase-hosted) and legal/security page list GDPR compliance (as a data processor with a standard DPA), CAIQ self-assessment questionnaires for both cloud and self-hosted deployments, and a SOC 3 report that is publicly downloadable from the Security page. n8n now holds SOC 2 Type II certification, viewable via the Trust Center, in addition to the public SOC 3 report. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.",
+        shortValue: 'GDPR, SOC 2 Type II certified, public SOC 3 report',
         confidence: 'verified',
         sources: [
           {
             url: 'https://trust.n8n.io/',
             label: 'n8n Trust Center | Powered by SafeBase',
-            asOf: '2026-07-04',
+            asOf: '2026-07-08',
           },
-          { url: 'https://n8n.io/legal/security/', label: 'Security | n8n', asOf: '2026-07-04' },
+          { url: 'https://n8n.io/legal/security/', label: 'Security | n8n', asOf: '2026-07-08' },
           {
             url: 'https://support.n8n.io/article/request-for-soc-2-report',
             label: 'Request for SOC-2 report | n8n Help Center',
-            asOf: '2026-07-04',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -886,21 +903,21 @@ export const n8nProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          "Yes: n8n's RBAC model is scope-based, with custom project roles (Enterprise feature) letting admins grant or restrict access to specific credentials, workflows, and folders at a granular, per-resource level, beyond the built-in Admin/Editor/Viewer roles.",
+          "Yes: n8n's RBAC model is project-based, with built-in Admin/Editor/Viewer project roles, and custom project roles (Enterprise feature) let admins scope access across resource types, including credentials, workflows, folders, data tables, variables, and source control, beyond the default three roles.",
         detail:
-          'Custom Project Roles (Enterprise) let admins build least-privilege roles scoped to particular credentials/resources, not just feature-level RBAC.',
-        shortValue: 'Yes, custom roles gate specific credentials',
+          "n8n's docs describe access control as project-based rather than scope-based: users get one of three built-in project roles (Admin, Editor, Viewer). Custom Project Roles (Enterprise) let admins build least-privilege roles whose permission surface spans Projects, Folders, Workflows, Credentials, Data tables, Variables, and Source control, rather than being limited to the three default roles.",
+        shortValue: 'Yes, project-based RBAC with custom Enterprise roles',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/user-management/rbac/custom-roles/',
-            label: 'Custom project roles | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/administer/manage-users-and-access/set-permissions-and-roles-rbac/see-available-roles',
+            label: 'See available roles | Administer | n8n Docs',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://blog.n8n.io/introducing-custom-project-roles-and-user-provisioning-via-sso-built-for-enterprise-governance/',
             label: 'Introducing Custom Project Roles and User Provisioning via SSO',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -933,14 +950,14 @@ export const n8nProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/hosting/scaling/execution-data/',
-            label: 'Execution data | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/deploy/host-n8n/configure-n8n/scaling/manage-execution-data',
+            label: 'Manage execution data | Deploy | n8n Docs',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.n8n.io/manage-cloud/cloud-data-management/',
-            label: 'Cloud data management | n8n Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.n8n.io/deploy/use-n8n-cloud/configure-cloud/manage-your-data',
+            label: 'Manage your data | Deploy | n8n Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1161,22 +1178,21 @@ export const n8nProfile: CompetitorProfile = {
       },
       unattendedExecution: {
         value:
-          "Yes: scheduled, webhook, and other trigger-based executions run on n8n's own servers (n8n Cloud) or on the self-hosted n8n server process, not on a user's local machine",
+          'Yes: active trigger-based executions (schedule, webhook, etc.) keep running on the n8n instance itself after a user closes their browser, whether that instance is n8n Cloud or a self-hosted server',
         detail:
-          "On n8n Cloud, n8n operates the infrastructure, so a trigger-based workflow fires and completes with no dependency on any user's browser tab or device staying open. Self-hosted n8n instead depends on the operator's own server/container (Docker, Kubernetes, or a host machine) staying up, since n8n is a server process rather than a desktop app; as long as that server process is running, individual client devices can disconnect freely.",
-        shortValue:
-          "Runs on n8n's server (Cloud) or the operator's own server (self-hosted); no client device dependency",
+          "n8n staff confirm in the community forum that once a workflow is activated with a trigger, execution continues on the n8n instance independent of the browser tab that was used to activate it; only workflows kicked off via a manual 'Execute Workflow' click stop when the browser closes mid-run. Since n8n itself is a server process (n8n Cloud or a self-hosted Docker/Kubernetes/host-machine instance) rather than a desktop app, unattended trigger-based runs depend on that server staying up, not on any individual client device.",
+        shortValue: 'Trigger-based runs continue on the server after the browser closes',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.n8n.io/choose-how-to-use-n8n.md',
-            label: 'n8n docs: Choose how to use n8n',
-            asOf: '2026-07-04',
+            url: 'https://community.n8n.io/t/does-the-process-continue-even-though-i-close-the-browser-window/15307',
+            label: 'n8n Community: Does the process continue if I close the browser window?',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.n8n.io/hosting/',
-            label: 'n8n Docs: Hosting n8n',
-            asOf: '2026-07-04',
+            url: 'https://docs.n8n.io/choose-how-to-use-n8n.md',
+            label: 'n8n docs: Choose how to use n8n',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1206,18 +1222,22 @@ export const n8nProfile: CompetitorProfile = {
         sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' }],
       },
       community: {
-        value: 'Large community: ~195k GitHub stars, ~82k Discord members, 30k+ forum members',
+        value: 'Large community: ~195k GitHub stars, 200k+ community members across all channels',
         detail:
-          'The n8n-io/n8n GitHub repository shows about 194,939 stargazers (via GitHub API). The n8n Discord server is cited by third-party community trackers at roughly 82,422 members. The official n8n Community Forum is described as having 30k+ members.',
-        shortValue: '~195k GitHub stars, ~82k Discord members',
+          "The n8n-io/n8n GitHub repository shows 195,690 stargazers (via GitHub API). n8n's own homepage advertises 200k+ community members in aggregate across its Discord, forum, and other channels, but does not break that figure down by channel, and neither the n8n Discord server nor the official Community Forum (community.n8n.io) publishes an individual member-count total.",
+        shortValue: '~195k GitHub stars, 200k+ community members',
         confidence: 'verified',
         sources: [
           {
             url: 'https://api.github.com/repos/n8n-io/n8n',
             label: 'GitHub API: n8n-io/n8n repo',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
-          { url: 'https://community.n8n.io/', label: 'n8n Community Forum', asOf: '2026-07-02' },
+          {
+            url: 'https://n8n.io',
+            label: 'n8n.io homepage (200k+ community members)',
+            asOf: '2026-07-08',
+          },
         ],
       },
       companyMaturity: {

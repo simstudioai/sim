@@ -103,25 +103,26 @@ export const workatoProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Native LLM choice limited to two providers',
+      title: 'Built-in AI actions limited to a fixed model set',
       description:
-        "AI Hub's native model picker for Genies covers Anthropic Claude and OpenAI GPT (plus BYOLLM for those same two providers); reaching other providers like Google Gemini or Amazon Bedrock requires going through separate integration connectors rather than a first-class in-agent model switch.",
-      shortDescription: 'Native model picker covers only Claude and GPT; others need connectors.',
+        "Workato's own 'AI by Workato' actions run on a fixed set of models under the hood — Anthropic's Claude Sonnet 4 in most regions, and OpenAI's GPT-4o mini in the Israel data center — rather than offering a first-class choice among the full range of LLM providers.",
+      shortDescription: 'Built-in AI actions run on a fixed Claude Sonnet 4 / GPT-4o mini set.',
       source: {
         url: 'https://docs.workato.com/connectors/ai-by-workato.html',
         label: 'AI by Workato | Workato docs',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
-      title: 'Knowledge base ingestion limited to text/PDF out of the box',
+      title: 'Knowledge base ingestion limited to four document formats',
       description:
-        "Workato's documented Knowledge Base Accelerator pattern natively supports only text and PDF document formats for RAG ingestion; support for other formats requires extending the accelerator yourself.",
-      shortDescription: 'RAG ingestion natively supports only text and PDF documents.',
+        "Workato's documented knowledge base data ingestion natively supports only PDF, PPTX, XLSX, and DOCX file types; other formats, including images, videos, and audio files, are not supported for RAG ingestion.",
+      shortDescription:
+        'RAG ingestion supports only PDF, PPTX, XLSX, DOCX — no images, video, or audio.',
       source: {
-        url: 'https://docs.workato.com/en/agentic/agent-studio/knowledge-bases/knowledge-bases.html',
-        label: 'Knowledge bases | Workato Docs',
-        asOf: '2026-07-02',
+        url: 'https://docs.workato.com/en/agentic/agent-studio/knowledge-bases/data-ingestion.html',
+        label: 'Workato Docs: Knowledge base data ingestion',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -187,14 +188,19 @@ export const workatoProfile: CompetitorProfile = {
       },
       deploymentOptions: {
         value:
-          'Cloud-hosted SaaS platform (multi-region data centers) with an optional on-prem agent for hybrid/on-prem app and database connectivity; the on-prem agent itself can run on AWS/Azure/GCP VMs or a private physical/virtual machine',
+          'Cloud-hosted SaaS platform (multi-region data centers) with an optional on-prem agent for hybrid/on-prem app and database connectivity; the on-prem agent itself installs on a Windows, Linux (DEB/RPM), Docker, or macOS host, whether that host is a cloud VM (AWS/Azure/GCP) or private physical/virtual machine',
         shortValue: 'Cloud SaaS with optional on-prem connectivity agent',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/on-prem/agents.html',
-            label: 'On-prem agent | Workato docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/on-prem.html',
+            label: 'On-prem connectivity | Workato Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.workato.com/on-prem/groups/add-agent.html',
+            label: 'On-prem agent - Add an agent | Workato Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -846,19 +852,14 @@ export const workatoProfile: CompetitorProfile = {
       },
       dataResidency: {
         value:
-          "Yes, at signup: customers choose one data residency region per account from Workato's regional data centers (US, EU/Frankfurt, UK, Japan, Singapore, Australia, Israel, China, South Korea). That choice is fixed once the account is created; data cannot later be migrated to another region, and there is no ongoing per-workspace or per-project residency toggle. Using more than one region requires signing up for and maintaining a separate Workato account in each desired region. The on-prem agent additionally lets customers keep on-prem application data behind their own firewall, tunneling only authorized traffic to the Workato cloud.",
-        shortValue: 'Region chosen once at signup, fixed per account, not ongoing/toggleable',
+          "Yes, for enterprise customers: Workato enterprise customers can choose the region where their organization's automation data is stored and processed, from regional data centers (US, EU/Frankfurt, Japan, Singapore, Australia, Israel, China, South Korea). Once stored, data remains isolated in that region and is not shared or transferred across regions; there is no ongoing per-workspace or per-project residency toggle. Self-service (non-enterprise) users can't choose a region and are hosted in one of Workato's US data centers. Using more than one region requires signing up for and maintaining a separate Workato account in each desired region.",
+        shortValue: 'Enterprise customers pick a region; self-service defaults to US',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/datacenter/datacenter-overview.html',
             label: 'Data center overview | Workato Docs',
-            asOf: '2026-07-04',
-          },
-          {
-            url: 'https://docs.workato.com/connectors/ai-by-workato.html',
-            label: 'AI by Workato | Workato docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -882,14 +883,14 @@ export const workatoProfile: CompetitorProfile = {
       },
       auditLogging: {
         value:
-          "Yes: an Activity audit log records users' significant actions across the workspace and can be streamed to an external destination for retention and analysis",
+          "Yes: an Activity audit log records users' significant actions across the workspace and can be streamed to an external destination (e.g. Amazon S3, Azure, Google Cloud Storage, Datadog, Splunk) for retention and analysis",
         shortValue: 'Activity audit log, streamable externally',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html',
-            label: 'Manage workspace collaborators with role-based access control | Workato docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.workato.com/features/activity-audit-log-streaming.html',
+            label: 'Audit log streaming | Workato Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -941,40 +942,40 @@ export const workatoProfile: CompetitorProfile = {
       },
       whiteLabeling: {
         value:
-          'Yes: Workato Embedded offers a Theme editor (Admin Console > Settings > Branding) for customizing colors, fonts, spacing, and adding a custom company logo/name, plus the ability to white-label error messages, notifications, and logs, for partners embedding Workato in their own product.',
+          'Yes, partially self-service: Workato Embedded offers a Theme editor (Admin Console/Manage Customers > Settings > Branding) for customizing colors, fonts, and spacing, for partners embedding Workato in their own product. Adding a custom company logo is not part of the self-service Theme editor and instead requires contacting a Workato Success Representative.',
         detail:
-          'This capability is scoped to the Workato Embedded/OEM offering, not the standard workspace UI.',
-        shortValue: 'Yes: Embedded theme editor with logo/branding',
+          'Scoped to the Embedded/OEM offering, not the standard workspace UI. No current documentation supports white-labeling of error messages, notifications, or logs.',
+        shortValue: 'Yes: Embedded theme editor (colors/fonts/spacing); logo needs Support',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/oem/branding.html',
             label: 'Workato Docs: Branding - Theme editor',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://www.workato.com/product-hub/customization-possibilities-with-the-embedded-theme-editor/',
             label:
               'Workato Product Hub: Customization possibilities with the Embedded Theme editor',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       dataRetention: {
         value:
-          'Yes: Workato supports org-configurable data retention for recipe job logs, with a default of 30 to 90 days depending on the workspace plan. Enterprise Workspaces, or workspaces with the Data Monitoring/Advanced Security & Compliance capability, can customize retention per recipe down to 1 hour, up to 90 days, or to zero retention.',
-        shortValue: 'Yes: configurable retention (1hr-90 days, or zero)',
+          'Yes: Workato supports org-configurable data retention for recipe job logs, with a default of 30 to 90 days depending on the workspace plan. Enterprise Workspaces, or workspaces with the Data Monitoring/Advanced Security & Compliance capability, can set a workspace-wide custom retention period between 1 hour and 90 days; individual recipes can then be set to follow that workspace policy or to store no data at all.',
+        shortValue: 'Yes: org-configurable retention, 1hr-90 days (Enterprise/Data Monitoring)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/security/data-protection/data-retention/',
             label: 'Workato Docs: Data retention policies',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.workato.com/security/data-protection/data-retention/configure-retention-for-recipes.html',
             label: 'Workato Docs: Recipe-level data retention',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },

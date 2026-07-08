@@ -27,7 +27,7 @@ The selection filter is simple. Every idea on this list handles a high-frequency
 - **Good agent ideas share three traits:** They handle repetitive, high-frequency tasks, connect to your existing tools, and produce outputs you can measure and improve.
 - **Agents reason; automations follow rules:** Unlike a static Zapier zap, an AI agent can evaluate context, choose between paths, and act across multiple systems before returning a result.
 - **Start narrow, then expand:** One trigger, one action, one output. The biggest mistake teams make is trying to automate an entire department in their first agent.
-- **Most of these ideas can be live in under an hour:** Sim offers pre-built templates for seven of the 10 ideas, plus 1,000+ integrations you can connect on a drag-and-drop canvas.
+- **Most of these ideas can be live in under an hour:** Sim's Chat can scaffold a first draft of any of these workflows from a plain-language description, and there are 1,000+ integrations you can connect on a drag-and-drop canvas.
 - **You don't need a dedicated ML team:** Visual builders and multi-model support mean developers and operators can go from idea to deployed agent without writing infrastructure code.
 
 ## What Makes an AI Agent Idea Worth Building
@@ -56,7 +56,7 @@ The value here is pure time reclamation. On the support side, manual triage slow
 
 **Key integrations:** Gmail or Microsoft Outlook, a CRM like HubSpot or Salesforce for context lookup, Slack for escalation alerts.
 
-**Getting started with Sim:** Sim includes pre-built workflow templates covering email triage, connecting these integrations on a visual canvas. You can customize the classification logic and deploy it in under an hour.
+**Getting started with Sim:** Describe the workflow to Chat and it'll scaffold an Agent block wired to these integrations on a visual canvas. You can customize the classification logic and deploy it in under an hour.
 
 ### Competitor Monitoring Agent
 
@@ -66,7 +66,7 @@ Competitive intelligence typically falls into one of two categories: expensive (
 
 **Key integrations:** Web search tools (Tavily, Exa, or Google Search), Slack for delivery, Notion or a Google Sheet for tracking changes over time.
 
-**Getting started with Sim:** Sim has a pre-built competitor monitoring template that pairs search integrations with AI summarization. Set up your target competitors, define the schedule, and let it run.
+**Getting started with Sim:** Pair a scheduled trigger with search integrations and an Agent block for AI summarization. Set up your target competitors, define the schedule, and let it run.
 
 ### Lead Enrichment and Qualification Agent
 
@@ -76,7 +76,7 @@ Sales teams lose hours every week on manual research and misrouted leads. A rep 
 
 **Key integrations:** HubSpot or Salesforce, Apollo or Hunter.io for enrichment data, Slack for routing notifications, and Google Sheets or Airtable for logging.
 
-**Getting started with Sim:** The data enrichment template in Sim gives you a ready-made starting point. You can add conditional routing logic with Sim's router blocks to score leads and send them to different reps or channels based on criteria like company size, industry, or engagement signals.
+**Getting started with Sim:** Connect your CRM and enrichment tools to an Agent block, then add conditional routing logic with Sim's router blocks to score leads and send them to different reps or channels based on criteria like company size, industry, or engagement signals.
 
 ### Meeting Follow-Up Agent
 
@@ -86,7 +86,7 @@ Action items from meetings routinely evaporate. Someone said they'd "send that d
 
 **Key integrations:** Transcription tools or calendar triggers, Slack, Notion, Linear, or Jira for task creation, Gmail for follow-up emails.
 
-**Getting started with Sim:** Sim's meeting follow-up template connects to transcription sources via webhook. You configure the AI model to identify action items, assign them based on participant context, and route the output to your preferred task management and communication tools.
+**Getting started with Sim:** Wire a webhook trigger to your transcription source and an Agent block. You configure the AI model to identify action items, assign them based on participant context, and route the output to your preferred task management and communication tools.
 
 ### Customer Support Knowledge Agent
 
@@ -98,7 +98,7 @@ Modern support agents have also matured well past simple FAQ bots. They can chec
 
 **Key integrations:** A vector knowledge base (Sim's built-in Knowledge Base, or Pinecone/Qdrant), Slack or a chat interface for customer-facing interaction, and a ticketing system for escalation.
 
-**Getting started with Sim:** The knowledge base Q&A template in Sim lets you upload documents to a vector store and configure the agent to answer questions grounded in your specific content. Set a confidence threshold for escalation and connect the output to your support channel.
+**Getting started with Sim:** Sim's built-in Knowledge Base lets you upload documents to a vector store and configure the agent to answer questions grounded in your specific content. Set a confidence threshold for escalation and connect the output to your support channel.
 
 ### Content Research and Brief Generation Agent
 
@@ -118,7 +118,7 @@ Code review is a bottleneck in most engineering teams. Reviewers queue up PRs, c
 
 **Key integrations:** GitHub or GitLab (Sim has native integrations for both), Slack for reviewer notifications.
 
-**Getting started with Sim:** Sim's code review template connects directly to your repo. Configure the review rules (style guide, test coverage requirements, naming conventions), and the agent posts its analysis as a comment on every new PR.
+**Getting started with Sim:** Trigger a workflow directly off your repo's PR events. Configure the review rules (style guide, test coverage requirements, naming conventions), and the agent posts its analysis as a comment on every new PR.
 
 ### Resume Screening Agent
 
@@ -128,7 +128,7 @@ Early-stage screening consumes a significant portion of recruiter time. When you
 
 **Key integrations:** Gmail for application intake, Google Sheets or Airtable for candidate tracking, Slack for recruiter alerts.
 
-**Getting started with Sim:** The resume scanning template in Sim handles document parsing and criteria matching. Define your rubric (years of experience, required skills, education), and the agent scores and routes each application automatically.
+**Getting started with Sim:** An Agent block with document-parsing tools handles the parsing and criteria matching. Define your rubric (years of experience, required skills, education), and the agent scores and routes each application automatically.
 
 ### Data Pipeline and Report Generation Agent
 
@@ -148,7 +148,7 @@ Brand and marketing teams either miss important conversations entirely or spend 
 
 **Key integrations:** Social listening data sources, web search tools (Tavily, Exa), Slack for delivery, Notion or Airtable for trend logging.
 
-**Getting started with Sim:** Sim's social listening template handles the monitoring and classification pipeline. Configure your target keywords, brand names, and competitors, set up the sentiment analysis, and route the results to Slack or your preferred tracking tool.
+**Getting started with Sim:** A scheduled trigger feeding an Agent block handles the monitoring and classification pipeline. Configure your target keywords, brand names, and competitors, set up the sentiment analysis, and route the results to Slack or your preferred tracking tool.
 
 ## Choosing the Right Idea for Your Team
 
@@ -179,15 +179,14 @@ Sim is the open-source AI workspace where teams build, deploy, and manage AI age
 
 The path from idea to deployed agent looks like this:
 
-- **Open the Sim canvas:** Start from a pre-built template or a blank workflow.
-- **Connect your integrations:** Drag and drop the tools your agent needs (Gmail, Slack, GitHub, your CRM, databases). Each template connects real integrations and LLMs; pick one, customize it, and deploy in minutes.
+- **Open the Sim canvas:** Start from a blank workflow, or describe it to Chat and let Sim scaffold the first draft.
+- **Connect your integrations:** Drag and drop the tools your agent needs (Gmail, Slack, GitHub, your CRM, databases).
 - **Configure the AI model:** Choose from OpenAI, Claude, Gemini, Mistral, xAI, or local models via Ollama. Swap models anytime without rebuilding your workflow.
 - **Test with real data:** Run the workflow against actual inputs to validate the output before going live.
 - **Deploy:** Launch via chat interface, REST API, webhook, or scheduled cron job, depending on your use case.
 
 Several Sim features accelerate each step:
 
-- **Pre-built templates:** Sim includes 11 pre-built workflow templates covering OCR processing, release management, meeting follow-ups, resume scanning, email triage, competitor monitoring, social listening, data enrichment, feedback analysis, code review, and knowledge base Q&A. Seven of those map directly to the ideas in this article.
 - **1,000+ integrations:** Connect Slack, Gmail, GitHub, GitLab, Notion, HubSpot, Salesforce, Airtable, Linear, Jira, PostgreSQL, Supabase, and hundreds more via drag-and-drop.
 - **Multi-model support:** Run OpenAI, Claude, Gemini, Mistral, or xAI models in the same workflow. Bring your own API keys or use Sim's hosted keys.
 - **Chat:** Talk to Sim in Chat to generate nodes, fix errors, and iterate on flows directly from natural language. Describe what you want, and Sim proposes the workflow changes.
@@ -201,7 +200,7 @@ The gap between "AI agents sound useful" and "we have an agent running in produc
 
 The teams seeing the best results in 2026 aren't building grand autonomous systems. They're prioritizing task-specific, governed AI agents that integrate with real business systems rather than broad autonomous experimentation. They're starting narrow, proving value, and expanding.
 
-Pick the idea that matches your team's biggest pain point. Open Sim, grab the template, and deploy your first agent today. You'll learn more in that first hour of building than in another month of reading about what's possible.
+Pick the idea that matches your team's biggest pain point. Open Sim, build the workflow, and deploy your first agent today. You'll learn more in that first hour of building than in another month of reading about what's possible.
 
 ## FAQ
 
@@ -211,7 +210,7 @@ Start with email triage, meeting follow-ups, or report generation. These three i
 
 ### How long does it take to build an AI agent from scratch?
 
-With a visual builder like Sim and a pre-built template, a working prototype can be ready in under an hour. You pick a template, connect your integrations, configure the AI model, and test. Custom multi-step agents with conditional logic and multiple data sources take longer, but you're still measuring build time in days, not months.
+With a visual builder like Sim, a working prototype can be ready in under an hour. You describe the workflow to Chat or start from a blank canvas, connect your integrations, configure the AI model, and test. Custom multi-step agents with conditional logic and multiple data sources take longer, but you're still measuring build time in days, not months.
 
 ### Do I need coding skills to build AI agents?
 
