@@ -91,11 +91,32 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     () => workspaces.find((w) => w.id === workspaceId)?.organizationId ?? null,
     [workspaces, workspaceId]
   )
+  // Only workspaces the user can publish from (admin) — the publish route requires
+  // admin on the source workspace, so a member/read workspace can never be a source.
   const orgWorkspaces = useMemo(
-    () => (currentOrgId ? workspaces.filter((w) => w.organizationId === currentOrgId) : []),
+    () =>
+      currentOrgId
+        ? workspaces.filter((w) => w.organizationId === currentOrgId && w.permissions === 'admin')
+        : [],
     [workspaces, currentOrgId]
   )
+  const eligibleDefaultWorkspaceId = useMemo(
+    () =>
+      orgWorkspaces.some((w) => w.id === workspaceId)
+        ? workspaceId
+        : (orgWorkspaces[0]?.id ?? workspaceId),
+    [orgWorkspaces, workspaceId]
+  )
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId)
+  // Once the eligible list loads, snap an ineligible selection (e.g. the current
+  // workspace when the user isn't its admin) to the first workspace they can publish from.
+  if (
+    isCreate &&
+    orgWorkspaces.length > 0 &&
+    !orgWorkspaces.some((w) => w.id === selectedWorkspaceId)
+  ) {
+    setSelectedWorkspaceId(eligibleDefaultWorkspaceId)
+  }
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
   const { data: workflows = [] } = useWorkflows(isCreate ? selectedWorkspaceId : undefined)
 
@@ -286,7 +307,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
 
   function handleDiscard() {
     if (isCreate) {
-      setSelectedWorkspaceId(workspaceId)
+      setSelectedWorkspaceId(eligibleDefaultWorkspaceId)
       setSelectedWorkflowId('')
     }
     setName(existing?.name ?? '')

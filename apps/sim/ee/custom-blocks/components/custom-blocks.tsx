@@ -12,6 +12,7 @@ import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { CustomBlockDetail } from '@/ee/custom-blocks/components/custom-block-detail'
 import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useCanPublishCustomBlock, useCustomBlocks } from '@/hooks/queries/custom-blocks'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 export function CustomBlocks() {
   const params = useParams()
@@ -19,6 +20,20 @@ export function CustomBlocks() {
 
   const { data: canManage = false, isLoading } = useCanPublishCustomBlock(workspaceId)
   const { data: blocks = [] } = useCustomBlocks(workspaceId)
+  const { data: workspaces = [] } = useWorkspacesQuery()
+
+  // Any org member can view the org's blocks, but publishing requires admin on a
+  // source workspace — the publish route enforces admin on the picked workspace.
+  const currentOrgId = useMemo(
+    () => workspaces.find((w) => w.id === workspaceId)?.organizationId ?? null,
+    [workspaces, workspaceId]
+  )
+  const canCreate = useMemo(
+    () =>
+      !!currentOrgId &&
+      workspaces.some((w) => w.organizationId === currentOrgId && w.permissions === 'admin'),
+    [workspaces, currentOrgId]
+  )
   const { data: whitelabel } = useWhitelabelSettings(blocks[0]?.organizationId)
   const fallbackIconUrl = whitelabel?.logoUrl ?? null
 
@@ -59,19 +74,25 @@ export function CustomBlocks() {
         onChange: setSearchTerm,
         placeholder: 'Search custom blocks...',
       }}
-      actions={[
-        {
-          text: 'Create block',
-          icon: Plus,
-          variant: 'primary',
-          onSelect: () => setSelected('new'),
-        },
-      ]}
+      actions={
+        canCreate
+          ? [
+              {
+                text: 'Create block',
+                icon: Plus,
+                variant: 'primary',
+                onSelect: () => setSelected('new'),
+              },
+            ]
+          : []
+      }
     >
       <SettingsSection label={`Blocks (${blocks.length})`}>
         {blocks.length === 0 ? (
           <SettingsEmptyState variant='inline'>
-            No custom blocks yet. Click "Create block" to publish a workflow as a block.
+            {canCreate
+              ? 'No custom blocks yet. Click "Create block" to publish a workflow as a block.'
+              : 'No custom blocks yet.'}
           </SettingsEmptyState>
         ) : filtered.length === 0 ? (
           <SettingsEmptyState variant='inline'>
