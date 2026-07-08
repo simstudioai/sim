@@ -10,7 +10,9 @@ export async function GET() {
   const items = posts.slice(0, 50)
   const site = SITE_URL
   const lastBuildDate =
-    items.length > 0 ? new Date(items[0].date).toUTCString() : new Date().toUTCString()
+    items.length > 0
+      ? new Date(items[0].updated ?? items[0].date).toUTCString()
+      : new Date().toUTCString()
 
   const xml = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">

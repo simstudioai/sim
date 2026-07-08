@@ -44,22 +44,18 @@ function slugifyHeading(text: string): string {
 }
 
 /**
- * Builds an independent content registry (frontmatter scanning, MDX
- * compilation, tag/related-post derivation, in-memory caching) over a single
- * content directory. Each call owns its own cache state via closures, so
- * separate instantiations (e.g. blog vs. library) never collide even though
- * they share the same author pool.
+ * Author JSON is shared across every section (blog, library, ...) that
+ * points at the same `authorsDir`. Cache the parsed result per directory at
+ * module scope so multiple registry instantiations never re-read/re-parse
+ * the same author files.
  */
-export function createContentRegistry(config: ContentRegistryConfig): ContentRegistry {
-  const { contentDir, authorsDir, componentLoaders = {} } = config
+const authorsCacheByDir = new Map<string, Promise<Record<string, Author>>>()
 
-  const postComponentsRegistry: Record<string, Record<string, React.ComponentType>> = {}
-  let cachedMeta: ContentMeta[] | null = null
-  let cachedAuthors: Record<string, Author> | null = null
-
-  async function loadAuthors(): Promise<Record<string, Author>> {
-    if (cachedAuthors) return cachedAuthors
-    await ensureContentDirs(contentDir, authorsDir)
+async function loadAuthorsForDir(authorsDir: string): Promise<Record<string, Author>> {
+  const cached = authorsCacheByDir.get(authorsDir)
+  if (cached) return cached
+  const promise = (async () => {
+    await fs.mkdir(authorsDir, { recursive: true })
     const files = await fs.readdir(authorsDir).catch(() => [])
     const authors: Record<string, Author> = {}
     for (const file of files) {
@@ -69,8 +65,28 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
       const author = AuthorSchema.parse(json)
       authors[author.id] = author
     }
-    cachedAuthors = authors
     return authors
+  })()
+  authorsCacheByDir.set(authorsDir, promise)
+  return promise
+}
+
+/**
+ * Builds an independent content registry (frontmatter scanning, MDX
+ * compilation, tag/related-post derivation, in-memory caching) over a single
+ * content directory. Each call owns its own post-level cache state via
+ * closures, so separate instantiations (e.g. blog vs. library) never
+ * collide, while the shared author pool is cached once per `authorsDir`
+ * (see `loadAuthorsForDir`).
+ */
+export function createContentRegistry(config: ContentRegistryConfig): ContentRegistry {
+  const { contentDir, authorsDir, componentLoaders = {} } = config
+
+  const postComponentsRegistry: Record<string, Record<string, React.ComponentType>> = {}
+  let cachedMeta: ContentMeta[] | null = null
+
+  async function loadAuthors(): Promise<Record<string, Author>> {
+    return loadAuthorsForDir(authorsDir)
   }
 
   async function scanFrontmatters(): Promise<ContentMeta[]> {
@@ -133,6 +149,12 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     return (await scanFrontmatters()).filter((p) => !p.draft)
   }
 
+  /**
+   * Featured + 5 most recent posts for a navbar dropdown preview. Reserved
+   * for a future Blog/Library nav dropdown (same "defined but not yet wired
+   * up" pattern as `PLATFORM_MENU`/`SOLUTIONS_MENU` in
+   * `navbar/components/nav-menu-chip/constants.ts`); currently unconsumed.
+   */
   const getNavPosts = cache(
     async (): Promise<Pick<ContentMeta, 'slug' | 'title' | 'ogImage'>[]> => {
       const allPosts = await getAllPostMeta()
@@ -239,7 +261,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
 
   function invalidateCaches() {
     cachedMeta = null
-    cachedAuthors = null
+    authorsCacheByDir.delete(authorsDir)
     Object.keys(postComponentsRegistry).forEach((key) => delete postComponentsRegistry[key])
   }
 
