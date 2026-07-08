@@ -1,13 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import {
-  CreateFileFolder,
-  DeleteFileFolder,
-  ListFileFolders,
-  MoveFile,
-  MoveFileFolder,
-  RenameFileFolder,
-} from '@/lib/copilot/generated/tool-catalog-v1'
+import { DeleteFileFolder } from '@/lib/copilot/generated/tool-catalog-v1'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
@@ -15,7 +8,9 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { isWorkflowAliasBackingPath } from '@/lib/copilot/vfs/workflow-aliases'
 import {
+  ensureWorkspaceFileFolderPath,
   findWorkspaceFileFolderIdByPath,
   getWorkspaceFileFolder,
   listWorkspaceFileFolders,
@@ -192,7 +187,7 @@ function folderLabel(folder: WorkspaceFileFolderRecord): string {
 }
 
 export const listFileFoldersServerTool: BaseServerTool<ListFileFoldersArgs, FileFolderResult> = {
-  name: ListFileFolders.id,
+  name: 'list_file_folders',
   async execute(
     params: ListFileFoldersArgs,
     context?: ServerToolContext
@@ -215,7 +210,7 @@ export const listFileFoldersServerTool: BaseServerTool<ListFileFoldersArgs, File
 }
 
 export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, FileFolderResult> = {
-  name: CreateFileFolder.id,
+  name: 'create_file_folder',
   async execute(
     params: CreateFileFolderArgs,
     context?: ServerToolContext
@@ -236,22 +231,23 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
       ).trim()
       if (!name) return { success: false, message: 'name is required' }
 
+      if (pathSegments && isWorkflowAliasBackingPath(`files/${pathSegments.join('/')}`)) {
+        return {
+          success: false,
+          message: `Reserved system path: files/${pathSegments.join('/')} cannot be created or nested into.`,
+        }
+      }
+
       let parentId =
         (await resolveOptionalFolderId(workspaceId, params.parentPath ?? payload?.parentPath)) ??
         nullableStringValue(params.parentId ?? payload?.parentId) ??
         null
       if (pathSegments && pathSegments.length > 1) {
-        const resolvedParentId = await findWorkspaceFileFolderIdByPath(
+        parentId = await ensureWorkspaceFileFolderPath({
           workspaceId,
-          pathSegments.slice(0, -1)
-        )
-        if (!resolvedParentId) {
-          return {
-            success: false,
-            message: `Parent folder not found at files/${pathSegments.slice(0, -1).join('/')}`,
-          }
-        }
-        parentId = resolvedParentId
+          userId: context.userId,
+          pathSegments: pathSegments.slice(0, -1),
+        })
       }
 
       assertServerToolNotAborted(context)
@@ -285,7 +281,7 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
 }
 
 export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, FileFolderResult> = {
-  name: RenameFileFolder.id,
+  name: 'rename_file_folder',
   async execute(
     params: RenameFileFolderArgs,
     context?: ServerToolContext
@@ -341,7 +337,7 @@ export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, Fi
 }
 
 export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFolderResult> = {
-  name: MoveFileFolder.id,
+  name: 'move_file_folder',
   async execute(
     params: MoveFileFolderArgs,
     context?: ServerToolContext
@@ -450,7 +446,7 @@ export const deleteFileFolderServerTool: BaseServerTool<DeleteFileFolderArgs, Fi
 }
 
 export const moveFileServerTool: BaseServerTool<MoveFileArgs, FileFolderResult> = {
-  name: MoveFile.id,
+  name: 'move_file',
   async execute(params: MoveFileArgs, context?: ServerToolContext): Promise<FileFolderResult> {
     try {
       const workspaceId = await resolveWorkspaceId(params, context, 'write')

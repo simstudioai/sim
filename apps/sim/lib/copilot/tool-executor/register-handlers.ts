@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import {
   CheckDeploymentStatus,
   CompleteScheduledTask,
+  Cp as CpTool,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
   DeleteWorkflow,
@@ -32,14 +33,14 @@ import {
   ManageScheduledTask,
   ManageSkill,
   MaterializeFile,
-  MoveWorkflow,
+  Mkdir as MkdirTool,
+  Mv as MvTool,
   OauthGetAuthLink,
   OauthRequestAccess,
   OpenResource,
   PromoteToLive,
   Read as ReadTool,
   Redeploy,
-  RenameWorkflow,
   RestoreResource,
   RunBlock,
   RunCode,
@@ -90,6 +91,7 @@ import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
 import { executeRunCode } from '../tools/handlers/run-code'
 import { executeVfsGlob, executeVfsGrep, executeVfsRead } from '../tools/handlers/vfs'
+import { executeVfsCp, executeVfsMkdir, executeVfsMv } from '../tools/handlers/vfs-mutate'
 import {
   executeCreateWorkflow,
   executeDeleteWorkflow,
@@ -144,9 +146,12 @@ function buildHandlerMap(): Record<string, ToolHandler> {
 
     [CreateWorkflow.id]: h(executeCreateWorkflow),
     [DeleteWorkflow.id]: h(executeDeleteWorkflow),
-    [RenameWorkflow.id]: h(executeRenameWorkflow),
-    [MoveWorkflow.id]: h(executeMoveWorkflow),
     [ManageFolder.id]: h(executeManageFolder),
+    // rename_workflow / move_workflow were removed from the mothership catalog
+    // in favor of mv; the executors stay registered under literal names so
+    // in-flight checkpoints still resume. Delete after the mv release soaks.
+    rename_workflow: h(executeRenameWorkflow),
+    move_workflow: h(executeMoveWorkflow),
     [RunWorkflow.id]: h(executeRunWorkflow),
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),
@@ -177,6 +182,9 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [GrepTool.id]: h(executeVfsGrep),
     [GlobTool.id]: h(executeVfsGlob),
     [ReadTool.id]: h(executeVfsRead),
+    [MvTool.id]: h(executeVfsMv),
+    [CpTool.id]: h(executeVfsCp),
+    [MkdirTool.id]: h(executeVfsMkdir),
 
     [ManageCustomTool.id]: h(executeManageCustomTool),
     [ManageMcpTool.id]: h(executeManageMcpTool),
