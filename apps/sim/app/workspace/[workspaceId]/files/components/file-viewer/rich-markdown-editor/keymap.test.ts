@@ -141,3 +141,41 @@ describe('divider Backspace', () => {
     editor.destroy()
   })
 })
+
+describe('empty list-item Backspace', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  it.each([
+    ['bullet list', '- one\n- two\n- three', 'bulletList'],
+    ['ordered list', '1. one\n2. two\n3. three', 'orderedList'],
+    ['task list', '- [ ] one\n- [ ] two\n- [ ] three', 'taskList'],
+  ])(
+    'joins an empty middle %s item into the previous item instead of splitting the list',
+    (_label, markdown, listType) => {
+      const editor = editorWith('')
+      editor.commands.setContent(markdown, { contentType: 'markdown' })
+      editor.commands.focus()
+      let from = -1
+      let to = -1
+      editor.state.doc.descendants((node, pos) => {
+        if (from < 0 && node.isText && node.text === 'two') {
+          from = pos
+          to = pos + node.text.length
+        }
+      })
+      editor.commands.setTextSelection({ from, to })
+      editor.commands.deleteSelection()
+      pressBackspace(editor)
+
+      expect(blockShape(editor).filter((type) => type === listType)).toEqual([listType])
+      const items: string[] = []
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === 'paragraph' && node.textContent) items.push(node.textContent)
+      })
+      expect(items).toEqual(['one', 'three'])
+      editor.destroy()
+    }
+  )
+})

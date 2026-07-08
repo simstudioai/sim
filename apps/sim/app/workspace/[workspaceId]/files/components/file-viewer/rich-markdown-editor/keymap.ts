@@ -9,6 +9,9 @@ import { SLASH_COMMAND_PLUGIN_KEY } from './slash-command/slash-command'
 /** Leaf nodes that have no text position, so they can only be reached as a NodeSelection. */
 const SELECTABLE_LEAVES = new Set(['horizontalRule', 'image'])
 
+/** List-item node types whose empty-item Backspace must join rather than lift (see the Backspace docs). */
+const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem'])
+
 /**
  * True while a `/` or `@` suggestion menu is open. Arrow keys must reach that menu's own handler, so
  * the leaf-selection shortcuts below yield rather than stealing the key to select an adjacent divider.
@@ -66,12 +69,15 @@ function selectAdjacentSelectedLeaf(editor: Editor, direction: 'up' | 'down'): b
  * Editor-specific keyboard behavior layered on top of StarterKit's defaults:
  *
  * - **Backspace** at the start of a heading reverts it to a paragraph (ProseMirror's default joins or
- *   no-ops, stranding the heading style; a second Backspace then merges as usual). At the start of a
- *   block whose previous sibling is a divider or image, where ProseMirror's `joinBackward` can't cross
- *   the leaf and no-ops: an *empty* block is deleted (clearing the blank line between/below dividers
- *   without touching the divider itself), while a *non-empty* block selects the leaf — so a first
- *   Backspace highlights what a second deletes, the same highlight-before-delete affordance as clicking
- *   it and parity with the arrow-key leaf selection.
+ *   no-ops, stranding the heading style; a second Backspace then merges as usual). At the start of an
+ *   *empty list item* it joins into the previous block instead of ProseMirror's default lift — lifting
+ *   an empty item out of the middle of a list splits it into two lists and strands an empty paragraph,
+ *   a visible gap; `joinBackward` removes the item and keeps one list. At the start of a block whose
+ *   previous sibling is a divider or image, where ProseMirror's `joinBackward` can't cross the leaf and
+ *   no-ops: an *empty* block is deleted (clearing the blank line between/below dividers without touching
+ *   the divider itself), while a *non-empty* block selects the leaf — so a first Backspace highlights
+ *   what a second deletes, the same highlight-before-delete affordance as clicking it and parity with
+ *   the arrow-key leaf selection.
  * - **Mod-A** inside a code block selects only that block's contents; pressing it again (when the
  *   block is already fully selected) falls through to the default whole-document select-all, the
  *   same scoped behavior as a code editor.
@@ -96,6 +102,12 @@ export const RichMarkdownKeymap = Extension.create({
         const { $from } = selection
         if ($from.parent.type.name === 'heading') {
           return editor.commands.setParagraph()
+        }
+        if (
+          $from.parent.content.size === 0 &&
+          LIST_ITEM_TYPES.has($from.node($from.depth - 1).type.name)
+        ) {
+          return editor.commands.joinBackward()
         }
         const blockStart = $from.before($from.depth)
         const nodeBefore = doc.resolve(blockStart).nodeBefore
