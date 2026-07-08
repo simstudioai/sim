@@ -530,6 +530,10 @@ export function useForkSync(params: {
     mapping.isPlaceholderData ||
     !diff.data ||
     diff.isPlaceholderData
+  // A failed fetch also gates Sync: a failed REFETCH keeps the last successful payload in
+  // `data` (so `dataPending` stays false), and every gate below would be judging that stale
+  // snapshot while the page shows the load error.
+  const dataError = mapping.isError || diff.isError
   // Zero-blockers invariant (mirrors the server gate): Sync stays disabled while ANY reference
   // would clear in a synced target workflow. `requiredComplete` covers the mapping entries
   // (credentials/secrets and unresolved resource refs); `blockingRefs` additionally covers
@@ -541,21 +545,25 @@ export function useForkSync(params: {
     !requiredComplete ||
     !reconfigComplete ||
     syncBlocked ||
-    dataPending
+    dataPending ||
+    dataError
 
-  // Priority mirrors the resolution flow: clear the blockers, map the required resources,
-  // reconfigure their dependents - each failing gate names ITS obstacle (an unmapped
-  // credential/secret is a required-mapping failure, not a cleared-ref blocker; see
-  // `pendingRequiredKinds`).
-  const syncDisabledReason = syncBlocked
-    ? 'Resolve every blocking reference first — map it, copy it, or fix it in the source'
-    : !requiredComplete
-      ? `Map all required ${forkRequiredKindsLabel(pendingRequiredKinds)} first`
-      : !reconfigComplete
-        ? 'Reconfigure all required fields first'
-        : dataPending
-          ? 'Loading sync details…'
-          : undefined
+  // A load failure outranks the gates - they're computed from the stale (or absent) payload,
+  // so naming one would mislead. Then priority mirrors the resolution flow: clear the
+  // blockers, map the required resources, reconfigure their dependents - each failing gate
+  // names ITS obstacle (an unmapped credential/secret is a required-mapping failure, not a
+  // cleared-ref blocker; see `pendingRequiredKinds`).
+  const syncDisabledReason = dataError
+    ? "Couldn't load sync details — reload the page to retry"
+    : syncBlocked
+      ? 'Resolve every blocking reference first — map it, copy it, or fix it in the source'
+      : !requiredComplete
+        ? `Map all required ${forkRequiredKindsLabel(pendingRequiredKinds)} first`
+        : !reconfigComplete
+          ? 'Reconfigure all required fields first'
+          : dataPending
+            ? 'Loading sync details…'
+            : undefined
 
   const workflowChanges = useMemo<ForkWorkflowChange[]>(() => {
     const order: Record<ForkWorkflowChange['action'], number> = { update: 0, create: 1, archive: 2 }
