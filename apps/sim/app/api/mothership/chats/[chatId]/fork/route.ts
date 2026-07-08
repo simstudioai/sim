@@ -236,6 +236,16 @@ export const POST = withRouteHandler(
 
       // Clone copilot-service conversation state (messages, active_messages, memory files).
       // Best-effort: if the copilot service doesn't have a row for the source chat yet, skip.
+      // The service stamps MessageID only on USER messages (assistant rows carry
+      // Sim-local ids it has never seen), so hand it the kept slice's last user
+      // message — it clones through the end of that turn, matching this route's cut.
+      let goCutMessageId = upToMessageId
+      for (let i = forkedMessages.length - 1; i >= 0; i--) {
+        if (forkedMessages[i].role === 'user') {
+          goCutMessageId = forkedMessages[i].id
+          break
+        }
+      }
       try {
         const copilotHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
         if (env.COPILOT_API_KEY) {
@@ -249,7 +259,7 @@ export const POST = withRouteHandler(
           body: JSON.stringify({
             sourceChatId: chatId,
             newChatId: newId,
-            upToMessageId,
+            upToMessageId: goCutMessageId,
             userId,
           }),
           spanName: 'sim → go /api/chats/fork',
