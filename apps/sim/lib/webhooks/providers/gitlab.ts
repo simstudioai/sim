@@ -104,9 +104,51 @@ export const gitlabHandler: WebhookProviderHandler = {
     const eventType = headers['x-gitlab-event'] || ''
     const ref = (b.ref as string) || ''
     const branch = ref.replace('refs/heads/', '')
-    return {
-      input: { ...b, event_type: eventType, branch },
+
+    // GitLab 17.2+ adds a `type` field inside `object_attributes` on Issue Hook
+    // payloads (e.g. "Issue", "Incident", "Task"). `type` is a reserved
+    // TriggerOutput meta-key, so it's renamed to `work_item_type` here to match
+    // the declared output schema in buildGitLabIssueOutputs.
+    const objectAttributes = b.object_attributes
+    let input: Record<string, unknown> = { ...b, event_type: eventType, branch }
+    if (
+      objectAttributes &&
+      typeof objectAttributes === 'object' &&
+      !Array.isArray(objectAttributes)
+    ) {
+      const { type: workItemType, ...restAttributes } = objectAttributes as Record<string, unknown>
+      if (workItemType !== undefined) {
+        input = { ...input, object_attributes: { ...restAttributes, work_item_type: workItemType } }
+      }
     }
+
+    return { input }
+  },
+
+  /**
+   * GitLab doesn't include a delivery id in the body (X-Gitlab-Event-UUID is a
+   * header, and extractIdempotencyId only receives the body), so this falls back
+   * to a stable, content-derived key. `updated_at`/`checkout_sha` come from the
+   * payload itself and stay identical across GitLab's automatic retries, so the
+   * key never incorporates wall-clock time.
+   */
+  extractIdempotencyId(body: unknown): string | null {
+    const b = asRecord(body)
+    const objectKind = (b.object_kind as string) || ''
+    const project = asRecord(b.project)
+    const projectId = project.id != null ? String(project.id) : ''
+
+    if (objectKind === 'push' || objectKind === 'tag_push') {
+      const checkoutSha = (b.checkout_sha as string) || (b.after as string) || ''
+      if (!checkoutSha) return null
+      return `gitlab:${objectKind}:${projectId}:${checkoutSha}`
+    }
+
+    const objectAttributes = asRecord(b.object_attributes)
+    const id = objectAttributes.id != null ? String(objectAttributes.id) : ''
+    if (!id) return null
+    const updatedAt = (objectAttributes.updated_at as string) || ''
+    return `gitlab:${objectKind || 'event'}:${projectId}:${id}:${updatedAt}`
   },
 
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
