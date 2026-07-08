@@ -263,7 +263,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
         name.trim() ||
           description.trim() ||
           selectedWorkflowId ||
-          selectedWorkspaceId !== workspaceId ||
+          selectedWorkspaceId !== eligibleDefaultWorkspaceId ||
           iconUrl ||
           visibleOutputs.length > 0 ||
           visibleInputs.some((i) => i.placeholder?.trim())
