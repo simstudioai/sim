@@ -276,6 +276,28 @@ describe('useAutosave', () => {
     expect(onSave).toHaveBeenCalledTimes(1)
   })
 
+  it('writes a local backup on unmount even if the network flush fails', async () => {
+    const onSave = vi.fn(async () => {
+      throw new Error('offline')
+    })
+    const { handle } = renderAutosave({
+      content: 'a',
+      savedContent: 'a',
+      onSave,
+      draftKey: 'file-unmount',
+    })
+
+    handle.rerender({ content: 'a1' })
+    // Unmount before the 400ms local-draft debounce fires — the pending timer is cancelled, so
+    // the cleanup itself must persist the draft, not just attempt (and here, fail) the network flush.
+    handle.unmount()
+    await flush()
+    expect(fakeDraftStore.get('autosave-draft:file-unmount')).toEqual({
+      content: 'a1',
+      savedContent: 'a',
+    })
+  })
+
   it('does not flush on unmount when the document is clean', async () => {
     const onSave = vi.fn(async () => {})
     const { handle } = renderAutosave({ content: 'a', savedContent: 'a', onSave })

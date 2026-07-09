@@ -163,6 +163,7 @@ export function useAutosave({
       clearTimeout(idleTimerRef.current)
       clearTimeout(displayTimerRef.current)
       clearTimeout(localDraftTimerRef.current)
+      persistLocalDraft()
       if (!enabledRef.current || contentRef.current === savedContentRef.current) return
       // Flush the latest content on unmount, but chain it AFTER any in-flight save rather than
       // firing a concurrent PUT: the in-flight save captured an older snapshot, so writing the
@@ -174,7 +175,7 @@ export function useAutosave({
         }
       })()
     }
-  }, [clearLocalDraft])
+  }, [clearLocalDraft, persistLocalDraft])
 
   const wasDirtyRef = useRef(isDirty)
 

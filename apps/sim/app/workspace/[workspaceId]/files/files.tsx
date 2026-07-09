@@ -973,12 +973,13 @@ export function Files() {
   const prevSaveStatusRef = useRef(saveStatus)
   useEffect(() => {
     if (saveStatus === 'error' && prevSaveStatusRef.current !== 'error') {
+      const retrySave = saveRef.current
       toast.error(`Failed to save "${selectedFileRef.current?.name ?? 'file'}"`, {
-        action: { label: 'Retry', onClick: handleSave },
+        action: { label: 'Retry', onClick: () => void retrySave?.() },
       })
     }
     prevSaveStatusRef.current = saveStatus
-  }, [saveStatus, handleSave])
+  }, [saveStatus])
 
   const handleNavigateFromFileDetail = useCallback(
     (url: string) => {
