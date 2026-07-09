@@ -96,6 +96,7 @@ export function ContentIndexPage({
                           sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
                           className='object-cover'
                           priority={index < 3}
+                          unoptimized
                         />
                       </div>
                       <div className='flex flex-col gap-2'>
@@ -157,6 +158,7 @@ export function ContentIndexPage({
                       fill
                       sizes='140px'
                       className='object-cover'
+                      unoptimized
                     />
                   </div>
                 </Link>
