@@ -74,6 +74,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
     }
 
+    if (/[/\\]/.test(fileName)) {
+      return NextResponse.json(
+        { success: false, error: 'File name must not contain path separators' },
+        { status: 400 }
+      )
+    }
+
     const base = normalizeJupyterServerUrl(data.serverUrl)
     const destinationDirectory = (data.directory ?? '').replace(/\/+$/, '')
     const destinationPath = destinationDirectory ? `${destinationDirectory}/${fileName}` : fileName

@@ -10,7 +10,12 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/tools/jupyter/utils'
+import {
+  assertSafeJupyterProxyPath,
+  buildJupyterAuthHeaders,
+  normalizeJupyterServerUrl,
+  UnsafeJupyterPathError,
+} from '@/tools/jupyter/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +45,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(jupyterProxyContract, request, {})
     if (!parsed.success) return parsed.response
     const data = parsed.data.body
+
+    try {
+      assertSafeJupyterProxyPath(data.path)
+    } catch (error) {
+      if (error instanceof UnsafeJupyterPathError) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+      }
+      throw error
+    }
 
     const base = normalizeJupyterServerUrl(data.serverUrl)
     const url = `${base}/api/${data.path}`

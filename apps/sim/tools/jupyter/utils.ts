@@ -120,6 +120,23 @@ export function assertSafeJupyterPath(path: string): string {
   return path
 }
 
+/**
+ * Validates the `path` field of a `/api/tools/jupyter/proxy` request — an
+ * already-encoded relative path under `/api/` (e.g.
+ * `contents/notebooks%2Fa.ipynb?content=1`) that may carry a query string.
+ * Every tool already validates its own path segments before building this
+ * value, but the proxy route is a shared internal trust boundary reachable
+ * independent of any one tool's call site, so it re-validates rather than
+ * assuming the caller did.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment of the path portion
+ * (everything before the first `?`) is `.` or `..`.
+ */
+export function assertSafeJupyterProxyPath(rawPath: string): void {
+  const [pathname] = rawPath.split('?')
+  assertNoJupyterPathTraversal(pathname)
+}
+
 interface RawJupyterKernel {
   id?: string
   name?: string
