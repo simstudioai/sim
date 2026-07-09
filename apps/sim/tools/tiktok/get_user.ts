@@ -1,6 +1,23 @@
+import { tiktokGetUserApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type { TikTokGetUserParams, TikTokGetUserResponse } from '@/tools/tiktok/types'
-import { TIKTOK_USER_FIELDS } from '@/tools/tiktok/utils'
+import { readTikTokApiResponse, TIKTOK_USER_FIELDS } from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
+
+function emptyUserOutput(): TikTokGetUserResponse['output'] {
+  return {
+    openId: '',
+    unionId: null,
+    displayName: '',
+    bioDescription: null,
+    profileDeepLink: null,
+    isVerified: null,
+    username: null,
+    followerCount: null,
+    followingCount: null,
+    likesCount: null,
+    videoCount: null,
+  }
+}
 
 export const tiktokGetUserTool: ToolConfig<TikTokGetUserParams, TikTokGetUserResponse> = {
   id: 'tiktok_get_user',
@@ -40,51 +57,26 @@ export const tiktokGetUserTool: ToolConfig<TikTokGetUserParams, TikTokGetUserRes
     method: 'GET',
     headers: (params: TikTokGetUserParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
     }),
   },
 
   transformResponse: async (response: Response): Promise<TikTokGetUserResponse> => {
-    const data = await response.json()
+    const { data, error } = await readTikTokApiResponse(response, tiktokGetUserApiDataSchema)
 
-    if (data.error?.code !== 'ok' && data.error?.code) {
+    if (error) {
       return {
         success: false,
-        output: {
-          openId: '',
-          unionId: null,
-          displayName: '',
-          bioDescription: null,
-          profileDeepLink: null,
-          isVerified: null,
-          username: null,
-          followerCount: null,
-          followingCount: null,
-          likesCount: null,
-          videoCount: null,
-        },
-        error: data.error?.message || 'Failed to fetch user info',
+        output: emptyUserOutput(),
+        error: error.message || 'Failed to fetch user info',
       }
     }
 
-    const user = data.data?.user
+    const user = data?.user
 
     if (!user) {
       return {
         success: false,
-        output: {
-          openId: '',
-          unionId: null,
-          displayName: '',
-          bioDescription: null,
-          profileDeepLink: null,
-          isVerified: null,
-          username: null,
-          followerCount: null,
-          followingCount: null,
-          likesCount: null,
-          videoCount: null,
-        },
+        output: emptyUserOutput(),
         error: 'No user data returned',
       }
     }

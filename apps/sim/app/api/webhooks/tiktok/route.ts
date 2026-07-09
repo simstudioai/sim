@@ -1,15 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  tiktokWebhookEnvelopeSchema,
-  tiktokWebhookHeadersSchema,
-} from '@/lib/api/contracts/webhooks'
-import {
-  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
-  isWorkspaceApiExecutionEntitled,
-} from '@/lib/billing/core/api-access'
+import { tiktokWebhookEnvelopeSchema } from '@/lib/api/contracts/webhooks'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
+import { getJobQueue } from '@/lib/core/async-jobs'
+import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   assertContentLengthWithinLimit,
@@ -18,30 +13,13 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
-import {
-  checkWebhookPreprocessing,
-  handlePreDeploymentVerification,
-  queueWebhookExecution,
-  shouldSkipWebhookEvent,
-} from '@/lib/webhooks/processor'
 import { verifyTikTokSignature } from '@/lib/webhooks/providers/tiktok'
-import { findTikTokWebhooksForOpenId } from '@/lib/webhooks/tiktok-fanout'
-import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
-import { isTikTokEventMatch } from '@/triggers/tiktok/utils'
-
-/**
- * queueWebhookExecution returns 200 for both real queues and event mismatches.
- * Only count responses that indicate work was actually enqueued.
- */
-async function didQueueWebhookExecution(response: NextResponse): Promise<boolean> {
-  if (!response.ok) return false
-  try {
-    const payload = (await response.clone().json()) as Record<string, unknown>
-    return payload.message === 'Webhook processed'
-  } catch {
-    return false
-  }
-}
+import {
+  executeTikTokWebhookIngress,
+  TIKTOK_WEBHOOK_INGRESS_CONCURRENCY_LIMIT,
+  TIKTOK_WEBHOOK_INGRESS_MAX_ATTEMPTS,
+  type TikTokWebhookIngressPayload,
+} from '@/background/tiktok-webhook-ingress'
 
 const logger = createLogger('TikTokWebhookIngress')
 
@@ -63,7 +41,7 @@ async function readTikTokBody(req: Request): Promise<string> {
 /**
  * App-level TikTok webhook Callback URL.
  * Portal: `{APP_URL}/api/webhooks/tiktok` (e.g. https://www.sim.ai/api/webhooks/tiktok).
- * Verifies TikTok-Signature once, then fans out by user_openid → credential → workflows.
+ * Verifies TikTok-Signature and durably accepts the delivery before background target fanout.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const ticket = tryAdmit()
@@ -89,16 +67,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       throw bodyError
     }
 
-    const headersResult = tiktokWebhookHeadersSchema.safeParse({
-      'tiktok-signature': request.headers.get('TikTok-Signature'),
-    })
-    if (!headersResult.success) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const authError = verifyTikTokSignature(
       rawBody,
-      headersResult.data['tiktok-signature'],
+      request.headers.get('TikTok-Signature'),
       requestId
     )
     if (authError) {
@@ -123,109 +94,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const envelope = envelopeResult.data
-    const matches = await findTikTokWebhooksForOpenId(envelope.user_openid, requestId)
-
-    if (matches.length === 0) {
-      logger.info(`[${requestId}] No matching TikTok webhooks; acknowledging`, {
-        event: envelope.event,
-        userOpenIdPrefix: envelope.user_openid.slice(0, 12),
-      })
-      return NextResponse.json({ ok: true })
+    if (!env.TIKTOK_CLIENT_ID || envelope.client_key !== env.TIKTOK_CLIENT_ID) {
+      logger.warn(`[${requestId}] TikTok webhook client_key does not match configured app`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let processed = 0
-    for (const { webhook: foundWebhook, workflow: foundWorkflow } of matches) {
-      // Schema allows null provider; fan-out already filtered to provider = 'tiktok'.
-      const webhookRecord = {
-        ...foundWebhook,
-        provider: foundWebhook.provider ?? 'tiktok',
-        providerConfig:
-          (foundWebhook.providerConfig as Record<string, unknown> | null) ?? undefined,
-      }
-
-      if (
-        foundWorkflow.workspaceId &&
-        !(await isWorkspaceApiExecutionEntitled(foundWorkflow.workspaceId))
-      ) {
-        logger.warn(`[${requestId}] Workspace not entitled for TikTok webhook`, {
-          webhookId: webhookRecord.id,
-          workspaceId: foundWorkflow.workspaceId,
-        })
-        continue
-      }
-
-      const preprocessResult = await checkWebhookPreprocessing(
-        foundWorkflow,
-        webhookRecord,
-        requestId
-      )
-      if (preprocessResult.error) {
-        logger.warn(`[${requestId}] Preprocessing failed for TikTok webhook`, {
-          webhookId: webhookRecord.id,
-        })
-        continue
-      }
-
-      if (webhookRecord.blockId) {
-        const blockExists = await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId)
-        if (!blockExists) {
-          const preDeploymentResponse = handlePreDeploymentVerification(webhookRecord, requestId)
-          if (preDeploymentResponse) {
-            continue
-          }
-          logger.info(
-            `[${requestId}] Trigger block ${webhookRecord.blockId} not found in deployment for workflow ${foundWorkflow.id}`
-          )
-          continue
-        }
-      }
-
-      if (shouldSkipWebhookEvent(webhookRecord, envelope, requestId)) {
-        continue
-      }
-
-      const triggerId = webhookRecord.providerConfig?.triggerId
-      if (
-        typeof triggerId === 'string' &&
-        triggerId.length > 0 &&
-        !isTikTokEventMatch(triggerId, envelope.event)
-      ) {
-        continue
-      }
-
-      const queueResponse = await queueWebhookExecution(
-        webhookRecord,
-        foundWorkflow,
-        envelope,
-        request,
-        {
-          requestId,
-          path: webhookRecord.path,
-          actorUserId: preprocessResult.actorUserId,
-          executionId: preprocessResult.executionId,
-          correlation: preprocessResult.correlation,
-          receivedAt,
-        }
-      )
-      if (await didQueueWebhookExecution(queueResponse)) {
-        processed += 1
-      }
+    const payload: TikTokWebhookIngressPayload = {
+      envelope,
+      headers: {
+        'content-type': request.headers.get('content-type') ?? 'application/json',
+      },
+      requestId,
+      receivedAt,
     }
+    const jobQueue = await getJobQueue()
+    const jobId = await jobQueue.enqueue('tiktok-webhook-ingress', payload, {
+      maxAttempts: TIKTOK_WEBHOOK_INGRESS_MAX_ATTEMPTS,
+      concurrencyKey: 'tiktok-webhook-ingress',
+      concurrencyLimit: TIKTOK_WEBHOOK_INGRESS_CONCURRENCY_LIMIT,
+      runner: async () => {
+        await executeTikTokWebhookIngress(payload)
+      },
+    })
 
-    if (processed === 0 && matches.length > 0) {
-      logger.info(`[${requestId}] TikTok webhooks matched but none processed`, {
-        matchCount: matches.length,
-        hint: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
-      })
-    }
+    logger.info(`[${requestId}] Accepted TikTok webhook delivery`, {
+      event: envelope.event,
+      jobId,
+      userOpenIdPrefix: envelope.user_openid.slice(0, 12),
+    })
 
-    return NextResponse.json({ ok: true, webhooksProcessed: processed })
+    return NextResponse.json({ ok: true })
   } catch (error) {
     logger.error(`[${requestId}] TikTok webhook ingress error`, {
       error: getErrorMessage(error, 'Unknown error'),
     })
-    // Still 200 after accept path failures that aren't auth — TikTok retries on non-200.
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ error: 'Temporarily unable to accept webhook' }, { status: 503 })
   } finally {
     ticket.release()
   }

@@ -16,14 +16,6 @@ const logger = createLogger('WebhookProvider:TikTok')
 /** TikTok recommends rejecting replayed signatures; 5 minutes matches Linear/common practice. */
 export const TIKTOK_WEBHOOK_TIMESTAMP_SKEW_SECONDS = 5 * 60
 
-/** Same pattern as auth.ts TikTok accountId suffix strip (`${open_id}-${uuid}`). */
-const UUID_SUFFIX_RE = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/** Strip `${open_id}-${uuid}` → open_id for webhook fan-out matching. */
-export function tiktokOpenIdFromAccountId(accountId: string): string {
-  return accountId.replace(UUID_SUFFIX_RE, '')
-}
-
 export interface TikTokSignatureParts {
   timestamp: string
   signature: string
@@ -130,18 +122,26 @@ function stringField(obj: Record<string, unknown>, ...keys: string[]): string | 
   return undefined
 }
 
+function numberField(value: unknown): number | null {
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
 export const tiktokHandler: WebhookProviderHandler = {
+  ingressMode: 'provider',
+  executionMode: 'queue',
+
   async verifyAuth({ request, rawBody, requestId }: AuthContext): Promise<NextResponse | null> {
     return verifyTikTokSignature(rawBody, request.headers.get('TikTok-Signature'), requestId)
   },
 
   async matchEvent({ body, requestId, providerConfig }: EventMatchContext) {
-    const triggerId = providerConfig.triggerId as string | undefined
+    const triggerId =
+      typeof providerConfig.triggerId === 'string' ? providerConfig.triggerId : undefined
     if (!triggerId) return true
 
     const { isTikTokEventMatch } = await import('@/triggers/tiktok/utils')
-    const obj = body as Record<string, unknown>
-    const event = typeof obj.event === 'string' ? obj.event : undefined
+    const event = stringField(asRecord(body) ?? {}, 'event')
     if (!isTikTokEventMatch(triggerId, event)) {
       logger.debug(
         `[${requestId}] TikTok event mismatch for trigger ${triggerId}. Event: ${event}. Skipping.`
@@ -155,39 +155,62 @@ export const tiktokHandler: WebhookProviderHandler = {
     const envelope = asRecord(body) ?? {}
     const content = parseTikTokContent(envelope.content)
     const event = typeof envelope.event === 'string' ? envelope.event : ''
-
-    const input: Record<string, unknown> = {
+    const commonInput: Record<string, unknown> = {
       event,
-      createTime: envelope.create_time ?? null,
-      userOpenId: typeof envelope.user_openid === 'string' ? envelope.user_openid : '',
-      clientKey: typeof envelope.client_key === 'string' ? envelope.client_key : '',
+      createTime: numberField(envelope.create_time),
+      userOpenId: typeof envelope.user_openid === 'string' ? envelope.user_openid : null,
+      clientKey: typeof envelope.client_key === 'string' ? envelope.client_key : null,
     }
-
-    const publishId = stringField(content, 'publish_id')
-    if (publishId) input.publishId = publishId
-
-    const publishType = stringField(content, 'publish_type')
-    if (publishType) input.publishType = publishType
-
-    const postId = stringField(content, 'post_id')
-    if (postId) input.postId = postId
-
-    const shareId = stringField(content, 'share_id')
-    if (shareId) input.shareId = shareId
+    const postingInput = {
+      ...commonInput,
+      publishId: stringField(content, 'publish_id') ?? null,
+      publishType: stringField(content, 'publish_type') ?? null,
+    }
 
     if (event === 'post.publish.failed') {
-      const failReason = stringField(content, 'fail_reason', 'reason')
-      if (failReason) input.failReason = failReason
-    }
-
-    if (event === 'authorization.removed') {
-      const reason = content.reason
-      if (typeof reason === 'number' || typeof reason === 'string') {
-        input.reason = reason
+      return {
+        input: {
+          ...postingInput,
+          failReason: stringField(content, 'fail_reason', 'reason') ?? null,
+        },
       }
     }
 
-    return { input }
+    if (event === 'post.publish.complete' || event === 'post.publish.inbox_delivered') {
+      return { input: postingInput }
+    }
+
+    if (
+      event === 'post.publish.publicly_available' ||
+      event === 'post.publish.no_longer_publicaly_available'
+    ) {
+      return {
+        input: {
+          ...postingInput,
+          postId: stringField(content, 'post_id') ?? null,
+        },
+      }
+    }
+
+    if (event === 'authorization.removed') {
+      return {
+        input: {
+          ...commonInput,
+          reason: numberField(content.reason),
+        },
+      }
+    }
+
+    if (event === 'video.publish.completed' || event === 'video.upload.failed') {
+      return {
+        input: {
+          ...commonInput,
+          shareId: stringField(content, 'share_id') ?? null,
+        },
+      }
+    }
+
+    return { input: commonInput }
   },
 
   extractIdempotencyId(body: unknown) {
@@ -200,13 +223,21 @@ export const tiktokHandler: WebhookProviderHandler = {
 
     const content = parseTikTokContent(envelope.content)
     const publishId = stringField(content, 'publish_id')
+    const postId = stringField(content, 'post_id')
     const shareId = stringField(content, 'share_id')
     const createTime =
       typeof envelope.create_time === 'number' || typeof envelope.create_time === 'string'
         ? String(envelope.create_time)
         : null
 
-    const unique = publishId ?? shareId ?? createTime
+    let unique: string | null = null
+    if (publishId && postId) {
+      unique = `${publishId}:${postId}`
+    } else if (event === 'post.publish.complete' && publishId && createTime) {
+      unique = `${publishId}:${createTime}`
+    } else {
+      unique = publishId ?? shareId ?? createTime
+    }
     if (!unique) return null
 
     return `${event}:${userOpenId}:${unique}`

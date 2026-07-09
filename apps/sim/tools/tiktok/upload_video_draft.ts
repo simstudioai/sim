@@ -2,7 +2,11 @@ import type {
   TikTokUploadVideoDraftParams,
   TikTokUploadVideoDraftResponse,
 } from '@/tools/tiktok/types'
-import { parsePublishInitResponse } from '@/tools/tiktok/utils'
+import {
+  assertTikTokVideoSourceInput,
+  readTikTokPublishInitResponse,
+  toTikTokPublishToolResponse,
+} from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tiktokUploadVideoDraftTool: ToolConfig<
@@ -31,7 +35,7 @@ export const tiktokUploadVideoDraftTool: ToolConfig<
     source: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: "Media transfer method: 'PULL_FROM_URL' or 'FILE_UPLOAD'.",
     },
     videoUrl: {
@@ -61,6 +65,7 @@ export const tiktokUploadVideoDraftTool: ToolConfig<
         params.source === 'FILE_UPLOAD' ? 'application/json' : 'application/json; charset=UTF-8',
     }),
     body: (params: TikTokUploadVideoDraftParams) => {
+      assertTikTokVideoSourceInput(params.source, params.videoUrl, params.file)
       if (params.source === 'FILE_UPLOAD') {
         return {
           accessToken: params.accessToken,
@@ -79,21 +84,8 @@ export const tiktokUploadVideoDraftTool: ToolConfig<
   },
 
   transformResponse: async (response: Response): Promise<TikTokUploadVideoDraftResponse> => {
-    const data = await response.json()
-    const result = parsePublishInitResponse(data)
-
-    if (!result.success) {
-      return {
-        success: false,
-        output: { publishId: '' },
-        error: result.error,
-      }
-    }
-
-    return {
-      success: true,
-      output: { publishId: result.publishId },
-    }
+    const result = await readTikTokPublishInitResponse(response)
+    return toTikTokPublishToolResponse(result)
   },
 
   outputs: {

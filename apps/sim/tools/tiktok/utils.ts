@@ -1,4 +1,8 @@
-import type { TikTokVideo } from '@/tools/tiktok/types'
+import { truncate } from '@sim/utils/string'
+import type { ZodType } from 'zod'
+import { type TikTokApiVideo, tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
+import type { TikTokApiError, TikTokPublishResponse, TikTokVideo } from '@/tools/tiktok/types'
+import type { OutputProperty } from '@/tools/types'
 
 /**
  * Default fields requested from TikTok's `/v2/user/info/` endpoint, covering the
@@ -13,58 +17,286 @@ export const TIKTOK_USER_FIELDS =
  * All are available under the `video.list` scope.
  */
 export const TIKTOK_VIDEO_FIELDS =
-  'id,title,cover_image_url,embed_link,duration,create_time,share_url,video_description,width,height,view_count,like_count,comment_count,share_count'
+  'id,title,cover_image_url,embed_link,embed_html,duration,create_time,share_url,video_description,width,height,view_count,like_count,comment_count,share_count'
 
-export function mapTikTokVideo(video: Record<string, unknown>): TikTokVideo {
+/** Shared output schema for video objects returned by list and query tools. */
+export const TIKTOK_VIDEO_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Video ID' },
+  title: { type: 'string', description: 'Video title', optional: true },
+  coverImageUrl: {
+    type: 'string',
+    description:
+      'Signed TikTok CDN cover URL. It is public but time-limited, so consume it immediately.',
+    optional: true,
+  },
+  embedLink: { type: 'string', description: 'Embeddable video URL', optional: true },
+  embedHtml: { type: 'string', description: 'HTML embed markup for the video', optional: true },
+  duration: { type: 'number', description: 'Video duration in seconds', optional: true },
+  createTime: {
+    type: 'number',
+    description: 'Unix timestamp when the video was created',
+    optional: true,
+  },
+  shareUrl: { type: 'string', description: 'Shareable video URL', optional: true },
+  videoDescription: {
+    type: 'string',
+    description: 'Video description or caption',
+    optional: true,
+  },
+  width: { type: 'number', description: 'Video width in pixels', optional: true },
+  height: { type: 'number', description: 'Video height in pixels', optional: true },
+  viewCount: { type: 'number', description: 'Number of views', optional: true },
+  likeCount: { type: 'number', description: 'Number of likes', optional: true },
+  commentCount: { type: 'number', description: 'Number of comments', optional: true },
+  shareCount: { type: 'number', description: 'Number of shares', optional: true },
+} satisfies Record<keyof TikTokVideo, OutputProperty>
+
+export function mapTikTokVideo(video: TikTokApiVideo): TikTokVideo {
   return {
-    id: (video.id as string) ?? '',
-    title: (video.title as string) ?? null,
-    coverImageUrl: (video.cover_image_url as string) ?? null,
-    embedLink: (video.embed_link as string) ?? null,
-    duration: (video.duration as number) ?? null,
-    createTime: (video.create_time as number) ?? null,
-    shareUrl: (video.share_url as string) ?? null,
-    videoDescription: (video.video_description as string) ?? null,
-    width: (video.width as number) ?? null,
-    height: (video.height as number) ?? null,
-    viewCount: (video.view_count as number) ?? null,
-    likeCount: (video.like_count as number) ?? null,
-    commentCount: (video.comment_count as number) ?? null,
-    shareCount: (video.share_count as number) ?? null,
+    id: video.id ?? '',
+    title: video.title ?? null,
+    coverImageUrl: video.cover_image_url ?? null,
+    embedLink: video.embed_link ?? null,
+    embedHtml: video.embed_html ?? null,
+    duration: video.duration ?? null,
+    createTime: video.create_time ?? null,
+    shareUrl: video.share_url ?? null,
+    videoDescription: video.video_description ?? null,
+    width: video.width ?? null,
+    height: video.height ?? null,
+    viewCount: video.view_count ?? null,
+    likeCount: video.like_count ?? null,
+    commentCount: video.comment_count ?? null,
+    shareCount: video.share_count ?? null,
   }
+}
+
+interface ParsedTikTokApiResponse<TData> {
+  data: TData | null
+  error: TikTokApiError | null
+  rawBody: string
+}
+
+interface ParsedJsonObject {
+  body: Record<string, unknown> | null
+  error: TikTokApiError | null
+  rawBody: string
+}
+
+interface TikTokPublishInitResult {
+  success: boolean
+  publishId: string
+  error?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null
+}
+
+function parseTikTokError(value: unknown): TikTokApiError | null {
+  const error = asRecord(value)
+  if (!error) return null
+
+  const code = typeof error.code === 'string' ? error.code : null
+  if (!code) return null
+
+  return {
+    code,
+    ...(typeof error.message === 'string' ? { message: error.message } : {}),
+    ...(typeof error.log_id === 'string' ? { logId: error.log_id } : {}),
+  }
+}
+
+function httpError(response: Response, rawBody: string, message?: string): TikTokApiError {
+  return {
+    code: `http_${response.status}`,
+    message:
+      message ??
+      `TikTok request failed with HTTP ${response.status}: ${truncate(rawBody.trim(), 300)}`,
+  }
+}
+
+async function readJsonObject(response: Response): Promise<ParsedJsonObject> {
+  const rawBody = await response.text()
+  let parsed: unknown
+
+  try {
+    parsed = JSON.parse(rawBody)
+  } catch {
+    return {
+      body: null,
+      error: response.ok
+        ? { code: 'invalid_response', message: 'TikTok returned an invalid JSON response' }
+        : httpError(response, rawBody),
+      rawBody,
+    }
+  }
+
+  const body = asRecord(parsed)
+  if (!body) {
+    return {
+      body: null,
+      error: { code: 'invalid_response', message: 'TikTok returned an unexpected response shape' },
+      rawBody,
+    }
+  }
+
+  return { body, error: null, rawBody }
+}
+
+function parseApiEnvelope<TData extends object>(
+  response: Response,
+  parsed: ParsedJsonObject,
+  dataSchema: ZodType<TData>
+): ParsedTikTokApiResponse<TData> {
+  if (!parsed.body) {
+    return { data: null, error: parsed.error, rawBody: parsed.rawBody }
+  }
+
+  const providerError = parseTikTokError(parsed.body.error)
+  if (providerError?.code && providerError.code !== 'ok') {
+    return { data: null, error: providerError, rawBody: parsed.rawBody }
+  }
+
+  if (!response.ok) {
+    return {
+      data: null,
+      error: httpError(response, parsed.rawBody, providerError?.message),
+      rawBody: parsed.rawBody,
+    }
+  }
+
+  if (parsed.body.data === null || parsed.body.data === undefined) {
+    return { data: null, error: null, rawBody: parsed.rawBody }
+  }
+
+  const dataResult = dataSchema.safeParse(parsed.body.data)
+  if (!dataResult.success) {
+    return {
+      data: null,
+      error: {
+        code: 'invalid_response',
+        message: 'TikTok returned an unexpected data shape',
+      },
+      rawBody: parsed.rawBody,
+    }
+  }
+
+  return { data: dataResult.data, error: null, rawBody: parsed.rawBody }
+}
+
+/** Reads and normalizes a typed TikTok API envelope. */
+export async function readTikTokApiResponse<TData extends object>(
+  response: Response,
+  dataSchema: ZodType<TData>
+): Promise<ParsedTikTokApiResponse<TData>> {
+  return parseApiEnvelope(response, await readJsonObject(response), dataSchema)
+}
+
+/** Enforces TikTok's bounded array request limits before making a network request. */
+export function assertTikTokArrayLength(values: unknown[], label: string, maximum: number): void {
+  if (values.length === 0) {
+    throw new Error(`${label} must contain at least one item`)
+  }
+  if (values.length > maximum) {
+    throw new Error(`${label} supports at most ${maximum} items`)
+  }
+}
+
+/** Validates photo count and returns a cover index that points into the image list. */
+export function resolveTikTokPhotoCoverIndex(
+  photoImages: string[],
+  requestedIndex?: number
+): number {
+  assertTikTokArrayLength(photoImages, 'photoImages', 35)
+  const coverIndex = requestedIndex ?? 0
+  if (!Number.isInteger(coverIndex) || coverIndex < 0) {
+    throw new Error('photoCoverIndex must be a non-negative integer')
+  }
+  if (coverIndex >= photoImages.length) {
+    throw new Error('photoCoverIndex must refer to an item in photoImages')
+  }
+  return coverIndex
+}
+
+/** Validates that the selected video transfer source has its corresponding input. */
+export function assertTikTokVideoSourceInput(
+  source: string,
+  videoUrl: string | undefined,
+  file: unknown
+): void {
+  if (source === 'PULL_FROM_URL') {
+    if (!videoUrl?.trim()) throw new Error('videoUrl is required when source is PULL_FROM_URL')
+    return
+  }
+  if (source === 'FILE_UPLOAD') {
+    if (!file) throw new Error('file is required when source is FILE_UPLOAD')
+    return
+  }
+  throw new Error('source must be PULL_FROM_URL or FILE_UPLOAD')
 }
 
 /**
  * Video/photo publish-init tools can hit TikTok directly (PULL_FROM_URL, calling
  * TikTok's own `/init/` endpoints) or an internal Sim route (FILE_UPLOAD, which
  * downloads the workflow file and performs the chunked PUT before responding).
- * The two paths return different envelopes, so responses are normalized here.
+ * The two paths return different envelopes, so reading and normalization share one boundary.
  */
-export function parsePublishInitResponse(data: Record<string, unknown>): {
-  success: boolean
-  publishId: string
-  error?: string
-} {
-  // Internal route shape: { success, output: { publishId }, error }
-  if ('success' in data) {
-    const success = Boolean(data.success)
-    if (!success) {
-      return { success: false, publishId: '', error: (data.error as string) || 'Failed to publish' }
+export async function readTikTokPublishInitResponse(
+  response: Response
+): Promise<TikTokPublishInitResult> {
+  const parsed = await readJsonObject(response)
+  if (!parsed.body) {
+    return {
+      success: false,
+      publishId: '',
+      error: parsed.error?.message ?? 'Failed to read publish response',
     }
-    const output = data.output as { publishId?: string } | undefined
-    return { success: true, publishId: output?.publishId ?? '' }
   }
 
-  // Direct TikTok `/init/` response shape: { data: { publish_id }, error: { code, message } }
-  const error = data.error as { code?: string; message?: string } | undefined
-  if (error?.code && error.code !== 'ok') {
-    return { success: false, publishId: '', error: error.message || 'Failed to initiate post' }
+  if ('success' in parsed.body) {
+    if (parsed.body.success !== true) {
+      return {
+        success: false,
+        publishId: '',
+        error: typeof parsed.body.error === 'string' ? parsed.body.error : 'Failed to publish',
+      }
+    }
+
+    const output = asRecord(parsed.body.output)
+    const publishId = typeof output?.publishId === 'string' ? output.publishId : ''
+    return publishId
+      ? { success: true, publishId }
+      : { success: false, publishId: '', error: 'No publish ID returned' }
   }
 
-  const publishId = (data.data as { publish_id?: string } | undefined)?.publish_id
-  if (!publishId) {
-    return { success: false, publishId: '', error: 'No publish ID returned' }
+  const result = parseApiEnvelope(response, parsed, tiktokPublishInitApiDataSchema)
+  if (result.error) {
+    return {
+      success: false,
+      publishId: '',
+      error: result.error.message ?? 'Failed to initiate post',
+    }
   }
 
-  return { success: true, publishId }
+  return result.data?.publish_id
+    ? { success: true, publishId: result.data.publish_id }
+    : { success: false, publishId: '', error: 'No publish ID returned' }
+}
+
+/** Converts a normalized publish result into the shared tool response shape. */
+export function toTikTokPublishToolResponse(
+  result: TikTokPublishInitResult
+): TikTokPublishResponse {
+  return result.success
+    ? { success: true, output: { publishId: result.publishId } }
+    : {
+        success: false,
+        output: { publishId: '' },
+        error: result.error ?? 'Failed to initiate TikTok publish',
+      }
 }

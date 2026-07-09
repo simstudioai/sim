@@ -1,8 +1,23 @@
+import { tiktokCreatorInfoApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type {
   TikTokQueryCreatorInfoParams,
   TikTokQueryCreatorInfoResponse,
 } from '@/tools/tiktok/types'
+import { readTikTokApiResponse } from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
+
+function emptyCreatorInfoOutput(): TikTokQueryCreatorInfoResponse['output'] {
+  return {
+    creatorAvatarUrl: null,
+    creatorUsername: null,
+    creatorNickname: null,
+    privacyLevelOptions: [],
+    commentDisabled: false,
+    duetDisabled: false,
+    stitchDisabled: false,
+    maxVideoPostDurationSec: null,
+  }
+}
 
 export const tiktokQueryCreatorInfoTool: ToolConfig<
   TikTokQueryCreatorInfoParams,
@@ -40,40 +55,23 @@ export const tiktokQueryCreatorInfoTool: ToolConfig<
   },
 
   transformResponse: async (response: Response): Promise<TikTokQueryCreatorInfoResponse> => {
-    const data = await response.json()
+    const { data: creatorInfo, error } = await readTikTokApiResponse(
+      response,
+      tiktokCreatorInfoApiDataSchema
+    )
 
-    if (data.error?.code !== 'ok' && data.error?.code) {
+    if (error) {
       return {
         success: false,
-        output: {
-          creatorAvatarUrl: null,
-          creatorUsername: null,
-          creatorNickname: null,
-          privacyLevelOptions: [],
-          commentDisabled: false,
-          duetDisabled: false,
-          stitchDisabled: false,
-          maxVideoPostDurationSec: null,
-        },
-        error: data.error?.message || 'Failed to query creator info',
+        output: emptyCreatorInfoOutput(),
+        error: error.message || 'Failed to query creator info',
       }
     }
-
-    const creatorInfo = data.data
 
     if (!creatorInfo) {
       return {
         success: false,
-        output: {
-          creatorAvatarUrl: null,
-          creatorUsername: null,
-          creatorNickname: null,
-          privacyLevelOptions: [],
-          commentDisabled: false,
-          duetDisabled: false,
-          stitchDisabled: false,
-          maxVideoPostDurationSec: null,
-        },
+        output: emptyCreatorInfoOutput(),
         error: 'No creator info returned',
       }
     }

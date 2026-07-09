@@ -2,11 +2,17 @@ import type {
   TikTokDirectPostVideoParams,
   TikTokDirectPostVideoResponse,
 } from '@/tools/tiktok/types'
-import { parsePublishInitResponse } from '@/tools/tiktok/utils'
+import {
+  assertTikTokVideoSourceInput,
+  readTikTokPublishInitResponse,
+  toTikTokPublishToolResponse,
+} from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
 function buildPostInfo(params: TikTokDirectPostVideoParams): Record<string, unknown> {
   const postInfo: Record<string, unknown> = {
+    brand_content_toggle: params.brandContentToggle ?? false,
+    brand_organic_toggle: params.brandOrganicToggle ?? false,
     privacy_level: params.privacyLevel,
   }
 
@@ -18,13 +24,6 @@ function buildPostInfo(params: TikTokDirectPostVideoParams): Record<string, unkn
     postInfo.video_cover_timestamp_ms = params.videoCoverTimestampMs
   }
   if (params.isAigc !== undefined) postInfo.is_aigc = params.isAigc
-  if (params.brandContentToggle !== undefined) {
-    postInfo.brand_content_toggle = params.brandContentToggle
-  }
-  if (params.brandOrganicToggle !== undefined) {
-    postInfo.brand_organic_toggle = params.brandOrganicToggle
-  }
-
   return postInfo
 }
 
@@ -54,7 +53,7 @@ export const tiktokDirectPostVideoTool: ToolConfig<
     source: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: "Media transfer method: 'PULL_FROM_URL' or 'FILE_UPLOAD'.",
     },
     videoUrl: {
@@ -140,6 +139,7 @@ export const tiktokDirectPostVideoTool: ToolConfig<
         params.source === 'FILE_UPLOAD' ? 'application/json' : 'application/json; charset=UTF-8',
     }),
     body: (params: TikTokDirectPostVideoParams) => {
+      assertTikTokVideoSourceInput(params.source, params.videoUrl, params.file)
       const postInfo = buildPostInfo(params)
 
       if (params.source === 'FILE_UPLOAD') {
@@ -162,21 +162,8 @@ export const tiktokDirectPostVideoTool: ToolConfig<
   },
 
   transformResponse: async (response: Response): Promise<TikTokDirectPostVideoResponse> => {
-    const data = await response.json()
-    const result = parsePublishInitResponse(data)
-
-    if (!result.success) {
-      return {
-        success: false,
-        output: { publishId: '' },
-        error: result.error,
-      }
-    }
-
-    return {
-      success: true,
-      output: { publishId: result.publishId },
-    }
+    const result = await readTikTokPublishInitResponse(response)
+    return toTikTokPublishToolResponse(result)
   },
 
   outputs: {

@@ -606,7 +606,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
     videos: {
       type: 'json',
       description:
-        'Array of video objects (id, title, coverImageUrl, embedLink, duration, createTime, shareUrl, videoDescription, width, height, viewCount, likeCount, commentCount, shareCount)',
+        'Array of video objects (id, title, coverImageUrl, embedLink, embedHtml, duration, createTime, shareUrl, videoDescription, width, height, viewCount, likeCount, commentCount, shareCount)',
       condition: { field: 'operation', value: ['tiktok_list_videos', 'tiktok_query_videos'] },
     },
     cursor: {
@@ -689,6 +689,16 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       description: 'Array of public post IDs once the content is published',
       condition: { field: 'operation', value: 'tiktok_get_post_status' },
     },
+    uploadedBytes: {
+      type: 'number',
+      description: 'Bytes uploaded to TikTok for a file upload',
+      condition: { field: 'operation', value: 'tiktok_get_post_status' },
+    },
+    downloadedBytes: {
+      type: 'number',
+      description: 'Bytes TikTok downloaded from a public URL',
+      condition: { field: 'operation', value: 'tiktok_get_post_status' },
+    },
   },
 }
 
@@ -732,6 +742,36 @@ export const TikTokBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['marketing', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TikTokIcon,
+      title: 'TikTok carousel campaign launcher',
+      prompt:
+        'Build a campaign workflow that turns approved product images into a TikTok photo carousel, publishes it, and sends the resulting post link to Slack.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TikTokIcon,
+      title: 'TikTok publishing failure alerts',
+      prompt:
+        'Create a workflow triggered when a TikTok post fails to publish, summarize the failure reason, and alert the content team in Slack with the publish ID.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TikTokIcon,
+      title: 'TikTok authorization monitor',
+      prompt:
+        'Create a workflow triggered when a TikTok user removes app authorization, record the affected account, and notify the operations team to reconnect it.',
+      modules: ['tables', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'automation'],
       alsoIntegrations: ['slack'],
     },
   ],

@@ -17,7 +17,7 @@ type RecreateCheckInput = {
   nextConfig: Record<string, unknown>
 }
 
-/** System-managed fields that shouldn't trigger recreation */
+/** System-managed fields that should not trigger recreation. */
 const SYSTEM_MANAGED_FIELDS = new Set([
   'externalId',
   'externalSubscriptionId',
@@ -31,6 +31,29 @@ const SYSTEM_MANAGED_FIELDS = new Set([
   'setupCompleted',
   'userId',
 ])
+
+/** Returns true when user-controlled persisted webhook configuration changed. */
+export function hasWebhookConfigChanged(
+  previousConfig: Record<string, unknown>,
+  nextConfig: Record<string, unknown>
+): boolean {
+  const allKeys = new Set([...Object.keys(previousConfig), ...Object.keys(nextConfig)])
+
+  for (const key of allKeys) {
+    if (SYSTEM_MANAGED_FIELDS.has(key)) continue
+
+    const previousValue = previousConfig[key]
+    const nextValue = nextConfig[key]
+    const previousComparable =
+      typeof previousValue === 'object' ? JSON.stringify(previousValue ?? null) : previousValue
+    const nextComparable =
+      typeof nextValue === 'object' ? JSON.stringify(nextValue ?? null) : nextValue
+
+    if (previousComparable !== nextComparable) return true
+  }
+
+  return false
+}
 
 /**
  * Determine whether a webhook with provider-managed registration should be
@@ -58,23 +81,7 @@ export function shouldRecreateExternalWebhookSubscription({
     return false
   }
 
-  const allKeys = new Set([...Object.keys(previousConfig), ...Object.keys(nextConfig)])
-
-  for (const key of allKeys) {
-    if (SYSTEM_MANAGED_FIELDS.has(key)) continue
-
-    const prevVal = previousConfig[key]
-    const nextVal = nextConfig[key]
-
-    const prevStr = typeof prevVal === 'object' ? JSON.stringify(prevVal ?? null) : prevVal
-    const nextStr = typeof nextVal === 'object' ? JSON.stringify(nextVal ?? null) : nextVal
-
-    if (prevStr !== nextStr) {
-      return true
-    }
-  }
-
-  return false
+  return hasWebhookConfigChanged(previousConfig, nextConfig)
 }
 
 /**

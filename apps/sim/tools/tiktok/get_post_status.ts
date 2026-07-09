@@ -1,5 +1,17 @@
+import { tiktokPostStatusApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type { TikTokGetPostStatusParams, TikTokGetPostStatusResponse } from '@/tools/tiktok/types'
+import { readTikTokApiResponse } from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
+
+function emptyPostStatusOutput(): TikTokGetPostStatusResponse['output'] {
+  return {
+    status: '',
+    failReason: null,
+    publiclyAvailablePostId: [],
+    uploadedBytes: null,
+    downloadedBytes: null,
+  }
+}
 
 export const tiktokGetPostStatusTool: ToolConfig<
   TikTokGetPostStatusParams,
@@ -14,7 +26,7 @@ export const tiktokGetPostStatusTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'tiktok',
-    requiredScopes: ['video.publish'],
+    requiredScopes: ['video.publish', 'video.upload'],
   },
 
   params: {
@@ -45,11 +57,12 @@ export const tiktokGetPostStatusTool: ToolConfig<
   },
 
   transformResponse: async (response: Response): Promise<TikTokGetPostStatusResponse> => {
-    // TikTok returns publicaly_available_post_id entries as int64 numbers that exceed
-    // Number.MAX_SAFE_INTEGER, so they must be extracted from the raw body as strings
-    // before JSON.parse rounds them to nonexistent IDs.
-    const rawBody = await response.text()
-    const data = JSON.parse(rawBody)
+    /** TikTok's int64 post IDs must be extracted before JSON parsing rounds them. */
+    const {
+      data: statusData,
+      error,
+      rawBody,
+    } = await readTikTokApiResponse(response, tiktokPostStatusApiDataSchema)
     const postIdsMatch = rawBody.match(/"publicaly_available_post_id"\s*:\s*\[([^\]]*)\]/)
     const publiclyAvailablePostId = postIdsMatch
       ? postIdsMatch[1]
@@ -58,28 +71,18 @@ export const tiktokGetPostStatusTool: ToolConfig<
           .filter(Boolean)
       : []
 
-    if (data.error?.code !== 'ok' && data.error?.code) {
+    if (error) {
       return {
         success: false,
-        output: {
-          status: '',
-          failReason: null,
-          publiclyAvailablePostId: [],
-        },
-        error: data.error?.message || 'Failed to fetch post status',
+        output: emptyPostStatusOutput(),
+        error: error.message || 'Failed to fetch post status',
       }
     }
-
-    const statusData = data.data
 
     if (!statusData) {
       return {
         success: false,
-        output: {
-          status: '',
-          failReason: null,
-          publiclyAvailablePostId: [],
-        },
+        output: emptyPostStatusOutput(),
         error: 'No status data returned',
       }
     }
@@ -90,6 +93,8 @@ export const tiktokGetPostStatusTool: ToolConfig<
         status: statusData.status ?? '',
         failReason: statusData.fail_reason ?? null,
         publiclyAvailablePostId,
+        uploadedBytes: statusData.uploaded_bytes ?? null,
+        downloadedBytes: statusData.downloaded_bytes ?? null,
       },
     }
   },
@@ -113,6 +118,16 @@ export const tiktokGetPostStatusTool: ToolConfig<
         type: 'string',
         description: 'Public TikTok post ID',
       },
+    },
+    uploadedBytes: {
+      type: 'number',
+      description: 'Number of bytes uploaded to TikTok for FILE_UPLOAD posts',
+      optional: true,
+    },
+    downloadedBytes: {
+      type: 'number',
+      description: 'Number of bytes TikTok downloaded for PULL_FROM_URL posts',
+      optional: true,
     },
   },
 }

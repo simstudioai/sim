@@ -2,7 +2,11 @@ import type {
   TikTokDirectPostPhotoParams,
   TikTokDirectPostPhotoResponse,
 } from '@/tools/tiktok/types'
-import { parsePublishInitResponse } from '@/tools/tiktok/utils'
+import {
+  readTikTokPublishInitResponse,
+  resolveTikTokPhotoCoverIndex,
+  toTikTokPublishToolResponse,
+} from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tiktokDirectPostPhotoTool: ToolConfig<
@@ -100,7 +104,14 @@ export const tiktokDirectPostPhotoTool: ToolConfig<
       'Content-Type': 'application/json; charset=UTF-8',
     }),
     body: (params: TikTokDirectPostPhotoParams) => {
+      const photoCoverIndex = resolveTikTokPhotoCoverIndex(
+        params.photoImages,
+        params.photoCoverIndex
+      )
+
       const postInfo: Record<string, unknown> = {
+        brand_content_toggle: params.brandContentToggle ?? false,
+        brand_organic_toggle: params.brandOrganicToggle ?? false,
         privacy_level: params.privacyLevel,
       }
 
@@ -108,13 +119,6 @@ export const tiktokDirectPostPhotoTool: ToolConfig<
       if (params.description) postInfo.description = params.description
       if (params.disableComment !== undefined) postInfo.disable_comment = params.disableComment
       if (params.autoAddMusic !== undefined) postInfo.auto_add_music = params.autoAddMusic
-      if (params.brandContentToggle !== undefined) {
-        postInfo.brand_content_toggle = params.brandContentToggle
-      }
-      if (params.brandOrganicToggle !== undefined) {
-        postInfo.brand_organic_toggle = params.brandOrganicToggle
-      }
-
       return {
         media_type: 'PHOTO',
         post_mode: 'DIRECT_POST',
@@ -122,28 +126,15 @@ export const tiktokDirectPostPhotoTool: ToolConfig<
         source_info: {
           source: 'PULL_FROM_URL',
           photo_images: params.photoImages,
-          photo_cover_index: params.photoCoverIndex ?? 0,
+          photo_cover_index: photoCoverIndex,
         },
       }
     },
   },
 
   transformResponse: async (response: Response): Promise<TikTokDirectPostPhotoResponse> => {
-    const data = await response.json()
-    const result = parsePublishInitResponse(data)
-
-    if (!result.success) {
-      return {
-        success: false,
-        output: { publishId: '' },
-        error: result.error,
-      }
-    }
-
-    return {
-      success: true,
-      output: { publishId: result.publishId },
-    }
+    const result = await readTikTokPublishInitResponse(response)
+    return toTikTokPublishToolResponse(result)
   },
 
   outputs: {

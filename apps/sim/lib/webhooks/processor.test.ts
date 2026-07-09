@@ -2,24 +2,28 @@
  * @vitest-environment node
  */
 
+import type { webhook, workflow } from '@sim/db/schema'
 import {
   createMockRequest,
   envFlagsMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
 } from '@sim/testing'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGenerateId,
   mockEnqueue,
   mockGetJobQueue,
+  mockProviderHandler,
   mockShouldExecuteInline,
   mockWebhookLookupResult,
 } = vi.hoisted(() => ({
   mockGenerateId: vi.fn(),
   mockEnqueue: vi.fn(),
   mockGetJobQueue: vi.fn(),
+  mockProviderHandler: { current: {} as Record<string, unknown> },
   mockShouldExecuteInline: vi.fn(),
   mockWebhookLookupResult: { rows: [] as Array<{ webhook: any; workflow: any }> },
 }))
@@ -95,7 +99,7 @@ vi.mock('@/lib/webhooks/utils.server', () => ({
 }))
 
 vi.mock('@/lib/webhooks/providers', () => ({
-  getProviderHandler: vi.fn().mockReturnValue({}),
+  getProviderHandler: vi.fn(() => mockProviderHandler.current),
 }))
 
 vi.mock('@/background/webhook-execution', () => ({
@@ -122,11 +126,55 @@ vi.mock('@/triggers/jira/utils', () => ({
   isJiraEventMatch: vi.fn().mockReturnValue(true),
 }))
 
-import {
-  checkWebhookPreprocessing,
-  findAllWebhooksForPath,
-  queueWebhookExecution,
-} from '@/lib/webhooks/processor'
+import { dispatchResolvedWebhookTarget, findAllWebhooksForPath } from '@/lib/webhooks/processor'
+
+type WebhookRecord = typeof webhook.$inferSelect
+type WorkflowRecord = typeof workflow.$inferSelect
+
+function makeWebhookRecord(overrides: Partial<WebhookRecord>): WebhookRecord {
+  const now = new Date('2026-01-01T00:00:00.000Z')
+  return {
+    id: 'webhook-1',
+    workflowId: 'workflow-1',
+    deploymentVersionId: null,
+    blockId: null,
+    path: 'incoming/test',
+    provider: 'generic',
+    providerConfig: {},
+    isActive: true,
+    failedCount: 0,
+    lastFailedAt: null,
+    archivedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  }
+}
+
+function makeWorkflowRecord(overrides: Partial<WorkflowRecord>): WorkflowRecord {
+  const now = new Date('2026-01-01T00:00:00.000Z')
+  return {
+    id: 'workflow-1',
+    userId: 'owner-1',
+    workspaceId: 'workspace-1',
+    folderId: null,
+    sortOrder: 0,
+    name: 'Webhook workflow',
+    description: null,
+    lastSynced: now,
+    createdAt: now,
+    updatedAt: now,
+    isDeployed: true,
+    deployedAt: now,
+    isPublicApi: false,
+    locked: false,
+    runCount: 0,
+    lastRunAt: null,
+    variables: {},
+    archivedAt: null,
+    ...overrides,
+  }
+}
 
 describe('findAllWebhooksForPath cross-tenant collision', () => {
   beforeEach(() => {
@@ -200,64 +248,38 @@ describe('webhook processor execution identity', () => {
     })
     mockEnqueue.mockResolvedValue('job-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
+    mockProviderHandler.current = {}
     mockShouldExecuteInline.mockReturnValue(false)
     mockGenerateId.mockReturnValue('generated-execution-id')
   })
 
   it('reuses preprocessing execution identity when queueing a polling webhook', async () => {
-    const preprocessingResult = await checkWebhookPreprocessing(
-      {
-        id: 'workflow-1',
-        userId: 'owner-1',
-        workspaceId: 'workspace-1',
-      },
-      {
-        id: 'webhook-1',
-        path: 'incoming/gmail',
-        provider: 'gmail',
-      },
-      'request-1'
-    )
-
-    expect(preprocessingResult).toMatchObject({
-      error: null,
-      actorUserId: 'actor-user-1',
+    const expectedCorrelation = {
       executionId: 'generated-execution-id',
-      correlation: {
-        executionId: 'generated-execution-id',
-        requestId: 'request-1',
-        source: 'webhook',
-        workflowId: 'workflow-1',
-        webhookId: 'webhook-1',
-        path: 'incoming/gmail',
-        provider: 'gmail',
-        triggerType: 'webhook',
-      },
-    })
+      requestId: 'request-1',
+      source: 'webhook',
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      path: 'incoming/gmail',
+      provider: 'gmail',
+      triggerType: 'webhook',
+    }
 
-    await queueWebhookExecution(
-      {
-        id: 'webhook-1',
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({
         path: 'incoming/gmail',
         provider: 'gmail',
-        providerConfig: {},
-        blockId: 'block-1',
-      },
-      {
-        id: 'workflow-1',
-        workspaceId: 'workspace-1',
-      },
+      }),
+      makeWorkflowRecord({}),
       { event: 'message.received' },
-      createMockRequest('POST', { event: 'message.received' }) as any,
+      createMockRequest('POST', { event: 'message.received' }) as NextRequest,
       {
         requestId: 'request-1',
         path: 'incoming/gmail',
-        actorUserId: preprocessingResult.actorUserId,
-        executionId: preprocessingResult.executionId,
-        correlation: preprocessingResult.correlation,
       }
     )
 
+    expect(result.outcome).toBe('queued')
     expect(mockGenerateId).toHaveBeenCalledTimes(1)
     expect(mockEnqueue).toHaveBeenCalledWith(
       'webhook-execution',
@@ -270,9 +292,41 @@ describe('webhook processor execution identity', () => {
           workflowId: 'workflow-1',
           workspaceId: 'workspace-1',
           userId: 'actor-user-1',
-          correlation: preprocessingResult.correlation,
+          correlation: expectedCorrelation,
         }),
       })
+    )
+  })
+
+  it('routes queue-mode providers through the durable job backend', async () => {
+    mockProviderHandler.current = { executionMode: 'queue' }
+
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({
+        id: 'webhook-2',
+        path: 'tiktok',
+        provider: 'tiktok',
+      }),
+      makeWorkflowRecord({
+        id: 'workflow-2',
+        workspaceId: 'workspace-2',
+      }),
+      { event: 'post.publish.complete' },
+      createMockRequest('POST', { event: 'post.publish.complete' }) as NextRequest,
+      {
+        requestId: 'request-2',
+      }
+    )
+
+    expect(result.outcome).toBe('queued')
+    expect(result.response.status).toBe(200)
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'webhook-execution',
+      expect.objectContaining({
+        provider: 'tiktok',
+        workflowId: 'workflow-2',
+      }),
+      expect.any(Object)
     )
   })
 })

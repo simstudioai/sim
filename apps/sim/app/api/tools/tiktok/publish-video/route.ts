@@ -15,6 +15,8 @@ import {
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
+import { tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
+import { readTikTokApiResponse } from '@/tools/tiktok/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -159,18 +161,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       body: JSON.stringify(initBody),
     })
 
-    const initData = await initResponse.json()
+    const { data: initData, error: initError } = await readTikTokApiResponse(
+      initResponse,
+      tiktokPublishInitApiDataSchema
+    )
 
-    if (initData.error?.code && initData.error.code !== 'ok') {
-      logger.error(`[${requestId}] TikTok init failed`, { error: initData.error })
+    if (initError) {
+      logger.error(`[${requestId}] TikTok init failed`, { error: initError })
       return NextResponse.json(
-        { success: false, error: initData.error.message || 'Failed to initialize TikTok upload' },
+        { success: false, error: initError.message || 'Failed to initialize TikTok upload' },
         { status: initResponse.status >= 400 ? initResponse.status : 502 }
       )
     }
 
-    const publishId: string | undefined = initData.data?.publish_id
-    const uploadUrl: string | undefined = initData.data?.upload_url
+    const publishId = initData?.publish_id
+    const uploadUrl = initData?.upload_url
 
     if (!publishId || !uploadUrl) {
       return NextResponse.json(

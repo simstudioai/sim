@@ -2,7 +2,11 @@ import type {
   TikTokUploadPhotoDraftParams,
   TikTokUploadPhotoDraftResponse,
 } from '@/tools/tiktok/types'
-import { parsePublishInitResponse } from '@/tools/tiktok/utils'
+import {
+  readTikTokPublishInitResponse,
+  resolveTikTokPhotoCoverIndex,
+  toTikTokPublishToolResponse,
+} from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tiktokUploadPhotoDraftTool: ToolConfig<
@@ -68,6 +72,11 @@ export const tiktokUploadPhotoDraftTool: ToolConfig<
       'Content-Type': 'application/json; charset=UTF-8',
     }),
     body: (params: TikTokUploadPhotoDraftParams) => {
+      const photoCoverIndex = resolveTikTokPhotoCoverIndex(
+        params.photoImages,
+        params.photoCoverIndex
+      )
+
       const postInfo: Record<string, unknown> = {}
 
       if (params.title) postInfo.title = params.title
@@ -80,28 +89,15 @@ export const tiktokUploadPhotoDraftTool: ToolConfig<
         source_info: {
           source: 'PULL_FROM_URL',
           photo_images: params.photoImages,
-          photo_cover_index: params.photoCoverIndex ?? 0,
+          photo_cover_index: photoCoverIndex,
         },
       }
     },
   },
 
   transformResponse: async (response: Response): Promise<TikTokUploadPhotoDraftResponse> => {
-    const data = await response.json()
-    const result = parsePublishInitResponse(data)
-
-    if (!result.success) {
-      return {
-        success: false,
-        output: { publishId: '' },
-        error: result.error,
-      }
-    }
-
-    return {
-      success: true,
-      output: { publishId: result.publishId },
-    }
+    const result = await readTikTokPublishInitResponse(response)
+    return toTikTokPublishToolResponse(result)
   },
 
   outputs: {

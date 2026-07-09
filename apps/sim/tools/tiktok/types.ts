@@ -8,6 +8,13 @@ export interface TikTokBaseParams {
   accessToken: string
 }
 
+/** Error envelope returned by TikTok APIs. */
+export interface TikTokApiError {
+  code: string
+  message?: string
+  logId?: string
+}
+
 /**
  * Get User Info
  */
@@ -49,6 +56,7 @@ export interface TikTokVideo {
   title: string | null
   coverImageUrl: string | null
   embedLink: string | null
+  embedHtml: string | null
   duration: number | null
   createTime: number | null
   shareUrl: string | null
@@ -123,11 +131,14 @@ export interface TikTokDirectPostVideoParams extends TikTokBaseParams {
   brandOrganicToggle?: boolean
 }
 
-export interface TikTokDirectPostVideoResponse extends ToolResponse {
+/** Shared response shape for TikTok publish and draft initialization tools. */
+export interface TikTokPublishResponse extends ToolResponse {
   output: {
     publishId: string
   }
 }
+
+export type TikTokDirectPostVideoResponse = TikTokPublishResponse
 
 /**
  * Upload Video Draft - Send a video to the user's TikTok inbox for manual editing/posting
@@ -138,11 +149,7 @@ export interface TikTokUploadVideoDraftParams extends TikTokBaseParams {
   file?: UserFile
 }
 
-export interface TikTokUploadVideoDraftResponse extends ToolResponse {
-  output: {
-    publishId: string
-  }
-}
+export type TikTokUploadVideoDraftResponse = TikTokPublishResponse
 
 /**
  * Direct Post Photo - Publish photo(s) from public URLs to TikTok
@@ -159,11 +166,7 @@ export interface TikTokDirectPostPhotoParams extends TikTokBaseParams {
   brandOrganicToggle?: boolean
 }
 
-export interface TikTokDirectPostPhotoResponse extends ToolResponse {
-  output: {
-    publishId: string
-  }
-}
+export type TikTokDirectPostPhotoResponse = TikTokPublishResponse
 
 /**
  * Upload Photo Draft - Send photo(s) to the user's TikTok inbox for manual editing/posting
@@ -175,11 +178,7 @@ export interface TikTokUploadPhotoDraftParams extends TikTokBaseParams {
   description?: string
 }
 
-export interface TikTokUploadPhotoDraftResponse extends ToolResponse {
-  output: {
-    publishId: string
-  }
-}
+export type TikTokUploadPhotoDraftResponse = TikTokPublishResponse
 
 /**
  * Get Post Status - Check status of a published/uploaded post
@@ -193,6 +192,8 @@ export interface TikTokGetPostStatusResponse extends ToolResponse {
     status: string
     failReason: string | null
     publiclyAvailablePostId: string[]
+    uploadedBytes: number | null
+    downloadedBytes: number | null
   }
 }
 

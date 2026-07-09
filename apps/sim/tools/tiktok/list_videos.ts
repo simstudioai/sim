@@ -1,9 +1,15 @@
+import { tiktokVideosApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type {
   TikTokListVideosParams,
   TikTokListVideosResponse,
   TikTokVideo,
 } from '@/tools/tiktok/types'
-import { mapTikTokVideo, TIKTOK_VIDEO_FIELDS } from '@/tools/tiktok/utils'
+import {
+  mapTikTokVideo,
+  readTikTokApiResponse,
+  TIKTOK_VIDEO_FIELDS,
+  TIKTOK_VIDEO_OUTPUT_PROPERTIES,
+} from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokListVideosResponse> = {
@@ -30,7 +36,7 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      default: 20,
+      default: 10,
       description: 'Maximum number of videos to return (1-20)',
     },
     cursor: {
@@ -48,16 +54,22 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params: TikTokListVideosParams) => ({
-      max_count: params.maxCount || 20,
-      ...(params.cursor !== undefined && { cursor: params.cursor }),
-    }),
+    body: (params: TikTokListVideosParams) => {
+      const maxCount = params.maxCount ?? 10
+      if (!Number.isInteger(maxCount) || maxCount < 1 || maxCount > 20) {
+        throw new Error('maxCount must be an integer between 1 and 20')
+      }
+      return {
+        max_count: maxCount,
+        ...(params.cursor !== undefined && { cursor: params.cursor }),
+      }
+    },
   },
 
   transformResponse: async (response: Response): Promise<TikTokListVideosResponse> => {
-    const data = await response.json()
+    const { data, error } = await readTikTokApiResponse(response, tiktokVideosApiDataSchema)
 
-    if (data.error?.code !== 'ok' && data.error?.code) {
+    if (error) {
       return {
         success: false,
         output: {
@@ -65,18 +77,18 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
           cursor: null,
           hasMore: false,
         },
-        error: data.error?.message || 'Failed to fetch videos',
+        error: error.message || 'Failed to fetch videos',
       }
     }
 
-    const videos: TikTokVideo[] = (data.data?.videos ?? []).map(mapTikTokVideo)
+    const videos: TikTokVideo[] = (data?.videos ?? []).map(mapTikTokVideo)
 
     return {
       success: true,
       output: {
         videos,
-        cursor: data.data?.cursor ?? null,
-        hasMore: data.data?.has_more ?? false,
+        cursor: data?.cursor ?? null,
+        hasMore: data?.has_more ?? false,
       },
     }
   },
@@ -87,35 +99,7 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
       description: 'List of TikTok videos',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Video ID' },
-          title: { type: 'string', description: 'Video title', optional: true },
-          coverImageUrl: {
-            type: 'string',
-            description:
-              'Signed cover image URL from TikTok CDN. Publicly fetchable without auth, but time-limited (embeds an x-expires param) — use it right away rather than storing it for later.',
-            optional: true,
-          },
-          embedLink: { type: 'string', description: 'Embeddable video URL', optional: true },
-          duration: { type: 'number', description: 'Video duration in seconds', optional: true },
-          createTime: {
-            type: 'number',
-            description: 'Unix timestamp when video was created',
-            optional: true,
-          },
-          shareUrl: { type: 'string', description: 'Shareable video URL', optional: true },
-          videoDescription: {
-            type: 'string',
-            description: 'Video description/caption',
-            optional: true,
-          },
-          width: { type: 'number', description: 'Video width in pixels', optional: true },
-          height: { type: 'number', description: 'Video height in pixels', optional: true },
-          viewCount: { type: 'number', description: 'Number of views', optional: true },
-          likeCount: { type: 'number', description: 'Number of likes', optional: true },
-          commentCount: { type: 'number', description: 'Number of comments', optional: true },
-          shareCount: { type: 'number', description: 'Number of shares', optional: true },
-        },
+        properties: TIKTOK_VIDEO_OUTPUT_PROPERTIES,
       },
     },
     cursor: {

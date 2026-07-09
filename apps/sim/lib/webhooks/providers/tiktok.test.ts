@@ -208,13 +208,44 @@ describe('tiktokHandler', () => {
       requestId: 'tt-auth',
     })
 
-    expect(input).toMatchObject({
+    expect(input).toEqual({
       event: 'authorization.removed',
+      createTime: 1615338610,
+      userOpenId: 'act.user',
+      clientKey: 'ck',
       reason: 1,
     })
   })
 
-  it('extractIdempotencyId uses publish_id when present', () => {
+  it('formatInput emits only the selected event output shape with null optional values', async () => {
+    const { input } = await tiktokHandler.formatInput!({
+      body: {
+        client_key: 'ck',
+        event: 'post.publish.publicly_available',
+        create_time: 1615338610,
+        user_openid: 'act.user',
+        content: '{"publish_id":"pub-1"}',
+      },
+      webhook: {},
+      workflow: { id: 'w1', userId: 'u1' },
+      headers: {},
+      requestId: 'tt-public',
+    })
+
+    expect(input).toEqual({
+      event: 'post.publish.publicly_available',
+      createTime: 1615338610,
+      userOpenId: 'act.user',
+      clientKey: 'ck',
+      publishId: 'pub-1',
+      publishType: null,
+      postId: null,
+    })
+    expect(input).not.toHaveProperty('shareId')
+    expect(input).not.toHaveProperty('failReason')
+  })
+
+  it('distinguishes multiple completed posts created from one publish_id', () => {
     expect(
       tiktokHandler.extractIdempotencyId!({
         event: 'post.publish.complete',
@@ -222,7 +253,27 @@ describe('tiktokHandler', () => {
         create_time: 1,
         content: '{"publish_id":"pub-1"}',
       })
-    ).toBe('post.publish.complete:act.user:pub-1')
+    ).toBe('post.publish.complete:act.user:pub-1:1')
+
+    expect(
+      tiktokHandler.extractIdempotencyId!({
+        event: 'post.publish.complete',
+        user_openid: 'act.user',
+        create_time: 2,
+        content: '{"publish_id":"pub-1"}',
+      })
+    ).toBe('post.publish.complete:act.user:pub-1:2')
+  })
+
+  it('uses post_id to distinguish public availability events for the same publish_id', () => {
+    expect(
+      tiktokHandler.extractIdempotencyId!({
+        event: 'post.publish.publicly_available',
+        user_openid: 'act.user',
+        create_time: 3,
+        content: '{"publish_id":"pub-1","post_id":"post-1"}',
+      })
+    ).toBe('post.publish.publicly_available:act.user:pub-1:post-1')
   })
 
   it('extractIdempotencyId falls back to share_id then create_time', () => {

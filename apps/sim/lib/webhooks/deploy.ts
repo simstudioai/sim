@@ -1,14 +1,14 @@
 import { db } from '@sim/db'
-import { webhook, workflowDeploymentVersion } from '@sim/db/schema'
+import { credential, webhook, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
-  shouldRecreateExternalWebhookSubscription,
+  hasWebhookConfigChanged,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
@@ -33,6 +33,14 @@ interface TriggerSaveError {
 interface TriggerSaveResult {
   success: boolean
   error?: TriggerSaveError
+}
+
+interface BuiltProviderConfig {
+  providerConfig: Record<string, unknown>
+  missingFields: string[]
+  credentialReference?: string
+  credentialServiceId?: string
+  triggerPath: string
 }
 
 export async function validateTriggerWebhookConfigForDeploy(
@@ -198,12 +206,7 @@ export function buildProviderConfig(
   block: BlockState,
   triggerId: string,
   triggerDef: { subBlocks: SubBlockConfig[] }
-): {
-  providerConfig: Record<string, unknown>
-  missingFields: string[]
-  credentialId?: string
-  triggerPath: string
-} {
+): BuiltProviderConfig {
   const triggerConfigValue = getSubBlockValue(block, 'triggerConfig')
   const baseConfig =
     triggerConfigValue && typeof triggerConfigValue === 'object'
@@ -282,11 +285,10 @@ export function buildProviderConfig(
     missingFields.push(credentialConfig.title || 'Credentials')
   }
 
-  let credentialId: string | undefined
-  if (typeof triggerCredentials === 'string' && triggerCredentials.length > 0) {
-    credentialId = triggerCredentials
-    providerConfig.credentialId = credentialId
-  }
+  const credentialReference =
+    typeof triggerCredentials === 'string' && triggerCredentials.length > 0
+      ? triggerCredentials
+      : undefined
 
   providerConfig.triggerId = triggerId
 
@@ -296,7 +298,38 @@ export function buildProviderConfig(
       ? triggerPathValue
       : block.id
 
-  return { providerConfig, missingFields, credentialId, triggerPath }
+  return {
+    providerConfig,
+    missingFields,
+    credentialReference,
+    credentialServiceId: credentialConfig?.serviceId,
+    triggerPath,
+  }
+}
+
+/**
+ * Resolves a trigger credential reference to its canonical platform credential ID while enforcing
+ * that the credential belongs to the deployed workflow's workspace and OAuth service.
+ */
+async function resolveTriggerCredentialId(
+  credentialReference: string,
+  workspaceId: string,
+  serviceId: string
+): Promise<string | null> {
+  const [resolvedCredential] = await db
+    .select({ id: credential.id })
+    .from(credential)
+    .where(
+      and(
+        eq(credential.workspaceId, workspaceId),
+        eq(credential.type, 'oauth'),
+        eq(credential.providerId, serviceId),
+        or(eq(credential.id, credentialReference), eq(credential.accountId, credentialReference))
+      )
+    )
+    .limit(1)
+
+  return resolvedCredential?.id ?? null
 }
 
 async function configurePollingIfNeeded(
@@ -387,11 +420,8 @@ export async function saveTriggerWebhooksForDeploy({
 
     const triggerDef = getTrigger(triggerId)
     const provider = triggerDef.provider
-    const { providerConfig, missingFields, triggerPath } = buildProviderConfig(
-      block,
-      triggerId,
-      triggerDef
-    )
+    const { providerConfig, missingFields, credentialReference, credentialServiceId, triggerPath } =
+      buildProviderConfig(block, triggerId, triggerDef)
 
     if (missingFields.length > 0) {
       return {
@@ -412,6 +442,38 @@ export async function saveTriggerWebhooksForDeploy({
           status: 400,
         },
       }
+    }
+
+    let credentialId: string | undefined
+    if (credentialReference && credentialServiceId) {
+      const workflowWorkspaceId =
+        typeof workflow.workspaceId === 'string' ? workflow.workspaceId : undefined
+      if (!workflowWorkspaceId) {
+        return {
+          success: false,
+          error: {
+            message: `Cannot validate credentials for ${triggerDef.name || triggerId} without a workflow workspace`,
+            status: 400,
+          },
+        }
+      }
+
+      credentialId =
+        (await resolveTriggerCredentialId(
+          credentialReference,
+          workflowWorkspaceId,
+          credentialServiceId
+        )) ?? undefined
+      if (!credentialId) {
+        return {
+          success: false,
+          error: {
+            message: `The selected ${credentialServiceId} credential is not available in this workspace`,
+            status: 400,
+          },
+        }
+      }
+      providerConfig.credentialId = credentialId
     }
 
     const pathConflict = await findConflictingWebhookPathOwner({
@@ -450,12 +512,8 @@ export async function saveTriggerWebhooksForDeploy({
       const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
       const needsRecreation =
         forceRecreateSubscriptions ||
-        shouldRecreateExternalWebhookSubscription({
-          previousProvider: existingWh.provider as string,
-          nextProvider: provider,
-          previousConfig: existingConfig,
-          nextConfig: providerConfig,
-        })
+        existingWh.provider !== provider ||
+        hasWebhookConfigChanged(existingConfig, providerConfig)
 
       if (needsRecreation) {
         webhooksToDelete.push(existingWh)

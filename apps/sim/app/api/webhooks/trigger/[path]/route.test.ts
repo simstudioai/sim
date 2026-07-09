@@ -15,63 +15,52 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-/** Mock execution dependencies for webhook tests */
-function mockExecutionDependencies() {
-  vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-  vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
-    buildTraceSpans: vi.fn().mockReturnValue({ traceSpans: [], totalDuration: 100 }),
-  }))
+vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
+  buildTraceSpans: vi.fn().mockReturnValue({ traceSpans: [], totalDuration: 100 }),
+}))
 
-  vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-  vi.mock('@/serializer', () => ({
-    Serializer: vi.fn().mockImplementation(() => ({
-      serializeWorkflow: vi.fn().mockReturnValue({
-        version: '1.0',
-        blocks: [
-          {
-            id: 'starter-id',
-            metadata: { id: 'starter', name: 'Start' },
-            config: {},
-            inputs: {},
-            outputs: {},
-            position: { x: 100, y: 100 },
-            enabled: true,
-          },
-          {
-            id: 'agent-id',
-            metadata: { id: 'agent', name: 'Agent 1' },
-            config: {},
-            inputs: {},
-            outputs: {},
-            position: { x: 634, y: -167 },
-            enabled: true,
-          },
-        ],
-        edges: [
-          {
-            id: 'edge-1',
-            source: 'starter-id',
-            target: 'agent-id',
-            sourceHandle: 'source',
-            targetHandle: 'target',
-          },
-        ],
-        loops: {},
-        parallels: {},
-      }),
-    })),
-  }))
-}
-
-/** Mock Trigger.dev SDK */
-function mockTriggerDevSdk() {
-  vi.mock('@trigger.dev/sdk', () => ({
-    tasks: { trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }) },
-    task: vi.fn().mockReturnValue({}),
-  }))
-}
+vi.mock('@/serializer', () => ({
+  Serializer: vi.fn().mockImplementation(() => ({
+    serializeWorkflow: vi.fn().mockReturnValue({
+      version: '1.0',
+      blocks: [
+        {
+          id: 'starter-id',
+          metadata: { id: 'starter', name: 'Start' },
+          config: {},
+          inputs: {},
+          outputs: {},
+          position: { x: 100, y: 100 },
+          enabled: true,
+        },
+        {
+          id: 'agent-id',
+          metadata: { id: 'agent', name: 'Agent 1' },
+          config: {},
+          inputs: {},
+          outputs: {},
+          position: { x: 634, y: -167 },
+          enabled: true,
+        },
+      ],
+      edges: [
+        {
+          id: 'edge-1',
+          source: 'starter-id',
+          target: 'agent-id',
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+      ],
+      loops: {},
+      parallels: {},
+    }),
+  })),
+}))
 
 /**
  * Test data store - isolated per test via beforeEach reset
@@ -106,6 +95,7 @@ const {
   executeMock,
   getWorkspaceBilledAccountUserIdMock,
   queueWebhookExecutionMock,
+  dispatchResolvedWebhookTargetMock,
   isWorkspaceApiExecutionEntitledMock,
 } = vi.hoisted(() => ({
   generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
@@ -134,6 +124,7 @@ const {
     const { NextResponse } = await import('next/server')
     return NextResponse.json({ message: 'Webhook processed' })
   }),
+  dispatchResolvedWebhookTargetMock: vi.fn(),
   isWorkspaceApiExecutionEntitledMock: vi.fn().mockResolvedValue(true),
 }))
 
@@ -274,6 +265,25 @@ vi.mock('@/lib/webhooks/processor', () => ({
       }
     ),
   handleProviderReachabilityTest: vi.fn().mockReturnValue(null),
+  dispatchResolvedWebhookTarget: dispatchResolvedWebhookTargetMock.mockImplementation(
+    async (
+      foundWebhook: unknown,
+      foundWorkflow: unknown,
+      body: unknown,
+      request: unknown,
+      options: unknown
+    ) => ({
+      outcome: 'queued',
+      reason: 'queued',
+      response: await queueWebhookExecutionMock(
+        foundWebhook,
+        foundWorkflow,
+        body,
+        request,
+        options
+      ),
+    })
+  ),
   verifyProviderAuth: vi
     .fn()
     .mockImplementation(
@@ -350,7 +360,6 @@ vi.mock('@/lib/webhooks/processor', () => ({
   }),
   shouldSkipWebhookEvent: vi.fn().mockReturnValue(false),
   handlePreDeploymentVerification: vi.fn().mockReturnValue(null),
-  queueWebhookExecution: queueWebhookExecutionMock,
 }))
 
 vi.mock('drizzle-orm/postgres-js', () => ({
@@ -400,9 +409,6 @@ describe('Webhook Trigger API Route', () => {
     })
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
     isWorkspaceApiExecutionEntitledMock.mockResolvedValue(true)
-
-    mockExecutionDependencies()
-    mockTriggerDevSdk()
 
     // Set up default workflow for tests
     testData.workflows.push({
@@ -495,8 +501,8 @@ describe('Webhook Trigger API Route', () => {
     expect(text).toMatch(/not found/i)
   })
 
-  describe('Internal trigger providers', () => {
-    it.each(['sim', 'table'])(
+  describe('Non-path trigger providers', () => {
+    it.each(['sim', 'table', 'tiktok'])(
       'rejects HTTP deliveries to %s trigger paths with 404',
       async (provider) => {
         testData.webhooks.push({
@@ -539,7 +545,7 @@ describe('Webhook Trigger API Route', () => {
   })
 
   describe('Generic Webhook Authentication', () => {
-    it('passes correlation-bearing request context into webhook queueing', async () => {
+    it('passes request context into shared webhook dispatch', async () => {
       testData.webhooks.push({
         id: 'generic-webhook-id',
         provider: 'generic',
@@ -556,7 +562,7 @@ describe('Webhook Trigger API Route', () => {
 
       expect(response.status).toBe(200)
       expect(queueWebhookExecutionMock).toHaveBeenCalledOnce()
-      const call = queueWebhookExecutionMock.mock.calls[0]
+      const call = dispatchResolvedWebhookTargetMock.mock.calls[0]
       expect(call[0]).toEqual(expect.objectContaining({ id: 'generic-webhook-id' }))
       expect(call[1]).toEqual(expect.objectContaining({ id: 'test-workflow-id' }))
       expect(call[2]).toEqual(expect.objectContaining({ event: 'test', id: 'test-123' }))
@@ -564,18 +570,6 @@ describe('Webhook Trigger API Route', () => {
         expect.objectContaining({
           requestId: 'mock-request-id',
           path: 'test-path',
-          actorUserId: 'test-user-id',
-          executionId: 'preprocess-execution-id',
-          correlation: {
-            executionId: 'preprocess-execution-id',
-            requestId: 'mock-request-id',
-            source: 'webhook',
-            workflowId: 'test-workflow-id',
-            webhookId: 'generic-webhook-id',
-            path: 'test-path',
-            provider: 'generic',
-            triggerType: 'webhook',
-          },
         })
       )
     })
