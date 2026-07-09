@@ -36,6 +36,7 @@ interface HookHandle {
   status: () => SaveStatus
   isDirty: () => boolean
   saveImmediately: () => Promise<void>
+  discard: () => void
   rerender: (next: Partial<ProbeProps>) => void
   unmount: () => void
 }
@@ -49,7 +50,12 @@ function renderAutosave(initial: ProbeProps): { handle: HookHandle; props: Probe
   const container = document.createElement('div')
   const root: Root = createRoot(container)
   const props = { ...initial }
-  let latest = { saveStatus: 'idle' as SaveStatus, isDirty: false, saveImmediately: async () => {} }
+  let latest = {
+    saveStatus: 'idle' as SaveStatus,
+    isDirty: false,
+    saveImmediately: async () => {},
+    discard: () => {},
+  }
 
   function Probe(p: ProbeProps) {
     latest = useAutosave(p)
@@ -67,6 +73,7 @@ function renderAutosave(initial: ProbeProps): { handle: HookHandle; props: Probe
     status: () => latest.saveStatus,
     isDirty: () => latest.isDirty,
     saveImmediately: () => latest.saveImmediately(),
+    discard: () => latest.discard(),
     rerender: (next) => {
       Object.assign(props, next)
       render()
@@ -480,6 +487,54 @@ describe('useAutosave', () => {
 
       await flush()
       expect(onRestoreDraft).not.toHaveBeenCalled()
+    })
+
+    it('discard clears the local draft immediately and blocks any further write, even mid-race with unmount', async () => {
+      const onSave = vi.fn(async () => {})
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard',
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(400)
+      })
+      await flush()
+      expect(fakeDraftStore.has('autosave-draft:file-discard')).toBe(true)
+
+      // Discard fires before the caller's content===savedContent reset has landed — the hook's
+      // own flag must block persistence regardless of that race, not just the IndexedDB delete.
+      act(() => handle.discard())
+      expect(fakeDraftStore.has('autosave-draft:file-discard')).toBe(false)
+
+      // Simulate the unmount flush racing in right after discard, while still (from the hook's
+      // perspective) dirty: neither the local draft nor the network save must fire.
+      handle.unmount()
+      await flush()
+      expect(fakeDraftStore.has('autosave-draft:file-discard')).toBe(false)
+      expect(onSave).not.toHaveBeenCalled()
+    })
+
+    it('discard prevents a pending debounced network save from firing', async () => {
+      const onSave = vi.fn(async () => {})
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-2',
+      })
+
+      handle.rerender({ content: 'a1' })
+      act(() => handle.discard())
+
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).not.toHaveBeenCalled()
     })
   })
 })

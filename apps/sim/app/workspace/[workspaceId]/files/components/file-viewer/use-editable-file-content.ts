@@ -193,7 +193,7 @@ export function useEditableFileContent({
 
   const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked
 
-  const { saveStatus, saveImmediately, isDirty } = useAutosave({
+  const { saveStatus, saveImmediately, isDirty, discard } = useAutosave({
     content,
     savedContent,
     onSave,
@@ -220,10 +220,10 @@ export function useEditableFileContent({
     }
   }, [saveImmediately, saveRef])
 
-  const discardChanges = useCallback(
-    () => setDraftContent(savedContent),
-    [setDraftContent, savedContent]
-  )
+  const discardChanges = useCallback(() => {
+    discard()
+    setDraftContent(savedContent)
+  }, [discard, setDraftContent, savedContent])
 
   useEffect(() => {
     if (!discardRef) return
