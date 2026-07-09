@@ -48,6 +48,7 @@ interface RichMarkdownEditorProps {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
   /**
@@ -71,6 +72,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  discardRef,
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
@@ -94,6 +96,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
+    discardRef,
     normalizeBaseline: normalizeMarkdownContent,
   })
 

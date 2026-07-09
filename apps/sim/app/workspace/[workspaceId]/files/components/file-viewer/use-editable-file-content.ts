@@ -36,6 +36,8 @@ interface UseEditableFileContentOptions {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  /** Bridges an imperative "discard the current draft" command up to the caller, mirroring `saveRef`. */
+  discardRef?: React.MutableRefObject<(() => void) | null>
   /**
    * Optional transform applied to the fetched content before it becomes the editor's baseline. A
    * surface whose editor re-serializes its content to a canonical form (the rich markdown editor)
@@ -115,6 +117,7 @@ export function useEditableFileContent({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  discardRef,
   normalizeBaseline,
 }: UseEditableFileContentOptions): EditableFileContent {
   const onDirtyChangeRef = useRef(onDirtyChange)
@@ -216,6 +219,21 @@ export function useEditableFileContent({
       }
     }
   }, [saveImmediately, saveRef])
+
+  const discardChanges = useCallback(
+    () => setDraftContent(savedContent),
+    [setDraftContent, savedContent]
+  )
+
+  useEffect(() => {
+    if (!discardRef) return
+    discardRef.current = discardChanges
+    return () => {
+      if (discardRef.current === discardChanges) {
+        discardRef.current = null
+      }
+    }
+  }, [discardChanges, discardRef])
 
   return {
     content: displayContent,

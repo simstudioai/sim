@@ -171,6 +171,7 @@ function formatFileType(mimeType: string | null, filename: string): string {
 export function Files() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const discardRef = useRef<(() => void) | null>(null)
 
   const params = useParams()
   const router = useRouter()
@@ -1117,6 +1118,7 @@ export function Files() {
   ])
 
   const handleDiscardChanges = () => {
+    discardRef.current?.()
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
     setSaveStatus('idle')
@@ -1877,6 +1879,7 @@ export function Files() {
             onDirtyChange={setIsDirty}
             onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
+            discardRef={discardRef}
           />
 
           <ChipConfirmModal
