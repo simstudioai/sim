@@ -79,11 +79,17 @@ round. Always check both conditions freshly after every push.
    cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
    review fixes on top of undetected drift is how an oversized PR happens even after the branch
-   was fixed once. Then run the repo's lint/typecheck/boundary-validation gates the same way
-   `/ship` does before committing.
+   was fixed once. Then run the repo's pre-ship checks — not just lint/typecheck/boundary-
+   validation, but also the conditional `/cleanup` (UI changes) and `/db-migrate`
+   (schema/migration changes) gates from `.agents/skills/ship/SKILL.md` steps 4 and 5 (Cursor's
+   own 7-step `ship.md` doesn't carry those steps, but a review-fix round is still a code change
+   and can trip either gate just as easily as the original commit did).
 
-6. **Commit and push** the round's fixes as one commit (`--force-with-lease` only if step 5's
-   sync check required a rebuild), then run `/ship` step 7's post-push verify — not just before
+6. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 5's
+   sync check rewrote history, which includes a plain `git rebase origin/staging` that completed
+   with no conflicts, not only the cherry-pick rebuild path; both rewrite commits already
+   published to the remote, so a plain `git push` can be rejected either way — then run `/ship`
+   step 7's post-push verify — not just before
    the first push, every push in the loop (the Cursor `/ship` has 7 steps; the Claude Code skill
    version's equivalent is step 9 — see `.agents/skills/babysit/SKILL.md` if working from that copy):
    ```bash

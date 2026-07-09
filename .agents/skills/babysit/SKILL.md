@@ -85,12 +85,17 @@ round. Always check both conditions freshly after every push.
    cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
    review fixes on top of undetected drift is how an oversized PR happens even after the branch
-   was fixed once. Then run the repo's lint/typecheck/boundary-validation gates the same way
-   `/ship` does before committing.
+   was fixed once. Then run the repo's pre-ship checks the same way `/ship` does before
+   committing — not just lint/typecheck/boundary-validation, but also the conditional `/cleanup`
+   (if this round's fix touched UI code) and `/db-migrate` (if it touched schema/migrations)
+   gates from `/ship` steps 4 and 5. A review-fix round is still a code change and can trip
+   either gate just as easily as the original commit did.
 
-6. **Commit and push** the round's fixes as one commit (`--force-with-lease` only if step 5's
-   sync check required a rebuild), then run `/ship` step 9's post-push verify — not just before
-   the first push, every push in the loop:
+6. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 5's
+   sync check rewrote history, which includes a plain `git rebase origin/staging` that completed
+   with no conflicts, not only the cherry-pick rebuild path; both rewrite commits already
+   published to the remote, so a plain `git push` can be rejected either way — then run `/ship`
+   step 9's post-push verify — not just before the first push, every push in the loop:
    ```bash
    git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
