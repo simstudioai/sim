@@ -63,26 +63,33 @@ describe('buildUserFilters', () => {
     expect(buildUserFilters({ filters: 'not json' })).toEqual([])
   })
 
-  it('caps combined shortcut + advanced filters at the HubSpot per-group limit', () => {
+  it('allows exactly the HubSpot per-group limit of combined filters', () => {
     const filters = buildUserFilters({
       objectType: 'deal',
       pipelineId: 'pipeline-1',
       stageId: 'stage-1',
       ownerId: 'owner-1',
-      filters: JSON.stringify([
-        { propertyName: 'amount', operator: 'GT', value: '1000' },
-        { propertyName: 'lifecyclestage', operator: 'EQ', value: 'customer' },
-      ]),
+      filters: JSON.stringify([{ propertyName: 'amount', operator: 'GT', value: '1000' }]),
     })
 
-    // 3 shortcuts + 2 advanced = 5 raw filters, capped to 4 so Group B
-    // (2 reserved slots + user filters) never exceeds HubSpot's 6-filter-per-group max.
+    // 3 shortcuts + 1 advanced = 4, exactly MAX_USER_FILTERS.
     expect(filters).toHaveLength(4)
-    expect(filters).toEqual([
-      { propertyName: 'pipeline', operator: 'EQ', value: 'pipeline-1' },
-      { propertyName: 'dealstage', operator: 'EQ', value: 'stage-1' },
-      { propertyName: 'hubspot_owner_id', operator: 'EQ', value: 'owner-1' },
-      { propertyName: 'amount', operator: 'GT', value: '1000' },
-    ])
+  })
+
+  it('throws rather than silently dropping filters when the combined count exceeds the limit', () => {
+    // Filters within a filterGroup are AND-combined, so silently dropping one would widen
+    // the match set instead of narrowing it — throwing surfaces the misconfiguration loudly.
+    expect(() =>
+      buildUserFilters({
+        objectType: 'deal',
+        pipelineId: 'pipeline-1',
+        stageId: 'stage-1',
+        ownerId: 'owner-1',
+        filters: JSON.stringify([
+          { propertyName: 'amount', operator: 'GT', value: '1000' },
+          { propertyName: 'lifecyclestage', operator: 'EQ', value: 'customer' },
+        ]),
+      })
+    ).toThrow(/exceeding the 4-filter limit/)
   })
 })
