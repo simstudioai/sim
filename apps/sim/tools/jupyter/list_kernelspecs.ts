@@ -2,7 +2,6 @@ import type {
   JupyterListKernelspecsParams,
   JupyterListKernelspecsResponse,
 } from '@/tools/jupyter/types'
-import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterListKernelspecsTool: ToolConfig<
@@ -30,9 +29,15 @@ export const jupyterListKernelspecsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${normalizeJupyterServerUrl(params.serverUrl)}/api/kernelspecs`,
-    method: 'GET',
-    headers: (params) => buildJupyterAuthHeaders(params.token),
+    url: '/api/tools/jupyter/proxy',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'GET',
+      path: 'kernelspecs',
+    }),
   },
 
   transformResponse: async (response) => {

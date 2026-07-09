@@ -1,10 +1,5 @@
 import type { JupyterCopyContentParams, JupyterCopyContentResponse } from '@/tools/jupyter/types'
-import {
-  assertSafeJupyterPath,
-  buildJupyterAuthHeaders,
-  encodeJupyterPath,
-  normalizeJupyterServerUrl,
-} from '@/tools/jupyter/utils'
+import { assertSafeJupyterPath, encodeJupyterPath } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterCopyContentTool: ToolConfig<
@@ -44,17 +39,16 @@ export const jupyterCopyContentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const base = normalizeJupyterServerUrl(params.serverUrl)
-      const path = encodeJupyterPath(params.path)
-      return `${base}/api/contents/${path}`
-    },
+    url: '/api/tools/jupyter/proxy',
     method: 'POST',
-    headers: (params) => ({
-      ...buildJupyterAuthHeaders(params.token),
-      'Content-Type': 'application/json',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'POST',
+      path: `contents/${encodeJupyterPath(params.path)}`,
+      body: { copy_from: assertSafeJupyterPath(params.copyFromPath) },
     }),
-    body: (params) => ({ copy_from: assertSafeJupyterPath(params.copyFromPath) }),
   },
 
   transformResponse: async (response, params) => {

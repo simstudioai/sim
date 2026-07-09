@@ -2,12 +2,7 @@ import type {
   JupyterRenameContentParams,
   JupyterRenameContentResponse,
 } from '@/tools/jupyter/types'
-import {
-  assertSafeJupyterPath,
-  buildJupyterAuthHeaders,
-  encodeJupyterPath,
-  normalizeJupyterServerUrl,
-} from '@/tools/jupyter/utils'
+import { assertSafeJupyterPath, encodeJupyterPath } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterRenameContentTool: ToolConfig<
@@ -47,17 +42,16 @@ export const jupyterRenameContentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const base = normalizeJupyterServerUrl(params.serverUrl)
-      const path = encodeJupyterPath(params.path)
-      return `${base}/api/contents/${path}`
-    },
-    method: 'PATCH',
-    headers: (params) => ({
-      ...buildJupyterAuthHeaders(params.token),
-      'Content-Type': 'application/json',
+    url: '/api/tools/jupyter/proxy',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'PATCH',
+      path: `contents/${encodeJupyterPath(params.path)}`,
+      body: { path: assertSafeJupyterPath(params.newPath) },
     }),
-    body: (params) => ({ path: assertSafeJupyterPath(params.newPath) }),
   },
 
   transformResponse: async (response, params) => {

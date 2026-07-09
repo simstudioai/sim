@@ -2,7 +2,6 @@ import type {
   JupyterInterruptKernelParams,
   JupyterInterruptKernelResponse,
 } from '@/tools/jupyter/types'
-import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterInterruptKernelTool: ToolConfig<
@@ -36,10 +35,15 @@ export const jupyterInterruptKernelTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${normalizeJupyterServerUrl(params.serverUrl)}/api/kernels/${encodeURIComponent(params.kernelId)}/interrupt`,
+    url: '/api/tools/jupyter/proxy',
     method: 'POST',
-    headers: (params) => buildJupyterAuthHeaders(params.token),
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'POST',
+      path: `kernels/${encodeURIComponent(params.kernelId)}/interrupt`,
+    }),
   },
 
   transformResponse: async (response, params) => {

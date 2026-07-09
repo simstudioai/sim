@@ -2,7 +2,6 @@ import type {
   JupyterDeleteSessionParams,
   JupyterDeleteSessionResponse,
 } from '@/tools/jupyter/types'
-import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterDeleteSessionTool: ToolConfig<
@@ -36,10 +35,15 @@ export const jupyterDeleteSessionTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${normalizeJupyterServerUrl(params.serverUrl)}/api/sessions/${encodeURIComponent(params.sessionId)}`,
-    method: 'DELETE',
-    headers: (params) => buildJupyterAuthHeaders(params.token),
+    url: '/api/tools/jupyter/proxy',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'DELETE',
+      path: `sessions/${encodeURIComponent(params.sessionId)}`,
+    }),
   },
 
   transformResponse: async (response, params) => {

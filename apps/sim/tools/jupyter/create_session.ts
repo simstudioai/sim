@@ -2,12 +2,7 @@ import type {
   JupyterCreateSessionParams,
   JupyterCreateSessionResponse,
 } from '@/tools/jupyter/types'
-import {
-  assertSafeJupyterPath,
-  buildJupyterAuthHeaders,
-  mapJupyterSession,
-  normalizeJupyterServerUrl,
-} from '@/tools/jupyter/utils'
+import { assertSafeJupyterPath, mapJupyterSession } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterCreateSessionTool: ToolConfig<
@@ -59,17 +54,20 @@ export const jupyterCreateSessionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${normalizeJupyterServerUrl(params.serverUrl)}/api/sessions`,
+    url: '/api/tools/jupyter/proxy',
     method: 'POST',
-    headers: (params) => ({
-      ...buildJupyterAuthHeaders(params.token),
-      'Content-Type': 'application/json',
-    }),
+    headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
-      path: assertSafeJupyterPath(params.path),
-      name: params.name,
-      type: params.type || 'notebook',
-      ...(params.kernelName ? { kernel: { name: params.kernelName } } : {}),
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'POST',
+      path: 'sessions',
+      body: {
+        path: assertSafeJupyterPath(params.path),
+        name: params.name,
+        type: params.type || 'notebook',
+        ...(params.kernelName ? { kernel: { name: params.kernelName } } : {}),
+      },
     }),
   },
 

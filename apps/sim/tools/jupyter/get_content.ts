@@ -1,9 +1,5 @@
 import type { JupyterGetContentParams, JupyterGetContentResponse } from '@/tools/jupyter/types'
-import {
-  buildJupyterAuthHeaders,
-  encodeJupyterPath,
-  normalizeJupyterServerUrl,
-} from '@/tools/jupyter/utils'
+import { encodeJupyterPath } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterGetContentTool: ToolConfig<JupyterGetContentParams, JupyterGetContentResponse> =
@@ -35,13 +31,15 @@ export const jupyterGetContentTool: ToolConfig<JupyterGetContentParams, JupyterG
     },
 
     request: {
-      url: (params) => {
-        const base = normalizeJupyterServerUrl(params.serverUrl)
-        const path = encodeJupyterPath(params.path)
-        return `${base}/api/contents/${path}?content=1`
-      },
-      method: 'GET',
-      headers: (params) => buildJupyterAuthHeaders(params.token),
+      url: '/api/tools/jupyter/proxy',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (params) => ({
+        serverUrl: params.serverUrl,
+        token: params.token,
+        method: 'GET',
+        path: `contents/${encodeJupyterPath(params.path)}?content=1`,
+      }),
     },
 
     transformResponse: async (response, params) => {

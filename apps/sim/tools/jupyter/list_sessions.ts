@@ -1,9 +1,5 @@
 import type { JupyterListSessionsParams, JupyterListSessionsResponse } from '@/tools/jupyter/types'
-import {
-  buildJupyterAuthHeaders,
-  mapJupyterSession,
-  normalizeJupyterServerUrl,
-} from '@/tools/jupyter/utils'
+import { mapJupyterSession } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterListSessionsTool: ToolConfig<
@@ -31,9 +27,15 @@ export const jupyterListSessionsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${normalizeJupyterServerUrl(params.serverUrl)}/api/sessions`,
-    method: 'GET',
-    headers: (params) => buildJupyterAuthHeaders(params.token),
+    url: '/api/tools/jupyter/proxy',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'GET',
+      path: 'sessions',
+    }),
   },
 
   transformResponse: async (response) => {

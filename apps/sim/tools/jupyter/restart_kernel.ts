@@ -2,11 +2,7 @@ import type {
   JupyterRestartKernelParams,
   JupyterRestartKernelResponse,
 } from '@/tools/jupyter/types'
-import {
-  buildJupyterAuthHeaders,
-  mapJupyterKernel,
-  normalizeJupyterServerUrl,
-} from '@/tools/jupyter/utils'
+import { mapJupyterKernel } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterRestartKernelTool: ToolConfig<
@@ -40,10 +36,15 @@ export const jupyterRestartKernelTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${normalizeJupyterServerUrl(params.serverUrl)}/api/kernels/${encodeURIComponent(params.kernelId)}/restart`,
+    url: '/api/tools/jupyter/proxy',
     method: 'POST',
-    headers: (params) => buildJupyterAuthHeaders(params.token),
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'POST',
+      path: `kernels/${encodeURIComponent(params.kernelId)}/restart`,
+    }),
   },
 
   transformResponse: async (response) => {

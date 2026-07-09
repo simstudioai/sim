@@ -1,9 +1,5 @@
 import type { JupyterCreateFileParams, JupyterCreateFileResponse } from '@/tools/jupyter/types'
-import {
-  buildJupyterAuthHeaders,
-  encodeJupyterPath,
-  normalizeJupyterServerUrl,
-} from '@/tools/jupyter/utils'
+import { encodeJupyterPath } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const EMPTY_NOTEBOOK = { cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 }
@@ -50,35 +46,36 @@ export const jupyterCreateFileTool: ToolConfig<JupyterCreateFileParams, JupyterC
     },
 
     request: {
-      url: (params) => {
-        const base = normalizeJupyterServerUrl(params.serverUrl)
-        const path = encodeJupyterPath(params.path)
-        return `${base}/api/contents/${path}`
-      },
-      method: 'PUT',
-      headers: (params) => ({
-        ...buildJupyterAuthHeaders(params.token),
-        'Content-Type': 'application/json',
-      }),
+      url: '/api/tools/jupyter/proxy',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
       body: (params) => {
+        let content: Record<string, unknown>
         if (params.type === 'directory') {
-          return { type: 'directory' }
-        }
-
-        if (params.type === 'notebook') {
+          content = { type: 'directory' }
+        } else if (params.type === 'notebook') {
           if (!params.content) {
-            return { type: 'notebook', format: 'json', content: EMPTY_NOTEBOOK }
+            content = { type: 'notebook', format: 'json', content: EMPTY_NOTEBOOK }
+          } else {
+            let notebook: unknown
+            try {
+              notebook = JSON.parse(params.content)
+            } catch {
+              throw new Error('Notebook content must be valid JSON-stringified nbformat')
+            }
+            content = { type: 'notebook', format: 'json', content: notebook }
           }
-          let content: unknown
-          try {
-            content = JSON.parse(params.content)
-          } catch {
-            throw new Error('Notebook content must be valid JSON-stringified nbformat')
-          }
-          return { type: 'notebook', format: 'json', content }
+        } else {
+          content = { type: 'file', format: 'text', content: params.content ?? '' }
         }
 
-        return { type: 'file', format: 'text', content: params.content ?? '' }
+        return {
+          serverUrl: params.serverUrl,
+          token: params.token,
+          method: 'PUT',
+          path: `contents/${encodeJupyterPath(params.path)}`,
+          body: content,
+        }
       },
     },
 

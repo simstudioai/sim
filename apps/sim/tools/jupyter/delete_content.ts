@@ -2,11 +2,7 @@ import type {
   JupyterDeleteContentParams,
   JupyterDeleteContentResponse,
 } from '@/tools/jupyter/types'
-import {
-  buildJupyterAuthHeaders,
-  encodeJupyterPath,
-  normalizeJupyterServerUrl,
-} from '@/tools/jupyter/utils'
+import { encodeJupyterPath } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterDeleteContentTool: ToolConfig<
@@ -40,13 +36,15 @@ export const jupyterDeleteContentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const base = normalizeJupyterServerUrl(params.serverUrl)
-      const path = encodeJupyterPath(params.path)
-      return `${base}/api/contents/${path}`
-    },
-    method: 'DELETE',
-    headers: (params) => buildJupyterAuthHeaders(params.token),
+    url: '/api/tools/jupyter/proxy',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'DELETE',
+      path: `contents/${encodeJupyterPath(params.path)}`,
+    }),
   },
 
   transformResponse: async (response, params) => {

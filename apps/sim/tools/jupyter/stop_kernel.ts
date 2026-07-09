@@ -1,5 +1,4 @@
 import type { JupyterStopKernelParams, JupyterStopKernelResponse } from '@/tools/jupyter/types'
-import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterStopKernelTool: ToolConfig<JupyterStopKernelParams, JupyterStopKernelResponse> =
@@ -31,10 +30,15 @@ export const jupyterStopKernelTool: ToolConfig<JupyterStopKernelParams, JupyterS
     },
 
     request: {
-      url: (params) =>
-        `${normalizeJupyterServerUrl(params.serverUrl)}/api/kernels/${encodeURIComponent(params.kernelId)}`,
-      method: 'DELETE',
-      headers: (params) => buildJupyterAuthHeaders(params.token),
+      url: '/api/tools/jupyter/proxy',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (params) => ({
+        serverUrl: params.serverUrl,
+        token: params.token,
+        method: 'DELETE',
+        path: `kernels/${encodeURIComponent(params.kernelId)}`,
+      }),
     },
 
     transformResponse: async (response, params) => {
