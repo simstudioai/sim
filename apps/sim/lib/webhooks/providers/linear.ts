@@ -44,8 +44,20 @@ function validateLinearSignature(secret: string, signature: string, body: string
   }
 }
 
-/** Linear recommends rejecting webhooks not within 60s of the current time. @see https://linear.app/developers/webhooks */
-const LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS = 60 * 1000
+/**
+ * Linear's docs recommend a 60s window ("Reject any webhooks not within 60 seconds of the
+ * current time to prevent replay attacks") but do NOT document whether `webhookTimestamp` is
+ * re-stamped per delivery attempt or fixed to the original event time. Linear's own retry policy
+ * resends failed deliveries after 1 minute, 1 hour, and 6 hours (@see
+ * https://linear.app/developers/webhooks) — if the timestamp is fixed rather than refreshed per
+ * attempt, a strict 60s window would silently and permanently drop every legitimate 1hr/6hr retry
+ * following any transient outage on our side, since Linear gives up after 3 failed attempts.
+ * We keep a wider 5-minute window: idempotency dedup (Linear-Delivery header / extractIdempotencyId
+ * fallback below) already prevents double-processing of any replayed or retried delivery within
+ * that window, so the incremental replay-protection benefit of matching Linear's 60s suggestion
+ * literally is marginal compared to the risk of dropping real business events.
+ */
+const LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS = 5 * 60 * 1000
 
 const verifyLinearSignature = createHmacVerifier({
   configKey: 'webhookSecret',

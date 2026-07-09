@@ -76,7 +76,7 @@ describe('Linear webhook provider', () => {
     expect(res).toBeNull()
   })
 
-  it('rejects signed requests older than the 60s window Linear recommends', async () => {
+  it('accepts signed requests within the 5-minute skew window (wider than Linear’s literal 60s suggestion, to tolerate retries)', async () => {
     const secret = 'linear-secret'
     const rawBody = JSON.stringify({
       action: 'update',
@@ -93,7 +93,7 @@ describe('Linear webhook provider', () => {
       workflow: {},
     })
 
-    expect(res?.status).toBe(401)
+    expect(res).toBeNull()
   })
 
   it('skips verification entirely when no webhookSecret is configured', async () => {
