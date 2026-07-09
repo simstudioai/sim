@@ -680,7 +680,6 @@ async function resolveBranch(params: {
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
           userMetadata: payloadParams.userMetadata,
-          includeMothershipTools: true,
         },
         { selectedModel: '' }
       ),
