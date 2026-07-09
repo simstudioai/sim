@@ -176,12 +176,12 @@ describe('Instantly webhook provider', () => {
       expect(id).toBe('instantly:email_sent:email-123:2026-07-08T12:00:00.000Z')
     })
 
-    it('falls back to the bare email_id when timestamp is missing', () => {
+    it('returns null when email_id is present but timestamp is missing, rather than risk a false collision', () => {
       const id = instantlyHandler.extractIdempotencyId!({
         event_type: 'email_sent',
         email_id: 'email-123',
       })
-      expect(id).toBe('instantly:email_sent:email-123')
+      expect(id).toBeNull()
     })
 
     it('falls back to a content-based key without an email_id', () => {

@@ -157,6 +157,8 @@ export const linearHandler: WebhookProviderHandler = {
    * not a request-time timestamp, so retried deliveries of the same event still collapse.
    */
   extractIdempotencyId(body: unknown): string | null {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+
     const b = body as Record<string, unknown>
     const type = typeof b.type === 'string' ? b.type : undefined
     const action = typeof b.action === 'string' ? b.action : undefined

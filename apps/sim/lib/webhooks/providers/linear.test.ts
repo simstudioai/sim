@@ -141,5 +141,15 @@ describe('Linear webhook provider', () => {
       const key = linearHandler.extractIdempotencyId!({ action: 'create', data: { id: 'x' } })
       expect(key).toBeNull()
     })
+
+    it('returns null instead of throwing when the body is null', () => {
+      expect(linearHandler.extractIdempotencyId!(null)).toBeNull()
+    })
+
+    it('returns null instead of throwing when the body is a non-object', () => {
+      expect(linearHandler.extractIdempotencyId!('not an object')).toBeNull()
+      expect(linearHandler.extractIdempotencyId!(42)).toBeNull()
+      expect(linearHandler.extractIdempotencyId!(['array'])).toBeNull()
+    })
   })
 })

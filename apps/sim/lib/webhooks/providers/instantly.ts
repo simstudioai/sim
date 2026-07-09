@@ -64,7 +64,9 @@ export const instantlyHandler: WebhookProviderHandler = {
    * a thread), so email_id alone would collapse those distinct, legitimate
    * deliveries into one idempotency slot. `timestamp` is fixed per event
    * occurrence (not regenerated on retry), so appending it keeps the key
-   * both retry-stable and unique per occurrence.
+   * both retry-stable and unique per occurrence — without it there's no way
+   * to distinguish occurrences, so dedup is skipped rather than risking a
+   * false collision.
    */
   extractIdempotencyId(body: unknown): string | null {
     if (!isRecordLike(body)) return null
@@ -75,9 +77,7 @@ export const instantlyHandler: WebhookProviderHandler = {
     const timestamp = typeof body.timestamp === 'string' ? body.timestamp : undefined
     const emailId = typeof body.email_id === 'string' ? body.email_id : undefined
     if (emailId) {
-      return timestamp
-        ? `instantly:${eventType}:${emailId}:${timestamp}`
-        : `instantly:${eventType}:${emailId}`
+      return timestamp ? `instantly:${eventType}:${emailId}:${timestamp}` : null
     }
 
     const campaignId = typeof body.campaign_id === 'string' ? body.campaign_id : undefined
