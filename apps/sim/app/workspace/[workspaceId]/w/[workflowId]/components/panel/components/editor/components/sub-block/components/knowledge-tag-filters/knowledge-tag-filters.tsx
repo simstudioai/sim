@@ -21,6 +21,7 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
+import { parseJsonArrayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -100,26 +101,13 @@ export function KnowledgeTagFilters({
     disabled,
   })
 
-  const parseFilters = (filterValue: unknown): TagFilter[] => {
-    if (!filterValue) return []
-    let parsed: unknown = filterValue
-    // Tolerate an already-parsed array: copilot edits persist tagFilters as a raw
-    // array, whereas this component writes a JSON string. Accept both on read.
-    if (typeof filterValue === 'string') {
-      try {
-        parsed = JSON.parse(filterValue)
-      } catch {
-        return []
-      }
-    }
-    if (!Array.isArray(parsed)) return []
-    return parsed.map((f: TagFilter) => ({
+  const parseFilters = (filterValue: unknown): TagFilter[] =>
+    (parseJsonArrayValue(filterValue) as TagFilter[]).map((f) => ({
       ...f,
       fieldType: f.fieldType || 'text',
       operator: f.operator || 'eq',
       collapsed: f.collapsed ?? false,
     }))
-  }
 
   const currentValue = isPreview ? previewValue : storeValue
   const parsedFilters = parseFilters(currentValue || null)

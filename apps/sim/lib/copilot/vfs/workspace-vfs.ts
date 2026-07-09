@@ -51,7 +51,7 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
+import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
 import {
   serializeApiKeys,
   serializeBlockSchema,
@@ -1555,11 +1555,8 @@ export class WorkspaceVFS {
    */
   private async loadKbTagDefinitions(
     kbIds: string[]
-  ): Promise<Map<string, Array<{ displayName: string; tagSlot: string; fieldType: string }>>> {
-    const byKb = new Map<
-      string,
-      Array<{ displayName: string; tagSlot: string; fieldType: string }>
-    >()
+  ): Promise<Map<string, KbTagDefinitionSummary[]>> {
+    const byKb = new Map<string, KbTagDefinitionSummary[]>()
     if (kbIds.length === 0) return byKb
 
     const rows = await db

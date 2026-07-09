@@ -21,6 +21,7 @@ import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { parseJsonArrayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -98,25 +99,12 @@ export function DocumentTagEntry({
 
   const currentValue = isPreview ? previewValue : storeValue
 
-  const parseTags = (tagValue: unknown): DocumentTag[] => {
-    if (!tagValue) return []
-    let parsed: unknown = tagValue
-    // Tolerate an already-parsed array: copilot edits persist documentTags as a raw
-    // array, whereas this component writes a JSON string. Accept both on read.
-    if (typeof tagValue === 'string') {
-      try {
-        parsed = JSON.parse(tagValue)
-      } catch {
-        return []
-      }
-    }
-    if (!Array.isArray(parsed)) return []
-    return parsed.map((t: DocumentTag) => ({
+  const parseTags = (tagValue: unknown): DocumentTag[] =>
+    (parseJsonArrayValue(tagValue) as DocumentTag[]).map((t) => ({
       ...t,
       fieldType: t.fieldType || 'text',
       collapsed: t.collapsed ?? false,
     }))
-  }
 
   const parsedTags = parseTags(currentValue || null)
   const tags: DocumentTag[] = parsedTags.length > 0 ? parsedTags : [createDefaultTag()]

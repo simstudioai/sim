@@ -93,15 +93,7 @@ export function createBlockFromParams(
         return
       }
 
-      let sanitizedValue = value
-
-      // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
-      if (shouldNormalizeArrayIds(key)) {
-        sanitizedValue = normalizeArrayWithIds(value)
-        if (JSON_STRING_SUBBLOCK_KEYS.has(key)) {
-          sanitizedValue = JSON.stringify(sanitizedValue)
-        }
-      }
+      let sanitizedValue = normalizeSubblockValue(key, value)
 
       sanitizedValue = normalizeConditionRouterIds(blockId, key, sanitizedValue)
 
@@ -322,6 +314,19 @@ export function normalizeArrayWithIds(value: unknown): any[] {
  */
 export function shouldNormalizeArrayIds(key: string): boolean {
   return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
+}
+
+/**
+ * Normalizes an array-with-id subblock value, re-serializing it to a JSON string for the
+ * subblock keys whose UI components read a string rather than a raw array.
+ *
+ * Every write path that persists LLM-supplied subblock values must route through this so the
+ * two concerns cannot drift apart; returns non-array-with-id values untouched.
+ */
+export function normalizeSubblockValue(key: string, value: unknown): unknown {
+  if (!shouldNormalizeArrayIds(key)) return value
+  const normalized = normalizeArrayWithIds(value)
+  return JSON_STRING_SUBBLOCK_KEYS.has(key) ? JSON.stringify(normalized) : normalized
 }
 
 /**

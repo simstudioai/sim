@@ -83,6 +83,13 @@ export function serializeRecentExecutions(
   )
 }
 
+/** A knowledge base tag definition, reduced to the fields the agent needs to bind a tag filter. */
+export interface KbTagDefinitionSummary {
+  displayName: string
+  tagSlot: string
+  fieldType: string
+}
+
 /**
  * Serialize knowledge base metadata for VFS meta.json.
  *
@@ -101,7 +108,7 @@ export function serializeKBMeta(kb: {
   updatedAt: Date
   documentCount: number
   connectorTypes?: string[]
-  tagDefinitions?: Array<{ displayName: string; tagSlot: string; fieldType: string }>
+  tagDefinitions?: KbTagDefinitionSummary[]
 }): string {
   return JSON.stringify(
     {
