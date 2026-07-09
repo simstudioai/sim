@@ -508,6 +508,7 @@ describe('useAutosave', () => {
       // Discard fires before the caller's content===savedContent reset has landed — the hook's
       // own flag must block persistence regardless of that race, not just the IndexedDB delete.
       act(() => handle.discard())
+      await flush()
       expect(fakeDraftStore.has('autosave-draft:file-discard')).toBe(false)
 
       // Simulate the unmount flush racing in right after discard, while still (from the hook's
@@ -535,6 +536,93 @@ describe('useAutosave', () => {
       })
       await flush()
       expect(onSave).not.toHaveBeenCalled()
+    })
+
+    it('corrects the server once an already-in-flight save lands after discard', async () => {
+      let resolveSave: (() => void) | undefined
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSave = resolve
+          })
+      )
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-3',
+      })
+
+      // A save is genuinely in flight (discardedRef can't stop it — it already started).
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+
+      // The user discards while that save is still pending, and the caller resets content back
+      // to the baseline (mirroring what discardChanges does synchronously right after discard()).
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      await act(async () => {
+        resolveSave?.()
+      })
+      await flush()
+      // The stale in-flight write landed; a second, corrective save pushes the reverted content.
+      expect(onSave).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not issue a corrective save when discard finds nothing in flight', async () => {
+      const onSave = vi.fn(async () => {})
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-4',
+      })
+
+      handle.rerender({ content: 'a1' })
+      act(() => handle.discard())
+      await flush()
+      expect(onSave).not.toHaveBeenCalled()
+    })
+
+    it('serializes IndexedDB writes and deletes so a slow write cannot resurrect a discarded draft', async () => {
+      let resolveWrite: (() => void) | undefined
+      const idbKeyval = await import('idb-keyval')
+      vi.mocked(idbKeyval.set).mockImplementationOnce(
+        (key: string, value: unknown) =>
+          new Promise<void>((resolve) => {
+            resolveWrite = () => {
+              fakeDraftStore.set(key, value)
+              resolve()
+            }
+          })
+      )
+      const onSave = vi.fn(async () => {})
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-race',
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(400)
+      })
+      await flush()
+      // The write is now in flight (not yet resolved) when discard's delete is queued behind it.
+      act(() => handle.discard())
+      await flush()
+      expect(fakeDraftStore.has('autosave-draft:file-race')).toBe(false)
+
+      // The slow write finally resolves — it must not resurrect the entry the queued delete removed.
+      resolveWrite?.()
+      await flush()
+      expect(fakeDraftStore.has('autosave-draft:file-race')).toBe(false)
     })
   })
 })

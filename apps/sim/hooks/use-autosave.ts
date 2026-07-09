@@ -38,7 +38,7 @@ interface UseAutosaveReturn {
   saveStatus: SaveStatus
   saveImmediately: () => Promise<void>
   isDirty: boolean
-  /** Abandons the current draft: cancels any pending save/local-draft write and clears the local draft immediately, so nothing written after this call can resurrect it. */
+  /** Abandons the current draft: blocks any save/local-draft write not yet started, clears the local draft immediately, and corrects the server if a save already in flight lands afterward. */
   discard: () => void
 }
 
@@ -82,18 +82,24 @@ export function useAutosave({
   const localDraftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const lastPersistedContentRef = useRef<string | null>(null)
   const discardedRef = useRef(false)
+  const idbQueueRef = useRef<Promise<void>>(Promise.resolve())
   const MIN_SAVING_DISPLAY_MS = 600
 
   const persistLocalDraft = useCallback(() => {
     const key = draftKeyRef.current
     if (discardedRef.current || !key || contentRef.current === savedContentRef.current) return
     if (contentRef.current === lastPersistedContentRef.current) return
-    void set(localDraftDbKey(key), {
-      content: contentRef.current,
-      savedContent: savedContentRef.current,
-    } satisfies LocalDraft)
+    const content = contentRef.current
+    const savedContentSnapshot = savedContentRef.current
+    idbQueueRef.current = idbQueueRef.current
+      .then(() =>
+        set(localDraftDbKey(key), {
+          content,
+          savedContent: savedContentSnapshot,
+        } satisfies LocalDraft)
+      )
       .then(() => {
-        lastPersistedContentRef.current = contentRef.current
+        lastPersistedContentRef.current = content
       })
       .catch((error) => {
         logger.warn('IndexedDB draft write failed', { key, error })
@@ -104,9 +110,11 @@ export function useAutosave({
     const key = draftKeyRef.current
     lastPersistedContentRef.current = null
     if (!key) return
-    void del(localDraftDbKey(key)).catch((error) => {
-      logger.warn('IndexedDB draft delete failed', { key, error })
-    })
+    idbQueueRef.current = idbQueueRef.current
+      .then(() => del(localDraftDbKey(key)))
+      .catch((error) => {
+        logger.warn('IndexedDB draft delete failed', { key, error })
+      })
   }, [])
 
   const save = useCallback(async () => {
@@ -242,6 +250,13 @@ export function useAutosave({
     clearTimeout(timerRef.current)
     clearTimeout(localDraftTimerRef.current)
     clearLocalDraft()
+    const pendingSave = inFlightRef.current
+    if (!pendingSave) return
+    void pendingSave.then(() =>
+      onSaveRef.current().catch((error) => {
+        logger.warn('Corrective save after discard failed', { error })
+      })
+    )
   }, [clearLocalDraft])
 
   return { saveStatus, saveImmediately, isDirty, discard }
