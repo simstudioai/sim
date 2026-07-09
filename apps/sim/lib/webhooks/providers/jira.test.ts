@@ -90,6 +90,63 @@ describe('Jira webhook provider', () => {
     expect(result).toBe(false)
   })
 
+  it('matchEvent applies fieldFilters on issue_updated, matching a changed field', async () => {
+    const result = await jiraHandler.matchEvent!({
+      body: {
+        webhookEvent: 'jira:issue_updated',
+        changelog: { items: [{ field: 'status', from: 'Open', to: 'Done' }] },
+      },
+      requestId: 't7',
+      providerConfig: { triggerId: 'jira_issue_updated', fieldFilters: 'status, assignee' },
+      webhook: {},
+      workflow: {},
+      request: reqWithHeaders({}),
+    })
+    expect(result).toBe(true)
+  })
+
+  it('matchEvent applies fieldFilters on issue_updated, skipping when no filtered field changed', async () => {
+    const result = await jiraHandler.matchEvent!({
+      body: {
+        webhookEvent: 'jira:issue_updated',
+        changelog: { items: [{ field: 'description', from: 'a', to: 'b' }] },
+      },
+      requestId: 't8',
+      providerConfig: { triggerId: 'jira_issue_updated', fieldFilters: 'status, assignee' },
+      webhook: {},
+      workflow: {},
+      request: reqWithHeaders({}),
+    })
+    expect(result).toBe(false)
+  })
+
+  it('matchEvent ignores fieldFilters for other trigger types', async () => {
+    const result = await jiraHandler.matchEvent!({
+      body: { webhookEvent: 'jira:issue_created' },
+      requestId: 't9',
+      providerConfig: { triggerId: 'jira_issue_created', fieldFilters: 'status' },
+      webhook: {},
+      workflow: {},
+      request: reqWithHeaders({}),
+    })
+    expect(result).toBe(true)
+  })
+
+  it('matchEvent matches any field change when fieldFilters is empty', async () => {
+    const result = await jiraHandler.matchEvent!({
+      body: {
+        webhookEvent: 'jira:issue_updated',
+        changelog: { items: [{ field: 'description', from: 'a', to: 'b' }] },
+      },
+      requestId: 't10',
+      providerConfig: { triggerId: 'jira_issue_updated' },
+      webhook: {},
+      workflow: {},
+      request: reqWithHeaders({}),
+    })
+    expect(result).toBe(true)
+  })
+
   it('formatInput extracts issue data for the issue_created trigger', async () => {
     const { input } = await jiraHandler.formatInput!({
       body: {

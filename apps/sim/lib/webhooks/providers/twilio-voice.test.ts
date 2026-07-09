@@ -88,6 +88,36 @@ describe('twilioVoiceHandler', () => {
       expect(twilioVoiceHandler.extractIdempotencyId!('not-an-object')).toBeNull()
       expect(twilioVoiceHandler.extractIdempotencyId!([1, 2, 3])).toBeNull()
     })
+
+    it('distinguishes each CallStatus transition for the same CallSid', () => {
+      const ringing = twilioVoiceHandler.extractIdempotencyId!({
+        CallSid: 'CA1',
+        CallStatus: 'ringing',
+      })
+      const inProgress = twilioVoiceHandler.extractIdempotencyId!({
+        CallSid: 'CA1',
+        CallStatus: 'in-progress',
+      })
+      const completed = twilioVoiceHandler.extractIdempotencyId!({
+        CallSid: 'CA1',
+        CallStatus: 'completed',
+      })
+      expect(ringing).not.toBeNull()
+      expect(ringing).not.toBe(inProgress)
+      expect(inProgress).not.toBe(completed)
+    })
+
+    it('dedupes a retried delivery of the same CallStatus transition', () => {
+      const first = twilioVoiceHandler.extractIdempotencyId!({
+        CallSid: 'CA1',
+        CallStatus: 'completed',
+      })
+      const retry = twilioVoiceHandler.extractIdempotencyId!({
+        CallSid: 'CA1',
+        CallStatus: 'completed',
+      })
+      expect(first).toBe(retry)
+    })
   })
 
   describe('formatInput', () => {

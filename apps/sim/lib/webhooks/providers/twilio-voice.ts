@@ -14,9 +14,19 @@ export const twilioVoiceHandler: WebhookProviderHandler = {
     return verifyTwilioAuth(ctx, 'Twilio Voice')
   },
 
+  /**
+   * A call fires multiple status callbacks against the same CallSid as it
+   * progresses (queued -> ringing -> in-progress -> completed/busy/failed/
+   * no-answer/canceled), so CallStatus is part of the key to keep each
+   * transition distinct while still deduping Twilio's retries of the same
+   * status.
+   */
   extractIdempotencyId(body: unknown) {
     if (!isRecordLike(body)) return null
-    return (body.MessageSid as string) || (body.CallSid as string) || null
+    const sid = (body.MessageSid as string) || (body.CallSid as string)
+    if (!sid) return null
+    const status = ((body.CallStatus as string) ?? '').toLowerCase()
+    return status ? `${sid}:${status}` : sid
   },
 
   formatSuccessResponse(providerConfig: Record<string, unknown>) {

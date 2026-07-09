@@ -47,15 +47,18 @@ export const twilioHandler: WebhookProviderHandler = {
     return true
   },
 
+  /**
+   * Status callbacks repeat for the same SID as the message progresses
+   * (sent -> delivered -> ...), so the delivery status is part of the key to
+   * keep each distinct callback (while still deduping Twilio's retries of
+   * the same status). Inbound messages fire once (SmsStatus 'received'),
+   * keyed by SID alone.
+   */
   extractIdempotencyId(body: unknown) {
     if (!isRecordLike(body)) return null
     const obj = body
     const sid = (obj.MessageSid as string) || (obj.CallSid as string)
     if (!sid) return null
-    // Status callbacks repeat for the same SID as the message progresses
-    // (sent -> delivered -> ...), so the delivery status is part of the key to
-    // keep each distinct callback (while still deduping Twilio's retries of the
-    // same status). Inbound messages fire once (SmsStatus 'received'), keyed by SID.
     const status = (
       ((obj.MessageStatus as string) || (obj.SmsStatus as string)) ??
       ''

@@ -76,9 +76,25 @@ function jiraJqlFilterField(triggerId: string, description: string): SubBlockCon
   }
 }
 
+function jiraFieldFiltersField(triggerId: string): SubBlockConfig {
+  return {
+    id: 'fieldFilters',
+    title: 'Field Filters',
+    type: 'long-input',
+    placeholder: 'status, assignee, priority',
+    description:
+      'Comma-separated list of Jira field names. Only trigger when one of these fields changes. Leave empty to trigger on any field change.',
+    required: false,
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  }
+}
+
 /**
  * Extra fields for Jira triggers (webhook secret, plus an optional JQL filter
  * for issue-scoped events — project/sprint/version events have no JQL analog).
+ * `fieldFilters` is issue_updated-only since it's matched against that
+ * event's changelog, which no other Jira webhook carries.
  */
 export function buildJiraExtraFields(
   triggerId: string,
@@ -87,6 +103,9 @@ export function buildJiraExtraFields(
   const fields: SubBlockConfig[] = [jiraWebhookSecretField(triggerId)]
   if (jqlFilterDescription) {
     fields.push(jiraJqlFilterField(triggerId, jqlFilterDescription))
+  }
+  if (triggerId === 'jira_issue_updated') {
+    fields.push(jiraFieldFiltersField(triggerId))
   }
   return fields
 }
