@@ -136,13 +136,24 @@ export async function reconcileOrganizationSeats({
     return { changed: false, previousSeats: outcome.seats, seats: outcome.seats }
   }
 
-  await syncSubscriptionUsageLimits({
-    id: outcome.sync.id,
-    plan: outcome.sync.plan,
-    referenceId: organizationId,
-    status: outcome.sync.status,
-    seats: outcome.seats,
-  })
+  try {
+    await syncSubscriptionUsageLimits({
+      id: outcome.sync.id,
+      plan: outcome.sync.plan,
+      referenceId: organizationId,
+      status: outcome.sync.status,
+      seats: outcome.seats,
+    })
+  } catch (error) {
+    // Seats already committed in the transaction above; a failure here must not
+    // suppress the audit/analytics events below for a change that already happened.
+    logger.error('Failed to sync usage limits after seat reconciliation', {
+      organizationId,
+      previousSeats: outcome.previousSeats,
+      seats: outcome.seats,
+      error,
+    })
+  }
 
   logger.info('Reconciled organization seats to member count', {
     organizationId,
