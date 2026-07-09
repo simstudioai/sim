@@ -19,7 +19,6 @@ import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explic
 import type { StreamEvent } from '@/lib/copilot/request/types'
 import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildUserSkillTool } from '@/lib/mothership/skills'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -147,32 +146,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
-    const [
-      workspaceContext,
-      integrationTools,
-      userSkillTool,
-      userPermission,
-      entitlements,
-      agentContexts,
-    ] = await Promise.all([
-      generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-      buildUserSkillTool(workspaceId),
-      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-      computeWorkspaceEntitlements(workspaceId, userId),
-      processContextsServer(
-        agentMentions,
-        userId,
-        lastUserMessage,
-        workspaceId,
-        effectiveChatId
-      ).catch((error) => {
-        reqLogger.warn('Failed to resolve agent contexts for execution', {
-          error: toError(error).message,
-        })
-        return []
-      }),
-    ])
+    const [workspaceContext, integrationTools, userPermission, entitlements, agentContexts] =
+      await Promise.all([
+        generateWorkspaceContext(workspaceId, userId),
+        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+        computeWorkspaceEntitlements(workspaceId, userId),
+        processContextsServer(
+          agentMentions,
+          userId,
+          lastUserMessage,
+          workspaceId,
+          effectiveChatId
+        ).catch((error) => {
+          reqLogger.warn('Failed to resolve agent contexts for execution', {
+            error: toError(error).message,
+          })
+          return []
+        }),
+      ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -193,7 +185,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
       ...(agentContexts.length > 0 ? { contexts: agentContexts } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),
       ...(entitlements.length > 0 ? { entitlements } : {}),
     }

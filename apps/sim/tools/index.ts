@@ -936,7 +936,7 @@ export async function executeTool(
     const scope = resolveToolScope(params, executionContext)
 
     const toolKind: 'skill' | 'custom' | 'mcp' | undefined =
-      normalizedToolId === 'load_skill' || normalizedToolId === 'load_user_skill'
+      normalizedToolId === 'load_skill'
         ? 'skill'
         : isCustomTool(normalizedToolId)
           ? 'custom'
@@ -956,7 +956,7 @@ export async function executeTool(
       })
     }
 
-    if (normalizedToolId === 'load_skill' || normalizedToolId === 'load_user_skill') {
+    if (normalizedToolId === 'load_skill') {
       const skillName = params.skill_name
       if (!skillName || !scope.workspaceId) {
         return {
