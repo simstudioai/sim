@@ -3,6 +3,7 @@ import type {
   JupyterCreateSessionResponse,
 } from '@/tools/jupyter/types'
 import {
+  assertSafeJupyterPath,
   buildJupyterAuthHeaders,
   mapJupyterSession,
   normalizeJupyterServerUrl,
@@ -65,7 +66,7 @@ export const jupyterCreateSessionTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
-      path: params.path,
+      path: assertSafeJupyterPath(params.path),
       name: params.name,
       type: params.type || 'notebook',
       ...(params.kernelName ? { kernel: { name: params.kernelName } } : {}),

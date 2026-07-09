@@ -1,5 +1,6 @@
 import type { JupyterCopyContentParams, JupyterCopyContentResponse } from '@/tools/jupyter/types'
 import {
+  assertSafeJupyterPath,
   buildJupyterAuthHeaders,
   encodeJupyterPath,
   normalizeJupyterServerUrl,
@@ -53,7 +54,7 @@ export const jupyterCopyContentTool: ToolConfig<
       ...buildJupyterAuthHeaders(params.token),
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({ copy_from: params.copyFromPath }),
+    body: (params) => ({ copy_from: assertSafeJupyterPath(params.copyFromPath) }),
   },
 
   transformResponse: async (response, params) => {

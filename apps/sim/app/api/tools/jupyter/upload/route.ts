@@ -109,6 +109,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         content: fileBuffer.toString('base64'),
       }),
       allowHttp: true,
+      stripAuthOnRedirect: true,
     })
 
     if (!response.ok) {

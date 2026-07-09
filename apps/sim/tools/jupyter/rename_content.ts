@@ -3,6 +3,7 @@ import type {
   JupyterRenameContentResponse,
 } from '@/tools/jupyter/types'
 import {
+  assertSafeJupyterPath,
   buildJupyterAuthHeaders,
   encodeJupyterPath,
   normalizeJupyterServerUrl,
@@ -56,7 +57,7 @@ export const jupyterRenameContentTool: ToolConfig<
       ...buildJupyterAuthHeaders(params.token),
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({ path: params.newPath }),
+    body: (params) => ({ path: assertSafeJupyterPath(params.newPath) }),
   },
 
   transformResponse: async (response, params) => {

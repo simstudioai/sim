@@ -59,13 +59,14 @@ export class UnsafeJupyterPathError extends Error {
 }
 
 /**
- * Encodes a Jupyter contents path segment-by-segment so slashes stay as path
- * separators while special characters within a segment are escaped.
- *
- * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`, which could
+ * Rejects `.` and `..` segments in a Jupyter contents path, which could
  * otherwise traverse outside the intended directory on the target server.
+ * Shared by every helper that sends a path to Jupyter, whether in a URL or a
+ * request body.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`.
  */
-export function encodeJupyterPath(path: string | undefined): string {
+function assertNoJupyterPathTraversal(path: string | undefined): string[] {
   const segments = (path ?? '').split('/').filter((segment) => segment.length > 0)
 
   for (const segment of segments) {
@@ -74,7 +75,30 @@ export function encodeJupyterPath(path: string | undefined): string {
     }
   }
 
-  return segments.map(encodeURIComponent).join('/')
+  return segments
+}
+
+/**
+ * Encodes a Jupyter contents path segment-by-segment so slashes stay as path
+ * separators while special characters within a segment are escaped. Use for
+ * paths interpolated into a request URL.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`.
+ */
+export function encodeJupyterPath(path: string | undefined): string {
+  return assertNoJupyterPathTraversal(path).map(encodeURIComponent).join('/')
+}
+
+/**
+ * Validates a Jupyter contents path with no URL-encoding. Use for paths sent
+ * as-is in a JSON request body (e.g. a PATCH/POST `path`/`copy_from` field)
+ * that never flow through `encodeJupyterPath`.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`.
+ */
+export function assertSafeJupyterPath(path: string): string {
+  assertNoJupyterPathTraversal(path)
+  return path
 }
 
 interface RawJupyterKernel {
