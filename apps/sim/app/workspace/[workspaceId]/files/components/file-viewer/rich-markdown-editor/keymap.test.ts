@@ -257,3 +257,73 @@ describe('verbatim block boundary (isolating)', () => {
     }
   )
 })
+
+describe('block reordering (Mod-Shift-Arrow)', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  function caretInto(editor: Editor, word: string): void {
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText && node.text?.includes(word)) editor.commands.setTextSelection(pos + 1)
+    })
+  }
+
+  it('moves the current top-level block up, carrying the caret', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('# One\n\nTwo para\n\n- item', { contentType: 'markdown' })
+    editor.commands.focus()
+    caretInto(editor, 'Two')
+    editor.commands.moveBlockUp()
+    expect(editor.getMarkdown().trim().startsWith('Two para')).toBe(true)
+    editor.destroy()
+  })
+
+  it('moves the current top-level block down', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('# One\n\nTwo para', { contentType: 'markdown' })
+    editor.commands.focus()
+    caretInto(editor, 'One')
+    editor.commands.moveBlockDown()
+    expect(editor.getMarkdown().trim().startsWith('Two para')).toBe(true)
+    editor.destroy()
+  })
+
+  it.each([
+    ['up', '# One\n\nabcdef'],
+    ['down', 'abcdef\n\n# Two'],
+  ])('keeps the caret at its original offset after moving %s (no off-by-one)', (direction, md) => {
+    const editor = editorWith('')
+    editor.commands.setContent(md, { contentType: 'markdown' })
+    editor.commands.focus()
+    let textPos = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText && node.text === 'abcdef') textPos = pos
+    })
+    editor.commands.setTextSelection(textPos + 3)
+    if (direction === 'up') editor.commands.moveBlockUp()
+    else editor.commands.moveBlockDown()
+    const at = editor.state.selection.from
+    expect(editor.state.doc.textBetween(at - 1, at)).toBe('c')
+    expect(editor.state.doc.textBetween(at, at + 1)).toBe('d')
+    editor.destroy()
+  })
+
+  it('is a no-op at the top edge and keeps a moved list intact', () => {
+    const top = editorWith('')
+    top.commands.setContent('# One\n\nTwo', { contentType: 'markdown' })
+    top.commands.focus()
+    caretInto(top, 'One')
+    top.commands.moveBlockUp()
+    expect(top.getMarkdown().trim().startsWith('# One')).toBe(true)
+    top.destroy()
+
+    const list = editorWith('')
+    list.commands.setContent('- a\n- b\n\npara', { contentType: 'markdown' })
+    list.commands.focus()
+    caretInto(list, 'para')
+    list.commands.moveBlockUp()
+    expect(list.getMarkdown().trim()).toBe('para\n\n- a\n- b')
+    list.destroy()
+  })
+})
