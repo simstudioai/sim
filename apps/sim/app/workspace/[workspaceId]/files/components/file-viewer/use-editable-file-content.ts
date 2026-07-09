@@ -188,11 +188,6 @@ export function useEditableFileContent({
     markSavedContent(next)
   }, [workspaceId, file.id, markSavedContent])
 
-  const onRestoreDraft = useCallback(
-    (draftContent: string) => setDraftContent(draftContent),
-    [setDraftContent]
-  )
-
   const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked
 
   const { saveStatus, saveImmediately, isDirty } = useAutosave({
@@ -201,7 +196,7 @@ export function useEditableFileContent({
     onSave,
     enabled: autosaveEnabled,
     draftKey: autosaveEnabled ? `${workspaceId}:${file.id}` : undefined,
-    onRestoreDraft,
+    onRestoreDraft: setDraftContent,
   })
 
   useEffect(() => {

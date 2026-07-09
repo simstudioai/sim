@@ -67,8 +67,9 @@ export function useAutosave({
   savedContentRef.current = savedContent
   const contentRef = useRef(content)
   contentRef.current = content
-  const draftKeyRef = useRef(draftKey)
-  draftKeyRef.current = draftKey
+  const effectiveDraftKey = enabled ? draftKey : undefined
+  const draftKeyRef = useRef(effectiveDraftKey)
+  draftKeyRef.current = effectiveDraftKey
   const onRestoreDraftRef = useRef(onRestoreDraft)
   onRestoreDraftRef.current = onRestoreDraft
 
@@ -77,21 +78,28 @@ export function useAutosave({
   const inFlightRef = useRef<Promise<void> | null>(null)
   const unmountedRef = useRef(false)
   const localDraftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const lastPersistedContentRef = useRef<string | null>(null)
   const MIN_SAVING_DISPLAY_MS = 600
 
   const persistLocalDraft = useCallback(() => {
     const key = draftKeyRef.current
     if (!key || contentRef.current === savedContentRef.current) return
+    if (contentRef.current === lastPersistedContentRef.current) return
     void set(localDraftDbKey(key), {
       content: contentRef.current,
       savedContent: savedContentRef.current,
-    } satisfies LocalDraft).catch((error) => {
-      logger.warn('IndexedDB draft write failed', { key, error })
-    })
+    } satisfies LocalDraft)
+      .then(() => {
+        lastPersistedContentRef.current = contentRef.current
+      })
+      .catch((error) => {
+        logger.warn('IndexedDB draft write failed', { key, error })
+      })
   }, [])
 
   const clearLocalDraft = useCallback(() => {
     const key = draftKeyRef.current
+    lastPersistedContentRef.current = null
     if (!key) return
     void del(localDraftDbKey(key)).catch((error) => {
       logger.warn('IndexedDB draft delete failed', { key, error })
@@ -171,16 +179,19 @@ export function useAutosave({
   const wasDirtyRef = useRef(isDirty)
 
   useEffect(() => {
-    if (draftKey && !isDirty && wasDirtyRef.current) clearLocalDraft()
+    if (effectiveDraftKey && !isDirty && wasDirtyRef.current) clearLocalDraft()
     wasDirtyRef.current = isDirty
-    if (!draftKey || !isDirty) return
+  }, [effectiveDraftKey, isDirty, clearLocalDraft])
+
+  useEffect(() => {
+    if (!effectiveDraftKey || !isDirty) return
     clearTimeout(localDraftTimerRef.current)
     localDraftTimerRef.current = setTimeout(persistLocalDraft, LOCAL_DRAFT_DELAY_MS)
     return () => clearTimeout(localDraftTimerRef.current)
-  }, [content, draftKey, isDirty, persistLocalDraft, clearLocalDraft])
+  }, [content, effectiveDraftKey, isDirty, persistLocalDraft])
 
   useEffect(() => {
-    if (!draftKey) return
+    if (!effectiveDraftKey) return
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') persistLocalDraft()
     }
@@ -190,12 +201,12 @@ export function useAutosave({
       window.removeEventListener('pagehide', persistLocalDraft)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [draftKey, persistLocalDraft])
+  }, [effectiveDraftKey, persistLocalDraft])
 
   useEffect(() => {
-    if (!draftKey) return
+    if (!effectiveDraftKey) return
     let cancelled = false
-    void get<LocalDraft>(localDraftDbKey(draftKey))
+    void get<LocalDraft>(localDraftDbKey(effectiveDraftKey))
       .then((draft) => {
         if (cancelled || !draft || draft.savedContent !== savedContentRef.current) return
         if (draft.content === draft.savedContent) return
@@ -203,12 +214,12 @@ export function useAutosave({
         onRestoreDraftRef.current?.(draft.content)
       })
       .catch((error) => {
-        logger.warn('IndexedDB draft read failed', { draftKey, error })
+        logger.warn('IndexedDB draft read failed', { draftKey: effectiveDraftKey, error })
       })
     return () => {
       cancelled = true
     }
-  }, [draftKey])
+  }, [effectiveDraftKey])
 
   const saveImmediately = useCallback(async () => {
     clearTimeout(timerRef.current)
