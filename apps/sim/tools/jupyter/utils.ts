@@ -48,15 +48,33 @@ export function buildJupyterAuthHeaders(token: string): Record<string, string> {
 }
 
 /**
+ * Error thrown when a user-supplied Jupyter contents path contains a `.` or
+ * `..` segment that could traverse outside the intended directory.
+ */
+export class UnsafeJupyterPathError extends Error {
+  constructor(rawPath: string) {
+    super(`Invalid Jupyter path: ${rawPath}`)
+    this.name = 'UnsafeJupyterPathError'
+  }
+}
+
+/**
  * Encodes a Jupyter contents path segment-by-segment so slashes stay as path
  * separators while special characters within a segment are escaped.
+ *
+ * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`, which could
+ * otherwise traverse outside the intended directory on the target server.
  */
 export function encodeJupyterPath(path: string | undefined): string {
-  return (path ?? '')
-    .split('/')
-    .filter((segment) => segment.length > 0)
-    .map(encodeURIComponent)
-    .join('/')
+  const segments = (path ?? '').split('/').filter((segment) => segment.length > 0)
+
+  for (const segment of segments) {
+    if (segment === '.' || segment === '..') {
+      throw new UnsafeJupyterPathError(path ?? '')
+    }
+  }
+
+  return segments.map(encodeURIComponent).join('/')
 }
 
 interface RawJupyterKernel {

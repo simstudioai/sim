@@ -18,6 +18,7 @@ import {
   buildJupyterAuthHeaders,
   encodeJupyterPath,
   normalizeJupyterServerUrl,
+  UnsafeJupyterPathError,
 } from '@/tools/jupyter/utils'
 
 export const dynamic = 'force-dynamic'
@@ -76,7 +77,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const base = normalizeJupyterServerUrl(data.serverUrl)
     const destinationDirectory = (data.directory ?? '').replace(/\/+$/, '')
     const destinationPath = destinationDirectory ? `${destinationDirectory}/${fileName}` : fileName
-    const uploadUrl = `${base}/api/contents/${encodeJupyterPath(destinationPath)}`
+
+    let encodedDestinationPath: string
+    try {
+      encodedDestinationPath = encodeJupyterPath(destinationPath)
+    } catch (error) {
+      if (error instanceof UnsafeJupyterPathError) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+      }
+      throw error
+    }
+    const uploadUrl = `${base}/api/contents/${encodedDestinationPath}`
 
     const urlValidation = await validateUrlWithDNS(uploadUrl, 'serverUrl', { allowHttp: true })
     if (!urlValidation.isValid || !urlValidation.resolvedIP) {
