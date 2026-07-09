@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isPlainRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { jupyterUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
@@ -19,6 +18,7 @@ import {
   buildJupyterAuthHeaders,
   encodeJupyterPath,
   normalizeJupyterServerUrl,
+  parseJupyterContentModel,
   UnsafeJupyterPathError,
 } from '@/tools/jupyter/utils'
 
@@ -129,8 +129,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const uploaded = await response.json()
-    if (!isPlainRecord(uploaded)) {
+    const uploaded = parseJupyterContentModel(await response.json())
+    if (!uploaded) {
       logger.error(`[${requestId}] Jupyter returned an invalid upload response`)
       return NextResponse.json(
         { success: false, error: 'Jupyter returned an invalid upload response' },
@@ -138,10 +138,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const uploadedName = typeof uploaded.name === 'string' ? uploaded.name : fileName
-    const uploadedPath = typeof uploaded.path === 'string' ? uploaded.path : destinationPath
-    const uploadedSize = typeof uploaded.size === 'number' ? uploaded.size : fileBuffer.length
-    const lastModified = typeof uploaded.last_modified === 'string' ? uploaded.last_modified : null
+    const uploadedName = uploaded.name ?? fileName
+    const uploadedPath = uploaded.path ?? destinationPath
+    const uploadedSize = uploaded.size ?? fileBuffer.length
+    const lastModified = uploaded.lastModified ?? null
 
     logger.info(`[${requestId}] File uploaded to Jupyter: ${uploadedPath}`)
 
