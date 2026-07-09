@@ -12,21 +12,22 @@ You help ship code by creating commits, pushing to the remote branch, and creati
 When the user runs `/ship`:
 
 1. **Check git status** - See what files have changed
-2. **Generate a commit message** following this format: `type(scope): description`
+2. **Sync check**: `git fetch origin staging && git log --oneline origin/staging..HEAD`. Must list only this session's commit(s) — a worktree/branch can silently be cut from a stale local `staging`, dragging in unrelated commits. If it shows extra commits, fix before pushing: `git rebase origin/staging`; if that hits conflicts on commits you don't recognize, `git rebase --abort` and instead `git checkout -b tmp origin/staging`, `git cherry-pick <your-sha(s)>`, resolve conflicts, then `git branch -f <branch> HEAD && git checkout <branch>` and `git push --force-with-lease`.
+3. **Generate a commit message** following this format: `type(scope): description`
   - Types: `fix`, `feat`, `improvement`, `chore`
   - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
   - Keep it concise
-3. **Run the cleanup pass** — only if the diff modifies UI code (any `.tsx` file, or anything under `apps/sim/components/`, `apps/sim/hooks/`, or `apps/sim/stores/`): `/cleanup`
+4. **Run the cleanup pass** — only if the diff modifies UI code (any `.tsx` file, or anything under `apps/sim/components/`, `apps/sim/hooks/`, or `apps/sim/stores/`): `/cleanup`
   - The six code-quality skills (effects, memo, callbacks, state, React Query, emcn) only apply to React code, so skip this step entirely when no UI was touched. When it runs, it applies fixes so they land in this commit.
-4. **Run migration safety** — only if the diff touches `packages/db/migrations/**` or `packages/db/schema.ts`:
+5. **Run migration safety** — only if the diff touches `packages/db/migrations/**` or `packages/db/schema.ts`:
   - Run `/db-migrate` to review the migration for zero-downtime safety (expand/contract phasing, backward-compatibility with the deployed app version).
   - `bun run check:migrations origin/staging` must pass (staging is the PR base). Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
-5. **Run pre-ship checks** from the repo root before staging:
+6. **Run pre-ship checks** from the repo root before staging:
   - `bun run lint` to fix formatting issues
   - `bun run check:api-validation:strict` to catch boundary contract failures before CI
-6. **Stage and commit** the changes with the generated message
-7. **Push to origin** using the current branch name
-8. **Create a PR** to staging with a description in the user's voice
+7. **Stage and commit** the changes with the generated message
+8. **Push to origin** using the current branch name
+9. **Create a PR** to staging with a description in the user's voice, then confirm `gh pr view <n> --json commits -q '.commits | length'` matches the commit count from step 2 — otherwise redo the sync fix and force-push
 
 ## Commit Message Format
 
