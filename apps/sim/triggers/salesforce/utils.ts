@@ -153,20 +153,20 @@ export function salesforceSetupInstructions(eventType: string): string {
   const instructions = isGeneric
     ? [
         'Copy the <strong>Webhook URL</strong> above and generate a <strong>Webhook Secret</strong> (any strong random string). Paste the secret in the <strong>Webhook Secret</strong> field here.',
-        'In your Flow’s HTTP Callout, set header <code>Authorization: Bearer &lt;your secret&gt;</code> or <code>X-Sim-Webhook-Secret: &lt;your secret&gt;</code> (same value).',
-        'In Salesforce, go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
+        "In Salesforce, go to <strong>Setup → Named Credentials</strong>. Create an <strong>External Credential</strong> with a custom Authentication Parameter holding your secret, then a <strong>Named Credential</strong> whose URL is the Webhook URL above, with a custom header <code>Authorization</code> set to <code>{!'Bearer ' & $Credential.YourExternalCredential.YourParameter}</code> (or a header named <code>X-Sim-Webhook-Secret</code> with the raw secret). Flow’s HTTP Callout action requires a Named Credential — it cannot call an arbitrary URL directly.",
+        'Go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
         'Select <strong>Record-Triggered Flow</strong> and choose the object(s) you want to monitor.',
-        'Add an <strong>Action</strong> that performs an <strong>HTTP Callout</strong> — method <strong>POST</strong>, <code>Content-Type: application/json</code>, and paste the webhook URL.',
+        'Add an <strong>Action</strong> that performs an <strong>HTTP Callout</strong> using the Named Credential from step 2 — method <strong>POST</strong>, <code>Content-Type: application/json</code>, path <code>/</code> (the base URL already points at your webhook).',
         'Build the request body as <strong>JSON</strong> (not SOAP/XML). Include <code>eventType</code> and record fields (e.g. <code>Id</code>, <code>Name</code>). Outbound Messages use SOAP and will not work with this trigger.',
         'Save and <strong>Activate</strong> the Flow(s).',
-        '<strong>Save this trigger in Sim first</strong> so the URL is registered; Salesforce connectivity checks may arrive before the Flow runs.',
+        '<strong>Save this trigger in Sim first</strong> so the URL is registered before you build the Named Credential and Flow.',
         'Click <strong>"Save"</strong> above to activate your trigger.',
       ]
     : [
-        'Copy the <strong>Webhook URL</strong> above and set a <strong>Webhook Secret</strong>. In the Flow HTTP Callout, send the same value as <code>Authorization: Bearer …</code> or <code>X-Sim-Webhook-Secret: …</code>.',
-        'In Salesforce, go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
+        'Copy the <strong>Webhook URL</strong> above and set a <strong>Webhook Secret</strong>. In Salesforce, create an <strong>External Credential</strong> (holding the secret) and a <strong>Named Credential</strong> whose URL is this Webhook URL, with a custom header sending the same value as <code>Authorization: Bearer …</code> or <code>X-Sim-Webhook-Secret: …</code>. Flow’s HTTP Callout action requires a Named Credential — it cannot call an arbitrary URL directly.',
+        'Go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
         `Select <strong>Record-Triggered Flow</strong> for the right object and <strong>${eventType}</strong> as the entry condition.`,
-        'Add an <strong>HTTP Callout</strong> — <strong>POST</strong>, JSON body, URL = webhook URL.',
+        'Add an <strong>HTTP Callout</strong> using the Named Credential from step 1 — <strong>POST</strong>, JSON body, path <code>/</code>.',
         `Include <code>eventType</code> in the JSON body using a value this trigger accepts (e.g. for Record Created use <code>record_created</code>, <code>created</code>, or <code>after_insert</code>).`,
         'If you use <strong>Object Type (Optional)</strong>, you must also include matching type metadata in the JSON body (for example <code>objectType</code>, <code>sobjectType</code>, or <code>attributes.type</code>) or the event will be rejected.',
         'Save and <strong>Activate</strong> the Flow.',
