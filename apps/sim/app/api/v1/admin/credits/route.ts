@@ -219,7 +219,9 @@ export const POST = withRouteHandler(
         description: `Admin API issued $${Number(amount).toFixed(2)} credits to ${entityType} ${entityId}`,
         metadata: {
           targetUserId: resolvedUserId,
-          ...(entityType === 'organization' ? { targetOrgId: entityId } : {}),
+          ...(entityType === 'organization'
+            ? { targetOrgId: entityId, organizationId: entityId }
+            : {}),
           entityType,
           amount,
           currency: 'usd',

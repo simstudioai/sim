@@ -56,6 +56,7 @@ function recordDisputeInstrumentation(
     metadata: {
       entityType: entity.type,
       entityId: entity.id,
+      ...(entity.type === 'organization' ? { organizationId: entity.id } : {}),
       customerId,
       amount,
       currency: dispute.currency,

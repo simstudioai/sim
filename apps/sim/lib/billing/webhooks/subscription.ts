@@ -286,6 +286,9 @@ export async function handleSubscriptionCreated(
 
         if (wasFreePreviously && isPaidPlan) {
           const actorId = await resolveSubscriptionActorId(subscriptionData.referenceId)
+          const isOrgScoped = await isSubscriptionOrgScoped({
+            referenceId: subscriptionData.referenceId,
+          })
           recordAudit({
             actorId,
             action: AuditAction.SUBSCRIPTION_CREATED,
@@ -296,6 +299,7 @@ export async function handleSubscriptionCreated(
               plan: subscriptionData.plan,
               status: subscriptionData.status,
               referenceId: subscriptionData.referenceId,
+              ...(isOrgScoped ? { organizationId: subscriptionData.referenceId } : {}),
             },
           })
           captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
@@ -386,6 +390,7 @@ export async function handleSubscriptionDeleted(
             metadata: {
               plan: subscription.plan,
               referenceId: subscription.referenceId,
+              organizationId: subscription.referenceId,
               kind: 'enterprise',
             },
           })
@@ -488,7 +493,8 @@ export async function handleSubscriptionDeleted(
         let membersSynced = 0
         let workspacesDetached = 0
 
-        if (await isSubscriptionOrgScoped(subscription)) {
+        const isOrgScoped = await isSubscriptionOrgScoped(subscription)
+        if (isOrgScoped) {
           const dormantResult = await transitionOrganizationToDormantState(
             subscription.referenceId,
             subscription.id
@@ -522,6 +528,7 @@ export async function handleSubscriptionDeleted(
             plan: subscription.plan,
             referenceId: subscription.referenceId,
             totalOverage,
+            ...(isOrgScoped ? { organizationId: subscription.referenceId } : {}),
           },
         })
         captureServerEvent(subscription.referenceId, 'subscription_cancelled', {

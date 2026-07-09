@@ -653,7 +653,7 @@ export async function deleteTable(
   const result = await db
     .update(userTableDefinitions)
     .set({ archivedAt: now, updatedAt: now })
-    .where(eq(userTableDefinitions.id, tableId))
+    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt)))
     .returning({
       createdBy: userTableDefinitions.createdBy,
       workspaceId: userTableDefinitions.workspaceId,

@@ -750,6 +750,7 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
       metadata: {
         entityType,
         entityId,
+        ...(entityType === 'organization' ? { organizationId: entityId } : {}),
         amount,
         currency: 'usd',
         purchasedBy: purchasedBy ?? null,
@@ -928,6 +929,7 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
           metadata: {
             entityType,
             referenceId: sub.referenceId,
+            ...(entityType === 'organization' ? { organizationId: sub.referenceId } : {}),
             plan: sub.plan,
             amount: amountPaid,
             currency: invoice.currency ?? 'usd',
@@ -1009,6 +1011,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
             metadata: {
               entityType: failureEntityType,
               referenceId: sub.referenceId,
+              ...(failureEntityType === 'organization' ? { organizationId: sub.referenceId } : {}),
               plan: sub.plan,
               amount: failedAmount,
               currency: invoice.currency ?? 'usd',

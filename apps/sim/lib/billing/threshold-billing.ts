@@ -612,6 +612,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         metadata: {
           entityType: 'organization',
           referenceId: organizationId,
+          organizationId,
           plan: orgSubscription.plan,
           amount,
           currency: 'usd',
