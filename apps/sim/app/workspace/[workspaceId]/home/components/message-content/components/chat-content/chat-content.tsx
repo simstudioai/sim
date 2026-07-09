@@ -99,7 +99,8 @@ function endsInlineWord(value: string): boolean {
 
 function nextInlineSegmentLabel(segment?: ContentSegment): string {
   if (!segment) return ''
-  if (segment.type === 'text' || segment.type === 'thinking') return segment.content
+  // Thinking segments are never rendered, so they contribute no following text.
+  if (segment.type === 'text') return segment.content
   if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id || ''
   return ''
 }
@@ -471,7 +472,11 @@ function ChatContentInner({
         `[${label}](<#wsres-${s.data.type}-${ref}>)`,
         nextSegment
       )
-    } else if (s.type === 'text' || s.type === 'thinking') {
+    } else if (s.type === 'thinking') {
+      // Model-emitted <thinking> tag bodies are reasoning, not answer text —
+      // never rendered (matches the block-level thinking omission in
+      // message-content and the tag stripping in the inbox executor).
+    } else if (s.type === 'text') {
       pendingMarkdown += s.content
     } else {
       flushMarkdown()

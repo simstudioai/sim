@@ -244,7 +244,14 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    if (block.type === 'subagent_text' || block.type === 'subagent_thinking') {
+    // Thinking is never rendered — a display-only omission; the reasoning is
+    // still reduced and persisted upstream. This covers subagent lanes too:
+    // reasoning-summary models (OpenAI effort-style) stream a summary on every
+    // tool round, which would otherwise fill the agent card with reasoning
+    // prose. The lane keeps its delegating spinner until real output arrives.
+    if (block.type === 'thinking' || block.type === 'subagent_thinking') continue
+
+    if (block.type === 'subagent_text') {
       if (!block.content || !block.spanId) continue
       let g = groupsBySpanId.get(block.spanId)
       // Out-of-order safety: content can arrive before its subagent-start block
@@ -258,10 +265,6 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       appendTextItem(g, block.content)
       continue
     }
-
-    // Main-agent thinking is intentionally not rendered. The reasoning is still
-    // reduced and persisted upstream — this is a display-only omission.
-    if (block.type === 'thinking') continue
 
     if (block.type === 'text') {
       if (!block.content) continue
@@ -299,8 +302,8 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // Show the working/delegating spinner from span open until the agent
       // emits its first content or tool (or ends). The legacy path derived this
       // from the dispatch tool_call, which the span path absorbs, so we set it
-      // here. It is cleared in the subagent_text/subagent_thinking, scoped text,
-      // tool_call, and subagent_end branches.
+      // here. It is cleared in the subagent_text, scoped text, tool_call, and
+      // subagent_end branches (thinking is skipped, so it keeps the spinner).
       g.isDelegating = true
       g.isOpen = true
       continue
@@ -466,7 +469,12 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    if (block.type === 'subagent_text' || block.type === 'subagent_thinking') {
+    // Subagent thinking is never rendered (same display-only omission as the
+    // span-tree parser): reasoning-summary models stream a summary every tool
+    // round and would flood the lane with reasoning prose.
+    if (block.type === 'subagent_thinking') continue
+
+    if (block.type === 'subagent_text') {
       if (!block.content) continue
       const g = findGroupForSubagentChunk(block.parentToolCallId)
       if (!g) continue

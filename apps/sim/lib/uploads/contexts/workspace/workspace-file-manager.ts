@@ -82,6 +82,8 @@ interface ListWorkspaceFilesOptions {
   folders?: WorkspaceFileFolderRecord[]
   hydrateFolderPaths?: boolean
   includeReservedSystemFiles?: boolean
+  /** Propagate storage errors when an incomplete list would be unsafe. */
+  throwOnError?: boolean
 }
 
 /**
@@ -697,6 +699,7 @@ export async function listWorkspaceFiles(
       })
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
+    if (options?.throwOnError) throw error
     return []
   }
 }
@@ -928,16 +931,26 @@ export async function updateWorkspaceFileContent(
       metadata,
     })
 
-    await db
+    const updatedRows = await db
       .update(workspaceFiles)
       .set({ size: content.length, contentType: nextContentType, updatedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
           eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.context, 'workspace')
+          eq(workspaceFiles.context, 'workspace'),
+          // Deletes are soft (deletedAt); without this filter a concurrently
+          // deleted row still matches and the update reports success against a
+          // file the user can no longer see.
+          isNull(workspaceFiles.deletedAt)
         )
       )
+      .returning({ id: workspaceFiles.id })
+    if (updatedRows.length !== 1) {
+      throw new Error(
+        `File record update matched ${updatedRows.length} rows for ${fileId} — the file may have been deleted concurrently`
+      )
+    }
 
     if (sizeDiff !== 0) {
       try {

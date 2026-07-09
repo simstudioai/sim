@@ -452,6 +452,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: deleted.length > 0,
             message: `Deleted ${deleted.length} table(s)${failed.length > 0 ? `, ${failed.length} not found` : ''}`,
+            data: { deleted, failed },
           }
         }
 

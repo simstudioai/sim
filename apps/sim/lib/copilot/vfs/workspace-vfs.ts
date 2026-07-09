@@ -1576,11 +1576,11 @@ export class WorkspaceVFS {
         rowCount: t.rowCount,
       }))
     } catch (err) {
-      logger.warn('Failed to materialize tables', {
+      logger.error('Failed to materialize tables; refusing to serve an incomplete VFS', {
         workspaceId,
         error: toError(err).message,
       })
-      return []
+      throw err
     }
   }
 
@@ -1597,6 +1597,7 @@ export class WorkspaceVFS {
       const files = await listWorkspaceFiles(workspaceId, {
         folders,
         includeReservedSystemFiles: true,
+        throwOnError: true,
       })
       for (const folder of folders) {
         if (
@@ -1627,6 +1628,7 @@ export class WorkspaceVFS {
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
+            updatedAt: file.updatedAt,
           })
         )
       }
@@ -1712,11 +1714,11 @@ export class WorkspaceVFS {
           folderPath: f.folderPath ?? null,
         }))
     } catch (err) {
-      logger.warn('Failed to materialize files', {
+      logger.error('Failed to materialize files; refusing to serve an incomplete VFS', {
         workspaceId,
         error: toError(err).message,
       })
-      return []
+      throw err
     }
   }
 
@@ -1774,6 +1776,11 @@ export class WorkspaceVFS {
                 eq(workflowDeploymentVersion.isActive, true)
               )
             )
+            // Match checkNeedsRedeployment/loadDeployedWorkflowState. Historical
+            // workflows can contain more than one active row, so an unordered
+            // limit may compare the draft with an older deployment while the UI
+            // correctly compares against the newest active deployment.
+            .orderBy(desc(workflowDeploymentVersion.createdAt))
             .limit(1)
         : Promise.resolve([]),
       db
@@ -2315,6 +2322,7 @@ export class WorkspaceVFS {
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
+            updatedAt: file.updatedAt,
           })
         )
       }
