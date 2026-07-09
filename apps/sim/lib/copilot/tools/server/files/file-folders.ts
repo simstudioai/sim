@@ -437,7 +437,7 @@ export const deleteFileFolderServerTool: BaseServerTool<DeleteFileFolderArgs, Fi
       return {
         success: result.deletedItems.folders > 0 || result.deletedItems.files > 0,
         message: `Deleted ${result.deletedItems.folders} file folder${result.deletedItems.folders === 1 ? '' : 's'} and ${result.deletedItems.files} file${result.deletedItems.files === 1 ? '' : 's'}`,
-        data: result.deletedItems,
+        data: { ...result.deletedItems, deletedFolderIds: folderIds },
       }
     } catch (error) {
       return { success: false, message: toError(error).message }
