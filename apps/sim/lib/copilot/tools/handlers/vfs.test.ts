@@ -9,19 +9,24 @@ const { getOrMaterializeVFS } = vi.hoisted(() => ({
   getOrMaterializeVFS: vi.fn(),
 }))
 
-const { readChatUpload, listChatUploads, grepChatUpload } = vi.hoisted(() => ({
-  readChatUpload: vi.fn(),
-  listChatUploads: vi.fn(),
-  grepChatUpload: vi.fn(),
-}))
+const { readChatUploadPath, listChatUploads, grepChatUploadPath, listChatUploadArchiveEntries } =
+  vi.hoisted(() => ({
+    readChatUploadPath: vi.fn(),
+    listChatUploads: vi.fn(),
+    grepChatUploadPath: vi.fn(),
+    // Defaults to null (not an archive) so archive glob expansion is a no-op
+    // unless a test opts in.
+    listChatUploadArchiveEntries: vi.fn().mockResolvedValue(null),
+  }))
 
 vi.mock('@/lib/copilot/vfs', () => ({
   getOrMaterializeVFS,
 }))
 vi.mock('./upload-file-reader', () => ({
-  readChatUpload,
+  readChatUploadPath,
   listChatUploads,
-  grepChatUpload,
+  grepChatUploadPath,
+  listChatUploadArchiveEntries,
 }))
 
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
@@ -305,7 +310,7 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
 
     await executeVfsGrep({ pattern: 'secret' }, GREP_CTX_CHAT)
 
-    expect(grepChatUpload).not.toHaveBeenCalled()
+    expect(grepChatUploadPath).not.toHaveBeenCalled()
     expect(vfs.grep).toHaveBeenCalledWith('secret', undefined, expect.any(Object))
   })
 
@@ -316,11 +321,11 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
 
     await executeVfsGrep({ pattern: 'secret', path: 'files/report.csv' }, GREP_CTX_CHAT)
 
-    expect(grepChatUpload).not.toHaveBeenCalled()
+    expect(grepChatUploadPath).not.toHaveBeenCalled()
   })
 
-  it('routes an explicit uploads/<file> path to grepChatUpload', async () => {
-    grepChatUpload.mockResolvedValue([{ path: 'uploads/report.json', line: 1, content: 'hit' }])
+  it('routes an explicit uploads/<file> path to grepChatUploadPath', async () => {
+    grepChatUploadPath.mockResolvedValue([{ path: 'uploads/report.json', line: 1, content: 'hit' }])
 
     const result = await executeVfsGrep(
       { pattern: 'hit', path: 'uploads/report.json' },
@@ -328,8 +333,9 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(grepChatUpload).toHaveBeenCalledWith(
+    expect(grepChatUploadPath).toHaveBeenCalledWith(
       'report.json',
+      '',
       'chat-1',
       'hit',
       expect.objectContaining({ maxResults: 50 })
@@ -342,7 +348,7 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('single upload')
-    expect(grepChatUpload).not.toHaveBeenCalled()
+    expect(grepChatUploadPath).not.toHaveBeenCalled()
   })
 
   it('errors when grepping uploads without chat context', async () => {
@@ -350,11 +356,11 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('No chat context')
-    expect(grepChatUpload).not.toHaveBeenCalled()
+    expect(grepChatUploadPath).not.toHaveBeenCalled()
   })
 
   it('surfaces an upload-not-found grep error verbatim', async () => {
-    grepChatUpload.mockRejectedValue(
+    grepChatUploadPath.mockRejectedValue(
       new WorkspaceFileGrepError(
         'Upload not found: "ghost.json". Use glob("uploads/*") to list available uploads.'
       )
@@ -382,26 +388,134 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
     expect((broad.output as { files: string[] }).files).not.toContain('uploads/My%20Report.json')
   })
 
-  it('reads an upload directly, tolerating a spurious /content suffix', async () => {
+  it('reads an upload directly, passing the first segment and any trailing suffix', async () => {
     const vfs = makeVfs()
     getOrMaterializeVFS.mockResolvedValue(vfs)
-    readChatUpload.mockResolvedValue({ content: 'hello upload', totalLines: 1 })
+    readChatUploadPath.mockResolvedValue({ content: 'hello upload', totalLines: 1 })
 
     const bare = await executeVfsRead({ path: 'uploads/report.csv' }, GREP_CTX_CHAT)
     expect(bare.success).toBe(true)
-    expect(readChatUpload).toHaveBeenLastCalledWith('report.csv', 'chat-1')
+    expect(readChatUploadPath).toHaveBeenLastCalledWith('report.csv', '', 'chat-1')
 
-    // The model adds /content out of habit (from files/) — it must still resolve.
+    // The model adds /content out of habit (from files/); the trailing segment is
+    // forwarded and ignored by readChatUploadPath for a non-archive upload.
     const withContent = await executeVfsRead({ path: 'uploads/report.csv/content' }, GREP_CTX_CHAT)
     expect(withContent.success).toBe(true)
-    expect(readChatUpload).toHaveBeenLastCalledWith('report.csv', 'chat-1')
+    expect(readChatUploadPath).toHaveBeenLastCalledWith('report.csv', 'content', 'chat-1')
   })
 
-  it('tolerates a trailing /content on an uploads grep path', async () => {
-    grepChatUpload.mockResolvedValue([])
+  it('forwards a trailing segment on an uploads grep path', async () => {
+    grepChatUploadPath.mockResolvedValue([])
 
     await executeVfsGrep({ pattern: 'x', path: 'uploads/report.json/content' }, GREP_CTX_CHAT)
 
-    expect(grepChatUpload).toHaveBeenCalledWith('report.json', 'chat-1', 'x', expect.any(Object))
+    expect(grepChatUploadPath).toHaveBeenCalledWith(
+      'report.json',
+      'content',
+      'chat-1',
+      'x',
+      expect.any(Object)
+    )
+  })
+})
+
+describe('vfs archive uploads (virtual folders)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const ARCHIVE_ENTRIES = [
+    { path: 'report.pdf', vfsPath: 'uploads/bundle.zip/report.pdf' },
+    { path: 'data/sheet.csv', vfsPath: 'uploads/bundle.zip/data/sheet.csv' },
+  ]
+
+  it('expands a recursive archive glob (/**) into all entry paths', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    listChatUploads.mockResolvedValue([{ name: 'bundle.zip' }])
+    listChatUploadArchiveEntries.mockResolvedValue(ARCHIVE_ENTRIES)
+
+    const result = await executeVfsGlob({ pattern: 'uploads/bundle.zip/**' }, GREP_CTX_CHAT)
+
+    expect(listChatUploadArchiveEntries).toHaveBeenCalledWith('bundle.zip', 'chat-1')
+    expect((result.output as { files: string[] }).files).toEqual(
+      expect.arrayContaining([
+        'uploads/bundle.zip',
+        'uploads/bundle.zip/report.pdf',
+        'uploads/bundle.zip/data/sheet.csv',
+      ])
+    )
+  })
+
+  it('honors glob depth — /* is top-level only, /data/* scopes to data', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    listChatUploads.mockResolvedValue([{ name: 'bundle.zip' }])
+    listChatUploadArchiveEntries.mockResolvedValue(ARCHIVE_ENTRIES)
+
+    const topLevel = await executeVfsGlob({ pattern: 'uploads/bundle.zip/*' }, GREP_CTX_CHAT)
+    const topFiles = (topLevel.output as { files: string[] }).files
+    expect(topFiles).toContain('uploads/bundle.zip/report.pdf')
+    expect(topFiles).not.toContain('uploads/bundle.zip/data/sheet.csv')
+
+    const scoped = await executeVfsGlob({ pattern: 'uploads/bundle.zip/data/*' }, GREP_CTX_CHAT)
+    const scopedFiles = (scoped.output as { files: string[] }).files
+    expect(scopedFiles).toContain('uploads/bundle.zip/data/sheet.csv')
+    expect(scopedFiles).not.toContain('uploads/bundle.zip/report.pdf')
+  })
+
+  it('does not expand archives for the broad uploads/* glob', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    listChatUploads.mockResolvedValue([{ name: 'bundle.zip' }])
+
+    await executeVfsGlob({ pattern: 'uploads/*' }, GREP_CTX_CHAT)
+
+    expect(listChatUploadArchiveEntries).not.toHaveBeenCalled()
+  })
+
+  it('forwards a nested archive entry read to readChatUploadPath', async () => {
+    readChatUploadPath.mockResolvedValue({ content: 'a,b\n1,2', totalLines: 2 })
+
+    const result = await executeVfsRead(
+      { path: 'uploads/bundle.zip/data/sheet.csv' },
+      GREP_CTX_CHAT
+    )
+
+    expect(result.success).toBe(true)
+    expect(readChatUploadPath).toHaveBeenCalledWith('bundle.zip', 'data/sheet.csv', 'chat-1')
+  })
+
+  it('forwards a bare archive read to readChatUploadPath with no entry', async () => {
+    readChatUploadPath.mockResolvedValue({
+      content: 'Archive "bundle.zip" — 2 files:\nreport.pdf\ndata/sheet.csv',
+      totalLines: 3,
+    })
+
+    const result = await executeVfsRead({ path: 'uploads/bundle.zip' }, GREP_CTX_CHAT)
+
+    expect(result.success).toBe(true)
+    expect(readChatUploadPath).toHaveBeenCalledWith('bundle.zip', '', 'chat-1')
+    expect((result.output as { content: string }).content).toContain('Archive "bundle.zip"')
+  })
+
+  it('forwards a nested archive entry grep to grepChatUploadPath', async () => {
+    grepChatUploadPath.mockResolvedValue([
+      { path: 'uploads/bundle.zip/notes.txt', line: 1, content: 'hit' },
+    ])
+
+    const result = await executeVfsGrep(
+      { pattern: 'hit', path: 'uploads/bundle.zip/notes.txt' },
+      GREP_CTX_CHAT
+    )
+
+    expect(result.success).toBe(true)
+    expect(grepChatUploadPath).toHaveBeenCalledWith(
+      'bundle.zip',
+      'notes.txt',
+      'chat-1',
+      'hit',
+      expect.any(Object)
+    )
   })
 })

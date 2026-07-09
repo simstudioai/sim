@@ -2,24 +2,46 @@
  * @vitest-environment node
  */
 
+import { Buffer } from 'buffer'
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
 
-const { mockReadFileRecord } = vi.hoisted(() => ({
-  mockReadFileRecord: vi.fn(),
-}))
+const { mockReadFileRecord, mockRenderFileBuffer, mockFetchWorkspaceFileBuffer } = vi.hoisted(
+  () => ({
+    mockReadFileRecord: vi.fn(),
+    // Echo the entry bytes back as text so a successful resolve is observable.
+    mockRenderFileBuffer: vi.fn(async (buffer: Buffer) => ({
+      content: buffer.toString('utf-8'),
+      totalLines: 1,
+    })),
+    mockFetchWorkspaceFileBuffer: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/copilot/vfs/file-reader', () => ({
   readFileRecord: mockReadFileRecord,
+  renderFileBuffer: mockRenderFileBuffer,
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
 }))
 
 import {
   findMothershipUploadRowByChatAndName,
+  grepChatUploadPath,
+  listChatUploadArchiveEntries,
   listChatUploads,
-  readChatUpload,
+  readChatUploadPath,
 } from './upload-file-reader'
+
+async function buildZip(files: Record<string, string>): Promise<Buffer> {
+  const zip = new JSZip()
+  for (const [name, content] of Object.entries(files)) zip.file(name, content)
+  return Buffer.from(await zip.generateAsync({ type: 'uint8array' }))
+}
 
 const CHAT_ID = '11111111-1111-1111-1111-111111111111'
 const NOW = new Date('2026-05-05T00:00:00.000Z')
@@ -117,6 +139,22 @@ describe('findMothershipUploadRowByChatAndName', () => {
 
     expect(result?.id).toBe('wf_3')
   })
+
+  it('resolves a literal-% name via its encoded glob form', async () => {
+    // Stored name has a literal `%`; glob/upload-context expose it double-encoded
+    // (`test%252A.zip`). The encoded-form fallback recovers the row.
+    const row = makeRow({
+      id: 'wf_pct',
+      displayName: 'test%2A.zip',
+      contentType: 'application/zip',
+    })
+    mockOrderByThenLimit([])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([row] as never)
+
+    const result = await findMothershipUploadRowByChatAndName(CHAT_ID, 'test%252A.zip')
+
+    expect(result?.id).toBe('wf_pct')
+  })
 })
 
 describe('listChatUploads', () => {
@@ -147,7 +185,7 @@ describe('listChatUploads', () => {
   })
 })
 
-describe('readChatUpload', () => {
+describe('readChatUploadPath (plain upload)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -159,7 +197,7 @@ describe('readChatUpload', () => {
     mockOrderByThenLimit([row])
     mockReadFileRecord.mockResolvedValueOnce({ content: 'PNGDATA', totalLines: 1 })
 
-    const result = await readChatUpload('image (2).png', CHAT_ID)
+    const result = await readChatUploadPath('image (2).png', '', CHAT_ID)
 
     expect(result).toEqual({ content: 'PNGDATA', totalLines: 1 })
     expect(mockReadFileRecord).toHaveBeenCalledWith(
@@ -167,13 +205,148 @@ describe('readChatUpload', () => {
     )
   })
 
+  it('ignores a trailing habit suffix on a non-archive upload', async () => {
+    const row = makeRow({ id: 'wf_3', displayName: 'report.csv', contentType: 'text/csv' })
+    mockOrderByThenLimit([row])
+    mockReadFileRecord.mockResolvedValueOnce({ content: 'a,b', totalLines: 1 })
+
+    const result = await readChatUploadPath('report.csv', 'content', CHAT_ID)
+
+    expect(result).toEqual({ content: 'a,b', totalLines: 1 })
+    expect(mockReadFileRecord).toHaveBeenCalledWith(expect.objectContaining({ name: 'report.csv' }))
+  })
+
   it('returns null when no row matches', async () => {
     mockOrderByThenLimit([])
     dbChainMockFns.orderBy.mockResolvedValueOnce([] as never)
 
-    const result = await readChatUpload('nope.png', CHAT_ID)
+    const result = await readChatUploadPath('nope.png', '', CHAT_ID)
 
     expect(result).toBeNull()
     expect(mockReadFileRecord).not.toHaveBeenCalled()
+  })
+})
+
+describe('readChatUploadPath / listChatUploadArchiveEntries (archive)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('lists archive entries as encoded VFS paths', async () => {
+    const buffer = await buildZip({ 'report.pdf': 'x', 'data/sheet.csv': 'a,b' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const entries = await listChatUploadArchiveEntries('bundle.zip', CHAT_ID)
+
+    expect(entries?.map((e) => e.vfsPath).sort()).toEqual([
+      'uploads/bundle.zip/data/sheet.csv',
+      'uploads/bundle.zip/report.pdf',
+    ])
+  })
+
+  it('de-duplicates entries that collapse to one VFS key (NFC/NFD, ./ prefix)', async () => {
+    // "café.txt" stored twice (NFC precomposed + NFD decomposed) plus a
+    // ./-prefixed duplicate of a/b.txt — all collapse to the same VFS path, so
+    // only one of each must be listed (otherwise the second is unreachable).
+    const nfc = `caf\u00e9.txt` // precomposed e-acute
+    const nfd = `cafe\u0301.txt` // e + combining acute
+    expect(nfc).not.toBe(nfd)
+    const buffer = await buildZip({
+      [nfc]: 'nfc',
+      [nfd]: 'nfd',
+      'a/b.txt': 'first',
+      './a/b.txt': 'dup',
+    })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const entries = await listChatUploadArchiveEntries('bundle.zip', CHAT_ID)
+    const vfsPaths = entries?.map((e) => e.vfsPath) ?? []
+
+    expect(vfsPaths.filter((p) => p === 'uploads/bundle.zip/caf%C3%A9.txt')).toHaveLength(1)
+    expect(vfsPaths.filter((p) => p === 'uploads/bundle.zip/a/b.txt')).toHaveLength(1)
+  })
+
+  it('reads a nested entry by its exact path', async () => {
+    const buffer = await buildZip({ 'data/sheet.csv': 'a,b\n1,2' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const result = await readChatUploadPath('bundle.zip', 'data/sheet.csv', CHAT_ID)
+
+    expect(result?.content).toBe('a,b\n1,2')
+  })
+
+  it('resolves a unicode (NFD) entry addressed by its NFC-encoded glob path', async () => {
+    // macOS-authored zip: entry name stored decomposed (e + combining acute).
+    const nfdName = `cafe\u0301.txt` // NFD: e + combining acute
+    const buffer = await buildZip({ [nfdName]: 'latte' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    // The agent reads back the encoded path glob produced (NFC, percent-encoded).
+    const result = await readChatUploadPath('bundle.zip', 'caf%C3%A9.txt', CHAT_ID)
+
+    expect(result?.content).toBe('latte')
+  })
+
+  it('falls back to the manifest (with a note) when the entry is not found', async () => {
+    const buffer = await buildZip({ 'present.txt': 'x' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    // Covers the /content habit suffix and plain typos uniformly.
+    const result = await readChatUploadPath('bundle.zip', 'content', CHAT_ID)
+
+    expect(result?.content).toContain('Entry "content" not found in "bundle.zip"')
+    expect(result?.content).toContain('present.txt')
+  })
+
+  it('surfaces an archive error on a nested read instead of null', async () => {
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(Buffer.from('not a zip at all'))
+
+    const result = await readChatUploadPath('bundle.zip', 'entry.txt', CHAT_ID)
+
+    expect(result?.content).toContain('Not a valid .zip archive')
+  })
+
+  it('rejects an oversized archive WITHOUT downloading it', async () => {
+    mockOrderByThenLimit([
+      makeRow({
+        displayName: 'huge.zip',
+        contentType: 'application/zip',
+        size: 200 * 1024 * 1024, // 200MB > 100MB cap
+      }),
+    ])
+
+    const result = await readChatUploadPath('huge.zip', 'anything.txt', CHAT_ID)
+
+    expect(result?.content).toContain('[Archive too large to read: huge.zip')
+    expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+  })
+
+  it('returns the file-tree manifest for a bare archive read', async () => {
+    const buffer = await buildZip({ 'report.pdf': 'x', 'data/sheet.csv': 'a,b' })
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+    mockFetchWorkspaceFileBuffer.mockResolvedValueOnce(buffer)
+
+    const result = await readChatUploadPath('bundle.zip', '', CHAT_ID)
+
+    expect(result?.content).toContain('Archive "bundle.zip" — 2 files')
+    expect(result?.content).toContain('report.pdf')
+    expect(result?.content).toContain('data/sheet.csv')
+  })
+
+  it('refuses to grep a bare archive, guiding the agent to an entry', async () => {
+    mockOrderByThenLimit([makeRow({ displayName: 'bundle.zip', contentType: 'application/zip' })])
+
+    await expect(grepChatUploadPath('bundle.zip', '', CHAT_ID, 'pattern')).rejects.toThrow(
+      /Cannot grep an archive directly/
+    )
+    // The archive bytes are never downloaded or grepped as a binary blob.
+    expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
   })
 })

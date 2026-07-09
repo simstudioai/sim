@@ -95,6 +95,16 @@ const VFS_GLOB_OPTIONS: micromatch.Options = {
 }
 
 /**
+ * True when `filePath` matches the glob `pattern` under {@link VFS_GLOB_OPTIONS}
+ * (path-aware `*`/`?`, `**`, no brace/extglob). Exported so callers that build
+ * their own path list (e.g. virtual archive entries) filter it exactly the way
+ * {@link glob} filters the VFS map.
+ */
+export function matchesVfsGlob(filePath: string, pattern: string): boolean {
+  return micromatch.isMatch(filePath, pattern, VFS_GLOB_OPTIONS)
+}
+
+/**
  * Splits VFS text into lines for line-oriented grep. Strips a trailing CR so Windows-style
  * CRLF payloads still match patterns anchored at line end (`$`).
  */

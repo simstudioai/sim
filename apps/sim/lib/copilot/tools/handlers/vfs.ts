@@ -4,9 +4,14 @@ import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
-import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import { matchesVfsGlob, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
-import { grepChatUpload, listChatUploads, readChatUpload } from './upload-file-reader'
+import {
+  grepChatUploadPath,
+  listChatUploadArchiveEntries,
+  listChatUploads,
+  readChatUploadPath,
+} from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
 
@@ -38,6 +43,21 @@ function isWorkspaceFileGrepPath(path: string | undefined): path is string {
 function isChatUploadGrepPath(path: string | undefined): path is string {
   if (!path) return false
   return /^uploads(\/|$)/.test(path.replace(/^\/+/, ''))
+}
+
+/**
+ * Extract the concrete archive segment a glob reaches into, e.g. `archive.zip`
+ * from `uploads/archive.zip/*`. Returns null for the broad `uploads/*` listing
+ * or when the first segment is itself a glob, so archives stay single leaves
+ * until the model globs inside one specifically.
+ */
+function parseArchiveGlobSegment(pattern: string): string | null {
+  const rest = pattern.replace(/^\/+/, '').replace(/^uploads\//, '')
+  const firstSlash = rest.indexOf('/')
+  if (firstSlash === -1) return null
+  const segment = rest.slice(0, firstSlash)
+  if (!segment || /[*?[\]{}]/.test(segment)) return null
+  return segment
 }
 
 function serializedResultSize(value: unknown): number {
@@ -104,20 +124,29 @@ export async function executeVfsGrep(
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
-      // The upload is the first segment after uploads/; any trailing segment
-      // (e.g. a /content suffix) is ignored, mirroring the uploads read path.
-      const filename = rawPath
+      // The upload is the first segment after uploads/. A further segment is
+      // either an archive entry (uploads/<zip>/<entry>) or a habit suffix
+      // (e.g. a /content suffix), both handled by grepChatUploadPath.
+      const uploadSegments = rawPath
         .replace(/^\/+/, '')
         .replace(/^uploads\/?/, '')
-        .split('/')[0]
-      if (!filename) {
+        .split('/')
+      const firstSegment = uploadSegments[0]
+      const entryPath = uploadSegments.slice(1).join('/')
+      if (!firstSegment) {
         return {
           success: false,
           error:
             'Grep over chat uploads must target a single upload (e.g. path: "uploads/report.json"). Use glob("uploads/*") to list uploads.',
         }
       }
-      result = await grepChatUpload(filename, context.chatId, pattern, grepOptions)
+      result = await grepChatUploadPath(
+        firstSegment,
+        entryPath,
+        context.chatId,
+        pattern,
+        grepOptions
+      )
     } else {
       const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
       result = isWorkspaceFileGrepPath(rawPath)
@@ -185,6 +214,21 @@ export async function executeVfsGlob(
       // upload resolver accepts both the encoded path and the raw display name.
       const uploadPaths = uploads.map((f) => `uploads/${encodeUploadSegment(f.name)}`)
       files = [...files, ...uploadPaths]
+
+      // Expand a specific archive's entries when the glob reaches inside it
+      // (uploads/<zip>/*). Broad uploads/* keeps archives as single leaves. Entry
+      // paths are filtered through the same matcher as the VFS map, so the glob's
+      // depth (`/*` vs `/**` vs `/data/*`) is honored rather than dumping all.
+      const archiveSegment = parseArchiveGlobSegment(pattern)
+      if (archiveSegment) {
+        const entries = await listChatUploadArchiveEntries(archiveSegment, context.chatId)
+        if (entries) {
+          const matched = entries
+            .map((entry) => entry.vfsPath)
+            .filter((vfsPath) => matchesVfsGlob(vfsPath, pattern))
+          files = [...files, ...matched]
+        }
+      }
     }
 
     logger.debug('vfs_glob result', { pattern, fileCount: files.length })
@@ -243,8 +287,13 @@ export async function executeVfsRead(
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
-      const filename = path.slice('uploads/'.length).split('/')[0]
-      const uploadResult = await readChatUpload(filename, context.chatId)
+      // The upload is the first segment after uploads/. A further segment is
+      // either an archive entry (uploads/<zip>/<entry>) or a habit suffix
+      // (e.g. a /content suffix), both handled by readChatUploadPath.
+      const uploadSegments = path.slice('uploads/'.length).split('/')
+      const firstSegment = uploadSegments[0]
+      const entryPath = uploadSegments.slice(1).join('/')
+      const uploadResult = await readChatUploadPath(firstSegment, entryPath, context.chatId)
       if (uploadResult) {
         const isAttachment = hasModelAttachment(uploadResult)
         if (
