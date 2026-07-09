@@ -53,7 +53,6 @@ export function ContentPostPage({
                 sizes='(max-width: 768px) 100vw, 450px'
                 priority
                 itemProp='image'
-                unoptimized
               />
             </div>
           </div>
@@ -142,7 +141,6 @@ export function ContentPostPage({
                         sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
                         className='object-cover'
                         loading='lazy'
-                        unoptimized
                       />
                     </div>
                     <div className='flex flex-col gap-2'>
