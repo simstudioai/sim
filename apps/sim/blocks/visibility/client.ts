@@ -21,17 +21,24 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
   return true
 }
 
+function isEmptyState(vis: BlockVisibilityState): boolean {
+  return vis.revealed.size === 0 && vis.disabled.size === 0 && vis.previewTagged.size === 0
+}
+
 /**
  * Replace the in-scope visibility state, reset registered module caches, and
  * bump the shared block-overlay version so every subscribed consumer re-reads
  * `getAllBlocks()`.
  *
- * No-ops when the incoming state is deep-equal to the current one — React
- * Query refetches deliver fresh-but-identical objects on every poll, and
- * without this guard each poll would thundering-rebuild the toolbar, search,
- * and matcher caches for nothing.
+ * No-ops when the change cannot alter the projection: an incoming state
+ * deep-equal to the current one (React Query refetches deliver
+ * fresh-but-identical objects on every poll — without this guard each poll
+ * would thundering-rebuild the toolbar, search, and matcher caches), or an
+ * empty state while none is set (`null` and empty are equivalent for
+ * `isHiddenUnder`, so the fail-closed reset on first mount is free).
  */
 export function hydrateBlockVisibility(next: BlockVisibilityState): void {
+  if (state === null && isEmptyState(next)) return
   if (
     state &&
     setsEqual(state.revealed, next.revealed) &&

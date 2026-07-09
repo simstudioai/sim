@@ -25,6 +25,19 @@ function state(revealed: string[], disabled: string[] = []): BlockVisibilityStat
 describe('hydrateBlockVisibility', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  // Must run FIRST: module state starts null and persists across tests.
+  it('treats an empty state while none is set as a no-op (null ≡ empty)', () => {
+    const invalidator = vi.fn()
+    const unregister = registerBlockCacheInvalidator(invalidator)
+
+    hydrateBlockVisibility(state([]))
+    expect(overlayVisibility()).toBeNull()
+    expect(invalidator).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
+
+    unregister()
+  })
+
   it('applies state, fires invalidators, and bumps the overlay version', () => {
     const invalidator = vi.fn()
     const unregister = registerBlockCacheInvalidator(invalidator)
@@ -33,6 +46,24 @@ describe('hydrateBlockVisibility', () => {
     expect(overlayVisibility()?.revealed.has('gmail_v2')).toBe(true)
     expect(invalidator).toHaveBeenCalledTimes(1)
     expect(mockNotify).toHaveBeenCalledTimes(1)
+
+    unregister()
+  })
+
+  it('resets to a fail-closed empty state on workspace switch', () => {
+    const invalidator = vi.fn()
+    const unregister = registerBlockCacheInvalidator(invalidator)
+
+    // Reveal in workspace A, then switch (loader hydrates empty while loading).
+    // (notion_v3: distinct from prior tests' state — module state persists.)
+    hydrateBlockVisibility(state(['notion_v3']))
+    hydrateBlockVisibility(state([]))
+    expect(overlayVisibility()?.revealed.size).toBe(0)
+    expect(invalidator).toHaveBeenCalledTimes(2)
+
+    // Repeated empties are no-ops (empty deep-equals empty).
+    hydrateBlockVisibility(state([]))
+    expect(invalidator).toHaveBeenCalledTimes(2)
 
     unregister()
   })
