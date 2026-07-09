@@ -59,18 +59,37 @@ export class UnsafeJupyterPathError extends Error {
 }
 
 /**
+ * Whether a path segment is `.`/`..`, checked both literally and after
+ * percent-decoding — a caller could submit an already-encoded `%2e%2e` to try
+ * to slip a traversal segment past a literal-only check.
+ */
+function isTraversalSegment(segment: string): boolean {
+  if (segment === '.' || segment === '..') return true
+
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(segment)
+  } catch {
+    return false
+  }
+
+  return decoded === '.' || decoded === '..'
+}
+
+/**
  * Rejects `.` and `..` segments in a Jupyter contents path, which could
  * otherwise traverse outside the intended directory on the target server.
  * Shared by every helper that sends a path to Jupyter, whether in a URL or a
  * request body.
  *
- * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`.
+ * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`, literally
+ * or percent-encoded.
  */
 function assertNoJupyterPathTraversal(path: string | undefined): string[] {
   const segments = (path ?? '').split('/').filter((segment) => segment.length > 0)
 
   for (const segment of segments) {
-    if (segment === '.' || segment === '..') {
+    if (isTraversalSegment(segment)) {
       throw new UnsafeJupyterPathError(path ?? '')
     }
   }
