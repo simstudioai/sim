@@ -970,6 +970,16 @@ export function Files() {
     await saveRef.current()
   }, [])
 
+  const prevSaveStatusRef = useRef(saveStatus)
+  useEffect(() => {
+    if (saveStatus === 'error' && prevSaveStatusRef.current !== 'error') {
+      toast.error(`Failed to save "${selectedFileRef.current?.name ?? 'file'}"`, {
+        action: { label: 'Retry', onClick: handleSave },
+      })
+    }
+    prevSaveStatusRef.current = saveStatus
+  }, [saveStatus, handleSave])
+
   const handleNavigateFromFileDetail = useCallback(
     (url: string) => {
       if (isDirtyRef.current) {
@@ -1358,16 +1368,8 @@ export function Files() {
         handleSave()
       }
     }
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!isDirtyRef.current) return
-      e.preventDefault()
-    }
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    }
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSave])
 
   const selectedRowIdsRef = useRef(selectedRowIds)
@@ -1428,24 +1430,14 @@ export function Files() {
   const fileActions = useMemo<ResourceAction[]>(() => {
     if (!selectedFile) return []
     // A large CSV renders as a read-only streamed preview (no editor), so it gets neither the
-    // Save action nor the edit/split/preview toggle — just like a non-editable file.
+    // edit/split/preview toggle nor autosave — just like a non-editable file.
     const streamOnly = isCsvStreamOnly(selectedFile)
     const canEditText = isTextEditable(selectedFile) && !streamOnly
     const canPreview = isPreviewable(selectedFile) && !streamOnly
-    // Markdown renders in the single-surface inline editor, which has no raw/split/preview
-    // modes — so it keeps Save but drops the mode toggle.
+    // Markdown renders in the single-surface inline editor, which has no raw/split/preview modes.
     const isInlineMarkdown = isMarkdownFile(selectedFile)
     const hasSplitView = canEditText && canPreview && !isInlineMarkdown
     const showPreviewToggle = canPreview && !isInlineMarkdown
-
-    const saveLabel =
-      saveStatus === 'saving'
-        ? 'Saving...'
-        : saveStatus === 'saved'
-          ? 'Saved'
-          : saveStatus === 'error'
-            ? 'Save failed'
-            : 'Save'
 
     const nextModeLabel =
       previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
@@ -1453,18 +1445,6 @@ export function Files() {
       previewMode === 'editor' ? Columns2 : previewMode === 'split' ? Eye : Pencil
 
     return [
-      ...(canEditText
-        ? [
-            {
-              text: saveLabel,
-              onSelect: handleSave,
-              disabled:
-                (!isDirty && saveStatus === 'idle') ||
-                saveStatus === 'saving' ||
-                saveStatus === 'saved',
-            },
-          ]
-        : []),
       ...(hasSplitView
         ? [
             {
@@ -1505,12 +1485,9 @@ export function Files() {
   }, [
     selectedFile,
     canEdit,
-    saveStatus,
     previewMode,
-    isDirty,
     handleCyclePreviewMode,
     handleTogglePreview,
-    handleSave,
     handleDownloadSelected,
     handleShareSelected,
     handleDeleteSelected,

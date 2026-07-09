@@ -429,6 +429,14 @@ export function LoadedRichMarkdownEditor({
       if (isInitialSettle && autoFocus) editor.commands.focus('end')
       return
     }
+    const settledBody = splitFrontmatter(content).body
+    if (settledBody !== lastSyncedBodyRef.current) {
+      lastSyncedBodyRef.current = settledBody
+      editor.commands.setContent(parseMarkdownToDoc(settledBody), {
+        contentType: 'json',
+        emitUpdate: false,
+      })
+    }
     if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict)
   }, [editor, content, isStreaming, canEdit, autoFocus, disableStreamingAutoScroll])
 
