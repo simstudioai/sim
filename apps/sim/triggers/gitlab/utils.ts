@@ -38,9 +38,12 @@ const ALL_EVENT_FLAGS = {
   tag_push_events: true,
 } as const
 
-// Tag pushes (object_kind 'tag_push') only flow through the all-events trigger;
-// there is no dedicated single-event trigger for them. A future "GitLab Tag Push"
-// trigger would need its own object_kind mapping in TRIGGER_OBJECT_KINDS above.
+/**
+ * Tag pushes (object_kind 'tag_push') only flow through the all-events
+ * trigger; there is no dedicated single-event trigger for them. A future
+ * "GitLab Tag Push" trigger would need its own object_kind mapping in
+ * TRIGGER_OBJECT_KINDS above.
+ */
 const TRIGGER_EVENT_FLAGS: Record<string, Record<string, boolean>> = {
   gitlab_push: { push_events: true },
   gitlab_merge_request: { merge_requests_events: true },

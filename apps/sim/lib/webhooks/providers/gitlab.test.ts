@@ -137,8 +137,6 @@ describe('GitLab webhook provider', () => {
   })
 
   it('extractIdempotencyId does not collide across different branches deleted in the same project', () => {
-    // GitLab sets checkout_sha to null and after to the all-zeros SHA on branch
-    // deletion, so two unrelated branch deletions must not produce the same key.
     const deleteMain = {
       object_kind: 'push',
       project: { id: 42 },

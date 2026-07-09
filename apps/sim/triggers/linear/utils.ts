@@ -1033,12 +1033,10 @@ export function isLinearEventMatch(triggerId: string, eventType: string, action?
     return false
   }
 
-  // Check event type
   if (config.type !== eventType) {
     return false
   }
 
-  // Check action if specified
   if (config.actions && action && !config.actions.includes(action)) {
     return false
   }

@@ -70,7 +70,6 @@ export const linearHandler: WebhookProviderHandler = {
   async verifyAuth(ctx: AuthContext): Promise<NextResponse | null> {
     const { rawBody, requestId, providerConfig } = ctx
     if (!providerConfig.webhookSecret) {
-      // Webhook secret is optional in Linear's setup UI; skip verification entirely when unset.
       return null
     }
 

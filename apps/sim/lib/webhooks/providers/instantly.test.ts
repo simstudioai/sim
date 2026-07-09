@@ -218,10 +218,6 @@ describe('Instantly webhook provider', () => {
     })
 
     it('does not collide across distinct occurrences of the same email_id (e.g. repeat opens/clicks/replies)', () => {
-      // Instantly's `is_first` field only makes sense if the same event_type can fire
-      // more than once for the same email_id — every open, click, or in-thread reply
-      // shares one email_id. The key must differentiate occurrences via timestamp so a
-      // second legitimate open/click/reply is not silently dropped as a duplicate.
       const firstOpen = instantlyHandler.extractIdempotencyId!({
         event_type: 'email_opened',
         email_id: 'email-123',
