@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import {
   secureFetchWithPinnedIP,
@@ -440,9 +441,12 @@ function validateSlackSignature(
  * Handle Slack verification challenges
  */
 export function handleSlackChallenge(body: unknown): NextResponse | null {
-  const obj = body as Record<string, unknown>
-  if (obj.type === 'url_verification' && obj.challenge) {
-    return NextResponse.json({ challenge: obj.challenge })
+  if (!isRecordLike(body)) {
+    return null
+  }
+
+  if (body.type === 'url_verification' && body.challenge) {
+    return NextResponse.json({ challenge: body.challenge })
   }
 
   return null
@@ -492,20 +496,23 @@ export const slackHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown) {
-    const obj = body as Record<string, unknown>
-    if (obj.event_id) {
-      return String(obj.event_id)
+    if (!isRecordLike(body)) {
+      return null
     }
 
-    const event = obj.event as Record<string, unknown> | undefined
-    if (event?.ts && obj.team_id) {
-      return `${obj.team_id}:${event.ts}`
+    if (body.event_id) {
+      return String(body.event_id)
+    }
+
+    const event = isRecordLike(body.event) ? body.event : undefined
+    if (event?.ts && body.team_id) {
+      return `${body.team_id}:${event.ts}`
     }
 
     // Interactivity and slash-command payloads carry a unique `trigger_id`
     // per interaction, which Slack reuses across retries of the same payload.
-    if (obj.trigger_id) {
-      return String(obj.trigger_id)
+    if (body.trigger_id) {
+      return String(body.trigger_id)
     }
 
     return null
@@ -520,7 +527,7 @@ export const slackHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
-    const b = body as Record<string, unknown>
+    const b = isRecordLike(body) ? body : {}
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     const botToken = providerConfig.botToken as string | undefined
     const includeFiles = Boolean(providerConfig.includeFiles)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { slackHandler } from '@/lib/webhooks/providers/slack'
+import { handleSlackChallenge, slackHandler } from '@/lib/webhooks/providers/slack'
 
 const ctx = (body: unknown) => ({
   webhook: {},
@@ -206,5 +206,37 @@ describe('slackHandler extractIdempotencyId', () => {
 
   it('returns null when no identifier is present', () => {
     expect(slackHandler.extractIdempotencyId!({})).toBeNull()
+  })
+
+  it('degrades gracefully instead of throwing for a null or non-object body', () => {
+    expect(slackHandler.extractIdempotencyId!(null)).toBeNull()
+    expect(slackHandler.extractIdempotencyId!(undefined)).toBeNull()
+    expect(slackHandler.extractIdempotencyId!('not-an-object')).toBeNull()
+  })
+})
+
+describe('handleSlackChallenge', () => {
+  it('echoes the challenge for a url_verification payload', () => {
+    const response = handleSlackChallenge({ type: 'url_verification', challenge: 'abc123' })
+    expect(response).not.toBeNull()
+  })
+
+  it('returns null for non-challenge payloads', () => {
+    expect(handleSlackChallenge({ type: 'event_callback' })).toBeNull()
+  })
+
+  it('degrades gracefully instead of throwing for a null or non-object body', () => {
+    expect(handleSlackChallenge(null)).toBeNull()
+    expect(handleSlackChallenge(undefined)).toBeNull()
+    expect(handleSlackChallenge('not-an-object')).toBeNull()
+    expect(handleSlackChallenge([1, 2, 3])).toBeNull()
+  })
+})
+
+describe('slackHandler formatInput - null/non-object body', () => {
+  it('degrades gracefully instead of throwing', async () => {
+    const { input } = await slackHandler.formatInput!(ctx(null))
+    const event = eventOf(input)
+    expect(event.event_type).toBe('unknown')
   })
 })
