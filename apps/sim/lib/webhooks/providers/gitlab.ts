@@ -107,8 +107,11 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     // GitLab 17.2+ adds a `type` field inside `object_attributes` on Issue Hook
     // payloads (e.g. "Issue", "Incident", "Task"). `type` is a reserved
-    // TriggerOutput meta-key, so it's renamed to `work_item_type` here to match
-    // the declared output schema in buildGitLabIssueOutputs.
+    // TriggerOutput meta-key, so it can't be *declared* in the output schema
+    // under that name — exposed there as `work_item_type` instead. The raw
+    // `type` key is kept in the delivered data alongside it (this is plain
+    // passthrough data, not schema-constrained) so a workflow already
+    // referencing the undocumented raw path keeps working.
     const objectAttributes = b.object_attributes
     let input: Record<string, unknown> = { ...b, event_type: eventType, branch }
     if (
@@ -116,9 +119,12 @@ export const gitlabHandler: WebhookProviderHandler = {
       typeof objectAttributes === 'object' &&
       !Array.isArray(objectAttributes)
     ) {
-      const { type: workItemType, ...restAttributes } = objectAttributes as Record<string, unknown>
+      const workItemType = (objectAttributes as Record<string, unknown>).type
       if (workItemType !== undefined) {
-        input = { ...input, object_attributes: { ...restAttributes, work_item_type: workItemType } }
+        input = {
+          ...input,
+          object_attributes: { ...objectAttributes, work_item_type: workItemType },
+        }
       }
     }
 

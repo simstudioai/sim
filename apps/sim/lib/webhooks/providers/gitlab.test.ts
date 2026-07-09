@@ -104,7 +104,7 @@ describe('GitLab webhook provider', () => {
     expect(i.checkout_sha).toBe('abc123')
   })
 
-  it('formatInput renames object_attributes.type to work_item_type on issue payloads', async () => {
+  it('formatInput exposes object_attributes.type as work_item_type on issue payloads, keeping the raw type key too', async () => {
     const { input } = await gitlabHandler.formatInput!({
       body: {
         object_kind: 'issue',
@@ -118,7 +118,7 @@ describe('GitLab webhook provider', () => {
     const i = input as Record<string, unknown>
     const attrs = i.object_attributes as Record<string, unknown>
     expect(attrs.work_item_type).toBe('Issue')
-    expect(attrs.type).toBeUndefined()
+    expect(attrs.type).toBe('Issue')
     expect(attrs.title).toBe('Bug')
   })
 
