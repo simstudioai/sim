@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
@@ -45,6 +47,48 @@ export function jiraSetupInstructions(eventType: string, additionalNotes?: strin
         `<div class="mb-3">${index === 0 ? instruction : `<strong>${index}.</strong> ${instruction}`}</div>`
     )
     .join('')
+}
+
+function jiraWebhookSecretField(triggerId: string): SubBlockConfig {
+  return {
+    id: 'webhookSecret',
+    title: 'Webhook Secret',
+    type: 'short-input',
+    placeholder: 'Enter a strong secret',
+    description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
+    password: true,
+    required: false,
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  }
+}
+
+function jiraJqlFilterField(triggerId: string, description: string): SubBlockConfig {
+  return {
+    id: 'jqlFilter',
+    title: 'JQL Filter',
+    type: 'long-input',
+    placeholder: 'project = PROJ AND issuetype = Bug',
+    description,
+    required: false,
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  }
+}
+
+/**
+ * Extra fields for Jira triggers (webhook secret, plus an optional JQL filter
+ * for issue-scoped events — project/sprint/version events have no JQL analog).
+ */
+export function buildJiraExtraFields(
+  triggerId: string,
+  jqlFilterDescription?: string
+): SubBlockConfig[] {
+  const fields: SubBlockConfig[] = [jiraWebhookSecretField(triggerId)]
+  if (jqlFilterDescription) {
+    fields.push(jiraJqlFilterField(triggerId, jqlFilterDescription))
+  }
+  return fields
 }
 
 function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
@@ -448,7 +492,7 @@ export function isJiraEventMatch(
 }
 
 export function extractIssueData(body: unknown) {
-  const obj = body as Record<string, unknown>
+  const obj = isRecordLike(body) ? body : {}
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -460,7 +504,7 @@ export function extractIssueData(body: unknown) {
 }
 
 export function extractCommentData(body: unknown) {
-  const obj = body as Record<string, unknown>
+  const obj = isRecordLike(body) ? body : {}
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -471,7 +515,7 @@ export function extractCommentData(body: unknown) {
 }
 
 export function extractWorklogData(body: unknown) {
-  const obj = body as Record<string, unknown>
+  const obj = isRecordLike(body) ? body : {}
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -683,7 +727,7 @@ export function buildVersionReleasedOutputs(): Record<string, TriggerOutput> {
  * Extracts sprint data from a Jira webhook payload
  */
 export function extractSprintData(body: unknown) {
-  const obj = body as Record<string, unknown>
+  const obj = isRecordLike(body) ? body : {}
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -696,7 +740,7 @@ export function extractSprintData(body: unknown) {
  * Extracts project data from a Jira webhook payload
  */
 export function extractProjectData(body: unknown) {
-  const obj = body as Record<string, unknown>
+  const obj = isRecordLike(body) ? body : {}
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
@@ -709,7 +753,7 @@ export function extractProjectData(body: unknown) {
  * Extracts version data from a Jira webhook payload
  */
 export function extractVersionData(body: unknown) {
-  const obj = body as Record<string, unknown>
+  const obj = isRecordLike(body) ? body : {}
   return {
     webhookEvent: obj.webhookEvent,
     timestamp: obj.timestamp,
