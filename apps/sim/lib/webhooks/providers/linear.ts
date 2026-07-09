@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -15,6 +16,7 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Linear')
 
@@ -43,30 +45,37 @@ function validateLinearSignature(secret: string, signature: string, body: string
   }
 }
 
+/**
+ * Linear's docs recommend a 60s window ("Reject any webhooks not within 60 seconds of the
+ * current time to prevent replay attacks") but do NOT document whether `webhookTimestamp` is
+ * re-stamped per delivery attempt or fixed to the original event time. Linear's own retry policy
+ * resends failed deliveries after 1 minute, 1 hour, and 6 hours (@see
+ * https://linear.app/developers/webhooks) — if the timestamp is fixed rather than refreshed per
+ * attempt, a strict 60s window would silently and permanently drop every legitimate 1hr/6hr retry
+ * following any transient outage on our side, since Linear gives up after 3 failed attempts.
+ * We keep a wider 5-minute window: idempotency dedup (Linear-Delivery header / extractIdempotencyId
+ * fallback below) already prevents double-processing of any replayed or retried delivery within
+ * that window, so the incremental replay-protection benefit of matching Linear's 60s suggestion
+ * literally is marginal compared to the risk of dropping real business events.
+ */
 const LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS = 5 * 60 * 1000
 
+const verifyLinearSignature = createHmacVerifier({
+  configKey: 'webhookSecret',
+  headerName: 'Linear-Signature',
+  validateFn: validateLinearSignature,
+  providerLabel: 'Linear',
+})
+
 export const linearHandler: WebhookProviderHandler = {
-  async verifyAuth({
-    request,
-    rawBody,
-    requestId,
-    providerConfig,
-  }: AuthContext): Promise<NextResponse | null> {
-    const secret = providerConfig.webhookSecret as string | undefined
-    if (!secret) {
+  async verifyAuth(ctx: AuthContext): Promise<NextResponse | null> {
+    const { rawBody, requestId, providerConfig } = ctx
+    if (!providerConfig.webhookSecret) {
       return null
     }
 
-    const signature = request.headers.get('Linear-Signature')
-    if (!signature) {
-      logger.warn(`[${requestId}] Linear webhook missing signature header`)
-      return new NextResponse('Unauthorized - Missing Linear signature', { status: 401 })
-    }
-
-    if (!validateLinearSignature(secret, signature, rawBody)) {
-      logger.warn(`[${requestId}] Linear signature verification failed`)
-      return new NextResponse('Unauthorized - Invalid Linear signature', { status: 401 })
-    }
+    const signatureError = await verifyLinearSignature(ctx)
+    if (signatureError) return signatureError
 
     try {
       const parsed = JSON.parse(rawBody) as Record<string, unknown>
@@ -98,7 +107,7 @@ export const linearHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = body as Record<string, unknown>
+    const b = isRecordLike(body) ? body : {}
     const rawActor = b.actor
     let actor: unknown = null
     if (rawActor && typeof rawActor === 'object' && !Array.isArray(rawActor)) {
@@ -130,9 +139,9 @@ export const linearHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (triggerId && !triggerId.endsWith('_webhook') && !triggerId.endsWith('_webhook_v2')) {
       const { isLinearEventMatch } = await import('@/triggers/linear/utils')
-      const obj = body as Record<string, unknown>
-      const action = obj.action as string | undefined
-      const type = obj.type as string | undefined
+      const obj = isRecordLike(body) ? body : {}
+      const action = typeof obj.action === 'string' ? obj.action : undefined
+      const type = typeof obj.type === 'string' ? obj.type : undefined
       if (!isLinearEventMatch(triggerId, type || '', action)) {
         logger.debug(
           `[${requestId}] Linear event mismatch for trigger ${triggerId}. Type: ${type}, Action: ${action}. Skipping.`
@@ -141,6 +150,26 @@ export const linearHandler: WebhookProviderHandler = {
       }
     }
     return true
+  },
+
+  /**
+   * Fallback for dedup when the `Linear-Delivery` header (already handled generically by the
+   * idempotency service) is unavailable. Keys on the entity id plus its own updatedAt/createdAt,
+   * not a request-time timestamp, so retried deliveries of the same event still collapse.
+   */
+  extractIdempotencyId(body: unknown): string | null {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+
+    const b = body as Record<string, unknown>
+    const type = typeof b.type === 'string' ? b.type : undefined
+    const action = typeof b.action === 'string' ? b.action : undefined
+    const data = b.data as Record<string, unknown> | undefined
+    const id = typeof data?.id === 'string' ? data.id : undefined
+    if (!type || !id) {
+      return null
+    }
+    const version = data?.updatedAt || data?.createdAt || b.createdAt
+    return [`linear:${type}`, action, id, version].filter(Boolean).join(':')
   },
 
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
