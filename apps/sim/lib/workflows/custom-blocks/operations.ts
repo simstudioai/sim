@@ -170,6 +170,37 @@ export async function listCustomBlockSummariesForWorkspace(
     .where(and(eq(customBlock.organizationId, organizationId), eq(customBlock.enabled, true)))
 }
 
+/**
+ * Hydrate a joined custom-block row into the wire shape. Field set derived live
+ * from the deployed Start; stored placeholders merged in. Derive even for a
+ * disabled block — the source workflow's deployment is independent of the block's
+ * enabled flag, and the edit form needs the real fields so a save doesn't
+ * overwrite the block's stored placeholders.
+ */
+async function hydrateCustomBlockRow(joined: {
+  block: typeof customBlock.$inferSelect
+  workflowName: string
+  workspaceId: string | null
+  workspaceName: string | null
+}): Promise<CustomBlockWithInputs> {
+  const { block: row, workflowName, workspaceId, workspaceName } = joined
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    workflowId: row.workflowId,
+    workflowName,
+    workspaceId,
+    workspaceName,
+    type: row.type,
+    name: row.name,
+    description: row.description,
+    iconUrl: row.iconUrl,
+    enabled: row.enabled,
+    inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
+    exposedOutputs: row.outputs ?? [],
+  }
+}
+
 /** The org's custom blocks with live-derived input fields (client overlay + list API). */
 export async function listCustomBlocksWithInputs(
   organizationId: string
@@ -186,27 +217,30 @@ export async function listCustomBlocksWithInputs(
     .leftJoin(workspace, eq(workspace.id, workflow.workspaceId))
     .where(eq(customBlock.organizationId, organizationId))
 
-  return Promise.all(
-    rows.map(async ({ block: row, workflowName, workspaceId, workspaceName }) => ({
-      id: row.id,
-      organizationId: row.organizationId,
-      workflowId: row.workflowId,
-      workflowName,
-      workspaceId,
-      workspaceName,
-      type: row.type,
-      name: row.name,
-      description: row.description,
-      iconUrl: row.iconUrl,
-      enabled: row.enabled,
-      // Field set derived live from the deployed Start; stored placeholders merged
-      // in. Derive even for a disabled block — the source workflow's deployment is
-      // independent of the block's enabled flag, and the edit form needs the real
-      // fields so a save doesn't overwrite the block's stored placeholders.
-      inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
-      exposedOutputs: row.outputs ?? [],
-    }))
-  )
+  return Promise.all(rows.map(hydrateCustomBlockRow))
+}
+
+/**
+ * The custom block bound to a workflow (with live-derived input fields), or `null`
+ * when the workflow isn't published as a block. One block per workflow is enforced
+ * at publish time. Used by the copilot deploy_custom_block tool.
+ */
+export async function getCustomBlockWithInputsByWorkflowId(
+  workflowId: string
+): Promise<CustomBlockWithInputs | null> {
+  const [row] = await db
+    .select({
+      block: customBlock,
+      workflowName: workflow.name,
+      workspaceId: workflow.workspaceId,
+      workspaceName: workspace.name,
+    })
+    .from(customBlock)
+    .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
+    .leftJoin(workspace, eq(workspace.id, workflow.workspaceId))
+    .where(eq(customBlock.workflowId, workflowId))
+    .limit(1)
+  return row ? hydrateCustomBlockRow(row) : null
 }
 
 /** Fetch a single custom block row by id. */
