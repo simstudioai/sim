@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import type { CommentsListResponse, ListPRCommentsParams } from '@/tools/github/types'
 import { PR_COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
@@ -100,7 +101,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
             .slice(0, 5)
             .map(
               (c: any) =>
-                `- ${c.user.login} on ${c.path}${c.line ? `:${c.line}` : ''} (${new Date(c.created_at).toLocaleDateString()}): "${c.body.substring(0, 80)}${c.body.length > 80 ? '...' : ''}"`
+                `- ${c.user.login} on ${c.path}${c.line ? `:${c.line}` : ''} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body, 80)}"`
             )
             .join('\n')}`
         : ''

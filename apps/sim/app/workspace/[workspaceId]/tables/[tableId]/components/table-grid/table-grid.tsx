@@ -1017,14 +1017,13 @@ export function TableGrid({
     const anchorId = contextMenu.row.id
     // Fractional ordering: express intent by neighbor id, not integer position.
     const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
-    const position = contextMenu.row.position + offset
     createRef.current(
       { data: {}, ...intent },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+            pushUndoRef.current({ type: 'create-row', rowId: newRowId })
           }
         },
       }
@@ -1096,7 +1095,6 @@ export function TableGrid({
     const contextRow = contextMenu.row
     if (!contextRow) return
     const rowData = { ...contextRow.data }
-    const position = contextRow.position + 1
     const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
@@ -1108,7 +1106,6 @@ export function TableGrid({
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position,
               data: rowData,
             })
           }
@@ -1143,11 +1140,9 @@ export function TableGrid({
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
           if (newRowId) {
-            const maxPosition = rowsRef.current.reduce((max, r) => Math.max(max, r.position), -1)
             pushUndoRef.current({
               type: 'create-row',
               rowId: newRowId,
-              position: maxPosition + 1,
             })
           }
         },
@@ -2187,7 +2182,7 @@ export function TableGrid({
             onSuccess: (response: Record<string, unknown>) => {
               const newRowId = extractCreatedRowId(response)
               if (newRowId) {
-                pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+                pushUndoRef.current({ type: 'create-row', rowId: newRowId })
               }
               setSelectionAnchor({ rowIndex: anchor.rowIndex + 1, colIndex })
               setSelectionFocus(null)
@@ -2725,14 +2720,10 @@ export function TableGrid({
 
       const currentCols = columnsRef.current
       const currentRows = rowsRef.current
-      // Captured once before the loop so each new row in the batch gets a unique,
-      // sequential position via `+ (newRowIndex - currentRows.length)` below.
-      const lastRowPosition = currentRows.reduce((max, r) => Math.max(max, r.position), -1)
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const createBatchRows: Array<Record<string, unknown>> = []
-      const createBatchPositions: number[] = []
 
       for (let r = 0; r < pasteRows.length; r++) {
         const targetArrayIndex = currentAnchor.rowIndex + r
@@ -2764,7 +2755,6 @@ export function TableGrid({
           updateBatch.push({ rowId: existingRow.id, data: rowData })
         } else {
           createBatchRows.push(rowData)
-          createBatchPositions.push(lastRowPosition + 1 + (targetArrayIndex - currentRows.length))
         }
       }
 
@@ -2782,20 +2772,18 @@ export function TableGrid({
 
       if (createBatchRows.length > 0) {
         batchCreateRef.current(
-          { rows: createBatchRows, positions: createBatchPositions },
+          { rows: createBatchRows },
           {
             onSuccess: (response) => {
               const createdRows = response?.data?.rows ?? []
               const undoRows: Array<{
                 rowId: string
-                position: number
                 data: Record<string, unknown>
               }> = []
               for (let i = 0; i < createdRows.length; i++) {
                 if (createdRows[i]?.id) {
                   undoRows.push({
                     rowId: createdRows[i].id,
-                    position: createBatchPositions[i],
                     data: createBatchRows[i],
                   })
                 }

@@ -151,6 +151,7 @@ export const auditMock = {
     WORKSPACE_FORKED: 'workspace.forked',
     WORKSPACE_FORK_PROMOTED: 'workspace.fork_promoted',
     WORKSPACE_FORK_ROLLED_BACK: 'workspace.fork_rolled_back',
+    WORKSPACE_FORK_UNLINKED: 'workspace.fork_unlinked',
   },
   AuditResourceType: {
     API_KEY: 'api_key',

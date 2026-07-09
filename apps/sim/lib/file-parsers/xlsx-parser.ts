@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { truncate } from '@sim/utils/string'
 import * as XLSX from 'xlsx'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
@@ -199,9 +200,7 @@ export class XlsxParser implements FileParser {
     let cellStr = String(cell)
 
     // Truncate very long cells
-    if (cellStr.length > CONFIG.MAX_CELL_LENGTH) {
-      cellStr = `${cellStr.substring(0, CONFIG.MAX_CELL_LENGTH)}...`
-    }
+    cellStr = truncate(cellStr, CONFIG.MAX_CELL_LENGTH)
 
     return sanitizeTextForUTF8(cellStr)
   }

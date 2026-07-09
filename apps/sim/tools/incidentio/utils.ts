@@ -1,8 +1,5 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { Workflow } from '@/tools/incidentio/types'
-
-function getJsonParseErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
 
 function toStringValue(value: unknown): string {
   return typeof value === 'string' ? value : String(value ?? '')
@@ -34,7 +31,7 @@ export function parseIncidentioJsonParam(
   try {
     return JSON.parse(jsonString)
   } catch (error) {
-    throw new Error(`Invalid JSON for ${paramName}: ${getJsonParseErrorMessage(error)}`)
+    throw new Error(`Invalid JSON for ${paramName}: ${getErrorMessage(error)}`)
   }
 }
 

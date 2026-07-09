@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { Blimp } from '@sim/emcn/icons'
 import { ArrowUp, Mic, Paperclip, Plus, Slash } from 'lucide-react'
-import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
+import { ThinkingLoader } from '@/components/ui'
 
 const PROMPT = 'Build a workflow to schedule and publish posts to my X account.'
 const REPLY =

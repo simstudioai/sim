@@ -25,6 +25,7 @@ import {
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import { ChevronDown, Plus } from 'lucide-react'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -1378,7 +1379,7 @@ export function GroupDetail({
                             name={member.userName || member.userEmail || 'Unknown'}
                             email={member.userEmail || member.userName || 'Unknown'}
                             image={member.userImage}
-                            status={`Added ${new Date(member.assignedAt).toLocaleDateString()}`}
+                            status={`Added ${formatDate(new Date(member.assignedAt))}`}
                             menu={
                               <RowActionsMenu
                                 label='Member actions'

@@ -1,6 +1,6 @@
 [install]
 exact = true
-minimumReleaseAge = 604800
+minimumReleaseAge = 0
 
 [run]
 env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }

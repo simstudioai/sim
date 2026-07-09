@@ -185,26 +185,21 @@ export const pipedreamProfile: CompetitorProfile = {
       },
       environmentPromotion: {
         value:
-          'Partial: GitHub Sync gives file-level promotion; no native fork/clone-project push between dev and prod',
+          'Partial: GitHub Sync promotes an entire project (all its workflows) via a development-to-production branch merge; no per-file promotion and no native clone/fork of an existing project into a new one',
         detail:
-          "Pipedream projects have only two built-in environments (Development and Production) per project, used mainly for scoping env vars and Connect API tokens, not a promote/push pipeline. The closest equivalent is GitHub Sync (Advanced/Business plans): each project links to one GitHub repo, workflows are serialized to YAML and edited/committed via GitHub or a local clone, and pushing to the production branch triggers a deploy. This gives git-based promotion of an entire project's workflows, but it's opt-in, one repo per project, and not a dedicated staging-to-prod UI flow.",
-        shortValue: 'GitHub Sync gives file-level promotion',
+          "Pipedream Connect projects have Development and Production environments, but these scope connected end-user accounts and Connect API tokens — not general per-project workflow promotion. The closest equivalent for promoting workflows is GitHub Sync (Advanced/Business plans): each project links to one GitHub repo, all of a project's workflows and resources are serialized to YAML, changes are made in a development branch, and merging that branch into `production` deploys everything that changed to production workflows. This is project-level (whole-project, branch-merge) promotion, not file-level. Pipedream's own docs also state that syncing an existing GitHub repo of workflows into a new Pipedream project ('cloning' a project via GitHub Sync) is not currently possible.",
+        shortValue: 'GitHub Sync promotes whole projects via branch merge',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://pipedream.com/docs/workflows/projects/',
-            label: 'Pipedream Docs – Projects',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/connect/managed-auth/environments/',
+            label: 'Pipedream Docs – Connect Environments',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://pipedream.com/docs/workflows/git',
             label: 'Pipedream Docs – GitHub Sync',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/blog/github-sync/',
-            label: 'Pipedream Blog – GitHub Sync',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -313,6 +308,26 @@ export const pipedreamProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Pipedream's closest mechanism is publishing a single Node.js code step as a reusable 'custom action' that shows up under 'My Actions' for other steps to select, not a full multi-step deployed workflow turned into an org-wide toolbar block. The published code stays directly visible and editable to whoever adds it (no encapsulation of internals/credentials), and updates are opt-in: Pipedream's own docs state a new version 'doesn't automatically update all instances of the same action across your workflows... this gives you the control to gradually update.'",
+        detail:
+          "No Pipedream documentation describes taking an entire deployed workflow, auto-deriving its inputs, letting the publisher hand-pick named outputs, and exposing it as a named/iconed block in the builder toolbar for every other team member to drop into their own workflows while always running the source's latest deployed version. 'Sharing Code Across Workflows' scopes reuse to one code step at a time (multi-step reuse requires the CLI to build a full component, which then cannot be edited inline), and the Components docs don't address workflow-to-component conversion at all. Pipedream's registry model is instead built around wrapping third-party API calls into app integrations, not packaging a user's own business-logic workflow as a hidden-internals block.",
+        shortValue: 'No, only single code-step reuse with opt-in updates',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workflows/building-workflows/code/nodejs/sharing-code',
+            label: 'Pipedream Docs: Sharing Code Across Workflows',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://pipedream.com/docs/components',
+            label: 'Pipedream Docs: Components Overview',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -371,19 +386,19 @@ export const pipedreamProfile: CompetitorProfile = {
       mcpSupport: {
         value: 'Yes: first-class, hosted MCP server',
         detail:
-          'Pipedream runs a hosted MCP server (mcp.pipedream.com) exposing 3,000+ apps / 10,000+ tools to any MCP client, with managed OAuth and credential isolation; also ships an official MCP server package in its GitHub repo.',
+          'Pipedream runs a hosted MCP server (mcp.pipedream.com) exposing 3,000+ apps / 10,000+ tools to any MCP client, with managed OAuth and credential isolation. Its GitHub repo also includes a reference/self-hosted MCP server implementation, though Pipedream notes it is no longer actively maintained and recommends the hosted remote MCP server for production use.',
         shortValue: 'Hosted MCP server, 3,000+ apps as tools',
         confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/docs/connect/mcp',
             label: 'Pipedream Docs: MCP Servers',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://github.com/PipedreamHQ/pipedream/blob/master/modelcontextprotocol/README.md',
-            label: 'GitHub: Modelcontextprotocol README',
-            asOf: '2026-07-02',
+            label: 'GitHub: Modelcontextprotocol README (reference implementation, unmaintained)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -581,34 +596,34 @@ export const pipedreamProfile: CompetitorProfile = {
         value:
           'Yes: official TypeScript SDK (@pipedream/sdk) and Python SDK (pipedream on PyPI), plus @pipedream/connect-react for embeddable connect UI',
         detail:
-          "Pipedream ships an official TypeScript SDK, @pipedream/sdk (v3.1.1), and an official Python SDK, published as `pipedream` on PyPI (v2.1.8), both for programmatic access to the Pipedream/Connect APIs, alongside a companion @pipedream/connect-react package for embeddable React auth/connect UI. Beyond the SDKs, Pipedream provides a full component development kit: triggers and actions ('components') are plain Node.js modules that run on Pipedream's serverless infrastructure and can use most npm packages with no install step. Components are open-sourced in the public PipedreamHQ/pipedream GitHub monorepo, and community members can build and publish their own actions/sources that appear in Pipedream's UI/marketplace alongside first-party ones, functioning as a de facto community integration marketplace.",
+          "Pipedream ships an official TypeScript SDK, @pipedream/sdk (v3.1.1 on npm), and an official Python SDK, published as `pipedream` on PyPI (v2.1.14), both for programmatic access to the Pipedream/Connect APIs, alongside a companion @pipedream/connect-react package (v3.0.1 on npm) for embeddable React auth/connect UI. Beyond the SDKs, Pipedream provides a full component development kit: triggers and actions ('components') are plain Node.js modules that run on Pipedream's serverless infrastructure and can use most npm packages with no install step. Components are open-sourced in the public PipedreamHQ/pipedream GitHub monorepo, and community members can build and publish their own actions/sources that appear in Pipedream's UI/marketplace alongside first-party ones, functioning as a de facto community integration marketplace.",
         shortValue: 'TypeScript + Python SDKs, plus components SDK',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.npmjs.com/package/@pipedream/sdk',
-            label: 'npm – @pipedream/sdk',
-            asOf: '2026-07-02',
+            url: 'https://registry.npmjs.org/@pipedream/sdk/latest',
+            label: 'npm registry – @pipedream/sdk (latest)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://registry.npmjs.org/@pipedream/connect-react/latest',
+            label: 'npm registry – @pipedream/connect-react (latest)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://pypi.org/project/pipedream/',
+            label: 'PyPI – pipedream package',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://pipedream.com/docs/components/guidelines',
             label: 'Pipedream Docs – Components Guidelines & Patterns',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/docs/workflows/contributing/components/',
-            label: 'Pipedream Docs – Contributing Components',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://github.com/PipedreamHQ/pipedream',
             label: 'GitHub – PipedreamHQ/pipedream monorepo',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pypi.org/project/pipedream/',
-            label: 'PyPI package page',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1088,26 +1103,31 @@ export const pipedreamProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Founded 2019, San Francisco; ~11-50 employees pre-acquisition; raised ~$22M across 2 rounds; agreed to be acquired by Workday (signed Nov 19, 2025), with no public confirmation the deal has closed as of mid-2026',
+          "Founded 2019 (some sources say 2018), San Francisco; ~21-50 employees; raised at least $20M in Series A financing; Workday signed a definitive agreement to acquire Pipedream (Nov 19, 2025), with the deal expected to close by the end of Workday's fiscal Q4 2026 (Jan 31, 2026) — no independently reachable source confirms the acquisition has actually closed",
         detail:
-          "Per Crunchbase, Pipedream was founded in 2019 and headquartered in San Francisco, CA, with founders including Tod Sacerdoti (CEO), Dylan Sather, TJ Koblentz, and Pravin Savkar; it raised a total of ~$22M across 2 funding rounds (investors include Felicis and CRV) and had a headcount signal of 11-50 employees. Workday signed a definitive agreement to acquire Pipedream on November 19, 2025, with the transaction originally expected to close in Workday's Q4 FY2026 (by end of January 2026), subject to closing conditions. That expected close date has since passed, and as of this writing neither Workday nor Pipedream has publicly announced that the deal has closed.",
-        shortValue: 'Founded 2019; agreed to be acquired by Workday, close unconfirmed',
+          "Pipedream was founded in 2019 and is headquartered in San Francisco, CA (company-data aggregators put the founding team at 8 people, including Tod Sacerdoti, Dylan Sather, and TJ Koblentz), with a current headcount signal of roughly 21-50 employees. Pipedream's own blog confirms it closed a $20M Series A round led by True Ventures, with CRV, Felicis Ventures, and World Innovation Lab participating. Workday signed a definitive agreement to acquire Pipedream on November 19, 2025; per Workday's own newsroom release, the transaction is expected to close in Workday's fiscal Q4 2026 (ending January 31, 2026), subject to closing conditions. Crunchbase (previously cited for a 'deal closed' date) returned 403 and could not be independently verified, so this claim no longer asserts the acquisition has closed.",
+        shortValue: 'Founded 2019; Workday acquisition pending, expected to close by Jan 2026',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://newsroom.workday.com/2025-11-19-Workday-Signs-Definitive-Agreement-to-Acquire-Pipedream',
             label: 'Workday Newsroom – Workday Signs Definitive Agreement to Acquire Pipedream',
-            asOf: '2026-07-06',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://pipedream.com/blog/pipedream-to-be-acquired-by-workday/',
             label: 'Pipedream Blog – Pipedream to be acquired by Workday',
-            asOf: '2026-07-06',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://www.crunchbase.com/organization/pipedream',
-            label: 'Crunchbase – Pipedream company profile',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/blog/series-a-financing/',
+            label: 'Pipedream Blog – Pipedream Closes $20M Series A Financing',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://prospeo.io/c/pipedream',
+            label: 'Prospeo – Pipedream company profile',
+            asOf: '2026-07-08',
           },
         ],
       },

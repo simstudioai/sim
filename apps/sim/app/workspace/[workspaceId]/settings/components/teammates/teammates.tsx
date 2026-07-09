@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ChipDropdown, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { debounce, useQueryState } from 'nuqs'
@@ -58,10 +59,6 @@ interface Teammate {
   invitationId?: string
   token?: string
   roleSource?: WorkspaceRoleSource
-}
-
-function formatJoinedDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US')
 }
 
 function copyToClipboard(text: string) {
@@ -131,7 +128,7 @@ export function Teammates() {
       name: member.name ?? member.email,
       image: member.image,
       role: member.permissionType,
-      status: `Joined ${formatJoinedDate(member.joinedAt)}`,
+      status: `Joined ${formatDate(new Date(member.joinedAt))}`,
       isPending: false,
       userId: member.userId,
       roleSource: member.roleSource,

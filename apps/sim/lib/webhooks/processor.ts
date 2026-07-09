@@ -2,6 +2,7 @@ import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { tryAdmit } from '@/lib/core/admission/gate'
@@ -102,7 +103,7 @@ export async function parseWebhookBody(
     logger.error(`[${requestId}] Failed to parse webhook body`, {
       error: toError(parseError).message,
       contentType: request.headers.get('content-type'),
-      bodyPreview: `${rawBody?.slice(0, 100)}...`,
+      bodyPreview: truncate(rawBody ?? '', 100),
     })
     return new NextResponse('Invalid payload format', { status: 400 })
   }

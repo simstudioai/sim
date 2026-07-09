@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { formatDateTime } from '@sim/utils/formatting'
+import { formatDateTime, getTimezoneAbbreviation } from '@sim/utils/formatting'
 import { Cron } from 'croner'
 import cronstrue from 'cronstrue'
 
@@ -473,27 +473,6 @@ export function calculateNextRunTime(
     throw new Error(
       `Failed to calculate next run time for schedule type ${scheduleType}: ${toError(error).message}`
     )
-  }
-}
-
-/**
- * Helper function to get a friendly timezone abbreviation.
- * Uses Intl.DateTimeFormat to get the correct abbreviation for the current time,
- * automatically handling DST transitions.
- */
-function getTimezoneAbbreviation(timezone: string): string {
-  if (timezone === 'UTC') return 'UTC'
-
-  try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      timeZoneName: 'short',
-    })
-    const parts = formatter.formatToParts(new Date())
-    const tzPart = parts.find((p) => p.type === 'timeZoneName')
-    return tzPart?.value || timezone
-  } catch {
-    return timezone
   }
 }
 

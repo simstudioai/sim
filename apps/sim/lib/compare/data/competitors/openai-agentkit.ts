@@ -350,6 +350,26 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Agent Builder has no feature to publish a workflow as a named, encapsulated block that other org members can drop into their own separate workflows. Its full node palette (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no 'workflow as a block' node, and publishing only creates a versioned snapshot consumable via the API or embedded through ChatKit, not a reusable canvas block for teammates.",
+        detail:
+          "Publishing a workflow in Agent Builder produces a versioned object callable via API or embeddable through ChatKit, but that is deploying one workflow as an endpoint, not turning it into a block that appears in other users' canvases with inputs auto-derived from its Start node and internals hidden. Team-level reuse in the documented deployment paths (templates, ChatKit, SDK code export) means copying a template, embedding a chat surface, or exporting code, none of which give other builders a live, encapsulated block that stays in sync with the source workflow's latest published version. Agent Builder itself is also being wound down, with full shutdown November 30, 2026.",
+        shortValue: 'No dedicated publish-as-reusable-block feature found',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://developers.openai.com/api/docs/guides/node-reference',
+            label: 'Node reference | OpenAI API',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://developers.openai.com/api/docs/guides/agent-builder',
+            label: 'Agent Builder | OpenAI API',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -827,16 +847,26 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       rbac: {
         value:
-          'Yes, at the organization level. The Global Admin Console gates access to the Connector Registry, and the Admin API lets Organization Owners assign custom roles and enable or disable specific apps and actions. Granular access scoped to individual Agent Builder workflows is not documented.',
+          'Yes, at the workspace level. Workspace Owners create custom roles and use per-role "Connected data" controls to allow or restrict which apps/connectors (and their actions) each role can use, with all apps disabled by default. A separate Global Admin Console (beta) adds a distinct Global admin role for centralizing access management across workspaces. Granular access scoped to individual Agent Builder workflows is not documented.',
         detail:
-          'The Global Admin Console manages access to the Connector Registry used by Agent Builder, and the Admin API lets Organization Owners centrally manage workspaces, assign custom roles to teams, and enable/disable specific apps and actions. This is org/admin-level RBAC, not workflow-scoped permissions within Agent Builder itself.',
-        shortValue: 'Org-level RBAC via Admin API and Console',
+          'ChatGPT Enterprise/Edu/Business workspaces let Workspace Owners create custom roles and, under each role\'s Connected data section, turn on "Allow members to use apps" and select which specific apps that role can access; when an admin enables an app, they can also set action controls (allow all actions, read-only, or a custom action set). All apps are disabled by default until an admin turns them on. The Global Admin Console is a newer, separate beta surface with its own Global admin role and an Access tab for centralizing SSO, domain, and external-application access across workspaces. This is workspace/role-level RBAC over apps and connectors, not permissions scoped to individual Agent Builder workflows.',
+        shortValue: 'Workspace-level RBAC via custom roles, per-app controls',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://developers.openai.com/api/docs/guides/admin-apis',
-            label: 'Admin APIs | OpenAI API',
-            asOf: '2026-07-02',
+            url: 'https://help.openai.com/en/articles/11750701-rbac',
+            label: 'RBAC | OpenAI Help Center',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://help.openai.com/en/articles/11509118-admin-controls-security-and-compliance-in-apps-enterprise-edu-and-business',
+            label: 'Admin Controls, Security, and Compliance in apps | OpenAI Help Center',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://help.openai.com/en/articles/12289294-global-admin-console',
+            label: 'Global Admin Console | OpenAI Help Center',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -857,22 +887,23 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019; supports customer HIPAA/GDPR/CCPA/FERPA compliance via DPA + BAA',
+          'FedRAMP Moderate Authorization (ChatGPT Enterprise and API Platform), PCI DSS v4.0.1, SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019; supports customer HIPAA compliance via BAA and GDPR/CCPA via DPA; FERPA covered via a separate Student Data Privacy Agreement for ChatGPT Edu',
         detail:
-          "OpenAI's SOC 2 Type 2 examination (Security, Availability, Confidentiality, Privacy criteria) covers the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team, alongside ISO/IEC 27001:2022 and ISO/IEC 27701:2019 certifications for the same services. OpenAI supports customers' compliance with GDPR, CCPA, HIPAA, and FERPA, and offers a Data Processing Addendum and a Business Associate Agreement for HIPAA-regulated customers. This is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. No FedRAMP or PCI attestation was found for the AgentKit/API products.",
-        shortValue: 'SOC 2, ISO 27001/27701, HIPAA/GDPR support',
+          "OpenAI's ChatGPT Enterprise and API Platform hold FedRAMP Moderate (Class C) authorization per the FedRAMP Marketplace listing. OpenAI's trust portal lists PCI DSS v4.0.1 for payment-processing components, a SOC 2 Type 2 examination (Security, Availability, Confidentiality, Privacy criteria) covering the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team, plus ISO/IEC 27001:2022, 27017:2015, 27018:2019, and 27701:2019 certifications, and lists GDPR and CCPA. OpenAI offers a Data Processing Addendum for GDPR/CCPA and a Business Associate Agreement for HIPAA-regulated customers on ChatGPT Enterprise/Edu and the API (not standard ChatGPT Business); this is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. FERPA compliance for ChatGPT Edu/for Teachers runs through a separate Student Data Privacy Agreement rather than the general DPA.",
+        shortValue: 'FedRAMP Moderate, PCI DSS, SOC 2, ISO 27001/27701, HIPAA BAA',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://openai.com/security-and-privacy/',
-            label: 'Security and privacy at OpenAI',
-            asOf: '2026-07-02',
+            url: 'https://www.fedramp.gov/marketplace/products/FR2533155773/',
+            label: 'ChatGPT Enterprise and API Platform | FedRAMP Marketplace',
+            asOf: '2026-07-08',
           },
-          { url: 'https://trust.openai.com/', label: 'OpenAI Trust Portal', asOf: '2026-07-02' },
+          { url: 'https://trust.openai.com/', label: 'OpenAI Trust Portal', asOf: '2026-07-08' },
           {
-            url: 'https://openai.com/business-data/',
-            label: 'Business data privacy, security, and compliance',
-            asOf: '2026-07-02',
+            url: 'https://help.openai.com/en/articles/8660679-how-can-i-get-a-business-associate-agreement-baa-with-openai',
+            label:
+              'How can I get a Business Associate Agreement (BAA) with OpenAI? | OpenAI Help Center',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1232,26 +1263,21 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Founded 2015; ~9,000+ employees; $852B valuation after $122B round closed March 2026',
+          'Founded December 2015; ~4,500 employees (targeting ~8,000 by end of 2026); $852B valuation after $122B round closed April 2026',
         detail:
-          'OpenAI was founded in December 2015 (originally as a nonprofit) by Sam Altman, Greg Brockman, Elon Musk, Ilya Sutskever, and others. On March 31, 2026, OpenAI closed a $122B funding round at an $852B post-money valuation, with Amazon ($50B, partly contingent on an IPO or reaching AGI), Nvidia ($30B), and SoftBank ($30B) as the largest backers, alongside co-investors including Andreessen Horowitz, D.E. Shaw Ventures, MGX, TPG, and T. Rowe Price-advised accounts; cumulative funding raised is around $180B+ across 15 rounds. Employee headcount estimates vary by source, with one tracker citing roughly 9,268 employees as of May 31, 2026 (other estimates range 3,800-8,000 depending on scope/date). This is a mature, well-capitalized company, though AgentKit/Agent Builder is a relatively new (October 2025) product line now being wound down, with shutdown scheduled for November 30, 2026.',
-        shortValue: 'Founded 2015, $852B valuation, ~9,000 employees',
+          'OpenAI was founded in December 2015 (originally as a nonprofit) by Sam Altman, Greg Brockman, Elon Musk, Ilya Sutskever, and others. OpenAI closed a $122B funding round in April 2026 at an $852B post-money valuation, with Amazon ($50B), Nvidia ($30B), and SoftBank ($30B) as the largest backers. Employee headcount was roughly 4,500 as of 2026 per Wikipedia, with Financial Times reporting (via Engadget) that OpenAI aims to nearly double its headcount to about 8,000 employees by the end of 2026. This is a mature, well-capitalized company, though AgentKit/Agent Builder is a relatively new (October 2025) product line now being wound down, with shutdown scheduled for November 30, 2026.',
+        shortValue: 'Founded 2015, $852B valuation, ~4,500 employees',
         confidence: 'verified',
         sources: [
           {
             url: 'https://en.wikipedia.org/wiki/OpenAI',
             label: 'OpenAI: Wikipedia',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://sacra.com/c/openai/',
-            label: 'OpenAI revenue, valuation & funding: Sacra',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://tracxn.com/d/companies/openai/__kElhSG7uVGeFk1i71Co9-nwFtmtyMVT7f-YHMn4TFBg',
-            label: 'OpenAI: Tracxn company profile',
-            asOf: '2026-07-02',
+            url: 'https://www.engadget.com/ai/openai-reportedly-plans-to-double-its-workforce-to-8000-employees-161028377.html',
+            label: 'OpenAI reportedly plans to double its workforce to 8,000 employees: Engadget',
+            asOf: '2026-07-08',
           },
         ],
       },

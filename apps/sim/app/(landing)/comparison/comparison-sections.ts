@@ -70,6 +70,7 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
       { key: 'dataTables', label: 'Native data tables' },
       { key: 'richTextEditor', label: 'Rich-text document editor' },
       { key: 'subWorkflows', label: 'Sub-workflows (composition)' },
+      { key: 'customBlocks', label: 'Custom blocks (org-wide reuse)' },
     ],
   }),
   defineSection({

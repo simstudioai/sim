@@ -10,6 +10,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type {
   VfsSnapshotV1,
@@ -305,7 +306,7 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
         if (j.lifecycle !== 'persistent') line += ` [${j.lifecycle}]`
         if (j.cronExpression) line += `, cron: ${j.cronExpression}`
         if (j.sourceTaskName) line += `, task: ${j.sourceTaskName}`
-        const promptPreview = j.prompt.length > 80 ? `${j.prompt.slice(0, 77)}...` : j.prompt
+        const promptPreview = j.prompt.length > 80 ? truncate(j.prompt, 77) : j.prompt
         line += `\n  ${promptPreview}`
         return line
       })

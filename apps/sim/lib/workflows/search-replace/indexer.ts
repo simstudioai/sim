@@ -23,6 +23,7 @@ import type {
 } from '@/lib/workflows/search-replace/types'
 import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/value-walker'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
+import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -931,6 +932,8 @@ function addToolInputMatches({
   workflowId,
   credentialTypeById,
   blockConfigs,
+  customTools,
+  mcpToolNamesById,
 }: {
   matches: WorkflowSearchMatch[]
   block: WorkflowSearchBlockState
@@ -950,11 +953,20 @@ function addToolInputMatches({
   workflowId?: string
   credentialTypeById?: Record<string, string | undefined>
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
+  customTools?: WorkflowSearchIndexerOptions['customTools']
+  mcpToolNamesById?: WorkflowSearchIndexerOptions['mcpToolNamesById']
 }) {
   const parentCanonicalModes = getSearchCanonicalModes(block)
 
   parseStoredToolInputValue(value).forEach((tool, toolIndex) => {
-    if (mode !== 'resource' && tool.title) {
+    // Index the resolved display name (not the stored mutable title) so
+    // search text and highlights match what the tool chip actually renders.
+    const toolDisplayName = resolveStoredToolName(tool, {
+      customTools,
+      mcpToolNamesById,
+      getBlockConfig: (type) => blockConfigs?.[type] ?? getBlock(type),
+    })
+    if (mode !== 'resource' && toolDisplayName) {
       addTextMatches({
         matches,
         idPrefix: 'tool-input-title',
@@ -963,7 +975,7 @@ function addToolInputMatches({
         canonicalSubBlockId,
         subBlockType: 'tool-input',
         fieldTitle: 'Tool',
-        value: tool.title,
+        value: toolDisplayName,
         valuePath: [toolIndex, 'title'],
         target: { kind: 'subblock' },
         query,
@@ -1228,6 +1240,8 @@ export function indexWorkflowSearchMatches(
     workflowId,
     blockConfigs = {},
     credentialTypeById,
+    customTools,
+    mcpToolNamesById,
   } = options
 
   const matches: WorkflowSearchMatch[] = []
@@ -1363,6 +1377,8 @@ export function indexWorkflowSearchMatches(
           workflowId,
           credentialTypeById,
           blockConfigs,
+          customTools,
+          mcpToolNamesById,
         })
         continue
       }

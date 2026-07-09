@@ -14,6 +14,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
@@ -80,15 +81,6 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
 /** Resolve a Stripe invoice status to its badge presentation. */
 function getInvoiceStatusBadge(status: string | null): InvoiceStatusBadge {
   return INVOICE_STATUS_BADGES[status ?? ''] ?? { variant: 'gray', label: status ?? 'Unknown' }
-}
-
-/** Format a Unix-seconds timestamp as a short human-readable date. */
-function formatInvoiceDate(createdSeconds: number): string {
-  return new Date(createdSeconds * 1000).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
 }
 
 /** Cached currency formatters, keyed by upper-cased ISO currency code. */
@@ -413,7 +405,7 @@ export function Billing() {
 
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
     id: invoice.id,
-    date: formatInvoiceDate(invoice.created),
+    date: formatDate(new Date(invoice.created * 1000)),
     amount: formatInvoiceAmount(invoice.total, invoice.currency),
     badge: getInvoiceStatusBadge(invoice.status),
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,

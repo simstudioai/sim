@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { Badge, Button, ChipInput, ChipSelect, cn, Label, Skeleton } from '@sim/emcn'
+import { formatDateTime } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
@@ -78,7 +79,9 @@ function formatCost(cost: number) {
 
 function formatDate(d: string | null | undefined) {
   if (!d) return '—'
-  return new Date(d).toLocaleString()
+  const date = new Date(d)
+  if (Number.isNaN(date.getTime())) return '—'
+  return formatDateTime(date)
 }
 
 function Divider() {

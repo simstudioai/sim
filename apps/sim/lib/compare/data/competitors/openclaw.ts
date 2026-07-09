@@ -44,13 +44,13 @@ export const openClawProfile: CompetitorProfile = {
     {
       title: 'Sub-agent orchestration for parallel background work',
       description:
-        'A running agent can spawn sub-agents, background runs in their own isolated session and (by default) sandbox, that work in parallel on research, long-running tools, or verification tasks and report results back to the requesting chat when finished. Nesting depth is capped at 2 levels.',
+        'A running agent can spawn sub-agents, background runs in their own isolated session and (by default) sandbox, that work in parallel on research, long-running tools, or verification tasks and report results back to the requesting chat when finished. Nesting depth defaults to 1 level, with an orchestrator pattern recommended at depth 2, and a configurable maximum of 5 levels.',
       shortDescription:
         'Spawns isolated sub-agents that run tasks in parallel and report back to chat.',
       source: {
         url: 'https://docs.openclaw.ai/tools/subagents',
         label: 'OpenClaw Docs: Sub-agents',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -78,15 +78,15 @@ export const openClawProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Foundation-governed, MIT-licensed, with committed multi-year sponsorship',
+      title: 'MIT-licensed, moving to independent foundation governance',
       description:
-        'After creator Peter Steinberger joined OpenAI in February 2026, governance passed to the independent, non-profit OpenClaw Foundation (a board of community-elected maintainers). OpenAI sponsors the project with funding and inference/security support (Codex Security scanning) but does not own it.',
+        'After creator Peter Steinberger joined OpenAI in February 2026, he confirmed OpenClaw will become an open-source project run "under a foundation, supported by OpenAI but independent." Public reporting does not detail the foundation\'s formal name, board structure, or specific sponsorship terms.',
       shortDescription:
-        'MIT-licensed, run by a non-profit Foundation with OpenAI sponsorship, not one company.',
+        'MIT-licensed; governance is moving to an independent foundation supported, not owned, by OpenAI.',
       source: {
-        url: 'https://openclaw.ai/ecosystem/',
-        label: 'OpenClaw Ecosystem page',
-        asOf: '2026-07-02',
+        url: 'https://www.forbes.com/sites/ronschmelzer/2026/02/16/openai-hires-openclaw-creator-peter-steinberger-and-sets-up-foundation/',
+        label: 'Forbes: OpenAI Hires OpenClaw Creator Peter Steinberger And Sets Up Foundation',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -106,13 +106,13 @@ export const openClawProfile: CompetitorProfile = {
     {
       title: 'ClawHub marketplace has documented, ongoing supply-chain security incidents',
       description:
-        'Researchers found 283 ClawHub skills (roughly 7.1% of the registry at the time) leaking API keys and other credentials, and a separate scan identified 24 accounts distributing over 600 malicious skills before scanning was introduced. OpenClaw has since added VirusTotal and SkillSpector scanning, but its documentation still tells users to "treat third-party skills as untrusted code."',
+        'A Kaspersky/Securelist scan of the ClawHub skill hub in April 2026 identified 24 accounts distributing more than 600 malicious skills. In response, OpenClaw added preliminary VirusTotal and NVIDIA SkillSpector scanning to the skill-publishing pipeline, but its documentation still tells users to treat third-party skills as untrusted code.',
       shortDescription:
-        'Researchers found hundreds of ClawHub skills leaking credentials or containing malware.',
+        'A single scan found 24 accounts distributing over 600 malicious ClawHub skills.',
       source: {
-        url: 'https://snyk.io/blog/openclaw-skills-credential-leaks-research/',
-        label: 'Snyk: 280+ Leaky Skills: How OpenClaw & ClawHub Are Exposing API Keys and PII',
-        asOf: '2026-07-02',
+        url: 'https://securelist.com/openclaw-security/120484/',
+        label: 'Securelist: Security risks for OpenClaw users and how to mitigate these risks',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -130,24 +130,24 @@ export const openClawProfile: CompetitorProfile = {
     {
       title: 'No SOC 2 report or other compliance attestation',
       description:
-        'OpenClaw is a self-hosted open-source project run by a non-profit foundation, not a vendor selling a hosted service, so it publishes no SOC 2 report or other compliance attestation. Sim is SOC 2 compliant; like OpenClaw, Sim does not currently hold ISO 27001 or HIPAA certification. Security for data-at-rest and processing on OpenClaw falls entirely on the operator running their own instance.',
+        "OpenClaw has no OpenClaw-operated hosted service, only self-hosted software, and no SOC 2 report, trust center, or other compliance attestation is published anywhere on its official sites. Sim is SOC 2 compliant; like OpenClaw, Sim does not currently hold ISO 27001 or HIPAA certification. OpenClaw's own security documentation places responsibility for data-at-rest and processing security squarely on the operator running their own instance.",
       shortDescription: 'No SOC 2 report; the self-hosting operator owns all compliance risk.',
       source: {
         url: 'https://docs.openclaw.ai/gateway/security',
         label: 'OpenClaw Docs: Security',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
-      title: 'Rapid rebranding and name churn created real confusion and scam risk',
+      title: 'Rapid rebranding and name churn created real confusion',
       description:
-        'The project launched in November 2025 as "Warelay," was renamed to "Clawdbot," then to "Moltbot" on January 27, 2026 after an Anthropic trademark complaint over similarity to "Claude," then to "OpenClaw" three days later. Coverage from the period documents scam and impersonation activity, including a reported $16M crypto scam, riding the confusion.',
+        'The project launched on November 24, 2025 as "Warelay," then went through "CLAWDIS" and "Clawdbot" before being renamed to "Moltbot" on January 27, 2026 after an Anthropic trademark complaint over similarity to "Claude," then to "OpenClaw" three days later. Four name changes in about ten weeks made it hard for users to know which name, repo, or site was the legitimate project.',
       shortDescription:
-        'Three name changes in about ten weeks, including an Anthropic trademark dispute, fueled scam activity.',
+        'Four name changes in about ten weeks, including an Anthropic trademark dispute.',
       source: {
         url: 'https://en.wikipedia.org/wiki/OpenClaw',
         label: 'Wikipedia: OpenClaw',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -225,16 +225,16 @@ export const openClawProfile: CompetitorProfile = {
       },
       templates: {
         value:
-          'No workflow templates in the visual-builder sense; OpenClaw has no workflow canvas. ClawHub instead offers 60,000+ community-built Skills as installable starter packages for specific tasks.',
+          'No workflow templates in the visual-builder sense; OpenClaw has no workflow canvas. ClawHub instead offers a small, curated catalog of community-built Skills as installable starter packages for specific tasks: the live registry currently lists roughly 30 featured skills and 12 plugins.',
         detail:
-          "ClawHub's live registry lists over 60,000 community-built skills and 56,000+ certified skills, the closest analog to a template gallery, but each is a Markdown instruction package installed into the agent, not a prebuilt multi-step workflow.",
-        shortValue: '60,000+ ClawHub skills, not workflow templates',
+          'ClawHub is the closest analog to a template gallery, installable Markdown Skill packages for specific tasks, but its catalog is a curated set rather than a large template gallery, and catalog size has shifted significantly over time (including a security-driven cleanup, see integrations for detail). Each skill is a Markdown instruction package installed into the agent, not a prebuilt multi-step workflow.',
+        shortValue: '~30 ClawHub skills and 12 plugins currently listed, not workflow templates',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://clawhub.ai/',
             label: 'ClawHub registry',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -299,16 +299,16 @@ export const openClawProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          "No: OpenClaw has no cloud file-storage product of its own (no folder hierarchy, link-based sharing with password/SSO, or deleted-item recovery). It reads/writes files directly on the operator's own local filesystem or connected apps (e.g. via MCP servers, channel attachments) inside a sandboxed workspace directory.",
+          "No: OpenClaw has no cloud file-storage product of its own. It reads and writes files directly on the operator's own local filesystem, inside a sandboxed workspace directory, rather than through a dedicated hosted file-storage/sharing surface.",
         detail:
-          'Tool access defaults to sandbox-isolated directories under the local workspace (~/.openclaw/workspace). There is no first-party hosted file-storage/sharing surface distinct from the local filesystem.',
+          'Tool access defaults to sandbox-isolated directories under ~/.openclaw/sandboxes (agents.defaults.sandbox.workspaceAccess). There is no first-party hosted file-storage/sharing surface distinct from the local filesystem.',
         shortValue: 'No: operates on the local filesystem, no hosted file store',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.openclaw.ai/gateway/security',
             label: 'OpenClaw Docs: Security',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -359,6 +359,32 @@ export const openClawProfile: CompetitorProfile = {
             url: 'https://docs.openclaw.ai/tools/subagents',
             label: 'OpenClaw Docs: Sub-agents',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      customBlocks: {
+        value:
+          "No: OpenClaw has no feature to publish a Lobster workflow or Task Flow as a named, iconed, encapsulated block that appears in a shared toolbar for other org members to drop into their own separate flows. The documented path for org-wide reuse is packaging a `.lobster` file plus setup notes as a Skill or plugin and publishing it through ClawHub, an installable instruction/code package the agent references, not a live block whose inputs/outputs are auto-derived from a source workflow and that tracks that workflow's latest deployed version automatically.",
+        detail:
+          "Lobster's own docs list run/command, pipeline, and approval as its only step types, with no invoke-another-workflow-as-a-block primitive. Task Flow is scoped to tracking state within a single multi-step run, not publishing that run as a reusable component. ClawHub Skills are markdown instruction files compiled into the system prompt for agent reasoning, not encapsulated, auto-input-derived workflow blocks with hand-picked outputs and hidden internals; a published Skill's `.lobster` file and setup notes are visible to whoever installs it, the opposite of Sim's full encapsulation.",
+        shortValue:
+          'No: reuse is via ClawHub Skills (visible instructions), not a live workflow block',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.openclaw.ai/tools/lobster',
+            label: 'OpenClaw Docs: Lobster',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.openclaw.ai/automation/taskflow',
+            label: 'OpenClaw Docs: Task flow',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.openclaw.ai/tools/skills',
+            label: 'OpenClaw Docs: Skills',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -426,16 +452,16 @@ export const openClawProfile: CompetitorProfile = {
       },
       mcpSupport: {
         value:
-          'Yes: native MCP client support over both stdio and HTTP/SSE transports, connecting to any published MCP server by adding an mcpServers block to the OpenClaw config',
+          'Yes: native MCP client support over both stdio and HTTP/SSE transports, connecting to any published MCP server by adding an mcpServers block to the OpenClaw config. Compatible with the entire published ecosystem of MCP servers (e.g. GitHub, Notion, Postgres, Slack). OpenClaw can also itself be run as an MCP server via `openclaw mcp serve`, exposing its channel conversations to external MCP clients like Claude Code.',
         detail:
-          'Compatible with "the entire published ecosystem of MCP servers" (e.g. GitHub, Notion, Postgres, Slack). Whether OpenClaw itself can be published as an MCP server for external tools to call is undocumented (see mcpPublishing).',
-        shortValue: 'Yes, MCP client over stdio and HTTP/SSE',
+          'The docs.openclaw.ai/cli/mcp page documents both directions: consuming external MCP servers via an mcpServers config block, and running `openclaw mcp serve` to start OpenClaw as a stdio MCP server exposing its channel conversations to external MCP clients.',
+        shortValue: 'Yes, MCP client over stdio/HTTP+SSE, and can run as an MCP server too',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/cli/mcp',
             label: 'OpenClaw Docs: MCP',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -491,16 +517,16 @@ export const openClawProfile: CompetitorProfile = {
       },
       dynamicToolUse: {
         value:
-          'Yes: the agent dynamically selects among its configured tools, connectors, and installed Skills at runtime based on the request, rather than following a pre-wired sequence of steps chosen at build time',
+          'Partial: which Skills are even eligible for a session is snapshotted once when that session starts and reused for every subsequent turn, not re-selected per request; within that fixed snapshot, the agent still chooses which tool/skill to invoke on a given turn based on the request, rather than following a pre-wired sequence of steps chosen at build time.',
         detail:
-          'This is the core operating model described throughout the docs (tool/skill dispatch decided per-turn by the agent), a consequence of there being no visual builder with pre-wired steps.',
-        shortValue: 'Yes, picks tools/skills dynamically per request',
-        confidence: 'estimated',
+          'OpenClaw\'s own docs state it "snapshots eligible skills when a session starts and reuses that list for all subsequent turns in the session," with changes to skills or config taking effect only on the next new session (or when a skills-file watcher detects an edit).',
+        shortValue: 'Partial: skills are snapshotted per session, not re-selected per request',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/tools/skills',
             label: 'OpenClaw Docs: Skills',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -553,16 +579,16 @@ export const openClawProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'Yes: sub-agents can run in parallel, working simultaneously on separate tasks (e.g. research, content generation, verification) and report back to the requesting session, up to a documented 2-level nesting depth (main session can spawn depth-1 sub-agents, which can spawn depth-2 workers, where depth-2 spawning further sub-agents is denied)',
+          'Yes: sub-agents can run in parallel, working simultaneously on separate tasks (e.g. research, content generation, verification) and report back to the requesting session. Nesting defaults to depth 1, with a documented maxSpawnDepth configurable up to 5 levels via the maxSpawnDepth parameter (range 1-5).',
         detail:
           'Each sub-agent gets its own session identifier, context window, and execution environment (with optional sandboxing), isolated from the main session and from sibling sub-agents.',
-        shortValue: 'Yes, parallel sub-agents up to 2 levels of nesting',
+        shortValue: 'Yes, parallel sub-agents with configurable nesting depth (up to 5)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/tools/subagents',
             label: 'OpenClaw Docs: Sub-agents',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -607,21 +633,21 @@ export const openClawProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          '22+ native messaging channels plus 60,000+ community-built Skills and MCP access to the broader MCP server ecosystem',
+          "29 native messaging channels plus ClawHub's live registry of roughly 30 featured skills and 12 plugins, and MCP access to the broader MCP server ecosystem",
         detail:
-          "Native channel integrations (WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Microsoft Teams, and more) are documented directly. ClawHub's live registry separately lists over 60,000 community-built skills (56,000+ certified), and MCP support adds access to hundreds of third-party MCP servers on top of that.",
-        shortValue: '22+ channels, 60,000+ Skills, plus MCP servers',
+          "Native channel integrations (WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Microsoft Teams, and more) are documented directly, and the openclaw.ai homepage advertises 29 channels. ClawHub's live registry currently lists roughly 30 featured skills and 12 plugins; MCP support adds access to hundreds of third-party MCP servers on top of that.",
+        shortValue: '29 channels, ~30 ClawHub skills/12 plugins, plus MCP servers',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://openclaw.ai/',
             label: 'OpenClaw homepage',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://clawhub.ai/',
             label: 'ClawHub registry',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -785,16 +811,21 @@ export const openClawProfile: CompetitorProfile = {
       },
       dataResidency: {
         value:
-          'Yes, by construction: because OpenClaw is self-hosted only, all agent data (sessions, memory files, credentials) resides wherever the operator chooses to run the Gateway (laptop, homelab, or their own VPS/cloud region), giving complete control over data location with no vendor-side residency question.',
+          "Yes, by construction: because OpenClaw runs only as a self-hosted Gateway process, with no OpenClaw-operated hosted/SaaS version, all agent data (sessions, memory files, credentials) resides wherever the operator chooses to run it, e.g. a personal laptop or a self-hosted VPS/homelab using the project's own Ansible/NixOS deployment tooling, giving the operator full control over data location with no vendor-side residency question.",
         detail:
-          'The OpenClaw Ecosystem page states data lives "where you choose, laptop, homelab, or VPS," a direct consequence of there being no vendor-operated cloud service.',
+          'The OpenClaw Ecosystem page lists self-host infrastructure tooling (an Ansible playbook, NixOS packaging) for operators running the Gateway on their own server. Combined with there being no OpenClaw-operated cloud service, data residency is entirely a function of where the operator deploys the Gateway.',
         shortValue: 'Yes, fully controlled by self-hosting location',
         confidence: 'verified',
         sources: [
           {
             url: 'https://openclaw.ai/ecosystem/',
             label: 'OpenClaw Ecosystem page',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.openclaw.ai/',
+            label: 'OpenClaw Docs home',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -845,16 +876,17 @@ export const openClawProfile: CompetitorProfile = {
       },
       modelAndToolGovernance: {
         value:
-          'Yes, at the single-operator level: OpenClaw supports per-agent tool allow/deny lists, sandbox-level tool filters, and per-model-provider configuration, so an operator can restrict which tools/models a given agent may use. This is configured by one trusted operator, not enforced org-wide across multiple admin-managed users.',
+          "Yes, at the single-operator level: OpenClaw supports per-agent tool allow/deny lists and sandbox-level workspace/tool restrictions (agents.defaults.sandbox, tools.allow/tools.deny), configured by one trusted operator, not enforced org-wide. The docs frame this as a layered 'identity → scope → model' design principle rather than a formally named three-gate system.",
         detail:
-          'Documented as a three-gate system (agent-level tools.allow/deny, sandbox-level tools.allow, and container network access), plus explicit provider/model selection per agent in configuration.',
-        shortValue: 'Yes, operator-configured per-agent tool/model restrictions',
+          "Documented via agent-level tools.allow/tools.deny lists and sandbox-level workspace/tool restrictions, plus explicit provider/model selection per agent in configuration, framed by the docs around an 'identity → scope → model' design principle.",
+        shortValue:
+          'Yes, operator-configured per-agent tool/model restrictions (identity → scope → model)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/gateway/security',
             label: 'OpenClaw Docs: Security',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -941,10 +973,9 @@ export const openClawProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://openclaw.ai/blog/openclaw-nvidia-skill-security',
-            label:
-              'OpenClaw Blog: OpenClaw Collaborates with NVIDIA for Stronger Agent Skill Security',
-            asOf: '2026-07-02',
+            url: 'https://securelist.com/openclaw-security/120484/',
+            label: 'Securelist: Security risks for OpenClaw users and how to mitigate these risks',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -967,31 +998,32 @@ export const openClawProfile: CompetitorProfile = {
       },
       durabilityModel: {
         value:
-          'Partial: cron-scheduled jobs run as isolated sessions that start clean and get pruned after a retention window, giving each run a clean, repeatable environment, but there is no automatic retry-with-backoff or checkpoint/replay-of-a-past-run feature for either scheduled jobs or interactive chat sessions.',
+          'Partial: cron-scheduled jobs run as isolated sessions with retention/pruning, and OpenClaw now provides automatic retry-with-backoff for both one-shot jobs (up to retry.maxAttempts, default 3 attempts, at 30s/60s/5m) and recurring jobs (an extended 30s/60s/5m/15m/60m backoff on consecutive errors), though there is still no checkpoint/replay-of-a-past-run feature for either scheduled jobs or interactive chat sessions.',
         detail:
-          'The cron docs describe delivery diagnostics (intended target, resolved target, fallback delivery used, final delivered state) for message delivery specifically, not a general execution-retry/checkpoint mechanism.',
-        shortValue: 'Clean isolated cron runs; no documented retry/checkpoint system',
+          'The cron docs describe both delivery diagnostics (intended target, resolved target, fallback delivery used, final delivered state) for message delivery, and the retry/backoff schedule (cron.sessionRetention, runLog.keepLines, retry.maxAttempts) as configurable per job.',
+        shortValue: 'Clean isolated cron runs with retry-with-backoff; no checkpoint/replay',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.openclaw.ai/automation/cron-jobs',
             label: 'OpenClaw Docs: Scheduled tasks (cron jobs)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       failureAlerting: {
         value:
-          'Partial: cron job runs report delivery diagnostics (whether the agent sent directly, whether fallback delivery was used, the final delivered state) back through the chat channel, but there is no separate proactive alerting mechanism (email/webhook alert on failure or cost/latency threshold).',
+          'Partial: cron jobs support a dedicated failure-alerting path (a configurable cron.failureDestination global/per-job override, a webhook delivery mode, and --failure-alert-after/--failure-alert-cooldown tuning flags) in addition to normal chat delivery diagnostics, so failure alerting is a distinct feature rather than merely folded into chat delivery. There is still no email or cost/latency-threshold alerting.',
         detail:
-          'Failure visibility is folded into the normal chat-delivery flow (the operator sees the delivery outcome in the channel where the job reports), not a distinct alerting/notification product feature.',
-        shortValue: 'Delivery diagnostics via chat, no separate alerting feature',
+          'Failure alerting is a dedicated, tunable path (webhook delivery mode plus alert-frequency flags), separate from the normal chat-delivery flow where the operator otherwise sees delivery outcomes in the channel where the job reports.',
+        shortValue:
+          'Dedicated failure-alerting path (webhook + tuning flags); no email/threshold alerts',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.openclaw.ai/automation/cron-jobs',
             label: 'OpenClaw Docs: Scheduled tasks (cron jobs)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1026,17 +1058,17 @@ export const openClawProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          'No fixed platform-wide execution-time or concurrency ceiling is published by OpenClaw itself. Sub-agent nesting is capped at 2 levels deep (depth-2 sessions cannot spawn further sub-agents), and any other limits (request timeouts, rate limits) come from whichever LLM provider API the operator has configured, not from OpenClaw.',
+          'No fixed platform-wide execution-time ceiling is published by default (runTimeoutSeconds defaults to 0/unlimited). Sub-agents cannot spawn their own children by default (maxSpawnDepth defaults to 1); setting maxSpawnDepth to 2 opts into one level of nesting (the documented "orchestrator pattern"), up to a configurable maximum of 5. agents.defaults.subagents.maxConcurrent caps concurrent sub-agent runs at 8 by default, with maxChildrenPerAgent capping children per orchestrator at 5 by default.',
         detail:
-          "Because OpenClaw runs on infrastructure the operator controls, execution-time/concurrency limits are a function of that operator's own hardware and their model provider's API limits, not an OpenClaw-side ceiling.",
+          "Because OpenClaw runs on infrastructure the operator controls, execution-time/concurrency limits beyond these published defaults (runTimeoutSeconds, maxSpawnDepth, maxConcurrent, maxChildrenPerAgent) are a function of that operator's own hardware and their model provider's API limits, not an OpenClaw-side ceiling.",
         shortValue:
-          'No OpenClaw-side limit; only sub-agent depth cap (2 levels) and provider limits',
-        confidence: 'estimated',
+          'No nesting by default (maxSpawnDepth 1, opt-in to 2+); maxConcurrent 8; no fixed time limit',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/tools/subagents',
             label: 'OpenClaw Docs: Sub-agents',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },

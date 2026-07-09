@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseMultiValue, parseTagDate } from '@/connectors/utils'
@@ -228,7 +229,7 @@ function tweetSourceUrl(tweetId: string, username?: string): string {
 function tweetTitle(text: string): string {
   const firstLine = text.split('\n')[0].trim()
   if (!firstLine) return 'Tweet'
-  return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine
+  return firstLine.length > 80 ? truncate(firstLine, 77) : firstLine
 }
 
 /**

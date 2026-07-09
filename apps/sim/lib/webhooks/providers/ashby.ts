@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -14,6 +15,7 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { buildFallbackDeliveryFingerprint } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Ashby')
 
@@ -37,18 +39,54 @@ function validateAshbySignature(secretToken: string, signature: string, body: st
 export const ashbyHandler: WebhookProviderHandler = {
   extractIdempotencyId(body: unknown): string | null {
     const obj = body as Record<string, unknown>
-    const webhookActionId = obj.webhookActionId
-    if (typeof webhookActionId === 'string' && webhookActionId) {
-      return `ashby:${webhookActionId}`
+    const action = typeof obj.action === 'string' ? obj.action : undefined
+    const data = obj.data as Record<string, unknown> | undefined
+    if (!action || !data) return null
+
+    const application = data.application as Record<string, unknown> | undefined
+    const candidate = data.candidate as Record<string, unknown> | undefined
+    const job = data.job as Record<string, unknown> | undefined
+    const offer = data.offer as Record<string, unknown> | undefined
+
+    if (application?.id) {
+      const discriminator = application.updatedAt ?? buildFallbackDeliveryFingerprint(data)
+      const offerSuffix = offer?.id ? `:${offer.id}` : ''
+      return `ashby:${action}:${application.id}:${discriminator}${offerSuffix}`
+    }
+    if (offer?.id) {
+      return `ashby:${action}:${offer.id}`
+    }
+    if (candidate?.id) {
+      return `ashby:${action}:${candidate.id}`
+    }
+    if (job?.id) {
+      return `ashby:${action}:${job.id}`
     }
     return null
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
+    const data = (b.data as Record<string, unknown>) || {}
+    const application = data.application as Record<string, unknown> | undefined
+    const currentInterviewStage = application?.currentInterviewStage as
+      | Record<string, unknown>
+      | undefined
+
     return {
       input: {
-        ...((b.data as Record<string, unknown>) || {}),
+        ...data,
+        ...(application && currentInterviewStage
+          ? {
+              application: {
+                ...application,
+                currentInterviewStage: {
+                  ...omit(currentInterviewStage, ['type']),
+                  stageType: currentInterviewStage.type,
+                },
+              },
+            }
+          : {}),
         action: b.action,
       },
     }
@@ -185,6 +223,9 @@ export const ashbyHandler: WebhookProviderHandler = {
         } else if (ashbyResponse.status === 403) {
           userFriendlyMessage =
             'Access denied. Please ensure your Ashby API Key has the apiKeysWrite permission.'
+        } else if (/duplicate webhook/i.test(errorMessage)) {
+          userFriendlyMessage =
+            'A webhook for this URL and event already exists in Ashby. This usually happens when a previous save succeeded in Ashby but Sim failed to record it. Delete the duplicate webhook under Ashby Settings > API/Webhooks, then re-save this trigger.'
         } else if (errorMessage && errorMessage !== 'Unknown Ashby API error') {
           userFriendlyMessage = `Ashby error: ${errorMessage}`
         }

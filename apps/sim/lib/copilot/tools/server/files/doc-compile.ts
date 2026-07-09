@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { executeInE2B, executeShellInE2B, type SandboxFile } from '@/lib/execution/e2b'
@@ -152,7 +153,7 @@ async function stageReferencedImages(source: string, workspaceId: string): Promi
       logger.warn('Failed to resolve referenced image for doc compile', {
         workspaceId,
         fileId,
-        error: err instanceof Error ? err.message : String(err),
+        error: getErrorMessage(err),
       })
       continue
     }
@@ -177,7 +178,7 @@ async function stageReferencedImages(source: string, workspaceId: string): Promi
       logger.warn('Failed to stage referenced image for doc compile', {
         workspaceId,
         fileId,
-        error: err instanceof Error ? err.message : String(err),
+        error: getErrorMessage(err),
       })
       continue
     }
