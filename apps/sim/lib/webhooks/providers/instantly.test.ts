@@ -165,13 +165,21 @@ describe('Instantly webhook provider', () => {
   })
 
   describe('extractIdempotencyId', () => {
-    it('prefers the email_id when present', () => {
+    it('prefers the email_id when present, qualified by timestamp', () => {
       const id = instantlyHandler.extractIdempotencyId!({
         event_type: 'email_sent',
         email_id: 'email-123',
         campaign_id: 'camp-1',
         lead_email: 'lead@example.com',
         timestamp: '2026-07-08T12:00:00.000Z',
+      })
+      expect(id).toBe('instantly:email_sent:email-123:2026-07-08T12:00:00.000Z')
+    })
+
+    it('falls back to the bare email_id when timestamp is missing', () => {
+      const id = instantlyHandler.extractIdempotencyId!({
+        event_type: 'email_sent',
+        email_id: 'email-123',
       })
       expect(id).toBe('instantly:email_sent:email-123')
     })
@@ -196,6 +204,35 @@ describe('Instantly webhook provider', () => {
       const first = instantlyHandler.extractIdempotencyId!(body)
       const second = instantlyHandler.extractIdempotencyId!({ ...body })
       expect(first).toBe(second)
+    })
+
+    it('is stable across retries of the same email_id-keyed delivery', () => {
+      const body = {
+        event_type: 'email_opened',
+        email_id: 'email-123',
+        timestamp: '2026-07-08T12:00:00.000Z',
+      }
+      const first = instantlyHandler.extractIdempotencyId!(body)
+      const second = instantlyHandler.extractIdempotencyId!({ ...body })
+      expect(first).toBe(second)
+    })
+
+    it('does not collide across distinct occurrences of the same email_id (e.g. repeat opens/clicks/replies)', () => {
+      // Instantly's `is_first` field only makes sense if the same event_type can fire
+      // more than once for the same email_id — every open, click, or in-thread reply
+      // shares one email_id. The key must differentiate occurrences via timestamp so a
+      // second legitimate open/click/reply is not silently dropped as a duplicate.
+      const firstOpen = instantlyHandler.extractIdempotencyId!({
+        event_type: 'email_opened',
+        email_id: 'email-123',
+        timestamp: '2026-07-08T12:00:00.000Z',
+      })
+      const secondOpen = instantlyHandler.extractIdempotencyId!({
+        event_type: 'email_opened',
+        email_id: 'email-123',
+        timestamp: '2026-07-08T13:30:00.000Z',
+      })
+      expect(firstOpen).not.toBe(secondOpen)
     })
 
     it('returns null when there is not enough data to build a stable key', () => {

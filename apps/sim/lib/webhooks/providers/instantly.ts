@@ -63,12 +63,26 @@ export const instantlyHandler: WebhookProviderHandler = {
     const eventType = typeof body.event_type === 'string' ? body.event_type : undefined
     if (!eventType) return null
 
+    const timestamp = typeof body.timestamp === 'string' ? body.timestamp : undefined
+
+    // `email_id` (Instantly's `reply_to_uuid`) identifies the sent email, not one
+    // occurrence of an event on that email. Instantly's `is_first` field ("whether this
+    // is the first event of this type for the lead") only makes sense if the same
+    // event_type can fire more than once for the same email_id — e.g. every open of the
+    // same email, every click, or every reply in a thread all share one email_id. Keying
+    // on email_id alone would collapse those distinct, legitimate deliveries into a
+    // single idempotency slot and silently drop everything after the first. `timestamp`
+    // is fixed per event occurrence (not regenerated on retry), so appending it keeps the
+    // key both retry-stable and unique per occurrence.
     const emailId = typeof body.email_id === 'string' ? body.email_id : undefined
-    if (emailId) return `instantly:${eventType}:${emailId}`
+    if (emailId) {
+      return timestamp
+        ? `instantly:${eventType}:${emailId}:${timestamp}`
+        : `instantly:${eventType}:${emailId}`
+    }
 
     const campaignId = typeof body.campaign_id === 'string' ? body.campaign_id : undefined
     const leadEmail = typeof body.lead_email === 'string' ? body.lead_email : undefined
-    const timestamp = typeof body.timestamp === 'string' ? body.timestamp : undefined
     if (campaignId && leadEmail && timestamp) {
       return `instantly:${eventType}:${campaignId}:${leadEmail}:${timestamp}`
     }
