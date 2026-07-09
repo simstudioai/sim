@@ -253,7 +253,11 @@ export function collectForkClearedRefCandidates(
       workflowName: workflowNameByTarget.get(dependent.targetWorkflowId) ?? '',
       blockId: dependent.targetBlockId,
       blockLabel: dependent.blockName,
-      fieldLabel: dependent.title,
+      // Nested tool fields keep a plain `title` for the reconfigure UI; warnings need the
+      // tool disambiguator so two tools with the same field name stay distinguishable.
+      fieldLabel: dependent.toolName
+        ? `${dependent.toolName}: ${dependent.title}`
+        : dependent.title,
       kind: dependent.parentKind,
       sourceId: dependent.parentSourceId,
       sourceLabel: labelFor(dependent.parentKind, dependent.parentSourceId),
