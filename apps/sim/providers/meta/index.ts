@@ -109,8 +109,19 @@ export const metaProvider: ProviderConfig = {
 
         if (filteredTools?.length && toolChoice) {
           payload.tools = filteredTools
-          payload.tool_choice = toolChoice
           hasActiveTools = true
+
+          // Meta's Chat Completions endpoint only supports tool_choice: "auto" —
+          // "none", "required", and named-function choices all return HTTP 400
+          // (confirmed via the official meta-model-cookbook tool-calling recipe).
+          // "auto" is already the endpoint default, so we never set the field; a
+          // forced tool choice degrades to auto rather than failing the request.
+          if (typeof toolChoice === 'object') {
+            logger.warn(
+              'Meta does not support forcing a specific tool; falling back to auto tool_choice',
+              { requestedTool: toolChoice.function.name, model: request.model }
+            )
+          }
 
           logger.info('Meta request configuration:', {
             toolCount: filteredTools.length,
@@ -467,18 +478,18 @@ export const metaProvider: ProviderConfig = {
         logger.info('Using streaming for final Meta response after tool processing')
 
         // The tool loop is complete: this final pass only produces the textual answer.
-        // Force `tool_choice: 'none'` so the model cannot emit fresh tool calls that the
-        // text-only stream adapter would silently drop.
+        // Meta rejects tool_choice: "none" (only "auto" is supported), so instead of
+        // forcing tool_choice we omit `tools` from this call entirely — with no tools
+        // declared, the model cannot emit a fresh tool call for the text-only adapter to drop.
+        const { tools: _omittedTools, ...streamingBasePayload } = payload
         const streamingPayload: any = {
-          ...payload,
+          ...streamingBasePayload,
           messages: currentMessages,
-          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
         if (deferResponseFormat && responseFormatPayload) {
           streamingPayload.response_format = responseFormatPayload
-          streamingPayload.parallel_tool_calls = false
         }
 
         const streamResponse = await meta.chat.completions.create(
@@ -548,16 +559,17 @@ export const metaProvider: ProviderConfig = {
 
       // Tools were active, so `response_format` was withheld from the loop. Make one final
       // tool-free call to obtain the structured response now that the tool work is done.
+      // Meta rejects tool_choice: "none", so `tools` is dropped from this payload instead
+      // (see the streaming pass above for the same constraint).
       if (deferResponseFormat && responseFormatPayload) {
         logger.info('Applying deferred JSON schema response format after tool processing')
 
         const finalFormatStartTime = Date.now()
+        const { tools: _omittedDeferredTools, ...deferredBasePayload } = payload
         const finalPayload: any = {
-          ...payload,
+          ...deferredBasePayload,
           messages: currentMessages,
           response_format: responseFormatPayload,
-          tool_choice: 'none',
-          parallel_tool_calls: false,
         }
 
         currentResponse = await meta.chat.completions.create(
