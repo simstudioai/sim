@@ -186,6 +186,8 @@ export interface BatchDeleteOptions {
   tableName: string
   /** When true, also requires `timestampCol IS NOT NULL` (soft-delete semantics). */
   requireTimestampNotNull?: boolean
+  /** Runs between SELECT and DELETE; receives the just-selected rows. A throw skips the DELETE. */
+  onBatch?: (rows: Array<{ id: string }>) => Promise<void>
   batchSize?: number
   maxBatches?: number
   workspaceChunkSize?: number

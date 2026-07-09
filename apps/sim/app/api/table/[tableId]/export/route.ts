@@ -10,6 +10,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
 import { queryRows } from '@/lib/table/rows/service'
+import type { TableRowsCursor } from '@/lib/table/types'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableExport')
@@ -89,14 +90,22 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
           controller.enqueue(encoder.encode('['))
         }
 
+        // Keyset pagination on the default (order_key, id) order: `after` makes each
+        // page an index seek, where OFFSET re-scans every prior row (O(N²) across a
+        // full drain, blowing the 60s statement_timeout on large tables). Legacy rows
+        // without an order key fall back to offset paging, mirroring the client's
+        // cursor derivation in getNextTableRowsPageParam.
+        let after: TableRowsCursor | undefined
         let offset = 0
         let firstJsonRow = true
         while (true) {
           const result = await queryRows(
             table,
-            { limit: EXPORT_BATCH_SIZE, offset, includeTotal: false },
+            { limit: EXPORT_BATCH_SIZE, after, offset, includeTotal: false },
             requestId
           )
+
+          if (result.rows.length === 0) break
 
           for (const row of result.rows) {
             if (format === 'csv') {
@@ -111,7 +120,8 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
             }
           }
 
-          if (result.rows.length < EXPORT_BATCH_SIZE) break
+          const last = result.rows[result.rows.length - 1]
+          after = last.orderKey ? { orderKey: last.orderKey, id: last.id } : undefined
           offset += result.rows.length
         }
 

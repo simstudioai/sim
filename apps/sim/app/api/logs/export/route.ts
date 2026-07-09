@@ -86,22 +86,38 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    const pageSize = 1000
+
+    /**
+     * Fetches one page via keyset pagination on (startedAt, id): each page is an
+     * index seek past the last emitted row, where OFFSET would re-scan and discard
+     * every prior row (O(N²) across the stream, blowing the 60s statement_timeout
+     * on deep pages).
+     */
+    const fetchPage = (cursor: { startedAt: Date; id: string } | null) => {
+      const pageConditions = cursor
+        ? and(
+            conditions,
+            sql`(${workflowExecutionLogs.startedAt}, ${workflowExecutionLogs.id}) < (${cursor.startedAt}, ${cursor.id})`
+          )
+        : conditions
+      return dbReplica
+        .select(selectColumns)
+        .from(workflowExecutionLogs)
+        .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .where(pageConditions)
+        .orderBy(desc(workflowExecutionLogs.startedAt), desc(workflowExecutionLogs.id))
+        .limit(pageSize)
+    }
+
     const encoder = new TextEncoder()
     const stream = new ReadableStream<Uint8Array>({
       start: async (controller) => {
         controller.enqueue(encoder.encode(`${header}\n`))
-        const pageSize = 1000
-        let offset = 0
+        let cursor: { startedAt: Date; id: string } | null = null
         try {
           while (true) {
-            const rows = await dbReplica
-              .select(selectColumns)
-              .from(workflowExecutionLogs)
-              .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-              .where(conditions)
-              .orderBy(desc(workflowExecutionLogs.startedAt))
-              .limit(pageSize)
-              .offset(offset)
+            const rows = await fetchPage(cursor)
 
             if (!rows.length) break
 
@@ -158,7 +174,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               controller.enqueue(encoder.encode(`${line}\n`))
             }
 
-            offset += pageSize
+            const last = rows[rows.length - 1]
+            cursor = { startedAt: last.startedAt, id: last.id }
           }
           controller.close()
         } catch (e: any) {

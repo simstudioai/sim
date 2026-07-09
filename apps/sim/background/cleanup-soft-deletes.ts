@@ -2,10 +2,12 @@ import { db } from '@sim/db'
 import {
   copilotChats,
   document,
+  embedding,
   knowledgeBase,
   mcpServers,
   memory,
   userTableDefinitions,
+  userTableRows,
   workflow,
   workflowFolder,
   workflowMcpServer,
@@ -15,10 +17,13 @@ import {
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
   chunkArray,
+  DEFAULT_BATCH_SIZE,
+  DEFAULT_WORKSPACE_CHUNK_SIZE,
   deleteRowsById,
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
@@ -129,12 +134,68 @@ async function cleanupWorkspaceFileStorage(
 }
 
 /**
+ * Deletes child rows referencing the given parent ids in bounded batches.
+ * Parents with huge `ON DELETE CASCADE` fan-outs (knowledge base → embeddings,
+ * table definition → rows) must have their children drained this way BEFORE the
+ * parent DELETE runs — one cascading statement can otherwise touch millions of
+ * rows and exceed the 60s role-level statement_timeout.
+ *
+ * Throws when a batch makes no progress so the caller's parent DELETE (and its
+ * unbounded cascade) is skipped for this run instead of timing out.
+ */
+async function deleteChildRowsInBatches(
+  childTable: PgTable,
+  childIdCol: PgColumn,
+  parentFkCol: PgColumn,
+  parentIds: string[],
+  label: string
+): Promise<number> {
+  let totalDeleted = 0
+  for (const parentChunk of chunkArray(parentIds, DEFAULT_WORKSPACE_CHUNK_SIZE)) {
+    while (true) {
+      const rows = await db
+        .select({ id: sql<string>`id` })
+        .from(childTable)
+        .where(inArray(parentFkCol, parentChunk))
+        .limit(DEFAULT_BATCH_SIZE)
+      if (rows.length === 0) break
+
+      const result = await deleteRowsById(
+        childTable,
+        childIdCol,
+        rows.map((r) => r.id),
+        label
+      )
+      totalDeleted += result.deleted
+      if (result.deleted === 0) {
+        throw new Error(
+          `[${label}] Child cleanup made no progress (${rows.length} rows selected, 0 deleted)`
+        )
+      }
+    }
+  }
+  return totalDeleted
+}
+
+interface CleanupTarget {
+  table: PgTable
+  softDeleteCol: PgColumn
+  wsCol: PgColumn
+  name: string
+  /**
+   * Drains child tables with a large `ON DELETE CASCADE` fan-out before the
+   * parent rows are deleted — see {@link deleteChildRowsInBatches}.
+   */
+  prepareCascade?: (rows: Array<{ id: string }>, label: string) => Promise<void>
+}
+
+/**
  * Tables cleaned by the generic workspace-scoped batched DELETE. Tables whose
  * hard-delete triggers external side effects (workflow → copilot chats cascade,
  * workspace files → S3 storage) are handled explicitly so the SELECT that drives
  * the external cleanup and the SELECT that drives the DB delete see the same rows.
  */
-const CLEANUP_TARGETS = [
+const CLEANUP_TARGETS: CleanupTarget[] = [
   {
     table: workflowFolder,
     softDeleteCol: workflowFolder.archivedAt,
@@ -146,12 +207,40 @@ const CLEANUP_TARGETS = [
     softDeleteCol: knowledgeBase.deletedAt,
     wsCol: knowledgeBase.workspaceId,
     name: 'knowledgeBase',
+    prepareCascade: async (rows, label) => {
+      const kbIds = rows.map((r) => r.id)
+      // Embeddings first: they cascade from both knowledge_base and document, so
+      // draining them makes the subsequent document deletes cascade-free.
+      await deleteChildRowsInBatches(
+        embedding,
+        embedding.id,
+        embedding.knowledgeBaseId,
+        kbIds,
+        `${label}/embedding`
+      )
+      await deleteChildRowsInBatches(
+        document,
+        document.id,
+        document.knowledgeBaseId,
+        kbIds,
+        `${label}/document`
+      )
+    },
   },
   {
     table: userTableDefinitions,
     softDeleteCol: userTableDefinitions.archivedAt,
     wsCol: userTableDefinitions.workspaceId,
     name: 'userTableDefinitions',
+    prepareCascade: async (rows, label) => {
+      await deleteChildRowsInBatches(
+        userTableRows,
+        userTableRows.id,
+        userTableRows.tableId,
+        rows.map((r) => r.id),
+        `${label}/userTableRows`
+      )
+    },
   },
   { table: memory, softDeleteCol: memory.deletedAt, wsCol: memory.workspaceId, name: 'memory' },
   {
@@ -166,7 +255,7 @@ const CLEANUP_TARGETS = [
     wsCol: workflowMcpServer.workspaceId,
     name: 'workflowMcpServer',
   },
-] as const
+]
 
 /**
  * Sweep abandoned knowledge-base ownership bindings. The presigned upload flow
@@ -331,14 +420,17 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   totalDeleted += multiContextFileResult.deleted
 
   for (const target of CLEANUP_TARGETS) {
+    const { prepareCascade } = target
+    const targetLabel = `${label}/${target.name}`
     const result = await batchDeleteByWorkspaceAndTimestamp({
       tableDef: target.table,
       workspaceIdCol: target.wsCol,
       timestampCol: target.softDeleteCol,
       workspaceIds,
       retentionDate,
-      tableName: `${label}/${target.name}`,
+      tableName: targetLabel,
       requireTimestampNotNull: true,
+      onBatch: prepareCascade ? (rows) => prepareCascade(rows, targetLabel) : undefined,
     })
     totalDeleted += result.deleted
   }
