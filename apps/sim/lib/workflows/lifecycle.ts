@@ -346,7 +346,11 @@ export async function archiveWorkflowsByIdsInWorkspace(
 /**
  * Disables all resources owned by a banned user by archiving every workspace
  * they own (cascading to workflows, chats, KBs, tables, files, etc.)
- * and deleting their personal API keys.
+ * and deleting their personal API keys. Still opts into stranded-member
+ * fallback provisioning: the banned owner is excluded from receiving a
+ * fallback (`findMembersStrandedByArchival` filters actively banned users),
+ * but a non-banned co-member of an owned workspace can still be stranded by
+ * the ban and must get the same safety net as an interactive deletion.
  */
 export async function disableUserResources(userId: string): Promise<void> {
   const requestId = generateRequestId()
@@ -360,7 +364,9 @@ export async function disableUserResources(userId: string): Promise<void> {
     .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
   await Promise.all([
-    ...ownedWorkspaces.map((w) => archiveWorkspace(w.id, { requestId })),
+    ...ownedWorkspaces.map((w) =>
+      archiveWorkspace(w.id, { requestId, provisionFallbackForStrandedMembers: true })
+    ),
     db.delete(apiKey).where(eq(apiKey.userId, userId)),
   ])
 

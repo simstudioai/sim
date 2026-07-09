@@ -82,8 +82,7 @@ function createTx(
   orgAdminMembers: Array<{ userId: string }> = []
 ) {
   const selectDistinct = vi.fn()
-  // First call is always the explicit-permissions query; the second (only reached when the
-  // workspace has an organizationId) is the org-admin query.
+  // Mocked in call order: explicit-permissions query, then org-admin query.
   selectDistinct.mockReturnValueOnce(createMembersChain(members))
   selectDistinct.mockReturnValueOnce(createMembersChain(orgAdminMembers))
 
@@ -233,7 +232,7 @@ describe('workspace lifecycle', () => {
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
-  it('does not record an audit entry for a fallback workspace whose transaction subsequently fails', async () => {
+  it('does not record an audit entry or fire the workspaceCreated event for a fallback workspace whose transaction subsequently fails', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       name: 'Workspace 1',
@@ -258,10 +257,6 @@ describe('workspace lifecycle', () => {
       })
     ).rejects.toThrow('serialization_failure')
 
-    // recordAudit and the workspaceCreated telemetry event must only ever fire after the
-    // transaction has committed — otherwise a failed transaction (e.g. a serialization abort)
-    // would leave a phantom audit entry / event pointing at a fallback workspace that was
-    // rolled back.
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     expect(mockWorkspaceCreatedEvent).not.toHaveBeenCalled()
   })
@@ -341,8 +336,6 @@ describe('workspace lifecycle', () => {
       archivedAt: null,
     })
     mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
-    // The org admin has no row in `permissions` for this workspace at all — they only appear as
-    // an org-admin candidate. Their only accessible workspace is this one, so they're stranded.
     mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
       accessibleWorkspaceRow('workspace-1'),
     ])
@@ -400,6 +393,40 @@ describe('workspace lifecycle', () => {
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
+  it('provisions a fallback for a non-banned stranded co-member while excluding the banned owner in the same run', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace 1',
+      ownerId: 'user-banned',
+      archivedAt: null,
+    })
+    mockArchiveWorkflowsForWorkspace.mockResolvedValue(0)
+    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
+      accessibleWorkspaceRow('workspace-1'),
+    ])
+    mockGetActivelyBannedUserIds.mockResolvedValue(['user-banned'])
+
+    const tx = createTx([{ userId: 'user-banned' }, { userId: 'user-cohort' }])
+    mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
+      callback(tx)
+    )
+
+    const result = await archiveWorkspace('workspace-1', {
+      requestId: 'req-1',
+      provisionFallbackForStrandedMembers: true,
+    })
+
+    expect(result).toEqual({
+      archived: true,
+      workspaceName: 'Workspace 1',
+      provisionedWorkspaceUserIds: ['user-cohort'],
+    })
+    expect(mockCreateWorkspaceRecord).toHaveBeenCalledTimes(1)
+    expect(mockCreateWorkspaceRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-cohort' })
+    )
+  })
+
   it('proceeds without provisioning when every member has another active workspace', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
@@ -431,7 +458,7 @@ describe('workspace lifecycle', () => {
     expect(tx.update).toHaveBeenCalledTimes(8)
   })
 
-  it('never checks or provisions when provisionFallbackForStrandedMembers is not set (ban flow default)', async () => {
+  it('never checks or provisions when provisionFallbackForStrandedMembers is not set, but still performs the archival writes (ban flow default)', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       name: 'Workspace 1',
@@ -455,9 +482,6 @@ describe('workspace lifecycle', () => {
     expect(mockListAccessibleWorkspaceRowsForUser).not.toHaveBeenCalled()
     expect(mockCreateWorkspaceRecord).not.toHaveBeenCalled()
     expect(mockTransaction).toHaveBeenCalledWith(expect.any(Function), undefined)
-    // The archival writes must still run even when fallback provisioning is skipped entirely —
-    // this is the exact regression a prior version of this fix introduced (an early return that
-    // skipped all archival writes whenever the flag was off).
     expect(tx.update).toHaveBeenCalledTimes(8)
     expect(tx.delete).toHaveBeenCalledTimes(1)
   })

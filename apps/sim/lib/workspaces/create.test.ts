@@ -68,12 +68,6 @@ describe('createWorkspaceRecord', () => {
     expect(record.workspaceMode).toBe('personal')
     expect(tx.insert).toHaveBeenCalledTimes(3)
     expect(mockSaveWorkflowToNormalizedTables).toHaveBeenCalledTimes(1)
-    // Safe to fire immediately: this call committed its own transaction before returning.
-    expect(mockWorkspaceCreatedEvent).toHaveBeenCalledWith({
-      workspaceId: record.id,
-      userId: 'user-1',
-      name: 'My Workspace',
-    })
   })
 
   it('runs directly against a provided executor instead of opening a nested transaction', async () => {
@@ -90,9 +84,41 @@ describe('createWorkspaceRecord', () => {
 
     expect(mockTransaction).not.toHaveBeenCalled()
     expect(tx.insert).toHaveBeenCalledTimes(3)
-    // Must NOT fire here: the caller's outer transaction hasn't committed yet and could still
-    // roll back, which would make this a phantom event for a workspace that never existed. The
-    // caller owns firing this once its own transaction commits.
+  })
+
+  it('fires the workspaceCreated event once its own transaction commits', async () => {
+    const tx = createInsertOnlyTx()
+    mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
+      callback(tx)
+    )
+
+    const record = await createWorkspaceRecord({
+      userId: 'user-1',
+      name: 'My Workspace',
+      organizationId: null,
+      workspaceMode: 'personal',
+      billedAccountUserId: 'user-1',
+    })
+
+    expect(mockWorkspaceCreatedEvent).toHaveBeenCalledWith({
+      workspaceId: record.id,
+      userId: 'user-1',
+      name: 'My Workspace',
+    })
+  })
+
+  it('does not fire the workspaceCreated event when given a caller-owned executor', async () => {
+    const tx = createInsertOnlyTx()
+
+    await createWorkspaceRecord({
+      userId: 'user-1',
+      name: 'My Workspace',
+      organizationId: null,
+      workspaceMode: 'personal',
+      billedAccountUserId: 'user-1',
+      executor: tx as never,
+    })
+
     expect(mockWorkspaceCreatedEvent).not.toHaveBeenCalled()
   })
 

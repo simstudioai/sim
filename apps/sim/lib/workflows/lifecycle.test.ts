@@ -147,7 +147,7 @@ describe('disableUserResources', () => {
     vi.clearAllMocks()
   })
 
-  it('archives every owned workspace without opting into fallback provisioning, so banning is never blocked by other members', async () => {
+  it('archives every owned workspace with fallback provisioning opted in, so a non-banned co-member is not stranded', async () => {
     mockSelect.mockReturnValue(createSelectChain([{ id: 'workspace-1' }, { id: 'workspace-2' }]))
     mockDelete.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
     mockArchiveWorkspace.mockResolvedValue({ archived: true, workspaceName: 'Workspace' })
@@ -157,11 +157,11 @@ describe('disableUserResources', () => {
     expect(mockArchiveWorkspace).toHaveBeenCalledTimes(2)
     expect(mockArchiveWorkspace).toHaveBeenCalledWith(
       'workspace-1',
-      expect.not.objectContaining({ provisionFallbackForStrandedMembers: true })
+      expect.objectContaining({ provisionFallbackForStrandedMembers: true })
     )
     expect(mockArchiveWorkspace).toHaveBeenCalledWith(
       'workspace-2',
-      expect.not.objectContaining({ provisionFallbackForStrandedMembers: true })
+      expect.objectContaining({ provisionFallbackForStrandedMembers: true })
     )
     expect(mockDelete).toHaveBeenCalled()
   })

@@ -147,10 +147,6 @@ export async function createWorkspaceRecord({
     throw error
   }
 
-  // Only fire when this call committed its own transaction. When `executor` is a caller-supplied
-  // `tx`, the insert isn't durable yet — the caller's transaction can still roll back after this
-  // function returns, so firing here would risk a phantom event for a workspace that never
-  // existed. Callers that pass `executor` must fire this themselves once their transaction commits.
   if (!executor) {
     try {
       PlatformEvents.workspaceCreated({ workspaceId, userId, name })

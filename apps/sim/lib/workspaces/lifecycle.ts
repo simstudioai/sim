@@ -40,9 +40,10 @@ interface ArchiveWorkspaceOptions {
   /**
    * Opts into auto-provisioning a replacement workspace for any member who'd otherwise be left
    * with zero active workspaces. Off by default so archival stays a pure "delete this workspace"
-   * primitive for callers that don't ask for it (e.g. the account-disable flow, where a banned
-   * user's workspaces must be fully archived without handing the banned user a fresh one).
-   * Only the interactive DELETE route should set this.
+   * primitive for callers that don't need it. Safe to combine with a banned owner: actively banned
+   * users are excluded from receiving a fallback regardless of this flag (see
+   * `findMembersStrandedByArchival`), so the account-disable flow also sets this to protect any
+   * non-banned co-member of the banned owner's workspace.
    */
   provisionFallbackForStrandedMembers?: boolean
   actorId?: string
