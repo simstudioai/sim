@@ -1,5 +1,11 @@
 import { JiraIcon } from '@/components/icons'
-import { buildCommentOutputs, jiraSetupInstructions } from '@/triggers/jira/utils'
+import { buildTriggerSubBlocks } from '@/triggers'
+import {
+  buildCommentOutputs,
+  buildJiraExtraFields,
+  jiraSetupInstructions,
+  jiraTriggerOptions,
+} from '@/triggers/jira/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -14,61 +20,15 @@ export const jiraCommentUpdatedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: JiraIcon,
 
-  subBlocks: [
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_comment_updated',
-      },
-    },
-    {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
-      password: true,
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_comment_updated',
-      },
-    },
-    {
-      id: 'jqlFilter',
-      title: 'JQL Filter',
-      type: 'long-input',
-      placeholder: 'project = PROJ AND issuetype = Bug',
-      description: 'Filter which comment updates trigger this workflow using JQL',
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_comment_updated',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: jiraSetupInstructions('comment_updated'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_comment_updated',
-      },
-    },
-  ],
+  subBlocks: buildTriggerSubBlocks({
+    triggerId: 'jira_comment_updated',
+    triggerOptions: jiraTriggerOptions,
+    setupInstructions: jiraSetupInstructions('comment_updated'),
+    extraFields: buildJiraExtraFields(
+      'jira_comment_updated',
+      'Filter which comment updates trigger this workflow using JQL'
+    ),
+  }),
 
   outputs: buildCommentOutputs(),
 
