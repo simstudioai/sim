@@ -400,15 +400,63 @@
 /*
  * Highlight mark (`==text==`). An opacity-based amber tint so it reads on both light and dark
  * surfaces without a theme override; `color: inherit` keeps the text at the surrounding body color
- * and `box-decoration-break: clone` keeps the tint clean where a highlight wraps across lines.
+ * and `box-decoration-break: clone` keeps the tint clean where a highlight wraps across lines. The
+ * horizontal padding is cancelled by an equal negative margin so the tint bleeds slightly past the
+ * text without ever shifting the text (or any following text) as the highlight is applied/removed.
  */
 .rich-markdown-prose mark {
   background-color: rgba(255, 212, 0, 0.4);
   color: inherit;
   border-radius: 2px;
   padding: 0 0.1em;
+  margin: 0 -0.1em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+
+/*
+ * Left-margin block controls (the `+` / `⠿` handle revealed on block hover). `@tiptap/extension-drag-
+ * handle` positions the wrapper; these rules style the two buttons — a subtle icon pair that darkens on
+ * hover, with the grip showing a grab cursor and the add button a pointer.
+ */
+.rich-md-block-controls {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 4px;
+}
+
+.rich-md-block-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.rich-md-block-btn:hover,
+.rich-md-block-btn:focus-visible {
+  background-color: var(--surface-active);
+  color: var(--text-icon);
+}
+
+.rich-md-block-grip {
+  cursor: grab;
+}
+
+.rich-md-block-grip:active {
+  cursor: grabbing;
 }
 
 /*
