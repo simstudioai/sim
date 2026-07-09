@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
+import { offset } from '@floating-ui/dom'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import type { Editor } from '@tiptap/react'
 import { GripVertical, Plus } from 'lucide-react'
@@ -12,6 +13,13 @@ interface BlockDragHandleProps {
 interface NodeChangeData {
   pos: number
 }
+
+/**
+ * Nudges the handle left of the block so it clears the content edge — list markers (`1.`, `•`) hang into
+ * the left padding, and without a gap the handle sits flush against them. Merged over the extension's
+ * default `left-start` placement.
+ */
+const HANDLE_POSITION_CONFIG = { middleware: [offset(8)] }
 
 /**
  * Inserts an empty paragraph immediately after the top-level block at `pos` and opens the slash menu
@@ -43,6 +51,10 @@ export function selectBlockAt(editor: Editor, pos: number): void {
  * block and opens the slash menu ({@link insertBlockBelow}), and a `⠿` grip that drags to reorder (via
  * `@tiptap/extension-drag-handle`) or, on a plain click, selects the block ({@link selectBlockAt}). The
  * keyboard equivalent of the reorder is `Mod-Shift-Arrow` (see the block-mover extension).
+ *
+ * The grip is a `div` rather than a `button` on purpose: browsers don't initiate a native drag from a
+ * button press, so a button grip can't start the reorder drag. The extension makes the wrapper draggable;
+ * the grip just needs to not swallow that gesture.
  */
 export function BlockDragHandle({ editor }: BlockDragHandleProps) {
   const hoveredPosRef = useRef(-1)
@@ -59,8 +71,21 @@ export function BlockDragHandle({ editor }: BlockDragHandleProps) {
     selectBlockAt(editor, hoveredPosRef.current)
   }, [editor])
 
+  const handleGripKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      selectBlockAt(editor, hoveredPosRef.current)
+    },
+    [editor]
+  )
+
   return (
-    <DragHandle editor={editor} onNodeChange={handleNodeChange}>
+    <DragHandle
+      editor={editor}
+      onNodeChange={handleNodeChange}
+      computePositionConfig={HANDLE_POSITION_CONFIG}
+    >
       <div className='rich-md-block-controls'>
         <button
           type='button'
@@ -71,14 +96,16 @@ export function BlockDragHandle({ editor }: BlockDragHandleProps) {
         >
           <Plus size={15} strokeWidth={2} />
         </button>
-        <button
-          type='button'
+        <div
+          role='button'
+          tabIndex={0}
           aria-label='Drag to reorder, or click to select the block'
           className='rich-md-block-btn rich-md-block-grip'
           onClick={selectBlock}
+          onKeyDown={handleGripKeyDown}
         >
           <GripVertical size={15} strokeWidth={2} />
-        </button>
+        </div>
       </div>
     </DragHandle>
   )
