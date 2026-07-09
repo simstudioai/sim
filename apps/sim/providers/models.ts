@@ -19,6 +19,7 @@ import {
   GeminiIcon,
   GroqIcon,
   LitellmIcon,
+  MetaIcon,
   MistralIcon,
   OllamaIcon,
   OpenAIIcon,
@@ -2286,6 +2287,38 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {},
         contextWindow: 1000000,
         releaseDate: '2026-06-15',
+        recommended: true,
+      },
+    ],
+  },
+  meta: {
+    id: 'meta',
+    name: 'Meta',
+    description: "Meta's Muse Spark models via the Meta Model API (OpenAI-compatible)",
+    defaultModel: 'muse-spark-1.1',
+    modelPatterns: [/^muse-spark/],
+    icon: MetaIcon,
+    color: '#0082FB',
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'muse-spark-1.1',
+        pricing: {
+          input: 1.25,
+          cachedInput: 0.15,
+          output: 4.25,
+          updatedAt: '2026-07-09',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['minimal', 'low', 'medium', 'high', 'xhigh'],
+          },
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-07-09',
         recommended: true,
       },
     ],

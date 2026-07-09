@@ -12,6 +12,7 @@ export type ProviderId =
   | 'cerebras'
   | 'groq'
   | 'sakana'
+  | 'meta'
   | 'mistral'
   | 'ollama'
   | 'ollama-cloud'
