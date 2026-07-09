@@ -182,4 +182,42 @@ describe('Sentry webhook provider', () => {
     })
     expect(id).toBe('sentry:issue:42:created')
   })
+
+  it('does not match when the body is null', async () => {
+    const request = new NextRequest('http://localhost/test', {
+      headers: { 'Sentry-Hook-Resource': 'issue' },
+    })
+
+    const matched = await sentryHandler.matchEvent!({
+      body: null,
+      request,
+      requestId: 'sentry-t8',
+      providerConfig: { triggerId: 'sentry_issue_created' },
+      webhook: {},
+      workflow: {},
+    })
+
+    expect(matched).toBe(false)
+  })
+
+  it('formats input with an empty envelope when the body is null', async () => {
+    const result = await sentryHandler.formatInput!({
+      body: null,
+      headers: { 'sentry-hook-resource': 'issue' },
+      webhook: {},
+      workflow: { id: 'wf-1', userId: 'user-1' },
+      requestId: 'sentry-t9',
+    })
+
+    expect(result.input).toEqual({
+      action: '',
+      installation: null,
+      actor: null,
+      issue: null,
+    })
+  })
+
+  it('returns null idempotency id when the body is null', () => {
+    expect(sentryHandler.extractIdempotencyId!(null)).toBeNull()
+  })
 })
