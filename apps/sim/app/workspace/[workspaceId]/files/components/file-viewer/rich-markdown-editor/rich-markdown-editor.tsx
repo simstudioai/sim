@@ -23,6 +23,7 @@ import {
 import { parseMarkdownToDoc } from './markdown-parse'
 import { useEditorMentions } from './mention'
 import { EditorBubbleMenu } from './menus/bubble-menu'
+import { BlockDragHandle } from './menus/drag-handle'
 import { LinkHoverCard } from './menus/link-hover-card'
 import { TableBubbleMenu } from './menus/table-menu'
 import { normalizeMarkdownContent } from './normalize-content'
@@ -446,6 +447,7 @@ export function LoadedRichMarkdownEditor({
       {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
       {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
       {editor && <LinkHoverCard editor={editor} />}
+      {editor && isEditable && <BlockDragHandle editor={editor} />}
       <input
         ref={imageInputRef}
         type='file'
