@@ -38,7 +38,10 @@ interface MobileNavProps {
  * {@link NAV_MENUS} automatically expands them here as grouped sections too - the
  * sheet mirrors the desktop nav's information architecture with no extra edit.
  */
-const STANDALONE_LINKS = [{ label: 'Pricing', href: '/pricing' }] as const
+const STANDALONE_LINKS = [
+  { label: 'Enterprise', href: '/enterprise' },
+  { label: 'Pricing', href: '/pricing' },
+] as const
 
 /** Shared row chrome for every tappable text link in the sheet. */
 const SHEET_ROW =

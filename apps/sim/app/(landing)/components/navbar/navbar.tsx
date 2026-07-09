@@ -74,6 +74,9 @@ export function Navbar({ stars, logoOnly = false }: NavbarProps) {
               {NAV_MENUS.map((menu) => (
                 <NavMenuChip key={menu.label} menu={menu} />
               ))}
+              <ChipLink href='/enterprise' itemProp='url'>
+                Enterprise
+              </ChipLink>
               <ChipLink href='/pricing' itemProp='url'>
                 Pricing
               </ChipLink>
