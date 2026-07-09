@@ -59,42 +59,36 @@ export class UnsafeJupyterPathError extends Error {
 }
 
 /**
- * Whether a path segment is `.`/`..`, checked both literally and after
- * percent-decoding — a caller could submit an already-encoded `%2e%2e` to try
- * to slip a traversal segment past a literal-only check.
- */
-function isTraversalSegment(segment: string): boolean {
-  if (segment === '.' || segment === '..') return true
-
-  let decoded: string
-  try {
-    decoded = decodeURIComponent(segment)
-  } catch {
-    return false
-  }
-
-  return decoded === '.' || decoded === '..'
-}
-
-/**
  * Rejects `.` and `..` segments in a Jupyter contents path, which could
  * otherwise traverse outside the intended directory on the target server.
  * Shared by every helper that sends a path to Jupyter, whether in a URL or a
  * request body.
  *
+ * Decodes the *entire* path once before splitting it, rather than splitting
+ * on literal `/` first and decoding each piece in isolation — a segment like
+ * `foo%2f..%2fsecret` has no literal slash, so a split-then-decode check
+ * would treat it as one opaque segment and never notice the `..` hiding
+ * behind the encoded slash. Decoding first exposes every segment the target
+ * server would actually see once its own single URL-decode pass runs.
+ *
  * @throws {UnsafeJupyterPathError} when a segment is `.` or `..`, literally
- * or percent-encoded.
+ * or percent-encoded (including an encoded slash exposing a hidden segment).
  */
 function assertNoJupyterPathTraversal(path: string | undefined): string[] {
-  const segments = (path ?? '').split('/').filter((segment) => segment.length > 0)
+  const raw = path ?? ''
 
-  for (const segment of segments) {
-    if (isTraversalSegment(segment)) {
-      throw new UnsafeJupyterPathError(path ?? '')
-    }
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(raw)
+  } catch {
+    decoded = raw
   }
 
-  return segments
+  if (decoded.split('/').some((segment) => segment === '.' || segment === '..')) {
+    throw new UnsafeJupyterPathError(raw)
+  }
+
+  return raw.split('/').filter((segment) => segment.length > 0)
 }
 
 /**
