@@ -31,7 +31,10 @@ When the user runs `/ship`:
 
 5. **Stage and commit** the changes with the generated message
 
-6. **Push to origin** using the current branch name
+6. **Push to origin** using the current branch name — `--force-with-lease` if step 2's sync
+   check did any history rewrite (a clean rebase or a cherry-pick rebuild) on a branch that had
+   already been pushed once; a plain push would be rejected in exactly the polluted-remote case
+   step 2 exists to fix
 
 7. **Create a PR** to staging with a description in the user's voice, then do a final content check — not a count check — comparing what actually landed:
    ```bash

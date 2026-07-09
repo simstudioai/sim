@@ -38,7 +38,10 @@ When the user runs `/ship`:
   - `bun run lint` to fix formatting issues
   - `bun run check:api-validation:strict` to catch boundary contract failures before CI
 7. **Stage and commit** the changes with the generated message
-8. **Push to origin** using the current branch name
+8. **Push to origin** using the current branch name — `--force-with-lease` if step 2's sync
+   check did any history rewrite (a clean rebase or a cherry-pick rebuild) on a branch that had
+   already been pushed once; a plain push would be rejected in exactly the polluted-remote case
+   step 2 exists to fix
 9. **Create a PR** to staging with a description in the user's voice, then do a final content check — not a count check — comparing what actually landed:
    ```bash
    git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
