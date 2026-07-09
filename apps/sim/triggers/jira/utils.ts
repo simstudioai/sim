@@ -470,7 +470,6 @@ export function isJiraEventMatch(
     jira_sprint_closed: ['sprint_closed'],
     jira_project_created: ['project_created'],
     jira_version_released: ['jira:version_released'],
-    // Generic webhook accepts all events
     jira_webhook: ['*'],
   }
 
@@ -479,12 +478,10 @@ export function isJiraEventMatch(
     return false
   }
 
-  // Generic webhook accepts all events
   if (expectedEvents.includes('*')) {
     return true
   }
 
-  // Check if webhookEvent or issueEventTypeName matches
   return (
     expectedEvents.includes(webhookEvent) ||
     (issueEventTypeName !== undefined && expectedEvents.includes(issueEventTypeName))

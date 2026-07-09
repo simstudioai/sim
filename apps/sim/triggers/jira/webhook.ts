@@ -32,8 +32,6 @@ export const jiraWebhookTrigger: TriggerConfig = {
     extraFields: buildJiraExtraFields('jira_webhook'),
   }),
 
-  // Superset of every event-specific output shape, since this trigger passes through
-  // whichever entity (issue/comment/worklog/sprint/project/version) the event carries.
   outputs: {
     ...buildIssueUpdatedOutputs(),
     comment: buildCommentOutputs().comment,
