@@ -184,6 +184,44 @@ describe('GitLab webhook provider', () => {
     expect(first).toContain('7')
   })
 
+  it('extractIdempotencyId distinguishes pipeline lifecycle transitions despite no updated_at', () => {
+    const pending = gitlabHandler.extractIdempotencyId!({
+      object_kind: 'pipeline',
+      project: { id: 7 },
+      object_attributes: { id: 31, status: 'pending', created_at: '2026-01-01T00:00:00Z' },
+    })
+    const running = gitlabHandler.extractIdempotencyId!({
+      object_kind: 'pipeline',
+      project: { id: 7 },
+      object_attributes: { id: 31, status: 'running', created_at: '2026-01-01T00:00:00Z' },
+    })
+    const success = gitlabHandler.extractIdempotencyId!({
+      object_kind: 'pipeline',
+      project: { id: 7 },
+      object_attributes: {
+        id: 31,
+        status: 'success',
+        created_at: '2026-01-01T00:00:00Z',
+        finished_at: '2026-01-01T00:03:00Z',
+      },
+    })
+    expect(pending).not.toBeNull()
+    expect(pending).not.toBe(running)
+    expect(running).not.toBe(success)
+
+    const retryOfSuccess = gitlabHandler.extractIdempotencyId!({
+      object_kind: 'pipeline',
+      project: { id: 7 },
+      object_attributes: {
+        id: 31,
+        status: 'success',
+        created_at: '2026-01-01T00:00:00Z',
+        finished_at: '2026-01-01T00:03:00Z',
+      },
+    })
+    expect(success).toBe(retryOfSuccess)
+  })
+
   it('extractIdempotencyId returns null when there is no stable identifier', () => {
     expect(gitlabHandler.extractIdempotencyId!({ object_kind: 'push' })).toBeNull()
     expect(gitlabHandler.extractIdempotencyId!({ object_kind: 'issue' })).toBeNull()

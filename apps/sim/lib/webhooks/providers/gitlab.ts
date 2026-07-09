@@ -144,7 +144,11 @@ export const gitlabHandler: WebhookProviderHandler = {
    * stripped in transit (e.g. by an intermediary proxy). checkout_sha is
    * null on branch/tag deletion (after falls back to the all-zeros SHA), so
    * ref is included to keep unrelated deletions in one project from
-   * colliding onto the same key.
+   * colliding onto the same key. Pipeline Hook payloads have no updated_at
+   * at all (confirmed against docs.gitlab.com — only Issue/Merge Request/
+   * Note hooks reliably include it), so status + finished_at/created_at is
+   * used there instead to keep each lifecycle transition of one pipeline
+   * (pending/running/success/failed) from colliding onto the same key.
    */
   extractIdempotencyId(body: unknown): string | null {
     const b = asRecord(body)
@@ -162,8 +166,13 @@ export const gitlabHandler: WebhookProviderHandler = {
     const objectAttributes = asRecord(b.object_attributes)
     const id = objectAttributes.id != null ? String(objectAttributes.id) : ''
     if (!id) return null
-    const updatedAt = (objectAttributes.updated_at as string) || ''
-    return `gitlab:${objectKind || 'event'}:${projectId}:${id}:${updatedAt}`
+    const version =
+      (objectAttributes.updated_at as string) ||
+      [objectAttributes.status, objectAttributes.finished_at || objectAttributes.created_at]
+        .filter(Boolean)
+        .join(':') ||
+      ''
+    return `gitlab:${objectKind || 'event'}:${projectId}:${id}:${version}`
   },
 
   /**
