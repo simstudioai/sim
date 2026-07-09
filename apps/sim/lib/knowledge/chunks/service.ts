@@ -17,6 +17,8 @@ import { estimateTokenCount } from '@/lib/tokenization/estimators'
 
 const logger = createLogger('ChunksService')
 
+const KB_CHUNK_LOCK_TIMEOUT_MS = 5_000
+
 /**
  * Query chunks for a document with filtering and pagination
  */
@@ -113,6 +115,11 @@ export async function queryChunks(
  * invert the embedding-before-document lock order every other chunk
  * mutation path uses (see lock-order.test.ts) — the advisory lock is a
  * separate namespace, so it can't deadlock against that convention.
+ *
+ * `pg_advisory_xact_lock` auto-releases at transaction end, so there's no
+ * session lock to leak onto a pooled connection, and `lock_timeout` bounds
+ * the wait (it raises SQLSTATE 55P03 instead of hanging a pooled connection)
+ * if a same-document holder is stuck.
  */
 export async function createChunk(
   knowledgeBaseId: string,
@@ -147,6 +154,9 @@ export async function createChunk(
   const now = new Date()
 
   const newChunk = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select set_config('lock_timeout', ${`${KB_CHUNK_LOCK_TIMEOUT_MS}ms`}, true)`
+    )
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${`kb_chunk_seq:${documentId}`}, 0))`
     )
