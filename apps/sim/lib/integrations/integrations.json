@@ -11780,9 +11780,14 @@
           "id": "microsoftteams_webhook",
           "name": "Microsoft Teams Channel",
           "description": "Trigger workflow from Microsoft Teams channel messages via outgoing webhooks"
+        },
+        {
+          "id": "microsoftteams_chat_subscription",
+          "name": "Microsoft Teams Chat",
+          "description": "Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions"
         }
       ],
-      "triggerCount": 1,
+      "triggerCount": 2,
       "authType": "oauth",
       "oauthServiceId": "microsoft-teams",
       "category": "tools",
