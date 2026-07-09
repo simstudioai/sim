@@ -37,7 +37,6 @@ describe('slackHandler formatInput - Events API', () => {
     expect(event.thread_ts).toBe('111.000')
     expect(event.team_id).toBe('T1')
     expect(event.event_id).toBe('Ev1')
-    // Interactivity-only fields stay empty for Events API payloads.
     expect(event.command).toBe('')
     expect(event.action_value).toBe('')
     expect(event.actions).toEqual([])
@@ -153,7 +152,6 @@ describe('slackHandler formatInput - interactivity (block_actions)', () => {
     )
     const event = eventOf(input)
     expect(event.action_value).toBe('opt_b')
-    // No message text on the payload -> text falls back to the action value.
     expect(event.text).toBe('opt_b')
     expect(event.user_name).toBe('bob')
   })

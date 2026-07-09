@@ -199,6 +199,8 @@ function formatSlackSlashCommand(b: Record<string, unknown>): SlackTriggerEvent 
  * Interactivity payloads (button clicks, selects, shortcuts, modal submits).
  * The actionable data lives in `actions[]` / `view`, plus `response_url` and
  * `trigger_id` which are needed to respond to or follow up on the interaction.
+ * `text` prefers the source message text, falling back to the triggering
+ * action's value so a blocks-only message still surfaces something useful.
  */
 function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
   const event = createSlackEvent()
@@ -226,8 +228,6 @@ function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
   event.message_ts = asString(message?.ts) || asString(container?.message_ts)
   event.timestamp = event.message_ts || asString(firstAction?.action_ts)
   event.thread_ts = asString(message?.thread_ts)
-  // Prefer the source message text; fall back to the triggering action's value
-  // so a blocks-only message still surfaces something useful in `text`.
   event.text = asString(message?.text) || event.action_value
   event.message = message ?? null
 
@@ -495,6 +495,12 @@ export const slackHandler: WebhookProviderHandler = {
     return handleSlackChallenge(body)
   },
 
+  /**
+   * `event_id` (Events API) and `team_id:event.ts` are the primary keys.
+   * `trigger_id` is the fallback for interactivity and slash-command payloads,
+   * which carry no `event_id` but reuse the same `trigger_id` across Slack's
+   * retries of a given interaction.
+   */
   extractIdempotencyId(body: unknown) {
     if (!isRecordLike(body)) {
       return null
@@ -509,8 +515,6 @@ export const slackHandler: WebhookProviderHandler = {
       return `${body.team_id}:${event.ts}`
     }
 
-    // Interactivity and slash-command payloads carry a unique `trigger_id`
-    // per interaction, which Slack reuses across retries of the same payload.
     if (body.trigger_id) {
       return String(body.trigger_id)
     }
@@ -526,19 +530,23 @@ export const slackHandler: WebhookProviderHandler = {
     return new NextResponse(null, { status: 200 })
   },
 
+  /**
+   * Routes across Slack's three distinct payload families, each identified by
+   * a different shape: slash commands (flat form fields with a leading-slash
+   * `command`), interactivity (a JSON `payload` with an interactive `type` or
+   * `actions[]` and no Events-API `event` envelope), and the Events API
+   * (app_mention, message, reaction_added, ... nested under `event`).
+   */
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const b = isRecordLike(body) ? body : {}
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     const botToken = providerConfig.botToken as string | undefined
     const includeFiles = Boolean(providerConfig.includeFiles)
 
-    // Slash commands: flat form fields identified by a leading-slash `command`.
     if (typeof b?.command === 'string' && b.command.startsWith('/')) {
       return { input: { event: formatSlackSlashCommand(b) } }
     }
 
-    // Interactivity (button clicks, selects, shortcuts, modal submits): a JSON
-    // `payload` with an interactive `type` and no Events-API `event` envelope.
     if (
       !b?.event &&
       ((typeof b?.type === 'string' && SLACK_INTERACTIVE_TYPES.has(b.type)) ||
@@ -547,7 +555,6 @@ export const slackHandler: WebhookProviderHandler = {
       return { input: { event: formatSlackInteractive(b) } }
     }
 
-    // Events API (app_mention, message, reaction_added, ...).
     const rawEvent = b?.event as Record<string, unknown> | undefined
 
     if (!rawEvent) {
