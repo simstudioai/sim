@@ -100,13 +100,13 @@ export function DocumentTagEntry({
   const currentValue = isPreview ? previewValue : storeValue
 
   const parseTags = (tagValue: unknown): DocumentTag[] =>
-    (parseJsonArrayValue(tagValue) as DocumentTag[]).map((t) => ({
+    parseJsonArrayValue<DocumentTag>(tagValue).map((t) => ({
       ...t,
       fieldType: t.fieldType || 'text',
       collapsed: t.collapsed ?? false,
     }))
 
-  const parsedTags = parseTags(currentValue || null)
+  const parsedTags = parseTags(currentValue)
   const tags: DocumentTag[] = parsedTags.length > 0 ? parsedTags : [createDefaultTag()]
   const isReadOnly = isPreview || disabled
 

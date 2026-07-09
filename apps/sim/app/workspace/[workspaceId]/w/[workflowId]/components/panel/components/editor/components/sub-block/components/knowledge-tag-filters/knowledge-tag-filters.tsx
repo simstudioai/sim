@@ -102,7 +102,7 @@ export function KnowledgeTagFilters({
   })
 
   const parseFilters = (filterValue: unknown): TagFilter[] =>
-    (parseJsonArrayValue(filterValue) as TagFilter[]).map((f) => ({
+    parseJsonArrayValue<TagFilter>(filterValue).map((f) => ({
       ...f,
       fieldType: f.fieldType || 'text',
       operator: f.operator || 'eq',
@@ -110,7 +110,7 @@ export function KnowledgeTagFilters({
     }))
 
   const currentValue = isPreview ? previewValue : storeValue
-  const parsedFilters = parseFilters(currentValue || null)
+  const parsedFilters = parseFilters(currentValue)
   const filters: TagFilter[] = parsedFilters.length > 0 ? parsedFilters : [createDefaultFilter()]
   const isReadOnly = isPreview || disabled
 

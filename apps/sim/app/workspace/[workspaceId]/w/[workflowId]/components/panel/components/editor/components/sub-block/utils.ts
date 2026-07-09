@@ -25,10 +25,13 @@ export function resolvePreviewContextValue(raw: unknown): unknown {
  * `edit_workflow` persisted them as raw arrays until it was fixed to re-serialize, so rows
  * written by older builds still hold an array. Both shapes are accepted on read.
  *
+ * The element type is asserted, not validated -- callers are responsible for defaulting any
+ * fields a malformed entry may be missing.
+ *
  * @param value - The stored sub-block value, of unknown shape
  * @returns The parsed array, or `[]` when the value is absent, unparseable, or not an array
  */
-export function parseJsonArrayValue(value: unknown): unknown[] {
+export function parseJsonArrayValue<T>(value: unknown): T[] {
   if (!value) return []
   let parsed: unknown = value
   if (typeof value === 'string') {
@@ -38,5 +41,5 @@ export function parseJsonArrayValue(value: unknown): unknown[] {
       return []
     }
   }
-  return Array.isArray(parsed) ? parsed : []
+  return Array.isArray(parsed) ? (parsed as T[]) : []
 }

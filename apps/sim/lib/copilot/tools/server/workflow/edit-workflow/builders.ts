@@ -266,19 +266,14 @@ const ARRAY_WITH_ID_SUBBLOCK_TYPES = new Set([
  * Subblock keys whose UI components expect a JSON string, not a raw array.
  * After normalizeArrayWithIds returns an array, these must be re-stringified.
  */
-export const JSON_STRING_SUBBLOCK_KEYS = new Set([
-  'conditions',
-  'routes',
-  'tagFilters',
-  'documentTags',
-])
+const JSON_STRING_SUBBLOCK_KEYS = new Set(['conditions', 'routes', 'tagFilters', 'documentTags'])
 
 /**
  * Normalizes array subblock values by ensuring each item has a valid UUID.
  * The LLM may generate arbitrary IDs like "input-desc-001" or "row-1" which need
  * to be converted to proper UUIDs for consistency with UI-created items.
  */
-export function normalizeArrayWithIds(value: unknown): any[] {
+function normalizeArrayWithIds(value: unknown): any[] {
   let arr: any[]
 
   if (Array.isArray(value)) {
@@ -312,7 +307,7 @@ export function normalizeArrayWithIds(value: unknown): any[] {
 /**
  * Checks if a subblock key should have its array items normalized with UUIDs.
  */
-export function shouldNormalizeArrayIds(key: string): boolean {
+function shouldNormalizeArrayIds(key: string): boolean {
   return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
 }
 

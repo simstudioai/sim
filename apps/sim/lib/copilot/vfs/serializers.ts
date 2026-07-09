@@ -1,5 +1,6 @@
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
+import type { TagDefinition } from '@/lib/knowledge/types'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
@@ -84,11 +85,7 @@ export function serializeRecentExecutions(
 }
 
 /** A knowledge base tag definition, reduced to the fields the agent needs to bind a tag filter. */
-export interface KbTagDefinitionSummary {
-  displayName: string
-  tagSlot: string
-  fieldType: string
-}
+export type KbTagDefinitionSummary = Pick<TagDefinition, 'displayName' | 'tagSlot' | 'fieldType'>
 
 /**
  * Serialize knowledge base metadata for VFS meta.json.
