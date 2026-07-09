@@ -415,51 +415,6 @@
 }
 
 /*
- * Left-margin block controls (the `+` / `⠿` handle revealed on block hover). `@tiptap/extension-drag-
- * handle` positions the wrapper; these rules style the two buttons — a subtle icon pair that darkens on
- * hover, with the grip showing a grab cursor and the add button a pointer.
- */
-.rich-md-block-controls {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  padding-right: 4px;
-}
-
-.rich-md-block-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  appearance: none;
-  -webkit-appearance: none;
-  color: var(--text-subtle);
-  cursor: pointer;
-  transition:
-    background-color 0.12s ease,
-    color 0.12s ease;
-}
-
-.rich-md-block-btn:hover,
-.rich-md-block-btn:focus-visible {
-  background-color: var(--surface-active);
-  color: var(--text-icon);
-}
-
-.rich-md-block-grip {
-  cursor: grab;
-}
-
-.rich-md-block-grip:active {
-  cursor: grabbing;
-}
-
-/*
  * Field variant (modal embed): match the surrounding chip fields' typography exactly —
  * body at the chip `text-sm` (14px) scale and the placeholder at `--text-muted` (not the
  * lighter document `--text-subtle`), so the editor reads as one of the form's fields.
