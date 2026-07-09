@@ -3,10 +3,12 @@ import { db } from '@sim/db'
 import {
   chat as chatTable,
   copilotChats,
+  customTools as customToolsTable,
   document,
   jobExecutionLogs,
   knowledgeConnector,
   mcpServers as mcpServersTable,
+  skill as skillTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
   workflowFolder,
@@ -16,7 +18,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -109,13 +111,13 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
-import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import {
   loadWorkflowDeploymentSnapshot,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import { listSkills } from '@/lib/workflows/skills/operations'
+import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import {
   assertActiveWorkspaceAccess,
@@ -1878,25 +1880,47 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize custom tools using the shared listCustomTools function.
+   * Advertise custom tools in the VFS without eagerly loading their code.
+   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full
+   * schema+code is fetched only when read (or a grep whose scope touches them).
    */
   private async materializeCustomTools(
     workspaceId: string,
     userId: string
   ): Promise<NonNullable<WorkspaceMdData['customTools']>> {
     try {
-      const toolRows = await listCustomTools({ userId, workspaceId })
+      // Metadata only — tool code can be large; keep it out of the eager map.
+      // Visibility matches listCustomTools: workspace tools + legacy user-owned.
+      const toolRows = await db
+        .select({
+          id: customToolsTable.id,
+          title: customToolsTable.title,
+        })
+        .from(customToolsTable)
+        .where(
+          or(
+            eq(customToolsTable.workspaceId, workspaceId),
+            and(isNull(customToolsTable.workspaceId), eq(customToolsTable.userId, userId))
+          )
+        )
+        .orderBy(desc(customToolsTable.createdAt))
 
       for (const tool of toolRows) {
         const safeName = sanitizeName(tool.title)
-        const serialized = serializeCustomTool({
-          id: tool.id,
-          title: tool.title,
-          schema: tool.schema,
-          code: tool.code,
-        })
-        this.files.set(`custom-tools/${safeName}.json`, serialized)
-        this.files.set(`agent/custom-tools/${safeName}.json`, serialized)
+        const toolId = tool.id
+        const load = async () => {
+          const full = await getCustomToolById({ toolId, userId, workspaceId })
+          if (!full) return null
+          return serializeCustomTool({
+            id: full.id,
+            title: full.title,
+            schema: full.schema,
+            code: full.code,
+          })
+        }
+        // Legacy alias + canonical agent/ path — each resolves independently on read.
+        this.registerLazy(`custom-tools/${safeName}.json`, load)
+        this.registerLazy(`agent/custom-tools/${safeName}.json`, load)
       }
 
       return toolRows.map((t) => ({ id: t.id, name: t.title }))
@@ -1995,26 +2019,39 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize workspace skills using the shared listSkills function.
+   * Advertise workspace skills in the VFS without eagerly loading their bodies.
+   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full content
+   * is fetched only when read (or a grep whose scope touches the path) resolves them.
    */
   private async materializeSkills(
     workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['skills']>> {
     try {
-      const skillRows = await listSkills({ workspaceId, includeBuiltins: false })
+      // Metadata only — skill bodies can be large; keep them out of the eager map.
+      const skillRows = await db
+        .select({
+          id: skillTable.id,
+          name: skillTable.name,
+          description: skillTable.description,
+        })
+        .from(skillTable)
+        .where(eq(skillTable.workspaceId, workspaceId))
+        .orderBy(desc(skillTable.createdAt))
 
       for (const s of skillRows) {
         const safeName = sanitizeName(s.name)
-        this.files.set(
-          `agent/skills/${safeName}.json`,
-          serializeSkill({
-            id: s.id,
-            name: s.name,
-            description: s.description,
-            content: s.content,
-            createdAt: s.createdAt,
+        const skillId = s.id
+        this.registerLazy(`agent/skills/${safeName}.json`, async () => {
+          const full = await getSkillById({ skillId, workspaceId })
+          if (!full) return null
+          return serializeSkill({
+            id: full.id,
+            name: full.name,
+            description: full.description,
+            content: full.content,
+            createdAt: full.createdAt,
           })
-        )
+        })
       }
 
       return skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description }))
