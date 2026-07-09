@@ -210,6 +210,79 @@ describe('Zendesk webhook provider', () => {
     })
   })
 
+  describe('createSubscription', () => {
+    it('rejects a subdomain containing a path separator to prevent host-boundary escape', async () => {
+      await expect(
+        zendeskHandler.createSubscription!({
+          webhook: {
+            id: 'wh-1',
+            path: 'p',
+            providerConfig: {
+              subdomain: 'evil.example.com/x',
+              email: 'admin@example.com',
+              apiToken: 'token',
+            },
+          },
+          workflow: {},
+          userId: 'u1',
+          requestId: 't11',
+          request: reqWithHeaders({}),
+        })
+      ).rejects.toThrow(/subdomain must contain only letters, numbers, and hyphens/)
+    })
+
+    it('rejects a subdomain that is missing entirely', async () => {
+      await expect(
+        zendeskHandler.createSubscription!({
+          webhook: { id: 'wh-2', path: 'p', providerConfig: {} },
+          workflow: {},
+          userId: 'u1',
+          requestId: 't12',
+          request: reqWithHeaders({}),
+        })
+      ).rejects.toThrow(/subdomain is required/)
+    })
+  })
+
+  describe('deleteSubscription', () => {
+    it('skips (non-strict) when the stored subdomain is invalid', async () => {
+      await expect(
+        zendeskHandler.deleteSubscription!({
+          webhook: {
+            id: 'wh-3',
+            providerConfig: {
+              subdomain: 'evil.example.com/x',
+              email: 'admin@example.com',
+              apiToken: 'token',
+              externalId: 'ext-1',
+            },
+          },
+          workflow: {},
+          requestId: 't13',
+        })
+      ).resolves.toBeUndefined()
+    })
+
+    it('throws (strict) when the stored subdomain is invalid', async () => {
+      await expect(
+        zendeskHandler.deleteSubscription!({
+          webhook: {
+            id: 'wh-4',
+            providerConfig: {
+              subdomain: 'evil.example.com/x',
+              email: 'admin@example.com',
+              apiToken: 'token',
+              externalId: 'ext-1',
+            },
+          },
+          workflow: {},
+          requestId: 't14',
+          strict: true,
+        })
+      ).rejects.toThrow(/Invalid Zendesk subdomain/)
+    })
+  })
+
   describe('extractIdempotencyId', () => {
     it('returns the stable event id', () => {
       expect(zendeskHandler.extractIdempotencyId!({ id: 'evt-1' })).toBe('evt-1')
