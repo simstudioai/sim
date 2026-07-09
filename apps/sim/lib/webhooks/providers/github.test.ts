@@ -188,6 +188,28 @@ describe('GitHub webhook provider', () => {
     expect(repository.description).toBe('A test repo')
   })
 
+  it('formatInput does not alias a nested `type` field on objects that are not user-like', async () => {
+    const { input } = await githubHandler.formatInput!({
+      body: {
+        action: 'labeled',
+        issue: {
+          id: 1,
+          label: { name: 'bug', color: 'ff0000', type: 'default' },
+        },
+      },
+      headers: { 'x-github-event': 'issues' },
+      requestId: 't13',
+      webhook: {},
+      workflow: { id: 'w', userId: 'u' },
+    })
+    const i = input as Record<string, unknown>
+    const issue = i.issue as Record<string, unknown>
+    const label = issue.label as Record<string, unknown>
+    expect(label.type).toBe('default')
+    expect(label.user_type).toBeUndefined()
+    expect(label.owner_type).toBeUndefined()
+  })
+
   it('formatInput derives branch from ref', async () => {
     const { input } = await githubHandler.formatInput!({
       body: { ref: 'refs/heads/main', action: '' },
