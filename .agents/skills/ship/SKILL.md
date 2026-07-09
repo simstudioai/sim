@@ -17,7 +17,7 @@ When the user runs `/ship`:
      - If the working tree has uncommitted changes, stash them first — `git stash push -u -m ship-sync-fix` — so the rebase below isn't blocked by dirty state. Restore with `git stash pop` once the branch is fixed.
      - Try `git rebase origin/staging` first.
      - **A rebase finishing without conflicts does NOT by itself mean the branch is clean** — it can replay stray commits onto the new base with no conflict at all. After the rebase (clean or not), re-run `git log --oneline origin/staging..HEAD` and re-check the commit list against what you recognize.
-     - If the rebase conflicted on commits you don't recognize, OR it finished cleanly but the re-checked log still shows commits you don't recognize, abandon that result (`git rebase --abort` if still mid-rebase) and rebuild instead: delete any leftover `ship-sync-tmp` branch from an earlier attempt (`git branch -D ship-sync-tmp` — safe, it's disposable), `git checkout -b ship-sync-tmp origin/staging`, `git cherry-pick <only the sha(s) you actually authored this session>`, resolve conflicts, then `git branch -f <original-branch> HEAD`, `git checkout <original-branch>`, and delete `ship-sync-tmp`.
+     - If the rebase conflicted on commits you don't recognize, OR it finished cleanly but the re-checked log still shows commits you don't recognize, abandon that result (`git rebase --abort` if still mid-rebase) and rebuild instead: `git show-ref --verify --quiet refs/heads/ship-sync-tmp && git branch -D ship-sync-tmp` (only deletes if it exists — a bare `git branch -D` on a first attempt with no leftover would fail and stop you before the rebuild ever starts), `git checkout -b ship-sync-tmp origin/staging`, `git cherry-pick <only the sha(s) you actually authored this session>`, resolve conflicts, then `git branch -f <original-branch> HEAD`, `git checkout <original-branch>`, and delete `ship-sync-tmp`.
    - Re-verify with `git log --oneline origin/staging..HEAD` — it must list only commits you recognize before you proceed to committing new work.
 3. **Generate a commit message** following this format: `type(scope): description`
   - Types: `fix`, `feat`, `improvement`, `chore`
@@ -35,10 +35,13 @@ When the user runs `/ship`:
 8. **Push to origin** using the current branch name
 9. **Create a PR** to staging with a description in the user's voice, then do a final content check — not a count check — comparing what actually landed:
    ```bash
-   git log --oneline origin/staging..HEAD
+   git fetch origin staging && git log --oneline origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
    ```
-   These two lists must describe the same commits (same subjects, one of which is the commit from step 7). If they don't match, the branch still has a problem — redo step 2's fix and `git push --force-with-lease`.
+   Re-fetch first — comparing against a stale local `origin/staging` ref can mask real drift or
+   flag a false mismatch even when the branch and push are correct. These two lists must
+   describe the same commits (same subjects, one of which is the commit from step 7). If they
+   don't match, the branch still has a problem — redo step 2's fix and `git push --force-with-lease`.
 
 ## Commit Message Format
 

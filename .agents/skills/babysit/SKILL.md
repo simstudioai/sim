@@ -38,11 +38,15 @@ round. Always check both conditions freshly after every push.
    gh pr view <n> --json comments -q '.comments[] | select(.author.login=="greptile-apps") | .body' | tail -1
    gh api graphql -f query='
    query { repository(owner: "<owner>", name: "<repo>") { pullRequest(number: <n>) {
-     reviewThreads(first: 50) { nodes { id isResolved path line
+     reviewThreads(first: 50) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line
        comments(first: 5) { nodes { id databaseId author { login } body } } } } } } }'
    ```
-   If Greptile is 5/5 and every thread's `isResolved` is `true`, stop — report the outcome (see
-   "Reporting" below) and skip the rest of this list.
+   `reviewThreads(first: 50)` is a single page — check `pageInfo.hasNextPage`. If `true`, don't
+   stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
+   `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
+   stopping on a partial page would silently miss unresolved ones past the cutoff.
+   If Greptile is 5/5 and every thread across all pages has `isResolved: true`, stop — report the
+   outcome (see "Reporting" below) and skip the rest of this list.
 
 2. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
    automatically on PR open — confirm via `gh pr checks <n>` (look for `Cursor Bugbot` /
@@ -81,7 +85,15 @@ round. Always check both conditions freshly after every push.
    `/ship` does before committing.
 
 6. **Commit and push** the round's fixes as one commit (`--force-with-lease` only if step 5's
-   sync check required a rebuild).
+   sync check required a rebuild), then run `/ship` step 9's post-push verify — not just before
+   the first push, every push in the loop:
+   ```bash
+   git fetch origin staging && git log --oneline origin/staging..HEAD
+   gh pr view <n> --json commits -q '.commits[].messageHeadline'
+   ```
+   These two lists must describe the same commits. A review loop runs many pushes across many
+   rounds; checking sync only before the push (step 5) and never after is how a bad push or a
+   PR whose commit history quietly went stale between rounds goes unnoticed.
 
 7. **Re-trigger review** by posting `@greptile` and `@cursor review` as **two separate PR
    comments** — never combine them into one comment, each bot only responds to its own mention:
