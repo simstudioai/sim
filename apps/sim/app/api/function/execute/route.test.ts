@@ -15,7 +15,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockExecuteInE2B,
   mockExecuteInIsolatedVM,
+  mockFetchWorkspaceFileBuffer,
   mockGetWorkspaceFile,
+  mockResolveWorkspaceFileReference,
   mockUpdateWorkspaceFileContent,
   mockUploadFile,
   mockValidateWorkspaceFileWriteTarget,
@@ -23,7 +25,9 @@ const {
 } = vi.hoisted(() => ({
   mockExecuteInE2B: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
+  mockFetchWorkspaceFileBuffer: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
+  mockResolveWorkspaceFileReference: vi.fn(),
   mockUpdateWorkspaceFileContent: vi.fn(),
   mockUploadFile: vi.fn(),
   mockValidateWorkspaceFileWriteTarget: vi.fn(),
@@ -37,6 +41,7 @@ vi.mock('@/lib/execution/isolated-vm', () => ({
 vi.mock('@/lib/execution/e2b', () => ({
   executeInE2B: mockExecuteInE2B,
   executeShellInE2B: vi.fn(),
+  SIM_RESULT_PREFIX: '__SIM_RESULT__=',
 }))
 
 vi.mock('@/lib/copilot/request/tools/files', () => ({
@@ -81,7 +86,9 @@ vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
   getWorkspaceFile: mockGetWorkspaceFile,
+  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
   updateWorkspaceFileContent: mockUpdateWorkspaceFileContent,
   uploadWorkspaceFile: vi.fn(),
 }))
@@ -138,6 +145,8 @@ describe('Function Execute API Route', () => {
       url: '/api/files/view/existing',
       key: 'workspace/existing.png',
     })
+    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.alloc(0))
     mockValidateWorkspaceFileWriteTarget.mockImplementation(async ({ target }) => ({
       mode: target.mode,
       vfsPath: target.path,
@@ -528,6 +537,152 @@ describe('Function Execute API Route', () => {
       expect(data.success).toBe(false)
       expect(data.error).toContain('Sandbox file "/home/user/missing.json" was not found')
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects sandboxPath outputs when the call would run in isolated-vm (E2B enabled, JS without imports)', async () => {
+      envFlagsMock.isE2bEnabled = true
+
+      const req = createMockRequest('POST', {
+        code: 'return "content"',
+        language: 'javascript',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/doc.md',
+              mode: 'overwrite',
+              sandboxPath: '/home/user/doc.md',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('no sandbox filesystem')
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+      expect(mockExecuteInE2B).not.toHaveBeenCalled()
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects sandbox file mounts when the call would run in isolated-vm', async () => {
+      const req = createMockRequest('POST', {
+        code: 'return 1',
+        language: 'javascript',
+        workspaceId: 'workspace-1',
+        _sandboxFiles: [{ path: '/home/user/files/data.csv', content: 'a,b\n1,2' }],
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.success).toBe(false)
+      // E2B is disabled in this test, so the remediation must name that cause
+      // instead of suggesting python (which would also fail without E2B).
+      expect(data.error).toContain('E2B is not enabled')
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+    })
+
+    it('flags an overwrite export whose bytes are identical to the current file content as unchanged', async () => {
+      envFlagsMock.isE2bEnabled = true
+      const staleContent = '# doc\nunchanged mounted content\n'
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/doc.md': staleContent },
+      })
+      mockResolveWorkspaceFileReference.mockResolvedValue({
+        id: 'wf_doc',
+        name: 'doc.md',
+        size: Buffer.byteLength(staleContent, 'utf-8'),
+        key: 'workspace/doc.md',
+      })
+      mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from(staleContent, 'utf-8'))
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/doc.md',
+              mode: 'overwrite',
+              sandboxPath: '/home/user/doc.md',
+              mimeType: 'text/markdown',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      // Idempotent overwrites (retries, unchanged regenerations) must not fail;
+      // the write proceeds and the receipt carries the loud unchanged signal so
+      // the model can tell its "new content" never reached the sandbox file.
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+      expect(data.output.result.unchanged).toBe(true)
+      expect(data.output.result.message).toContain('byte-identical to the previous version')
+      expect(data.output.result.message).toContain('/home/user/doc.md')
+    })
+
+    it('reports size, previousSize, and sha256 receipts on a successful overwrite export', async () => {
+      envFlagsMock.isE2bEnabled = true
+      const newContent = '# doc\nnew content\n'
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/doc.md': newContent },
+      })
+      mockResolveWorkspaceFileReference.mockResolvedValue({
+        id: 'wf_doc',
+        name: 'doc.md',
+        size: 36728,
+        key: 'workspace/doc.md',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/doc.md',
+              mode: 'overwrite',
+              sandboxPath: '/home/user/doc.md',
+              mimeType: 'text/markdown',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // Sizes differ, so the current content is never downloaded for comparison.
+      expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
+      expect(data.output.result.size).toBe(Buffer.byteLength(newContent, 'utf-8'))
+      expect(data.output.result.previousSize).toBe(36728)
+      expect(data.output.result.sha256).toMatch(/^[0-9a-f]{64}$/)
+      expect(data.output.result.unchanged).toBe(false)
+      expect(data.output.result.message).toContain('replaced 36728 bytes')
+      expect(data.output.result.message).toContain('sha256:')
+      // The python wrapper prints the marker with a leading \n so it always
+      // starts a fresh line even after non-newline-terminated user output.
+      const e2bCode = mockExecuteInE2B.mock.calls[0][0].code as string
+      expect(e2bCode).toContain("print('\\n__SIM_RESULT__=' + json.dumps(__sim_result__))")
     })
 
     it('should return computed result for multi-line code', async () => {

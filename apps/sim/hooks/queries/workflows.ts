@@ -32,7 +32,7 @@ import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-enve
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
-import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { getWorkflows, removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import {
   getWorkflowListQueryOptions,
@@ -534,13 +534,10 @@ export function useDeleteWorkflowMutation() {
         queryKey: workflowKeys.list(variables.workspaceId, 'active'),
       })
 
-      const snapshot = queryClient.getQueryData<WorkflowMetadata[]>(
-        workflowKeys.list(variables.workspaceId, 'active')
-      )
-
-      queryClient.setQueryData<WorkflowMetadata[]>(
-        workflowKeys.list(variables.workspaceId, 'active'),
-        (old) => (old ?? []).filter((w) => w.id !== variables.workflowId)
+      const snapshot = removeWorkflowFromActiveCache(
+        queryClient,
+        variables.workspaceId,
+        variables.workflowId
       )
 
       return { snapshot }
