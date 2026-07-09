@@ -18,9 +18,9 @@ import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
-  checkStorageQuota,
+  checkAndIncrementStorageUsageInTx,
   decrementStorageUsageInTx,
-  incrementStorageUsage,
+  maybeNotifyStorageLimit,
 } from '@/lib/billing/storage'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
@@ -864,6 +864,33 @@ export function isTriggerAvailable(): boolean {
   return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
 }
 
+/**
+ * Resolves the subscription to bill for a storage-metered upload, ahead of
+ * the FOR UPDATE transaction that will insert the document row.
+ *
+ * Must run before that transaction opens: `knowledgeBase.userId` is
+ * immutable once a KB is created, so resolving it here can't go stale
+ * relative to the transaction's own read of it, and resolving it inside the
+ * transaction would open a second pooled-database-connection checkout while
+ * the first is held.
+ */
+async function resolveQuotaSubscription(
+  knowledgeBaseId: string,
+  uploadedBy: string | null
+): Promise<HighestPrioritySubscription | null> {
+  const billedUserId =
+    uploadedBy ??
+    (
+      await db
+        .select({ userId: knowledgeBase.userId })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, knowledgeBaseId))
+        .limit(1)
+    )[0]?.userId
+
+  return billedUserId ? getHighestPrioritySubscription(billedUserId) : null
+}
+
 export async function createDocumentRecords(
   documents: Array<{
     filename: string
@@ -883,7 +910,15 @@ export async function createDocumentRecords(
   requestId: string,
   uploadedBy: string | null = null
 ): Promise<DocumentData[]> {
-  let storageBilling: { userId: string; workspaceId: string | null; bytes: number } | null = null
+  let storageBilling: {
+    userId: string
+    workspaceId: string | null
+    bytes: number
+    sub: HighestPrioritySubscription | null
+  } | null = null
+
+  const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
+  const sub = totalBytes > 0 ? await resolveQuotaSubscription(knowledgeBaseId, uploadedBy) : null
 
   const returnData = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
@@ -912,13 +947,12 @@ export async function createDocumentRecords(
     )
 
     const billedUserId = uploadedBy ?? kb[0].userId
-    const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
     if (totalBytes > 0) {
-      const quotaCheck = await checkStorageQuota(billedUserId, totalBytes)
+      const quotaCheck = await checkAndIncrementStorageUsageInTx(tx, sub, billedUserId, totalBytes)
       if (!quotaCheck.allowed) {
         throw new Error(quotaCheck.error || 'Storage limit exceeded')
       }
-      storageBilling = { userId: billedUserId, workspaceId: kbWorkspaceId, bytes: totalBytes }
+      storageBilling = { userId: billedUserId, workspaceId: kbWorkspaceId, bytes: totalBytes, sub }
     }
 
     // One load per batch (was N+1); skip entirely if no doc carries tags.
@@ -1011,11 +1045,14 @@ export async function createDocumentRecords(
   })
 
   if (storageBilling) {
-    const billing: { userId: string; workspaceId: string | null; bytes: number } = storageBilling
-    try {
-      await incrementStorageUsage(billing.userId, billing.bytes, billing.workspaceId ?? undefined)
-    } catch (storageError) {
-      logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
+    const billing: {
+      userId: string
+      workspaceId: string | null
+      bytes: number
+      sub: HighestPrioritySubscription | null
+    } = storageBilling
+    if (billing.workspaceId) {
+      void maybeNotifyStorageLimit(billing.userId, billing.workspaceId, billing.sub)
     }
   }
 
@@ -1338,7 +1375,15 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
-  let storageBilling: { userId: string; workspaceId: string | null; bytes: number } | null = null
+  let storageBilling: {
+    userId: string
+    workspaceId: string | null
+    bytes: number
+    sub: HighestPrioritySubscription | null
+  } | null = null
+
+  const sub =
+    documentData.fileSize > 0 ? await resolveQuotaSubscription(knowledgeBaseId, uploadedBy) : null
 
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
@@ -1367,7 +1412,12 @@ export async function createSingleDocument(
 
     const billedUserId = uploadedBy ?? kb[0].userId
     if (documentData.fileSize > 0) {
-      const quotaCheck = await checkStorageQuota(billedUserId, documentData.fileSize)
+      const quotaCheck = await checkAndIncrementStorageUsageInTx(
+        tx,
+        sub,
+        billedUserId,
+        documentData.fileSize
+      )
       if (!quotaCheck.allowed) {
         throw new Error(quotaCheck.error || 'Storage limit exceeded')
       }
@@ -1375,6 +1425,7 @@ export async function createSingleDocument(
         userId: billedUserId,
         workspaceId: kb[0].workspaceId,
         bytes: documentData.fileSize,
+        sub,
       }
     }
 
@@ -1387,11 +1438,14 @@ export async function createSingleDocument(
   })
 
   if (storageBilling) {
-    const billing: { userId: string; workspaceId: string | null; bytes: number } = storageBilling
-    try {
-      await incrementStorageUsage(billing.userId, billing.bytes, billing.workspaceId ?? undefined)
-    } catch (storageError) {
-      logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
+    const billing: {
+      userId: string
+      workspaceId: string | null
+      bytes: number
+      sub: HighestPrioritySubscription | null
+    } = storageBilling
+    if (billing.workspaceId) {
+      void maybeNotifyStorageLimit(billing.userId, billing.workspaceId, billing.sub)
     }
   }
 

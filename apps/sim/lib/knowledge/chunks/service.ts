@@ -101,7 +101,18 @@ export async function queryChunks(
 }
 
 /**
- * Create a new chunk for a document
+ * Create a new chunk for a document.
+ *
+ * Assigns `chunkIndex` as `max(chunkIndex) + 1` under a transactional
+ * `pg_advisory_xact_lock` keyed on the document, so concurrent calls for the
+ * same document serialize instead of computing the same index and colliding
+ * on the `(document_id, chunk_index)` unique constraint. A `SELECT ... FOR
+ * UPDATE` on the current max row doesn't prevent that collision, since the
+ * row it would lock is unrelated to the not-yet-inserted next row. A row
+ * lock on `document` instead of an advisory lock would also work, but would
+ * invert the embedding-before-document lock order every other chunk
+ * mutation path uses (see lock-order.test.ts) — the advisory lock is a
+ * separate namespace, so it can't deadlock against that convention.
  */
 export async function createChunk(
   knowledgeBaseId: string,
@@ -135,8 +146,11 @@ export async function createChunk(
   const chunkId = generateId()
   const now = new Date()
 
-  // Use transaction to atomically get next index and insert chunk
   const newChunk = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`kb_chunk_seq:${documentId}`}, 0))`
+    )
+
     const activeDocument = await tx
       .select({ id: document.id })
       .from(document)
@@ -156,7 +170,6 @@ export async function createChunk(
       throw new Error('Document not found')
     }
 
-    // Get the next chunk index atomically within the transaction
     const lastChunk = await tx
       .select({ chunkIndex: embedding.chunkIndex })
       .from(embedding)
