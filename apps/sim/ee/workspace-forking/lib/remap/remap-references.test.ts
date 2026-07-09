@@ -473,6 +473,43 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
     expect(tool.toolId).toBe('mcp-tgt9-search_docs')
   })
 
+  it(
+    'regression: dropping an unresolved custom-tool reindexes the surviving tool ' +
+      "canonicalModes so it doesn't inherit the dropped tool's old-index mode",
+    () => {
+      vi.mocked(getBlock).mockImplementation((type) => {
+        if (type === 'agent')
+          return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+        if (type === 'table') return blockWith([])
+        return undefined as unknown as BlockConfig
+      })
+      const transform = createForkBootstrapTransform(() => null)
+      const onCanonicalModesChanged = vi.fn()
+      const result = transform(
+        {
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [
+              // Index 0: unresolved custom-tool - fork-create always clears unresolved, so
+              // this entry is dropped, shifting every later tool down by one.
+              { type: 'custom-tool', title: 'Missing', customToolId: 'missing-tool' },
+              // Index 1 -> 0 after the drop.
+              { type: 'table', operation: 'query_rows', params: {} },
+            ],
+          },
+        },
+        'agent',
+        { '1:tableId': 'advanced' },
+        onCanonicalModesChanged
+      )
+      const tools = result.tools.value as Array<{ type: string }>
+      expect(tools).toHaveLength(1)
+      expect(tools[0].type).toBe('table')
+      expect(onCanonicalModesChanged).toHaveBeenCalledWith({ '0:tableId': 'advanced' })
+    }
+  )
+
   it('remap layer: the tool follow-rewrite is not registered as a remapped parent key', () => {
     // Only `server` may drive dependent clears; the followed tool must not (its own
     // dependent - arguments - is preserved with it).

@@ -319,7 +319,11 @@ export function collectForkDependentReconfigs(
             contextSubBlocks: toolContextSubBlocks,
             blockName: block.name,
             targetWorkflowId: item.targetWorkflowId,
-            canonicalModes: scopeCanonicalModesForTool(block.data?.canonicalModes, tool.type),
+            canonicalModes: scopeCanonicalModesForTool(
+              block.data?.canonicalModes,
+              toolIndex,
+              tool.type
+            ),
             resolveTargetBlockId: resolveBlockId,
             makeSubBlockKey: (id) => `${toolInputKey}[${toolIndex}].${id}`,
             makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
