@@ -81,5 +81,27 @@ describe('twilioVoiceHandler', () => {
       expect(twilioVoiceHandler.extractIdempotencyId!({ CallSid: 'CA1' })).toBe('CA1')
       expect(twilioVoiceHandler.extractIdempotencyId!({})).toBeNull()
     })
+
+    it('returns null instead of throwing when body is not a record', () => {
+      expect(twilioVoiceHandler.extractIdempotencyId!(null)).toBeNull()
+      expect(twilioVoiceHandler.extractIdempotencyId!(undefined)).toBeNull()
+      expect(twilioVoiceHandler.extractIdempotencyId!('not-an-object')).toBeNull()
+      expect(twilioVoiceHandler.extractIdempotencyId!([1, 2, 3])).toBeNull()
+    })
+  })
+
+  describe('formatInput', () => {
+    it('degrades to empty output instead of throwing when body is not a record', async () => {
+      const { input } = await twilioVoiceHandler.formatInput!({
+        webhook: {},
+        workflow: { id: 'wf1', userId: 'u1' },
+        body: null,
+        headers: {},
+        requestId: 'r1',
+      })
+      const i = input as Record<string, unknown>
+      expect(i.callSid).toBeUndefined()
+      expect(i.raw).toBe('{}')
+    })
   })
 })

@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { verifyTwilioAuth } from '@/lib/webhooks/providers/twilio-signature'
 import type {
@@ -14,8 +15,8 @@ export const twilioVoiceHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown) {
-    const obj = body as Record<string, unknown>
-    return (obj.MessageSid as string) || (obj.CallSid as string) || null
+    if (!isRecordLike(body)) return null
+    return (body.MessageSid as string) || (body.CallSid as string) || null
   },
 
   formatSuccessResponse(providerConfig: Record<string, unknown>) {
@@ -46,7 +47,7 @@ export const twilioVoiceHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = body as Record<string, unknown>
+    const b = isRecordLike(body) ? body : {}
     return {
       input: {
         callSid: b.CallSid,
