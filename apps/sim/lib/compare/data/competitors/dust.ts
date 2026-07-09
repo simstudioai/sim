@@ -179,36 +179,31 @@ export const dustProfile: CompetitorProfile = {
       },
       deploymentOptions: {
         value:
-          'Multi-tenant hosted cloud with a choice of US or EU data-hosting region; Enterprise plan adds single-tenant deployment',
+          'Multi-tenant hosted cloud by default; an EU data-hosting option for databases, files, and vectors is available, documented as exclusive to Enterprise customers rather than a self-serve region choice on every tier',
         detail:
-          "Dust's Enterprise plan documentation lists 'US & EU data residency options' and 'single-tenant deployment' alongside SSO/SCIM; lower tiers are multi-tenant cloud only.",
-        shortValue: 'Hosted cloud, US/EU regions, single-tenant on Enterprise',
+          "Dust's changelog states the EU data hosting option is 'available exclusively for enterprise customers' and covers 'storage of databases, files, and vectors' (calls to third-party LLM provider APIs remain outside this hosting boundary). No Dust source documents a selectable US-region toggle or a named single-tenant deployment tier.",
+        shortValue: 'Multi-tenant cloud by default; EU data hosting is Enterprise-exclusive',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.dust.tt/changelog/eu-data-hosting-option-available',
             label: 'EU data hosting option available | Dust changelog',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://dust.tt/home/enterprise',
-            label: 'Dust for Enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       templates: {
         value:
-          'Yes: a Template Gallery of pre-built agents organized by department/use case (Sales, Support, Marketing, Engineering, HR, IT operations)',
+          'Yes: a Template Gallery of pre-built agents organized by department/use case (Sales, Customer Support, Marketing, Engineering, Data Analytics, Knowledge Management, Recruiting, Product Design, Collaboration)',
         detail:
-          "Selecting a template opens a Sidekick-guided creation flow pre-loaded with the template's instructions and suggested tools/data sources, which the builder then reviews, adjusts, and publishes.",
+          "Selecting a template opens a Sidekick-guided creation flow pre-loaded with the template's instructions and suggested tools/data sources; templates are organized by department/use case including Sales, Customer Support, Marketing, Engineering, Data Analytics, Knowledge Management, Recruiting, Product Design, and Collaboration. The builder reviews, adjusts, and publishes from there.",
         shortValue: 'Template gallery organized by department/use case',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/templates',
             label: 'Templates | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -342,20 +337,40 @@ export const dustProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: Dust has no way to publish an agent as a named, encapsulated block that appears in a shared builder toolbox for other users, with its internals hidden and the source kept in sync',
+        detail:
+          'The closest Dust feature is Skills, a reusable package of instructions, knowledge, and tools attached to multiple agents with edits auto-propagating, but Dust\'s own docs describe Skills as explicitly transparent rather than encapsulated: a read-only summary of every referenced instruction, tool, and knowledge source is shown to whoever authors it in the Skill Editor, not hidden behind an interface exposing only defined inputs/outputs. The separate "Run agent" tool (see subWorkflows) lets one agent call another saved agent, but that is picking an existing agent to call from a list, not publishing a workflow as a distinct, iconed block in a builder toolbox with only its inputs/outputs exposed.',
+        shortValue: 'No: Skills are transparent, not encapsulated; no publish-as-block toolbox',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/skills',
+            label: 'Skills | Dust Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/run-agent',
+            label: 'Run agent | Dust Docs',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: agents can be configured with a choice of model (e.g. GPT-5, Claude, Gemini, Mistral) and a creativity/temperature setting, selectable per agent',
+          'Yes: agents can be configured with a choice of model (e.g. GPT-4 Turbo, Claude 3, Gemini Pro, Mistral Large) and a Reasoning Effort setting, selectable per agent',
         detail:
-          'Advanced agent settings let a builder pick the model and a temperature preset (Creative, Balanced, Factual, Deterministic); marketing materials name GPT-5, Claude, Gemini, and Mistral as selectable models.',
-        shortValue: 'GPT-5, Claude, Gemini, Mistral selectable per agent',
+          'Advanced agent settings let a builder pick the model and a reasoning-effort level (Light, Medium, High); Dust docs name GPT-4 Turbo, Claude 3, Gemini Pro, and Mistral Large as selectable models.',
+        shortValue: 'GPT-4 Turbo, Claude 3, Gemini Pro, Mistral Large selectable per agent',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/what-settings-model-should-i-use',
             label: 'What settings / model should I use? | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -441,36 +456,37 @@ export const dustProfile: CompetitorProfile = {
       },
       humanInTheLoop: {
         value:
-          "Yes: MCP tool execution supports an approval step ('always ask' vs. auto-execute) before a tool call runs, and Dust's own guidance recommends human approval checkpoints before irreversible agent actions",
+          "Yes: MCP tool execution uses a stakes-tiered approval model (high/medium/low-stake tools, with argument-level approval required for certain medium-stake tool parameters), not a simple 'always ask' vs. auto-execute toggle, and Dust's own guidance recommends human approval before irreversible agent actions",
         detail:
-          "Dust's MCP tool architecture includes an approval-workflow layer for tool execution, and Dust recommends 'mandatory steps, and human approval points before any irreversible action' for consequential agent actions. This is tool-execution approval, not a single named workflow node like a dedicated approval action in a workflow tool.",
-        shortValue: 'MCP tool-execution approval step; documented best-practice guidance',
+          "Dust's MCP tool architecture tiers tools by stake level and requires argument-level approval for certain medium-stake tool parameters before execution, and Dust recommends 'mandatory steps, and human approval points before any irreversible action' for consequential agent actions. This is a graduated tool-execution approval model, not a single named workflow node like a dedicated approval action in a workflow tool.",
+        shortValue: 'Stakes-tiered MCP approval model; documented best-practice guidance',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://deepwiki.com/dust-tt/dust/4-agent-system',
             label: 'MCP Tool System | dust-tt/dust | DeepWiki',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://dust.tt/blog/ai-agent-workflows',
             label: 'AI agent workflows: How they work and how to build your own | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       generativeMedia: {
         value:
-          'Partial: native image generation (via Gemini/Nano Banana) with reference-image consistency and parallel generation is built in; there is no dedicated native video-generation or text-to-speech/speech-to-text block',
+          "Partial: native image generation (via Google's gemini-3-pro-image model) with reference-image consistency (up to 14 reference images) and parallel generation is built in; there is no dedicated native video-generation block, though a separate 'Voice and sound generation' tool exists for audio",
         detail:
-          "Dust's Image Generation capability uses an underlying Gemini image model, supports up to 14 reference images for visual consistency across a series, and can run multiple generations in parallel; generated images are filtered for safety. Video and TTS/STT were not found as native Dust capabilities.",
-        shortValue: 'Native image generation with reference images; no native video/audio gen',
+          "Dust's Image Generation capability uses Google's gemini-3-pro-image model, supports up to 14 reference images for visual consistency across a series, and can run multiple generations in parallel; generated images are filtered for safety. A separate 'Voice and sound generation' tool provides native audio generation, but no dedicated native video-generation block was found.",
+        shortValue:
+          'Native image gen (gemini-3-pro-image) + reference images; separate audio tool; no native video',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/image-generation',
             label: 'Image Generation | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -529,16 +545,17 @@ export const dustProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          "Partial: Dust surfaces footnote-style citations tied to a specific source document in agent answers, but there's no dedicated raw chunk-index/content debugging inspector distinct from citation footnotes",
+          "Partial: Dust's product UI surfaces citations tied to a specific source document in agent answers, but there's no dedicated raw chunk-index/content debugging inspector distinct from those citations",
         detail:
-          "Documentation confirms the Search/RAG method attributes answers to specific source documents via citations. Whether a raw chunk-content inspector view exists as a separate debugging surface isn't confirmed in available docs.",
-        shortValue: 'Citations point to source documents; raw chunk inspector not confirmed',
+          "Dust's general RAG/Search explainer describes semantic retrieval but doesn't itself document citation formatting; the citation behavior (source documents listed under an answer, or visible via 'tool inspection') is described in Dust's own community support threads rather than a product page, and appears to vary by model. Whether a raw chunk-content inspector exists as a separate debugging surface isn't confirmed in official docs.",
+        shortValue:
+          'Citations confirmed via product UI/community support, not a docs page; chunk inspector unconfirmed',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.dust.tt/docs/understanding-retrieval-augmented-generation-rag-and-the-search-method-in-dust',
-            label: 'Understanding Retrieval Augmented Generation (RAG) | Dust Docs',
-            asOf: '2026-07-02',
+            url: 'https://community.dust.tt/x/03help/6ku3a37chfyo/how-to-access-documents-from-the-dust-agent-a-guid',
+            label: 'How to Access Documents from the Dust Agent | Dust Community',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -599,16 +616,17 @@ export const dustProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value:
-          'Natural-language scheduled triggers and event-based triggers from connected systems (e.g. Slack messages), invoked in addition to manual chat invocation',
+          'Natural-language scheduled triggers and event-based triggers from connected systems (e.g. GitHub, Jira, Zendesk, Linear, Fathom, or custom webhooks), invoked in addition to manual chat invocation',
         detail:
-          "Scheduled triggers run an agent on a recurring, plain-language schedule ('Every weekday at 8:30am') without cron syntax; Dust's Triggers feature separately supports agents reacting to events from external systems rather than only manual chat.",
-        shortValue: 'Natural-language schedules plus event-based triggers',
+          "Scheduled triggers run an agent on a recurring, plain-language schedule ('Every weekday at 8:30am') without cron syntax; Dust's Webhook Triggers separately let agents react to events from built-in providers (GitHub, Jira, Zendesk, Linear, Fathom) or custom webhooks, rather than only manual chat.",
+        shortValue:
+          'Natural-language schedules plus webhook triggers (GitHub, Jira, Zendesk, Linear, Fathom)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/triggers',
             label: 'Triggers | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -885,21 +903,27 @@ export const dustProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          'Partial: native data connections (Slack, Notion, GitHub, Salesforce, and 50+ others) are first-party and built/maintained by the Dust team, but agent tools can also be extended with any external MCP server by pasting its public URL, with no Dust-led vetting or review of that server',
+          'Partial: native data connections (11 fully-managed sources including Google Drive, Notion, Confluence, GitHub, Salesforce, Microsoft, Snowflake, BigQuery, Zendesk, Gong, and Intercom) are first-party and built/maintained by the Dust team; Slack and dozens of other business tools (Airtable, Asana, HubSpot, Jira, Salesloft, and more) are documented as separate MCP-based Tools rather than native Connections, and agent tools can also be extended with any external MCP server by pasting its public URL, with no Dust-led vetting or review of that server',
         detail:
-          "Docs describe adding a remote MCP server as entering the server's public URL, with workspace admins responsible for choosing and authenticating it. No formal Dust review process is described, unlike the fully managed first-party connectors, and no publicly documented security incident involving a malicious or compromised third-party MCP server on Dust was found.",
-        shortValue: 'First-party connectors, open bring-your-own-URL MCP tools',
+          "Docs list 11 fully-managed native Connections under Connections Management, while Dust's own Slack integration docs describe it as 'Slack MCP tools' added by selecting Slack 'from the available MCP servers,' distinct from that native Connections list. Dust's Tools catalog documents dozens of further business-tool integrations (Airtable, Asana, HubSpot, Jira, Salesloft, and more) alongside the ability to add any external MCP server by pasting its public URL, with workspace admins responsible for choosing and authenticating it. No formal Dust review process is described for pasted third-party MCP server URLs, and no publicly documented security incident involving a malicious or compromised third-party MCP server on Dust was found.",
+        shortValue:
+          '11 first-party Connections; Slack + dozens more via MCP-based Tools; open bring-your-own-URL MCP',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.dust.tt/docs/remote-mcp-server',
-            label: 'Adding an MCP Server',
-            asOf: '2026-07-02',
+            url: 'https://docs.dust.tt/docs/connections',
+            label: 'Connections | Dust Docs',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.dust.tt/docs/connections',
-            label: 'Connections',
-            asOf: '2026-07-02',
+            url: 'https://docs.dust.tt/docs/slack-mcp',
+            label: 'Slack tools | Dust Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/tools',
+            label: 'Tools | Dust Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -907,16 +931,17 @@ export const dustProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Yes: an Agent Builder dashboard shows real-time usage trends, tool execution patterns, feedback tracking, latency metrics, and RAG behavior tied to specific agent versions',
+          'Partial: an Admin > Analytics dashboard shows workspace-wide credit consumption, message/conversation volume, tool execution patterns, and feedback tracking (thumb reactions/comments), broken out by agent, user, or message source, but it does not track latency metrics or RAG-specific behavior, and is not broken out by individual agent version',
         detail:
-          "Described as built natively into the agent-builder workflow with 'zero setup', showing signals specific to how agents work on the Dust platform, rather than a general-purpose distributed-tracing/span export product.",
-        shortValue: 'Per-agent-version dashboard: usage, tools, feedback, latency, RAG',
-        confidence: 'estimated',
+          "Dust's Workspace Analytics docs describe an Admin > Analytics dashboard for adoption, credit consumption, and usage patterns, including tool-execution counts/unique users per tool and message feedback, explicitly stating analytics never include message content and are not differentiated by agent version. Latency metrics and RAG-specific behavior are not part of this dashboard.",
+        shortValue:
+          'Workspace-wide usage/feedback/tool dashboard; no latency or RAG metrics, not per-version',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://deepwiki.com/dust-tt/dust/3.1-agent-configuration-and-management',
-            label: 'Agent Configuration and Management | dust-tt/dust | DeepWiki',
-            asOf: '2026-07-02',
+            url: 'https://docs.dust.tt/docs/workspace-analytics',
+            label: 'Workspace Analytics | Dust Docs',
+            asOf: '2026-07-08',
           },
         ],
       },

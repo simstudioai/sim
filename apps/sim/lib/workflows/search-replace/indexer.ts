@@ -23,6 +23,7 @@ import type {
 } from '@/lib/workflows/search-replace/types'
 import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/value-walker'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
+import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -675,11 +676,14 @@ function isVisibleToolParameter(param: ToolParameterConfig, values: Record<strin
  */
 export function getToolInputParamConfigs({
   tool,
+  toolIndex,
   parentCanonicalModes,
   credentialTypeById,
   blockConfigs,
 }: {
   tool: ParsedStoredTool
+  /** Position of `tool` within its parent's `tool-input` array - canonical-mode overrides are keyed by this, not `tool.type`, so same-type tools don't collide. Omit only when `parentCanonicalModes` is also absent (e.g. fork/promote remaps that don't resolve canonical modes). */
+  toolIndex?: number
   parentCanonicalModes?: CanonicalModeOverrides
   credentialTypeById?: Record<string, string | undefined>
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
@@ -723,7 +727,11 @@ export function getToolInputParamConfigs({
 
   if (!toolId) return genericFallback()
 
-  const scopedCanonicalModes = scopeCanonicalModesForTool(parentCanonicalModes, tool.type)
+  const scopedCanonicalModes = scopeCanonicalModesForTool(
+    parentCanonicalModes,
+    toolIndex,
+    tool.type
+  )
   const blockConfig =
     tool.type !== 'custom-tool' && tool.type !== 'mcp'
       ? (blockConfigs?.[tool.type] ?? getBlock(tool.type))
@@ -931,6 +939,8 @@ function addToolInputMatches({
   workflowId,
   credentialTypeById,
   blockConfigs,
+  customTools,
+  mcpToolNamesById,
 }: {
   matches: WorkflowSearchMatch[]
   block: WorkflowSearchBlockState
@@ -950,11 +960,20 @@ function addToolInputMatches({
   workflowId?: string
   credentialTypeById?: Record<string, string | undefined>
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
+  customTools?: WorkflowSearchIndexerOptions['customTools']
+  mcpToolNamesById?: WorkflowSearchIndexerOptions['mcpToolNamesById']
 }) {
   const parentCanonicalModes = getSearchCanonicalModes(block)
 
   parseStoredToolInputValue(value).forEach((tool, toolIndex) => {
-    if (mode !== 'resource' && tool.title) {
+    // Index the resolved display name (not the stored mutable title) so
+    // search text and highlights match what the tool chip actually renders.
+    const toolDisplayName = resolveStoredToolName(tool, {
+      customTools,
+      mcpToolNamesById,
+      getBlockConfig: (type) => blockConfigs?.[type] ?? getBlock(type),
+    })
+    if (mode !== 'resource' && toolDisplayName) {
       addTextMatches({
         matches,
         idPrefix: 'tool-input-title',
@@ -963,7 +982,7 @@ function addToolInputMatches({
         canonicalSubBlockId,
         subBlockType: 'tool-input',
         fieldTitle: 'Tool',
-        value: tool.title,
+        value: toolDisplayName,
         valuePath: [toolIndex, 'title'],
         target: { kind: 'subblock' },
         query,
@@ -977,6 +996,7 @@ function addToolInputMatches({
 
     const params = getToolInputParamConfigs({
       tool,
+      toolIndex,
       parentCanonicalModes,
       credentialTypeById,
       blockConfigs,
@@ -1228,6 +1248,8 @@ export function indexWorkflowSearchMatches(
     workflowId,
     blockConfigs = {},
     credentialTypeById,
+    customTools,
+    mcpToolNamesById,
   } = options
 
   const matches: WorkflowSearchMatch[] = []
@@ -1363,6 +1385,8 @@ export function indexWorkflowSearchMatches(
           workflowId,
           credentialTypeById,
           blockConfigs,
+          customTools,
+          mcpToolNamesById,
         })
         continue
       }

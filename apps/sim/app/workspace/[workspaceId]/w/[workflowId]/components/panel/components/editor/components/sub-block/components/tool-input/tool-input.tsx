@@ -27,6 +27,7 @@ import {
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { getProviderIdFromServiceId, type OAuthProvider, type OAuthService } from '@/lib/oauth'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
@@ -59,7 +60,8 @@ import {
   ActiveSearchTargetProvider,
   useActiveSearchTarget,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import { getAllBlocks } from '@/blocks'
+import { getAllBlocks, getBlock } from '@/blocks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
@@ -104,6 +106,7 @@ import {
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  reindexToolCanonicalModes,
   resolveCanonicalMode,
   resolveDependencyValue,
   type SubBlockCondition,
@@ -486,7 +489,15 @@ export const ToolInput = memo(function ToolInput({
       [blockId]
     )
   )
-  const { collaborativeSetBlockCanonicalMode } = useCollaborativeWorkflow()
+  const { collaborativeSetBlockCanonicalMode, collaborativeSetBlockCanonicalModes } =
+    useCollaborativeWorkflow()
+  const reindexCanonicalModesOnMutate = useCallback(
+    (oldTools: StoredTool[], newTools: StoredTool[]) => {
+      const next = reindexToolCanonicalModes(oldTools, newTools, canonicalModeOverrides)
+      if (next) collaborativeSetBlockCanonicalModes(blockId, next)
+    },
+    [canonicalModeOverrides, collaborativeSetBlockCanonicalModes, blockId]
+  )
 
   const value = isPreview ? previewValue : storeValue
 
@@ -512,11 +523,15 @@ export const ToolInput = memo(function ToolInput({
   // Uses canonical resolution so the active field (basic vs advanced) is respected.
   const toolCredentialId = useMemo(() => {
     const allBlocks = getAllBlocks()
-    for (const tool of selectedTools) {
+    for (const [toolIndex, tool] of selectedTools.entries()) {
       const blockConfig = allBlocks.find((b: { type: string }) => b.type === tool.type)
       if (!blockConfig?.subBlocks) continue
       const toolCanonical = buildCanonicalIndex(blockConfig.subBlocks)
-      const scopedOverrides = scopeCanonicalModesForTool(canonicalModeOverrides, tool.type)
+      const scopedOverrides = scopeCanonicalModesForTool(
+        canonicalModeOverrides,
+        toolIndex,
+        tool.type
+      )
       const reactiveSubBlock = blockConfig.subBlocks.find(
         (sb: { reactiveCondition?: unknown }) => sb.reactiveCondition
       )
@@ -543,6 +558,13 @@ export const ToolInput = memo(function ToolInput({
   const { data: customTools = [] } = useCustomTools(shouldFetchCustomTools ? workspaceId : '')
 
   const { mcpTools, isLoading: mcpLoading } = useMcpTools(workspaceId)
+  const mcpToolNamesById = useMemo(() => {
+    const names = new Map<string, string>()
+    for (const t of mcpTools) {
+      if (!names.has(t.id)) names.set(t.id, t.name)
+    }
+    return names
+  }, [mcpTools])
 
   const { data: mcpServers = [], isLoading: mcpServersLoading } = useMcpServers(workspaceId)
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
@@ -642,6 +664,7 @@ export const ToolInput = memo(function ToolInput({
 
   const { filterBlocks, config: permissionConfig } = usePermissionConfig()
 
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolBlocks = useMemo(() => {
     const allToolBlocks = getAllBlocks().filter(
       (block) =>
@@ -659,7 +682,7 @@ export const ToolInput = memo(function ToolInput({
         block.type !== 'file'
     )
     return filterBlocks(allToolBlocks)
-  }, [filterBlocks])
+  }, [filterBlocks, customBlockOverlayVersion])
 
   const hasBackfilledRef = useRef(false)
   useEffect(() => {
@@ -899,19 +922,23 @@ export const ToolInput = memo(function ToolInput({
   const handleRemoveTool = useCallback(
     (toolIndex: number) => {
       if (isPreview || disabled) return
-      setStoreValue(selectedTools.filter((_, index) => index !== toolIndex))
+      const updatedTools = selectedTools.filter((_, index) => index !== toolIndex)
+      reindexCanonicalModesOnMutate(selectedTools, updatedTools)
+      setStoreValue(updatedTools)
     },
-    [isPreview, disabled, selectedTools, setStoreValue]
+    [isPreview, disabled, selectedTools, reindexCanonicalModesOnMutate, setStoreValue]
   )
 
   const handleRemoveAllFromServer = useCallback(
     (serverId: string | undefined) => {
       if (isPreview || disabled || !serverId) return
-      setStoreValue(
-        selectedTools.filter((t) => !(t.type === 'mcp' && t.params?.serverId === serverId))
+      const updatedTools = selectedTools.filter(
+        (t) => !(t.type === 'mcp' && t.params?.serverId === serverId)
       )
+      reindexCanonicalModesOnMutate(selectedTools, updatedTools)
+      setStoreValue(updatedTools)
     },
-    [isPreview, disabled, selectedTools, setStoreValue]
+    [isPreview, disabled, selectedTools, reindexCanonicalModesOnMutate, setStoreValue]
   )
 
   const handleDeleteTool = useCallback(
@@ -939,10 +966,11 @@ export const ToolInput = memo(function ToolInput({
       })
 
       if (updatedTools.length !== selectedTools.length) {
+        reindexCanonicalModesOnMutate(selectedTools, updatedTools)
         setStoreValue(updatedTools)
       }
     },
-    [selectedTools, customTools, setStoreValue]
+    [selectedTools, customTools, reindexCanonicalModesOnMutate, setStoreValue]
   )
 
   const handleParamChange = useCallback(
@@ -1111,6 +1139,7 @@ export const ToolInput = memo(function ToolInput({
       newTools.splice(adjustedDropIndex, 0, draggedTool)
     }
 
+    reindexCanonicalModesOnMutate(selectedTools, newTools)
     setStoreValue(newTools)
     setDraggedIndex(null)
     setDragOverIndex(null)
@@ -1410,6 +1439,10 @@ export const ToolInput = memo(function ToolInput({
                 description: mcpTool.description,
               },
             }))
+            // Diff against `filteredTools` (pre-spread, same refs as `selectedTools`) - the
+            // spread copy below preserves the same relative order, so this correctly reflects
+            // each surviving tool's new position.
+            reindexCanonicalModesOnMutate(selectedTools, filteredTools)
             setStoreValue([...filteredTools.map((t) => ({ ...t, isExpanded: false })), ...newTools])
             setMcpServerDrilldown(null)
             setOpen(false)
@@ -1640,6 +1673,7 @@ export const ToolInput = memo(function ToolInput({
     customUnsupported,
     availableWorkflows,
     isToolAlreadySelected,
+    reindexCanonicalModesOnMutate,
   ])
 
   return (
@@ -1662,9 +1696,11 @@ export const ToolInput = memo(function ToolInput({
           const isCustomTool = tool.type === 'custom-tool'
           const isMcpTool = tool.type === 'mcp'
           const isWorkflowTool = tool.type === 'workflow'
+          // Fall back to the unfiltered registry so chips for types hidden
+          // from the picker (permissions, hideFromToolbar) keep their chrome.
           const toolBlock =
             !isCustomTool && !isMcpTool
-              ? toolBlocks.find((block) => block.type === tool.type)
+              ? (toolBlocks.find((block) => block.type === tool.type) ?? getBlock(tool.type))
               : null
 
           const currentToolId =
@@ -1680,7 +1716,11 @@ export const ToolInput = memo(function ToolInput({
                 })
               : null
 
-          const toolScopedOverrides = scopeCanonicalModesForTool(canonicalModeOverrides, tool.type)
+          const toolScopedOverrides = scopeCanonicalModesForTool(
+            canonicalModeOverrides,
+            toolIndex,
+            tool.type
+          )
 
           const subBlocksResult: SubBlocksForToolInput | null =
             !isCustomTool && !isMcpTool && currentToolId
@@ -1713,9 +1753,6 @@ export const ToolInput = memo(function ToolInput({
             ? resolveCustomToolFromReference(tool, customTools)
             : null
 
-          const customToolTitle = isCustomTool
-            ? tool.title || resolvedCustomTool?.title || 'Unknown Tool'
-            : null
           const customToolSchema = isCustomTool ? tool.schema || resolvedCustomTool?.schema : null
           const customToolParams =
             isCustomTool && customToolSchema?.function?.parameters?.properties
@@ -1746,6 +1783,11 @@ export const ToolInput = memo(function ToolInput({
                   })
                 )
               : []
+
+          // Canonical name wins; stored title only when nothing resolves
+          // (same policy as the canvas summary — see resolveStoredToolName).
+          const toolDisplayName =
+            resolveStoredToolName(tool, { customTools, mcpToolNamesById }) ?? 'Unknown Tool'
 
           const useSubBlocks = !isCustomTool && !isMcpTool && subBlocksResult?.subBlocks?.length
           const displayParams: ToolParameterConfig[] = isCustomTool
@@ -1854,7 +1896,7 @@ export const ToolInput = memo(function ToolInput({
                     )}
                   </div>
                   <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                    {formatDisplayText((isCustomTool ? customToolTitle : tool.title) ?? '', {
+                    {formatDisplayText(toolDisplayName ?? '', {
                       workflowSearchHighlight: getToolTitleSearchHighlight(toolIndex),
                     })}
                   </span>
@@ -2072,7 +2114,7 @@ export const ToolInput = memo(function ToolInput({
                                 const nextMode = canonicalMode === 'advanced' ? 'basic' : 'advanced'
                                 collaborativeSetBlockCanonicalMode(
                                   blockId,
-                                  `${tool.type}:${canonicalId}`,
+                                  `${toolIndex}:${canonicalId}`,
                                   nextMode
                                 )
                               },

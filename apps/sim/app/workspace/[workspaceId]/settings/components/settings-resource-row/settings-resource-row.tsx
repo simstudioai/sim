@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@sim/emcn'
 
 /**
  * The canonical settings "resource row": a rounded-bordered icon tile, a
@@ -11,8 +12,14 @@ import type { ReactNode } from 'react'
  * contains to 20px, so callers pass their raw icon node without pre-sizing it.
  */
 interface SettingsResourceRowProps {
-  /** Icon node centered in the tile; any `<svg>`/`<img>` is normalized to 20px. */
+  /** Icon node centered in the tile; a `<svg>` is normalized to 20px, an `<img>` to 20px (or the full tile when `iconFill`). */
   icon: ReactNode
+  /**
+   * Let an image icon fill the tile edge-to-edge instead of clamping to 20px.
+   * Use for uploaded image/logo icons (e.g. custom blocks); glyph `<svg>`s still
+   * normalize to 20px so a fallback icon doesn't balloon.
+   */
+  iconFill?: boolean
   /** Primary line — truncates. */
   title: ReactNode
   /** Secondary muted line — truncates. */
@@ -21,11 +28,12 @@ interface SettingsResourceRowProps {
   trailing?: ReactNode
 }
 
-const TILE_CLASS =
-  'flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] [&_img]:size-5 [&_svg]:size-5'
+const TILE_BASE =
+  'flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] [&_svg]:size-5'
 
 export function SettingsResourceRow({
   icon,
+  iconFill = false,
   title,
   description,
   trailing,
@@ -33,7 +41,9 @@ export function SettingsResourceRow({
   return (
     <div className='flex items-center justify-between gap-2.5'>
       <div className='flex min-w-0 items-center gap-2.5'>
-        <div className={TILE_CLASS}>{icon}</div>
+        <div className={cn(TILE_BASE, iconFill ? '[&_img]:size-full' : '[&_img]:size-5')}>
+          {icon}
+        </div>
         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
           <span className='truncate text-[var(--text-body)] text-sm'>{title}</span>
           {description != null && (

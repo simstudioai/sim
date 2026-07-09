@@ -1,7 +1,7 @@
 {
   "extends": "@sim/tsconfig/library.json",
   "compilerOptions": {
-    "baseUrl": ".",
+    "lib": ["ES2022", "DOM"],
     "paths": {
       "@sim/testing/*": ["./src/*"]
     }

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, type RefObject, useContext, useMemo } from 'react'
+import { noop } from '@sim/utils/helpers'
 
 interface SidebarListContextValue {
   /** Whether any drag operation is currently in progress */
@@ -23,7 +24,6 @@ interface SidebarListContextValue {
   onItemDragEnd: () => void
 }
 
-const noop = () => {}
 const noopActiveWorkflowIdRef: RefObject<string | undefined> = { current: undefined }
 
 /**

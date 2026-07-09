@@ -101,6 +101,13 @@ const MAX_MAX_RECORDS = 1000
 const MAX_PAGES_PER_POLL = 10
 /** Cap on property-change snapshot size to bound providerConfig payload. */
 const MAX_SNAPSHOT_SIZE = 1000
+/**
+ * HubSpot Search API caps each filterGroup at 6 filters (developers.hubspot.com/docs/api/crm/search).
+ * `buildBody` reserves 2 slots in Group B (filterProperty EQ + hs_object_id GT), so
+ * user-supplied filters (pipeline/stage/owner shortcuts plus advanced JSON filters) must
+ * leave room for those — cap at 4 so Group B never exceeds 6.
+ */
+const MAX_USER_FILTERS = 4
 
 const BUILT_IN_PATH: Record<HubSpotBuiltInObjectType, string> = {
   contact: 'contacts',
@@ -530,14 +537,13 @@ function resolveRequestedProperties(
   return [...requested]
 }
 
-function buildUserFilters(
+export function buildUserFilters(
   config: HubSpotWebhookConfig,
   logger?: Logger,
   requestId?: string
 ): FilterClause[] {
   const filters: FilterClause[] = []
 
-  // Shortcut fields translate to common HubSpot filter conditions.
   if (config.pipelineId?.trim()) {
     const property = config.objectType === 'ticket' ? 'hs_pipeline' : 'pipeline'
     filters.push({ propertyName: property, operator: 'EQ', value: config.pipelineId.trim() })
@@ -575,6 +581,16 @@ function buildUserFilters(
         getErrorMessage(error, 'parse error')
       )
     }
+  }
+
+  // Filters within a filterGroup are AND-combined, so dropping any of them would silently
+  // widen the match set (matching records the user's config meant to exclude) rather than
+  // just failing the request — a worse outcome than a loud poll failure. Throw instead so
+  // the webhook is marked failed and the user can trim their filter configuration.
+  if (filters.length > MAX_USER_FILTERS) {
+    throw new Error(
+      `[${requestId ?? ''}] HubSpot webhook has ${filters.length} combined filters (pipeline/stage/owner shortcuts + advanced filters), exceeding the ${MAX_USER_FILTERS}-filter limit HubSpot's Search API allows alongside the reserved cursor filters. Reduce the number of filters.`
+    )
   }
 
   return filters

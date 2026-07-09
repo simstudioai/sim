@@ -79,8 +79,7 @@ export const env = createEnv({
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
-    FREE_API_DEPLOYMENT_GATE_ENABLED:      z.boolean().optional(),                 // Block free-plan accounts from programmatic execution (API/MCP/generic webhooks/chat embeds). Requires BILLING_ENABLED. Off by default for dark rollout
-    TABLES_FRACTIONAL_ORDERING:            z.boolean().optional(),                 // Order table rows by fractional order_key (O(1) insert/delete) instead of integer position
+    FREE_API_DEPLOYMENT_GATE_ENABLED:      z.boolean().optional(),                 // Block free-plan accounts from programmatic execution (API/MCP/A2A/generic webhooks/chat embeds). Requires BILLING_ENABLED. Off by default for dark rollout
     TABLE_SNAPSHOT_CACHE:                  z.boolean().optional(),                 // Mount tables into sandboxes by reference via a version-keyed CSV snapshot in object storage instead of draining the whole table into web-process heap
     PII_REDACTION:                         z.boolean().optional(),                 // Redact PII from workflow logs via configurable Data Retention rules (Presidio at the logger persist choke point) and expose the Data Retention config UI
     PII_GRANULAR_REDACTION:                z.boolean().optional(),                 // Expose the execution-altering PII redaction stages (redact workflow input + block outputs in-flight) in the Data Retention config; layered on top of PII_REDACTION

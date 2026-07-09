@@ -1,10 +1,9 @@
 {
   "extends": "@sim/tsconfig/nextjs.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
-      "@/components/*": ["components/*"],
+      "@/components/*": ["./components/*"],
       "@/lib/*": ["./lib/*"],
       "@/stores": ["./stores"],
       "@/stores/*": ["./stores/*"],

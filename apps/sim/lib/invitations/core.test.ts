@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -71,6 +71,8 @@ vi.mock('@/lib/billing/core/usage', () => ({
 vi.mock('@/lib/credentials/environment', () => ({
   syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
 }))
+
+vi.mock('@sim/audit', () => auditMock)
 
 import { acceptInvitation } from '@/lib/invitations/core'
 
@@ -316,8 +318,84 @@ describe('acceptInvitation', () => {
     expect(mockReconcileOrganizationSeats).toHaveBeenCalledWith({
       organizationId: 'org-new',
       reason: 'member-accepted-invite',
+      actorId: 'invitee-user',
     })
     expect(mockSetActiveOrganizationForCurrentSession).toHaveBeenCalledWith('org-new')
+    expect(auditMock.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'invitee-user',
+        action: auditMock.AuditAction.ORG_MEMBER_ADDED,
+        resourceType: auditMock.AuditResourceType.ORGANIZATION,
+        resourceId: 'org-new',
+        metadata: expect.objectContaining({ invitationId: 'inv-1', memberRole: 'member' }),
+      })
+    )
+  })
+
+  it('does not record an ORG_MEMBER_ADDED audit for a user who is already a member', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
+      id: 'workspace-1',
+      name: 'Workspace',
+      ownerId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceMode: 'organization',
+      billedAccountUserId: 'owner-1',
+    })
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+    mockEnsureUserInOrganization.mockResolvedValueOnce({
+      success: true,
+      alreadyMember: true,
+      billingActions: { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false },
+    })
+
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-1',
+          kind: 'workspace',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        {
+          id: 'grant-1',
+          workspaceId: 'workspace-1',
+          permission: 'write',
+          workspaceName: 'Workspace',
+        },
+      ],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      [{ id: 'member-1' }],
+    ])
+
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-1',
+      token: 'tok-1',
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.membershipAlreadyExists).toBe(true)
+    }
+    expect(auditMock.recordAudit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: auditMock.AuditAction.ORG_MEMBER_ADDED })
+    )
   })
 
   it('does not reconcile seats for an Enterprise organization (fixed seats)', async () => {

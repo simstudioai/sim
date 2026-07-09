@@ -1,3 +1,4 @@
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type {
   ConsumeResult,
@@ -413,7 +414,7 @@ describe('HostedKeyRateLimiter', () => {
         controller.signal
       )
       // Let the first bucket check run and the sleep begin, then abort.
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await sleep(20)
       controller.abort()
       const result = await promise
 

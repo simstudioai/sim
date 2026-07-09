@@ -14,7 +14,14 @@ import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { recordUsage } from '@/lib/billing/core/usage-log'
+import {
+  checkStorageQuota,
+  decrementStorageUsageInTx,
+  incrementStorageUsage,
+} from '@/lib/billing/storage'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
@@ -876,7 +883,9 @@ export async function createDocumentRecords(
   requestId: string,
   uploadedBy: string | null = null
 ): Promise<DocumentData[]> {
-  return await db.transaction(async (tx) => {
+  let storageBilling: { userId: string; workspaceId: string | null; bytes: number } | null = null
+
+  const returnData = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
     const kb = await tx
@@ -901,6 +910,16 @@ export async function createDocumentRecords(
       requestId,
       tx
     )
+
+    const billedUserId = uploadedBy ?? kb[0].userId
+    const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
+    if (totalBytes > 0) {
+      const quotaCheck = await checkStorageQuota(billedUserId, totalBytes)
+      if (!quotaCheck.allowed) {
+        throw new Error(quotaCheck.error || 'Storage limit exceeded')
+      }
+      storageBilling = { userId: billedUserId, workspaceId: kbWorkspaceId, bytes: totalBytes }
+    }
 
     // One load per batch (was N+1); skip entirely if no doc carries tags.
     const hasTaggedDocs = documents.some((d) => d.documentTagsData)
@@ -990,6 +1009,17 @@ export async function createDocumentRecords(
 
     return returnData
   })
+
+  if (storageBilling) {
+    const billing: { userId: string; workspaceId: string | null; bytes: number } = storageBilling
+    try {
+      await incrementStorageUsage(billing.userId, billing.bytes, billing.workspaceId ?? undefined)
+    } catch (storageError) {
+      logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
+    }
+  }
+
+  return returnData
 }
 
 export async function getDocuments(
@@ -1308,6 +1338,8 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
+  let storageBilling: { userId: string; workspaceId: string | null; bytes: number } | null = null
+
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
@@ -1333,6 +1365,19 @@ export async function createSingleDocument(
       tx
     )
 
+    const billedUserId = uploadedBy ?? kb[0].userId
+    if (documentData.fileSize > 0) {
+      const quotaCheck = await checkStorageQuota(billedUserId, documentData.fileSize)
+      if (!quotaCheck.allowed) {
+        throw new Error(quotaCheck.error || 'Storage limit exceeded')
+      }
+      storageBilling = {
+        userId: billedUserId,
+        workspaceId: kb[0].workspaceId,
+        bytes: documentData.fileSize,
+      }
+    }
+
     await tx.insert(document).values(newDocument)
 
     await tx
@@ -1340,6 +1385,16 @@ export async function createSingleDocument(
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
   })
+
+  if (storageBilling) {
+    const billing: { userId: string; workspaceId: string | null; bytes: number } = storageBilling
+    try {
+      await incrementStorageUsage(billing.userId, billing.bytes, billing.workspaceId ?? undefined)
+    } catch (storageError) {
+      logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
+    }
+  }
+
   logger.info(`[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`)
 
   return newDocument as {
@@ -1987,7 +2042,11 @@ export async function hardDeleteDocuments(
     .select({
       id: document.id,
       fileUrl: document.fileUrl,
+      fileSize: document.fileSize,
+      uploadedBy: document.uploadedBy,
+      connectorId: document.connectorId,
       workspaceId: knowledgeBase.workspaceId,
+      kbUserId: knowledgeBase.userId,
     })
     .from(document)
     .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
@@ -1999,18 +2058,51 @@ export async function hardDeleteDocuments(
 
   const existingIds = documentsToDelete.map((doc) => doc.id)
 
+  // Resolve owner subscriptions before the transaction (reads). Connector-synced
+  // documents are never metered at ingest, so they are excluded from billing here.
+  const candidateUserIds = new Set<string>()
+  for (const doc of documentsToDelete) {
+    if (doc.connectorId || doc.fileSize <= 0) continue
+    const billedUserId = doc.uploadedBy ?? doc.kbUserId
+    if (billedUserId) candidateUserIds.add(billedUserId)
+  }
+  const subByUser = new Map<string, HighestPrioritySubscription | null>()
+  for (const billedUserId of candidateUserIds) {
+    subByUser.set(billedUserId, await getHighestPrioritySubscription(billedUserId))
+  }
+
+  // Key everything off the rows this tx actually deleted (`returning()`) so a
+  // concurrent delete that claimed some ids first isn't double-counted here.
+  let deletedDocs: typeof documentsToDelete = []
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
-    await tx.delete(document).where(inArray(document.id, existingIds))
+    const deletedRows = await tx
+      .delete(document)
+      .where(inArray(document.id, existingIds))
+      .returning({ id: document.id })
+
+    const deletedIds = new Set(deletedRows.map((row) => row.id))
+    deletedDocs = documentsToDelete.filter((doc) => deletedIds.has(doc.id))
+
+    const bytesByUser = new Map<string, number>()
+    for (const doc of deletedDocs) {
+      if (doc.connectorId || doc.fileSize <= 0) continue
+      const billedUserId = doc.uploadedBy ?? doc.kbUserId
+      if (!billedUserId) continue
+      bytesByUser.set(billedUserId, (bytesByUser.get(billedUserId) ?? 0) + doc.fileSize)
+    }
+    for (const [billedUserId, bytes] of bytesByUser) {
+      await decrementStorageUsageInTx(tx, subByUser.get(billedUserId) ?? null, billedUserId, bytes)
+    }
   })
 
-  await deleteDocumentStorageFiles(documentsToDelete, requestId)
+  await deleteDocumentStorageFiles(deletedDocs, requestId)
 
-  logger.info(`[${requestId}] Hard deleted ${existingIds.length} documents`, {
-    documentIds: existingIds,
+  logger.info(`[${requestId}] Hard deleted ${deletedDocs.length} documents`, {
+    documentIds: deletedDocs.map((doc) => doc.id),
   })
 
-  return existingIds.length
+  return deletedDocs.length
 }
 
 export async function deleteDocument(

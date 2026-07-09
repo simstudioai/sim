@@ -46,9 +46,9 @@ function withAppConfig(doc: unknown) {
 }
 
 /**
- * `isFeatureEnabled` only accepts registered `FeatureFlagName`s. The registry is
- * empty in this PR, so tests reference flags through the AppConfig document and
- * cast their throwaway names through this helper.
+ * `isFeatureEnabled` only accepts registered `FeatureFlagName`s. These tests
+ * exercise the evaluation logic with throwaway flag names supplied through the
+ * AppConfig document, cast to `FeatureFlagName` through this helper.
  */
 const enabled = (flag: string, ctx?: FeatureFlagContext) =>
   isFeatureEnabled(flag as FeatureFlagName, ctx)
@@ -62,7 +62,6 @@ describe('getFeatureFlags', () => {
   it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {
     const flags = await getFeatureFlags()
     // All registered flags should be present, disabled (env vars unset in test env)
-    expect(flags['tables-fractional-ordering']).toEqual({ enabled: false })
     expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
     expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
@@ -91,7 +90,6 @@ describe('getFeatureFlags', () => {
     flagRef.isAppConfigEnabled = true
     mockFetch.mockResolvedValue(null)
     const flags = await getFeatureFlags()
-    expect(flags['tables-fractional-ordering']).toEqual({ enabled: false })
     expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
     expect(flags['pii-granular-redaction']).toEqual({ enabled: false })

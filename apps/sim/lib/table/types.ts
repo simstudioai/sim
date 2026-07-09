@@ -372,8 +372,8 @@ export interface TableRow {
   executions: RowExecutions
   position: number
   /**
-   * Fractional order key. Authoritative row order when `TABLES_FRACTIONAL_ORDERING`
-   * is on; absent only for rows not yet backfilled (clients fall back to `position`).
+   * Fractional order key — the authoritative row order. Absent only for rows not
+   * yet backfilled (clients fall back to `position`).
    */
   orderKey?: string
   createdAt: Date | string
@@ -526,11 +526,9 @@ export interface BatchInsertData {
   rows: RowData[]
   workspaceId: string
   userId?: string
-  /** Optional per-row target positions. Length must equal `rows.length`. */
-  positions?: number[]
   /**
    * Optional per-row exact order keys (undo restore re-inserts at the saved key).
-   * Length must equal `rows.length`. Takes precedence over `positions`.
+   * Length must equal `rows.length`.
    */
   orderKeys?: string[]
 }

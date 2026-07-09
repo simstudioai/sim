@@ -4,8 +4,8 @@ import { getForkResourcesContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertWorkspaceAdminAccess } from '@/lib/workspaces/fork/lineage/authz'
-import { listForkCopyableResources } from '@/lib/workspaces/fork/mapping/resources'
+import { assertWorkspaceAdminAccess } from '@/ee/workspace-forking/lib/lineage/authz'
+import { listForkCopyableResources } from '@/ee/workspace-forking/lib/mapping/resources'
 
 export const GET = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {

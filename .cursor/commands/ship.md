@@ -7,20 +7,47 @@ You help ship code by creating commits, pushing to the remote branch, and creati
 When the user runs `/ship`:
 
 1. **Check git status** - See what files have changed
-2. **Generate a commit message** following this format: `type(scope): description`
+2. **Sync check**: `git fetch origin staging && git log --oneline origin/staging..HEAD`. Read the actual commit list, not just how many there are — it must show ONLY commits you can attribute to this session (recognizable subjects/SHAs). A worktree/branch can silently be cut from a stale local `staging`, dragging in unrelated commits; a corrupted branch's inflated commit *count* can coincidentally match a later check even when the *commits* are wrong, so always compare content, never just a number.
+   - If it shows commits you don't recognize, fix it now, **before** staging/committing any new work (step 5 hasn't run yet):
+     - If the working tree has uncommitted changes, stash them first — `git stash push -u -m ship-sync-fix` — so the rebase below isn't blocked by dirty state. Restore with `git stash pop` once the branch is fixed.
+     - Try `git rebase origin/staging` first.
+     - **A rebase finishing without conflicts does NOT by itself mean the branch is clean** — it can replay stray commits onto the new base with no conflict at all. After the rebase (clean or not), re-run `git log --oneline origin/staging..HEAD` and re-check the commit list against what you recognize.
+     - If the rebase conflicted on commits you don't recognize, OR it finished cleanly but the re-checked log still shows commits you don't recognize, abandon that result (`git rebase --abort` if still mid-rebase) and rebuild instead, in this exact order:
+       1. **While still on `<original-branch>`**, identify the SHA(s) to preserve — **not** the whole range. `git log --oneline --reverse origin/staging..<original-branch>` lists everything ahead of `origin/staging`, but in exactly this scenario that range also contains the unrecognized/stray commits you're trying to leave behind — blindly cherry-picking the full range recreates the same polluted branch. Read the list and write down only the SHA(s) you recognize as your own session's work (e.g. `abc1234 def5678`); do this *before* touching any temp branch, since once you check out `ship-sync-tmp` at `origin/staging` in step 4, `HEAD` no longer contains these commits and the same lookup at that point returns nothing.
+       2. `git checkout <original-branch>` — harmless no-op if you're already there, but required if an earlier interrupted attempt left you sitting on `ship-sync-tmp`: git refuses to delete the branch you're currently on, so deleting it before switching away silently fails and blocks the rest of the rebuild.
+       3. Delete any leftover from an earlier attempt: `git branch -D ship-sync-tmp 2>/dev/null || true` — always succeeds, including when there's nothing to delete (a first attempt), so it never blocks the rest of the rebuild on its own exit code.
+       4. `git checkout -b ship-sync-tmp origin/staging`.
+       5. `git cherry-pick` the SHAs captured in step 1, **in that oldest-first order** — cherry-picking more than one session commit out of order can fail or produce the wrong history. Resolve conflicts.
+       6. `git branch -f <original-branch> HEAD`, `git checkout <original-branch>`, and delete `ship-sync-tmp` (`git branch -D ship-sync-tmp`).
+   - Re-verify with `git log --oneline origin/staging..HEAD` — it must list only commits you recognize before you proceed to committing new work.
+3. **Generate a commit message** following this format: `type(scope): description`
    - Types: `fix`, `feat`, `improvement`, `chore`
    - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
    - Keep it concise
 
-3. **Run pre-ship checks** from the repo root before staging:
+4. **Run pre-ship checks** from the repo root before staging:
    - `bun run lint` to fix formatting issues
    - `bun run check:api-validation:strict` to catch boundary contract failures before CI
 
-4. **Stage and commit** the changes with the generated message
+5. **Stage and commit** the changes with the generated message
 
-5. **Push to origin** using the current branch name
+6. **Push to origin** using the current branch name — `--force-with-lease` if step 2's sync
+   check did any history rewrite (a clean rebase or a cherry-pick rebuild) on a branch that had
+   already been pushed once; a plain push would be rejected in exactly the polluted-remote case
+   step 2 exists to fix
 
-6. **Create a PR** to staging with a description in the user's voice
+7. **Create a PR** to staging with a description in the user's voice, then do a final content check — not a count check — comparing what actually landed:
+   ```bash
+   git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
+   gh pr view <n> --json commits -q '.commits[].messageHeadline'
+   ```
+   Re-fetch first — comparing against a stale local `origin/staging` ref can mask real drift or
+   flag a false mismatch even when the branch and push are correct. `--reverse` makes the git log
+   oldest-first, matching the PR commit list's order — plain `git log` is newest-first, and a
+   positional/line-by-line comparison against the PR's oldest-first list can spuriously fail on
+   any multi-commit branch. These two lists must describe the same commits in the same order
+   (same subjects, the last one being the commit from step 5). If they don't match, the branch
+   still has a problem — redo step 2's fix and `git push --force-with-lease`.
 
 ## Commit Message Format
 

@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
@@ -14,8 +15,10 @@ import {
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
+  type CanonicalModeOverrides,
   isCanonicalPair,
   resolveActiveCanonicalValue,
+  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import { isCustomTool } from '@/executor/constants'
 import {
@@ -152,6 +155,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
   sakana: buildProviderMetadata('sakana'),
+  meta: buildProviderMetadata('meta'),
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
@@ -490,8 +494,7 @@ export function extractAndParseJSON(content: string): any {
 function resolveCanonicalResourceParams(
   params: Record<string, any>,
   canonicalGroups: CanonicalGroup[],
-  blockType: string,
-  canonicalModes?: Record<string, 'basic' | 'advanced'>
+  scopedCanonicalModes?: CanonicalModeOverrides
 ): Record<string, any> {
   if (canonicalGroups.length === 0) return params
   const resolved = { ...params }
@@ -500,7 +503,7 @@ function resolveCanonicalResourceParams(
     if (existing !== undefined && existing !== null && existing !== '') continue
     // Route through the canonical SOT: an explicit scoped override wins, else the value heuristic -
     // no `?? 'basic'` (which ignored an advanced-only value when basic was empty).
-    const explicitMode = canonicalModes?.[`${blockType}:${group.canonicalId}`]
+    const explicitMode = scopedCanonicalModes?.[group.canonicalId]
     const chosen = resolveActiveCanonicalValue(
       group,
       params,
@@ -526,9 +529,18 @@ export async function transformBlockTool(
     getTool: (toolId: string) => any
     getToolAsync?: (toolId: string) => Promise<any>
     canonicalModes?: Record<string, 'basic' | 'advanced'>
+    /**
+     * Position of this tool within its parent agent block's `tool-input` array. Canonical-mode
+     * overrides are stored scoped by this index (`${toolIndex}:${canonicalId}`) rather than by
+     * `block.type`, so that two tool entries of the same type (e.g. two Table tools) don't share
+     * a canonical-mode override. Omit for tools with no such array position (e.g. Pi local tools).
+     */
+    toolIndex?: number
   }
 ): Promise<ProviderToolConfig | null> {
-  const { selectedOperation, getAllBlocks, getTool, getToolAsync, canonicalModes } = options
+  const { selectedOperation, getAllBlocks, getTool, getToolAsync, canonicalModes, toolIndex } =
+    options
+  const scopedCanonicalModes = scopeCanonicalModesForTool(canonicalModes, toolIndex, block.type)
 
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
   if (!blockDef) {
@@ -594,8 +606,7 @@ export async function transformBlockTool(
   const resolvedResourceParams = resolveCanonicalResourceParams(
     userProvidedParams,
     canonicalGroups,
-    block.type,
-    canonicalModes
+    scopedCanonicalModes
   )
 
   let uniqueToolId = toolConfig.id
@@ -634,7 +645,7 @@ export async function transformBlockTool(
         for (const group of canonicalGroups) {
           // Route through the canonical SOT: an explicit scoped override wins, else the value
           // heuristic - no `?? 'basic'` (which dropped an advanced-only value when basic was empty).
-          const explicitMode = canonicalModes?.[`${block.type}:${group.canonicalId}`]
+          const explicitMode = scopedCanonicalModes?.[group.canonicalId]
           const chosen = resolveActiveCanonicalValue(
             group,
             result,
@@ -642,7 +653,7 @@ export async function transformBlockTool(
           )
 
           const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
-          sourceIds.forEach((id) => delete result[id])
+          result = omit(result, sourceIds)
 
           if (chosen !== undefined) {
             result[group.canonicalId] = chosen

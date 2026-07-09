@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -8,6 +9,7 @@ import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { runTableExport, type TableExportPayload } from '@/lib/table/export-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import type { TableExportJobPayload } from '@/lib/table/types'
@@ -58,7 +60,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     return NextResponse.json({ error: 'Failed to start export' }, { status: 409 })
   }
 
-  const payload: TableExportPayload = { jobId, tableId, workspaceId, format }
+  const payload: TableExportPayload = {
+    jobId,
+    tableId,
+    workspaceId,
+    format,
+  }
   if (isTriggerDevEnabled) {
     try {
       const [{ tableExportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
@@ -78,6 +85,27 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     }
   } else {
     runDetached('table-export', () => runTableExport(payload))
+  }
+
+  // Audit at authorization (like the sync route) so a failed/abandoned job still records the export.
+  recordAudit({
+    workspaceId,
+    actorId: authResult.userId,
+    action: AuditAction.TABLE_EXPORTED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: tableId,
+    resourceName: access.table.name,
+    description: `Exported table "${access.table.name}" as ${format.toUpperCase()}`,
+    metadata: { format, rowCount: access.table.rowCount, async: true },
+    request,
+  })
+  if (access.table.workspaceId) {
+    captureServerEvent(
+      authResult.userId,
+      'table_exported',
+      { table_id: tableId, workspace_id: workspaceId },
+      { groups: { workspace: workspaceId } }
+    )
   }
 
   logger.info(`[${requestId}] Async export started`, { tableId, jobId, format })

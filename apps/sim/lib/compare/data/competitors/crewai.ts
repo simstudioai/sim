@@ -31,12 +31,12 @@ export const crewaiProfile: CompetitorProfile = {
     {
       title: 'Large, fast-growing open-source community',
       description:
-        'The crewAIInc/crewAI GitHub repository has surpassed 54,800 stars and is MIT licensed, one of the most-starred open-source multi-agent orchestration frameworks. CrewAI reports its open-source framework executes over 10 million agents per month and is used by roughly half of the Fortune 500.',
-      shortDescription: '54,800+ GitHub stars, MIT licensed, widely adopted.',
+        'The crewAIInc/crewAI GitHub repository has surpassed 55,000 stars and is MIT licensed, one of the most-starred open-source multi-agent orchestration frameworks. CrewAI reports over 100,000 developers certified through its community courses at learn.crewai.com.',
+      shortDescription: '55,000+ GitHub stars, MIT licensed, 100,000+ certified developers.',
       source: {
         url: 'https://github.com/crewAIInc/crewAI',
         label: 'crewAIInc/crewAI (GitHub)',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -91,12 +91,12 @@ export const crewaiProfile: CompetitorProfile = {
       title:
         'Human-in-the-loop input is a blocking, single-step primitive, not a rich approval workflow',
       description:
-        "The framework's built-in human_input=True flag on a Task pauses for a human response, but it is limited to synchronous stdin-style input in local runs. Production human-in-the-loop, via AMP webhooks and a pending-review state, requires the paid platform and custom webhook wiring rather than a built-in multi-channel approval UI.",
-      shortDescription: 'Basic human_input flag is stdin-style; rich approval needs AMP webhooks.',
+        "HITL in the open-source framework is now the @human_feedback decorator on Flows (v1.8.0+), which pauses for synchronous, console-based review in local runs, replacing the older Task human_input=True flag. Production HITL, via webhooks, an in-platform pending-review state, responder assignment, SLAs, and escalation policies (the 'Flow HITL Management Platform'), requires CrewAI AMP/Enterprise.",
+      shortDescription: 'OSS HITL is console-based via @human_feedback; rich approval needs AMP.',
       source: {
         url: 'https://docs.crewai.com/en/learn/human-in-the-loop',
         label: 'Human-in-the-Loop (HITL) Workflows - CrewAI Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -331,6 +331,32 @@ export const crewaiProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: no documented feature to publish a deployed crew/flow as an encapsulated, org-wide reusable block',
+        detail:
+          "CrewAI AMP's Tool Repository publishes individual custom Tools (single Python functions/classes wrapping an API) to a shared, permissioned catalog, not entire crews or flows. No CrewAI source describes taking a deployed crew or flow and publishing it as a named, iconed block that appears in a shared builder palette for other org members to drop into their own separate crews, with internals hidden and the block auto-tracking the source's latest deployed version. The closest pattern, wrapping a Crew's kickoff as a callable Tool for another Crew, is discussed only as a same-project code workaround in CrewAI's community forum, not a first-party, org-wide publish-as-block feature.",
+        shortValue:
+          'No, Tool Repository publishes single Tools, not published crews/flows as blocks',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.crewai.com/en/enterprise/guides/tool-repository',
+            label: 'Tool Repository - CrewAI Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.crewai.com/en/enterprise/features/crew-studio',
+            label: 'Crew Studio - CrewAI Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://community.crewai.com/t/crew-method-as-tool/400',
+            label: 'Crew method as tool - CrewAI Community',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -415,9 +441,9 @@ export const crewaiProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://towardsdatascience.com/how-to-implement-guardrails-for-your-ai-agents-with-crewai-80b8cb55fa43/',
-            label: 'How to Implement Guardrails for Your AI Agents with CrewAI',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/concepts/tasks',
+            label: 'Tasks (Guardrails) - CrewAI Docs',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.crewai.com/en/enterprise/features/hallucination-guardrail',
@@ -428,46 +454,51 @@ export const crewaiProfile: CompetitorProfile = {
       },
       humanInTheLoop: {
         value:
-          'Yes: a human_input flag pauses a Task for review; AMP adds a webhook-driven pending-review state',
+          'Yes: the @human_feedback decorator pauses a Flow for review, plus a Task-level human_input parameter; AMP adds a webhook-driven pending-review state',
         detail:
-          'Setting human_input=True on a Task pauses execution for human feedback before continuing, though the base mechanism is a synchronous, stdin-style prompt in local runs. CrewAI AMP extends this to a "Pending Human Input" state for deployed crews, where a reviewer\'s feedback and approval are submitted via task/webhook URLs to resume execution asynchronously.',
-        shortValue: 'Yes, human_input Task flag; async pending-review state on AMP',
+          'CrewAI supports human-in-the-loop via the @human_feedback decorator on Flows (v1.8.0+), which pauses for synchronous, console-based review in local runs, and a separate human_input Task parameter for agent-level review. CrewAI AMP/Enterprise extends this to a "Pending Human Input" state for deployed crews, resumed asynchronously via webhook URLs.',
+        shortValue: 'Yes, @human_feedback Flow decorator and Task human_input; async on AMP',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.crewai.com/en/learn/human-in-the-loop',
             label: 'Human-in-the-Loop (HITL) Workflows - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       generativeMedia: {
         value:
-          'Partial: image generation and vision tools exist via community/first-party tools, not a broad native suite',
+          'Partial: image generation and vision tools exist via first-party tools, not a broad native suite',
         detail:
-          'crewAI-tools includes a DallETool (image generation) and a VisionTool, giving CrewAI agents first-party access to image generation and image understanding. No native video-generation or text-to-speech/speech-to-text tool ships in the core crewAI-tools package; those require calling a provider directly through a custom or community tool.',
+          "crewAI's tools package (now maintained at github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools, formerly the standalone crewAI-tools repo, archived November 2025) includes a DallETool (image generation) and a VisionTool, giving CrewAI agents first-party access to image generation and image understanding. No native video-generation or text-to-speech/speech-to-text tool ships in the core package; those require calling a provider directly through a custom or community tool.",
         shortValue: 'DallETool and VisionTool ship; no native video/TTS tool',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://github.com/crewAIInc/crewAI-tools',
-            label: 'crewAIInc/crewAI-tools (GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools',
+            label: 'crewAIInc/crewAI - lib/crewai-tools (GitHub)',
+            asOf: '2026-07-08',
           },
         ],
       },
       dynamicToolUse: {
         value:
-          'Yes: an Agent selects among all tools assigned to it at reasoning time, rather than a fixed pre-wired call',
+          'Yes: agents call tools via LLM function-calling during execution, choosing among their assigned tools at each step',
         detail:
-          "An Agent's `tools` list is the pool it reasons over; the agent's LLM decides at runtime which tool, if any, to invoke for a given step, including tools loaded dynamically from an MCP server via MCPServerAdapter. This is a design property of the Agent/Task model itself, not a separately named feature.",
-        shortValue: 'Yes, agents reason over their assigned tool pool at runtime',
+          "An Agent's `tools` list (including tools loaded dynamically from an MCP server via MCPServerAdapter) is a set of callable functions passed to a function-calling LLM; the model decides which tool, if any, to call at each step of execution. CrewAI's own docs don't name this as a distinct feature: the Agents/Tools concept pages only show tools statically assigned at agent creation, and the underlying per-step tool-call behavior surfaces indirectly through CrewAI's Tool Call Hooks, which intercept tool calls the agent makes during execution.",
+        shortValue: 'Yes, via LLM function-calling per step; not documented as a named feature',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.crewai.com/en/concepts/agents',
             label: 'Agents - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.crewai.com/en/learn/tool-hooks',
+            label: 'Tool Call Hooks - CrewAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -576,21 +607,21 @@ export const crewaiProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          'crewAI-tools ships dozens of first-party tools; broader integration reach comes via Composio (1,000+ apps)',
+          'crewai-tools ships 70+ first-party tools; broader integration reach comes via Composio (250+ production-ready tools)',
         detail:
-          'The official crewAIInc/crewAI-tools repository provides dozens of built-in tools spanning file operations, web scraping, database search (Postgres, MySQL), search APIs, and AI tools (DALL-E, Vision); there is no single vendor-published total count. CrewAI docs separately show first-party ComposioTool integration, and Composio advertises 1,000+ pre-authenticated third-party apps pluggable into CrewAI agents.',
-        shortValue: 'Dozens of first-party tools; 1,000+ apps via Composio',
+          "crewAI's tools package (now maintained at github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools, formerly the standalone crewAI-tools repo, archived November 2025) ships over 70 built-in tool modules spanning file operations, web scraping, database search (Postgres, MySQL, Snowflake, Databricks), search APIs, and AI tools (DALL-E, Vision, OCR); there is no single vendor-published total count. CrewAI docs separately show first-party ComposioTool integration, and Composio's own CrewAI docs advertise 250+ production-ready tools pluggable into CrewAI agents.",
+        shortValue: '70+ first-party tools; 250+ via Composio',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://github.com/crewAIInc/crewAI-tools',
-            label: 'crewAIInc/crewAI-tools (GitHub)',
-            asOf: '2026-07-02',
+            url: 'https://github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools/src/crewai_tools/tools',
+            label: 'crewAIInc/crewAI - lib/crewai-tools/tools directory (GitHub)',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://docs.crewai.com/en/tools/automation/composiotool',
             label: 'Composio Tool - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -665,31 +696,31 @@ export const crewaiProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Free open-source framework (self-hosted); CrewAI AMP tiers priced per monthly workflow execution plus seats',
+          'Free open-source framework (self-hosted); CrewAI AMP offers a free Basic tier plus custom Enterprise pricing',
         detail:
-          'The open-source Python framework has no license cost. CrewAI AMP is priced on a Free/Basic tier (50 executions/month), a Professional tier ($25/month, roughly double the execution cap plus an extra seat), and custom-quoted Enterprise pricing for compliance, dedicated support, and private-infrastructure deployment.',
-        shortValue: 'Free framework; AMP billed by monthly executions plus seats',
+          "The open-source Python framework has no license cost. CrewAI AMP currently lists a free Basic tier (50 executions/month) and custom-quoted Enterprise pricing for compliance, dedicated support, and private-infrastructure deployment; no separate mid-tier paid plan is currently shown on CrewAI's pricing page.",
+        shortValue: 'Free framework; AMP has a free Basic tier and custom Enterprise pricing',
         confidence: 'verified',
         sources: [
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'CrewAI AMP Professional: $25/month, roughly 100 workflow executions/month plus one added seat',
+          'No mid-tier paid plan currently listed; CrewAI AMP pricing goes from a free Basic tier straight to custom Enterprise pricing',
         detail:
-          "The Free/Basic AMP tier includes 50 executions/month; third-party pricing analyses put the $25/month Professional tier at roughly double that cap (about 100 executions/month) plus a team seat. CrewAI's own pricing page does not spell out the exact numeric caps per tier beyond the free tier's 50 executions/month.",
-        shortValue: '$25/month, ~100 executions/month, +1 seat',
+          "CrewAI AMP pricing currently lists only a free Basic tier (50 executions/month) and custom Enterprise pricing; the previously offered $25/month Professional tier is no longer shown on CrewAI's pricing page.",
+        shortValue: 'None currently listed: free Basic tier, then custom Enterprise',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://crewai.com/pricing',
             label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -749,9 +780,9 @@ export const crewaiProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://sambanova.ai/blog/sambanova-and-crewai-partner-to-deliver-agentic-ai-at-scale-on-crewai-amp',
-            label: 'SambaNova and CrewAI Partner on CrewAI AMP',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/enterprise/features/sso',
+            label: 'SSO - CrewAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -764,9 +795,9 @@ export const crewaiProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://sambanova.ai/blog/sambanova-and-crewai-partner-to-deliver-agentic-ai-at-scale-on-crewai-amp',
-            label: 'SambaNova and CrewAI Partner on CrewAI AMP',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/enterprise/features/sso',
+            label: 'SSO - CrewAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -876,9 +907,9 @@ export const crewaiProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          'Partial: the core crewai-tools package is maintainer-reviewed, but the Enterprise Tool Repository lets any org publish public tools with only automated security checks, and CrewAI also supports the open, community-run MCP server ecosystem',
+          'Partial: the core crewai-tools code is maintainer-reviewed in the main crewAI repo, but the platform Tool Repository lets any org publish public tools with only automated security checks, and CrewAI also supports the open, community-run MCP server ecosystem',
         detail:
-          "CrewAI's official crewai-tools GitHub repository is a first-party, contribution-reviewed catalog: community pull requests are merged by CrewAI maintainers. Separately, CrewAI's Enterprise docs describe a Tool Repository where any user with org permissions can publish a tool with the --public flag, making it installable by other users; the docs state only that 'every published version undergoes automated security checks' before install, with no described human/editorial review process. CrewAI also supports the Model Context Protocol, giving agents access to 'thousands of tools from hundreds of MCP servers built by the community,' third-party code not authored or reviewed by CrewAI. No CrewAI-specific documented security incident (malicious tool, credential leak via a community tool or MCP server) was found in public sources.",
+          "crewAI's tools code now lives in the main crewAI monorepo (github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools; the standalone crewAI-tools repo is archived as of November 2025) and is maintainer-reviewed via PRs there. Separately, CrewAI's platform docs describe a Tool Repository where any user with org permissions can publish a tool with the --public flag, making it installable by other users; the docs state only that 'every published version undergoes automated security checks' before install, with no described human/editorial review process, and it is not documented as an Enterprise-exclusive tier. CrewAI also supports the Model Context Protocol, giving agents access to 'thousands of tools from hundreds of MCP servers built by the community,' third-party code not authored or reviewed by CrewAI. No CrewAI-specific documented security incident (malicious tool, credential leak via a community tool or MCP server) was found in public sources.",
         shortValue: 'Partial, reviewed core repo + open public Tool Repository + community MCP',
         confidence: 'estimated',
         sources: [
@@ -888,9 +919,9 @@ export const crewaiProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/crewAIInc/crewAI-tools',
-            label: 'crewAI-tools GitHub repository',
-            asOf: '2026-07-02',
+            url: 'https://github.com/crewAIInc/crewAI/tree/main/lib/crewai-tools',
+            label: 'crewAIInc/crewAI - lib/crewai-tools (GitHub)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -936,16 +967,31 @@ export const crewaiProfile: CompetitorProfile = {
       },
       dataDrains: {
         value:
-          'Yes: third-party OpenTelemetry-based exports to Datadog, Dynatrace, SigNoz, and Instana are documented',
+          'Yes: OpenTelemetry-based exports to Datadog are documented by CrewAI; Dynatrace, SigNoz, and IBM Instana document their own CrewAI support',
         detail:
-          'CrewAI traces and execution data can be continuously exported to external observability platforms via OpenTelemetry-based integrations (documented by Datadog, Dynatrace, SigNoz, and IBM Instana), beyond viewing traces inside the native AMP dashboard.',
-        shortValue: 'Yes, via OpenTelemetry to Datadog/Dynatrace/SigNoz/Instana',
+          "CrewAI's own docs show traces exported straight to Datadog's OTLP intake, plus generic OTLP-compatible backend examples (Grafana, Honeycomb, New Relic). Separately, Dynatrace, SigNoz, and IBM Instana each document OpenTelemetry-based CrewAI support on their own sites (not in CrewAI's docs), so exporting continuously to any of those platforms, beyond viewing traces in the native AMP dashboard, is documented, just split across CrewAI's and each vendor's own pages.",
+        shortValue: 'Yes, via OpenTelemetry; Datadog documented by CrewAI, others by the vendor',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://docs.crewai.com/en/enterprise/guides/capture_telemetry_logs',
+            label: 'Capture Telemetry Logs - CrewAI Docs',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.dynatrace.com/hub/detail/crewai-observability/',
+            label: 'CrewAI monitoring & observability - Dynatrace Hub',
+            asOf: '2026-07-08',
+          },
+          {
             url: 'https://signoz.io/docs/crewai-observability/',
             label: 'CrewAI Observability & Monitoring with OpenTelemetry - SigNoz Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.ibm.com/docs/en/instana-observability/1.0.304?topic=frameworks-crewai',
+            label: 'CrewAI - IBM Instana Observability Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -958,9 +1004,9 @@ export const crewaiProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.crewai.com/how-to/kickoff-async',
+            url: 'https://docs.crewai.com/en/learn/kickoff-async',
             label: 'Kickoff Crew Asynchronously - CrewAI Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -988,9 +1034,9 @@ export const crewaiProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://towardsdatascience.com/how-to-implement-guardrails-for-your-ai-agents-with-crewai-80b8cb55fa43/',
-            label: 'How to Implement Guardrails for Your AI Agents with CrewAI',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/concepts/tasks',
+            label: 'Tasks (Guardrails - guardrail_max_retries) - CrewAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1008,9 +1054,9 @@ export const crewaiProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.crewai.com/enterprise/guides/use-crew-api',
-            label: 'Trigger Deployed Crew API - CrewAI Docs',
-            asOf: '2026-07-02',
+            url: 'https://docs.crewai.com/en/enterprise/guides/kickoff-crew',
+            label: 'Kickoff Crew - CrewAI Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1074,16 +1120,22 @@ export const crewaiProfile: CompetitorProfile = {
         ],
       },
       academy: {
-        value: 'Yes: CrewAI offers free, structured courses at learn.crewai.com',
+        value:
+          'Partial: CrewAI offers a free short course hosted on DeepLearning.AI, linked from learn.crewai.com',
         detail:
-          'CrewAI operates a learning platform with self-paced, structured courses covering the framework, Flows, and agent-building concepts, beyond ad hoc blog posts or docs pages.',
-        shortValue: "Yes, free structured courses at CrewAI's learning platform",
+          'CrewAI offers a short course, \'Multi AI Agent Systems with crewAI,\' hosted on DeepLearning.AI and linked from learn.crewai.com, covering the framework and agent-building concepts, beyond ad hoc blog posts or docs pages. The DeepLearning.AI course page states access is free ("free for a limited time during the DeepLearning.AI learning platform beta"). learn.crewai.com itself is a marketing landing page that points to this single third-party course rather than hosting a broader in-house curriculum.',
+        shortValue: 'Partial, one free DeepLearning.AI course linked from learn.crewai.com',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://learn.crewai.com',
             label: 'CrewAI Academy (learn.crewai.com)',
-            asOf: '2026-07-04',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.deeplearning.ai/short-courses/multi-ai-agent-systems-with-crewai/',
+            label: 'Multi AI Agent Systems with crewAI - DeepLearning.AI',
+            asOf: '2026-07-08',
           },
         ],
       },

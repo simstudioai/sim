@@ -1364,6 +1364,8 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'knowledge_document',
   'file',
   'mcp_server',
+  /** Workflow-publishing MCP server identity (fork shell copy), for attachment sync. */
+  'workflow_mcp_server',
   'custom_tool',
   'skill',
 ])
@@ -1571,6 +1573,14 @@ export const backgroundWorkStatus = pgTable(
     workflowStatusIdx: index('background_work_status_workflow_status_idx').on(
       table.workflowId,
       table.status
+    ),
+    // Expression indexes for listSurfacedBackgroundWork's metadata legs: `->>` equality can't
+    // use a GIN index, and one unindexable leg in its `or()` forces a full-table scan.
+    metaChildWorkspaceIdx: index('background_work_status_meta_child_ws_idx').on(
+      sql`(${table.metadata} ->> 'childWorkspaceId')`
+    ),
+    metaOtherWorkspaceIdx: index('background_work_status_meta_other_ws_idx').on(
+      sql`(${table.metadata} ->> 'otherWorkspaceId')`
     ),
   })
 )
@@ -3389,9 +3399,9 @@ export const userTableRows = pgTable(
     data: jsonb('data').notNull(),
     position: integer('position').notNull().default(0),
     /**
-     * Fractional order key (base-62 string). Authoritative row order when the
-     * `TABLES_FRACTIONAL_ORDERING` flag is on; nullable during the backfill
-     * window. Ordered with `id` as a deterministic tiebreaker.
+     * Fractional order key (base-62 string) — the authoritative row order.
+     * Nullable during the backfill window. Ordered with `id` as a deterministic
+     * tiebreaker.
      *
      * Stored with `COLLATE "C"` (migration 0228) so Postgres compares it bytewise,
      * matching the fractional-indexing library's ASCII ordering. drizzle can't

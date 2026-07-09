@@ -31,10 +31,59 @@ const INLINE_MARK_HINTS: ReadonlyArray<RegExp> = [
   /_[^_\n]+_/,
   /~~[^~\n]+~~/,
   /`[^`\n]+`/,
+  /==(?:[^=\n]|=(?!=))+==/,
 ]
 
 function hasAny(hints: ReadonlyArray<RegExp>, text: string): boolean {
   return hints.some((hint) => hint.test(text))
+}
+
+/**
+ * VSCode language ids that differ from our code-block language values. `markdown`/`plaintext` map to
+ * the empty string so they are NOT forced into a code block — markdown copied from VSCode should parse
+ * as markdown, and plain text should paste as text; other ids pass through as-is.
+ */
+const VSCODE_LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
+  html: 'markup',
+  shellscript: 'bash',
+  shell: 'bash',
+  jsonc: 'json',
+  plaintext: '',
+  markdown: '',
+  md: '',
+  mdx: '',
+}
+
+/**
+ * Extracts the source language from VSCode's `vscode-editor-data` clipboard payload (a JSON blob with a
+ * `mode` field), mapping the few ids that differ from our code-block values. Returns `''` when the
+ * payload is absent, unparseable, or a non-code mode (plaintext/markdown). A real code language makes
+ * the paste handler emit a fenced code block — otherwise VSCode's per-token colored-span HTML would
+ * fall through to ProseMirror's default parser and flatten into plain paragraphs — while an empty
+ * result falls through so markdown copied from VSCode still parses as markdown.
+ */
+function parseVscodeLanguage(data: string | undefined): string {
+  if (!data) return ''
+  try {
+    const mode = (JSON.parse(data) as { mode?: unknown }).mode
+    if (typeof mode !== 'string') return ''
+    return VSCODE_LANGUAGE_ALIASES[mode] ?? mode
+  } catch {
+    return ''
+  }
+}
+
+/** `<style>`/`<script>` elements (with their content), matched as a pair via the tag backreference. */
+const NON_CONTENT_HTML = /<(style|script)\b[\s\S]*?<\/\1>/gi
+
+/**
+ * Strips `<style>`/`<script>` elements from pasted HTML. Google Sheets and Word prepend a `<style>`
+ * block of CSS (and Sheets a `<google-sheets-html-origin>` wrapper); ProseMirror's DOM parser has no
+ * rule for `<style>`, so it would walk the element's CSS text into the document as literal paragraphs.
+ * Removing these before parsing keeps the pasted content clean (PM already discards unknown wrappers).
+ */
+function stripNonContentHtml(html: string): string {
+  return html.replace(NON_CONTENT_HTML, '')
 }
 
 /**
@@ -62,11 +111,20 @@ export const MarkdownPaste = Extension.create({
     return [
       new Plugin({
         props: {
+          transformPastedHTML: (html) => stripNonContentHtml(html),
           handlePaste: (_view, event) => {
             if (!editor.isEditable) return false
             if (editor.isActive('codeBlock') || editor.isActive('code')) return false
             const text = event.clipboardData?.getData('text/plain')
             if (!text) return false
+            const language = parseVscodeLanguage(event.clipboardData?.getData('vscode-editor-data'))
+            if (language) {
+              return editor.commands.insertContent({
+                type: 'codeBlock',
+                attrs: { language },
+                content: [{ type: 'text', text }],
+              })
+            }
             if (!hasAny(STRUCTURAL_MARKDOWN_HINTS, text)) {
               if (!hasAny(INLINE_MARK_HINTS, text)) return false
               if (event.clipboardData?.getData('text/html')) return false

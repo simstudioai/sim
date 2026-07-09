@@ -26,12 +26,6 @@ vi.mock('@/lib/table/billing', () => ({
   TableRowLimitError: class TableRowLimitError extends Error {},
 }))
 
-// These suites assert flag-off position-shift semantics; pin the flag so they're
-// deterministic regardless of a local TABLES_FRACTIONAL_ORDERING env value.
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn().mockResolvedValue(false),
-}))
-
 vi.mock('@/lib/table/validation', () => ({
   validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
   validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),
@@ -187,29 +181,17 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
     expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
   })
 
-  it('explicit-position inserts also acquire the advisory lock to serialize position shifts', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        id: 'row-1',
-        tableId: 'tbl-1',
-        workspaceId: 'ws-1',
-        data: { name: 'a' },
-        position: 5,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ])
+  it('explicit-position inserts also acquire the advisory lock to serialize order-key minting', async () => {
+    await expect(
+      insertRow(
+        { tableId: 'tbl-1', data: { name: 'a' }, workspaceId: 'ws-1', position: 5 },
+        TABLE,
+        'req-1'
+      )
+    ).rejects.toBeDefined()
 
-    await insertRow(
-      { tableId: 'tbl-1', data: { name: 'a' }, workspaceId: 'ws-1', position: 5 },
-      TABLE,
-      'req-1'
-    )
-
-    // `(table_id, position)` index is non-unique, so concurrent explicit-position
-    // inserts at the same slot could both skip the shift and duplicate — lock
-    // serializes them.
+    // A position-based insert resolves its order_key from the neighbor at that
+    // rank; the lock serializes concurrent minting at the same slot.
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
   })
 
@@ -221,42 +203,6 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
         'req-1'
       )
     ).rejects.toBeDefined()
-
-    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
-  })
-
-  it('batchInsertRows with explicit positions acquires the advisory lock', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        id: 'row-1',
-        tableId: 'tbl-1',
-        workspaceId: 'ws-1',
-        data: { name: 'a' },
-        position: 3,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: 'row-2',
-        tableId: 'tbl-1',
-        workspaceId: 'ws-1',
-        data: { name: 'b' },
-        position: 4,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ])
-
-    await batchInsertRows(
-      {
-        tableId: 'tbl-1',
-        rows: [{ name: 'a' }, { name: 'b' }],
-        workspaceId: 'ws-1',
-        positions: [3, 4],
-      },
-      TABLE,
-      'req-1'
-    )
 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
   })

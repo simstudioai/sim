@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   MoreHorizontal,
+  Tooltip,
 } from '@sim/emcn'
 
 export interface RowAction {
@@ -14,6 +15,8 @@ export interface RowAction {
   /** Renders in the error color (e.g. Delete). */
   destructive?: boolean
   disabled?: boolean
+  /** Hover tooltip on the item (e.g. why it's disabled) — mirrors `SettingsAction.tooltip`. */
+  tooltip?: string
 }
 
 interface RowActionsMenuProps {
@@ -27,6 +30,10 @@ interface RowActionsMenuProps {
 /**
  * Canonical trailing `...` actions menu for a settings list row. Mirrors the
  * Teammates / Secrets / API-key row menus so every list row behaves identically.
+ *
+ * An action with a `tooltip` gets its item wrapped in a plain span tooltip
+ * trigger (the settings-header chip pattern) — a disabled item is
+ * `pointer-events-none`, so the wrapper is what keeps hover working.
  */
 export function RowActionsMenu({ label, actions, triggerClassName }: RowActionsMenuProps) {
   return (
@@ -41,16 +48,28 @@ export function RowActionsMenu({ label, actions, triggerClassName }: RowActionsM
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
-        {actions.map((action) => (
-          <DropdownMenuItem
-            key={action.label}
-            onSelect={action.onSelect}
-            disabled={action.disabled}
-            className={action.destructive ? 'text-[var(--text-error)]' : undefined}
-          >
-            {action.label}
-          </DropdownMenuItem>
-        ))}
+        {actions.map((action) => {
+          const item = (
+            <DropdownMenuItem
+              key={action.label}
+              onSelect={action.onSelect}
+              disabled={action.disabled}
+              className={action.destructive ? 'text-[var(--text-error)]' : undefined}
+            >
+              {action.label}
+            </DropdownMenuItem>
+          )
+          return action.tooltip ? (
+            <Tooltip.Root key={action.label}>
+              <Tooltip.Trigger asChild>
+                <span className='block'>{item}</span>
+              </Tooltip.Trigger>
+              <Tooltip.Content>{action.tooltip}</Tooltip.Content>
+            </Tooltip.Root>
+          ) : (
+            item
+          )
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )

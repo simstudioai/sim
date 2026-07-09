@@ -769,6 +769,77 @@ describe('workflow store', () => {
     })
   })
 
+  describe('setBlockCanonicalMode / setBlockCanonicalModes', () => {
+    it('should merge a single canonical mode into an empty map', () => {
+      const { setBlockCanonicalMode } = useWorkflowStore.getState()
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+
+      setBlockCanonicalMode('agent1', 'credential', 'advanced')
+
+      expect(useWorkflowStore.getState().blocks.agent1?.data?.canonicalModes).toEqual({
+        credential: 'advanced',
+      })
+    })
+
+    it('should merge without clobbering existing keys', () => {
+      const { setBlockCanonicalMode } = useWorkflowStore.getState()
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+
+      setBlockCanonicalMode('agent1', '0:tableId', 'advanced')
+      setBlockCanonicalMode('agent1', '1:tableId', 'basic')
+
+      expect(useWorkflowStore.getState().blocks.agent1?.data?.canonicalModes).toEqual({
+        '0:tableId': 'advanced',
+        '1:tableId': 'basic',
+      })
+    })
+
+    it('should not throw when merging into a non-existent block', () => {
+      const { setBlockCanonicalMode } = useWorkflowStore.getState()
+      expect(() => setBlockCanonicalMode('non-existent', 'credential', 'advanced')).not.toThrow()
+    })
+
+    it('should wholesale-replace canonicalModes, dropping keys absent from the new map', () => {
+      const { setBlockCanonicalMode, setBlockCanonicalModes } = useWorkflowStore.getState()
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+      setBlockCanonicalMode('agent1', '0:tableId', 'advanced')
+      setBlockCanonicalMode('agent1', '1:tableId', 'basic')
+
+      // Reindex after removing tool 0: only tool 1's (now re-keyed) entry survives.
+      setBlockCanonicalModes('agent1', { '0:tableId': 'basic' })
+
+      expect(useWorkflowStore.getState().blocks.agent1?.data?.canonicalModes).toEqual({
+        '0:tableId': 'basic',
+      })
+    })
+
+    it('should preserve sibling data fields when replacing canonicalModes', () => {
+      const { setBlockCanonicalMode, setBlockCanonicalModes } = useWorkflowStore.getState()
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+      setBlockCanonicalMode('agent1', '0:tableId', 'advanced')
+      useWorkflowStore.setState((state) => ({
+        blocks: {
+          ...state.blocks,
+          agent1: {
+            ...state.blocks.agent1,
+            data: { ...state.blocks.agent1.data, someOtherField: 'keep-me' },
+          },
+        },
+      }))
+
+      setBlockCanonicalModes('agent1', {})
+
+      const data = useWorkflowStore.getState().blocks.agent1?.data
+      expect(data?.canonicalModes).toEqual({})
+      expect(data?.someOtherField).toBe('keep-me')
+    })
+
+    it('should not throw when replacing canonicalModes on a non-existent block', () => {
+      const { setBlockCanonicalModes } = useWorkflowStore.getState()
+      expect(() => setBlockCanonicalModes('non-existent', { credential: 'advanced' })).not.toThrow()
+    })
+  })
+
   describe('workflow state management', () => {
     it('should work with WorkflowBuilder for complex setups', () => {
       const workflowState = WorkflowBuilder.linear(3).build()

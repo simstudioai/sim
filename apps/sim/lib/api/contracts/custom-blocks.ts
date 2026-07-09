@@ -39,6 +39,8 @@ export const customBlockSchema = z.object({
   workflowId: z.string(),
   /** Name of the bound source workflow (for display; the source can't be changed). */
   workflowName: z.string(),
+  /** Source workflow's home workspace id — used client-side to gate manage affordances. */
+  workspaceId: z.string().nullable(),
   /** Name of the source workflow's home workspace (display only). */
   workspaceName: z.string().nullable(),
   type: z.string(),

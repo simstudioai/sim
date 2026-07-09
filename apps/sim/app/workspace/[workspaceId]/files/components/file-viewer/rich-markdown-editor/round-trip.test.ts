@@ -158,6 +158,23 @@ describe('editor markdown round-trip', () => {
     'bold code': '**`x`**',
     'heading strike code': '# ~~`x`~~',
     'table with pipe': '| x \\| y | 2 |\n| --- | --- |\n| a | b |',
+    'bold italic nested': '**bold _italic_ word**',
+    'strike bold nested': '~~**struck bold**~~',
+    'bold code inline': '**bold `code` here**',
+    'triple nested marks': '*i **b ~~s~~** i*',
+    'all marks in heading': '# **b** ~~s~~ *i* `c`',
+    'marks in bullet': '- **a** ~~b~~ `c`',
+    'marks in quote': '> **a** ~~b~~ *c*',
+    'nested list marks': '- **a**\n  - ~~b~~\n    - *c*',
+    'bold link': '[**bold link**](https://x.com)',
+    'link inside bold': '**see [x](https://x.com)**',
+    'table with marks': '| **b** | ~~s~~ | `c` |\n| --- | --- | --- |\n| *i* | a | b |',
+    'bold across code boundary': '**a** `b` **c**',
+    highlight: 'a ==marked== word',
+    'highlight in heading': '# a ==mark== b',
+    'highlight nested in bold': '**bold ==mark== here**',
+    'highlight in list': '- ==a== item',
+    'highlight with interior equals': 'x ==a=b== y',
   }
 
   for (const [name, input] of Object.entries(cases)) {
@@ -328,5 +345,159 @@ describe('link href sanitization — dangerous schemes from file content are neu
     const hrefs = renderedHrefs('[a](https://ok.example.com)\n\n[b](mailto:x@y.com)')
     expect(hrefs).toContain('https://ok.example.com')
     expect(hrefs).toContain('mailto:x@y.com')
+  })
+})
+
+describe('paragraph leading guard (marker escaping + indent stripping)', () => {
+  /** Serialize a doc whose first paragraph literally starts with `text`, then re-parse its first node. */
+  function serializeParagraph(text: string): {
+    md: string
+    reparsedType: string
+    idempotent: boolean
+  } {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent(
+      { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+      { contentType: 'json' }
+    )
+    const md = postProcessSerializedMarkdown(editor.getMarkdown())
+    editor.commands.setContent(md, { contentType: 'markdown' })
+    const reparsedType = editor.getJSON().content?.[0]?.type ?? ''
+    const idempotent = postProcessSerializedMarkdown(editor.getMarkdown()) === md
+    editor.destroy()
+    editor = null
+    return { md, reparsedType, idempotent }
+  }
+
+  it.each([
+    ['# note', '\\# note'],
+    ['###### note', '\\###### note'],
+    ['#', '\\#'],
+    ['- item', '\\- item'],
+    ['+ item', '\\+ item'],
+    ['1. step', '1\\. step'],
+    ['1) step', '1\\) step'],
+    ['---', '\\---'],
+    ['- - -', '\\- - -'],
+  ])('escapes a paragraph starting with %j so it stays a paragraph', (text, expectedMd) => {
+    const { md, reparsedType, idempotent } = serializeParagraph(text)
+    expect(md.trim()).toBe(expectedMd)
+    expect(reparsedType).toBe('paragraph')
+    expect(idempotent).toBe(true)
+  })
+
+  it.each([
+    ['#hashtag'], // no space after # → not a heading
+    ['-5 degrees'], // no space after - → not a bullet
+    ['plain text'],
+  ])('does not over-escape %j', (text) => {
+    const { md, reparsedType, idempotent } = serializeParagraph(text)
+    expect(md.trim()).toBe(text)
+    expect(reparsedType).toBe('paragraph')
+    expect(idempotent).toBe(true)
+  })
+
+  it.each([
+    ['    four spaces', 'four spaces'],
+    ['\ttab indent', 'tab indent'],
+    ['        eight spaces', 'eight spaces'],
+    ['   # indented marker', '\\# indented marker'],
+  ])(
+    'strips leading indent so %j stays a paragraph instead of an indented code block',
+    (text, expectedMd) => {
+      const { md, reparsedType, idempotent } = serializeParagraph(text)
+      expect(md.trim()).toBe(expectedMd)
+      expect(reparsedType).toBe('paragraph')
+      expect(idempotent).toBe(true)
+    }
+  )
+})
+
+describe('consecutive empty paragraphs', () => {
+  /** Doc with `a`, then `count` empty paragraphs, then `b`; serialized and round-tripped. */
+  function serializeEmpties(count: number) {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    const emptyParas = Array.from({ length: count }, () => ({ type: 'paragraph', content: [] }))
+    editor.commands.setContent(
+      {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+          ...emptyParas,
+          { type: 'paragraph', content: [{ type: 'text', text: 'b' }] },
+        ],
+      },
+      { contentType: 'json' }
+    )
+    const md = postProcessSerializedMarkdown(editor.getMarkdown())
+    editor.commands.setContent(md, { contentType: 'markdown' })
+    const emptyCount = (editor.getJSON().content ?? []).filter(
+      (n) => n.type === 'paragraph' && !n.content?.length
+    ).length
+    const idempotent = postProcessSerializedMarkdown(editor.getMarkdown()) === md
+    editor.destroy()
+    editor = null
+    return { md, emptyCount, idempotent }
+  }
+
+  it.each([[1], [2], [3], [4]])(
+    'preserves %i empty paragraph(s) via blank lines (no &nbsp;, idempotent, no read-only trigger)',
+    (count) => {
+      const { md, emptyCount, idempotent } = serializeEmpties(count)
+      expect(md).not.toContain('&nbsp;')
+      expect(md).not.toContain(String.fromCharCode(0x00a0))
+      expect(emptyCount).toBe(count)
+      expect(idempotent).toBe(true)
+    }
+  )
+})
+
+describe('highlight ==mark==', () => {
+  function markPresent(src: string): boolean {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent(src, { contentType: 'markdown' })
+    const has = JSON.stringify(editor.getJSON()).includes('"type":"highlight"')
+    editor.destroy()
+    editor = null
+    return has
+  }
+
+  it('parses ==text== into a highlight mark, including mid-line and in headings', () => {
+    expect(markPresent('a ==marked== word')).toBe(true)
+    expect(markPresent('# a ==mark== b')).toBe(true)
+    expect(markPresent('**bold ==mark== here**')).toBe(true)
+  })
+
+  it('parses a highlight body containing a lone `=` (so ==a=b== round-trips)', () => {
+    expect(markPresent('x ==a=b== y')).toBe(true)
+  })
+
+  it('strips a highlight whose text contains `==` (unrepresentable), keeping the text', () => {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent('x a==b y', { contentType: 'markdown' })
+    let from = -1
+    let to = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText) {
+        const i = node.text?.indexOf('a==b') ?? -1
+        if (i >= 0) {
+          from = pos + i
+          to = from + 4
+        }
+      }
+    })
+    editor.commands.setTextSelection({ from, to })
+    editor.commands.toggleMark('highlight')
+    const md = postProcessSerializedMarkdown(editor.getMarkdown())
+    expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"highlight"')
+    expect(md).not.toContain('==a==b==')
+    expect(editor.getText().trim()).toBe('x a==b y')
+    editor.destroy()
+    editor = null
+  })
+
+  it('leaves comparison / spaced == operators as literal text', () => {
+    expect(markPresent('if x == y then z')).toBe(false)
+    expect(markPresent('a == b == c')).toBe(false)
   })
 })

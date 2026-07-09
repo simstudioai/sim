@@ -33,10 +33,35 @@ function firstPosOf(editor: Editor, type: string): number {
   return pos
 }
 
-function pressBackspace(editor: Editor): void {
+function pressKey(editor: Editor, key: string): void {
   editor.view.dom.dispatchEvent(
-    new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })
+    new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
   )
+}
+
+function pressBackspace(editor: Editor): void {
+  pressKey(editor, 'Backspace')
+}
+
+/** Empties the item whose text is `word` (caret left at its start), the state before a boundary key. */
+function emptyItem(editor: Editor, word: string): void {
+  let from = -1
+  let to = -1
+  editor.state.doc.descendants((node, pos) => {
+    if (from < 0 && node.isText && node.text === word) {
+      from = pos
+      to = pos + word.length
+    }
+  })
+  editor.commands.setTextSelection({ from, to })
+  editor.commands.deleteSelection()
+}
+
+/** Serialized markdown after re-parsing it once — equal to `getMarkdown()` only if it round-trips. */
+function markdownRoundTrip(editor: Editor): { md: string; reparsed: string } {
+  const md = editor.getMarkdown()
+  editor.commands.setContent(md, { contentType: 'markdown' })
+  return { md, reparsed: editor.getMarkdown() }
 }
 
 describe('suggestion-aware arrow keymap', () => {
@@ -139,5 +164,166 @@ describe('divider Backspace', () => {
     expect(selection.from).toBe(0)
     expect(selection.to).toBe(doc.content.size)
     editor.destroy()
+  })
+})
+
+describe('empty wrapped-block Backspace', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  it.each([
+    ['bullet middle', '- one\n- two\n- three', 'two', '- one\n- three'],
+    ['bullet first', '- one\n- two\n- three', 'one', '- two\n- three'],
+    ['bullet last', '- one\n- two', 'two', '- one'],
+    ['ordered middle', '1. one\n2. two\n3. three', 'two', '1. one\n2. three'],
+    ['task middle', '- [ ] one\n- [ ] two\n- [ ] three', 'two', '- [ ] one\n- [ ] three'],
+    ['blockquote middle', '> one\n>\n> two\n>\n> three', 'two', '> one\n>\n> three'],
+    ['nested item', '- one\n  - two\n- three', 'two', '- one\n- three'],
+  ])(
+    'removes the emptied %s cleanly — one container, no stray paragraph, round-trips',
+    (_label, markdown, word, expected) => {
+      const editor = editorWith('')
+      editor.commands.setContent(markdown, { contentType: 'markdown' })
+      editor.commands.focus()
+      emptyItem(editor, word)
+      pressBackspace(editor)
+
+      const { md, reparsed } = markdownRoundTrip(editor)
+      expect(md.trim()).toBe(expected)
+      expect(reparsed).toBe(md)
+      editor.destroy()
+    }
+  )
+})
+
+describe('empty list-item Enter', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  it('removes an empty MIDDLE item instead of splitting the list into a stranded paragraph', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('- one\n- two\n- three', { contentType: 'markdown' })
+    editor.commands.focus()
+    emptyItem(editor, 'two')
+    pressKey(editor, 'Enter')
+
+    const { md, reparsed } = markdownRoundTrip(editor)
+    expect(md.trim()).toBe('- one\n- three')
+    expect(reparsed).toBe(md)
+    editor.destroy()
+  })
+
+  it('leaves an empty TRAILING item to the default (exits the list)', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('- one\n- two', { contentType: 'markdown' })
+    editor.commands.focus()
+    emptyItem(editor, 'two')
+    pressKey(editor, 'Enter')
+
+    const list = editor.getJSON().content?.find((node) => node.type === 'bulletList')
+    expect(list?.content).toHaveLength(1)
+    expect(editor.getJSON().content?.some((node) => node.type === 'paragraph')).toBe(true)
+    editor.destroy()
+  })
+})
+
+describe('verbatim block boundary (isolating)', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  function caretIntoNode(editor: Editor, nodeType: string): void {
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === nodeType) editor.commands.setTextSelection(pos + 1)
+    })
+  }
+
+  it.each([
+    ['footnote definition', 'body text[^x]\n\n[^x]: the note', 'footnoteDef'],
+    ['raw HTML block', 'body\n\n<div>\nhello\n</div>', 'rawHtmlBlock'],
+  ])(
+    'Backspace at the start of a %s does not merge across its boundary and destroy it',
+    (_label, markdown, nodeType) => {
+      const editor = editorWith('')
+      editor.commands.setContent(markdown, { contentType: 'markdown' })
+      editor.commands.focus()
+      expect(blockShape(editor)).toContain(nodeType)
+      caretIntoNode(editor, nodeType)
+      pressBackspace(editor)
+      expect(blockShape(editor)).toContain(nodeType)
+      editor.destroy()
+    }
+  )
+})
+
+describe('block reordering (Mod-Shift-Arrow)', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  function caretInto(editor: Editor, word: string): void {
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText && node.text?.includes(word)) editor.commands.setTextSelection(pos + 1)
+    })
+  }
+
+  it('moves the current top-level block up, carrying the caret', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('# One\n\nTwo para\n\n- item', { contentType: 'markdown' })
+    editor.commands.focus()
+    caretInto(editor, 'Two')
+    editor.commands.moveBlockUp()
+    expect(editor.getMarkdown().trim().startsWith('Two para')).toBe(true)
+    editor.destroy()
+  })
+
+  it('moves the current top-level block down', () => {
+    const editor = editorWith('')
+    editor.commands.setContent('# One\n\nTwo para', { contentType: 'markdown' })
+    editor.commands.focus()
+    caretInto(editor, 'One')
+    editor.commands.moveBlockDown()
+    expect(editor.getMarkdown().trim().startsWith('Two para')).toBe(true)
+    editor.destroy()
+  })
+
+  it.each([
+    ['up', '# One\n\nabcdef'],
+    ['down', 'abcdef\n\n# Two'],
+  ])('keeps the caret at its original offset after moving %s (no off-by-one)', (direction, md) => {
+    const editor = editorWith('')
+    editor.commands.setContent(md, { contentType: 'markdown' })
+    editor.commands.focus()
+    let textPos = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText && node.text === 'abcdef') textPos = pos
+    })
+    editor.commands.setTextSelection(textPos + 3)
+    if (direction === 'up') editor.commands.moveBlockUp()
+    else editor.commands.moveBlockDown()
+    const at = editor.state.selection.from
+    expect(editor.state.doc.textBetween(at - 1, at)).toBe('c')
+    expect(editor.state.doc.textBetween(at, at + 1)).toBe('d')
+    editor.destroy()
+  })
+
+  it('is a no-op at the top edge and keeps a moved list intact', () => {
+    const top = editorWith('')
+    top.commands.setContent('# One\n\nTwo', { contentType: 'markdown' })
+    top.commands.focus()
+    caretInto(top, 'One')
+    top.commands.moveBlockUp()
+    expect(top.getMarkdown().trim().startsWith('# One')).toBe(true)
+    top.destroy()
+
+    const list = editorWith('')
+    list.commands.setContent('- a\n- b\n\npara', { contentType: 'markdown' })
+    list.commands.focus()
+    caretInto(list, 'para')
+    list.commands.moveBlockUp()
+    expect(list.getMarkdown().trim()).toBe('para\n\n- a\n- b')
+    list.destroy()
   })
 })

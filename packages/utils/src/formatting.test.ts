@@ -28,6 +28,11 @@ describe('getTimezoneAbbreviation', () => {
     expect(getTimezoneAbbreviation('Unknown/Zone')).toBe('Unknown/Zone')
   })
 
+  it('resolves a valid IANA timezone outside the hardcoded map via Intl instead of the raw string', () => {
+    const result = getTimezoneAbbreviation('Europe/Berlin', new Date('2023-01-15'))
+    expect(result).not.toBe('Europe/Berlin')
+  })
+
   it('returns PST or PDT for Los Angeles', () => {
     const result = getTimezoneAbbreviation('America/Los_Angeles', new Date('2023-01-15'))
     expect(['PST', 'PDT']).toContain(result)

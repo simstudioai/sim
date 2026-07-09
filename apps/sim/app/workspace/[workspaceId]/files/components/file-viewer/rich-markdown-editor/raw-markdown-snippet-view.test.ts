@@ -8,6 +8,8 @@
  * text inside is genuinely editable via a normal ProseMirror transaction, surviving serialization
  * back to markdown.
  */
+
+import { sleep } from '@sim/utils/helpers'
 import { Editor } from '@tiptap/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMarkdownEditorExtensions } from './editor-extensions'
@@ -52,7 +54,7 @@ function posOf(ed: Editor, typeName: string): number {
 
 /** React node views flush on a microtask after mount, so DOM assertions need one tick. */
 function nextTick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+  return sleep(0)
 }
 
 // The hover "Raw HTML"/"Footnote" badge is rendered by `RawBlockView` through

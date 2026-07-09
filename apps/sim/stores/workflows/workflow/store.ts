@@ -828,6 +828,34 @@ export const useWorkflowStore = create<WorkflowStore>()(
         get().updateLastSaved()
       },
 
+      setBlockCanonicalModes: (
+        id: string,
+        canonicalModes: Record<string, 'basic' | 'advanced'>
+      ) => {
+        set((state) => {
+          const block = state.blocks[id]
+          if (!block) {
+            return state
+          }
+
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                data: {
+                  ...block.data,
+                  canonicalModes,
+                },
+              },
+            },
+            edges: [...state.edges],
+            loops: { ...state.loops },
+          }
+        })
+        get().updateLastSaved()
+      },
+
       syncDynamicHandleSubblockValue: (blockId: string, subblockId: string, value: unknown) => {
         set((state) => {
           const block = state.blocks[blockId]

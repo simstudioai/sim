@@ -532,7 +532,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   },
   triggers: {
     enabled: true,
-    available: ['microsoftteams_webhook'],
+    available: ['microsoftteams_webhook', 'microsoftteams_chat_subscription'],
   },
 }
 

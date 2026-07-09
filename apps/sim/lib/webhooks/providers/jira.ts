@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { isRecordLike } from '@sim/utils/object'
 import type {
   EventMatchContext,
   FormatInputContext,
@@ -10,6 +11,27 @@ import type {
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Jira')
+
+/**
+ * `changelog.items[].field` lists the Jira field names that changed in this
+ * update (only present on issue_updated deliveries). Empty filter list means
+ * no restriction — match on any field change.
+ */
+function matchesFieldFilters(body: Record<string, unknown>, fieldFilters: string): boolean {
+  const wanted = fieldFilters
+    .split(',')
+    .map((f) => f.trim().toLowerCase())
+    .filter(Boolean)
+  if (wanted.length === 0) return true
+
+  const changelog = body.changelog as Record<string, unknown> | undefined
+  const items = Array.isArray(changelog?.items) ? changelog.items : []
+  const changedFields = items
+    .map((item) => (isRecordLike(item) && typeof item.field === 'string' ? item.field : ''))
+    .map((f) => f.toLowerCase())
+
+  return wanted.some((field) => changedFields.includes(field))
+}
 
 export function validateJiraSignature(secret: string, signature: string, body: string): boolean {
   try {
@@ -89,7 +111,7 @@ export const jiraHandler: WebhookProviderHandler = {
     }
 
     if (!triggerId || triggerId === 'jira_webhook') {
-      const obj = body as Record<string, unknown>
+      const obj = isRecordLike(body) ? body : {}
       return {
         input: {
           webhookEvent: obj.webhookEvent,
@@ -112,7 +134,7 @@ export const jiraHandler: WebhookProviderHandler = {
 
   async matchEvent({ webhook, workflow, body, requestId, providerConfig }: EventMatchContext) {
     const triggerId = providerConfig.triggerId as string | undefined
-    const obj = body as Record<string, unknown>
+    const obj = isRecordLike(body) ? body : {}
 
     if (triggerId && triggerId !== 'jira_webhook') {
       const webhookEvent = obj.webhookEvent as string | undefined
@@ -131,13 +153,26 @@ export const jiraHandler: WebhookProviderHandler = {
         )
         return false
       }
+
+      const fieldFilters = providerConfig.fieldFilters as string | undefined
+      if (
+        triggerId === 'jira_issue_updated' &&
+        fieldFilters &&
+        !matchesFieldFilters(obj, fieldFilters)
+      ) {
+        logger.debug(
+          `[${requestId}] Jira issue_updated field filter did not match for trigger ${triggerId}. Skipping execution.`,
+          { webhookId: webhook.id, workflowId: workflow.id, fieldFilters }
+        )
+        return false
+      }
     }
 
     return true
   },
 
   extractIdempotencyId(body: unknown) {
-    const obj = body as Record<string, unknown>
+    const obj = isRecordLike(body) ? body : {}
     const issue = obj.issue as Record<string, unknown> | undefined
     const comment = obj.comment as Record<string, unknown> | undefined
     const worklog = obj.worklog as Record<string, unknown> | undefined

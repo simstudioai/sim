@@ -5,6 +5,7 @@ import { ChipDropdown, ChipInput, Search, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import {
   type OrgRole,
   type PermissionType,
@@ -56,10 +57,6 @@ const WORKSPACE_ROLE_OPTIONS = [
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-function formatJoinedDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US')
 }
 
 function copyToClipboard(text: string) {
@@ -126,7 +123,7 @@ export function OrganizationMemberLists({
         name={member.name}
         email={member.email}
         image={member.image}
-        status={`Joined ${formatJoinedDate(member.createdAt)}`}
+        status={`Joined ${formatDate(new Date(member.createdAt))}`}
         roleControl={
           editable ? (
             <ChipDropdown
@@ -294,7 +291,7 @@ export function OrganizationMemberLists({
         name={member.name}
         email={member.email}
         image={member.image}
-        status={`Joined ${formatJoinedDate(member.createdAt)}`}
+        status={`Joined ${formatDate(new Date(member.createdAt))}`}
         roleControl={
           <RoleLockTooltip reason={lockReason}>
             <ChipDropdown

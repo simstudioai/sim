@@ -16,7 +16,7 @@ const WRITE_CHUNK_SIZE = 5000
  * Row ordering moved from the contiguous integer `position` to a fractional
  * string `order_key` (O(1) insert/delete — no reshift/recompact). Each existing
  * row gets a key derived from its current `position` order, so the fractional
- * ordering matches today's once `TABLES_FRACTIONAL_ORDERING` is on.
+ * ordering matches the legacy ordering for rows that predate the column.
  *
  * Per-table-atomic: each table is keyed inside one transaction holding the same
  * per-table advisory lock the app uses for inserts, so a concurrent insert

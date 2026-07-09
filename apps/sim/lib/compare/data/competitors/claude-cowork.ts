@@ -20,13 +20,13 @@ export const claudeCoworkProfile: CompetitorProfile = {
     {
       title: 'Dynamic, runtime tool selection (no pre-wiring)',
       description:
-        'Claude picks the fastest path itself at execution time: a connector for Slack, Chrome for web research, or direct screen/computer-use to open an app when no direct integration exists, rather than a builder pre-wiring which tool/connector an agent step uses.',
+        'Claude decides itself at execution time how to reach a given goal: "Tell Claude what you need, not how" — it opens a browser for web tasks and takes over the screen directly only when it has to, rather than a builder where a user pre-wires which tool a step uses.',
       shortDescription:
-        'Claude picks connectors, browser, or screen control at runtime instead of pre-wired steps.',
+        'Claude decides whether to use the browser or take over the screen at runtime, not pre-wired steps.',
       source: {
-        url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
-        label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        url: 'https://claude.com/product/cowork',
+        label: 'Claude Cowork product page (Claude)',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -79,38 +79,38 @@ export const claudeCoworkProfile: CompetitorProfile = {
   ],
   limitations: [
     {
-      title: 'No unattended/webhook-triggered automation. Desktop app must stay open',
+      title: 'No webhook/external-event-triggered automation',
       description:
-        'Task initiation is either manual (prompt via desktop or mobile) or on a user-defined schedule (hourly/daily/weekly/weekdays). Scheduled tasks only run while the computer is awake and the Claude Desktop app is open; if the device sleeps or the app is closed, the run is skipped and auto-executed on next wake, with a notification. There is no external event/webhook trigger capability.',
+        "Task initiation is manual (prompt via desktop or mobile) or on a user-defined schedule (hourly/daily/weekly/weekdays). Scheduled tasks now run remotely in the cloud on their set cadence, independent of whether the user's computer is awake or the Claude Desktop app is open. There is still no external event/webhook trigger capability — only time-based scheduling.",
       shortDescription:
-        'Tasks only run manually or on a schedule while the desktop app is open and awake.',
+        'Tasks run manually or on a schedule (now remote); no external event/webhook trigger.',
       source: {
         url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
       title: 'No API publishing / callable endpoint deployment',
       description:
-        'Cowork has no mechanism to publish or deploy a task as an API endpoint that external systems can call. Unlike a Sim workflow, it is strictly a session inside the Claude Desktop (and companion mobile) app, run manually or on a schedule.',
+        'Cowork has no mechanism to publish or deploy a task as an API endpoint that external systems can call. Unlike a Sim workflow, it is strictly a session inside the Claude apps (web, desktop, and mobile), run manually or on a schedule.',
       shortDescription: 'Tasks cannot be published as callable API endpoints for external systems.',
       source: {
         url: 'https://claude.com/product/cowork',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
       title: 'Cowork activity is not captured in audit logs / Compliance API',
       description:
-        'Cowork activity does not appear in the Compliance API or standard data exports. OpenTelemetry (Team/Enterprise only) is the only visibility mechanism, and it can be cross-referenced with Compliance API records via a shared user identifier, but it is not a full audit trail on its own.',
+        'Cowork activity does not appear in the Compliance API or standard data exports. OpenTelemetry (Team/Enterprise only) is the only visibility mechanism documented for streaming Cowork events to SIEM/observability tools; Anthropic does not document a way to reconcile it with Compliance API records, so it is not a full audit trail on its own.',
       shortDescription:
         'Cowork actions are absent from the Compliance API and standard data exports.',
       source: {
         url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -159,14 +159,14 @@ export const claudeCoworkProfile: CompetitorProfile = {
       selfHostOption: {
         value: 'No',
         detail:
-          "Cowork is a proprietary desktop application (macOS/Windows, Linux in beta) that requires a paid Claude plan and connects to Anthropic's cloud. There is no self-hosted or on-prem deployment option.",
+          "Cowork is a proprietary application (web, macOS/Windows desktop, and mobile; Linux desktop in beta) that requires a paid Claude plan and connects to Anthropic's cloud. There is no self-hosted or on-prem deployment option.",
         shortValue: 'No self-hosting option',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -251,21 +251,21 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          "No: Claude Cowork works directly on the user's local files and folders inside an isolated sandboxed VM on their own machine. It is not a native cloud file-storage product with its own folder hierarchy, link-based sharing (password/SSO options), and deleted-item recovery. Recovering files after a destructive Cowork action relies on OS-level backup tools (Time Machine, File History, iCloud) or third-party recovery scripts, not a built-in trash or recovery feature.",
+          "No: Claude Cowork works on the user's connected local files/folders (via the Desktop app) and, as of the current beta, can also execute tasks remotely in an isolated environment on Anthropic's servers, saving sessions and files to the user's Claude account; it is not a native cloud file-storage product with its own folder hierarchy, link-based sharing, and deleted-item recovery.",
         detail:
-          'Cowork has deleted user files with no built-in recovery path, underscoring that this is local file access, not a managed storage product.',
-        shortValue: 'No: operates on local files, no native cloud storage/trash',
+          'Cowork has deleted user files with no built-in recovery path, underscoring that this is task/file access rather than a managed storage product.',
+        shortValue: 'No: local files + remote beta execution, no native storage/trash',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://github.com/anthropics/claude-code/issues/32637',
             label: '[BUG] Cowork destroys user files when reorganizing (GitHub issue)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -326,6 +326,26 @@ export const claudeCoworkProfile: CompetitorProfile = {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      customBlocks: {
+        value:
+          "No: Claude Cowork has no visual workflow builder, so there is no completed workflow to publish as a reusable block. The closest adjacent capability is org-wide Skills sharing: a member enables 'Share with organization' on a Skill (a SKILL.md instruction file, optionally with reference docs/scripts), and it becomes available to everyone in Customize > Skills. Recipients can enable and use a shared Skill but cannot edit its contents.",
+        detail:
+          "This does not meet the bar of a published-workflow-as-block. A Skill is read-only prompt/instruction text Claude consults at runtime, not an encapsulated, deployed multi-step workflow with auto-derived inputs, hand-picked named outputs, and a hidden internal implementation that always tracks the source's latest version. Cowork Projects, the closest thing to a saved unit of work, explicitly do not support sharing for members of Team and Enterprise plans; separately, Anthropic notes projects are 'desktop-only and stored locally,' with no cloud sync.",
+        shortValue: 'No: no publish-workflow-as-block feature exists',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13119606-provision-and-manage-skills-for-your-organization',
+            label: 'Provision and manage skills for your organization',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
+            label: 'Organize your tasks with projects in Claude Cowork',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -421,16 +441,17 @@ export const claudeCoworkProfile: CompetitorProfile = {
         ],
       },
       humanInTheLoop: {
-        value: 'Yes: plan review and per-action approval by default',
+        value:
+          'Partial: per-action approval for deletions/app access by default; full plan review is opt-in',
         detail:
-          "Claude shows a plan and waits for approval before acting. Explicit permission is required before permanently deleting files and before accessing each application. An opt-in 'Act Without Asking' mode removes step-by-step pauses but increases prompt-injection risk.",
-        shortValue: 'Plan review + per-action approval',
+          "Cowork's default mode is continuous execution without pausing. Explicit permission is still required before permanently deleting files and before accessing each application. Users can opt into 'Ask before acting' mode for a plan-review/step-by-step approval workflow on high-stakes tasks.",
+        shortValue: 'Partial: deletion/app approval by default, plan review opt-in',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
             label: 'Use Claude Cowork safely',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -608,14 +629,19 @@ export const claudeCoworkProfile: CompetitorProfile = {
       customCodeSteps: {
         value: 'No user-authorable code-step primitive; agent can execute code internally',
         detail:
-          'Cowork tasks run in an isolated VM and can execute code as part of completing a task, but there is no workflow-builder-style code block a user writes or inserts into a task definition.',
+          'Custom logic is added via plugins that bundle skills (instructions in SKILL.md files), connectors, and sub-agents — not a user-written code block inserted into a task. Shell commands and any code Cowork writes execute inside an isolated Linux VM as part of the agent loop, not as a user-authored step.',
         shortValue: 'No user-authorable code step',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.anthropic.com/product/claude-cowork',
-            label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            url: 'https://support.claude.com/en/articles/13837440-use-plugins-in-claude',
+            label: 'Use plugins in Claude',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
+            label: 'Claude Cowork architecture overview',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -721,9 +747,9 @@ export const claudeCoworkProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://support.claude.com/en/articles/10015870-what-certifications-has-anthropic-obtained',
-            label: 'What Certifications has Anthropic obtained?',
-            asOf: '2026-07-02',
+            url: 'https://platform.claude.com/docs/en/manage-claude/data-residency',
+            label: 'Data residency - Claude Platform Docs',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -758,15 +784,15 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'ISO 27001:2022, ISO/IEC 42001:2023, HIPAA-ready (BAA via sales-assisted Enterprise), GDPR',
+          'ISO 27001:2022, ISO/IEC 42001:2023, HIPAA-ready (BAA via sales-assisted Enterprise)',
         detail: 'Company-wide Anthropic certifications, not Cowork-scoped.',
-        shortValue: 'ISO 27001, ISO 42001, HIPAA-ready, GDPR',
+        shortValue: 'ISO 27001, ISO 42001, HIPAA-ready',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/10015870-what-certifications-has-anthropic-obtained',
             label: 'What Certifications has Anthropic obtained?',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -824,21 +850,21 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       dataRetention: {
         value:
-          'Yes: Enterprise plan Owners/Primary Owners can set a custom data retention period (minimum 30 days) for conversation data and audit logs in Organization settings > Data and Privacy. Without customization, data is kept indefinitely.',
+          "Yes for org-wide Claude data, but this does not cover Cowork: Enterprise plan Owners/Primary Owners can set a custom data retention period (minimum 30 days) for conversation and project data in Organization settings > Data and Privacy, and data is kept indefinitely without customization. Cowork conversation history is stored locally on users' computers, is not subject to this standard retention policy, and cannot be centrally managed or exported by admins; Cowork activity is also not currently captured in the Compliance API.",
         detail:
-          "This is an org-wide Claude Enterprise setting, not per-resource-type the way Sim's granular retention is. Cowork's local session history sits outside this policy entirely, stored only on-device. Anthropic's current documentation does not describe a Zero-Data-Retention addendum for conversation data.",
-        shortValue: 'Yes: org-configurable retention, min 30 days, indefinite by default',
+          "This is an org-wide Claude Enterprise setting, not per-resource-type the way Sim's granular retention is, and it explicitly excludes Cowork. Cowork's local session history sits outside this policy entirely, stored only on-device. No Zero-Data-Retention addendum is described for conversation data.",
+        shortValue: 'Org retention is min 30 days, but Cowork history stays local, unmanaged',
         confidence: 'verified',
         sources: [
           {
             url: 'https://privacy.claude.com/en/articles/10440198-configure-custom-data-retention-controls-for-enterprise-plans',
             label: 'Configure custom data retention controls for Enterprise plans',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
             label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -917,30 +943,30 @@ export const claudeCoworkProfile: CompetitorProfile = {
         ],
       },
       durabilityModel: {
-        value: 'Weak. Client-dependent, not durable server-side execution',
+        value: 'Durable server-side execution for scheduled tasks',
         detail:
-          "Scheduled tasks only run while the computer is awake and Claude Desktop is open. A missed run due to sleep or a closed app is skipped and auto-run on next wake (with a notification), rather than executed at the scheduled time on infrastructure independent of the user's machine.",
-        shortValue: 'Client-dependent, not server-durable',
+          "Scheduled tasks in Claude Cowork now run remotely on Anthropic's infrastructure, independent of whether the user's computer is awake or the Desktop app is open — this is durable server-side execution, not client-dependent.",
+        shortValue: 'Server-durable: runs remotely regardless of device state',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
       failureAlerting: {
-        value: 'Minimal. Notification only for skipped scheduled runs',
+        value: 'Not documented under the current remote-execution model',
         detail:
-          'Users receive a notification when a scheduled task run is skipped because the computer was asleep or the app was closed. There is no broader failure-alerting/retry policy for task errors.',
-        shortValue: 'Notifies only on skipped runs',
-        confidence: 'estimated',
+          'Earlier documentation described a notification only when a scheduled run was skipped due to sleep/closed app, but that premise no longer applies now that scheduled tasks run remotely regardless of device state. The current schedule-recurring-tasks article is silent on failure/retry alerting for task errors, so this behavior should be treated as unverified pending updated Anthropic documentation.',
+        shortValue: 'Not documented; prior skipped-run notification premise is outdated',
+        confidence: 'unknown',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -976,21 +1002,22 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       asyncExecution: {
         value:
-          'No: Claude Cowork does not offer true server-side background execution you can walk away from indefinitely. The Claude Desktop app must remain open while Claude works, and closing the app ends the session. Scheduled/recurring tasks (set up via the /schedule skill) run at a set cadence, but only while the computer is awake and the desktop app is open, and they are skipped, then caught up later, if the app is closed when the run was due.',
+          "Yes: Claude Cowork now supports true server-side background execution: remote sessions and scheduled tasks continue running on Anthropic's infrastructure even when the Desktop app is closed or the computer is asleep, except for tasks that require local file or browser access, which still need the app open.",
         detail:
-          "The phrase 'assign a task and step away' means you don't have to babysit each step in real time within an open session, and scheduled tasks let you check back later for results. But this is not equivalent to a cloud job you can trigger and poll while fully offline: the desktop app and an awake machine are hard prerequisites.",
-        shortValue: 'Requires app open, not fully async',
+          "The phrase 'assign a task and step away' now more closely matches a real cloud job: remote sessions and scheduled/recurring tasks (set up via the /schedule skill) run on their cadence independent of device state. Tasks that need local file system or browser access are the exception and still require the desktop app open on an awake machine.",
+        shortValue:
+          'Yes: remote sessions/tasks run without the app open, with local-access exceptions',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork (Claude Help Center)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork (Claude Help Center)',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://www.anthropic.com/product/claude-cowork',
@@ -1048,16 +1075,16 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       unattendedExecution: {
         value:
-          'No: scheduled tasks require the Claude Desktop app open and the computer awake on the client device',
+          "Yes: scheduled tasks execute server-side/remotely on Anthropic's infrastructure, independent of whether the Claude Desktop app is open or the device is awake, per Anthropic's current documentation",
         detail:
-          "There is no server-side execution path independent of the client. A scheduled/recurring task only fires while the desktop app is running and the machine is awake; if the device sleeps or the app is closed when a run is due, that run is skipped and auto-executed on next wake, with a notification, rather than firing on schedule from infrastructure independent of the user's machine.",
-        shortValue: 'No: requires desktop app open and computer awake',
+          "Scheduled/recurring tasks now run on their cadence on Anthropic's infrastructure regardless of client device state. Tasks that require local file or browser access remain the exception and still need the desktop app open and the machine awake.",
+        shortValue: 'Yes: runs remotely regardless of desktop app/device state',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },

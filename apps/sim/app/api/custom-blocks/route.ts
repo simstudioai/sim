@@ -29,6 +29,7 @@ function toWire(block: CustomBlockWithInputs) {
     organizationId: block.organizationId,
     workflowId: block.workflowId,
     workflowName: block.workflowName,
+    workspaceId: block.workspaceId,
     workspaceName: block.workspaceName,
     type: block.type,
     name: block.name,

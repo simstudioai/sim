@@ -55,6 +55,18 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('a&nbsp;b')).toBe(false)
     expect(isRoundTripSafe('a &amp; b &lt; c &gt; d')).toBe(true)
     expect(isRoundTripSafe('AT&T and R&D')).toBe(true)
+    expect(isRoundTripSafe('a &AMP; b')).toBe(false)
+    expect(isRoundTripSafe('a &LT; b &GT; c')).toBe(false)
+  })
+
+  it('rejects an orphan reference definition (serializer drops it) but allows used ones', () => {
+    expect(isRoundTripSafe('Some text.\n\n[unused]: https://example.com "title"')).toBe(false)
+    expect(isRoundTripSafe('[a]: u1\n[b]: u2\n\nuse only [a]')).toBe(false)
+    expect(isRoundTripSafe('See [x][1].\n\n[1]: https://example.com "T"')).toBe(true)
+    expect(isRoundTripSafe('A [shortcut] ref.\n\n[shortcut]: https://example.com')).toBe(true)
+    expect(isRoundTripSafe('Case [Foo] insensitive.\n\n[foo]: https://example.com')).toBe(true)
+    expect(isRoundTripSafe('A note.\n\n[^x]: the footnote body')).toBe(true)
+    expect(isRoundTripSafe('See [ foo ] here.\n\n[foo]: https://example.com')).toBe(true)
   })
 
   it('does not flag HTML/comments/entities inside tilde or nested code fences', () => {

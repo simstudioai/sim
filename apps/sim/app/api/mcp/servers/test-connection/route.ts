@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { mcpServerTestBodySchema } from '@/lib/api/contracts/mcp'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -59,7 +60,7 @@ function sanitizeConnectionError(error: unknown): string {
   }
 
   const firstLine = error.message.split('\n')[0]
-  return firstLine.length > 200 ? `${firstLine.slice(0, 200)}...` : firstLine
+  return truncate(firstLine, 200)
 }
 
 /**

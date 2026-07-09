@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { noop } from '@sim/utils/helpers'
 import { useParams } from 'next/navigation'
 import { getFolderPath } from '@/lib/folders/tree'
 import { useReorderFolders } from '@/hooks/queries/folders'
@@ -39,8 +40,6 @@ const NOOP_DRAG_HANDLERS = {
 }
 
 const createNoopDragHandlers = () => NOOP_DRAG_HANDLERS
-
-const noop = () => {}
 
 /** Root folder vs root workflow scope: API/cache may use null or undefined for "no parent". */
 function isSameFolderScope(

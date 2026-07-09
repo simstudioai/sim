@@ -6,8 +6,8 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createFork } from '@/lib/workspaces/fork/create-fork'
-import { assertCanFork } from '@/lib/workspaces/fork/lineage/authz'
+import { createFork } from '@/ee/workspace-forking/lib/create-fork'
+import { assertCanFork } from '@/ee/workspace-forking/lib/lineage/authz'
 
 const logger = createLogger('WorkspaceForkAPI')
 
@@ -39,6 +39,7 @@ export const POST = withRouteHandler(
         knowledgeBases: copy?.knowledgeBases ?? [],
         customTools: copy?.customTools ?? [],
         skills: copy?.skills ?? [],
+        mcpServers: copy?.mcpServers ?? [],
         workflowMcpServers: copy?.workflowMcpServers ?? [],
       },
       requestId,

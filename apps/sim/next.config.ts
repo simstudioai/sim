@@ -409,6 +409,26 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
+    /**
+     * AEO/GEO-style posts (listicles, comparisons, how-tos) were split out of
+     * `/blog` into the dedicated `/library` section so `/blog` stays
+     * editorial-only. Preserve previously indexed URLs for the moved posts.
+     */
+    for (const slug of [
+      'best-zapier-alternatives',
+      'ai-agents-vs-rpa',
+      'ai-agent-vs-chatbot',
+      'openai-vs-n8n-vs-sim',
+      'ai-agent-ideas',
+      'how-to-create-an-ai-agent',
+    ]) {
+      redirects.push({
+        source: `/blog/${slug}`,
+        destination: `/library/${slug}`,
+        permanent: true,
+      })
+    }
+
     return redirects
   },
   async rewrites() {
