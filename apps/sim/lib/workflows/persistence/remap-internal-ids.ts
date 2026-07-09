@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { remapConditionBlockIds } from '@/lib/workflows/condition-ids'
-import { resolveCanonicalMode } from '@/lib/workflows/subblocks/visibility'
+import {
+  type CanonicalModeOverrides,
+  resolveCanonicalMode,
+} from '@/lib/workflows/subblocks/visibility'
 import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('WorkflowRemapInternalIds')
@@ -148,7 +151,7 @@ export function remapVariableIdsInSubBlocks(
 export function remapWorkflowReferencesInSubBlocks(
   subBlocks: SubBlockRecord,
   workflowIdMap: Map<string, string> | undefined,
-  options?: { clearUnmapped?: boolean; canonicalModes?: Record<string, 'basic' | 'advanced'> }
+  options?: { clearUnmapped?: boolean; canonicalModes?: CanonicalModeOverrides }
 ): SubBlockRecord {
   if (!workflowIdMap?.size) return subBlocks
   const clearUnmapped = options?.clearUnmapped ?? false

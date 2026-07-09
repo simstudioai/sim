@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { evaluateSubBlockCondition } from './visibility'
+import {
+  evaluateSubBlockCondition,
+  reindexToolCanonicalModes,
+  scopeCanonicalModesForTool,
+} from './visibility'
 
 describe('evaluateSubBlockCondition', () => {
   describe('simple value matching', () => {
@@ -176,5 +180,149 @@ describe('evaluateSubBlockCondition', () => {
       const values = { count: 5 }
       expect(evaluateSubBlockCondition(condition, values)).toBe(true)
     })
+  })
+})
+
+describe('scopeCanonicalModesForTool', () => {
+  it.concurrent('returns undefined when there are no overrides', () => {
+    expect(scopeCanonicalModesForTool(undefined, 0)).toBeUndefined()
+  })
+
+  it.concurrent('returns undefined when toolIndex is undefined', () => {
+    expect(scopeCanonicalModesForTool({ '0:tableId': 'advanced' }, undefined)).toBeUndefined()
+  })
+
+  it.concurrent('strips the toolIndex prefix for the matching tool instance', () => {
+    const overrides = { '0:tableId': 'advanced', '1:tableId': 'basic' }
+    expect(scopeCanonicalModesForTool(overrides, 0)).toEqual({ tableId: 'advanced' })
+    expect(scopeCanonicalModesForTool(overrides, 1)).toEqual({ tableId: 'basic' })
+  })
+
+  it.concurrent(
+    'keeps two same-type tool instances independent (regression: two Table tools on one Agent block used to share a mode)',
+    () => {
+      const overrides = { '0:tableId': 'advanced', '1:tableId': 'basic' }
+      // Both tools have type "table" and canonicalId "tableId" - only toolIndex disambiguates them.
+      expect(scopeCanonicalModesForTool(overrides, 0)).toEqual({ tableId: 'advanced' })
+      expect(scopeCanonicalModesForTool(overrides, 1)).toEqual({ tableId: 'basic' })
+    }
+  )
+
+  it.concurrent('returns undefined when no keys match the given toolIndex prefix', () => {
+    expect(scopeCanonicalModesForTool({ '1:tableId': 'advanced' }, 0)).toBeUndefined()
+  })
+
+  it.concurrent('ignores falsy override values', () => {
+    expect(
+      scopeCanonicalModesForTool({ '0:tableId': undefined as unknown as 'advanced' }, 0)
+    ).toBeUndefined()
+  })
+
+  it.concurrent(
+    'falls back to the legacy toolType-scoped prefix when no index-scoped key matches',
+    () => {
+      // Saved before per-instance scoping shipped - must not be silently dropped.
+      const legacyOverrides = { 'table:tableId': 'advanced' as const }
+      expect(scopeCanonicalModesForTool(legacyOverrides, 0, 'table')).toEqual({
+        tableId: 'advanced',
+      })
+      expect(scopeCanonicalModesForTool(legacyOverrides, 3, 'table')).toEqual({
+        tableId: 'advanced',
+      })
+    }
+  )
+
+  it.concurrent('prefers an index-scoped key over the legacy type-scoped fallback', () => {
+    const overrides = { 'table:tableId': 'advanced' as const, '0:tableId': 'basic' as const }
+    expect(scopeCanonicalModesForTool(overrides, 0, 'table')).toEqual({ tableId: 'basic' })
+  })
+
+  it.concurrent('does not fall back when no legacyToolType is given', () => {
+    expect(scopeCanonicalModesForTool({ 'table:tableId': 'advanced' }, 0)).toBeUndefined()
+  })
+})
+
+describe('reindexToolCanonicalModes', () => {
+  // Generic over T - only object identity matters, so a plain marker object stands in for a
+  // real StoredTool/fork-parsed-tool.
+  const tool = (label: string) => ({ label })
+
+  it.concurrent('returns undefined when there are no overrides', () => {
+    expect(reindexToolCanonicalModes([tool('a')], [tool('a')], undefined)).toBeUndefined()
+  })
+
+  it.concurrent('returns undefined when every tool keeps its index', () => {
+    const a = tool('a')
+    const b = tool('b')
+    expect(reindexToolCanonicalModes([a, b], [a, b], { '0:tableId': 'advanced' })).toBeUndefined()
+  })
+
+  it.concurrent('re-keys a surviving tool overrides to its new index after a removal', () => {
+    const a = tool('a')
+    const b = tool('b')
+    const c = tool('c')
+    // Remove `a` (index 0): b shifts 1->0, c shifts 2->1.
+    const result = reindexToolCanonicalModes([a, b, c], [b, c], {
+      '1:tableId': 'advanced',
+      '2:tableId': 'basic',
+    })
+    expect(result).toEqual({ '0:tableId': 'advanced', '1:tableId': 'basic' })
+  })
+
+  it.concurrent('re-keys overrides after a drag reorder (swap)', () => {
+    const a = tool('a')
+    const b = tool('b')
+    // Swap a and b: a moves 0->1, b moves 1->0. A naive sequential re-key would have one
+    // write clobber the other since both use the same canonicalId; this must resolve both
+    // from the ORIGINAL snapshot into one atomic result.
+    const result = reindexToolCanonicalModes([a, b], [b, a], {
+      '0:tableId': 'advanced',
+      '1:tableId': 'basic',
+    })
+    expect(result).toEqual({ '1:tableId': 'advanced', '0:tableId': 'basic' })
+  })
+
+  it.concurrent(
+    'regression: drops a removed tool old key so a later tool cannot inherit it',
+    () => {
+      const a = tool('a')
+      const b = tool('b')
+      // Remove `b` (index 1): nothing survives at index 1 in the result, so a future tool
+      // appended back into that slot won't silently inherit `b`'s old advanced mode.
+      const result = reindexToolCanonicalModes([a, b], [a], { '1:tableId': 'advanced' })
+      expect(result).toEqual({})
+    }
+  )
+
+  it.concurrent('drops a stale index key with no corresponding old-array position', () => {
+    // Simulates leftover pollution from before this fix (or an earlier missed clear):
+    // index 5 doesn't correspond to any tool in `oldTools` at all.
+    const a = tool('a')
+    const result = reindexToolCanonicalModes([a], [a], {
+      '5:tableId': 'advanced',
+      '0:tableId': 'basic',
+    })
+    expect(result).toEqual({ '0:tableId': 'basic' })
+  })
+
+  it.concurrent('carries a legacy (non-index-scoped) key through unchanged', () => {
+    const a = tool('a')
+    const b = tool('b')
+    // `table:tableId` isn't tied to any array position - removing/reordering tools must not
+    // touch it.
+    const result = reindexToolCanonicalModes([a, b], [b], {
+      '0:tableId': 'advanced',
+      'table:tableId': 'basic',
+    })
+    expect(result).toEqual({ 'table:tableId': 'basic' })
+  })
+
+  it.concurrent('ignores falsy override values', () => {
+    const a = tool('a')
+    const b = tool('b')
+    const result = reindexToolCanonicalModes([a, b], [b, a], {
+      '0:tableId': undefined as unknown as 'advanced',
+    })
+    expect(result).toBeUndefined()
   })
 })

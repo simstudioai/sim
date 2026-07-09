@@ -25,6 +25,7 @@ import {
   evaluateSubBlockCondition,
   isCanonicalPair,
   isNonEmptyValue,
+  reindexCanonicalModesByPosition,
   resolveActiveCanonicalValue,
   resolveCanonicalMode,
   scopeCanonicalModesForTool,
@@ -183,7 +184,28 @@ export interface RemapSubBlocksResult {
    * selection) can be preserved instead of cleared. Empty when no provenance was supplied.
    */
   copyRemappedKeys: Set<string>
+  /**
+   * The block's `canonicalModes`, reindexed to match the shifted array positions when a nested
+   * `tool-input` subblock dropped an unresolved custom-tool/MCP entry (see
+   * {@link reindexCanonicalModesByPosition}). `undefined` when nothing needed to change - the
+   * caller should keep the block's existing `canonicalModes` in that case.
+   */
+  canonicalModes?: CanonicalModeOverrides
 }
+
+/**
+ * A `copyWorkflowStateIntoTarget` subBlock transform. Returns the rewritten subBlocks (unchanged
+ * shape, for backward compatibility with existing callers/tests); a nested `tool-input` reindex
+ * (see {@link RemapSubBlocksResult.canonicalModes}) is surfaced separately via the optional
+ * `onCanonicalModesChanged` callback rather than the return value, so a caller that doesn't
+ * persist `canonicalModes` (most don't need to) can ignore it entirely.
+ */
+export type SubBlockTransform = (
+  subBlocks: SubBlockRecord,
+  blockType: string,
+  canonicalModes?: CanonicalModeOverrides,
+  onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void
+) => SubBlockRecord
 
 /**
  * The canonical-pair mode questions every fork/promote surface asks of a subblock key.
@@ -349,10 +371,14 @@ interface ToolBlockRemapOptions {
   /** Copy provenance for a resolved target (see {@link RemapForkContext.isCopiedTarget}). */
   isCopiedTarget?: (kind: ForkRemapKind, sourceId: string) => boolean
   /**
-   * The owning BLOCK's `data.canonicalModes` (keys scoped `${toolType}:${canonicalId}` for
-   * nested tools), so the active canonical member per pair matches the tool-input UI.
+   * The owning BLOCK's `data.canonicalModes` (keys scoped `${toolIndex}:${canonicalId}` for
+   * nested tools - by the tool's position in its tool-input array, not its type, so two tools
+   * of the same type don't share an override), so the active canonical member per pair matches
+   * the tool-input UI.
    */
   parentCanonicalModes?: CanonicalModeOverrides
+  /** This tool's position in its parent's `tool-input` array - see {@link parentCanonicalModes}. */
+  toolIndex?: number
 }
 
 /**
@@ -387,7 +413,11 @@ export function remapToolBlockResources(
   // tool-input UI does: the block-level overrides scoped to this tool, then the value heuristic.
   const toolValues: Record<string, unknown> =
     typeof tool.operation === 'string' ? { operation: tool.operation, ...params } : { ...params }
-  const scopedModes = scopeCanonicalModesForTool(opts.parentCanonicalModes, tool.type)
+  const scopedModes = scopeCanonicalModesForTool(
+    opts.parentCanonicalModes,
+    opts.toolIndex,
+    tool.type
+  )
   const toolBlockSubBlocks = (opts.blockConfigs?.[tool.type] ?? getBlock(tool.type))?.subBlocks
   const gates = createCanonicalModeGates(toolBlockSubBlocks, toolValues, scopedModes)
 
@@ -434,6 +464,7 @@ export function remapToolBlockResources(
   try {
     configs = getToolInputParamConfigs({
       tool: toolView,
+      toolIndex: opts.toolIndex,
       parentCanonicalModes: opts.parentCanonicalModes,
       blockConfigs: opts.blockConfigs,
     })
@@ -612,7 +643,7 @@ interface ForkToolInputOptions {
   resolveMcpServerMeta?: ForkMcpServerMetaResolver
   /** Copy provenance for a resolved target (see {@link RemapForkContext.isCopiedTarget}). */
   isCopiedTarget?: (kind: ForkRemapKind, sourceId: string) => boolean
-  /** Block-level canonical-mode overrides (`${toolType}:`-scoped for nested tools). */
+  /** Block-level canonical-mode overrides (`${toolIndex}:`-scoped for nested tools). */
   parentCanonicalModes?: CanonicalModeOverrides
 }
 
@@ -623,32 +654,52 @@ interface ForkToolInputOptions {
  * a block tool's `params` and rewritten via {@link remapToolBlockResources}. The
  * MCP entry's derived `toolId` is rebuilt when the server id changes. On fork an
  * unresolved custom-tool/MCP tool is dropped; on promote it's kept and recorded.
+ *
+ * A dropped entry shifts every later tool's array position, so the owning block's
+ * `canonicalModes` (index-scoped, see {@link reindexCanonicalModesByPosition}) must be
+ * reindexed to match - tracked here by old/new POSITION rather than object identity, since a
+ * kept-but-rewritten entry (a remapped `customToolId`/`serverId`) is a clone, not the same
+ * reference as its source.
  */
 function remapForkToolInputValue(
   value: unknown,
   resolve: ForkReferenceResolver,
   opts: ForkToolInputOptions
-): unknown {
+): { value: unknown; canonicalModes?: Record<string, 'basic' | 'advanced'> } {
   const { array, wasString } = coerceObjectArray(value)
-  if (!array) return value
+  if (!array) return { value }
   let changed = false
-  const next = array.flatMap((tool) => {
-    if (!isRecord(tool) || typeof tool.type !== 'string') return [tool]
+  const next: unknown[] = []
+  const newIndexByOldIndex = new Map<number, number>()
+
+  array.forEach((tool, toolIndex) => {
+    const keep = (nextTool: unknown) => {
+      newIndexByOldIndex.set(toolIndex, next.length)
+      next.push(nextTool)
+    }
+
+    if (!isRecord(tool) || typeof tool.type !== 'string') {
+      keep(tool)
+      return
+    }
     if (tool.type === 'custom-tool' && typeof tool.customToolId === 'string') {
       const target = resolve('custom-tool', tool.customToolId)
       opts.record?.('custom-tool', tool.customToolId, target != null)
       if (target != null) {
         if (target !== tool.customToolId) {
           changed = true
-          return [{ ...tool, customToolId: target }]
+          keep({ ...tool, customToolId: target })
+          return
         }
-        return [tool]
+        keep(tool)
+        return
       }
       if (opts.clearUnresolved) {
         changed = true
-        return []
+        return // Dropped - later tools shift down.
       }
-      return [tool]
+      keep(tool)
+      return
     }
     if (tool.type === 'mcp' && isRecord(tool.params) && typeof tool.params.serverId === 'string') {
       const serverId = tool.params.serverId
@@ -671,21 +722,22 @@ function remapForkToolInputValue(
             nextParams = { ...omit(nextParams, ['serverUrl']), serverName: meta.name }
             if (meta.url) nextParams.serverUrl = meta.url
           }
-          return [
-            {
-              ...tool,
-              params: nextParams,
-              toolId: toolName ? createMcpToolId(target, toolName) : tool.toolId,
-            },
-          ]
+          keep({
+            ...tool,
+            params: nextParams,
+            toolId: toolName ? createMcpToolId(target, toolName) : tool.toolId,
+          })
+          return
         }
-        return [tool]
+        keep(tool)
+        return
       }
       if (opts.clearUnresolved) {
         changed = true
-        return []
+        return // Dropped - later tools shift down.
       }
-      return [tool]
+      keep(tool)
+      return
     }
     const remapped = remapToolBlockResources(tool, {
       resolve,
@@ -694,12 +746,18 @@ function remapForkToolInputValue(
       clearUnresolved: opts.clearUnresolved,
       isCopiedTarget: opts.isCopiedTarget,
       parentCanonicalModes: opts.parentCanonicalModes,
+      toolIndex,
     })
     if (remapped !== tool) changed = true
-    return [remapped]
+    keep(remapped)
   })
-  if (!changed) return value
-  return wasString ? JSON.stringify(next) : next
+
+  const canonicalModes = reindexCanonicalModesByPosition(
+    newIndexByOldIndex,
+    opts.parentCanonicalModes
+  )
+  if (!changed) return { value, canonicalModes }
+  return { value: wasString ? JSON.stringify(next) : next, canonicalModes }
 }
 
 /**
@@ -758,6 +816,8 @@ export function remapForkSubBlocks(
   const copyRemappedKeys = new Set<string>()
   /** MCP server ids remapped to a DIFFERENT mapped target this pass (source id -> target id). */
   const mcpServerRemaps = new Map<string, string>()
+  /** Set when a `tool-input` subblock dropped an entry, shifting later tools' positions. */
+  let reindexedCanonicalModes: CanonicalModeOverrides | undefined
 
   const recordReference = (key: string, reference: ForkReference, mapped: boolean) => {
     if (mode !== 'promote') return
@@ -884,16 +944,21 @@ export function remapForkSubBlocks(
           mapped
         )
       }
-      value =
-        subBlockType === 'tool-input'
-          ? remapForkToolInputValue(value, resolve, {
-              clearUnresolved,
-              record,
-              resolveMcpServerMeta: context?.resolveMcpServerMeta,
-              isCopiedTarget: context?.isCopiedTarget,
-              parentCanonicalModes: context?.canonicalModes,
-            })
-          : remapForkSkillInputValue(value, resolve, { clearUnresolved, record })
+      if (subBlockType === 'tool-input') {
+        const toolInputResult = remapForkToolInputValue(value, resolve, {
+          clearUnresolved,
+          record,
+          resolveMcpServerMeta: context?.resolveMcpServerMeta,
+          isCopiedTarget: context?.isCopiedTarget,
+          // Build on any reindex from an earlier `tool-input` subblock on this same block
+          // (rare - most blocks have one), so multiple fields don't clobber each other.
+          parentCanonicalModes: reindexedCanonicalModes ?? context?.canonicalModes,
+        })
+        value = toolInputResult.value
+        if (toolInputResult.canonicalModes) reindexedCanonicalModes = toolInputResult.canonicalModes
+      } else {
+        value = remapForkSkillInputValue(value, resolve, { clearUnresolved, record })
+      }
     }
 
     if (value !== valueBeforeResource) remappedKeys.add(subBlockKey)
@@ -954,6 +1019,7 @@ export function remapForkSubBlocks(
     unmapped: Array.from(unmapped.values()),
     remappedKeys,
     copyRemappedKeys,
+    canonicalModes: reindexedCanonicalModes,
   }
 }
 
@@ -1156,7 +1222,7 @@ function collectClearedToolParamDependents(
     const gates = createCanonicalModeGates(
       toolConfig.subBlocks,
       mergedValues,
-      scopeCanonicalModesForTool(parentCanonicalModes, tool.type)
+      scopeCanonicalModesForTool(parentCanonicalModes, index, tool.type)
     )
     const toolLabel = typeof tool.title === 'string' && tool.title ? tool.title : toolConfig.name
     for (const cfg of toolConfig.subBlocks) {
@@ -1413,23 +1479,20 @@ export function createForkSubBlockTransform(
     /** Copy provenance (promote's copy-selection overlay), keeping copy-faithful dependents. */
     isCopiedTarget?: (kind: ForkRemapKind, sourceId: string) => boolean
   }
-): (
-  subBlocks: SubBlockRecord,
-  blockType: string,
-  canonicalModes?: CanonicalModeOverrides
-) => SubBlockRecord {
-  return (subBlocks, blockType, canonicalModes) => {
+): SubBlockTransform {
+  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged) => {
     const result = remapSubBlocks(subBlocks, resolve, {
       blockType,
       canonicalModes,
       resolveMcpServerMeta: options?.resolveMcpServerMeta,
       isCopiedTarget: options?.isCopiedTarget,
     })
+    if (result.canonicalModes) onCanonicalModesChanged?.(result.canonicalModes)
     return clearDependentsOnRemap(
       result.subBlocks,
       blockType,
       result.remappedKeys,
-      canonicalModes,
+      result.canonicalModes ?? canonicalModes,
       result.copyRemappedKeys
     )
   }
