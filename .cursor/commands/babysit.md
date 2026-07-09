@@ -66,11 +66,13 @@ round. Always check both conditions freshly after every push.
    gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<threadId>"}) { thread { isResolved } } }'
    ```
 
-5. **Before pushing, re-run the sync check** from `/ship` step 2
-   (`git fetch origin staging && git log --oneline origin/staging..HEAD` should list only this
-   session's commits) — a babysit loop that runs over a long session is exactly the scenario
-   where a branch can drift. Then run the repo's lint/typecheck/boundary-validation gates the
-   same way `/ship` does before committing.
+5. **Before pushing, re-run the full sync check from `/ship` step 2** — not just the log command,
+   the whole check-and-recover flow (stash WIP if needed, rebase, verify the rebase didn't just
+   cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
+   loop spanning a long session is exactly the scenario where a branch can drift, and pushing
+   review fixes on top of undetected drift is how an oversized PR happens even after the branch
+   was fixed once. Then run the repo's lint/typecheck/boundary-validation gates the same way
+   `/ship` does before committing.
 
 6. **Commit and push** the round's fixes as one commit (`--force-with-lease` only if step 5's
    sync check required a rebuild).

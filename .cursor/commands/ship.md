@@ -11,8 +11,9 @@ When the user runs `/ship`:
    - If it shows commits you don't recognize, fix it now, **before** staging/committing any new work (step 5 hasn't run yet):
      - If the working tree has uncommitted changes, stash them first — `git stash push -u -m ship-sync-fix` — so the rebase below isn't blocked by dirty state. Restore with `git stash pop` once the branch is fixed.
      - Try `git rebase origin/staging` first.
-     - If that walks through unrelated history and conflicts on commits you don't recognize, `git rebase --abort` and rebuild instead: pick a temp branch name that isn't already in use (`git branch --list ship-sync-tmp`; if it exists, delete it or pick another name), `git checkout -b ship-sync-tmp origin/staging`, `git cherry-pick <your-sha(s)>`, resolve conflicts, then `git branch -f <original-branch> HEAD`, `git checkout <original-branch>`, and delete the temp branch.
-   - Re-verify with `git log --oneline origin/staging..HEAD` — it should list only commits you recognize.
+     - **A rebase finishing without conflicts does NOT by itself mean the branch is clean** — it can replay stray commits onto the new base with no conflict at all. After the rebase (clean or not), re-run `git log --oneline origin/staging..HEAD` and re-check the commit list against what you recognize.
+     - If the rebase conflicted on commits you don't recognize, OR it finished cleanly but the re-checked log still shows commits you don't recognize, abandon that result (`git rebase --abort` if still mid-rebase) and rebuild instead: delete any leftover `ship-sync-tmp` branch from an earlier attempt (`git branch -D ship-sync-tmp` — safe, it's disposable), `git checkout -b ship-sync-tmp origin/staging`, `git cherry-pick <only the sha(s) you actually authored this session>`, resolve conflicts, then `git branch -f <original-branch> HEAD`, `git checkout <original-branch>`, and delete `ship-sync-tmp`.
+   - Re-verify with `git log --oneline origin/staging..HEAD` — it must list only commits you recognize before you proceed to committing new work.
 3. **Generate a commit message** following this format: `type(scope): description`
    - Types: `fix`, `feat`, `improvement`, `chore`
    - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
