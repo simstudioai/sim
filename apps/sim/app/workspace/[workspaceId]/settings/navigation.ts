@@ -139,10 +139,11 @@ export const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'forks',
-    label: 'Forks',
+    label: 'Workspace Forks',
     description: 'Fork this workspace and sync changes with its parent.',
     icon: Shuffle,
     section: 'enterprise',
+    docsLink: 'https://docs.sim.ai/platform/enterprise/forks',
   },
   {
     id: 'billing',

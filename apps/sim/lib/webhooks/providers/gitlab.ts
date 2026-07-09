@@ -99,16 +99,87 @@ export const gitlabHandler: WebhookProviderHandler = {
     return true
   },
 
+  /**
+   * GitLab 17.2+ adds a `type` field inside `object_attributes` on Issue Hook
+   * payloads (e.g. "Issue", "Incident", "Task"). `type` is a reserved
+   * TriggerOutput meta-key, so it can't be declared in the output schema
+   * under that name — exposed there as `work_item_type` instead. The raw
+   * `type` key is kept in the delivered data alongside it (this is plain
+   * passthrough data, not schema-constrained) so a workflow already
+   * referencing the undocumented raw path keeps working.
+   */
   async formatInput({ body, headers }: FormatInputContext): Promise<FormatInputResult> {
     const b = asRecord(body)
     const eventType = headers['x-gitlab-event'] || ''
     const ref = (b.ref as string) || ''
     const branch = ref.replace('refs/heads/', '')
-    return {
-      input: { ...b, event_type: eventType, branch },
+    const objectAttributes = b.object_attributes
+    let input: Record<string, unknown> = { ...b, event_type: eventType, branch }
+    if (
+      objectAttributes &&
+      typeof objectAttributes === 'object' &&
+      !Array.isArray(objectAttributes)
+    ) {
+      const workItemType = (objectAttributes as Record<string, unknown>).type
+      if (workItemType !== undefined) {
+        input = {
+          ...input,
+          object_attributes: { ...objectAttributes, work_item_type: workItemType },
+        }
+      }
     }
+
+    return { input }
   },
 
+  /**
+   * GitLab does not automatically retry a failed delivery — a failed request
+   * only counts toward auto-disabling the webhook (4 consecutive failures
+   * disables it temporarily, 40 permanently), and re-delivery only happens
+   * via a manual "Resend Request" (UI or API), which carries the same
+   * `webhook-id`/`Idempotency-Key`/`X-Gitlab-Event-UUID` headers as the
+   * original. Those headers are already in the shared idempotency service's
+   * allowlist and checked ahead of this method, which only receives the body.
+   * This is a content-derived fallback for the rare case those headers are
+   * stripped in transit (e.g. by an intermediary proxy). checkout_sha is
+   * null on branch/tag deletion (after falls back to the all-zeros SHA), so
+   * ref is included to keep unrelated deletions in one project from
+   * colliding onto the same key. Pipeline Hook payloads have no updated_at
+   * at all (confirmed against docs.gitlab.com — only Issue/Merge Request/
+   * Note hooks reliably include it), so status + finished_at/created_at is
+   * used there instead to keep each lifecycle transition of one pipeline
+   * (pending/running/success/failed) from colliding onto the same key.
+   */
+  extractIdempotencyId(body: unknown): string | null {
+    const b = asRecord(body)
+    const objectKind = (b.object_kind as string) || ''
+    const project = asRecord(b.project)
+    const projectId = project.id != null ? String(project.id) : ''
+
+    if (objectKind === 'push' || objectKind === 'tag_push') {
+      const ref = (b.ref as string) || ''
+      const checkoutSha = (b.checkout_sha as string) || (b.after as string) || ''
+      if (!checkoutSha && !ref) return null
+      return `gitlab:${objectKind}:${projectId}:${ref}:${checkoutSha}`
+    }
+
+    const objectAttributes = asRecord(b.object_attributes)
+    const id = objectAttributes.id != null ? String(objectAttributes.id) : ''
+    if (!id) return null
+    const version =
+      (objectAttributes.updated_at as string) ||
+      [objectAttributes.status, objectAttributes.finished_at || objectAttributes.created_at]
+        .filter(Boolean)
+        .join(':') ||
+      ''
+    return `gitlab:${objectKind || 'event'}:${projectId}:${id}:${version}`
+  },
+
+  /**
+   * Validates the optional self-managed host up front so a structurally
+   * unsafe value surfaces as a clear error instead of an unhandled
+   * UnsafeGitLabHostError.
+   */
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const config = getProviderConfig(ctx.webhook)
     const accessToken = config.accessToken as string | undefined
@@ -120,8 +191,6 @@ export const gitlabHandler: WebhookProviderHandler = {
       throw new Error('GitLab Personal Access Token is required to create the webhook.')
     if (!projectId) throw new Error('GitLab Project ID is required to create the webhook.')
 
-    // Validate the optional self-managed host up front so a structurally unsafe
-    // value surfaces as a clear error instead of an unhandled UnsafeGitLabHostError.
     try {
       getGitLabApiBase(host)
     } catch (error) {
@@ -163,8 +232,6 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     const created = (await res.json().catch(() => ({}))) as { id?: number | string }
     if (created.id === undefined || created.id === null) {
-      // The hook was created but we can't read its id — delete it by URL so it
-      // is not orphaned in GitLab.
       await cleanupGitLabHookByUrl(projectId, accessToken, getNotificationUrl(ctx.webhook), host)
       throw new Error('GitLab webhook created but no hook ID was returned.')
     }
@@ -173,6 +240,10 @@ export const gitlabHandler: WebhookProviderHandler = {
     return { providerConfigUpdates: { externalId: String(created.id), webhookSecret: secretToken } }
   },
 
+  /**
+   * A structurally unsafe host must not abort cleanup in non-strict mode —
+   * mirrors the graceful skip used for missing credentials below.
+   */
   async deleteSubscription(ctx: DeleteSubscriptionContext): Promise<void> {
     const config = getProviderConfig(ctx.webhook)
     const accessToken = config.accessToken as string | undefined
@@ -188,8 +259,6 @@ export const gitlabHandler: WebhookProviderHandler = {
       return
     }
 
-    // A structurally unsafe host must not abort cleanup in non-strict mode — mirror
-    // the graceful skip used for missing credentials above.
     try {
       getGitLabApiBase(host)
     } catch (error) {

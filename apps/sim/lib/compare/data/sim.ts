@@ -57,9 +57,9 @@ export const simProfile: CompetitorProfile = {
         'Fork a whole workspace into a dev/qa/prod-style child environment, preview a diff, and promote changes bidirectionally. Credential and env-var remapping is required on every promote, so secrets never cross environments silently.',
       shortDescription: 'Fork, diff, and promote environments with mandatory credential remapping.',
       source: {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/ee/workspace-forking/lib/promote/promote.ts',
-        label: 'Sim codebase: fork promote engine',
-        asOf: '2026-07-02',
+        url: 'https://docs.sim.ai/platform/enterprise/forks',
+        label: 'Sim Docs: Workspace Forks',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -222,14 +222,9 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-            label: 'Sim codebase: workspaceForkResourceMap / workspaceForkPromoteRun',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/ee/workspace-forking/lib/promote/promote.ts',
-            label: 'Sim codebase: fork promote engine',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/platform/enterprise/forks',
+            label: 'Sim Docs: Workspace Forks',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -330,6 +325,31 @@ export const simProfile: CompetitorProfile = {
             url: 'https://docs.sim.ai/workflows/blocks/workflow',
             label: 'Sim Docs: Workflow block',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      customBlocks: {
+        value:
+          "Yes: a user with admin access on a workflow's workspace can publish its deployed version as a named, iconed custom block that appears in the block toolbar for the whole organization. Inputs are read live from the source workflow's Start block; the publisher picks which outputs to expose. The block always runs the source workflow's latest deployed version, and its internal steps and intermediate values are never exposed to consumers",
+        detail:
+          'Enterprise-gated on Sim Cloud; self-hosted deployments can opt in via a feature flag. Distinct from the Workflow (sub-workflow) block, which composes a workflow the same author controls, and from custom code/tool blocks, which run inline code rather than a full deployed workflow.',
+        shortValue: 'Publish a deployed workflow as an org-wide reusable block',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/custom-blocks/route.ts',
+            label: 'Sim codebase: custom-blocks publish API (admin gate)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/custom/build-config.ts',
+            label: 'Sim codebase: custom-block config builder',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/settings/navigation.ts',
+            label: 'Sim codebase: Custom blocks nav entry (Enterprise/self-hosted gating)',
+            asOf: '2026-07-08',
           },
         ],
       },

@@ -1,5 +1,5 @@
-import { HeroVisual } from '@/app/(landing)/components/hero/components/hero-visual/hero-visual'
 import { LoaderMarks } from '@/app/(landing)/components/product-demo/components/loader-marks'
+import { ProductDemoVisualMount } from '@/app/(landing)/components/product-demo/components/product-demo-visual-mount'
 
 /**
  * Product-demo band - the looping animated platform walkthrough, promoted out of
@@ -12,8 +12,10 @@ import { LoaderMarks } from '@/app/(landing)/components/product-demo/components/
  * copy column on the right. Below `lg` it stacks media-over-copy like the
  * cards do.
  *
- * The visual is the same {@link HeroVisual} client island the hero used to
- * host (decorative, `aria-hidden`). The section carries the shared
+ * The visual is the same `HeroVisual` client island the hero used to host
+ * (decorative, `aria-hidden`), lazy-mounted via {@link ProductDemoVisualMount}
+ * so its bundle and animation loop only load once this below-the-fold section
+ * nears the viewport. The section carries the shared
  * `px-20 max-lg:px-8 max-sm:px-5` gutter and the `max-w-[1460px]` cap so the
  * card aligns with the hero's media frame above and the feature cards below.
  */
@@ -29,9 +31,7 @@ export function ProductDemo() {
           aria-hidden='true'
           className='relative h-[650px] overflow-hidden rounded-[4px] bg-[var(--surface-5)] max-sm:h-[280px] max-lg:h-[360px]'
         >
-          <div className='absolute inset-0'>
-            <HeroVisual />
-          </div>
+          <ProductDemoVisualMount />
         </div>
 
         <div className='flex flex-col justify-center pr-4 max-lg:pr-0 max-lg:pb-2'>

@@ -1,6 +1,7 @@
 import type { Extensions, JSONContent, MarkdownRendererHelpers, Node } from '@tiptap/core'
 import { Code } from '@tiptap/extension-code'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
+import { Paragraph } from '@tiptap/extension-paragraph'
 import {
   renderTableToMarkdown,
   Table,
@@ -58,6 +59,39 @@ const PipeSafeTable = Table.extend({
 })
 
 /**
+ * Guards a paragraph's serialized text so its leading characters don't re-parse it into a different
+ * block on the next load:
+ *
+ * - **Leading whitespace** is stripped. It never renders in a paragraph (CommonMark strips up to three
+ *   leading spaces, and four or more would re-parse the paragraph as an indented code block), so
+ *   removing it is lossless and makes the round-trip idempotent.
+ * - **A leading block marker** (`#`, `-`, `+`, `1.`, `1)`, or a bare `---`) is backslash-escaped so the
+ *   paragraph doesn't become a heading / list / thematic break. The upstream serializer escapes inline
+ *   delimiters (`* _ \` [ ] ~`, so `*` bullets and `>` quotes already round-trip) but not these
+ *   block-starting markers. Escaping is idempotent: parsing consumes the backslash, so the stored
+ *   ProseMirror text never carries it and re-serialization is stable.
+ */
+function guardParagraphLeading(text: string): string {
+  const stripped = text.replace(/^[ \t]+/, '')
+  if (/^(#{1,6}([ \t]|$)|[-+][ \t]|-(?:[ \t]*-){2,}[ \t]*$)/.test(stripped)) {
+    return `\\${stripped}`
+  }
+  const ordered = /^(\d{1,9})([.)][ \t])/.exec(stripped)
+  return ordered ? `${ordered[1]}\\${stripped.slice(ordered[1].length)}` : stripped
+}
+
+/**
+ * Paragraph that guards its leading characters on serialize (see {@link guardParagraphLeading}) —
+ * otherwise a paragraph beginning with a block marker or an indent silently becomes a heading / list /
+ * thematic break / code block on the next load. Block separators are owned by the parent joiner, so a
+ * paragraph renders as just its inline children; this override wraps that with the leading guard.
+ */
+const BlockSafeParagraph = Paragraph.extend({
+  renderMarkdown: (node: JSONContent, h: MarkdownRendererHelpers) =>
+    guardParagraphLeading(h.renderChildren(node.content ?? [])),
+})
+
+/**
  * Node-view variants the live editor injects in place of the headless defaults — the code-block
  * language picker, the resizable image, and the mention chip. The mention chip pulls the block registry
  * (for brand icons), so the headless round-trip path omits it: passing nothing keeps
@@ -92,7 +126,9 @@ export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}
       underline: false,
       codeBlock: false,
       code: false,
+      paragraph: false,
     }),
+    BlockSafeParagraph,
     InlineCode,
     codeBlock,
     (nodeViews.image ?? MarkdownImage).configure({ allowBase64: true }),

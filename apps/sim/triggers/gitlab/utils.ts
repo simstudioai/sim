@@ -38,9 +38,12 @@ const ALL_EVENT_FLAGS = {
   tag_push_events: true,
 } as const
 
-// Tag pushes (object_kind 'tag_push') only flow through the all-events trigger;
-// there is no dedicated single-event trigger for them. A future "GitLab Tag Push"
-// trigger would need its own object_kind mapping in TRIGGER_OBJECT_KINDS above.
+/**
+ * Tag pushes (object_kind 'tag_push') only flow through the all-events
+ * trigger; there is no dedicated single-event trigger for them. A future
+ * "GitLab Tag Push" trigger would need its own object_kind mapping in
+ * TRIGGER_OBJECT_KINDS above.
+ */
 const TRIGGER_EVENT_FLAGS: Record<string, Record<string, boolean>> = {
   gitlab_push: { push_events: true },
   gitlab_merge_request: { merge_requests_events: true },
@@ -160,7 +163,8 @@ export function buildGitLabMergeRequestOutputs(): Record<string, TriggerOutput> 
       action: { type: 'string', description: 'Action (open, close, reopen, update, merge, etc.)' },
       source_branch: { type: 'string', description: 'Source branch' },
       target_branch: { type: 'string', description: 'Target branch' },
-      merge_status: { type: 'string', description: 'Merge status' },
+      merge_status: { type: 'string', description: 'Merge status (deprecated by GitLab)' },
+      detailed_merge_status: { type: 'string', description: 'Detailed merge status' },
       draft: { type: 'boolean', description: 'Whether the merge request is a draft' },
       url: { type: 'string', description: 'Merge request URL' },
     },
@@ -182,6 +186,10 @@ export function buildGitLabIssueOutputs(): Record<string, TriggerOutput> {
       description: { type: 'string', description: 'Issue description' },
       confidential: { type: 'boolean', description: 'Whether the issue is confidential' },
       url: { type: 'string', description: 'Issue URL' },
+      work_item_type: {
+        type: 'string',
+        description: 'Work item type (e.g. Issue, Incident, Task); GitLab 17.2+ only',
+      },
     },
   }
 }

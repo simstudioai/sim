@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type ReactNode, useEffect, useId, useState } from 'react'
 import { cn } from '@sim/emcn'
-import styles from '@/app/(landing)/components/thinking-loader/thinking-loader.module.css'
+import styles from '@/components/ui/thinking-loader.module.css'
 
 const VARIANTS = [
   'metaballs',

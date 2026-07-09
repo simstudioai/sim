@@ -375,6 +375,34 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "Partial: a published agent flow (with a 'When an agent calls the flow' trigger and a 'Respond to the agent' action) can be added by another maker as a tool, and a published Copilot Studio agent can be added by another maker as a connected-agent tool that always resolves to the source's latest published version — but discovery for both is a per-item share-and-pick model within one environment, not an admin-governed entry that automatically appears in a block toolbar for the whole org, and there is no publisher step to hand-pick and rename a curated subset of outputs the way Sim's Custom Blocks do.",
+        detail:
+          "Adding a flow as an agent-level tool lists qualifying, published flows in the 'Add tool > Flow' picker; Microsoft's docs don't specify how the tool's inputs are derived from the flow's trigger or confirm it always tracks the flow's latest published version. Connected agents are the better-documented half: a maker can turn on 'Let other agents connect to and use this one' on a published agent so any maker who owns it or has it shared with them can add it as a connected-agent tool in their own, separate agent, always using the latest published version after republish. Neither mechanism auto-populates a single, organization-wide block palette; each is discovered per-item through sharing/run permissions, and there's no dedicated step for the publisher to select and rename specific outputs to expose, unlike Sim's Custom Blocks.",
+        shortValue:
+          'Partial: published flows/agents become tools, but via per-item sharing, not an org-wide toolbar',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/flow-agent',
+            label:
+              'Add an agent flow as a tool to an agent - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/add-agent-copilot-studio-agent',
+            label:
+              'Connect to an existing Copilot Studio agent - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-add-other-agents',
+            label: 'Add other agents overview - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

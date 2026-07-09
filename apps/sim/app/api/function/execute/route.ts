@@ -110,13 +110,13 @@ const JS_RESERVED_WORDS = new Set([
   'public',
 ])
 
-type TypeScriptModule = typeof import('typescript')
+type TypeScriptModule = typeof import('@typescript/typescript6')
 
 let typescriptModulePromise: Promise<TypeScriptModule> | null = null
 
 async function loadTypeScriptModule(): Promise<TypeScriptModule> {
   if (!typescriptModulePromise) {
-    typescriptModulePromise = import('typescript').then(
+    typescriptModulePromise = import('@typescript/typescript6').then(
       (mod) => (mod?.default ?? mod) as TypeScriptModule,
       (error) => {
         typescriptModulePromise = null

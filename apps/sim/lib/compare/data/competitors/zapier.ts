@@ -338,6 +338,27 @@ export const zapierProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: Zapier has no feature for publishing a deployed Zap as a named, iconed, encapsulated block that appears in the step picker for the whole team to drop into their own separate Zaps. Sub-Zaps are the closest analog, but they are reusable saved steps called by "Call a Sub-Zap," not a org-wide toolbar entry, and Zapier\'s own docs do not describe internals being hidden from other team members who can access the same account. A private integration published on the Developer Platform is a different mechanism: it wraps a third-party API as a connector app for the team, not a workflow.',
+        detail:
+          "Sub-Zaps and private integrations are the two Zapier features that come closest to reuse, but neither matches the mechanics: Sub-Zaps are invoked from a dedicated action step within the same account/team rather than surfaced as a first-class block alongside built-in app steps, and private integrations expose custom API actions, not a published Zap's logic with auto-derived inputs and hand-picked outputs that stay live-synced to a source workflow's latest deployed version.",
+        shortValue:
+          'No equivalent: Sub-Zaps and private integrations are the closest, but neither matches',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/32283713627533-Understanding-Sub-Zaps',
+            label: 'Understanding Sub-Zaps',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.zapier.com/platform/quickstart/private-vs-public-integrations',
+            label: 'Private vs public integrations',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {

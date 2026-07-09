@@ -57,6 +57,38 @@ export const instantlyHandler: WebhookProviderHandler = {
     return true
   },
 
+  /**
+   * `email_id` (Instantly's `reply_to_uuid`) identifies the sent email, not
+   * one occurrence of an event on that email — the same event_type can fire
+   * more than once for one email_id (every open, every click, every reply in
+   * a thread), so email_id alone would collapse those distinct, legitimate
+   * deliveries into one idempotency slot. `timestamp` is fixed per event
+   * occurrence (not regenerated on retry), so appending it keeps the key
+   * both retry-stable and unique per occurrence — without it there's no way
+   * to distinguish occurrences, so dedup is skipped rather than risking a
+   * false collision.
+   */
+  extractIdempotencyId(body: unknown): string | null {
+    if (!isRecordLike(body)) return null
+
+    const eventType = typeof body.event_type === 'string' ? body.event_type : undefined
+    if (!eventType) return null
+
+    const timestamp = typeof body.timestamp === 'string' ? body.timestamp : undefined
+    const emailId = typeof body.email_id === 'string' ? body.email_id : undefined
+    if (emailId) {
+      return timestamp ? `instantly:${eventType}:${emailId}:${timestamp}` : null
+    }
+
+    const campaignId = typeof body.campaign_id === 'string' ? body.campaign_id : undefined
+    const leadEmail = typeof body.lead_email === 'string' ? body.lead_email : undefined
+    if (campaignId && leadEmail && timestamp) {
+      return `instantly:${eventType}:${campaignId}:${leadEmail}:${timestamp}`
+    }
+
+    return null
+  },
+
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const payload = isRecordLike(body) ? body : {}
 

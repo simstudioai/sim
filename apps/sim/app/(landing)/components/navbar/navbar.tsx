@@ -81,11 +81,13 @@ export function Navbar({ stars, logoOnly = false }: NavbarProps) {
             </div>
 
             <div className='ml-auto hidden items-center gap-1 lg:flex'>
-              <ChipLink href='/login'>Log in</ChipLink>
+              <ChipLink href='/login' prefetch={false}>
+                Log in
+              </ChipLink>
               <ChipLink href='/demo' className='border border-[var(--border-1)]'>
                 Contact sales
               </ChipLink>
-              <ChipLink variant='primary' href='/signup'>
+              <ChipLink variant='primary' href='/signup' prefetch={false}>
                 Sign up
               </ChipLink>
             </div>

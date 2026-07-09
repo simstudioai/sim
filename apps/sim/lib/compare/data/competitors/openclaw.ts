@@ -362,6 +362,32 @@ export const openClawProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: OpenClaw has no feature to publish a Lobster workflow or Task Flow as a named, iconed, encapsulated block that appears in a shared toolbar for other org members to drop into their own separate flows. The documented path for org-wide reuse is packaging a `.lobster` file plus setup notes as a Skill or plugin and publishing it through ClawHub, an installable instruction/code package the agent references, not a live block whose inputs/outputs are auto-derived from a source workflow and that tracks that workflow's latest deployed version automatically.",
+        detail:
+          "Lobster's own docs list run/command, pipeline, and approval as its only step types, with no invoke-another-workflow-as-a-block primitive. Task Flow is scoped to tracking state within a single multi-step run, not publishing that run as a reusable component. ClawHub Skills are markdown instruction files compiled into the system prompt for agent reasoning, not encapsulated, auto-input-derived workflow blocks with hand-picked outputs and hidden internals; a published Skill's `.lobster` file and setup notes are visible to whoever installs it, the opposite of Sim's full encapsulation.",
+        shortValue:
+          'No: reuse is via ClawHub Skills (visible instructions), not a live workflow block',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.openclaw.ai/tools/lobster',
+            label: 'OpenClaw Docs: Lobster',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.openclaw.ai/automation/taskflow',
+            label: 'OpenClaw Docs: Task flow',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.openclaw.ai/tools/skills',
+            label: 'OpenClaw Docs: Skills',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
