@@ -61,6 +61,14 @@ export const WorkflowControls = memo(function WorkflowControls() {
       id: 'fit-to-view',
       handler: handleFitToView,
     }),
+    createCommand({
+      id: 'set-canvas-mode-pointer',
+      handler: () => setMode('cursor'),
+    }),
+    createCommand({
+      id: 'set-canvas-mode-mover',
+      handler: () => setMode('hand'),
+    }),
   ])
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -118,7 +126,11 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 </Button>
               </div>
             </PopoverTrigger>
-            <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
+            <Tooltip.Content side='top'>
+              <Tooltip.Shortcut keys={mode === 'hand' ? 'M' : 'P'}>
+                {mode === 'hand' ? 'Mover' : 'Pointer'}
+              </Tooltip.Shortcut>
+            </Tooltip.Content>
           </Tooltip.Root>
           <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
             <PopoverItem
@@ -128,7 +140,10 @@ export const WorkflowControls = memo(function WorkflowControls() {
               }}
             >
               <Hand className='size-3' />
-              <span>Mover</span>
+              <div className='flex items-center gap-2 '>
+                <span>Mover</span>
+                <span className='opacity-70'>M</span>
+              </div>
             </PopoverItem>
             <PopoverItem
               onClick={() => {
@@ -137,7 +152,10 @@ export const WorkflowControls = memo(function WorkflowControls() {
               }}
             >
               <Cursor className='size-3' />
-              <span>Pointer</span>
+              <div className=' flex items-center gap-2 '>
+                <span>Pointer</span>
+                <span className='opacity-70'>P</span>
+              </div>
             </PopoverItem>
           </PopoverContent>
         </Popover>

@@ -17,6 +17,8 @@ export type CommandId =
   | 'clear-terminal-console'
   | 'focus-toolbar-search'
   | 'fit-to-view'
+  | 'set-canvas-mode-pointer'
+  | 'set-canvas-mode-mover'
 
 /**
  * Static metadata for a global command.
@@ -90,6 +92,16 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'fit-to-view': {
     id: 'fit-to-view',
     shortcut: 'Mod+Shift+F',
+    allowInEditable: false,
+  },
+  'set-canvas-mode-pointer': {
+    id: 'set-canvas-mode-pointer',
+    shortcut: 'P',
+    allowInEditable: false,
+  },
+  'set-canvas-mode-mover': {
+    id: 'set-canvas-mode-mover',
+    shortcut: 'M',
     allowInEditable: false,
   },
 }
