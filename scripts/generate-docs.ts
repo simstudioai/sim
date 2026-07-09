@@ -119,6 +119,7 @@ const TRIGGER_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   slack: 'Slack',
   stripe: 'Stripe',
   telegram: 'Telegram',
+  tiktok: 'TikTok',
   twilio_voice: 'Twilio Voice',
   typeform: 'Typeform',
   vercel: 'Vercel',

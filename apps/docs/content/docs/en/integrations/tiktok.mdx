@@ -10,6 +10,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+TikTok webhooks use a single app-level Callback URL configured in the [TikTok Developer Portal](https://developers.tiktok.com/):
+
+`https://www.sim.ai/api/webhooks/tiktok`
+
+(Use your environment’s `{APP_URL}/api/webhooks/tiktok` for staging or local ngrok.) You do not paste a unique per-workflow URL into TikTok. In Sim, connect a TikTok account on the trigger and deploy the workflow; events for that `user_openid` fan out to matching workflows.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos and photos directly to TikTok (or send them to the inbox as drafts) from a public URL or a file uploaded in the workflow, then track post status.
@@ -236,4 +245,140 @@ Check the status of a post initiated with Direct Post Video, Upload Video Draft,
 | `failReason` | string | Reason for failure if status is FAILED. Null otherwise. |
 | `publiclyAvailablePostId` | array | Array of public post IDs \(as strings\) once the content is published and publicly viewable. Can be used to construct the TikTok post URL. |
 
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### TikTok Authorization Removed
+
+Trigger when a user deauthorizes your TikTok app
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `reason` | number | Revocation reason \(0 unknown, 1 user disconnect, 2 account deleted, 3 age change, 4 banned, 5 developer revoke\) |
+
+
+---
+
+### TikTok Post Inbox Delivered
+
+Trigger when a draft notification is delivered to the creator inbox
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Post No Longer Public
+
+Trigger when a post is no longer publicly viewable on TikTok
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Post Publicly Available
+
+Trigger when a published post becomes publicly viewable on TikTok
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Post Publish Complete
+
+Trigger when a TikTok Content Posting publish completes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Post Publish Failed
+
+Trigger when a TikTok Content Posting publish fails
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+
+---
+
+### TikTok Video Publish Completed
+
+Trigger when a Share Kit / Video Kit upload is published by the user
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `shareId` | string | Share Kit / Video Kit share_id |
+
+
+---
+
+### TikTok Video Upload Failed
+
+Trigger when a Share Kit / Video Kit upload fails in TikTok
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | TikTok Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `shareId` | string | Share Kit / Video Kit share_id |
 

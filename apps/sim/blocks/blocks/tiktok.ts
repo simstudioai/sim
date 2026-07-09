@@ -4,6 +4,7 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { TikTokResponse } from '@/tools/tiktok/types'
+import { getTrigger } from '@/triggers'
 
 const VIDEO_POST_OPERATIONS = ['tiktok_direct_post_video', 'tiktok_upload_video_draft']
 const PHOTO_POST_OPERATIONS = ['tiktok_direct_post_photo', 'tiktok_upload_photo_draft']
@@ -362,7 +363,30 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       condition: { field: 'operation', value: 'tiktok_get_post_status' },
       required: { field: 'operation', value: 'tiktok_get_post_status' },
     },
+
+    ...getTrigger('tiktok_post_publish_complete').subBlocks,
+    ...getTrigger('tiktok_post_publish_failed').subBlocks,
+    ...getTrigger('tiktok_post_inbox_delivered').subBlocks,
+    ...getTrigger('tiktok_post_publicly_available').subBlocks,
+    ...getTrigger('tiktok_post_no_longer_public').subBlocks,
+    ...getTrigger('tiktok_video_publish_completed').subBlocks,
+    ...getTrigger('tiktok_video_upload_failed').subBlocks,
+    ...getTrigger('tiktok_authorization_removed').subBlocks,
   ],
+
+  triggers: {
+    enabled: true,
+    available: [
+      'tiktok_post_publish_complete',
+      'tiktok_post_publish_failed',
+      'tiktok_post_inbox_delivered',
+      'tiktok_post_publicly_available',
+      'tiktok_post_no_longer_public',
+      'tiktok_video_publish_completed',
+      'tiktok_video_upload_failed',
+      'tiktok_authorization_removed',
+    ],
+  },
 
   tools: {
     access: [

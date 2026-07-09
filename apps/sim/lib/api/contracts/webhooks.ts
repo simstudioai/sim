@@ -258,3 +258,36 @@ export const webhookTriggerPostContract = defineRouteContract({
     schema: z.unknown(),
   },
 })
+
+/**
+ * TikTok app-level webhook ingress. Signature is verified from the raw body
+ * before this schema runs; `content` remains a JSON string per TikTok docs.
+ */
+export const tiktokWebhookEnvelopeSchema = z.object({
+  client_key: z.string(),
+  event: z.string(),
+  create_time: z.union([z.number(), z.string()]),
+  user_openid: z.string(),
+  content: z.string(),
+})
+
+export const tiktokWebhookHeadersSchema = z.object({
+  'tiktok-signature': z.string().min(1),
+})
+
+export const tiktokWebhookResponseSchema = z.object({
+  ok: z.literal(true),
+  webhooksProcessed: z.number().optional(),
+})
+
+export const tiktokWebhookContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/webhooks/tiktok',
+  headers: tiktokWebhookHeadersSchema,
+  // Body is validated after HMAC verification against the raw payload.
+  body: tiktokWebhookEnvelopeSchema,
+  response: {
+    mode: 'json',
+    schema: tiktokWebhookResponseSchema,
+  },
+})
