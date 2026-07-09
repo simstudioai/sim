@@ -274,7 +274,12 @@ const ARRAY_WITH_ID_SUBBLOCK_TYPES = new Set([
  * Subblock keys whose UI components expect a JSON string, not a raw array.
  * After normalizeArrayWithIds returns an array, these must be re-stringified.
  */
-export const JSON_STRING_SUBBLOCK_KEYS = new Set(['conditions', 'routes'])
+export const JSON_STRING_SUBBLOCK_KEYS = new Set([
+  'conditions',
+  'routes',
+  'tagFilters',
+  'documentTags',
+])
 
 /**
  * Normalizes array subblock values by ensuring each item has a valid UUID.

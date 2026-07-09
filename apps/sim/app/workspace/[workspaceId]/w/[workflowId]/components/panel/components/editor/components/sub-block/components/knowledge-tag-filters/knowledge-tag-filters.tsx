@@ -100,20 +100,25 @@ export function KnowledgeTagFilters({
     disabled,
   })
 
-  const parseFilters = (filterValue: string | null): TagFilter[] => {
+  const parseFilters = (filterValue: unknown): TagFilter[] => {
     if (!filterValue) return []
-    try {
-      const parsed = JSON.parse(filterValue)
-      if (!Array.isArray(parsed)) return []
-      return parsed.map((f: TagFilter) => ({
-        ...f,
-        fieldType: f.fieldType || 'text',
-        operator: f.operator || 'eq',
-        collapsed: f.collapsed ?? false,
-      }))
-    } catch {
-      return []
+    let parsed: unknown = filterValue
+    // Tolerate an already-parsed array: copilot edits persist tagFilters as a raw
+    // array, whereas this component writes a JSON string. Accept both on read.
+    if (typeof filterValue === 'string') {
+      try {
+        parsed = JSON.parse(filterValue)
+      } catch {
+        return []
+      }
     }
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((f: TagFilter) => ({
+      ...f,
+      fieldType: f.fieldType || 'text',
+      operator: f.operator || 'eq',
+      collapsed: f.collapsed ?? false,
+    }))
   }
 
   const currentValue = isPreview ? previewValue : storeValue

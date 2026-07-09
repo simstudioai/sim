@@ -98,19 +98,24 @@ export function DocumentTagEntry({
 
   const currentValue = isPreview ? previewValue : storeValue
 
-  const parseTags = (tagValue: string | null): DocumentTag[] => {
+  const parseTags = (tagValue: unknown): DocumentTag[] => {
     if (!tagValue) return []
-    try {
-      const parsed = JSON.parse(tagValue)
-      if (!Array.isArray(parsed)) return []
-      return parsed.map((t: DocumentTag) => ({
-        ...t,
-        fieldType: t.fieldType || 'text',
-        collapsed: t.collapsed ?? false,
-      }))
-    } catch {
-      return []
+    let parsed: unknown = tagValue
+    // Tolerate an already-parsed array: copilot edits persist documentTags as a raw
+    // array, whereas this component writes a JSON string. Accept both on read.
+    if (typeof tagValue === 'string') {
+      try {
+        parsed = JSON.parse(tagValue)
+      } catch {
+        return []
+      }
     }
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((t: DocumentTag) => ({
+      ...t,
+      fieldType: t.fieldType || 'text',
+      collapsed: t.collapsed ?? false,
+    }))
   }
 
   const parsedTags = parseTags(currentValue || null)
