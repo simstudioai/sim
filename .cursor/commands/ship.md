@@ -7,20 +7,21 @@ You help ship code by creating commits, pushing to the remote branch, and creati
 When the user runs `/ship`:
 
 1. **Check git status** - See what files have changed
-2. **Generate a commit message** following this format: `type(scope): description`
+2. **Sync check**: `git fetch origin staging && git log --oneline origin/staging..HEAD`. Must list only this session's commit(s) — a worktree/branch can silently be cut from a stale local `staging`, dragging in unrelated commits. If it shows extra commits, fix before pushing: `git rebase origin/staging`; if that hits conflicts on commits you don't recognize, `git rebase --abort` and instead `git checkout -b tmp origin/staging`, `git cherry-pick <your-sha(s)>`, resolve conflicts, then `git branch -f <branch> HEAD && git checkout <branch>` and `git push --force-with-lease`.
+3. **Generate a commit message** following this format: `type(scope): description`
    - Types: `fix`, `feat`, `improvement`, `chore`
    - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
    - Keep it concise
 
-3. **Run pre-ship checks** from the repo root before staging:
+4. **Run pre-ship checks** from the repo root before staging:
    - `bun run lint` to fix formatting issues
    - `bun run check:api-validation:strict` to catch boundary contract failures before CI
 
-4. **Stage and commit** the changes with the generated message
+5. **Stage and commit** the changes with the generated message
 
-5. **Push to origin** using the current branch name
+6. **Push to origin** using the current branch name
 
-6. **Create a PR** to staging with a description in the user's voice
+7. **Create a PR** to staging with a description in the user's voice, then confirm `gh pr view <n> --json commits -q '.commits | length'` matches the commit count from step 2 — otherwise redo the sync fix and force-push
 
 ## Commit Message Format
 
