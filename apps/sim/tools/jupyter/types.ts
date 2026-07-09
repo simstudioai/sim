@@ -88,7 +88,7 @@ export interface JupyterCreateFileResponse extends ToolResponse {
 }
 
 export interface JupyterUploadFileParams extends JupyterAuthParams {
-  path: string
+  directory?: string
   file?: unknown
   fileContent?: string
   fileName?: string

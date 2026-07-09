@@ -7,7 +7,6 @@ const PATH_OPERATIONS = [
   'jupyter_list_contents',
   'jupyter_get_content',
   'jupyter_create_file',
-  'jupyter_upload_file',
   'jupyter_rename_content',
   'jupyter_delete_content',
   'jupyter_copy_content',
@@ -17,7 +16,6 @@ const PATH_OPERATIONS = [
 const REQUIRED_PATH_OPERATIONS = [
   'jupyter_get_content',
   'jupyter_create_file',
-  'jupyter_upload_file',
   'jupyter_rename_content',
   'jupyter_delete_content',
   'jupyter_copy_content',
@@ -118,6 +116,13 @@ export const JupyterBlock: BlockConfig = {
     },
 
     // Upload File
+    {
+      id: 'directory',
+      title: 'Directory',
+      type: 'short-input',
+      placeholder: 'notebooks (leave blank for the root directory)',
+      condition: { field: 'operation', value: 'jupyter_upload_file' },
+    },
     {
       id: 'uploadFile',
       title: 'File',
@@ -260,7 +265,7 @@ export const JupyterBlock: BlockConfig = {
             if (rest.content) baseParams.content = rest.content
             break
           case 'jupyter_upload_file':
-            baseParams.path = rest.path
+            if (rest.directory) baseParams.directory = rest.directory
             baseParams.file = rest.file
             if (rest.uploadFileName) baseParams.fileName = rest.uploadFileName
             break
@@ -303,6 +308,7 @@ export const JupyterBlock: BlockConfig = {
     path: { type: 'string', description: 'Path relative to the server root' },
     type: { type: 'string', description: 'file, notebook, or directory' },
     content: { type: 'string', description: 'File or notebook content' },
+    directory: { type: 'string', description: 'Upload destination directory' },
     file: { type: 'json', description: 'File to upload (canonical param)' },
     uploadFileName: { type: 'string', description: 'Optional filename override' },
     newPath: { type: 'string', description: 'New path for rename/move' },

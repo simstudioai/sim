@@ -102,7 +102,7 @@ Upload a file to a Jupyter server
 | --------- | ---- | -------- | ----------- |
 | `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
 | `token` | string | Yes | Jupyter server authentication token |
-| `path` | string | Yes | Destination path, relative to the server root. A directory path ending in "/" uploads using the file name. |
+| `directory` | string | No | Destination directory, relative to the server root. Leave blank to upload to the root directory. |
 | `file` | file | No | The file to upload \(UserFile object\) |
 | `fileContent` | string | No | Legacy: base64 encoded file content |
 | `fileName` | string | No | Optional filename override |

@@ -66,13 +66,14 @@ export const jupyterCreateFileTool: ToolConfig<JupyterCreateFileParams, JupyterC
         }
 
         if (params.type === 'notebook') {
-          let content: unknown = EMPTY_NOTEBOOK
-          if (params.content) {
-            try {
-              content = JSON.parse(params.content)
-            } catch {
-              content = EMPTY_NOTEBOOK
-            }
+          if (!params.content) {
+            return { type: 'notebook', format: 'json', content: EMPTY_NOTEBOOK }
+          }
+          let content: unknown
+          try {
+            content = JSON.parse(params.content)
+          } catch {
+            throw new Error('Notebook content must be valid JSON-stringified nbformat')
           }
           return { type: 'notebook', format: 'json', content }
         }

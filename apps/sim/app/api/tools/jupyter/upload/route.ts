@@ -4,6 +4,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { jupyterUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
@@ -64,17 +68,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       fileName = data.fileName || userFile.name
     } else if (data.fileContent) {
       fileBuffer = Buffer.from(data.fileContent, 'base64')
-      fileName = data.fileName || data.path.split('/').pop() || 'file'
+      fileName = data.fileName || 'file'
     } else {
       return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
     }
 
     const base = normalizeJupyterServerUrl(data.serverUrl)
-    const destinationPath = encodeJupyterPath(
-      data.path.endsWith('/') ? `${data.path}${fileName}` : data.path
-    )
+    const destinationDirectory = (data.directory ?? '').replace(/\/+$/, '')
+    const destinationPath = destinationDirectory ? `${destinationDirectory}/${fileName}` : fileName
+    const uploadUrl = `${base}/api/contents/${encodeJupyterPath(destinationPath)}`
 
-    const response = await fetch(`${base}/api/contents/${destinationPath}`, {
+    const urlValidation = await validateUrlWithDNS(uploadUrl, 'serverUrl', { allowHttp: true })
+    if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+      return NextResponse.json(
+        { success: false, error: `Invalid Jupyter serverUrl: ${urlValidation.error}` },
+        { status: 400 }
+      )
+    }
+
+    const response = await secureFetchWithPinnedIP(uploadUrl, urlValidation.resolvedIP, {
       method: 'PUT',
       headers: {
         ...buildJupyterAuthHeaders(data.token),
@@ -85,6 +97,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         format: 'base64',
         content: fileBuffer.toString('base64'),
       }),
+      allowHttp: true,
     })
 
     if (!response.ok) {
@@ -104,7 +117,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       success: true,
       output: {
         name: uploaded.name ?? fileName,
-        path: uploaded.path ?? data.path,
+        path: uploaded.path ?? destinationPath,
         size: uploaded.size ?? fileBuffer.length,
         lastModified: uploaded.last_modified ?? null,
       },

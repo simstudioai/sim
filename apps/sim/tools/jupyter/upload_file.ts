@@ -21,12 +21,12 @@ export const jupyterUploadFileTool: ToolConfig<JupyterUploadFileParams, JupyterU
         visibility: 'user-only',
         description: 'Jupyter server authentication token',
       },
-      path: {
+      directory: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
         description:
-          'Destination path, relative to the server root. A directory path ending in "/" uploads using the file name.',
+          'Destination directory, relative to the server root. Leave blank to upload to the root directory.',
       },
       file: {
         type: 'file',
@@ -57,7 +57,7 @@ export const jupyterUploadFileTool: ToolConfig<JupyterUploadFileParams, JupyterU
       body: (params) => ({
         serverUrl: params.serverUrl,
         token: params.token,
-        path: params.path,
+        directory: params.directory,
         file: params.file,
         fileContent: params.fileContent,
         fileName: params.fileName,

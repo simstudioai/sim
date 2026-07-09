@@ -110,7 +110,7 @@ export const dropboxUploadBodySchema = z.object({
 export const jupyterUploadBodySchema = z.object({
   serverUrl: z.string().min(1, 'Server URL is required'),
   token: z.string().min(1, 'Token is required'),
-  path: z.string().min(1, 'Destination path is required'),
+  directory: z.string().optional().nullable(),
   file: FileInputSchema.optional().nullable(),
   fileContent: z.string().optional().nullable(),
   fileName: z.string().optional().nullable(),
