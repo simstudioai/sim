@@ -117,11 +117,19 @@ export async function executeDeployCustomBlock(
     }
     const action = params.action === 'undeploy' ? 'undeploy' : 'deploy'
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
+    let workflowRecord: Awaited<ReturnType<typeof ensureWorkflowAccess>>['workflow']
+    try {
+      workflowRecord = (await ensureWorkflowAccess(workflowId, context.userId, 'admin')).workflow
+    } catch (error) {
+      const message = toError(error).message
+      if (message.includes('not found')) {
+        return { success: false, error: message }
+      }
+      return {
+        success: false,
+        error: "Managing a custom block requires admin permission on the workflow's workspace",
+      }
+    }
     const workspaceId = workflowRecord.workspaceId
     if (!workspaceId) {
       return { success: false, error: 'Workflow must belong to a workspace' }

@@ -142,6 +142,25 @@ describe('executeDeployCustomBlock', () => {
     })
   })
 
+  it('returns a clean admin-permission error when workflow access is denied', async () => {
+    ensureWorkflowAccessMock.mockRejectedValue(new Error('Unauthorized workflow access'))
+
+    const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('admin permission')
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces workflow-not-found from access resolution', async () => {
+    ensureWorkflowAccessMock.mockRejectedValue(new Error('Workflow wf-1 not found'))
+
+    const result = await executeDeployCustomBlock({ name: 'Enrich Lead' }, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('not found')
+  })
+
   it('requires a name on first publish', async () => {
     const result = await executeDeployCustomBlock({}, context)
 

@@ -7,8 +7,10 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
@@ -25,13 +27,63 @@ const logger = createLogger('CustomBlocksOperations')
  * enterprise plan). Applying it in every org-scoped resolver keeps execution, the
  * copilot VFS, and workspace context from surfacing blocks the API withholds (e.g.
  * after an org drops off the enterprise plan). Returns `null` when ineligible.
+ *
+ * Pass `userId` when the caller acts for a specific user so per-user flag
+ * targeting matches the REST routes; workspace-scoped resolvers (VFS, context,
+ * executor overlay) omit it and evaluate at org level.
  */
-async function eligibleOrgForWorkspace(workspaceId: string): Promise<string | null> {
+async function eligibleOrgForWorkspace(
+  workspaceId: string,
+  userId?: string
+): Promise<string | null> {
   const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
   if (!ws?.organizationId) return null
-  if (!(await isFeatureEnabled('deploy-as-block', { orgId: ws.organizationId }))) return null
+  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ws.organizationId }))) {
+    return null
+  }
   if (!(await isOrganizationOnEnterprisePlan(ws.organizationId))) return null
   return ws.organizationId
+}
+
+/**
+ * Cross-repo contract: the mothership (Go) reads this exact string from the chat
+ * payload's `entitlements` array and matches it against
+ * `core.EntitlementCustomBlocks` to gate the deploy agent's custom-block tool,
+ * prompt section, and skill. The entitlement is the materialized form of
+ * "`deploy-as-block` flag AND enterprise plan" for the workspace's org.
+ */
+export const CUSTOM_BLOCKS_ENTITLEMENT = 'custom-blocks'
+
+const entitlementsCache = new LRUCache<string, Promise<string[]>>({
+  max: 500,
+  ttl: 5_000,
+})
+
+/**
+ * The plan/flag-gated capabilities to send to the mothership for a request in
+ * this workspace. Cached briefly so the several per-message callers (payload
+ * build, headless execute, inbox) collapse to one evaluation.
+ */
+export function computeWorkspaceEntitlements(
+  workspaceId: string,
+  userId?: string
+): Promise<string[]> {
+  const cacheKey = `${workspaceId}:${userId ?? ''}`
+  const cached = entitlementsCache.get(cacheKey)
+  if (cached) return cached
+
+  const promise = eligibleOrgForWorkspace(workspaceId, userId)
+    .then((organizationId) => (organizationId ? [CUSTOM_BLOCKS_ENTITLEMENT] : []))
+    .catch((error) => {
+      entitlementsCache.delete(cacheKey)
+      logger.warn('Failed to compute workspace entitlements', {
+        workspaceId,
+        error: getErrorMessage(error),
+      })
+      return []
+    })
+  entitlementsCache.set(cacheKey, promise)
+  return promise
 }
 
 /** A persisted custom block plus its live-derived Start input fields. */
