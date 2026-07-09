@@ -1,4 +1,5 @@
 import { render } from '@react-email/render'
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   member,
@@ -31,8 +32,34 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getHelpEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('StripeInvoiceWebhooks')
+
+/**
+ * Resolve the audit actor for a billing event. For org-scoped subscriptions the
+ * actor is the org owner; for personal subscriptions it is the reference (user)
+ * id. The owner lookup is best-effort — a failure must never break webhook
+ * processing, so it falls back to the reference id (which the audit layer nulls
+ * to a system actor if it is not a real user id).
+ */
+async function resolveBillingActorId(isOrgScoped: boolean, referenceId: string): Promise<string> {
+  if (!isOrgScoped) return referenceId
+  try {
+    const ownerRows = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, referenceId), eq(member.role, 'owner')))
+      .limit(1)
+    return ownerRows[0]?.userId ?? referenceId
+  } catch (error) {
+    logger.warn('Failed to resolve billing actor; falling back to reference id', {
+      referenceId,
+      error,
+    })
+    return referenceId
+  }
+}
 
 function getSubscriptionLinePeriod(
   invoice: Stripe.Invoice,
@@ -712,6 +739,31 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
       purchasedBy,
     })
 
+    const actorId =
+      purchasedBy ?? (await resolveBillingActorId(entityType === 'organization', entityId))
+    recordAudit({
+      actorId,
+      action: AuditAction.CREDIT_PURCHASED,
+      resourceType: AuditResourceType.BILLING,
+      resourceId: invoice.id,
+      description: `Credit purchase of $${amount.toFixed(2)} fulfilled for ${entityType} ${entityId}`,
+      metadata: {
+        entityType,
+        entityId,
+        ...(entityType === 'organization' ? { organizationId: entityId } : {}),
+        amount,
+        currency: 'usd',
+        purchasedBy: purchasedBy ?? null,
+        invoiceId: invoice.id,
+      },
+    })
+    captureServerEvent(actorId, 'credits_purchased', {
+      amount,
+      currency: 'usd',
+      entity_type: entityType,
+      reference_id: entityId,
+    })
+
     try {
       const newBalance = await getCreditBalanceForEntity(entityType, entityId)
       let recipients: Array<{ email: string; name: string | null }> = []
@@ -863,6 +915,34 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
             periodEnd: invoicePeriod?.periodEnd ?? null,
           })
         }
+
+        const entityType = subIsOrgScoped ? 'organization' : 'user'
+        const amountPaid = (invoice.amount_paid ?? 0) / 100
+        const actorId = await resolveBillingActorId(subIsOrgScoped, sub.referenceId)
+
+        recordAudit({
+          actorId,
+          action: AuditAction.INVOICE_PAYMENT_SUCCEEDED,
+          resourceType: AuditResourceType.BILLING,
+          resourceId: invoice.id,
+          description: `Invoice payment of $${amountPaid.toFixed(2)} succeeded for ${entityType} ${sub.referenceId}`,
+          metadata: {
+            entityType,
+            referenceId: sub.referenceId,
+            ...(entityType === 'organization' ? { organizationId: sub.referenceId } : {}),
+            plan: sub.plan,
+            amount: amountPaid,
+            currency: invoice.currency ?? 'usd',
+            invoiceId: invoice.id,
+          },
+        })
+        captureServerEvent(actorId, 'payment_succeeded', {
+          plan: sub.plan ?? 'unknown',
+          amount: amountPaid,
+          currency: invoice.currency ?? 'usd',
+          entity_type: entityType,
+          reference_id: sub.referenceId,
+        })
       }
     )
   } catch (error) {
@@ -914,6 +994,43 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
           invoiceType: invoiceType ?? 'subscription',
           resolutionSource,
         })
+
+        // Best-effort instrumentation; its DB reads must never abort the
+        // user-blocking that follows, so the whole block is guarded.
+        try {
+          const failureOrgScoped = await isSubscriptionOrgScoped(sub)
+          const failureEntityType = failureOrgScoped ? 'organization' : 'user'
+          const failureActorId = await resolveBillingActorId(failureOrgScoped, sub.referenceId)
+
+          recordAudit({
+            actorId: failureActorId,
+            action: AuditAction.INVOICE_PAYMENT_FAILED,
+            resourceType: AuditResourceType.BILLING,
+            resourceId: invoice.id,
+            description: `Invoice payment of $${failedAmount.toFixed(2)} failed for ${failureEntityType} ${sub.referenceId} (attempt ${attemptCount})`,
+            metadata: {
+              entityType: failureEntityType,
+              referenceId: sub.referenceId,
+              ...(failureEntityType === 'organization' ? { organizationId: sub.referenceId } : {}),
+              plan: sub.plan,
+              amount: failedAmount,
+              currency: invoice.currency ?? 'usd',
+              attemptCount,
+              invoiceType: invoiceType ?? 'subscription',
+              invoiceId: invoice.id,
+            },
+          })
+          captureServerEvent(failureActorId, 'payment_failed', {
+            plan: sub.plan ?? 'unknown',
+            amount: failedAmount,
+            currency: invoice.currency ?? 'usd',
+            entity_type: failureEntityType,
+            reference_id: sub.referenceId,
+            attempt_count: attemptCount,
+          })
+        } catch (auditError) {
+          logger.warn('Failed to record payment_failed instrumentation', { auditError })
+        }
 
         if (attemptCount >= 1) {
           logger.error('Payment failure - blocking users', {

@@ -165,3 +165,33 @@ export async function decrementStorageUsage(
     void maybeNotifyStorageLimit(userId, workspaceId, sub, true)
   }
 }
+
+type StorageTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
+ * Decrement a user's (or their org's) storage counter inside an existing
+ * transaction, using a pre-resolved subscription. This lets a caller make the
+ * counter update atomic with the DB rows it is deleting (e.g. hard-deleting
+ * documents), so a failure of either rolls back both — no inflated counter, no
+ * over-decrement. The caller resolves the subscription (a read) before opening
+ * the transaction.
+ */
+export async function decrementStorageUsageInTx(
+  tx: StorageTransaction,
+  sub: HighestPrioritySubscription | null,
+  userId: string,
+  bytes: number
+): Promise<void> {
+  if (!isBillingEnabled || bytes <= 0) return
+  if (isOrgScopedSubscription(sub, userId) && sub) {
+    await tx
+      .update(organization)
+      .set({ storageUsedBytes: sql`GREATEST(0, ${organization.storageUsedBytes} - ${bytes})` })
+      .where(eq(organization.id, sub.referenceId))
+  } else {
+    await tx
+      .update(userStats)
+      .set({ storageUsedBytes: sql`GREATEST(0, ${userStats.storageUsedBytes} - ${bytes})` })
+      .where(eq(userStats.userId, userId))
+  }
+}

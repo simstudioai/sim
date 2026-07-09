@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -75,6 +76,25 @@ export const GET = withRouteHandler(
       const contentType = servable.kind === 'artifact' ? servable.contentType : file.contentType
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
+
+      // Anonymous access: null actor (owner-as-actor would misread as a self-download).
+      recordAudit({
+        workspaceId: file.workspaceId ?? null,
+        actorId: null,
+        action: AuditAction.FILE_DOWNLOADED,
+        resourceType: AuditResourceType.FILE,
+        resourceId: file.id,
+        resourceName: file.originalName,
+        description: `Public share download of "${file.originalName}"`,
+        metadata: {
+          access: 'public_share',
+          anonymous: true,
+          sharedByUserId: file.userId,
+          fileName: file.originalName,
+          bytes: buffer.length,
+        },
+        request,
+      })
 
       // Revalidate every request: a shared file can be unshared, edited, or deleted,
       // so the fixed token URL must never serve stale bytes from a long-lived cache.
