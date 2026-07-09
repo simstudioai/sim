@@ -3696,7 +3696,7 @@ export function MetaIcon(props: SVGProps<SVGSVGElement>) {
     <svg
       {...props}
       height='1em'
-      viewBox='0 0 265 165'
+      viewBox='0 -48.28 287.56 287.56'
       width='1em'
       xmlns='http://www.w3.org/2000/svg'
     >
