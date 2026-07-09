@@ -914,7 +914,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               width={56}
               height={56}
               className='shrink-0 rounded-xl'
-              unoptimized
             />
             <div className='flex items-center gap-2'>
               <span className='h-px w-5 bg-[var(--border-1)]' aria-hidden='true' />

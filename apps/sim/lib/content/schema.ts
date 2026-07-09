@@ -27,7 +27,7 @@ export const ContentFrontmatterSchema = z
     authors: z.array(z.string()).min(1),
     readingTime: z.number().int().positive().optional(),
     tags: z.array(z.string()).default([]),
-    ogImage: z.string().min(1),
+    ogImage: z.string().min(1), // local path (e.g. /blog/<slug>/cover.jpg) - rendered via next/image without `unoptimized`
     ogAlt: z.string().optional(),
     about: z.array(z.string()).optional(),
     timeRequired: z.string().optional(),

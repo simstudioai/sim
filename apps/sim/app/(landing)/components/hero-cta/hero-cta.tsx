@@ -29,6 +29,7 @@ export function HeroCta() {
       </ChipLink>
       <ChipLink
         href='/signup'
+        prefetch={false}
         className={cn(CTA_SIZE, 'border border-[var(--border-1)] max-sm:justify-center')}
       >
         Sign up
