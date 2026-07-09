@@ -1205,6 +1205,13 @@ A **Trigger** is a block that starts a workflow when an event happens in this se
 
 Trigger workflow when a comment is deleted from a Jira issue
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which comment deletions trigger this workflow using JQL |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -1283,6 +1290,13 @@ Trigger workflow when a comment is deleted from a Jira issue
 ### Jira Comment Updated
 
 Trigger workflow when a comment is updated on a Jira issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which comment updates trigger this workflow using JQL |
 
 #### Output
 
@@ -1363,6 +1377,13 @@ Trigger workflow when a comment is updated on a Jira issue
 
 Trigger workflow when a comment is added to a Jira issue
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which issue comments trigger this workflow using JQL |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -1442,6 +1463,13 @@ Trigger workflow when a comment is added to a Jira issue
 
 Trigger workflow when a new issue is created in Jira
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which issues trigger this workflow using JQL \(Jira Query Language\) |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -1509,6 +1537,13 @@ Trigger workflow when a new issue is created in Jira
 
 Trigger workflow when an issue is deleted in Jira
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which issue deletions trigger this workflow using JQL |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -1575,6 +1610,14 @@ Trigger workflow when an issue is deleted in Jira
 ### Jira Issue Updated
 
 Trigger workflow when an issue is updated in Jira
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which issue updates trigger this workflow using JQL |
+| `fieldFilters` | string | No | Comma-separated list of fields to monitor. Only trigger when these fields change. |
 
 #### Output
 
@@ -1645,6 +1688,12 @@ Trigger workflow when an issue is updated in Jira
 
 Trigger workflow when a project is created in Jira
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -1671,6 +1720,12 @@ Trigger workflow when a project is created in Jira
 ### Jira Sprint Closed
 
 Trigger workflow when a sprint is closed in Jira
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
 
 #### Output
 
@@ -1701,6 +1756,12 @@ Trigger workflow when a sprint is closed in Jira
 
 Trigger workflow when a sprint is created in Jira
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -1729,6 +1790,12 @@ Trigger workflow when a sprint is created in Jira
 ### Jira Sprint Started
 
 Trigger workflow when a sprint is started in Jira
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
 
 #### Output
 
@@ -1759,6 +1826,12 @@ Trigger workflow when a sprint is started in Jira
 
 Trigger workflow when a version is released in Jira
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -1786,12 +1859,51 @@ Trigger workflow when a version is released in Jira
 
 Trigger workflow on any Jira webhook event
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changelog` | object | changelog output from the tool |
+|   ↳ `id` | string | Changelog ID |
+| `comment` | object | comment output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `body` | string | Comment text/body |
+|   ↳ `author` | object | author output from the tool |
+|     ↳ `displayName` | string | Comment author display name |
+|     ↳ `accountId` | string | Comment author account ID |
+|     ↳ `emailAddress` | string | Comment author email address |
+|   ↳ `created` | string | Comment creation date \(ISO format\) |
+|   ↳ `updated` | string | Comment last updated date \(ISO format\) |
+| `worklog` | object | worklog output from the tool |
+|   ↳ `id` | string | Worklog entry ID |
+|   ↳ `author` | object | author output from the tool |
+|     ↳ `displayName` | string | Worklog author display name |
+|     ↳ `accountId` | string | Worklog author account ID |
+|     ↳ `emailAddress` | string | Worklog author email address |
+|   ↳ `timeSpent` | string | Time spent \(e.g., "2h 30m"\) |
+|   ↳ `timeSpentSeconds` | number | Time spent in seconds |
+|   ↳ `comment` | string | Worklog comment/description |
+|   ↳ `started` | string | When the work was started \(ISO format\) |
+
 
 ---
 
 ### Jira Worklog Created
 
 Trigger workflow when time is logged on a Jira issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which worklog entries trigger this workflow using JQL |
 
 #### Output
 
@@ -1876,6 +1988,13 @@ Trigger workflow when time is logged on a Jira issue
 
 Trigger workflow when a worklog entry is deleted from a Jira issue
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which worklog deletions trigger this workflow using JQL |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -1958,6 +2077,13 @@ Trigger workflow when a worklog entry is deleted from a Jira issue
 ### Jira Worklog Updated
 
 Trigger workflow when a worklog entry is updated on a Jira issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which worklog updates trigger this workflow using JQL |
 
 #### Output
 
