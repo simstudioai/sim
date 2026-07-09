@@ -430,7 +430,7 @@ export function SpecialTags({
 export function PendingTagIndicator() {
   return (
     <div className='animate-stream-fade-in py-2'>
-      <ThinkingLoader size={20} startVariant='corners' phase labelRatio={0.7} />
+      <ThinkingLoader size={20} startVariant='corners' label='Thinking…' labelRatio={0.7} />
     </div>
   )
 }
