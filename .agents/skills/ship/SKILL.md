@@ -12,7 +12,12 @@ You help ship code by creating commits, pushing to the remote branch, and creati
 When the user runs `/ship`:
 
 1. **Check git status** - See what files have changed
-2. **Sync check**: `git fetch origin staging && git log --oneline origin/staging..HEAD`. Must list only this session's commit(s) — a worktree/branch can silently be cut from a stale local `staging`, dragging in unrelated commits. If it shows extra commits, fix before pushing: `git rebase origin/staging`; if that hits conflicts on commits you don't recognize, `git rebase --abort` and instead `git checkout -b tmp origin/staging`, `git cherry-pick <your-sha(s)>`, resolve conflicts, then `git branch -f <branch> HEAD && git checkout <branch>` and `git push --force-with-lease`.
+2. **Sync check**: `git fetch origin staging && git log --oneline origin/staging..HEAD`. Read the actual commit list, not just how many there are — it must show ONLY commits you can attribute to this session (recognizable subjects/SHAs). A worktree/branch can silently be cut from a stale local `staging`, dragging in unrelated commits; a corrupted branch's inflated commit *count* can coincidentally match a later check even when the *commits* are wrong, so always compare content, never just a number.
+   - If it shows commits you don't recognize, fix it now, **before** staging/committing any new work (step 7 hasn't run yet):
+     - If the working tree has uncommitted changes, stash them first — `git stash push -u -m ship-sync-fix` — so the rebase below isn't blocked by dirty state. Restore with `git stash pop` once the branch is fixed.
+     - Try `git rebase origin/staging` first.
+     - If that walks through unrelated history and conflicts on commits you don't recognize, `git rebase --abort` and rebuild instead: pick a temp branch name that isn't already in use (`git branch --list ship-sync-tmp`; if it exists, delete it or pick another name), `git checkout -b ship-sync-tmp origin/staging`, `git cherry-pick <your-sha(s)>`, resolve conflicts, then `git branch -f <original-branch> HEAD`, `git checkout <original-branch>`, and delete the temp branch.
+   - Re-verify with `git log --oneline origin/staging..HEAD` — it should list only commits you recognize.
 3. **Generate a commit message** following this format: `type(scope): description`
   - Types: `fix`, `feat`, `improvement`, `chore`
   - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
@@ -27,7 +32,12 @@ When the user runs `/ship`:
   - `bun run check:api-validation:strict` to catch boundary contract failures before CI
 7. **Stage and commit** the changes with the generated message
 8. **Push to origin** using the current branch name
-9. **Create a PR** to staging with a description in the user's voice, then confirm `gh pr view <n> --json commits -q '.commits | length'` matches the commit count from step 2 — otherwise redo the sync fix and force-push
+9. **Create a PR** to staging with a description in the user's voice, then do a final content check — not a count check — comparing what actually landed:
+   ```bash
+   git log --oneline origin/staging..HEAD
+   gh pr view <n> --json commits -q '.commits[].messageHeadline'
+   ```
+   These two lists must describe the same commits (same subjects, one of which is the commit from step 7). If they don't match, the branch still has a problem — redo step 2's fix and `git push --force-with-lease`.
 
 ## Commit Message Format
 
