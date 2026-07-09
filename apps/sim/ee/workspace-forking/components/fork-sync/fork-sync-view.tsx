@@ -228,8 +228,8 @@ interface DependentWorkflowCardProps {
 /**
  * One workflow's dependent fields as a collapsible card (the same `CollapsibleCard` the table
  * workflow sidebar's input mapping and the enrichment config use): the header names the
- * workflow, the body groups fields under their block's label. Cards holding a required field
- * start expanded - a required field is what gates Sync.
+ * workflow; the body groups fields under block → optional tool → plain field label.
+ * Cards holding a required field start expanded - a required field is what gates Sync.
  */
 function DependentWorkflowCard({
   workflow,
@@ -250,30 +250,70 @@ function DependentWorkflowCard({
       collapsed={collapsed}
       onToggleCollapse={() => setCollapsed((value) => !value)}
     >
-      {workflow.blocks.map((block) => (
-        <div key={block.targetBlockId} className='flex flex-col gap-1.5'>
-          <Label className='text-small'>{block.blockName}</Label>
-          {block.fields.map((field) => (
-            <div key={dependentKey(field)} className='flex flex-col gap-1'>
-              <span className='text-[var(--text-muted)] text-caption'>
-                {field.title}
-                {field.required ? <span className='text-[var(--text-error)]'> *</span> : null}
-              </span>
-              <DependentSelector
-                field={field}
-                block={block}
-                target={target}
-                parentChanged={parentChanged}
-                copying={copying}
-                workspaceId={workspaceId}
-                sourceWorkspaceId={sourceWorkspaceId}
-                reconfig={reconfig}
-                setReconfig={setReconfig}
-              />
+      <div className='flex flex-col gap-3'>
+        {workflow.blocks.map((block) => {
+          const topLevel = block.fields.filter((field) => !field.toolName)
+          const byTool = new Map<string, ForkDependentReconfig[]>()
+          for (const field of block.fields) {
+            if (!field.toolName) continue
+            const list = byTool.get(field.toolName)
+            if (list) list.push(field)
+            else byTool.set(field.toolName, [field])
+          }
+          const toolGroups = Array.from(byTool.entries()).sort(([a], [b]) => a.localeCompare(b))
+
+          return (
+            <div key={block.targetBlockId} className='flex flex-col gap-2'>
+              <Label className='text-small'>{block.blockName}</Label>
+              {topLevel.map((field) => (
+                <div key={dependentKey(field)} className='flex flex-col gap-1'>
+                  <Label className='text-[var(--text-muted)] text-caption'>
+                    {field.title}
+                    {field.required ? <span className='text-[var(--text-error)]'> *</span> : null}
+                  </Label>
+                  <DependentSelector
+                    field={field}
+                    block={block}
+                    target={target}
+                    parentChanged={parentChanged}
+                    copying={copying}
+                    workspaceId={workspaceId}
+                    sourceWorkspaceId={sourceWorkspaceId}
+                    reconfig={reconfig}
+                    setReconfig={setReconfig}
+                  />
+                </div>
+              ))}
+              {toolGroups.map(([toolName, fields]) => (
+                <div key={toolName} className='flex flex-col gap-1.5 pl-2'>
+                  <span className='text-[var(--text-muted)] text-small'>{toolName}</span>
+                  {fields.map((field) => (
+                    <div key={dependentKey(field)} className='flex flex-col gap-1'>
+                      <Label className='text-[var(--text-muted)] text-caption'>
+                        {field.title}
+                        {field.required ? (
+                          <span className='text-[var(--text-error)]'> *</span>
+                        ) : null}
+                      </Label>
+                      <DependentSelector
+                        field={field}
+                        block={block}
+                        target={target}
+                        parentChanged={parentChanged}
+                        copying={copying}
+                        workspaceId={workspaceId}
+                        sourceWorkspaceId={sourceWorkspaceId}
+                        reconfig={reconfig}
+                        setReconfig={setReconfig}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ))}
+          )
+        })}
+      </div>
     </CollapsibleCard>
   )
 }

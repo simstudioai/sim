@@ -961,7 +961,8 @@ describe('collectClearedDependents', () => {
         blockId: 'b1',
         blockName: 'Agent',
         subBlockKey: 'tools[0].folder',
-        title: 'Gmail: Label',
+        title: 'Label',
+        toolName: 'Gmail',
         required: true,
       },
     ])

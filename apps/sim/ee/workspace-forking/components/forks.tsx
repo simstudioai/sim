@@ -87,7 +87,7 @@ interface ForkSyncDetailViewProps {
   otherWorkspaceId: string
   otherWorkspaceName: string
   onBack: () => void
-  /** Header chips rendered left of Sync (Rollback / Open workspace) — the caller owns those. */
+  /** Header chips rendered left of Sync (e.g. Open workspace) — the caller owns those. */
   actions: SettingsAction[]
 }
 
@@ -129,8 +129,8 @@ function ForkSyncDetailView({
   const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
 
   // Sync is the edge's primary action, so it's the rightmost/black chip; the caller's
-  // Rollback/Open workspace chips sit left of it. Dirty mapping edits swap the whole
-  // cluster for Discard/Save until they're saved or discarded.
+  // Open workspace chip sits left of it. Dirty mapping edits swap the whole cluster
+  // for Discard/Save until they're saved or discarded.
   const panelActions: SettingsAction[] = controller.dirty
     ? saveDiscardActions({
         dirty: controller.dirty,
@@ -263,8 +263,9 @@ function ForkActivityDetailView({
  * "Parent" section, above the "Forks" list of child forks. The parent row's `...` menu
  * has Edit mappings (the child owns its edge's re-picks), Open workspace, and
  * Disconnect; fork rows offer Open workspace and Disconnect only. Activity is
- * workspace-scoped and lives behind the header's "See activity" action; sync/rollback
- * live on the parent's sync detail page.
+ * workspace-scoped and lives behind the header's "See activity" action (including
+ * Rollback when the last sync into this workspace is undoable). Sync lives on the
+ * parent's sync detail page.
  * Forking and sync rewrite workflow state and deployments en masse, so the page is
  * workspace-admin only and gated on the workspace's fork entitlement - every fork route
  * re-checks both; the server remains the boundary.
@@ -374,21 +375,10 @@ export function Forks() {
   // deep link falls back to the list). Fork rows offer Open workspace / Disconnect only.
   const showParentDetail = Boolean(selectedForkId && parent && parent.id === selectedForkId)
 
-  // Rollback (destructive) and Open workspace sit left of the detail view's primary Sync
-  // chip, which the sync page owns (it carries the gating).
+  // Open workspace sits left of the detail view's primary Sync chip, which the sync
+  // page owns (it carries the gating). Rollback lives on the Activity view only.
   const parentHeaderActions: SettingsAction[] = parent
     ? [
-        ...(undoableRun
-          ? [
-              {
-                text: 'Rollback',
-                variant: 'destructive' as const,
-                onSelect: () => setConfirmRollbackOpen(true),
-                disabled: rollback.isPending,
-                tooltip: `The last sync into this workspace (from ${undoableRun.otherName}) can be undone — it restores each workflow's prior deployed version.`,
-              },
-            ]
-          : []),
         {
           text: 'Open workspace',
           onSelect: () => openForkWorkspace(parent.id),
