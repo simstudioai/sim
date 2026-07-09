@@ -369,7 +369,8 @@ describe('collectForkDependentReconfigs', () => {
         blockName: 'Block',
         subBlockKey: 'tools[0].folder',
         selectorKey: 'gmail.labels',
-        title: 'Gmail 1: Label',
+        title: 'Label',
+        toolName: 'Gmail 1',
         currentValue: 'INBOX',
         required: true,
         consumesContextKeys: [],
@@ -494,7 +495,11 @@ describe('collectForkDependentReconfigs', () => {
     ])
     const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     expect(result).toHaveLength(1)
-    expect(result[0]).toMatchObject({ subBlockKey: 'tools[0].folder', title: 'Gmail 1: Label' })
+    expect(result[0]).toMatchObject({
+      subBlockKey: 'tools[0].folder',
+      title: 'Label',
+      toolName: 'Gmail 1',
+    })
   })
 
   it('evaluates a nested tool selector condition against the tool-level operation', () => {

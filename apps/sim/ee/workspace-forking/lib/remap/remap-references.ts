@@ -1098,7 +1098,10 @@ export interface NeedsConfigurationField {
   blockId: string
   blockName: string
   subBlockKey: string
+  /** Plain field title (e.g. `Label`), never a `Tool: Field` composite. */
   title: string
+  /** Nested `tool-input` tool display name when the field lives under a tool. */
+  toolName?: string
   required: boolean
 }
 
@@ -1169,7 +1172,8 @@ function collectClearedToolParamDependents(
         blockId,
         blockName,
         subBlockKey: `${toolInputKey}[${index}].${cfg.id}`,
-        title: `${toolLabel}: ${cfg.title ?? cfg.id}`,
+        title: cfg.title ?? cfg.id,
+        toolName: toolLabel,
         required: isSubBlockRequired(cfg.required, mergedValues),
       })
     }

@@ -51,12 +51,12 @@ export function SettingsSidebar({
 
   const queryClient = useQueryClient()
 
-  const requestNavigation = useSettingsDirtyStore((s) => s.requestNavigation)
-  const confirmNavigation = useSettingsDirtyStore((s) => s.confirmNavigation)
-  const cancelNavigation = useSettingsDirtyStore((s) => s.cancelNavigation)
-  const isDirty = useSettingsDirtyStore((s) => s.isDirty)
+  const requestLeave = useSettingsDirtyStore((s) => s.requestLeave)
+  const confirmLeave = useSettingsDirtyStore((s) => s.confirmLeave)
+  const cancelLeave = useSettingsDirtyStore((s) => s.cancelLeave)
+  const pendingLeave = useSettingsDirtyStore((s) => s.pendingLeave)
+  const showDiscardDialog = pendingLeave !== null
 
-  const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
 
   const { data: session } = useSession()
@@ -217,27 +217,18 @@ export function SettingsSidebar({
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
 
   const handleBack = useCallback(() => {
-    if (isDirty) {
-      setShowDiscardDialog(true)
-      return
-    }
-    router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
-  }, [router, popSettingsReturnUrl, workspaceId, isDirty])
+    requestLeave(() => {
+      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
+    })
+  }, [requestLeave, router, popSettingsReturnUrl, workspaceId])
 
   const handleConfirmDiscard = useCallback(() => {
-    const section = confirmNavigation()
-    setShowDiscardDialog(false)
-    if (section) {
-      router.replace(getSettingsHref({ section }), { scroll: false })
-    } else {
-      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
-    }
-  }, [confirmNavigation, router, getSettingsHref, popSettingsReturnUrl, workspaceId])
+    confirmLeave()
+  }, [confirmLeave])
 
   const handleCancelDiscard = useCallback(() => {
-    cancelNavigation()
-    setShowDiscardDialog(false)
-  }, [cancelNavigation])
+    cancelLeave()
+  }, [cancelLeave])
 
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -350,11 +341,9 @@ export function SettingsSidebar({
                         onClick={() => {
                           const section = item.id as SettingsSection
                           if (section === activeSection) return
-                          if (!requestNavigation(section)) {
-                            setShowDiscardDialog(true)
-                            return
-                          }
-                          router.replace(getSettingsHref({ section }), { scroll: false })
+                          requestLeave(() => {
+                            router.replace(getSettingsHref({ section }), { scroll: false })
+                          })
                         }}
                       >
                         {content}

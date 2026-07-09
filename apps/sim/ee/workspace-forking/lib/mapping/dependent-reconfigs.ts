@@ -74,6 +74,8 @@ interface EmitAnchoredParams {
   /** Map a dependent's config id to its wire `subBlockKey` (identity, or nested `tools[i].id`). */
   makeSubBlockKey: (dependentId: string) => string
   makeTitle: (dependent: SubBlockConfig) => string
+  /** Nested `tool-input` tool display name; omitted for top-level block subblocks. */
+  toolName?: string
   /**
    * Emit `providesContextKey`/`consumesContextKeys` so the modal can chain in-block
    * re-picks. Top-level chains; nested tool params don't (a tool's chain would need
@@ -102,6 +104,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     resolveTargetBlockId,
     makeSubBlockKey,
     makeTitle,
+    toolName,
     chaining,
     out,
   } = params
@@ -202,6 +205,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           subBlockKey: makeSubBlockKey(dependent.id),
           selectorKey: dependent.selectorKey,
           title: makeTitle(dependent),
+          ...(toolName ? { toolName } : {}),
           // Source value, so the always-on listing pre-fills a stable parent's selector.
           // The diff route overlays the stored/target-draft value onto `currentValue`;
           // `sourceValue` stays the raw source reference (the copy-resolved parent's seed).
@@ -281,8 +285,8 @@ export function collectForkDependentReconfigs(
       })
 
       // Nested `tool-input` tools: each selected tool's own credential-anchored selectors,
-      // keyed `toolInput[index].paramId` (matching the needs-config key) and titled with the
-      // tool so the modal re-picks them under the same block card.
+      // keyed `toolInput[index].paramId` (matching the needs-config key). Field `title` stays
+      // plain; `toolName` carries the tool so the UI can show block → tool → field tiers.
       for (const cfg of config.subBlocks) {
         if (cfg.type !== 'tool-input' || !cfg.id) continue
         const { array: tools } = coerceObjectArray(subBlocks[cfg.id]?.value)
@@ -318,7 +322,8 @@ export function collectForkDependentReconfigs(
             canonicalModes: scopeCanonicalModesForTool(block.data?.canonicalModes, tool.type),
             resolveTargetBlockId: resolveBlockId,
             makeSubBlockKey: (id) => `${toolInputKey}[${toolIndex}].${id}`,
-            makeTitle: (dependent) => `${toolLabel}: ${dependent.title ?? dependent.id ?? ''}`,
+            makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
+            toolName: toolLabel,
             chaining: false,
             out,
           })
