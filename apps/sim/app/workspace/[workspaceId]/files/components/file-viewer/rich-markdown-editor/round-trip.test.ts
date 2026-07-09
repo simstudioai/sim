@@ -158,6 +158,23 @@ describe('editor markdown round-trip', () => {
     'bold code': '**`x`**',
     'heading strike code': '# ~~`x`~~',
     'table with pipe': '| x \\| y | 2 |\n| --- | --- |\n| a | b |',
+    'bold italic nested': '**bold _italic_ word**',
+    'strike bold nested': '~~**struck bold**~~',
+    'bold code inline': '**bold `code` here**',
+    'triple nested marks': '*i **b ~~s~~** i*',
+    'all marks in heading': '# **b** ~~s~~ *i* `c`',
+    'marks in bullet': '- **a** ~~b~~ `c`',
+    'marks in quote': '> **a** ~~b~~ *c*',
+    'nested list marks': '- **a**\n  - ~~b~~\n    - *c*',
+    'bold link': '[**bold link**](https://x.com)',
+    'link inside bold': '**see [x](https://x.com)**',
+    'table with marks': '| **b** | ~~s~~ | `c` |\n| --- | --- | --- |\n| *i* | a | b |',
+    'bold across code boundary': '**a** `b` **c**',
+    highlight: 'a ==marked== word',
+    'highlight in heading': '# a ==mark== b',
+    'highlight nested in bold': '**bold ==mark== here**',
+    'highlight in list': '- ==a== item',
+    'highlight with interior equals': 'x ==a=b== y',
   }
 
   for (const [name, input] of Object.entries(cases)) {
@@ -433,4 +450,54 @@ describe('consecutive empty paragraphs', () => {
       expect(idempotent).toBe(true)
     }
   )
+})
+
+describe('highlight ==mark==', () => {
+  function markPresent(src: string): boolean {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent(src, { contentType: 'markdown' })
+    const has = JSON.stringify(editor.getJSON()).includes('"type":"highlight"')
+    editor.destroy()
+    editor = null
+    return has
+  }
+
+  it('parses ==text== into a highlight mark, including mid-line and in headings', () => {
+    expect(markPresent('a ==marked== word')).toBe(true)
+    expect(markPresent('# a ==mark== b')).toBe(true)
+    expect(markPresent('**bold ==mark== here**')).toBe(true)
+  })
+
+  it('parses a highlight body containing a lone `=` (so ==a=b== round-trips)', () => {
+    expect(markPresent('x ==a=b== y')).toBe(true)
+  })
+
+  it('strips a highlight whose text contains `==` (unrepresentable), keeping the text', () => {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent('x a==b y', { contentType: 'markdown' })
+    let from = -1
+    let to = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText) {
+        const i = node.text?.indexOf('a==b') ?? -1
+        if (i >= 0) {
+          from = pos + i
+          to = from + 4
+        }
+      }
+    })
+    editor.commands.setTextSelection({ from, to })
+    editor.commands.toggleMark('highlight')
+    const md = postProcessSerializedMarkdown(editor.getMarkdown())
+    expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"highlight"')
+    expect(md).not.toContain('==a==b==')
+    expect(editor.getText().trim()).toBe('x a==b y')
+    editor.destroy()
+    editor = null
+  })
+
+  it('leaves comparison / spaced == operators as literal text', () => {
+    expect(markPresent('if x == y then z')).toBe(false)
+    expect(markPresent('a == b == c')).toBe(false)
+  })
 })
