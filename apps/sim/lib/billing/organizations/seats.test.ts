@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { auditMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSyncSubscriptionUsageLimits, enqueueMock, setMock, queryQueue, mockFeatureFlags } =
@@ -58,6 +59,8 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   },
 }))
 
+vi.mock('@sim/audit', () => auditMock)
+
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 
 const teamSub = {
@@ -98,6 +101,27 @@ describe('reconcileOrganizationSeats', () => {
     })
     expect(mockSyncSubscriptionUsageLimits).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'sub-1', referenceId: 'org-1', seats: 2 })
+    )
+  })
+
+  it('still records the seat audit when the post-commit usage-limit sync fails', async () => {
+    queryQueue.value = [[teamSub], [{ value: 2 }]]
+    mockSyncSubscriptionUsageLimits.mockRejectedValueOnce(new Error('sync unavailable'))
+
+    const result = await reconcileOrganizationSeats({
+      organizationId: 'org-1',
+      reason: 'member-accepted-invite',
+      actorId: 'user-1',
+    })
+
+    expect(result.changed).toBe(true)
+    expect(setMock).toHaveBeenCalledWith({ seats: 2 })
+    expect(auditMock.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'user-1',
+        action: auditMock.AuditAction.ORG_SEAT_PROVISIONED,
+        resourceId: 'org-1',
+      })
     )
   })
 

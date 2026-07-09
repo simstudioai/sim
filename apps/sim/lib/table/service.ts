@@ -7,6 +7,7 @@
  * Note: API routes have their own implementations for HTTP-specific concerns.
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -487,6 +488,31 @@ export async function addTableColumnsWithTx(
 }
 
 /**
+ * Records the "columns added" audit for a table. The column add shares a
+ * transaction with the import's row inserts, so the caller MUST emit this only
+ * AFTER that transaction commits — auditing inside the tx would log a false
+ * success if a later row batch rolls it back. Skipped when no actor resolves.
+ */
+export function auditTableColumnsAdded(
+  table: TableDefinition,
+  columnNames: string[],
+  actingUserId?: string
+): void {
+  const actorId = actingUserId ?? table.createdBy
+  if (!actorId || columnNames.length === 0) return
+  recordAudit({
+    workspaceId: table.workspaceId ?? null,
+    actorId,
+    action: AuditAction.TABLE_UPDATED,
+    resourceType: AuditResourceType.TABLE,
+    resourceId: table.id,
+    resourceName: table.name,
+    description: `Added ${columnNames.length} column(s) to table "${table.name}"`,
+    metadata: { op: 'add_columns', columns: columnNames },
+  })
+}
+
+/**
  * Renames a table.
  *
  * @param tableId - Table ID to rename
@@ -498,7 +524,8 @@ export async function addTableColumnsWithTx(
 export async function renameTable(
   tableId: string,
   newName: string,
-  requestId: string
+  requestId: string,
+  actingUserId?: string
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
@@ -511,10 +538,29 @@ export async function renameTable(
       .update(userTableDefinitions)
       .set({ name: newName, updatedAt: now })
       .where(eq(userTableDefinitions.id, tableId))
-      .returning({ id: userTableDefinitions.id })
+      .returning({
+        id: userTableDefinitions.id,
+        createdBy: userTableDefinitions.createdBy,
+        workspaceId: userTableDefinitions.workspaceId,
+      })
 
     if (result.length === 0) {
       throw new Error(`Table ${tableId} not found`)
+    }
+
+    const { createdBy, workspaceId } = result[0]
+    const renameActorId = actingUserId ?? createdBy
+    if (renameActorId) {
+      recordAudit({
+        workspaceId: workspaceId ?? null,
+        actorId: renameActorId,
+        action: AuditAction.TABLE_UPDATED,
+        resourceType: AuditResourceType.TABLE,
+        resourceId: tableId,
+        resourceName: newName,
+        description: `Renamed table to "${newName}"`,
+        metadata: { op: 'rename' },
+      })
     }
 
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
@@ -598,11 +644,36 @@ export async function updateTableMetadata(
  * @param tableId - Table ID to delete
  * @param requestId - Request ID for logging
  */
-export async function deleteTable(tableId: string, requestId: string): Promise<void> {
-  await db
+export async function deleteTable(
+  tableId: string,
+  requestId: string,
+  actingUserId?: string
+): Promise<void> {
+  const now = new Date()
+  const result = await db
     .update(userTableDefinitions)
-    .set({ archivedAt: new Date(), updatedAt: new Date() })
-    .where(eq(userTableDefinitions.id, tableId))
+    .set({ archivedAt: now, updatedAt: now })
+    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt)))
+    .returning({
+      createdBy: userTableDefinitions.createdBy,
+      workspaceId: userTableDefinitions.workspaceId,
+      name: userTableDefinitions.name,
+    })
+
+  const deleted = result[0]
+  // Audit only genuine user deletes — rollback callers omit `actingUserId`. The
+  // caller emits the `table_deleted` PostHog event, so it is not duplicated here.
+  if (deleted && actingUserId) {
+    recordAudit({
+      workspaceId: deleted.workspaceId ?? null,
+      actorId: actingUserId,
+      action: AuditAction.TABLE_DELETED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: deleted.name,
+      description: `Archived table "${deleted.name}"`,
+    })
+  }
 
   logger.info(`[${requestId}] Archived table ${tableId}`)
 }

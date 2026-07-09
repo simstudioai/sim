@@ -207,6 +207,7 @@ describe('invoice billing recovery', () => {
         },
       ],
     })
+    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] }) // resolveBillingActorId owner lookup (payment_failed instrumentation)
     queueSelectResponse({
       whereResult: [{ userId: 'owner-1', role: 'owner' }],
     })

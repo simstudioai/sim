@@ -331,7 +331,13 @@ export const forkDependentReconfigSchema = z.object({
   blockName: z.string(),
   subBlockKey: z.string(),
   selectorKey: z.string(),
+  /** Plain field title (e.g. `Label`), never a `Tool: Field` composite. */
   title: z.string(),
+  /**
+   * Display name of the nested `tool-input` tool this field belongs to (e.g. `Gmail` /
+   * `Gmail 1`). Absent for top-level block subblocks.
+   */
+  toolName: z.string().optional(),
   /**
    * The field's stored value (from the persisted mapping), so the always-on reconfigure listing
    * pre-fills the selector with what the user last set. Empty string when unset; for an edge

@@ -30,6 +30,9 @@ interface ResourceKindRowProps {
  * the user can copy a specific subset. Shared by the fork modal's "Copy resources" and the sync
  * modal's "Copy resources" so the two surfaces stay identical. Files nest in a folder tree
  * instead - use {@link FileKindRow}.
+ *
+ * Expanded body uses the settings MCP expand pattern (`border-t` + `--surface-2`) so items
+ * read as contained in the kind rather than indented siblings of other kinds.
  */
 export function ResourceKindRow({
   label,
@@ -47,7 +50,7 @@ export function ResourceKindRow({
   const headerState = selectedCount === 0 ? false : selectedCount === total ? true : 'indeterminate'
 
   return (
-    <div className='flex flex-col gap-1'>
+    <div className='flex flex-col'>
       <div className='flex items-center gap-2 text-[var(--text-body)] text-sm'>
         <Checkbox
           size='sm'
@@ -79,32 +82,34 @@ export function ResourceKindRow({
       </div>
 
       {expanded ? (
-        <div className='ml-6 flex max-h-44 flex-col gap-0.5 overflow-y-auto'>
-          {items.map((item) => {
-            const isChecked = selected.has(item.id)
-            const itemId = `${fieldId}-${item.id}`
-            return (
-              <label
-                key={item.id}
-                htmlFor={itemId}
-                className={cn(
-                  'flex min-w-0 items-center gap-2 rounded-md py-0.5 text-[var(--text-body)] text-sm',
-                  disabled
-                    ? 'cursor-not-allowed opacity-60'
-                    : 'cursor-pointer hover:text-[var(--text-primary)]'
-                )}
-              >
-                <Checkbox
-                  id={itemId}
-                  size='sm'
-                  checked={isChecked}
-                  onCheckedChange={(checked) => onToggleItem(item.id, checked === true)}
-                  disabled={disabled}
-                />
-                <span className='truncate'>{item.label}</span>
-              </label>
-            )
-          })}
+        <div className='mt-1 max-h-44 overflow-y-auto border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
+          <div className='flex flex-col gap-0.5'>
+            {items.map((item) => {
+              const isChecked = selected.has(item.id)
+              const itemId = `${fieldId}-${item.id}`
+              return (
+                <label
+                  key={item.id}
+                  htmlFor={itemId}
+                  className={cn(
+                    'flex min-w-0 items-center gap-2 rounded-md py-0.5 text-[var(--text-body)] text-sm',
+                    disabled
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'cursor-pointer hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  <Checkbox
+                    id={itemId}
+                    size='sm'
+                    checked={isChecked}
+                    onCheckedChange={(checked) => onToggleItem(item.id, checked === true)}
+                    disabled={disabled}
+                  />
+                  <span className='truncate'>{item.label}</span>
+                </label>
+              )
+            })}
+          </div>
         </div>
       ) : null}
     </div>
@@ -145,7 +150,7 @@ export function FileKindRow({
   const { folders, rootFiles } = useMemo(() => groupForkFilesIntoFolders(files), [files])
 
   return (
-    <div className='flex flex-col gap-1'>
+    <div className='flex flex-col'>
       <div className='flex items-center gap-2 text-[var(--text-body)] text-sm'>
         <Checkbox
           size='sm'
@@ -172,7 +177,7 @@ export function FileKindRow({
       </div>
 
       {expanded ? (
-        <div className='ml-6'>
+        <div className='mt-1 border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
           <ForkFileTree
             folders={folders}
             rootFiles={rootFiles}

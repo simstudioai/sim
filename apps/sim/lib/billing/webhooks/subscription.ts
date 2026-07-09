@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -17,6 +18,28 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
+
+/**
+ * Resolve a real `user.id` to use as the audit actor for a subscription
+ * event. Org-scoped subscriptions resolve to the org owner; personally
+ * scoped subscriptions already reference a user.
+ */
+async function resolveSubscriptionActorId(referenceId: string): Promise<string> {
+  try {
+    const rows = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, referenceId), eq(member.role, 'owner')))
+      .limit(1)
+    return rows[0]?.userId ?? referenceId
+  } catch (error) {
+    logger.warn('Failed to resolve subscription actor; falling back to reference id', {
+      referenceId,
+      error,
+    })
+    return referenceId
+  }
+}
 
 /**
  * Restore personal Pro subscriptions for every member of an organization
@@ -199,66 +222,104 @@ export async function handleOrganizationPlanDowngrade(
 /**
  * Handle new subscription creation - reset usage if transitioning from free to paid
  */
-export async function handleSubscriptionCreated(subscriptionData: {
-  id: string
-  referenceId: string
-  plan: string | null
-  status: string
-  periodStart?: Date | null
-  periodEnd?: Date | null
-}) {
+export async function handleSubscriptionCreated(
+  subscriptionData: {
+    id: string
+    referenceId: string
+    plan: string | null
+    status: string
+    periodStart?: Date | null
+    periodEnd?: Date | null
+  },
+  stripeEventId?: string
+) {
+  const idempotencyIdentifier = stripeEventId ?? `sub-created:${subscriptionData.id}`
+
   try {
-    const otherActiveSubscriptions = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, subscriptionData.referenceId),
-          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
-          ne(subscription.id, subscriptionData.id) // Exclude current subscription
-        )
-      )
+    await stripeWebhookIdempotency.executeWithIdempotency(
+      'subscription-created',
+      idempotencyIdentifier,
+      async () => {
+        const otherActiveSubscriptions = await db
+          .select()
+          .from(subscription)
+          .where(
+            and(
+              eq(subscription.referenceId, subscriptionData.referenceId),
+              inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
+              ne(subscription.id, subscriptionData.id) // Exclude current subscription
+            )
+          )
 
-    const wasFreePreviously = otherActiveSubscriptions.length === 0
-    const isPaidPlan = isPaid(subscriptionData.plan)
+        const wasFreePreviously = otherActiveSubscriptions.length === 0
+        const isPaidPlan = isPaid(subscriptionData.plan)
 
-    if (wasFreePreviously && isPaidPlan) {
-      logger.info('Detected free -> paid transition, resetting usage', {
-        subscriptionId: subscriptionData.id,
-        referenceId: subscriptionData.referenceId,
-        plan: subscriptionData.plan,
-      })
+        if (wasFreePreviously && isPaidPlan) {
+          logger.info('Detected free -> paid transition, resetting usage', {
+            subscriptionId: subscriptionData.id,
+            referenceId: subscriptionData.referenceId,
+            plan: subscriptionData.plan,
+          })
 
-      await resetUsageForSubscription({
-        plan: subscriptionData.plan,
-        referenceId: subscriptionData.referenceId,
-        periodStart: subscriptionData.periodStart ?? null,
-        periodEnd: subscriptionData.periodEnd ?? null,
-      })
+          await resetUsageForSubscription({
+            plan: subscriptionData.plan,
+            referenceId: subscriptionData.referenceId,
+            periodStart: subscriptionData.periodStart ?? null,
+            periodEnd: subscriptionData.periodEnd ?? null,
+          })
 
-      logger.info('Successfully reset usage for free -> paid transition', {
-        subscriptionId: subscriptionData.id,
-        referenceId: subscriptionData.referenceId,
-        plan: subscriptionData.plan,
-      })
-    } else {
-      logger.info('No usage reset needed', {
-        subscriptionId: subscriptionData.id,
-        referenceId: subscriptionData.referenceId,
-        plan: subscriptionData.plan,
-        wasFreePreviously,
-        isPaidPlan,
-        otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
-      })
-    }
+          logger.info('Successfully reset usage for free -> paid transition', {
+            subscriptionId: subscriptionData.id,
+            referenceId: subscriptionData.referenceId,
+            plan: subscriptionData.plan,
+          })
+        } else {
+          logger.info('No usage reset needed', {
+            subscriptionId: subscriptionData.id,
+            referenceId: subscriptionData.referenceId,
+            plan: subscriptionData.plan,
+            wasFreePreviously,
+            isPaidPlan,
+            otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
+          })
+        }
 
-    if (wasFreePreviously && isPaidPlan) {
-      captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
-        plan: subscriptionData.plan ?? 'unknown',
-        status: subscriptionData.status,
-        reference_id: subscriptionData.referenceId,
-      })
-    }
+        if (wasFreePreviously && isPaidPlan) {
+          // Best-effort instrumentation; a transient DB error here must never abort
+          // the (already-committed) free -> paid usage reset above, so it's guarded.
+          try {
+            const actorId = await resolveSubscriptionActorId(subscriptionData.referenceId)
+            const isOrgScoped = await isSubscriptionOrgScoped({
+              referenceId: subscriptionData.referenceId,
+            })
+            recordAudit({
+              actorId,
+              action: AuditAction.SUBSCRIPTION_CREATED,
+              resourceType: AuditResourceType.SUBSCRIPTION,
+              resourceId: subscriptionData.id,
+              description: `Subscription created on ${subscriptionData.plan ?? 'unknown'} plan for ${subscriptionData.referenceId}`,
+              metadata: {
+                plan: subscriptionData.plan,
+                status: subscriptionData.status,
+                referenceId: subscriptionData.referenceId,
+                ...(isOrgScoped ? { organizationId: subscriptionData.referenceId } : {}),
+              },
+            })
+            captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
+              plan: subscriptionData.plan ?? 'unknown',
+              status: subscriptionData.status,
+              reference_id: subscriptionData.referenceId,
+            })
+          } catch (instrumentationError) {
+            logger.warn('Failed to record subscription-created instrumentation', {
+              subscriptionId: subscriptionData.id,
+              referenceId: subscriptionData.referenceId,
+              error: instrumentationError,
+            })
+          }
+        }
+      }
+    )
   } catch (error) {
     logger.error('Failed to handle subscription creation usage reset', {
       subscriptionId: subscriptionData.id,
@@ -329,6 +390,20 @@ export async function handleSubscriptionDeleted(
             ...dormantResult,
           })
 
+          const enterpriseActorId = await resolveSubscriptionActorId(subscription.referenceId)
+          recordAudit({
+            actorId: enterpriseActorId,
+            action: AuditAction.SUBSCRIPTION_CANCELLED,
+            resourceType: AuditResourceType.SUBSCRIPTION,
+            resourceId: subscription.id,
+            description: `Enterprise subscription cancelled for ${subscription.referenceId}`,
+            metadata: {
+              plan: subscription.plan,
+              referenceId: subscription.referenceId,
+              organizationId: subscription.referenceId,
+              kind: 'enterprise',
+            },
+          })
           captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
             plan: subscription.plan ?? 'unknown',
             reference_id: subscription.referenceId,
@@ -428,7 +503,8 @@ export async function handleSubscriptionDeleted(
         let membersSynced = 0
         let workspacesDetached = 0
 
-        if (await isSubscriptionOrgScoped(subscription)) {
+        const isOrgScoped = await isSubscriptionOrgScoped(subscription)
+        if (isOrgScoped) {
           const dormantResult = await transitionOrganizationToDormantState(
             subscription.referenceId,
             subscription.id
@@ -451,6 +527,20 @@ export async function handleSubscriptionDeleted(
           workspacesDetached,
         })
 
+        const cancelActorId = await resolveSubscriptionActorId(subscription.referenceId)
+        recordAudit({
+          actorId: cancelActorId,
+          action: AuditAction.SUBSCRIPTION_CANCELLED,
+          resourceType: AuditResourceType.SUBSCRIPTION,
+          resourceId: subscription.id,
+          description: `Subscription cancelled on ${subscription.plan ?? 'unknown'} plan for ${subscription.referenceId}`,
+          metadata: {
+            plan: subscription.plan,
+            referenceId: subscription.referenceId,
+            totalOverage,
+            ...(isOrgScoped ? { organizationId: subscription.referenceId } : {}),
+          },
+        })
         captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
           plan: subscription.plan ?? 'unknown',
           reference_id: subscription.referenceId,

@@ -179,7 +179,7 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           additions.push({ name: columnName, type: inferColumnType(sample.map((r) => r[header])) })
           updatedMapping[header] = columnName
         }
-        const updated = await addImportColumns(table, additions, requestId)
+        const updated = await addImportColumns(table, additions, requestId, userId)
         targetSchema = updated.schema
         effectiveMapping = updatedMapping
       }

@@ -374,6 +374,25 @@ export async function acceptInvitation(
       } else {
         membershipAlreadyExists = membershipResult.alreadyMember
 
+        if (!membershipResult.alreadyMember) {
+          const memberRole = inv.role || 'member'
+          recordAudit({
+            workspaceId: null,
+            actorId: input.userId,
+            action: AuditAction.ORG_MEMBER_ADDED,
+            resourceType: AuditResourceType.ORGANIZATION,
+            resourceId: targetOrganizationId,
+            description: `Joined organization as ${memberRole} via invite acceptance`,
+            metadata: { invitationId: inv.id, memberRole },
+          })
+          captureServerEvent(
+            input.userId,
+            'org_member_added',
+            { organization_id: targetOrganizationId, member_role: memberRole },
+            { groups: { organization: targetOrganizationId } }
+          )
+        }
+
         // Grow the paid seat count to match the new member and push the charge
         // to Stripe asynchronously (Team plans only; Enterprise seats are
         // fixed). Best-effort: the member is already in, and a transient
@@ -381,35 +400,11 @@ export async function acceptInvitation(
         // removal path's seat accounting.
         if (billingManagesSeats && !membershipResult.alreadyMember) {
           try {
-            const seatResult = await reconcileOrganizationSeats({
+            await reconcileOrganizationSeats({
               organizationId: targetOrganizationId,
               reason: 'member-accepted-invite',
+              actorId: input.userId,
             })
-
-            if (seatResult.changed) {
-              const previousSeats = seatResult.previousSeats ?? 0
-              const seats = seatResult.seats ?? 0
-              recordAudit({
-                workspaceId: null,
-                actorId: input.userId,
-                action: AuditAction.ORG_SEAT_PROVISIONED,
-                resourceType: AuditResourceType.ORGANIZATION,
-                resourceId: targetOrganizationId,
-                description: `Provisioned ${seats} seat(s) after invite acceptance`,
-                metadata: {
-                  invitationId: inv.id,
-                  previousSeats,
-                  seats,
-                  reason: 'member-accepted-invite',
-                },
-              })
-              captureServerEvent(input.userId, 'seats_provisioned', {
-                organization_id: targetOrganizationId,
-                previous_seats: previousSeats,
-                seats,
-                reason: 'member-accepted-invite',
-              })
-            }
           } catch (seatError) {
             logger.error('Failed to reconcile organization seats after invite acceptance', {
               userId: input.userId,

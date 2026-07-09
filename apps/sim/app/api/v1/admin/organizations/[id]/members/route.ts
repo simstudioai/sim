@@ -28,6 +28,7 @@
  * }>
  */
 
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -204,6 +205,17 @@ export const POST = withRouteHandler(
               }
             )
 
+            recordAudit({
+              workspaceId: null,
+              actorId: 'admin-api',
+              action: AuditAction.ORG_MEMBER_ROLE_CHANGED,
+              resourceType: AuditResourceType.ORGANIZATION,
+              resourceId: organizationId,
+              description: `Admin API changed organization member role to ${role}`,
+              metadata: { targetUserId: userId, previousRole: existingMember.role, role },
+              request,
+            })
+
             return singleResponse({
               id: existingMember.id,
               userId,
@@ -266,6 +278,17 @@ export const POST = withRouteHandler(
         role,
         memberId: result.memberId,
         billingActions: result.billingActions,
+      })
+
+      recordAudit({
+        workspaceId: null,
+        actorId: 'admin-api',
+        action: AuditAction.ORG_MEMBER_ADDED,
+        resourceType: AuditResourceType.ORGANIZATION,
+        resourceId: organizationId,
+        description: `Admin API added member to organization as ${role}`,
+        metadata: { targetUserId: userId, role, memberId: result.memberId },
+        request,
       })
 
       return singleResponse({
