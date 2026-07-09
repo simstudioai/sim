@@ -157,6 +157,23 @@ describe('slackHandler formatInput - interactivity (block_actions)', () => {
   })
 })
 
+describe('slackHandler formatInput - block_suggestion', () => {
+  it('skips execution instead of triggering the workflow', async () => {
+    const { input, skip } = await slackHandler.formatInput!(
+      ctx({
+        type: 'block_suggestion',
+        action_id: 'external_select',
+        block_id: 'b1',
+        value: 'sea',
+        team: { id: 'T1' },
+        user: { id: 'U1' },
+      })
+    )
+    expect(input).toBeNull()
+    expect(skip?.message).toBeTruthy()
+  })
+})
+
 describe('slackHandler formatInput - slash commands', () => {
   it('maps flat slash-command form fields', async () => {
     const { input } = await slackHandler.formatInput!(

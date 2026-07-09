@@ -17,7 +17,8 @@ import type {
 
 const logger = createLogger('WebhookProvider:Slack')
 
-const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
+/** 50 MB */
+const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024
 const SLACK_MAX_FILES = 15
 
 const SLACK_REACTION_EVENTS = new Set(['reaction_added', 'reaction_removed'])
@@ -27,6 +28,11 @@ const SLACK_REACTION_EVENTS = new Set(['reaction_added', 'reaction_removed'])
  * `payload` field (button clicks, selects, shortcuts, modal submits). These have
  * no Events-API `event` envelope, so they need their own mapping.
  * See https://api.slack.com/interactivity/handling#payloads
+ *
+ * `block_suggestion` (external select option loading) is deliberately excluded:
+ * Slack requires a synchronous JSON `options` response within 3 seconds, which
+ * this trigger's fire-and-forget webhook execution model cannot provide — it is
+ * skipped explicitly in `formatInput` instead of being routed here.
  */
 const SLACK_INTERACTIVE_TYPES = new Set([
   'block_actions',
@@ -35,7 +41,6 @@ const SLACK_INTERACTIVE_TYPES = new Set([
   'shortcut',
   'view_submission',
   'view_closed',
-  'block_suggestion',
 ])
 
 interface SlackDownloadedFile {
@@ -545,6 +550,16 @@ export const slackHandler: WebhookProviderHandler = {
 
     if (typeof b?.command === 'string' && b.command.startsWith('/')) {
       return { input: { event: formatSlackSlashCommand(b) } }
+    }
+
+    if (b?.type === 'block_suggestion') {
+      return {
+        input: null,
+        skip: {
+          message:
+            'Slack block_suggestion payloads require a synchronous options response and cannot be served by an async workflow trigger',
+        },
+      }
     }
 
     if (
