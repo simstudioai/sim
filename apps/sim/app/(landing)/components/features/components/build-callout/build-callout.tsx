@@ -1,5 +1,5 @@
+import { ThinkingLoader } from '@/components/ui'
 import { WorkflowShowcase } from '@/app/(landing)/components/features/components/build-callout/components/workflow-showcase'
-import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
 
 /**
  * The Build beat's callout - the finished workflow canvas centered on the
