@@ -12,12 +12,13 @@ When the user runs `/ship`:
      - If the working tree has uncommitted changes, stash them first — `git stash push -u -m ship-sync-fix` — so the rebase below isn't blocked by dirty state. Restore with `git stash pop` once the branch is fixed.
      - Try `git rebase origin/staging` first.
      - **A rebase finishing without conflicts does NOT by itself mean the branch is clean** — it can replay stray commits onto the new base with no conflict at all. After the rebase (clean or not), re-run `git log --oneline origin/staging..HEAD` and re-check the commit list against what you recognize.
-     - If the rebase conflicted on commits you don't recognize, OR it finished cleanly but the re-checked log still shows commits you don't recognize, abandon that result (`git rebase --abort` if still mid-rebase) and rebuild instead:
-       1. `git checkout <original-branch>` — harmless no-op if you're already there, but required if an earlier interrupted attempt left you sitting on `ship-sync-tmp`: git refuses to delete the branch you're currently on, so deleting it before switching away silently fails and blocks the rest of the rebuild.
-       2. Delete any leftover from an earlier attempt: `git show-ref --verify --quiet refs/heads/ship-sync-tmp && git branch -D ship-sync-tmp` (only deletes if it exists — a bare `git branch -D` on a first attempt with no leftover would fail and stop you before the rebuild ever starts).
-       3. `git checkout -b ship-sync-tmp origin/staging`.
-       4. `git cherry-pick <sha(s)>` **in oldest-first order** — `git log --oneline origin/staging..HEAD` lists newest-first by default, so read the SHAs bottom-to-top, or just use `git log --oneline --reverse origin/staging..HEAD` to get them oldest-first directly before cherry-picking. Cherry-picking more than one session commit out of order can fail or produce the wrong history.
-       5. Resolve conflicts, then `git branch -f <original-branch> HEAD`, `git checkout <original-branch>`, and delete `ship-sync-tmp`.
+     - If the rebase conflicted on commits you don't recognize, OR it finished cleanly but the re-checked log still shows commits you don't recognize, abandon that result (`git rebase --abort` if still mid-rebase) and rebuild instead, in this exact order:
+       1. **While still on `<original-branch>`**, capture the commits to preserve: `git log --oneline --reverse origin/staging..<original-branch>` — explicitly against the branch name, not bare `HEAD`. Do this *before* touching any temp branch: once you check out `ship-sync-tmp` at `origin/staging` in step 4, `HEAD` no longer contains these commits, and re-running the same lookup at that point returns nothing.
+       2. `git checkout <original-branch>` — harmless no-op if you're already there, but required if an earlier interrupted attempt left you sitting on `ship-sync-tmp`: git refuses to delete the branch you're currently on, so deleting it before switching away silently fails and blocks the rest of the rebuild.
+       3. Delete any leftover from an earlier attempt: `git branch -D ship-sync-tmp 2>/dev/null || true` — always succeeds, including when there's nothing to delete (a first attempt), so it never blocks the rest of the rebuild on its own exit code.
+       4. `git checkout -b ship-sync-tmp origin/staging`.
+       5. `git cherry-pick` the SHAs captured in step 1, **in that oldest-first order** — cherry-picking more than one session commit out of order can fail or produce the wrong history. Resolve conflicts.
+       6. `git branch -f <original-branch> HEAD`, `git checkout <original-branch>`, and delete `ship-sync-tmp` (`git branch -D ship-sync-tmp`).
    - Re-verify with `git log --oneline origin/staging..HEAD` — it must list only commits you recognize before you proceed to committing new work.
 3. **Generate a commit message** following this format: `type(scope): description`
    - Types: `fix`, `feat`, `improvement`, `chore`
