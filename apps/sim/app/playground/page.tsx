@@ -11,7 +11,6 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Card as CardIcon,
   Checkbox,
   ChevronDown,
   ChipDatePicker,
@@ -1027,7 +1026,6 @@ export default function PlaygroundPage() {
                 {[
                   { Icon: BubbleChatClose, name: 'BubbleChatClose' },
                   { Icon: BubbleChatPreview, name: 'BubbleChatPreview' },
-                  { Icon: CardIcon, name: 'Card' },
                   { Icon: ChevronDown, name: 'ChevronDown' },
                   { Icon: Connections, name: 'Connections' },
                   { Icon: Cursor, name: 'Cursor' },
