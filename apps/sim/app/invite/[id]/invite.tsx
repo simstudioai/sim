@@ -235,14 +235,6 @@ export default function Invite() {
         body: { token: token ?? undefined },
       })
 
-      if (invitation.organizationId) {
-        try {
-          await client.organization.setActive({ organizationId: invitation.organizationId })
-        } catch (setActiveError) {
-          logger.warn('Failed to set active organization after accept', setActiveError)
-        }
-      }
-
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.all }),
         queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
