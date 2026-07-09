@@ -101,6 +101,14 @@ const MAX_MAX_RECORDS = 1000
 const MAX_PAGES_PER_POLL = 10
 /** Cap on property-change snapshot size to bound providerConfig payload. */
 const MAX_SNAPSHOT_SIZE = 1000
+/**
+ * HubSpot Search API caps each filterGroup at 6 filters. `buildBody` reserves 2 slots in
+ * Group B (filterProperty EQ + hs_object_id GT), so user-supplied filters (pipeline/stage/
+ * owner shortcuts plus advanced JSON filters) must leave room for those — cap at 4 so Group
+ * B never exceeds 6. Excess filters are dropped rather than sent, which would otherwise fail
+ * every poll with an opaque 400 from HubSpot.
+ */
+const MAX_USER_FILTERS = 4
 
 const BUILT_IN_PATH: Record<HubSpotBuiltInObjectType, string> = {
   contact: 'contacts',
@@ -530,7 +538,7 @@ function resolveRequestedProperties(
   return [...requested]
 }
 
-function buildUserFilters(
+export function buildUserFilters(
   config: HubSpotWebhookConfig,
   logger?: Logger,
   requestId?: string
@@ -575,6 +583,13 @@ function buildUserFilters(
         getErrorMessage(error, 'parse error')
       )
     }
+  }
+
+  if (filters.length > MAX_USER_FILTERS) {
+    logger?.warn(
+      `[${requestId ?? ''}] HubSpot filters exceed the ${MAX_USER_FILTERS}-filter limit (pipeline/stage/owner shortcuts + advanced filters combined); dropping the last ${filters.length - MAX_USER_FILTERS}`
+    )
+    return filters.slice(0, MAX_USER_FILTERS)
   }
 
   return filters
