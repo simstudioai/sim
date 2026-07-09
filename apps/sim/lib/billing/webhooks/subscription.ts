@@ -285,28 +285,38 @@ export async function handleSubscriptionCreated(
         }
 
         if (wasFreePreviously && isPaidPlan) {
-          const actorId = await resolveSubscriptionActorId(subscriptionData.referenceId)
-          const isOrgScoped = await isSubscriptionOrgScoped({
-            referenceId: subscriptionData.referenceId,
-          })
-          recordAudit({
-            actorId,
-            action: AuditAction.SUBSCRIPTION_CREATED,
-            resourceType: AuditResourceType.SUBSCRIPTION,
-            resourceId: subscriptionData.id,
-            description: `Subscription created on ${subscriptionData.plan ?? 'unknown'} plan for ${subscriptionData.referenceId}`,
-            metadata: {
-              plan: subscriptionData.plan,
-              status: subscriptionData.status,
+          // Best-effort instrumentation; a transient DB error here must never abort
+          // the (already-committed) free -> paid usage reset above, so it's guarded.
+          try {
+            const actorId = await resolveSubscriptionActorId(subscriptionData.referenceId)
+            const isOrgScoped = await isSubscriptionOrgScoped({
               referenceId: subscriptionData.referenceId,
-              ...(isOrgScoped ? { organizationId: subscriptionData.referenceId } : {}),
-            },
-          })
-          captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
-            plan: subscriptionData.plan ?? 'unknown',
-            status: subscriptionData.status,
-            reference_id: subscriptionData.referenceId,
-          })
+            })
+            recordAudit({
+              actorId,
+              action: AuditAction.SUBSCRIPTION_CREATED,
+              resourceType: AuditResourceType.SUBSCRIPTION,
+              resourceId: subscriptionData.id,
+              description: `Subscription created on ${subscriptionData.plan ?? 'unknown'} plan for ${subscriptionData.referenceId}`,
+              metadata: {
+                plan: subscriptionData.plan,
+                status: subscriptionData.status,
+                referenceId: subscriptionData.referenceId,
+                ...(isOrgScoped ? { organizationId: subscriptionData.referenceId } : {}),
+              },
+            })
+            captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
+              plan: subscriptionData.plan ?? 'unknown',
+              status: subscriptionData.status,
+              reference_id: subscriptionData.referenceId,
+            })
+          } catch (instrumentationError) {
+            logger.warn('Failed to record subscription-created instrumentation', {
+              subscriptionId: subscriptionData.id,
+              referenceId: subscriptionData.referenceId,
+              error: instrumentationError,
+            })
+          }
         }
       }
     )
