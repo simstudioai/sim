@@ -27,6 +27,21 @@ import {
 import { verifyTikTokSignature } from '@/lib/webhooks/providers/tiktok'
 import { findTikTokWebhooksForOpenId } from '@/lib/webhooks/tiktok-fanout'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
+import { isTikTokEventMatch } from '@/triggers/tiktok/utils'
+
+/**
+ * queueWebhookExecution returns 200 for both real queues and event mismatches.
+ * Only count responses that indicate work was actually enqueued.
+ */
+async function didQueueWebhookExecution(response: NextResponse): Promise<boolean> {
+  if (!response.ok) return false
+  try {
+    const payload = (await response.clone().json()) as Record<string, unknown>
+    return payload.message === 'Webhook processed'
+  } catch {
+    return false
+  }
+}
 
 const logger = createLogger('TikTokWebhookIngress')
 
@@ -169,15 +184,32 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         continue
       }
 
-      await queueWebhookExecution(webhookRecord, foundWorkflow, envelope, request, {
-        requestId,
-        path: webhookRecord.path,
-        actorUserId: preprocessResult.actorUserId,
-        executionId: preprocessResult.executionId,
-        correlation: preprocessResult.correlation,
-        receivedAt,
-      })
-      processed += 1
+      const triggerId = webhookRecord.providerConfig?.triggerId
+      if (
+        typeof triggerId === 'string' &&
+        triggerId.length > 0 &&
+        !isTikTokEventMatch(triggerId, envelope.event)
+      ) {
+        continue
+      }
+
+      const queueResponse = await queueWebhookExecution(
+        webhookRecord,
+        foundWorkflow,
+        envelope,
+        request,
+        {
+          requestId,
+          path: webhookRecord.path,
+          actorUserId: preprocessResult.actorUserId,
+          executionId: preprocessResult.executionId,
+          correlation: preprocessResult.correlation,
+          receivedAt,
+        }
+      )
+      if (await didQueueWebhookExecution(queueResponse)) {
+        processed += 1
+      }
     }
 
     if (processed === 0 && matches.length > 0) {
