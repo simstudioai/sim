@@ -184,7 +184,7 @@ Return ONLY the Gmail search query, no explanations or markdown.`,
         description: 'HTML email body',
       },
       labels: {
-        type: 'json',
+        type: 'array',
         description: 'Email labels array',
       },
       hasAttachments: {
