@@ -185,11 +185,14 @@ export function useEditableFileContent({
   const contentRef = useRef(content)
   contentRef.current = content
 
-  const onSave = useCallback(async () => {
-    const next = contentRef.current
-    await updateContentRef.current.mutateAsync({ workspaceId, fileId: file.id, content: next })
-    markSavedContent(next)
-  }, [workspaceId, file.id, markSavedContent])
+  const onSave = useCallback(
+    async (overrideContent?: string) => {
+      const next = overrideContent ?? contentRef.current
+      await updateContentRef.current.mutateAsync({ workspaceId, fileId: file.id, content: next })
+      markSavedContent(next)
+    },
+    [workspaceId, file.id, markSavedContent]
+  )
 
   const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked
 

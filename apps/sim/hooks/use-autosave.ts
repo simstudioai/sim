@@ -22,7 +22,8 @@ function localDraftDbKey(draftKey: string) {
 interface UseAutosaveOptions {
   content: string
   savedContent: string
-  onSave: () => Promise<void>
+  /** `overrideContent`, when passed, is what `discard()`'s corrective save pushes — the reverted baseline captured at discard time, not whatever the ambient content ref reads by the time the in-flight save it's correcting for has settled. */
+  onSave: (overrideContent?: string) => Promise<void>
   delay?: number
   enabled?: boolean
   /**
@@ -252,8 +253,9 @@ export function useAutosave({
     clearLocalDraft()
     const pendingSave = inFlightRef.current
     if (!pendingSave) return
+    const target = savedContentRef.current
     void pendingSave.then(() =>
-      onSaveRef.current().catch((error) => {
+      onSaveRef.current(target).catch((error) => {
         logger.warn('Corrective save after discard failed', { error })
       })
     )

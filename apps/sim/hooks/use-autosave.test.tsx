@@ -538,7 +538,7 @@ describe('useAutosave', () => {
       expect(onSave).not.toHaveBeenCalled()
     })
 
-    it('corrects the server once an already-in-flight save lands after discard', async () => {
+    it('corrects the server with the captured baseline, even if the caller never resets content in time', async () => {
       let resolveSave: (() => void) | undefined
       const onSave = vi.fn(
         () =>
@@ -561,17 +561,19 @@ describe('useAutosave', () => {
       await flush()
       expect(onSave).toHaveBeenCalledTimes(1)
 
-      // The user discards while that save is still pending, and the caller resets content back
-      // to the baseline (mirroring what discardChanges does synchronously right after discard()).
+      // The user discards while that save is still pending. Deliberately do NOT rerender content
+      // back to the baseline here — the correction must not depend on that caller-side reset
+      // landing before this continuation runs; it must push the baseline it captured at discard().
       act(() => handle.discard())
-      handle.rerender({ content: 'a' })
 
       await act(async () => {
         resolveSave?.()
       })
       await flush()
-      // The stale in-flight write landed; a second, corrective save pushes the reverted content.
+      // The stale in-flight write landed; a corrective save fires with the captured baseline ('a'),
+      // not whatever the still-dirty ambient content ('a1') happened to be.
       expect(onSave).toHaveBeenCalledTimes(2)
+      expect(onSave).toHaveBeenNthCalledWith(2, 'a')
     })
 
     it('does not issue a corrective save when discard finds nothing in flight', async () => {
