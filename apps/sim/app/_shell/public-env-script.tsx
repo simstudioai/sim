@@ -19,13 +19,17 @@ const HOSTED_PUBLIC_ENV = Object.fromEntries(
  * for self-hosted Docker images that re-inject env per deploy without a
  * rebuild. On hosted, env is fixed per build, so this is safe to render
  * statically alongside the marketing pages' `revalidate`.
+ *
+ * Escapes `<` in the serialized JSON so an env value containing `</script>`
+ * can't close this tag early and inject markup into every hosted page.
  */
 export function PublicEnvScript() {
+  const serialized = JSON.stringify(HOSTED_PUBLIC_ENV).replace(/</g, '\\u003c')
   return (
     <script
       id='public-env'
       dangerouslySetInnerHTML={{
-        __html: `window['${PUBLIC_ENV_KEY}'] = ${JSON.stringify(HOSTED_PUBLIC_ENV)}`,
+        __html: `window['${PUBLIC_ENV_KEY}'] = ${serialized}`,
       }}
     />
   )
