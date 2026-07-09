@@ -123,12 +123,54 @@ describe('GitLab webhook provider', () => {
   })
 
   it('extractIdempotencyId derives a stable key for push events from checkout_sha', () => {
-    const body = { object_kind: 'push', project: { id: 42 }, checkout_sha: 'abc123' }
+    const body = {
+      object_kind: 'push',
+      project: { id: 42 },
+      ref: 'refs/heads/main',
+      checkout_sha: 'abc123',
+    }
     const first = gitlabHandler.extractIdempotencyId!(body)
     const second = gitlabHandler.extractIdempotencyId!({ ...body })
     expect(first).toBe(second)
     expect(first).toContain('abc123')
     expect(first).toContain('42')
+  })
+
+  it('extractIdempotencyId does not collide across different branches deleted in the same project', () => {
+    // GitLab sets checkout_sha to null and after to the all-zeros SHA on branch
+    // deletion, so two unrelated branch deletions must not produce the same key.
+    const deleteMain = {
+      object_kind: 'push',
+      project: { id: 42 },
+      ref: 'refs/heads/main',
+      checkout_sha: null,
+      after: '0000000000000000000000000000000000000000',
+    }
+    const deleteFeature = {
+      object_kind: 'push',
+      project: { id: 42 },
+      ref: 'refs/heads/feature',
+      checkout_sha: null,
+      after: '0000000000000000000000000000000000000000',
+    }
+    const first = gitlabHandler.extractIdempotencyId!(deleteMain)
+    const second = gitlabHandler.extractIdempotencyId!(deleteFeature)
+    expect(first).not.toBeNull()
+    expect(second).not.toBeNull()
+    expect(first).not.toBe(second)
+  })
+
+  it('extractIdempotencyId is stable for a repeated delivery of the same branch deletion', () => {
+    const body = {
+      object_kind: 'push',
+      project: { id: 42 },
+      ref: 'refs/heads/main',
+      checkout_sha: null,
+      after: '0000000000000000000000000000000000000000',
+    }
+    const first = gitlabHandler.extractIdempotencyId!(body)
+    const second = gitlabHandler.extractIdempotencyId!({ ...body })
+    expect(first).toBe(second)
   })
 
   it('extractIdempotencyId derives a stable key for issue events from object_attributes', () => {

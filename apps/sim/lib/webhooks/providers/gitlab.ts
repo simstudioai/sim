@@ -133,10 +133,12 @@ export const gitlabHandler: WebhookProviderHandler = {
 
   /**
    * GitLab doesn't include a delivery id in the body (X-Gitlab-Event-UUID is a
-   * header, and extractIdempotencyId only receives the body), so this falls back
-   * to a stable, content-derived key. `updated_at`/`checkout_sha` come from the
-   * payload itself and stay identical across GitLab's automatic retries, so the
-   * key never incorporates wall-clock time.
+   * header — the shared idempotency service already keys on it when present,
+   * ahead of this method — and extractIdempotencyId only receives the body),
+   * so this is a fallback content-derived key for when that header is absent.
+   * `updated_at`/`ref`/`checkout_sha` come from the payload itself and stay
+   * identical across GitLab's automatic retries, so the key never incorporates
+   * wall-clock time.
    */
   extractIdempotencyId(body: unknown): string | null {
     const b = asRecord(body)
@@ -145,9 +147,15 @@ export const gitlabHandler: WebhookProviderHandler = {
     const projectId = project.id != null ? String(project.id) : ''
 
     if (objectKind === 'push' || objectKind === 'tag_push') {
+      // GitLab sets checkout_sha to null on branch/tag deletion, so the fallback
+      // to `after` (the all-zeros SHA on deletion) is not unique by itself — two
+      // unrelated branches deleted in the same project would otherwise collide
+      // on the same key. `ref` disambiguates by branch/tag so a real deletion of
+      // a different ref is never mistaken for a duplicate of a prior one.
+      const ref = (b.ref as string) || ''
       const checkoutSha = (b.checkout_sha as string) || (b.after as string) || ''
-      if (!checkoutSha) return null
-      return `gitlab:${objectKind}:${projectId}:${checkoutSha}`
+      if (!checkoutSha && !ref) return null
+      return `gitlab:${objectKind}:${projectId}:${ref}:${checkoutSha}`
     }
 
     const objectAttributes = asRecord(b.object_attributes)
