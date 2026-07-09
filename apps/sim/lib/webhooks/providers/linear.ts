@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -106,7 +107,7 @@ export const linearHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = body as Record<string, unknown>
+    const b = isRecordLike(body) ? body : {}
     const rawActor = b.actor
     let actor: unknown = null
     if (rawActor && typeof rawActor === 'object' && !Array.isArray(rawActor)) {
@@ -138,9 +139,9 @@ export const linearHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (triggerId && !triggerId.endsWith('_webhook') && !triggerId.endsWith('_webhook_v2')) {
       const { isLinearEventMatch } = await import('@/triggers/linear/utils')
-      const obj = body as Record<string, unknown>
-      const action = obj.action as string | undefined
-      const type = obj.type as string | undefined
+      const obj = isRecordLike(body) ? body : {}
+      const action = typeof obj.action === 'string' ? obj.action : undefined
+      const type = typeof obj.type === 'string' ? obj.type : undefined
       if (!isLinearEventMatch(triggerId, type || '', action)) {
         logger.debug(
           `[${requestId}] Linear event mismatch for trigger ${triggerId}. Type: ${type}, Action: ${action}. Skipping.`

@@ -111,6 +111,27 @@ describe('Linear webhook provider', () => {
     expect(res).toBeNull()
   })
 
+  describe('matchEvent', () => {
+    it('returns null-body-safe result instead of throwing when body is null', async () => {
+      const result = await linearHandler.matchEvent!({
+        body: null,
+        requestId: 'linear-t6',
+        providerConfig: { triggerId: 'linear_issue_created' },
+        webhook: {},
+        workflow: {},
+        request: new NextRequest('http://localhost/test'),
+      })
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('formatInput', () => {
+    it('does not throw when body is null', async () => {
+      const { input } = await linearHandler.formatInput!({ body: null } as any)
+      expect(input).toMatchObject({ action: '', type: '', actor: null })
+    })
+  })
+
   describe('extractIdempotencyId', () => {
     it('builds a stable key from type, action, entity id, and updatedAt', () => {
       const key = linearHandler.extractIdempotencyId!({
