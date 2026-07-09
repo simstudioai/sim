@@ -40,7 +40,7 @@ export const jupyterListContentsTool: ToolConfig<
     url: (params) => {
       const base = normalizeJupyterServerUrl(params.serverUrl)
       const path = encodeJupyterPath(params.path)
-      return `${base}/api/contents/${path}?type=directory`
+      return `${base}/api/contents/${path}?type=directory&content=1`
     },
     method: 'GET',
     headers: (params) => buildJupyterAuthHeaders(params.token),
