@@ -49,3 +49,42 @@ describe('VFS metadata serializers', () => {
     expect(knowledgeBase.documentCount).toBe(19)
   })
 })
+
+describe('serializeKBMeta', () => {
+  const baseKb = {
+    id: 'kb-1',
+    name: 'Support Docs',
+    description: null,
+    embeddingModel: 'text-embedding-3-small',
+    embeddingDimension: 1536,
+    tokenCount: 42,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    documentCount: 3,
+  }
+
+  it('includes tag definitions when present', () => {
+    const json = JSON.parse(
+      serializeKBMeta({
+        ...baseKb,
+        tagDefinitions: [
+          { displayName: 'Important', tagSlot: 'tag1', fieldType: 'text' },
+          { displayName: 'Department', tagSlot: 'tag2', fieldType: 'text' },
+        ],
+      })
+    )
+
+    expect(json.tagDefinitions).toEqual([
+      { displayName: 'Important', tagSlot: 'tag1', fieldType: 'text' },
+      { displayName: 'Department', tagSlot: 'tag2', fieldType: 'text' },
+    ])
+  })
+
+  it('omits tag definitions when empty or undefined', () => {
+    const empty = JSON.parse(serializeKBMeta({ ...baseKb, tagDefinitions: [] }))
+    const missing = JSON.parse(serializeKBMeta(baseKb))
+
+    expect(empty).not.toHaveProperty('tagDefinitions')
+    expect(missing).not.toHaveProperty('tagDefinitions')
+  })
+})

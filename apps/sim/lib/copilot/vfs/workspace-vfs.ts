@@ -6,6 +6,7 @@ import {
   customTools as customToolsTable,
   document,
   jobExecutionLogs,
+  knowledgeBaseTagDefinitions,
   knowledgeConnector,
   mcpServers as mcpServersTable,
   skill as skillTable,
@@ -18,7 +19,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -1455,6 +1456,8 @@ export class WorkspaceVFS {
   ): Promise<WorkspaceMdData['knowledgeBases']> {
     const kbs = await getKnowledgeBases(userId, workspaceId)
 
+    const tagDefinitionsByKb = await this.loadKbTagDefinitions(kbs.map((kb) => kb.id))
+
     await Promise.all(
       kbs.map(async (kb) => {
         const safeName = sanitizeName(kb.name)
@@ -1473,6 +1476,7 @@ export class WorkspaceVFS {
             updatedAt: kb.updatedAt,
             documentCount: kb.docCount,
             connectorTypes: kb.connectorTypes,
+            tagDefinitions: tagDefinitionsByKb.get(kb.id),
           })
         )
 
@@ -1542,6 +1546,45 @@ export class WorkspaceVFS {
       description: kb.description,
       connectorTypes: kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
     }))
+  }
+
+  /**
+   * Load tag definitions for the given knowledge bases in a single query, grouped by
+   * KB id and ordered by tag slot. Surfaced inline in each KB's meta.json so the agent
+   * knows which tags exist (and their slot binding) when editing a knowledge-tag filter.
+   */
+  private async loadKbTagDefinitions(
+    kbIds: string[]
+  ): Promise<Map<string, Array<{ displayName: string; tagSlot: string; fieldType: string }>>> {
+    const byKb = new Map<
+      string,
+      Array<{ displayName: string; tagSlot: string; fieldType: string }>
+    >()
+    if (kbIds.length === 0) return byKb
+
+    const rows = await db
+      .select({
+        knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
+        tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+        displayName: knowledgeBaseTagDefinitions.displayName,
+        fieldType: knowledgeBaseTagDefinitions.fieldType,
+      })
+      .from(knowledgeBaseTagDefinitions)
+      .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
+      .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+
+    for (const row of rows) {
+      const entry = {
+        displayName: row.displayName,
+        tagSlot: row.tagSlot,
+        fieldType: row.fieldType,
+      }
+      const existing = byKb.get(row.knowledgeBaseId)
+      if (existing) existing.push(entry)
+      else byKb.set(row.knowledgeBaseId, [entry])
+    }
+
+    return byKb
   }
 
   /**

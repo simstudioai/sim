@@ -84,7 +84,11 @@ export function serializeRecentExecutions(
 }
 
 /**
- * Serialize knowledge base metadata for VFS meta.json
+ * Serialize knowledge base metadata for VFS meta.json.
+ *
+ * `tagDefinitions` exposes the KB's defined tags (`displayName` → `tagSlot`) so the
+ * agent can select and bind a knowledge-tag filter correctly instead of guessing a
+ * tag name it cannot otherwise see.
  */
 export function serializeKBMeta(kb: {
   id: string
@@ -97,6 +101,7 @@ export function serializeKBMeta(kb: {
   updatedAt: Date
   documentCount: number
   connectorTypes?: string[]
+  tagDefinitions?: Array<{ displayName: string; tagSlot: string; fieldType: string }>
 }): string {
   return JSON.stringify(
     {
@@ -109,6 +114,8 @@ export function serializeKBMeta(kb: {
       documentCount: kb.documentCount,
       connectorTypes:
         kb.connectorTypes && kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
+      tagDefinitions:
+        kb.tagDefinitions && kb.tagDefinitions.length > 0 ? kb.tagDefinitions : undefined,
       createdAt: kb.createdAt.toISOString(),
       updatedAt: kb.updatedAt.toISOString(),
     },
