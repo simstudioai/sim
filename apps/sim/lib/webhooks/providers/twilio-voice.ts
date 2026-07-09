@@ -15,18 +15,41 @@ export const twilioVoiceHandler: WebhookProviderHandler = {
   },
 
   /**
-   * A call fires multiple status callbacks against the same CallSid as it
-   * progresses (queued -> ringing -> in-progress -> completed/busy/failed/
-   * no-answer/canceled), so CallStatus is part of the key to keep each
-   * transition distinct while still deduping Twilio's retries of the same
-   * status.
+   * A call fires many independent callbacks against the same CallSid as it
+   * progresses: CallStatus transitions (queued -> ringing -> in-progress ->
+   * completed/...), repeated Gather turns while CallStatus stays
+   * "in-progress" (differentiated only by Digits or SpeechResult), and
+   * separate recording/transcription completions via RecordingStatus/
+   * TranscriptionStatus. The discriminator is built from field=value pairs
+   * (not bare values) so callbacks of different kinds can never collide even
+   * when they share a value — e.g. CallStatus=completed vs
+   * RecordingStatus=completed are distinct strings — while a retried
+   * delivery of the identical payload still produces the identical key.
    */
   extractIdempotencyId(body: unknown) {
     if (!isRecordLike(body)) return null
     const sid = (body.MessageSid as string) || (body.CallSid as string)
     if (!sid) return null
-    const status = ((body.CallStatus as string) ?? '').toLowerCase()
-    return status ? `${sid}:${status}` : sid
+
+    const discriminatorFields = [
+      'CallStatus',
+      'Digits',
+      'SpeechResult',
+      'RecordingSid',
+      'RecordingStatus',
+      'TranscriptionSid',
+      'TranscriptionStatus',
+    ] as const
+
+    const discriminator = discriminatorFields
+      .map((field) => {
+        const value = body[field]
+        return typeof value === 'string' && value ? `${field}=${value.toLowerCase()}` : null
+      })
+      .filter(Boolean)
+      .join('&')
+
+    return discriminator ? `${sid}:${discriminator}` : sid
   },
 
   formatSuccessResponse(providerConfig: Record<string, unknown>) {
