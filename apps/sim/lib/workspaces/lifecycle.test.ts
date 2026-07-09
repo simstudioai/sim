@@ -11,6 +11,7 @@ const {
   mockListAccessibleWorkspaceRowsForUser,
   mockCreateWorkspaceRecord,
   mockGetActivelyBannedUserIds,
+  mockWorkspaceCreatedEvent,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockTransaction: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockListAccessibleWorkspaceRowsForUser: vi.fn(),
   mockCreateWorkspaceRecord: vi.fn(),
   mockGetActivelyBannedUserIds: vi.fn(),
+  mockWorkspaceCreatedEvent: vi.fn(),
 }))
 
 const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
@@ -45,6 +47,10 @@ vi.mock('@/lib/workspaces/create', () => ({
 
 vi.mock('@/lib/auth/ban', () => ({
   getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
+}))
+
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: { workspaceCreated: mockWorkspaceCreatedEvent },
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -192,6 +198,11 @@ describe('workspace lifecycle', () => {
         }),
       })
     )
+    expect(mockWorkspaceCreatedEvent).toHaveBeenCalledWith({
+      workspaceId: 'fallback-workspace',
+      userId: 'user-victim',
+      name: 'My Workspace',
+    })
     expect(tx.update).toHaveBeenCalledTimes(8)
     expect(tx.delete).toHaveBeenCalledTimes(1)
   })
@@ -247,10 +258,12 @@ describe('workspace lifecycle', () => {
       })
     ).rejects.toThrow('serialization_failure')
 
-    // recordAudit must only ever be called after the transaction has committed — otherwise a
-    // failed transaction (e.g. a serialization abort) would leave a phantom audit entry pointing
-    // at a fallback workspace that was rolled back.
+    // recordAudit and the workspaceCreated telemetry event must only ever fire after the
+    // transaction has committed — otherwise a failed transaction (e.g. a serialization abort)
+    // would leave a phantom audit entry / event pointing at a fallback workspace that was
+    // rolled back.
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockWorkspaceCreatedEvent).not.toHaveBeenCalled()
   })
 
   it('only provisions a fallback for the one member who would actually be stranded', async () => {

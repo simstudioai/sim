@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbOrTx } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -44,6 +45,10 @@ export interface CreatedWorkspaceRecord {
  * (unless skipped) a default starter workflow. Shared by the `POST /api/workspaces` route and
  * the workspace-archival safety net that auto-provisions a replacement workspace for a member
  * who would otherwise be left with zero workspaces.
+ *
+ * Fires the `workspaceCreated` telemetry event itself only when it manages its own transaction
+ * (no `executor` passed). Callers that pass `executor` are joining an outer transaction that can
+ * still roll back after this returns, so they own firing that event once their transaction commits.
  */
 export async function createWorkspaceRecord({
   userId,
@@ -140,6 +145,18 @@ export async function createWorkspaceRecord({
   } catch (error) {
     logger.error(`Failed to create workspace ${workspaceId}:`, error)
     throw error
+  }
+
+  // Only fire when this call committed its own transaction. When `executor` is a caller-supplied
+  // `tx`, the insert isn't durable yet — the caller's transaction can still roll back after this
+  // function returns, so firing here would risk a phantom event for a workspace that never
+  // existed. Callers that pass `executor` must fire this themselves once their transaction commits.
+  if (!executor) {
+    try {
+      PlatformEvents.workspaceCreated({ workspaceId, userId, name })
+    } catch {
+      // Telemetry should not fail the operation
+    }
   }
 
   return {

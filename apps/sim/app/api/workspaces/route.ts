@@ -9,7 +9,6 @@ import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
-import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { type CreateWorkspaceRecordParams, createWorkspaceRecord } from '@/lib/workspaces/create'
@@ -281,16 +280,6 @@ async function createWorkspace({
     workspaceMode,
     billedAccountUserId,
   })
-
-  try {
-    PlatformEvents.workspaceCreated({
-      workspaceId: record.id,
-      userId,
-      name,
-    })
-  } catch {
-    // Telemetry should not fail the operation
-  }
 
   const invitePolicy = await getWorkspaceInvitePolicy({
     organizationId,

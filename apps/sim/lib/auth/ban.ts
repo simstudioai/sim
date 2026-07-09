@@ -1,6 +1,7 @@
 import { db, user } from '@sim/db'
 import { inArray, sql } from 'drizzle-orm'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
+import type { DbOrTx } from '@/lib/db/types'
 
 /**
  * True when a ban is currently in effect. Mirrors better-auth admin-plugin
@@ -34,14 +35,22 @@ export async function isEmailBlocked(email: string | null | undefined): Promise<
  * active account ban, or an email/domain in the appconfig blocked lists.
  * One user query plus the cached access-control fetch. Throws on db
  * failure — callers must fail closed.
+ *
+ * Accepts an optional executor so callers already inside a transaction (e.g. a
+ * workspace-archival safety check under `serializable` isolation) can run this
+ * against `tx` instead of borrowing a second pooled connection while the first
+ * sits idle-in-transaction.
  */
-export async function getActivelyBannedUserIds(userIds: string[]): Promise<string[]> {
+export async function getActivelyBannedUserIds(
+  userIds: string[],
+  executor: DbOrTx = db
+): Promise<string[]> {
   const ids = [...new Set(userIds.filter(Boolean))]
   if (ids.length === 0) return []
 
   const [accessControl, rows] = await Promise.all([
     getAccessControlConfig(),
-    db
+    executor
       .select({ id: user.id, email: user.email, banned: user.banned, banExpires: user.banExpires })
       .from(user)
       .where(inArray(user.id, ids)),

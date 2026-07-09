@@ -20,6 +20,7 @@ import { createLogger } from '@sim/logger'
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbOrTx } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
@@ -112,7 +113,7 @@ async function findMembersStrandedByArchival(
     return []
   }
 
-  const bannedUserIds = new Set(await getActivelyBannedUserIds(strandedUserIds))
+  const bannedUserIds = new Set(await getActivelyBannedUserIds(strandedUserIds, executor))
   return strandedUserIds.filter((userId) => !bannedUserIds.has(userId))
 }
 
@@ -294,11 +295,23 @@ export async function archiveWorkspace(
     return fallbacks
   }, transactionConfig)
 
-  // Recorded only after the transaction commits — recordAudit is fire-and-forget and doesn't
-  // participate in the transaction, so recording it earlier could leave a phantom audit entry
-  // pointing at a fallback workspace that got rolled back (e.g. on a serialization failure).
-  if (options.actorId) {
-    for (const fallback of provisionedFallbacks) {
+  // Recorded/fired only after the transaction commits — recordAudit and the telemetry event are
+  // fire-and-forget and don't participate in the transaction, so triggering them earlier could
+  // leave a phantom audit entry / event pointing at a fallback workspace that got rolled back
+  // (e.g. on a serialization failure). `createWorkspaceRecord` defers its own `workspaceCreated`
+  // event for exactly this reason when given an `executor` — this is where it gets fired instead.
+  for (const fallback of provisionedFallbacks) {
+    try {
+      PlatformEvents.workspaceCreated({
+        workspaceId: fallback.workspaceId,
+        userId: fallback.userId,
+        name: fallback.name,
+      })
+    } catch {
+      // Telemetry should not fail the operation
+    }
+
+    if (options.actorId) {
       recordAudit({
         workspaceId: fallback.workspaceId,
         actorId: options.actorId,
