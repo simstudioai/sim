@@ -29,12 +29,16 @@ round. Always check both conditions freshly after every push.
 
 1. **Check current state** before doing anything:
    ```bash
-   gh pr view <n> --json comments -q '.comments[] | select(.author.login=="greptile-apps") | .body' | tail -1
+   gh pr view <n> --json comments -q '[.comments[] | select(.author.login=="greptile-apps")] | last | .body'
    gh api graphql -f query='
    query { repository(owner: "<owner>", name: "<repo>") { pullRequest(number: <n>) {
      reviewThreads(first: 50) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line
        comments(first: 5) { nodes { id databaseId author { login } body } } } } } } }'
    ```
+   `[.comments[]] | last | .body`, not `... | .body | tail -1` — the latter pipes every matching
+   comment's full multi-line body through the pipeline and keeps only the final *line* of that
+   combined output (usually the "Reviews (n): Last reviewed commit..." footer), not the last
+   *comment*, so it silently misses the actual "Confidence Score: X/5" line.
    `reviewThreads(first: 50)` is a single page — check `pageInfo.hasNextPage`. If `true`, don't
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
    `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
@@ -79,12 +83,15 @@ round. Always check both conditions freshly after every push.
    `/ship` does before committing.
 
 6. **Commit and push** the round's fixes as one commit (`--force-with-lease` only if step 5's
-   sync check required a rebuild), then run `/ship` step 9's post-push verify — not just before
-   the first push, every push in the loop:
+   sync check required a rebuild), then run `/ship` step 7's post-push verify — not just before
+   the first push, every push in the loop (the Cursor `/ship` has 7 steps; the Claude Code skill
+   version's equivalent is step 9 — see `.agents/skills/babysit/SKILL.md` if working from that copy):
    ```bash
-   git fetch origin staging && git log --oneline origin/staging..HEAD
+   git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
    ```
+   `--reverse` matches `git log`'s newest-first default to the PR commit list's oldest-first
+   order — without it a positional comparison can spuriously fail on any multi-commit branch.
    These two lists must describe the same commits. A review loop runs many pushes across many
    rounds; checking sync only before the push (step 5) and never after is how a bad push or a
    PR whose commit history quietly went stale between rounds goes unnoticed.

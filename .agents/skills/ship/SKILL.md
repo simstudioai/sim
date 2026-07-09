@@ -35,13 +35,16 @@ When the user runs `/ship`:
 8. **Push to origin** using the current branch name
 9. **Create a PR** to staging with a description in the user's voice, then do a final content check — not a count check — comparing what actually landed:
    ```bash
-   git fetch origin staging && git log --oneline origin/staging..HEAD
+   git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
    ```
    Re-fetch first — comparing against a stale local `origin/staging` ref can mask real drift or
-   flag a false mismatch even when the branch and push are correct. These two lists must
-   describe the same commits (same subjects, one of which is the commit from step 7). If they
-   don't match, the branch still has a problem — redo step 2's fix and `git push --force-with-lease`.
+   flag a false mismatch even when the branch and push are correct. `--reverse` makes the git log
+   oldest-first, matching the PR commit list's order — plain `git log` is newest-first, and a
+   positional/line-by-line comparison against the PR's oldest-first list can spuriously fail on
+   any multi-commit branch. These two lists must describe the same commits in the same order
+   (same subjects, the last one being the commit from step 7). If they don't match, the branch
+   still has a problem — redo step 2's fix and `git push --force-with-lease`.
 
 ## Commit Message Format
 
