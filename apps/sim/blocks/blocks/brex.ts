@@ -6,11 +6,31 @@ import type { BrexResponse } from '@/tools/brex/types'
 
 /** Coerces a required money-amount field to a finite number, throwing on blank/non-numeric input rather than silently sending 0 or NaN to Brex. */
 function toRequiredAmount(value: unknown, fieldLabel: string): number {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) {
+    throw new Error(`${fieldLabel} must be a valid number`)
+  }
   const parsed = Number(value)
-  if (value === '' || value == null || !Number.isFinite(parsed)) {
+  if (!Number.isFinite(parsed)) {
     throw new Error(`${fieldLabel} must be a valid number`)
   }
   return parsed
+}
+
+/** Coerces an optional numeric field to a finite number, throwing on non-numeric input instead of silently forwarding NaN. Preserves explicit 0. */
+function toOptionalFiniteNumber(value: unknown, fieldLabel: string): number | undefined {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${fieldLabel} must be a valid number`)
+  }
+  return parsed
+}
+
+/** Normalizes a boolean field that may arrive as a string (e.g. from a dynamic <Block.output> reference) instead of an actual boolean. */
+function toOptionalBoolean(value: unknown): boolean | undefined {
+  if (value === undefined) return undefined
+  if (typeof value === 'boolean') return value
+  return String(value).toLowerCase() === 'true'
 }
 
 const PAGINATED_OPERATIONS = new Set([
@@ -816,14 +836,22 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
             if (params.currency) result.currency = params.currency
             result.authorizationType = params.authorizationType
             result.rolloverRefreshRate = params.rolloverRefreshRate
-            if (params.limitBufferPercentage)
-              result.limitBufferPercentage = Number(params.limitBufferPercentage)
+            const limitBufferPercentage = toOptionalFiniteNumber(
+              params.limitBufferPercentage,
+              'Limit buffer percentage'
+            )
+            if (limitBufferPercentage !== undefined)
+              result.limitBufferPercentage = limitBufferPercentage
             if (params.description) result.description = params.description
             if (params.parentBudgetId) result.parentBudgetId = params.parentBudgetId
             if (params.startDate) result.startDate = params.startDate
             if (params.endDate) result.endDate = params.endDate
-            if (params.transactionLimitAmount)
-              result.transactionLimitAmount = Number(params.transactionLimitAmount)
+            const transactionLimitAmount = toOptionalFiniteNumber(
+              params.transactionLimitAmount,
+              'Transaction limit amount'
+            )
+            if (transactionLimitAmount !== undefined)
+              result.transactionLimitAmount = transactionLimitAmount
             if (params.ownerUserIds) result.ownerUserIds = params.ownerUserIds
             if (params.spendLimitMemberUserIds)
               result.memberUserIds = params.spendLimitMemberUserIds
@@ -854,7 +882,8 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
             result.description = params.description
             result.externalMemo = params.externalMemo
             if (params.approvalType) result.approvalType = params.approvalType
-            if (params.isPproEnabled !== undefined) result.isPproEnabled = params.isPproEnabled
+            const pproEnabled = toOptionalBoolean(params.isPproEnabled)
+            if (pproEnabled !== undefined) result.isPproEnabled = pproEnabled
             break
           }
           default:
