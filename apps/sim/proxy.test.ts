@@ -137,6 +137,8 @@ describe('isNonLandingPath', () => {
       '/invite/invite-id',
       '/playground',
       '/unsubscribe',
+      '/landing-preview',
+      '/landing-preview/marks-lab',
     ]
     for (const path of paths) {
       expect(isNonLandingPath(path)).toBe(true)

@@ -133,6 +133,9 @@ const NON_LANDING_PATH_PREFIXES = [
   '/invite',
   '/playground',
   '/unsubscribe',
+  // 404s in production (see app/landing-preview/page.tsx) and its subroutes
+  // (marks-lab, readme-tour-capture) never render the (landing) layout either
+  '/landing-preview',
 ]
 
 export function isNonLandingPath(pathname: string): boolean {
