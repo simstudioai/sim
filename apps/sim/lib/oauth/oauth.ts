@@ -43,6 +43,7 @@ import {
   ShopifyIcon,
   SlackIcon,
   SpotifyIcon,
+  TikTokIcon,
   TrelloIcon,
   VertexIcon,
   WealthboxIcon,
@@ -426,6 +427,28 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'x',
+  },
+  tiktok: {
+    name: 'TikTok',
+    icon: TikTokIcon,
+    services: {
+      tiktok: {
+        name: 'TikTok',
+        description: 'Read profile info and videos, and publish content to TikTok.',
+        providerId: 'tiktok',
+        icon: TikTokIcon,
+        baseProviderIcon: TikTokIcon,
+        scopes: [
+          'user.info.basic',
+          'user.info.profile',
+          'user.info.stats',
+          'video.publish',
+          'video.upload',
+          'video.list',
+        ],
+      },
+    },
+    defaultService: 'tiktok',
   },
   atlassian: {
     name: 'Atlassian',
@@ -1057,6 +1080,11 @@ interface ProviderAuthConfig {
    * instead of the default application/x-www-form-urlencoded. Used by Notion.
    */
   useJsonBody?: boolean
+  /**
+   * Body param name to use for the client identifier instead of the standard `client_id`.
+   * TikTok requires `client_key` instead.
+   */
+  clientIdParamName?: string
 }
 
 /**
@@ -1091,6 +1119,21 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'tiktok': {
+      const { clientId, clientSecret } = getCredentials(
+        env.TIKTOK_CLIENT_ID,
+        env.TIKTOK_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://open.tiktokapis.com/v2/oauth/token/',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+        // TikTok requires `client_key` in the token request body instead of `client_id`.
+        clientIdParamName: 'client_key',
       }
     }
     case 'confluence': {
@@ -1455,7 +1498,7 @@ function buildAuthRequest(
     headers.Authorization = `Basic ${basicAuth}`
   } else {
     // Use body credentials - include client credentials in request body
-    bodyParams.client_id = config.clientId
+    bodyParams[config.clientIdParamName || 'client_id'] = config.clientId
     if (config.clientSecret) {
       bodyParams.client_secret = config.clientSecret
     }

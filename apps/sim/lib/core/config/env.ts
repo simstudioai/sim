@@ -347,6 +347,8 @@ export const env = createEnv({
 
     X_CLIENT_ID:                           z.string().optional(),                  // X (Twitter) OAuth client ID
     X_CLIENT_SECRET:                       z.string().optional(),                  // X (Twitter) OAuth client secret
+    TIKTOK_CLIENT_ID:                      z.string().optional(),                  // TikTok OAuth client key (TikTok calls this "client_key")
+    TIKTOK_CLIENT_SECRET:                  z.string().optional(),                  // TikTok OAuth client secret
     CONFLUENCE_CLIENT_ID:                  z.string().optional(),                  // Atlassian Confluence OAuth client ID
     CONFLUENCE_CLIENT_SECRET:              z.string().optional(),                  // Atlassian Confluence OAuth client secret
     JIRA_CLIENT_ID:                        z.string().optional(),                  // Atlassian Jira OAuth client ID

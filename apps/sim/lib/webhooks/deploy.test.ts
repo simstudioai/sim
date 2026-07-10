@@ -13,7 +13,7 @@ vi.mock('@/lib/webhooks/providers', () => ({ getProviderHandler: vi.fn() }))
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
   cleanupExternalWebhook: vi.fn(),
   createExternalWebhookSubscription: vi.fn(),
-  shouldRecreateExternalWebhookSubscription: vi.fn(),
+  hasWebhookConfigChanged: vi.fn(),
 }))
 vi.mock('@/lib/webhooks/utils.server', () => ({
   findConflictingWebhookPathOwner: vi.fn(),
@@ -29,7 +29,12 @@ const trigger = (subBlocks: Partial<SubBlockConfig>[]): { subBlocks: SubBlockCon
 })
 
 const driveTrigger = trigger([
-  { id: 'triggerCredentials', mode: 'trigger', canonicalParamId: 'oauthCredential' },
+  {
+    id: 'triggerCredentials',
+    mode: 'trigger',
+    canonicalParamId: 'oauthCredential',
+    serviceId: 'google-drive',
+  },
   { id: 'folderId', mode: 'trigger', canonicalParamId: 'folderId', required: false },
   { id: 'manualFolderId', mode: 'trigger-advanced', canonicalParamId: 'folderId', required: false },
 ])
@@ -61,6 +66,15 @@ describe('buildProviderConfig canonical collapse', () => {
     const block = makeBlock('google_drive_poller', { folderId: 'BASIC' })
     const { providerConfig } = buildProviderConfig(block, 'google_drive_poller', driveTrigger)
     expect(providerConfig.folderId).toBe('BASIC')
+  })
+
+  it('returns the credential reference and canonical OAuth service for deploy validation', () => {
+    const block = makeBlock('google_drive_poller', { triggerCredentials: 'credential-1' })
+    const result = buildProviderConfig(block, 'google_drive_poller', driveTrigger)
+
+    expect(result.credentialReference).toBe('credential-1')
+    expect(result.credentialServiceId).toBe('google-drive')
+    expect(result.providerConfig.credentialId).toBeUndefined()
   })
 
   it('writes the active (advanced) value under the canonical key when only advanced is set', () => {

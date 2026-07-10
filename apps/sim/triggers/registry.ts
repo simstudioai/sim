@@ -383,6 +383,16 @@ import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { tableNewRowTrigger } from '@/triggers/table'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
+import {
+  tiktokAuthorizationRemovedTrigger,
+  tiktokPostInboxDeliveredTrigger,
+  tiktokPostNoLongerPublicTrigger,
+  tiktokPostPubliclyAvailableTrigger,
+  tiktokPostPublishCompleteTrigger,
+  tiktokPostPublishFailedTrigger,
+  tiktokVideoPublishCompletedTrigger,
+  tiktokVideoUploadFailedTrigger,
+} from '@/triggers/tiktok'
 import { twilioSmsReceivedTrigger, twilioSmsStatusTrigger } from '@/triggers/twilio'
 import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice'
 import { typeformWebhookTrigger } from '@/triggers/typeform'
@@ -672,6 +682,14 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   stripe_webhook: stripeWebhookTrigger,
   table_new_row: tableNewRowTrigger,
   telegram_webhook: telegramWebhookTrigger,
+  tiktok_authorization_removed: tiktokAuthorizationRemovedTrigger,
+  tiktok_post_inbox_delivered: tiktokPostInboxDeliveredTrigger,
+  tiktok_post_no_longer_public: tiktokPostNoLongerPublicTrigger,
+  tiktok_post_publicly_available: tiktokPostPubliclyAvailableTrigger,
+  tiktok_post_publish_complete: tiktokPostPublishCompleteTrigger,
+  tiktok_post_publish_failed: tiktokPostPublishFailedTrigger,
+  tiktok_video_publish_completed: tiktokVideoPublishCompletedTrigger,
+  tiktok_video_upload_failed: tiktokVideoUploadFailedTrigger,
   typeform_webhook: typeformWebhookTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,
   google_forms_webhook: googleFormsWebhookTrigger,

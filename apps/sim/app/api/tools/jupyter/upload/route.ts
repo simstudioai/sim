@@ -18,6 +18,7 @@ import {
   buildJupyterAuthHeaders,
   encodeJupyterPath,
   normalizeJupyterServerUrl,
+  parseJupyterContentModel,
   UnsafeJupyterPathError,
 } from '@/tools/jupyter/utils'
 
@@ -128,17 +129,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const uploaded = await response.json()
+    const uploaded = parseJupyterContentModel(await response.json())
+    if (!uploaded) {
+      logger.error(`[${requestId}] Jupyter returned an invalid upload response`)
+      return NextResponse.json(
+        { success: false, error: 'Jupyter returned an invalid upload response' },
+        { status: 502 }
+      )
+    }
 
-    logger.info(`[${requestId}] File uploaded to Jupyter: ${uploaded.path}`)
+    const uploadedName = uploaded.name ?? fileName
+    const uploadedPath = uploaded.path ?? destinationPath
+    const uploadedSize = uploaded.size ?? fileBuffer.length
+    const lastModified = uploaded.lastModified ?? null
+
+    logger.info(`[${requestId}] File uploaded to Jupyter: ${uploadedPath}`)
 
     return NextResponse.json({
       success: true,
       output: {
-        name: uploaded.name ?? fileName,
-        path: uploaded.path ?? destinationPath,
-        size: uploaded.size ?? fileBuffer.length,
-        lastModified: uploaded.last_modified ?? null,
+        name: uploadedName,
+        path: uploadedPath,
+        size: uploadedSize,
+        lastModified,
       },
     })
   } catch (error) {
