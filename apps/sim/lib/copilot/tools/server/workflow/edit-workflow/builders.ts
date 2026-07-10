@@ -269,26 +269,32 @@ const ARRAY_WITH_ID_SUBBLOCK_TYPES = new Set([
 const JSON_STRING_SUBBLOCK_KEYS = new Set(['conditions', 'routes', 'tagFilters', 'documentTags'])
 
 /**
+ * Coerces a subblock value to an array, accepting either a raw array or the JSON string
+ * the string-serialized subblocks persist.
+ *
+ * @returns The array, or `null` when the value is not an array and does not parse to one.
+ * Callers supply their own fallback, which differs by site.
+ */
+function parseJsonArray(value: unknown): any[] | null {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return null
+
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Normalizes array subblock values by ensuring each item has a valid UUID.
  * The LLM may generate arbitrary IDs like "input-desc-001" or "row-1" which need
  * to be converted to proper UUIDs for consistency with UI-created items.
  */
 function normalizeArrayWithIds(value: unknown): any[] {
-  let arr: any[]
-
-  if (Array.isArray(value)) {
-    arr = value
-  } else if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      if (!Array.isArray(parsed)) return []
-      arr = parsed
-    } catch {
-      return []
-    }
-  } else {
-    return []
-  }
+  const arr = parseJsonArray(value)
+  if (!arr) return []
 
   return arr.map((item: any) => {
     if (!item || typeof item !== 'object') {
@@ -332,19 +338,8 @@ export function normalizeSubblockValue(key: string, value: unknown): unknown {
 export function normalizeConditionRouterIds(blockId: string, key: string, value: unknown): unknown {
   if (key !== 'conditions' && key !== 'routes') return value
 
-  let parsed: any[]
-  if (typeof value === 'string') {
-    try {
-      parsed = JSON.parse(value)
-      if (!Array.isArray(parsed)) return value
-    } catch {
-      return value
-    }
-  } else if (Array.isArray(value)) {
-    parsed = value
-  } else {
-    return value
-  }
+  const parsed = parseJsonArray(value)
+  if (!parsed) return value
 
   let elseIfCounter = 0
   const normalized = parsed.map((item, index) => {
