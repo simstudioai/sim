@@ -97,23 +97,16 @@ export const updateCustomBlockBodySchema = z
 export type UpdateCustomBlockBody = z.input<typeof updateCustomBlockBodySchema>
 
 /**
- * A workflow in the org that places this block. Live editor state and the
- * active deployment snapshot can diverge, so both placements are reported.
+ * How many workflows in the org place this block. Live editor state and the
+ * active deployment snapshot can diverge, so a workflow counts when the block
+ * appears in either; `deployedUsageCount` counts active deployments only.
  */
-export const customBlockUsageSchema = z.object({
-  workflowId: z.string(),
-  workflowName: z.string(),
-  workspaceId: z.string(),
-  workspaceName: z.string(),
-  /** The consuming workflow is currently deployed. */
-  isDeployed: z.boolean(),
-  /** Placed in the workflow's live editor state. */
-  inLiveState: z.boolean(),
-  /** Present in the workflow's ACTIVE deployment snapshot — the state that actually runs. */
-  inActiveDeployment: z.boolean(),
+export const customBlockUsageCountsSchema = z.object({
+  usageCount: z.number().int().min(0),
+  deployedUsageCount: z.number().int().min(0),
 })
 
-export type CustomBlockUsage = z.output<typeof customBlockUsageSchema>
+export type CustomBlockUsageCounts = z.output<typeof customBlockUsageCountsSchema>
 
 export const listCustomBlocksContract = defineRouteContract({
   method: 'GET',
@@ -160,12 +153,12 @@ export const deleteCustomBlockContract = defineRouteContract({
   },
 })
 
-export const getCustomBlockUsagesContract = defineRouteContract({
+export const getCustomBlockUsageCountsContract = defineRouteContract({
   method: 'GET',
   path: '/api/custom-blocks/[id]/usages',
   params: customBlockIdParamsSchema,
   response: {
     mode: 'json',
-    schema: z.object({ usages: z.array(customBlockUsageSchema) }),
+    schema: customBlockUsageCountsSchema,
   },
 })

@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type CustomBlock,
-  type CustomBlockUsage,
+  type CustomBlockUsageCounts,
   deleteCustomBlockContract,
-  getCustomBlockUsagesContract,
+  getCustomBlockUsageCountsContract,
   listCustomBlocksContract,
   type PublishCustomBlockBody,
   publishCustomBlockContract,
@@ -13,7 +13,7 @@ import {
 } from '@/lib/api/contracts/custom-blocks'
 
 export const CUSTOM_BLOCK_LIST_STALE_TIME = 60 * 1000
-/** Short — the usage list is a pre-delete safety check and must stay fresh. */
+/** Short — the usage count is a pre-delete safety check and must stay fresh. */
 export const CUSTOM_BLOCK_USAGES_STALE_TIME = 30 * 1000
 
 export const customBlockKeys = {
@@ -58,19 +58,18 @@ export function useCanPublishCustomBlock(workspaceId?: string) {
   return useCustomBlocksQuery(workspaceId, (r) => r.enabled)
 }
 
-async function fetchCustomBlockUsages(
+function fetchCustomBlockUsageCounts(
   id: string,
   signal?: AbortSignal
-): Promise<CustomBlockUsage[]> {
-  const data = await requestJson(getCustomBlockUsagesContract, { params: { id }, signal })
-  return data.usages
+): Promise<CustomBlockUsageCounts> {
+  return requestJson(getCustomBlockUsageCountsContract, { params: { id }, signal })
 }
 
-/** Workflows across the org that place this block (live editor state and/or active deployment). */
-export function useCustomBlockUsages(blockId?: string, options?: { enabled?: boolean }) {
+/** How many workflows across the org place this block (live editor state and/or active deployment). */
+export function useCustomBlockUsageCounts(blockId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: customBlockKeys.usages(blockId),
-    queryFn: ({ signal }) => fetchCustomBlockUsages(blockId as string, signal),
+    queryFn: ({ signal }) => fetchCustomBlockUsageCounts(blockId as string, signal),
     enabled: Boolean(blockId) && (options?.enabled ?? true),
     staleTime: CUSTOM_BLOCK_USAGES_STALE_TIME,
   })

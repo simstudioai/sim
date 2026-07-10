@@ -13,7 +13,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   CustomBlockValidationError,
   deleteCustomBlock,
-  getCustomBlockUsages,
+  getCustomBlockUsageCounts,
   updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
 import { authorizeManage } from '@/app/api/custom-blocks/[id]/authorize-manage'
@@ -83,7 +83,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
   if (authz.error) return authz.error
   const { ctx } = authz
 
-  const usages = await getCustomBlockUsages(ctx.organizationId, ctx.type)
+  const usageCounts = await getCustomBlockUsageCounts(ctx.organizationId, ctx.type)
   await deleteCustomBlock(id)
   recordAudit({
     workspaceId: ctx.sourceWorkspaceId,
@@ -98,8 +98,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     metadata: {
       organizationId: ctx.organizationId,
       type: ctx.type,
-      usageCount: usages.length,
-      deployedUsageCount: usages.filter((u) => u.inActiveDeployment).length,
+      usageCount: usageCounts.usageCount,
+      deployedUsageCount: usageCounts.deployedUsageCount,
     },
     request,
   })

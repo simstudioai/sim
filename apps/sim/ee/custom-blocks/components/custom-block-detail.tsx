@@ -8,7 +8,6 @@ import {
   ChipConfirmModal,
   ChipInput,
   ChipModalField,
-  ChipSwitch,
   ChipTextarea,
   type ComboboxOptionGroup,
   cn,
@@ -20,9 +19,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowLeft, ArrowRight, ChevronDown, Image as ImageIcon, X } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import type { CustomBlockUsage } from '@/lib/api/contracts/custom-blocks'
+import { ArrowLeft, ChevronDown, Image as ImageIcon, X } from 'lucide-react'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -33,14 +30,13 @@ import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/cr
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import type { CustomBlockInput, CustomBlockOutput } from '@/blocks/custom/build-config'
 import { SettingRow } from '@/ee/components/setting-row'
 import {
   useCustomBlocks,
-  useCustomBlockUsages,
+  useCustomBlockUsageCounts,
   useDeleteCustomBlock,
   usePublishCustomBlock,
   useUpdateCustomBlock,
@@ -51,7 +47,6 @@ import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const OUTPUT_SEP = '::'
 const ICON_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
-const NO_USAGES: CustomBlockUsage[] = []
 
 const encodeOutput = (blockId: string, path: string) => `${blockId}${OUTPUT_SEP}${path}`
 const decodeOutput = (value: string) => {
@@ -78,7 +73,6 @@ interface CustomBlockDetailProps {
 }
 
 export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockDetailProps) {
-  const router = useRouter()
   const isCreate = blockId === null
 
   const { data: blocks = [] } = useCustomBlocks(workspaceId)
@@ -145,7 +139,6 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
   )
   const [outputs, setOutputs] = useState<CustomBlockOutput[]>(() => existing?.exposedOutputs ?? [])
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<'configuration' | 'usage'>('configuration')
   const [showDelete, setShowDelete] = useState(false)
 
   // Type-to-confirm buffer for the delete modal — reset whenever the modal opens.
@@ -156,25 +149,10 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     if (showDelete) setConfirmationText('')
   }
 
-  // Usage feeds both the Usage tab and the delete warning, so it's warm
-  // before the modal opens. Server-gated on the same manage authz as delete.
-  const usagesQuery = useCustomBlockUsages(existing?.id, { enabled: canManageBlock })
-  const usages = usagesQuery.data ?? NO_USAGES
-  const deployedUsageCount = usages.filter((u) => u.inActiveDeployment).length
-
-  // Usage spans the whole org; rows in workspaces the user isn't a member of
-  // render non-clickable (not-allowed cursor instead of the navigate arrow).
-  const memberWorkspaceIds = useMemo(() => new Set(workspaces.map((w) => w.id)), [workspaces])
-
-  const groupedUsages = useMemo(() => {
-    const groups = new Map<string, { workspaceName: string; workflows: typeof usages }>()
-    for (const u of usages) {
-      const group = groups.get(u.workspaceId)
-      if (group) group.workflows.push(u)
-      else groups.set(u.workspaceId, { workspaceName: u.workspaceName, workflows: [u] })
-    }
-    return [...groups.entries()].map(([workspaceId, group]) => ({ workspaceId, ...group }))
-  }, [usages])
+  // Fetched with the view so the count is warm before the delete modal opens.
+  // Server-gated on the same manage authz as delete.
+  const usageCountsQuery = useCustomBlockUsageCounts(existing?.id, { enabled: canManageBlock })
+  const usageCount = usageCountsQuery.data?.usageCount ?? 0
 
   // Edit mode may mount before `useCustomBlocks` has resolved this row, leaving the
   // buffers empty. Reseed them the first time the block's identity loads (or when it
@@ -468,362 +446,272 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
             </div>
           )}
 
-          {!isCreate && (
-            <ChipSwitch
-              value={tab}
-              onChange={setTab}
-              aria-label='Custom block view'
-              options={[
-                { value: 'configuration', label: 'Configuration' },
-                { value: 'usage', label: 'Usage' },
-              ]}
-            />
-          )}
-
-          {!isCreate &&
-            tab === 'usage' &&
-            (!canManageBlock ? (
-              <p className='text-[var(--text-muted)] text-small'>
-                Only admins of the block’s workspace can see usage.
-              </p>
-            ) : usagesQuery.isLoading ? (
-              <p className='text-[var(--text-muted)] text-small'>Loading usage…</p>
-            ) : usages.length === 0 ? (
-              <p className='text-[var(--text-muted)] text-small'>Not used by any workflows.</p>
-            ) : (
-              <div className='flex flex-col gap-4'>
-                <p className='text-[var(--text-muted)] text-caption'>
-                  {usages.length} {usages.length === 1 ? 'workflow' : 'workflows'} ·{' '}
-                  {deployedUsageCount} deployed
-                </p>
-                <div className='flex flex-col gap-7'>
-                  {groupedUsages.map((group) => (
-                    <SettingsSection key={group.workspaceId} label={group.workspaceName}>
-                      <div className='-mx-2 flex flex-col gap-y-0.5'>
-                        {group.workflows.map((u) => {
-                          const isMember = memberWorkspaceIds.has(u.workspaceId)
-                          const rowContent = (
-                            <>
-                              <div className='flex min-w-0 flex-1 items-center gap-2'>
-                                <span className='truncate text-[var(--text-body)] text-sm'>
-                                  {u.workflowName}
-                                </span>
-                                <Badge variant='type' size='sm' className='flex-shrink-0'>
-                                  {u.inActiveDeployment
-                                    ? u.inLiveState
-                                      ? 'Deployed'
-                                      : 'Deployed only'
-                                    : 'Draft'}
-                                </Badge>
-                              </div>
-                              {isMember && (
-                                <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                              )}
-                            </>
-                          )
-                          return isMember ? (
-                            <button
-                              key={u.workflowId}
-                              type='button'
-                              onClick={() =>
-                                guard.guardBack(() =>
-                                  router.push(`/workspace/${u.workspaceId}/w/${u.workflowId}`)
-                                )
-                              }
-                              className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-                            >
-                              {rowContent}
-                            </button>
-                          ) : (
-                            <div
-                              key={u.workflowId}
-                              title='You’re not a member of this workspace'
-                              className='flex cursor-not-allowed items-center gap-2.5 rounded-lg p-2'
-                            >
-                              {rowContent}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </SettingsSection>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-          {(isCreate || tab === 'configuration') && (
+          {isCreate && (
             <>
-              {isCreate && (
-                <>
-                  <SettingRow label='Workspace'>
-                    <ChipCombobox
-                      className='w-full'
-                      dropdownWidth='trigger'
-                      searchable
-                      placeholder='Select a workspace'
-                      options={orgWorkspaces.map((w) => ({ value: w.id, label: w.name }))}
-                      value={selectedWorkspaceId}
-                      onChange={(v: string) => {
-                        setSelectedWorkspaceId(v)
-                        setSelectedWorkflowId('')
-                      }}
-                    />
-                  </SettingRow>
-                  <SettingRow
-                    label='Workflow'
-                    description='Only deployed workflows can be published.'
-                  >
-                    <ChipCombobox
-                      className='w-full'
-                      dropdownWidth='trigger'
-                      searchable
-                      placeholder='Select a workflow'
-                      emptyMessage='No workflows in this workspace.'
-                      options={workflows.map((w) => ({ value: w.id, label: w.name }))}
-                      value={selectedWorkflowId}
-                      onChange={(v: string) => setSelectedWorkflowId(v)}
-                    />
-                    {notDeployed && (
-                      <p className='mt-1.5 text-[var(--text-error)] text-caption'>
-                        This workflow isn’t deployed. Deploy it first, then publish it as a block.
-                      </p>
-                    )}
-                  </SettingRow>
-                </>
-              )}
-
-              {!isCreate && existing && (
-                <>
-                  <SettingRow label='Workspace'>
-                    <ChipInput value={existing.workspaceName ?? '—'} onChange={() => {}} disabled />
-                  </SettingRow>
-                  <SettingRow label='Workflow' description='The source workflow can’t be changed.'>
-                    <ChipInput value={existing.workflowName} onChange={() => {}} disabled />
-                    {notDeployed && (
-                      <p className='mt-1.5 text-[var(--text-error)] text-caption'>
-                        This workflow isn’t deployed. Redeploy it so the block can run.
-                      </p>
-                    )}
-                  </SettingRow>
-                </>
-              )}
-
-              <SettingRow label='Icon' labelTooltip='Square image (PNG, JPEG, or SVG). Optional.'>
-                <div className='flex items-center gap-4'>
-                  <DropZone onDrop={canManageBlock ? iconUpload.handleFileDrop : () => {}}>
-                    <button
-                      type='button'
-                      onClick={iconUpload.handleThumbnailClick}
-                      disabled={iconUpload.isUploading || !canManageBlock}
-                      className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
-                    >
-                      {iconUpload.isUploading ? (
-                        <Loader className='size-5 text-[var(--text-muted)]' animate />
-                      ) : iconUrl ? (
-                        <img src={iconUrl} alt='' className='size-full object-contain p-1.5' />
-                      ) : (
-                        <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                      )}
-                    </button>
-                  </DropZone>
-                  <div className='flex gap-2'>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={iconUpload.handleThumbnailClick}
-                      disabled={iconUpload.isUploading || !canManageBlock}
-                      className='text-[13px]'
-                    >
-                      {iconUrl ? 'Change' : 'Upload'}
-                    </Button>
-                    {iconUrl && (
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={iconUpload.handleRemove}
-                        disabled={iconUpload.isUploading || !canManageBlock}
-                        className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                      >
-                        <X className='size-[14px]' />
-                      </Button>
-                    )}
-                  </div>
-                  <input
-                    ref={iconUpload.fileInputRef}
-                    type='file'
-                    accept={ICON_ACCEPT}
-                    className='hidden'
-                    onChange={iconUpload.handleFileChange}
-                  />
-                </div>
-              </SettingRow>
-
-              <SettingRow label='Name'>
-                <ChipInput
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder='Invoice Parser'
-                  maxLength={60}
-                  disabled={!canManageBlock}
-                />
-              </SettingRow>
-
-              <SettingRow label='Description'>
-                <ChipTextarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder='What this block does'
-                  rows={2}
-                  maxLength={280}
-                  disabled={!canManageBlock}
-                />
-              </SettingRow>
-
-              <SettingRow
-                label='Inputs'
-                description='Every Start input is exposed. Add a placeholder for each; its own description carries over.'
-              >
-                {deployed.isLoading ? (
-                  <p className='text-[var(--text-muted)] text-small'>Loading workflow…</p>
-                ) : visibleInputs.length === 0 ? (
-                  <p className='text-[var(--text-muted)] text-small'>
-                    This workflow’s Start block has no inputs.
-                  </p>
-                ) : (
-                  <div className='flex flex-col gap-2'>
-                    {visibleInputs.map((i) => {
-                      const expanded = expandedInputs.has(i.id)
-                      return (
-                        <div
-                          key={i.id}
-                          className='overflow-hidden rounded-sm border border-[var(--border-1)]'
-                        >
-                          <div
-                            role='button'
-                            tabIndex={0}
-                            className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'
-                            onClick={() => toggleInput(i.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault()
-                                toggleInput(i.id)
-                              }
-                            }}
-                          >
-                            <div className='flex min-w-0 flex-1 items-center gap-2'>
-                              <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
-                                {i.name}
-                              </span>
-                              <Badge variant='type' size='sm'>
-                                {i.type}
-                              </Badge>
-                            </div>
-                            <ChevronDown
-                              className={cn(
-                                'size-[14px] shrink-0 text-[var(--text-muted)] transition-transform',
-                                expanded && 'rotate-180'
-                              )}
-                            />
-                          </div>
-                          <Expandable expanded={expanded}>
-                            <ExpandableContent>
-                              <div className='flex flex-col gap-2 border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                                {i.description && (
-                                  <div className='flex flex-col gap-1.5'>
-                                    <Label>Description</Label>
-                                    <p className='text-[var(--text-muted)] text-caption'>
-                                      {i.description}
-                                    </p>
-                                  </div>
-                                )}
-                                <div className='flex items-center justify-between'>
-                                  <Label htmlFor={`input-required-${i.id}`}>Required</Label>
-                                  <Switch
-                                    id={`input-required-${i.id}`}
-                                    checked={i.required ?? false}
-                                    onCheckedChange={(checked) =>
-                                      setInputOverride(i.id, { required: checked })
-                                    }
-                                    disabled={!canManageBlock}
-                                  />
-                                </div>
-                                <div className='flex flex-col gap-1.5'>
-                                  <Label>Placeholder</Label>
-                                  <ChipInput
-                                    value={i.placeholder ?? ''}
-                                    onChange={(e) =>
-                                      setInputOverride(i.id, { placeholder: e.target.value })
-                                    }
-                                    placeholder='Shown in the empty field'
-                                    maxLength={200}
-                                    disabled={!canManageBlock}
-                                  />
-                                </div>
-                              </div>
-                            </ExpandableContent>
-                          </Expandable>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </SettingRow>
-
-              <SettingRow
-                label='Outputs'
-                description='Pick which workflow outputs consumers see and name each one. At least one is required.'
-              >
+              <SettingRow label='Workspace'>
                 <ChipCombobox
-                  multiSelect
-                  searchable
-                  searchPlaceholder='Search outputs…'
                   className='w-full'
                   dropdownWidth='trigger'
-                  maxHeight={280}
-                  disabled={deployed.isLoading || outputGroups.length === 0 || !canManageBlock}
-                  emptyMessage={deployed.isLoading ? 'Loading workflow…' : 'No outputs found.'}
-                  options={[]}
-                  groups={outputGroups}
-                  multiSelectValues={selectedOutputKeys}
-                  onMultiSelectChange={handleOutputsChange}
-                  overlayContent={
-                    <span className='truncate text-[var(--text-primary)]'>
-                      {visibleOutputs.length === 0
-                        ? 'Select outputs'
-                        : `${visibleOutputs.length} selected`}
-                    </span>
-                  }
+                  searchable
+                  placeholder='Select a workspace'
+                  options={orgWorkspaces.map((w) => ({ value: w.id, label: w.name }))}
+                  value={selectedWorkspaceId}
+                  onChange={(v: string) => {
+                    setSelectedWorkspaceId(v)
+                    setSelectedWorkflowId('')
+                  }}
                 />
-                {visibleOutputs.length > 0 && (
-                  <div className='mt-2 flex flex-col gap-2'>
-                    {visibleOutputs.map((o) => {
-                      const key = encodeOutput(o.blockId, o.path)
-                      return (
-                        <div key={key} className='flex items-center gap-2'>
-                          <span
-                            className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'
-                            title={labelByKey.get(key) ?? o.path}
-                          >
-                            {labelByKey.get(key) ?? o.path}
-                          </span>
-                          <ChipInput
-                            value={o.name}
-                            onChange={(e) => setOutputName(key, e.target.value)}
-                            placeholder='name'
-                            className='w-[140px]'
-                            maxLength={60}
-                            disabled={!canManageBlock}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
+              </SettingRow>
+              <SettingRow label='Workflow' description='Only deployed workflows can be published.'>
+                <ChipCombobox
+                  className='w-full'
+                  dropdownWidth='trigger'
+                  searchable
+                  placeholder='Select a workflow'
+                  emptyMessage='No workflows in this workspace.'
+                  options={workflows.map((w) => ({ value: w.id, label: w.name }))}
+                  value={selectedWorkflowId}
+                  onChange={(v: string) => setSelectedWorkflowId(v)}
+                />
+                {notDeployed && (
+                  <p className='mt-1.5 text-[var(--text-error)] text-caption'>
+                    This workflow isn’t deployed. Deploy it first, then publish it as a block.
+                  </p>
                 )}
               </SettingRow>
             </>
           )}
+
+          {!isCreate && existing && (
+            <>
+              <SettingRow label='Workspace'>
+                <ChipInput value={existing.workspaceName ?? '—'} onChange={() => {}} disabled />
+              </SettingRow>
+              <SettingRow label='Workflow' description='The source workflow can’t be changed.'>
+                <ChipInput value={existing.workflowName} onChange={() => {}} disabled />
+                {notDeployed && (
+                  <p className='mt-1.5 text-[var(--text-error)] text-caption'>
+                    This workflow isn’t deployed. Redeploy it so the block can run.
+                  </p>
+                )}
+              </SettingRow>
+            </>
+          )}
+
+          <SettingRow label='Icon' labelTooltip='Square image (PNG, JPEG, or SVG). Optional.'>
+            <div className='flex items-center gap-4'>
+              <DropZone onDrop={canManageBlock ? iconUpload.handleFileDrop : () => {}}>
+                <button
+                  type='button'
+                  onClick={iconUpload.handleThumbnailClick}
+                  disabled={iconUpload.isUploading || !canManageBlock}
+                  className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                >
+                  {iconUpload.isUploading ? (
+                    <Loader className='size-5 text-[var(--text-muted)]' animate />
+                  ) : iconUrl ? (
+                    <img src={iconUrl} alt='' className='size-full object-contain p-1.5' />
+                  ) : (
+                    <ImageIcon className='size-5 text-[var(--text-muted)]' />
+                  )}
+                </button>
+              </DropZone>
+              <div className='flex gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={iconUpload.handleThumbnailClick}
+                  disabled={iconUpload.isUploading || !canManageBlock}
+                  className='text-[13px]'
+                >
+                  {iconUrl ? 'Change' : 'Upload'}
+                </Button>
+                {iconUrl && (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    onClick={iconUpload.handleRemove}
+                    disabled={iconUpload.isUploading || !canManageBlock}
+                    className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  >
+                    <X className='size-[14px]' />
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={iconUpload.fileInputRef}
+                type='file'
+                accept={ICON_ACCEPT}
+                className='hidden'
+                onChange={iconUpload.handleFileChange}
+              />
+            </div>
+          </SettingRow>
+
+          <SettingRow label='Name'>
+            <ChipInput
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder='Invoice Parser'
+              maxLength={60}
+              disabled={!canManageBlock}
+            />
+          </SettingRow>
+
+          <SettingRow label='Description'>
+            <ChipTextarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder='What this block does'
+              rows={2}
+              maxLength={280}
+              disabled={!canManageBlock}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label='Inputs'
+            description='Every Start input is exposed. Add a placeholder for each; its own description carries over.'
+          >
+            {deployed.isLoading ? (
+              <p className='text-[var(--text-muted)] text-small'>Loading workflow…</p>
+            ) : visibleInputs.length === 0 ? (
+              <p className='text-[var(--text-muted)] text-small'>
+                This workflow’s Start block has no inputs.
+              </p>
+            ) : (
+              <div className='flex flex-col gap-2'>
+                {visibleInputs.map((i) => {
+                  const expanded = expandedInputs.has(i.id)
+                  return (
+                    <div
+                      key={i.id}
+                      className='overflow-hidden rounded-sm border border-[var(--border-1)]'
+                    >
+                      <div
+                        role='button'
+                        tabIndex={0}
+                        className='flex cursor-pointer items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'
+                        onClick={() => toggleInput(i.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            toggleInput(i.id)
+                          }
+                        }}
+                      >
+                        <div className='flex min-w-0 flex-1 items-center gap-2'>
+                          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+                            {i.name}
+                          </span>
+                          <Badge variant='type' size='sm'>
+                            {i.type}
+                          </Badge>
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            'size-[14px] shrink-0 text-[var(--text-muted)] transition-transform',
+                            expanded && 'rotate-180'
+                          )}
+                        />
+                      </div>
+                      <Expandable expanded={expanded}>
+                        <ExpandableContent>
+                          <div className='flex flex-col gap-2 border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+                            {i.description && (
+                              <div className='flex flex-col gap-1.5'>
+                                <Label>Description</Label>
+                                <p className='text-[var(--text-muted)] text-caption'>
+                                  {i.description}
+                                </p>
+                              </div>
+                            )}
+                            <div className='flex items-center justify-between'>
+                              <Label htmlFor={`input-required-${i.id}`}>Required</Label>
+                              <Switch
+                                id={`input-required-${i.id}`}
+                                checked={i.required ?? false}
+                                onCheckedChange={(checked) =>
+                                  setInputOverride(i.id, { required: checked })
+                                }
+                                disabled={!canManageBlock}
+                              />
+                            </div>
+                            <div className='flex flex-col gap-1.5'>
+                              <Label>Placeholder</Label>
+                              <ChipInput
+                                value={i.placeholder ?? ''}
+                                onChange={(e) =>
+                                  setInputOverride(i.id, { placeholder: e.target.value })
+                                }
+                                placeholder='Shown in the empty field'
+                                maxLength={200}
+                                disabled={!canManageBlock}
+                              />
+                            </div>
+                          </div>
+                        </ExpandableContent>
+                      </Expandable>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </SettingRow>
+
+          <SettingRow
+            label='Outputs'
+            description='Pick which workflow outputs consumers see and name each one. At least one is required.'
+          >
+            <ChipCombobox
+              multiSelect
+              searchable
+              searchPlaceholder='Search outputs…'
+              className='w-full'
+              dropdownWidth='trigger'
+              maxHeight={280}
+              disabled={deployed.isLoading || outputGroups.length === 0 || !canManageBlock}
+              emptyMessage={deployed.isLoading ? 'Loading workflow…' : 'No outputs found.'}
+              options={[]}
+              groups={outputGroups}
+              multiSelectValues={selectedOutputKeys}
+              onMultiSelectChange={handleOutputsChange}
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>
+                  {visibleOutputs.length === 0
+                    ? 'Select outputs'
+                    : `${visibleOutputs.length} selected`}
+                </span>
+              }
+            />
+            {visibleOutputs.length > 0 && (
+              <div className='mt-2 flex flex-col gap-2'>
+                {visibleOutputs.map((o) => {
+                  const key = encodeOutput(o.blockId, o.path)
+                  return (
+                    <div key={key} className='flex items-center gap-2'>
+                      <span
+                        className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'
+                        title={labelByKey.get(key) ?? o.path}
+                      >
+                        {labelByKey.get(key) ?? o.path}
+                      </span>
+                      <ChipInput
+                        value={o.name}
+                        onChange={(e) => setOutputName(key, e.target.value)}
+                        placeholder='name'
+                        className='w-[140px]'
+                        maxLength={60}
+                        disabled={!canManageBlock}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </SettingRow>
         </div>
       </SettingsPanel>
 
@@ -835,16 +723,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
         text={[
           'Delete ',
           { text: existing?.name ?? 'this block', bold: true },
-          '? ',
-          deployedUsageCount > 0
-            ? {
-                text: `${deployedUsageCount} deployed ${
-                  deployedUsageCount === 1 ? 'workflow uses' : 'workflows use'
-                } this block and will fail at run time.`,
-                error: true,
-              }
-            : 'Workflows already using it will stop resolving it.',
-          ' This cannot be undone.',
+          '? This cannot be undone.',
         ]}
         confirm={{
           label: 'Delete',
@@ -854,6 +733,16 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           disabled: confirmationText !== (existing?.name ?? ''),
         }}
       >
+        {usageCount > 0 ? (
+          <p className='break-words px-2 text-[var(--text-error)] text-sm'>
+            {usageCount} {usageCount === 1 ? 'workflow is' : 'workflows are'} still using this block
+            and will fail at run time.
+          </p>
+        ) : (
+          <p className='break-words px-2 text-[var(--text-muted)] text-sm'>
+            No workflows are currently using it.
+          </p>
+        )}
         <ChipModalField
           type='input'
           title={

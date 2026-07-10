@@ -448,36 +448,18 @@ export async function deleteCustomBlock(id: string): Promise<void> {
   await db.delete(customBlock).where(eq(customBlock.id, id))
 }
 
-/** A workflow in the org that places a custom block. */
-export interface CustomBlockUsageRow {
-  workflowId: string
-  workflowName: string
-  workspaceId: string
-  workspaceName: string
-  isDeployed: boolean
-  inLiveState: boolean
-  inActiveDeployment: boolean
-}
-
 /**
- * Every non-archived workflow in the org that places the block, in its live
- * editor state and/or its ACTIVE deployment snapshot. The two are scanned
+ * How many non-archived workflows in the org place the block, in their live
+ * editor state and/or their ACTIVE deployment snapshot. The two are scanned
  * independently — a block removed in the editor can still ship in the active
  * deployment (and vice versa), and the deployed placement is the one that
  * actually runs. The deployment scan pre-filters with a raw-text match on the
  * unique type slug so only near-exact matches pay the jsonb parse.
  */
-export async function getCustomBlockUsages(
+export async function getCustomBlockUsageCounts(
   organizationId: string,
   blockType: string
-): Promise<CustomBlockUsageRow[]> {
-  const meta = {
-    workflowId: workflow.id,
-    workflowName: workflow.name,
-    workspaceId: workspace.id,
-    workspaceName: workspace.name,
-    isDeployed: workflow.isDeployed,
-  }
+): Promise<{ usageCount: number; deployedUsageCount: number }> {
   const orgActiveWorkflow = and(
     eq(workspace.organizationId, organizationId),
     isNull(workflow.archivedAt)
@@ -485,13 +467,13 @@ export async function getCustomBlockUsages(
 
   const [liveRows, deployedRows] = await Promise.all([
     db
-      .selectDistinct(meta)
+      .selectDistinct({ workflowId: workflow.id })
       .from(workflowBlocks)
       .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))
       .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
       .where(and(eq(workflowBlocks.type, blockType), orgActiveWorkflow)),
     db
-      .select(meta)
+      .select({ workflowId: workflow.id })
       .from(workflowDeploymentVersion)
       .innerJoin(workflow, eq(workflow.id, workflowDeploymentVersion.workflowId))
       .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
@@ -509,18 +491,8 @@ export async function getCustomBlockUsages(
       ),
   ])
 
-  const byWorkflowId = new Map<string, CustomBlockUsageRow>()
-  for (const row of liveRows) {
-    byWorkflowId.set(row.workflowId, { ...row, inLiveState: true, inActiveDeployment: false })
-  }
-  for (const row of deployedRows) {
-    const existing = byWorkflowId.get(row.workflowId)
-    if (existing) existing.inActiveDeployment = true
-    else byWorkflowId.set(row.workflowId, { ...row, inLiveState: false, inActiveDeployment: true })
-  }
+  const usingWorkflowIds = new Set(liveRows.map((r) => r.workflowId))
+  for (const row of deployedRows) usingWorkflowIds.add(row.workflowId)
 
-  return [...byWorkflowId.values()].sort(
-    (a, b) =>
-      a.workspaceName.localeCompare(b.workspaceName) || a.workflowName.localeCompare(b.workflowName)
-  )
+  return { usageCount: usingWorkflowIds.size, deployedUsageCount: deployedRows.length }
 }

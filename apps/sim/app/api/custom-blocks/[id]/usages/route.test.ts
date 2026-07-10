@@ -11,7 +11,7 @@ const { mockGetSession, mockIsFeatureEnabled, mockHasWorkspaceAdminAccess, mockO
     mockHasWorkspaceAdminAccess: vi.fn(),
     mockOperations: {
       getCustomBlockManageContext: vi.fn(),
-      getCustomBlockUsages: vi.fn(),
+      getCustomBlockUsageCounts: vi.fn(),
     },
   }))
 
@@ -38,15 +38,7 @@ const MANAGE_CONTEXT = {
   name: 'Invoice Parser',
 }
 
-const USAGE = {
-  workflowId: 'wf-1',
-  workflowName: 'Billing Pipeline',
-  workspaceId: 'ws-2',
-  workspaceName: 'Finance',
-  isDeployed: true,
-  inLiveState: true,
-  inActiveDeployment: true,
-}
+const USAGE_COUNTS = { usageCount: 3, deployedUsageCount: 2 }
 
 function callRoute(id = 'cb-1') {
   return GET(createMockRequest('GET'), { params: Promise.resolve({ id }) })
@@ -59,7 +51,7 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
     mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     mockOperations.getCustomBlockManageContext.mockResolvedValue(MANAGE_CONTEXT)
-    mockOperations.getCustomBlockUsages.mockResolvedValue([USAGE])
+    mockOperations.getCustomBlockUsageCounts.mockResolvedValue(USAGE_COUNTS)
   })
 
   it('returns 401 without a session', async () => {
@@ -84,13 +76,16 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
     mockHasWorkspaceAdminAccess.mockResolvedValue(false)
     const response = await callRoute()
     expect(response.status).toBe(403)
-    expect(mockOperations.getCustomBlockUsages).not.toHaveBeenCalled()
+    expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
   })
 
-  it('returns the org-scoped usages for the block type', async () => {
+  it('returns the org-scoped usage counts for the block type', async () => {
     const response = await callRoute()
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ usages: [USAGE] })
-    expect(mockOperations.getCustomBlockUsages).toHaveBeenCalledWith('org-1', 'custom_block_abc123')
+    expect(await response.json()).toEqual(USAGE_COUNTS)
+    expect(mockOperations.getCustomBlockUsageCounts).toHaveBeenCalledWith(
+      'org-1',
+      'custom_block_abc123'
+    )
   })
 })
