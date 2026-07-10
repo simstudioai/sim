@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevPrefetchDomainParams,
   ContextDevPrefetchResponse,
@@ -20,6 +21,8 @@ export const contextDevPrefetchDomainTool: ToolConfig<
   description:
     'Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits).',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevPrefetchDomainParams>(),
 
   params: {
     domain: {

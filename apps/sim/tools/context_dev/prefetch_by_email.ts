@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevPrefetchByEmailParams,
   ContextDevPrefetchResponse,
@@ -20,6 +21,8 @@ export const contextDevPrefetchByEmailTool: ToolConfig<
   description:
     "Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected.",
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevPrefetchByEmailParams>(),
 
   params: {
     email: {

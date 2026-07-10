@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevGetBrandSimplifiedParams,
   ContextDevGetBrandSimplifiedResponse,
@@ -21,6 +22,8 @@ export const contextDevGetBrandSimplifiedTool: ToolConfig<
   name: 'Context.dev Get Brand (Simplified)',
   description: 'Retrieve essential brand data for a domain: title, colors, logos, and backdrops.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevGetBrandSimplifiedParams>(),
 
   params: {
     domain: {

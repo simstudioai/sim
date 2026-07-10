@@ -540,6 +540,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       placeholder: 'Enter your Context.dev API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
