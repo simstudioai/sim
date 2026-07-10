@@ -81,9 +81,19 @@ const NON_CONTENT_HTML = /<(style|script)\b[\s\S]*?<\/\1>/gi
  * block of CSS (and Sheets a `<google-sheets-html-origin>` wrapper); ProseMirror's DOM parser has no
  * rule for `<style>`, so it would walk the element's CSS text into the document as literal paragraphs.
  * Removing these before parsing keeps the pasted content clean (PM already discards unknown wrappers).
+ *
+ * Replaces in a loop (not a single pass) so nested/overlapping tags — e.g. `<script><script>x</script>` —
+ * can't leave a surviving `<script>` behind: each pass can only remove the innermost non-overlapping
+ * matches, and a single pass over nested tags leaves the outer one dangling.
  */
 function stripNonContentHtml(html: string): string {
-  return html.replace(NON_CONTENT_HTML, '')
+  let previous: string
+  let stripped = html
+  do {
+    previous = stripped
+    stripped = previous.replace(NON_CONTENT_HTML, '')
+  } while (stripped !== previous)
+  return stripped
 }
 
 /**
