@@ -17,7 +17,8 @@ export const MCP_SERVER_TEMPLATES = [
   {
     id: 'unstructured-transform',
     name: 'Unstructured Transform',
-    description: 'Process PDFs, images, Office files, and other documents through Transform.',
+    description:
+      'Convert PDFs, DOCX, PPTX, HTML, and images into clean markdown, JSON, HTML, or text with OCR and RAG preprocessing.',
     transport: 'streamable-http',
     url: 'https://mcp.transform.unstructured.io',
     headers: [{ key: 'Authorization', value: 'Bearer {{UNSTRUCTURED_API_KEY}}' }],
