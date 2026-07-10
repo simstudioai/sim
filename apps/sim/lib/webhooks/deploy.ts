@@ -583,6 +583,21 @@ export async function saveTriggerWebhooksForDeploy({
             },
           }
         }
+        // The credential must belong to the workflow's workspace: bot credential
+        // ids are semi-public (they're embedded in Slack Request URLs), so a
+        // pasted foreign id must never bind another tenant's bot to this
+        // workflow.
+        const workflowWorkspace =
+          typeof workflow.workspaceId === 'string' ? workflow.workspaceId : undefined
+        if (!workflowWorkspace || botCredential.workspaceId !== workflowWorkspace) {
+          return {
+            success: false,
+            error: {
+              message: 'The selected Slack bot credential is not available in this workspace.',
+              status: 400,
+            },
+          }
+        }
         effectiveProvider = 'slack'
         effectivePath = null
         routingKey = botCredentialId
@@ -636,6 +651,11 @@ export async function saveTriggerWebhooksForDeploy({
       const needsRecreation =
         forceRecreateSubscriptions ||
         existingWh.provider !== effectiveProvider ||
+        // Routing transitions (path-based <-> routing-key, or a changed key)
+        // must recreate the row even when the provider config compares equal —
+        // otherwise a stale delivery surface stays active on the old route.
+        (existingWh.path ?? null) !== effectivePath ||
+        ((existingWh.routingKey as string | null) ?? null) !== routingKey ||
         hasWebhookConfigChanged(existingConfig, providerConfig)
 
       if (needsRecreation) {

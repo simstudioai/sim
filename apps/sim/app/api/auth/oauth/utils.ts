@@ -230,6 +230,8 @@ export interface SlackBotCredentialSecrets {
   teamId: string
   botUserId?: string
   teamName?: string
+  /** Owning workspace — callers with a user/workflow context must verify it. */
+  workspaceId: string | null
 }
 
 /**
@@ -250,6 +252,7 @@ export async function getSlackBotCredential(
       type: credential.type,
       providerId: credential.providerId,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+      workspaceId: credential.workspaceId,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
@@ -275,6 +278,7 @@ export async function getSlackBotCredential(
     teamId: blob.teamId,
     botUserId: blob.botUserId,
     teamName: blob.teamName,
+    workspaceId: row.workspaceId ?? null,
   }
 }
 
