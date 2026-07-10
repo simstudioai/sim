@@ -137,6 +137,7 @@ export function useAutosave({
       } catch {
         nextStatus = 'error'
       } finally {
+        inFlightRef.current = null
         if (unmountedRef.current) {
           savingRef.current = false
         } else {

@@ -594,6 +594,37 @@ describe('useAutosave', () => {
       expect(onSave).not.toHaveBeenCalled()
     })
 
+    it('does not treat a long-settled save as in flight when discard runs much later', async () => {
+      const onSave = vi.fn(async () => {})
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-5',
+      })
+
+      // A save fully completes well before discard is ever called.
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      handle.rerender({ savedContent: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(600)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+
+      // A later, unrelated edit is discarded. inFlightRef must have been cleared when the first
+      // save settled — otherwise this reads it as still "in flight" and fires a stale corrective
+      // save with whatever savedContent happened to be at that (now long-past) moment.
+      handle.rerender({ content: 'a12' })
+      act(() => handle.discard())
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+    })
+
     it('serializes IndexedDB writes and deletes so a slow write cannot resurrect a discarded draft', async () => {
       let resolveWrite: (() => void) | undefined
       const idbKeyval = await import('idb-keyval')
