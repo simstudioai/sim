@@ -12,8 +12,12 @@ import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
+  MothershipStreamV1RunKind,
   MothershipStreamV1SessionKind,
+  MothershipStreamV1SpanLifecycleEvent,
+  MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1TextChannel,
+  MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 
@@ -227,6 +231,80 @@ describe('buildEffectiveChatTranscript', () => {
         }),
       }),
     ])
+  })
+
+  it('pairs a scoped compaction inside the owning subagent during stream replay', () => {
+    const scope = {
+      lane: 'subagent' as const,
+      parentToolCallId: 'tc-workflow',
+      spanId: 'span-workflow',
+      parentSpanId: 'span-superagent',
+      agentId: 'superagent',
+    }
+    const stream = { streamId: 'stream-1' }
+    const result = buildEffectiveChatTranscript({
+      messages: [buildUserMessage('stream-1', 'Hello')],
+      activeStreamId: 'stream-1',
+      streamSnapshot: {
+        events: [
+          toBatchEvent(1, {
+            v: 1,
+            seq: 1,
+            ts: '2026-04-15T12:00:01.000Z',
+            type: MothershipStreamV1EventType.span,
+            stream,
+            scope,
+            payload: {
+              kind: MothershipStreamV1SpanPayloadKind.subagent,
+              event: MothershipStreamV1SpanLifecycleEvent.start,
+              agent: 'workflow',
+              data: { tool_call_id: 'tc-workflow' },
+            },
+          }),
+          toBatchEvent(2, {
+            v: 1,
+            seq: 2,
+            ts: '2026-04-15T12:00:02.000Z',
+            type: MothershipStreamV1EventType.run,
+            stream,
+            scope,
+            payload: { kind: MothershipStreamV1RunKind.compaction_start },
+          }),
+          toBatchEvent(3, {
+            v: 1,
+            seq: 3,
+            ts: '2026-04-15T12:00:03.000Z',
+            type: MothershipStreamV1EventType.run,
+            stream,
+            scope,
+            payload: {
+              kind: MothershipStreamV1RunKind.compaction_done,
+              data: { summary_chars: 42 },
+            },
+          }),
+        ],
+        previewSessions: [],
+        status: 'active',
+      },
+    })
+
+    const compactions = result[1]?.contentBlocks?.filter(
+      (block) => block.type === MothershipStreamV1EventType.tool
+    )
+    expect(compactions).toHaveLength(1)
+    expect(compactions?.[0]).toEqual(
+      expect.objectContaining({
+        parentToolCallId: 'tc-workflow',
+        spanId: 'span-workflow',
+        parentSpanId: 'span-superagent',
+        toolCall: expect.objectContaining({
+          id: 'compaction_2',
+          name: 'context_compaction',
+          calledBy: 'workflow',
+          state: MothershipStreamV1ToolOutcome.success,
+        }),
+      })
+    )
   })
 
   it('materializes a cancelled assistant tail when the stream ends before persistence', () => {

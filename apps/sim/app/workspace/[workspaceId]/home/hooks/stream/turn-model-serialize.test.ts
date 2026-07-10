@@ -323,6 +323,47 @@ describe('modelToContentBlocks', () => {
     expect(blocksByType(blocks, 'subagent_end')).toHaveLength(0)
     expect(blocksByType(blocks, 'subagent')).toHaveLength(1)
   })
+
+  it('persists a completed compaction inside its subagent span', () => {
+    const sub: Scope = {
+      lane: 'subagent',
+      spanId: 'S1',
+      parentSpanId: 'main',
+      parentToolCallId: 'tc-workflow',
+      agentId: 'workflow',
+    }
+    const blocks = modelToContentBlocks(
+      build([
+        env(
+          1,
+          'span',
+          {
+            kind: 'subagent',
+            event: 'start',
+            agent: 'workflow',
+            data: { tool_call_id: 'tc-workflow' },
+          },
+          sub
+        ),
+        env(2, 'run', { kind: 'compaction_start' }, sub),
+        env(3, 'run', { kind: 'compaction_done' }, sub),
+      ])
+    )
+
+    const compaction = blocks.find(
+      (block) => block.type === 'tool_call' && block.toolCall?.name === 'context_compaction'
+    )
+    expect(compaction).toEqual(
+      expect.objectContaining({
+        spanId: 'S1',
+        parentSpanId: 'main',
+        toolCall: expect.objectContaining({
+          calledBy: 'workflow',
+          status: 'success',
+        }),
+      })
+    )
+  })
 })
 
 describe('contentBlocksToModel round-trip', () => {

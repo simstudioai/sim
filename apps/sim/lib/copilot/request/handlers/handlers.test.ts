@@ -558,6 +558,103 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.subAgentToolCalls['parent-1']?.[0]?.id).toBe('sub-tool-scope-1')
   })
 
+  it('pairs compaction lifecycle events within each scoped subagent lane', async () => {
+    context.toolCalls.set('parent-A', {
+      id: 'parent-A',
+      name: 'workflow',
+      status: 'executing',
+    })
+    context.toolCalls.set('parent-B', {
+      id: 'parent-B',
+      name: 'workflow',
+      status: 'executing',
+    })
+    const sendCompaction = async (
+      kind: 'compaction_start' | 'compaction_done',
+      parentToolCallId: string,
+      spanId: string
+    ) => {
+      await subAgentHandlers.run(
+        {
+          type: MothershipStreamV1EventType.run,
+          scope: {
+            lane: 'subagent',
+            parentToolCallId,
+            spanId,
+            parentSpanId: 'main',
+            agentId: 'superagent',
+          },
+          payload: { kind },
+        } as StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+    }
+
+    await sendCompaction(MothershipStreamV1RunKind.compaction_start, 'parent-A', 'span-A')
+    await sendCompaction(MothershipStreamV1RunKind.compaction_start, 'parent-B', 'span-B')
+    await sendCompaction(MothershipStreamV1RunKind.compaction_done, 'parent-A', 'span-A')
+
+    const compactions = context.contentBlocks.filter(
+      (block) => block.type === 'tool_call' && block.toolCall?.name === 'context_compaction'
+    )
+    expect(compactions).toHaveLength(2)
+
+    const laneA = compactions.find((block) => block.spanId === 'span-A')
+    const laneB = compactions.find((block) => block.spanId === 'span-B')
+    expect(laneA).toEqual(
+      expect.objectContaining({
+        calledBy: 'workflow',
+        parentToolCallId: 'parent-A',
+        parentSpanId: 'main',
+        endedAt: expect.any(Number),
+        toolCall: expect.objectContaining({ status: MothershipStreamV1ToolOutcome.success }),
+      })
+    )
+    expect(laneB?.toolCall?.status).toBe('executing')
+
+    await sendCompaction(MothershipStreamV1RunKind.compaction_done, 'parent-B', 'span-B')
+
+    expect(context.contentBlocks).toHaveLength(2)
+    expect(laneB?.toolCall?.status).toBe(MothershipStreamV1ToolOutcome.success)
+  })
+
+  it('pairs main-lane compaction start and done into one completed block', async () => {
+    await sseHandlers.run(
+      {
+        type: MothershipStreamV1EventType.run,
+        payload: { kind: MothershipStreamV1RunKind.compaction_start },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false }
+    )
+    const compactionId = context.contentBlocks[0]?.toolCall?.id
+
+    await sseHandlers.run(
+      {
+        type: MothershipStreamV1EventType.run,
+        payload: { kind: MothershipStreamV1RunKind.compaction_done },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false }
+    )
+
+    expect(context.contentBlocks).toHaveLength(1)
+    expect(context.contentBlocks[0]).toEqual(
+      expect.objectContaining({
+        endedAt: expect.any(Number),
+        toolCall: expect.objectContaining({
+          id: compactionId,
+          name: 'context_compaction',
+          status: MothershipStreamV1ToolOutcome.success,
+        }),
+      })
+    )
+  })
+
   it('keeps two concurrent subagent lanes separate for text and thinking', async () => {
     const send = (parent: string, channel: MothershipStreamV1TextChannel, text: string) =>
       subAgentHandlers.text(
