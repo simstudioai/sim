@@ -13,16 +13,15 @@ import {
 } from '@/lib/billing/storage'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { canonicalWorkspaceFilePath, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   ArchiveError,
+  type DecompressResult,
   decompressArchiveBufferToWorkspaceFiles,
   MAX_ARCHIVE_BYTES,
-  MAX_ARCHIVE_ENTRIES,
-  MAX_ARCHIVE_ENTRY_BYTES,
-  MAX_ARCHIVE_TOTAL_BYTES,
 } from '@/lib/uploads/archive'
+import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
 import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
@@ -51,6 +50,20 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
   }
 }
 
+/**
+ * Cross-workspace ownership guard shared by every operation. The resolver is
+ * chat-scoped and current write paths always stamp matching workspaceIds, so
+ * this is defense in depth — but it must hold uniformly: without it, save would
+ * flip a foreign-workspace row into this workspace and import would read its
+ * bytes, the exact leak extract blocks.
+ */
+function uploadBelongsToWorkspace(
+  row: { workspaceId: string | null },
+  workspaceId: string
+): boolean {
+  return row.workspaceId === workspaceId
+}
+
 async function executeSave(
   fileName: string,
   chatId: string,
@@ -63,8 +76,16 @@ async function executeSave(
       error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
     }
   }
-  if (row.workspaceId !== workspaceId) {
+  if (!uploadBelongsToWorkspace(row, workspaceId)) {
     return { success: false, error: `Upload not found: "${fileName}".` }
+  }
+
+  const displayName = row.displayName ?? row.originalName
+  if (isArchiveFileName(displayName)) {
+    return {
+      success: false,
+      error: `"${fileName}" is a .zip archive — save it by extracting instead: materialize_file(fileNames: ["${fileName}"], operation: "extract") unpacks it into files/ where the contents stay readable. The raw .zip remains in uploads/ for this chat.`,
+    }
   }
 
   const head = await headObject(row.key, 'mothership')
@@ -167,6 +188,18 @@ async function executeImport(
       error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
     }
   }
+  if (!uploadBelongsToWorkspace(row, workspaceId)) {
+    return {
+      success: false,
+      error: `Upload "${fileName}" does not belong to this workspace.`,
+    }
+  }
+  if (isArchiveFileName(row.displayName ?? row.originalName)) {
+    return {
+      success: false,
+      error: `"${fileName}" is a .zip archive, not a workflow JSON. Extract it first: materialize_file(fileNames: ["${fileName}"], operation: "extract").`,
+    }
+  }
 
   const buffer = await fetchWorkspaceFileBuffer(toFileRecord(row))
   const content = buffer.toString('utf-8')
@@ -263,22 +296,23 @@ async function executeImport(
   }
 }
 
-/** Map an {@link ArchiveError} reason to a clear, user-facing extract message. */
-function archiveErrorMessage(err: ArchiveError, fileName: string): string {
-  switch (err.reason) {
-    case 'invalid':
-      return `"${fileName}" is not a valid .zip archive.`
-    case 'too_many_entries':
-      return `"${fileName}" has too many entries to extract. Maximum is ${MAX_ARCHIVE_ENTRIES}.`
-    case 'entry_too_large':
-      return `Archive entry "${err.entryName}" is too large to extract. Maximum is ${
-        MAX_ARCHIVE_ENTRY_BYTES / (1024 * 1024)
-      } MB per file.`
-    case 'total_too_large':
-      return `"${fileName}" expands to more than the ${
-        MAX_ARCHIVE_TOTAL_BYTES / (1024 * 1024)
-      } MB extraction limit.`
-  }
+/**
+ * Fold a zip display name into a safe extraction folder name. Mirrors the VFS
+ * segment normalization (NFC, control-char strip) and rejects the degenerate
+ * names the folder layer throws plain Errors for (dot segments, separators,
+ * empty), so a hostile upload name like `..zip` or `\x01.zip` lands in the
+ * `archive` fallback instead of surfacing a raw internal error — and so the
+ * VFS-encoded destination path can be computed before anything is extracted.
+ */
+function archiveFolderBaseName(displayName: string): string {
+  const stripped = displayName
+    .replace(/\.zip$/i, '')
+    .normalize('NFC')
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally stripping control chars
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .replace(/[/\\]/g, '-')
+    .trim()
+  return !stripped || stripped === '.' || stripped === '..' ? 'archive' : stripped
 }
 
 /**
@@ -302,9 +336,7 @@ async function executeExtract(
     }
   }
 
-  // Defense in depth: the resolver is chat-scoped, but never extract an upload
-  // that belongs to a different workspace than the one driving this request.
-  if (row.workspaceId !== workspaceId) {
+  if (!uploadBelongsToWorkspace(row, workspaceId)) {
     return {
       success: false,
       error: `Upload "${fileName}" does not belong to this workspace.`,
@@ -329,9 +361,36 @@ async function executeExtract(
     }
   }
 
-  const baseName = displayName.replace(/\.zip$/i, '').trim() || 'archive'
+  // Resolve the destination up front (the encoded path is a pure function of the
+  // hardened base name), so nothing can throw after files have been written.
+  const baseName = archiveFolderBaseName(displayName)
+  const folderPath = `files/${encodeVfsPathSegments([baseName])}`
 
-  let result: Awaited<ReturnType<typeof decompressArchiveBufferToWorkspaceFiles>>
+  // Re-running extract must not silently duplicate the tree with " (1)"-suffixed
+  // copies: when the destination folder already holds files, report it as
+  // already extracted instead of extracting beside the previous run.
+  const existingFolderId = await findWorkspaceFileFolderIdByPath(workspaceId, [baseName])
+  if (existingFolderId) {
+    const [existingFile] = await db
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.folderId, existingFolderId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .limit(1)
+    if (existingFile) {
+      return {
+        success: false,
+        error: `"${fileName}" appears to be already extracted — ${folderPath}/ exists and contains files. List them with glob("${folderPath}/**"). To re-extract, delete that folder first.`,
+      }
+    }
+  }
+
+  let result: DecompressResult
   try {
     const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_ARCHIVE_BYTES })
     result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
@@ -344,7 +403,17 @@ async function executeExtract(
     })
   } catch (err) {
     if (err instanceof ArchiveError) {
-      return { success: false, error: archiveErrorMessage(err, fileName) }
+      // Reads sniff small uploads' magic bytes, so a mislabeled ".zip" that
+      // fails to parse here is genuinely readable via read() — say so instead
+      // of bouncing the model between extract and read forever.
+      const mislabeledHint =
+        err.reason === 'invalid'
+          ? ` If the file is not actually a zip archive, read it directly with read("uploads/${fileName}").`
+          : ''
+      return {
+        success: false,
+        error: `Cannot extract "${fileName}": ${err.message}${mislabeledHint}`,
+      }
     }
     throw err
   }
@@ -353,10 +422,15 @@ async function executeExtract(
     return { success: false, error: `No files could be extracted from "${fileName}".` }
   }
 
-  // Use the canonical VFS path the extractor actually wrote to, so the glob/read
-  // hint resolves rather than echoing a hand-encoded (possibly mismatched) name.
-  const folderPath = result.rootFolderPath
   const count = result.extracted.length
+
+  if (result.skippedUnsafePaths.length > 0) {
+    logger.warn('Skipped unsafe archive entries during extract', {
+      fileName,
+      chatId,
+      entryNames: result.skippedUnsafePaths,
+    })
+  }
 
   logger.info('Extracted archive into workspace files', {
     fileName,
@@ -381,9 +455,14 @@ export async function executeMaterializeFile(
   params: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  const fileNames: string[] =
-    (params.fileNames as string[] | undefined) ??
-    ([params.fileName as string | undefined].filter(Boolean) as string[])
+  // Dedupe: a repeated name in one call would re-run the operation against the
+  // same upload (for extract, duplicating the unpacked tree with " (1)" copies).
+  const fileNames: string[] = Array.from(
+    new Set(
+      (params.fileNames as string[] | undefined) ??
+        ([params.fileName as string | undefined].filter(Boolean) as string[])
+    )
+  )
 
   if (fileNames.length === 0) {
     return { success: false, error: "Missing required parameter 'fileNames'" }

@@ -12,11 +12,39 @@ import {
   WorkspaceFileGrepError,
 } from '@/lib/copilot/vfs/operations'
 import { decodeVfsSegment, encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { isZipShaped } from '@/lib/file-parsers/zip-guard'
 import { getServePathPrefix } from '@/lib/uploads'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  fetchWorkspaceFileBuffer,
+  type WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('UploadFileReader')
+
+/**
+ * Sniff budget for uploads whose NAME says archive: below this size the actual
+ * bytes decide (a mislabeled text file named `data.zip` stays readable instead
+ * of being trapped between read-says-extract and extract-says-invalid); above
+ * it the extension is trusted so a real 100MB zip is never downloaded just to
+ * refuse it.
+ */
+const ARCHIVE_SNIFF_MAX_BYTES = 1024 * 1024
+
+/**
+ * True when the upload should get extract-first guidance: named like an archive
+ * and — for small files — actually shaped like one.
+ */
+async function isActualArchiveUpload(record: WorkspaceFileRecord): Promise<boolean> {
+  if (!isArchiveFileName(record.name)) return false
+  if (record.size > ARCHIVE_SNIFF_MAX_BYTES) return true
+  try {
+    const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: ARCHIVE_SNIFF_MAX_BYTES })
+    return isZipShaped(buffer)
+  } catch {
+    return true
+  }
+}
 
 /**
  * Canonical comparison key for an upload's VFS name. Accepts both the raw display
@@ -154,7 +182,7 @@ export async function readChatUpload(
     const row = await findMothershipUploadRowByChatAndName(chatId, filename)
     if (!row) return null
     const record = toWorkspaceFileRecord(row)
-    if (isArchiveFileName(record.name)) {
+    if (await isActualArchiveUpload(record)) {
       return { content: `[${buildArchiveExtractGuidance(record.name)}]`, totalLines: 1 }
     }
     return readFileRecord(record)
@@ -189,7 +217,7 @@ export async function grepChatUpload(
     )
   }
   const record = toWorkspaceFileRecord(row)
-  if (isArchiveFileName(record.name)) {
+  if (await isActualArchiveUpload(record)) {
     throw new WorkspaceFileGrepError(buildArchiveExtractGuidance(record.name))
   }
   const result = await readFileRecord(record)

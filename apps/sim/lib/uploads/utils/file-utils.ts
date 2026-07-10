@@ -227,7 +227,7 @@ export function isArchiveFileName(filename: string): boolean {
  * `files/`, so this points at the explicit one-time extract step.
  */
 export function buildArchiveExtractGuidance(name: string): string {
-  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with materialize_file(fileName: "${name}", operation: "extract"), then read the unpacked files under files/ (e.g. glob("files/<archive>/**") then read("files/<archive>/<path>/content")).`
+  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with materialize_file(fileNames: ["${name}"], operation: "extract"), then read the unpacked files under files/ (e.g. glob("files/<archive>/**") then read("files/<archive>/<path>/content")).`
 }
 
 const EXTENSION_TO_MIME: Record<string, string> = {

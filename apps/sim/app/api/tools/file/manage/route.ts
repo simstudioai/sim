@@ -22,11 +22,9 @@ import {
 } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
+  type DecompressResult,
   decompressArchiveBufferToWorkspaceFiles,
   MAX_ARCHIVE_BYTES,
-  MAX_ARCHIVE_ENTRIES,
-  MAX_ARCHIVE_ENTRY_BYTES,
-  MAX_ARCHIVE_TOTAL_BYTES,
 } from '@/lib/uploads/archive'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -810,7 +808,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           maxBytes: MAX_ARCHIVE_BYTES,
         })
 
-        let result: Awaited<ReturnType<typeof decompressArchiveBufferToWorkspaceFiles>>
+        let result: DecompressResult
         try {
           result = await decompressArchiveBufferToWorkspaceFiles(archiveBuffer, {
             workspaceId,
@@ -818,20 +816,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           })
         } catch (archiveError) {
           if (archiveError instanceof ArchiveError) {
+            // The error message is single-sourced in ArchiveError (caps included);
+            // only the HTTP status is mapped here.
             const status = archiveError.reason === 'invalid' ? 400 : 413
-            const message =
-              archiveError.reason === 'invalid'
-                ? `"${archive.name}" is not a valid .zip archive`
-                : archiveError.reason === 'too_many_entries'
-                  ? `Archive has too many entries to extract. Maximum is ${MAX_ARCHIVE_ENTRIES}.`
-                  : archiveError.reason === 'entry_too_large'
-                    ? `Archive entry "${archiveError.entryName}" is too large to extract. Maximum is ${
-                        MAX_ARCHIVE_ENTRY_BYTES / (1024 * 1024)
-                      } MB per file.`
-                    : `Archive expands to more than the ${
-                        MAX_ARCHIVE_TOTAL_BYTES / (1024 * 1024)
-                      } MB extraction limit.`
-            return NextResponse.json({ success: false, error: message }, { status })
+            return NextResponse.json(
+              { success: false, error: `"${archive.name}": ${archiveError.message}` },
+              { status }
+            )
           }
           throw archiveError
         }
@@ -847,6 +838,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           ...file,
           url: ensureAbsoluteUrl(file.url),
         }))
+
+        if (result.skippedUnsafePaths.length > 0) {
+          logger.warn('Skipped unsafe archive entries', {
+            fileId: archive.id,
+            name: archive.name,
+            entryNames: result.skippedUnsafePaths,
+          })
+        }
 
         logger.info('Archive decompressed', {
           fileId: archive.id,

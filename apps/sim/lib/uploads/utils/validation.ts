@@ -224,6 +224,16 @@ export const CHAT_ACCEPT_ATTRIBUTE = [
   ACCEPT_ATTRIBUTE,
   ...SUPPORTED_IMAGE_MIME_TYPES,
   ...SUPPORTED_IMAGE_EXTENSIONS.map((ext) => `.${ext}`),
+].join(',')
+
+/**
+ * Accept attribute for the mothership copilot input only. Archives are scoped
+ * here — NOT in {@link CHAT_ACCEPT_ATTRIBUTE} — because only the copilot flow
+ * has zip handling (materialize_file "extract"); a zip picked in a workflow or
+ * deployed chat would flow into execution, where no parser exists.
+ */
+export const MOTHERSHIP_ACCEPT_ATTRIBUTE = [
+  CHAT_ACCEPT_ATTRIBUTE,
   ...SUPPORTED_ARCHIVE_MIME_TYPES,
   ...SUPPORTED_ARCHIVE_EXTENSIONS.map((ext) => `.${ext}`),
 ].join(',')
@@ -241,25 +251,35 @@ export const SUPPORTED_ATTACHMENT_EXTENSIONS = Array.from(
     ...SUPPORTED_IMAGE_EXTENSIONS,
     ...SUPPORTED_AUDIO_EXTENSIONS,
     ...SUPPORTED_VIDEO_EXTENSIONS,
-    ...SUPPORTED_ARCHIVE_EXTENSIONS,
   ])
 ) as readonly string[]
 
 /**
  * Validate that a file's extension is allowed as a chat/mothership attachment.
  *
- * Permits documents, code, images, audio, video, and zip archives — anything
- * users would reasonably attach to a chat message. Rejects executables and
- * unknown types.
+ * Permits documents, code, images, audio, and video — anything users would
+ * reasonably attach to a chat message. Rejects executables and unknown types.
+ * Archives (`.zip`) are accepted only with `allowArchives` — the mothership
+ * copilot flow, which alone can extract them; every other upload surface keeps
+ * rejecting them up front rather than failing mid-run downstream.
  */
-export function validateAttachmentFileType(fileName: string): FileValidationError | null {
+export function validateAttachmentFileType(
+  fileName: string,
+  options?: { allowArchives?: boolean }
+): FileValidationError | null {
   const raw = extractExtension(fileName)
   const extension = isAlphanumericExtension(raw) ? raw : ''
 
-  if (!SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension)) {
+  const allowed =
+    SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension) ||
+    (options?.allowArchives === true &&
+      (SUPPORTED_ARCHIVE_EXTENSIONS as readonly string[]).includes(extension))
+
+  if (!allowed) {
+    const archiveNote = options?.allowArchives ? ', and zip archives' : ''
     return {
       code: 'UNSUPPORTED_FILE_TYPE',
-      message: `Unsupported file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported types include documents, code, images, audio, video, and zip archives.`,
+      message: `Unsupported file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported types include documents, code, images, audio, video${archiveNote}.`,
       supportedTypes: [...SUPPORTED_ATTACHMENT_EXTENSIONS],
     }
   }

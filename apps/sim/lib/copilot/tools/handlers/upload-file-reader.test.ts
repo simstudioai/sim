@@ -7,13 +7,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
 
-const { mockReadFileRecord } = vi.hoisted(() => ({
+const { mockReadFileRecord, mockFetchBuffer } = vi.hoisted(() => ({
   mockReadFileRecord: vi.fn(),
+  mockFetchBuffer: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/vfs/file-reader', () => ({
   readFileRecord: mockReadFileRecord,
 }))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  fetchWorkspaceFileBuffer: mockFetchBuffer,
+}))
+
+/** A buffer beginning with the ZIP local-file-header magic (PK\x03\x04). */
+const ZIP_SHAPED = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00])
 
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import {
@@ -172,12 +180,41 @@ describe('readChatUpload', () => {
   it('returns extract-first guidance for a .zip upload instead of reading bytes', async () => {
     const row = makeRow({ id: 'wf_z', displayName: 'bundle.zip', contentType: 'application/zip' })
     mockOrderByThenLimit([row])
+    mockFetchBuffer.mockResolvedValueOnce(ZIP_SHAPED)
 
     const result = await readChatUpload('bundle.zip', CHAT_ID)
 
     expect(result?.content).toContain('materialize_file')
     expect(result?.content).toContain('extract')
     expect(mockReadFileRecord).not.toHaveBeenCalled()
+  })
+
+  it('returns extract-first guidance for a large .zip without downloading it', async () => {
+    const row = makeRow({
+      id: 'wf_z',
+      displayName: 'huge.zip',
+      contentType: 'application/zip',
+      size: 50 * 1024 * 1024,
+    })
+    mockOrderByThenLimit([row])
+
+    const result = await readChatUpload('huge.zip', CHAT_ID)
+
+    expect(result?.content).toContain('materialize_file')
+    expect(mockFetchBuffer).not.toHaveBeenCalled()
+    expect(mockReadFileRecord).not.toHaveBeenCalled()
+  })
+
+  it('reads a small mislabeled ".zip" (non-zip bytes) normally instead of dead-ending it', async () => {
+    const row = makeRow({ id: 'wf_m', displayName: 'data.zip', contentType: 'text/csv' })
+    mockOrderByThenLimit([row])
+    mockFetchBuffer.mockResolvedValueOnce(Buffer.from('a,b,c\n1,2,3\n'))
+    mockReadFileRecord.mockResolvedValueOnce({ content: 'a,b,c\n1,2,3', totalLines: 2 })
+
+    const result = await readChatUpload('data.zip', CHAT_ID)
+
+    expect(result).toEqual({ content: 'a,b,c\n1,2,3', totalLines: 2 })
+    expect(mockReadFileRecord).toHaveBeenCalledTimes(1)
   })
 
   it('returns null when no row matches', async () => {
@@ -201,6 +238,7 @@ describe('grepChatUpload', () => {
   it('throws WorkspaceFileGrepError with extract-first guidance for a .zip upload', async () => {
     const row = makeRow({ id: 'wf_z', displayName: 'bundle.zip', contentType: 'application/zip' })
     mockOrderByThenLimit([row])
+    mockFetchBuffer.mockResolvedValueOnce(ZIP_SHAPED)
 
     const error = await grepChatUpload('bundle.zip', CHAT_ID, 'foo').catch((e) => e)
 

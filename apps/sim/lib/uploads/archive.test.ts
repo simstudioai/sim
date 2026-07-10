@@ -24,7 +24,7 @@ import {
 } from '@/lib/uploads/archive'
 
 async function buildZip(
-  files: Record<string, string>,
+  files: Record<string, string | Buffer>,
   opts?: { symlinks?: string[] }
 ): Promise<Buffer> {
   const zip = new JSZip()
@@ -35,6 +35,36 @@ async function buildZip(
   // platform: 'UNIX' so unixPermissions (incl. the symlink mode) round-trip,
   // mirroring how macOS/Linux `zip` authors archives.
   return Buffer.from(await zip.generateAsync({ type: 'uint8array', platform: 'UNIX' }))
+}
+
+const CD_HEADER_SIZE = 46
+const EOCD_SIZE = 22
+
+/**
+ * Hand-craft a structurally valid ZIP central directory + EOCD: `records`
+ * zero-name CD headers each declaring `extraPerRecord` extra-field bytes
+ * (with the bytes actually present, so the walk advances correctly), and an
+ * EOCD at the tail pointing at offset 0. There are no local file entries —
+ * the pre-parse guard must reject before JSZip ever needs them.
+ */
+function craftCentralDirectory(records: number, extraPerRecord: number): Buffer {
+  const recordSize = CD_HEADER_SIZE + extraPerRecord
+  const buffer = Buffer.alloc(records * recordSize + EOCD_SIZE)
+  for (let r = 0; r < records; r++) {
+    const base = r * recordSize
+    buffer.writeUInt32LE(0x02014b50, base) // central-directory file header signature
+    buffer.writeUInt16LE(0, base + 28) // file name length
+    buffer.writeUInt16LE(extraPerRecord, base + 30) // extra field length
+    buffer.writeUInt16LE(0, base + 32) // comment length
+  }
+  const eocd = records * recordSize
+  buffer.writeUInt32LE(0x06054b50, eocd) // EOCD signature
+  buffer.writeUInt16LE(Math.min(records, 0xffff), eocd + 8) // entries on this disk
+  buffer.writeUInt16LE(Math.min(records, 0xffff), eocd + 10) // total entries
+  buffer.writeUInt32LE(records * recordSize, eocd + 12) // central directory size
+  buffer.writeUInt32LE(0, eocd + 16) // central directory offset
+  buffer.writeUInt16LE(0, eocd + 20) // comment length
+  return buffer
 }
 
 beforeEach(() => {
@@ -61,8 +91,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     })
 
     expect(result.extracted).toHaveLength(2)
-    // The canonical, per-segment-encoded VFS path the files were written under.
-    expect(result.rootFolderPath).toBe('files/bundle')
+    expect(result.skippedUnsafePaths).toEqual([])
     expect(mockUpload).toHaveBeenCalledTimes(2)
     const leafNames = mockUpload.mock.calls.map((c) => c[3]).sort()
     expect(leafNames).toEqual(['report.txt', 'sheet.csv'])
@@ -75,76 +104,106 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     )
   })
 
-  it('returns the encoded root folder path for names that need encoding', async () => {
-    const buffer = await buildZip({ 'a.txt': 'x' })
-
-    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
-      workspaceId: 'ws',
-      userId: 'u',
-      rootFolderSegments: ['My Archive'],
-    })
-
-    expect(result.rootFolderPath).toBe('files/My%20Archive')
-  })
-
   it('rejects an archive with more central-directory records than the cap, before parsing', async () => {
-    // One 32-byte central-directory header per record, laid out non-contiguously
-    // (a full fixed-size header apart) so the signature scan strides one header
-    // at a time and reads each record's real extra-field-length field — here a
-    // hard 0 — instead of misreading a neighboring signature's bytes. That keeps
-    // summed extra bytes at exactly 0, so this archive trips the RECORD cap and
-    // never the extra-bytes cap, isolating record-count regression coverage.
-    // JSZip would build one entry per signature it finds (ignoring the EOCD
-    // count), so the pre-scan must reject this before loadAsync ever runs.
-    const BLOCK_SIZE = 32
-    const records = MAX_ARCHIVE_CENTRAL_DIR_RECORDS + 1
-    const buffer = Buffer.alloc(records * BLOCK_SIZE)
-    for (let r = 0; r < records; r++) {
-      const base = r * BLOCK_SIZE
-      // bytes 0-3: PK\x01\x02 central-directory file header signature
-      buffer[base] = 0x50
-      buffer[base + 1] = 0x4b
-      buffer[base + 2] = 0x01
-      buffer[base + 3] = 0x02
-      // bytes 30-31: extra field length = 0 (little-endian) → adds zero toward
-      // MAX_ARCHIVE_CENTRAL_DIR_EXTRA_BYTES, so only the record cap can trip.
-      buffer.writeUInt16LE(0, base + 30)
-    }
+    // A structurally valid central directory (EOCD-anchored) with one record more
+    // than the parse-graph cap. JSZip would build one entry per record in the
+    // contiguous run, so the pre-parse guard must reject before loadAsync runs —
+    // and with the accurate central-directory message, not the file-count one.
+    const buffer = craftCentralDirectory(MAX_ARCHIVE_CENTRAL_DIR_RECORDS + 1, 0)
 
     await expect(
       decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
-    ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'too_many_entries' })
+    ).rejects.toMatchObject({
+      name: 'ArchiveError',
+      reason: 'central_dir_too_large',
+      message: expect.stringContaining(String(MAX_ARCHIVE_CENTRAL_DIR_RECORDS)),
+    })
     expect(mockUpload).not.toHaveBeenCalled()
   })
 
   it('rejects an archive whose central-directory extra fields exceed the byte cap, before parsing', async () => {
-    // A handful of central-directory headers — far below the record cap — each
-    // declaring the maximum 0xFFFF extra-field length, so their summed extra
-    // bytes cross MAX_ARCHIVE_CENTRAL_DIR_EXTRA_BYTES. JSZip would allocate one
-    // retained object per declared extra field during loadAsync, so the pre-scan
-    // must reject on summed extra bytes, not just on record count.
-    const BLOCK_SIZE = 32
+    // A handful of records — far below the record cap — each declaring (and
+    // carrying) the maximum 0xFFFF extra-field bytes, so their sum crosses
+    // MAX_ARCHIVE_CENTRAL_DIR_EXTRA_BYTES. JSZip retains one object per declared
+    // extra field during loadAsync, so the guard must reject on summed extra
+    // bytes, not just on record count.
     const EXTRA_PER_RECORD = 0xffff
-    // +5 records of headroom past the cap; still << MAX_ARCHIVE_CENTRAL_DIR_RECORDS
-    // so THIS cap (extra bytes), not the record count, is what triggers rejection.
     const records = Math.ceil(MAX_ARCHIVE_CENTRAL_DIR_EXTRA_BYTES / EXTRA_PER_RECORD) + 5
     expect(records).toBeLessThan(MAX_ARCHIVE_CENTRAL_DIR_RECORDS)
-    const buffer = Buffer.alloc(records * BLOCK_SIZE)
-    for (let r = 0; r < records; r++) {
-      const base = r * BLOCK_SIZE
-      // bytes 0-3: PK\x01\x02 central-directory file header signature
-      buffer[base] = 0x50
-      buffer[base + 1] = 0x4b
-      buffer[base + 2] = 0x01
-      buffer[base + 3] = 0x02
-      // bytes 30-31: extra field length = 0xFFFF (little-endian), the CD max
-      buffer.writeUInt16LE(EXTRA_PER_RECORD, base + 30)
-    }
+    const buffer = craftCentralDirectory(records, EXTRA_PER_RECORD)
 
     await expect(
       decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
-    ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'too_many_entries' })
+    ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'central_dir_too_large' })
     expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('extracts a zip whose STORED entry contains foreign central-directory signatures', async () => {
+    // Regression: a whole-buffer signature scan would count the PK\x01\x02
+    // signatures inside this stored payload (a nested archive's central
+    // directory travels verbatim inside STORED entries) and falsely reject the
+    // archive. The EOCD-anchored walk must ignore entry payloads entirely.
+    const signatures = Buffer.alloc((MAX_ARCHIVE_CENTRAL_DIR_RECORDS + 1) * 4)
+    for (let r = 0; r <= MAX_ARCHIVE_CENTRAL_DIR_RECORDS; r++) {
+      signatures.writeUInt32LE(0x02014b50, r * 4)
+    }
+    const zip = new JSZip()
+    zip.file('inner.zip', signatures, { compression: 'STORE' })
+    const buffer = Buffer.from(await zip.generateAsync({ type: 'uint8array' }))
+
+    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      userId: 'u',
+    })
+
+    expect(result.extracted).toHaveLength(1)
+    expect(mockUpload).toHaveBeenCalledTimes(1)
+  })
+
+  it('uploads nothing when an entry is corrupted mid-archive (all-or-nothing)', async () => {
+    // Corrupt one entry's DEFLATE bytes AFTER the central directory is built, so
+    // loadAsync parses fine and only streaming inflation fails. The validation
+    // pass must catch it before ANY entry is uploaded, and the raw zlib error
+    // must surface as the module's ArchiveError, not leak through.
+    const zip = new JSZip()
+    zip.file('fine.txt', 'this entry is intact')
+    // Incompressible payload so the DEFLATE stream is large enough to stomp
+    // without touching the following records.
+    zip.file('bad.bin', Buffer.from(Array.from({ length: 20000 }, (_, i) => (i * 137) % 251)))
+    const buffer = Buffer.from(
+      await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+    )
+    const nameOffset = buffer.indexOf(Buffer.from('bad.bin'))
+    // Local file header: name follows the 30-byte fixed header; data follows the
+    // name (+ extra field, empty here). Stomp a chunk of the DEFLATE stream.
+    buffer.fill(0xff, nameOffset + 'bad.bin'.length, nameOffset + 'bad.bin'.length + 256)
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
+    ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'invalid' })
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('does not count noise entries toward the extraction cap when they are being skipped', async () => {
+    // macOS Finder zips carry a __MACOSX/._* shadow per file, doubling the raw
+    // entry count. 501 files + 501 shadows = 1002 raw entries — over the
+    // 1000-file cap — but with skipNoiseEntries set only the 501 real files are
+    // extracted, so the archive must be accepted.
+    const files: Record<string, string> = {}
+    for (let i = 0; i < 501; i++) {
+      files[`f${i}.txt`] = 'x'
+      files[`__MACOSX/._f${i}.txt`] = 'shadow'
+    }
+    const buffer = await buildZip(files)
+
+    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      userId: 'u',
+      skipNoiseEntries: true,
+    })
+
+    expect(result.extracted).toHaveLength(501)
+    expect(result.skipped).toBe(501)
   })
 
   it('throws ArchiveError invalid for a non-zip buffer (no files written)', async () => {
@@ -173,9 +232,11 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     })
 
     // Only the traversal entry counts toward `skipped`; the symlink is filtered
-    // out before the skip tally (it never becomes a candidate entry).
+    // out before the skip tally (it never becomes a candidate entry). The
+    // traversal entry's raw name is preserved for the callers' forensic logs.
     expect(result.extracted).toHaveLength(1)
     expect(result.skipped).toBe(1)
+    expect(result.skippedUnsafePaths).toEqual(['..\\evil.txt'])
     expect(mockUpload).toHaveBeenCalledTimes(1)
     expect(mockUpload.mock.calls[0][3]).toBe('safe.txt')
   })
