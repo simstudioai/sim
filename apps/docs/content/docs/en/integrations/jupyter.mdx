@@ -10,6 +10,18 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Jupyter](https://jupyter.org/) is an open-source platform for interactive computing, best known for the Jupyter Notebook interface that combines live code, visualizations, and narrative text. It runs as a server that exposes files, notebooks, kernels, and sessions over an HTTP API.
+
+With Jupyter, you can:
+
+- **Manage files and notebooks**: List, read, create, upload, rename, copy, and delete files, notebooks, and directories
+- **Control kernels**: List, start, stop, restart, and interrupt the runtimes that execute notebook code
+- **Manage sessions**: List, create, and delete sessions that bind a notebook path to a running kernel
+
+In Sim, the Jupyter integration allows your agents to connect to a self-hosted Jupyter server and drive it programmatically—browsing and editing files and notebooks, uploading content, and managing kernels and sessions that bind notebooks to running code environments. This lets your agents automate notebook-based workflows, such as provisioning a kernel, writing or updating notebook content, and cleaning up sessions and files as part of a larger pipeline.
+{/* MANUAL-CONTENT-END */}
+
 ## Usage Instructions
 
 Integrate a self-hosted Jupyter server into the workflow. Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.
