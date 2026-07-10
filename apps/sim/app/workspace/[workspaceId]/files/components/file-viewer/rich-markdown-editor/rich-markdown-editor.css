@@ -400,13 +400,16 @@
 /*
  * Highlight mark (`==text==`). An opacity-based amber tint so it reads on both light and dark
  * surfaces without a theme override; `color: inherit` keeps the text at the surrounding body color
- * and `box-decoration-break: clone` keeps the tint clean where a highlight wraps across lines.
+ * and `box-decoration-break: clone` keeps the tint clean where a highlight wraps across lines. The
+ * horizontal padding is cancelled by an equal negative margin so the tint bleeds slightly past the
+ * text without ever shifting the text (or any following text) as the highlight is applied/removed.
  */
 .rich-markdown-prose mark {
   background-color: rgba(255, 212, 0, 0.4);
   color: inherit;
   border-radius: 2px;
   padding: 0 0.1em;
+  margin: 0 -0.1em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }

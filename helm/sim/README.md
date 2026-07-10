@@ -219,7 +219,15 @@ Before installing in production, confirm each of the following:
 * **Secrets management** — provide secrets via External Secrets Operator (ESO) or pre-created Kubernetes Secrets. Never commit secrets to `values.yaml`.
 * **TLS / Ingress** — set the `cert-manager.io/cluster-issuer` annotation on the ingress and tune `proxy-body-size` / `proxy-read-timeout` for your workload. See commented examples in `values.yaml`.
 * **Network policy egress** — review `networkPolicy.egressExceptCidrs`. Defaults block cloud metadata endpoints (`169.254.169.254/32`, `169.254.170.2/32`); add your cluster's API server CIDR for stronger isolation. Custom egress rules go in `networkPolicy.egress` (a list).
-* **Namespace hardening** — label the install namespace with Pod Security Standards `restricted` enforcement (`pod-security.kubernetes.io/enforce=restricted`).
+* **Network policy ingress** — `networkPolicy.ingressFrom` defaults to `[{}]` (an empty peer selector), which allows ingress traffic from **any pod in the cluster**, not just your ingress controller. This is a deliberate simple default, not a locked-down one. On a shared or multi-tenant cluster, scope it down, e.g. to the ingress-nginx namespace:
+  ```yaml
+  networkPolicy:
+    ingressFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  ```
+* **Namespace hardening** — label the install namespace with Pod Security Standards `restricted` enforcement (`pod-security.kubernetes.io/enforce=restricted`). All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and set `seccompProfile: RuntimeDefault` — the four controls the Restricted profile requires. `readOnlyRootFilesystem` is intentionally **not** defaulted anywhere (Postgres/Ollama genuinely need a writable root; the stateless services — `realtime`, `pii`, `copilot` — could tolerate it but aren't pre-wired with a `/tmp` `emptyDir`). If your policy requires it, set `<component>.securityContext.readOnlyRootFilesystem: true` and mount an `emptyDir` at `/tmp` yourself via `extraVolumes`/`extraVolumeMounts`.
 * **Env validation** — keys under `app.env`, `realtime.env`, and `copilot.env` are passed through to the application and validated at startup. The JSON Schema intentionally does not enforce `additionalProperties: false` (would break custom user envs), so typos like `OPENA_API_KEY` (instead of `OPENAI_API_KEY`) surface as missing-key errors at runtime, not at `helm install` time. Review your env block carefully.
 * **Set public URLs** — `app.env.NEXT_PUBLIC_APP_URL` and `app.env.BETTER_AUTH_URL` must match your public origin (e.g. `https://sim.example.com`). Leaving them as `localhost` breaks sign-in.
 
@@ -287,6 +295,17 @@ externalSecrets:
       INTERNAL_API_SECRET: sim/app/internal-api-secret
     postgresql:
       password: sim/postgresql/password
+    # Only needed when copilot.enabled=true and copilot.server.secret.create=true.
+    # Every non-empty copilot.server.env key must have a matching entry here —
+    # template rendering fails with a clear message naming the missing key otherwise.
+    copilot:
+      AGENT_API_DB_ENCRYPTION_KEY: sim/copilot/agent-api-db-encryption-key
+      INTERNAL_API_SECRET: sim/copilot/internal-api-secret
+      LICENSE_KEY: sim/copilot/license-key
+      SIM_BASE_URL: sim/copilot/sim-base-url
+      SIM_AGENT_API_KEY: sim/copilot/sim-agent-api-key
+      REDIS_URL: sim/copilot/redis-url
+      OPENAI_API_KEY_1: sim/copilot/openai-api-key
 ```
 
 See `examples/values-external-secrets.yaml`.

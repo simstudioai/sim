@@ -1,6 +1,7 @@
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockIcon } from '@/blocks/types'
+import { registerBlockCacheInvalidator } from '@/blocks/visibility/context'
 
 /**
  * Public descriptor for a single integration block, exposed to UI surfaces
@@ -45,6 +46,18 @@ function normalizeDisplayName(name: string): string {
 
 let cachedMatcher: IntegrationMatcher | null = null
 let cachedList: readonly IntegrationDescriptor[] | null = null
+
+/**
+ * Drops the memoized matcher/list. Registered with the block cache-invalidator
+ * seam so a client block-visibility change (preview reveal / kill switch)
+ * rebuilds the matcher against the new canonical block set.
+ */
+function clearIntegrationMatcherCache(): void {
+  cachedMatcher = null
+  cachedList = null
+}
+
+registerBlockCacheInvalidator(clearIntegrationMatcherCache)
 
 function buildMatcher(): IntegrationMatcher {
   const byName = new Map<string, IntegrationDescriptor>()

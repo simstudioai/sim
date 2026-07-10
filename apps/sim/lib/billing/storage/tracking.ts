@@ -7,11 +7,12 @@
 import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, sql } from 'drizzle-orm'
+import { generateId } from '@sim/utils/id'
+import { and, eq, sql } from 'drizzle-orm'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage/limits'
-import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { getFreeTierLimit, isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('StorageTracking')
@@ -33,7 +34,7 @@ function formatGb(bytes: number, decimals: number): string {
  * @param rearmOnly - True on decrements, so a shrink that leaves usage above a
  *   threshold re-arms but never sends (a drop is not a fresh crossing).
  */
-async function maybeNotifyStorageLimit(
+export async function maybeNotifyStorageLimit(
   userId: string,
   workspaceId: string,
   sub: HighestPrioritySubscription | null,
@@ -193,5 +194,96 @@ export async function decrementStorageUsageInTx(
       .update(userStats)
       .set({ storageUsedBytes: sql`GREATEST(0, ${userStats.storageUsedBytes} - ${bytes})` })
       .where(eq(userStats.userId, userId))
+  }
+}
+
+/**
+ * Atomically check quota and increment a user's (or their org's) storage
+ * counter inside an existing transaction, using a pre-resolved subscription.
+ * The check and the increment are a single conditional `UPDATE`, so two
+ * concurrent callers can no longer both read the same pre-increment usage,
+ * both pass the check, and both commit past the limit — the second caller's
+ * `UPDATE` re-evaluates the WHERE clause against the first caller's already
+ * -committed-within-the-same-DB-round-trip row and correctly fails. Replaces
+ * the old read-then-decide-then-increment-after-commit split (`checkStorageQuota`
+ * + a fire-and-forget `incrementStorageUsage` after the transaction), which left
+ * a window between the read and the increment.
+ *
+ * On success, callers should best-effort call {@link maybeNotifyStorageLimit}
+ * after the transaction commits (mirrors the existing post-increment threshold
+ * check) — this helper doesn't do it itself since it runs mid-transaction.
+ *
+ * For a personal (non-org-scoped) `userId`, this first upserts the
+ * `userStats` row on `tx` — a documented possibility for OAuth account
+ * linking (see `ensureUserStatsExists` in `lib/billing/core/usage.ts`, whose
+ * insert values this mirrors) — because the conditional `UPDATE` below
+ * matches 0 rows, and therefore reads as "quota exceeded", if that row
+ * doesn't exist yet. `ensureUserStatsExists` itself isn't reused here since
+ * it writes through the standalone `db` client, which would open a second
+ * pooled connection while this transaction's is held.
+ */
+export async function checkAndIncrementStorageUsageInTx(
+  tx: StorageTransaction,
+  sub: HighestPrioritySubscription | null,
+  userId: string,
+  bytes: number
+): Promise<{ allowed: boolean; currentUsage: number; limit: number; error?: string }> {
+  if (!isBillingEnabled) {
+    return { allowed: true, currentUsage: 0, limit: Number.MAX_SAFE_INTEGER }
+  }
+
+  const limit = await getUserStorageLimit(userId, sub)
+
+  if (bytes <= 0) {
+    return { allowed: true, currentUsage: await getUserStorageUsage(userId, sub), limit }
+  }
+
+  const orgScoped = isOrgScopedSubscription(sub, userId) && sub
+
+  if (!orgScoped) {
+    await tx
+      .insert(userStats)
+      .values({
+        id: generateId(),
+        userId,
+        currentUsageLimit: getFreeTierLimit().toString(),
+        usageLimitUpdatedAt: new Date(),
+      })
+      .onConflictDoNothing({ target: userStats.userId })
+  }
+
+  const [updated] = orgScoped
+    ? await tx
+        .update(organization)
+        .set({ storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytes}` })
+        .where(
+          and(
+            eq(organization.id, sub.referenceId),
+            sql`${organization.storageUsedBytes} + ${bytes} <= ${limit}`
+          )
+        )
+        .returning({ storageUsedBytes: organization.storageUsedBytes })
+    : await tx
+        .update(userStats)
+        .set({ storageUsedBytes: sql`${userStats.storageUsedBytes} + ${bytes}` })
+        .where(
+          and(
+            eq(userStats.userId, userId),
+            sql`${userStats.storageUsedBytes} + ${bytes} <= ${limit}`
+          )
+        )
+        .returning({ storageUsedBytes: userStats.storageUsedBytes })
+
+  if (updated) {
+    return { allowed: true, currentUsage: updated.storageUsedBytes - bytes, limit }
+  }
+
+  const currentUsage = await getUserStorageUsage(userId, sub)
+  const newUsage = currentUsage + bytes
+  return {
+    allowed: false,
+    currentUsage,
+    limit,
+    error: `Storage limit exceeded. Used: ${(newUsage / (1024 * 1024 * 1024)).toFixed(2)}GB, Limit: ${(limit / (1024 * 1024 * 1024)).toFixed(0)}GB`,
   }
 }

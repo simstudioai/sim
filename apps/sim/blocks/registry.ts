@@ -1,4 +1,5 @@
 import { stripVersionSuffix } from '@sim/utils/string'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { overlayBlocks, resolveOverlayBlock } from '@/blocks/custom/overlay'
 import { BLOCK_META_REGISTRY, BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type {
@@ -8,6 +9,7 @@ import type {
   BlockTemplate,
   SuggestedSkill,
 } from '@/blocks/types'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 
 /**
  * Normalize an external block type to its registry key form: dashes become
@@ -22,9 +24,58 @@ export function getBlock(type: string): BlockConfig | undefined {
   return BLOCK_REGISTRY[type] ?? BLOCK_REGISTRY[normalizeType(type)] ?? resolveOverlayBlock(type)
 }
 
-/** All block configs, including any in-scope custom blocks from the overlay. */
+/** Whether any registered block is an unreleased `preview` block. Static — computed once. */
+const HAS_PREVIEW_BLOCKS = Object.values(BLOCK_REGISTRY).some((block) => block.preview)
+
+/**
+ * True when the visibility projection cannot change any block, so accessors can
+ * return raw arrays untouched: no `preview` blocks exist (they must be hidden
+ * even with a null state) and no kill-switch entries apply.
+ */
+function visibilityInert(vis: BlockVisibilityState | null): boolean {
+  if (HAS_PREVIEW_BLOCKS) return false
+  return vis === null || vis.disabled.size === 0
+}
+
+/**
+ * Effective hidden state for discovery surfaces: static `hideFromToolbar`
+ * (superseded versions, disabled custom blocks) plus the per-viewer visibility
+ * predicate ({@link isHiddenUnder}: unrevealed `preview` blocks — fail-closed
+ * even without a context — and kill-switched types).
+ */
+function effectiveHidden(block: BlockConfig, vis: BlockVisibilityState | null): boolean {
+  if (block.hideFromToolbar) return true
+  return isHiddenUnder(vis, block)
+}
+
+/**
+ * Project a block through the viewer's visibility: gated blocks become shallow
+ * clones with `hideFromToolbar: true` (CLONE-NOT-REMOVE — gated blocks must stay
+ * in `getAllBlocks()` output because `.find`-by-type consumers rely on it), and
+ * revealed-but-not-GA preview blocks get a display " (Preview)" name suffix.
+ * The `!block.hideFromToolbar` guard keeps already-hidden blocks (including
+ * disabled custom blocks) un-cloned and never suffixed.
+ */
+function projectBlock(block: BlockConfig, vis: BlockVisibilityState | null): BlockConfig {
+  if (effectiveHidden(block, vis) && !block.hideFromToolbar) {
+    return { ...block, hideFromToolbar: true }
+  }
+  if (block.preview && vis?.previewTagged.has(block.type)) {
+    return { ...block, name: `${block.name} (Preview)` }
+  }
+  return block
+}
+
+/**
+ * All block configs, including any in-scope custom blocks from the overlay,
+ * projected through the viewer's block visibility. Execution paths are
+ * unaffected: they resolve via the pure {@link getBlock}.
+ */
 export function getAllBlocks(): BlockConfig[] {
-  return [...Object.values(BLOCK_REGISTRY), ...overlayBlocks()]
+  const all = [...Object.values(BLOCK_REGISTRY), ...overlayBlocks()]
+  const vis = overlayVisibility()
+  if (visibilityInert(vis)) return all
+  return all.map((block) => projectBlock(block, vis))
 }
 
 /** Find the block whose `tools.access` contains the given tool id. */
@@ -77,14 +128,17 @@ export function getBlocksByCategory(category: BlockCategory): BlockConfig[] {
  * category. This is the single source of truth shared by every surface that
  * extracts blocks for presentation — the toolbar, the search/mention engine,
  * and the integrations catalog. A block is included when its `category`
- * matches and it is not hidden from the toolbar (i.e. it is the latest
- * version under the upgrade paradigm, since superseded versions set
- * `hideFromToolbar: true`).
+ * matches and it is not effectively hidden: not `hideFromToolbar` (superseded
+ * versions), not an unrevealed `preview` block, and not kill-switched for the
+ * viewer. Visible blocks are projected so revealed preview blocks carry their
+ * " (Preview)" display suffix.
  */
 export function getCanonicalBlocksByCategory(category: BlockCategory): BlockConfig[] {
-  return [...Object.values(BLOCK_REGISTRY), ...overlayBlocks()].filter(
-    (block) => block.category === category && !block.hideFromToolbar
+  const vis = overlayVisibility()
+  const blocks = [...Object.values(BLOCK_REGISTRY), ...overlayBlocks()].filter(
+    (block) => block.category === category && !effectiveHidden(block, vis)
   )
+  return visibilityInert(vis) ? blocks : blocks.map((block) => projectBlock(block, vis))
 }
 
 /** All registered block type identifiers. */

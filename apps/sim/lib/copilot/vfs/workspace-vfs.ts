@@ -88,6 +88,7 @@ import {
   workspacePlanBackingPath,
   workspacePlansBackingFolderPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
@@ -124,8 +125,9 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
-import { getAllBlocks } from '@/blocks/registry'
-import type { BlockIcon } from '@/blocks/types'
+import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
+import type { BlockConfig, BlockIcon } from '@/blocks/types'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
@@ -137,8 +139,38 @@ const logger = createLogger('WorkspaceVFS')
 const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
-/** Static component files, computed once and shared across all VFS instances */
+/**
+ * Static component files, computed once and shared across all VFS instances.
+ * Built from the UNGATED registry universe (preview blocks included) so this
+ * process-global cache can never be poisoned by one viewer's gated projection;
+ * per-viewer gating is applied when the map is stamped into each fresh VFS
+ * (see {@link isStaticFileHidden}).
+ */
 let staticComponentFiles: Map<string, string> | null = null
+
+/**
+ * Owning block for each `components/integrations/**` file, recorded at build
+ * time. Block/trigger schema files carry their owning type as the path
+ * basename, but integration paths use the version-stripped service name — so
+ * their owners need this lookup for the stamp-time visibility filter.
+ */
+const integrationPathOwners = new Map<string, Pick<BlockConfig, 'type' | 'preview'>>()
+
+/**
+ * Per-request visibility filter for the shared static files: hides files whose
+ * owning block is gated for this viewer (unrevealed preview blocks — the
+ * default with no context — and kill-switched types). Non-registry paths
+ * (loop/parallel, connectors, overviews) are always visible.
+ */
+function isStaticFileHidden(path: string, vis: BlockVisibilityState | null): boolean {
+  const blockMatch = path.match(/^components\/(?:blocks|triggers\/sim)\/([^/]+)\.json$/)
+  if (blockMatch) {
+    const config = BLOCK_REGISTRY[blockMatch[1]!]
+    return config ? isHiddenUnder(vis, config) : false
+  }
+  const owner = integrationPathOwners.get(path)
+  return owner ? isHiddenUnder(vis, owner) : false
+}
 
 // On-the-fly doc reads (render/extract) download the binary into the Sim process
 // and base64-stage it to E2B, so bound the input like the compile path's staging
@@ -170,7 +202,12 @@ function getStaticComponentFiles(): Map<string, string> {
 
   const files = new Map<string, string>()
 
-  const allBlocks = getAllBlocks()
+  // Raw registry, never the visibility-projected getAllBlocks: this map is a
+  // process-global shared cache, so it must hold the deterministic ungated
+  // universe. Preview blocks get schema files here (path-filterable at stamp
+  // time for revealed viewers) but are EXCLUDED from the shared aggregate
+  // files (overviews, oauth/api-key summaries) that all viewers receive.
+  const allBlocks = Object.values(BLOCK_REGISTRY)
   const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
 
   let blocksFiltered = 0
@@ -188,10 +225,16 @@ function getStaticComponentFiles(): Map<string, string> {
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
   // deferred callable tools — so discovery and execution can never drift.
-  for (const { config: tool, service, operation } of getExposedIntegrationTools()) {
+  for (const exposedTool of getExposedIntegrationTools()) {
+    const { config: tool, service, operation, blockType, preview } = exposedTool
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
+    integrationPathOwners.set(path, { type: blockType, preview })
     integrationCount++
+
+    // Preview-owned tools stay out of the shared oauth/api-key aggregates —
+    // those files are identical for every viewer.
+    if (preview) continue
 
     if (tool.oauth?.required) {
       const existing = oauthServices.get(service)
@@ -320,12 +363,16 @@ function getStaticComponentFiles(): Map<string, string> {
   files.set(
     'components/triggers/triggers.md',
     serializeTriggerOverview(
-      builtinTriggerBlocks.map((b) => ({
-        id: b.type,
-        name: b.name,
-        provider: 'sim',
-        description: b.description,
-      })),
+      // The overview is a shared file — preview trigger blocks stay out of it
+      // (their per-type schema file remains discoverable for revealed viewers).
+      builtinTriggerBlocks
+        .filter((b) => !b.preview)
+        .map((b) => ({
+          id: b.type,
+          name: b.name,
+          provider: 'sim',
+          description: b.description,
+        })),
       Object.entries(TRIGGER_REGISTRY).map(([id, t]) => ({
         id,
         name: t.name,
@@ -642,7 +689,11 @@ export class WorkspaceVFS {
 
             await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId, userId))
 
+            // Per-viewer gating happens HERE, not in the shared builder: files
+            // owned by blocks hidden for this viewer are skipped at stamp time.
+            const blockVisibility = overlayVisibility()
             for (const [path, content] of getStaticComponentFiles()) {
+              if (isStaticFileHidden(path, blockVisibility)) continue
               this.files.set(path, content)
             }
 

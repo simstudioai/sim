@@ -1109,6 +1109,7 @@ Trigger workflow when a new application is submitted
 |   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
+|     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
 |   ↳ `job` | object | job output from the tool |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
@@ -1163,6 +1164,7 @@ Trigger workflow when a candidate is hired
 |   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
+|     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
 |   ↳ `job` | object | job output from the tool |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
@@ -1204,6 +1206,7 @@ Trigger workflow when a candidate changes interview stages
 |   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
+|     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
 |   ↳ `job` | object | job output from the tool |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
@@ -1231,7 +1234,7 @@ Trigger workflow when a new job is created
 |   ↳ `title` | string | Job title |
 |   ↳ `confidential` | boolean | Whether the job is confidential |
 |   ↳ `status` | string | Job status \(Open, Closed, Draft, Archived\) |
-|   ↳ `employmentType` | string | Employment type \(Full-time, Part-time, etc.\) |
+|   ↳ `employmentType` | string | Employment type \(FullTime, PartTime, Intern, Contract\) |
 
 
 ---
@@ -1254,8 +1257,8 @@ Trigger workflow when a new offer is created
 | `offer` | object | offer output from the tool |
 |   ↳ `id` | string | Offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
-|   ↳ `acceptanceStatus` | string | Offer acceptance status \(Accepted, Declined, Pending, Created, Cancelled, WaitingOnResponse\) |
-|   ↳ `offerStatus` | string | Offer process status \(WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnCandidateResponse, CandidateAccepted, CandidateRejected, OfferCancelled\) |
+|   ↳ `acceptanceStatus` | string | Offer acceptance status \(Accepted, Declined, Pending, Created, Cancelled\) |
+|   ↳ `offerStatus` | string | Offer process status \(WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnApprovalDefinition, WaitingOnCandidateResponse, CandidateRejected, CandidateAccepted, OfferCancelled\) |
 |   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\). Typically null at creation; populated after candidate responds. |
 |   ↳ `latestVersion` | object | latestVersion output from the tool |
 |     ↳ `id` | string | Latest offer version UUID |
