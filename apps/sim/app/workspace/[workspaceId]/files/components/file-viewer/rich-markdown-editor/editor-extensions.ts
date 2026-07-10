@@ -1,5 +1,6 @@
 import type { Extensions } from '@tiptap/core'
 import Placeholder from '@tiptap/extension-placeholder'
+import { BlockMover } from './block-mover'
 import { CodeBlockWithLanguage } from './code-block'
 import { CodeBlockHighlight } from './code-highlight'
 import { LinkEmbed } from './embed/link-embed'
@@ -44,6 +45,7 @@ export function createMarkdownEditorExtensions({
     SlashCommand,
     Mention,
     RichMarkdownKeymap,
+    BlockMover,
     MarkdownPaste,
     Placeholder.configure({ placeholder }),
     ...(embeds ? [LinkEmbed] : []),

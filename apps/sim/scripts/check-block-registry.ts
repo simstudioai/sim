@@ -255,7 +255,12 @@ function checkIntegrationMetaCoverage(): CheckResult {
   const errors: string[] = []
 
   for (const block of getAllBlocks()) {
-    const isCatalogIntegration = block.category === 'tools' && !block.hideFromToolbar
+    // Unreleased preview blocks ship no BlockMeta until GA (they are absent
+    // from every catalog surface), so meta coverage must not force one. The
+    // registry projection already hides them here (no visibility context in a
+    // script), but the explicit check keeps this true regardless.
+    const isCatalogIntegration =
+      block.category === 'tools' && !block.hideFromToolbar && !block.preview
     if (!isCatalogIntegration) continue
 
     if (!getBlockMeta(block.type)) {

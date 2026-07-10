@@ -232,6 +232,11 @@ export function useCollaborativeWorkflow() {
                 .getState()
                 .setBlockCanonicalMode(payload.id, payload.canonicalId, payload.canonicalMode)
               break
+            case BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES:
+              useWorkflowStore
+                .getState()
+                .setBlockCanonicalModes(payload.id, payload.data?.canonicalModes ?? {})
+              break
           }
         } else if (target === OPERATION_TARGETS.BLOCKS) {
           switch (operation) {
@@ -1277,6 +1282,39 @@ export function useCollaborativeWorkflow() {
     [isBaselineDiffView, activeWorkflowId, addToQueue, session?.user?.id]
   )
 
+  /**
+   * Wholesale-replaces `block.data.canonicalModes`, rather than merging one key like
+   * {@link collaborativeSetBlockCanonicalMode}. Needed to reindex nested tool-input overrides on
+   * reorder/removal: a merge can't atomically drop a now-stale index key, and sequential
+   * per-key sets can clobber each other when two tools swap positions.
+   */
+  const collaborativeSetBlockCanonicalModes = useCallback(
+    (id: string, canonicalModes: Record<string, 'basic' | 'advanced'>) => {
+      if (isBaselineDiffView) {
+        return
+      }
+
+      useWorkflowStore.getState().setBlockCanonicalModes(id, canonicalModes)
+
+      if (!activeWorkflowId) {
+        return
+      }
+
+      const operationId = generateId()
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES,
+          target: OPERATION_TARGETS.BLOCK,
+          payload: { id, data: { canonicalModes } },
+        },
+        workflowId: activeWorkflowId,
+        userId: session?.user?.id || 'unknown',
+      })
+    },
+    [isBaselineDiffView, activeWorkflowId, addToQueue, session?.user?.id]
+  )
+
   const collaborativeBatchToggleBlockHandles = useCallback(
     (ids: string[]) => {
       if (isBaselineDiffView) {
@@ -2166,6 +2204,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
     collaborativeSetBlockCanonicalMode,
+    collaborativeSetBlockCanonicalModes,
     collaborativeBatchToggleBlockHandles,
     collaborativeBatchToggleLocked,
     collaborativeBatchAddBlocks,

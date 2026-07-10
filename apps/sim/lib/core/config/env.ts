@@ -144,6 +144,9 @@ export const env = createEnv({
     GEMINI_API_KEY_1:                      z.string().min(1).optional(),           // Primary Gemini API key
     GEMINI_API_KEY_2:                      z.string().min(1).optional(),           // Additional Gemini API key for load balancing
     GEMINI_API_KEY_3:                      z.string().min(1).optional(),           // Additional Gemini API key for load balancing
+    ZAI_API_KEY_1:                         z.string().min(1).optional(),           // Primary Z.ai API key for load balancing
+    ZAI_API_KEY_2:                         z.string().min(1).optional(),           // Additional Z.ai API key for load balancing
+    ZAI_API_KEY_3:                         z.string().min(1).optional(),           // Additional Z.ai API key for load balancing
     OLLAMA_URL:                            z.string().url().optional(),            // Ollama local LLM server URL
     VLLM_BASE_URL:                         z.string().url().optional(),            // vLLM self-hosted base URL (OpenAI-compatible)
     VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
@@ -163,6 +166,7 @@ export const env = createEnv({
     BLACKLISTED_MODELS:                    z.string().optional(),                  // Comma-separated model names/prefixes to hide (e.g., "gpt-4,claude-*")
     ALLOWED_MCP_DOMAINS:                   z.string().optional(),                  // Comma-separated domains for MCP servers (e.g., "internal.company.com,mcp.example.org"). Empty = all allowed.
     ALLOWED_INTEGRATIONS:                  z.string().optional(),                  // Comma-separated block types to allow (e.g., "slack,github,agent"). Empty = all allowed.
+    PREVIEW_BLOCKS:                        z.string().optional(),                  // Comma-separated preview block types to reveal off-AppConfig (e.g., "gmail_v2,notion_v3"). Empty = all preview blocks hidden.
 
     // Azure Configuration - Shared credentials with feature-specific models
     AZURE_OPENAI_ENDPOINT:                 z.string().url().optional(),            // Shared Azure OpenAI service endpoint

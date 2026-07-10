@@ -1,9 +1,8 @@
-import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import type { ForkRemapKind } from '@/ee/workspace-forking/lib/remap/remap-references'
 import {
   clearDependentsOnRemap,
-  type ForkRemapKind,
   remapForkSubBlocks,
+  type SubBlockTransform,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 /**
@@ -21,14 +20,8 @@ export type ForkCopyResolver = (kind: ForkRemapKind, sourceId: string) => string
  * empty; env-var `{{KEY}}` references are preserved (name-based, they resolve once
  * the child defines the key).
  */
-export function createForkBootstrapTransform(
-  resolveCopied: ForkCopyResolver
-): (
-  subBlocks: SubBlockRecord,
-  blockType: string,
-  canonicalModes?: CanonicalModeOverrides
-) => SubBlockRecord {
-  return (subBlocks, blockType, canonicalModes) => {
+export function createForkBootstrapTransform(resolveCopied: ForkCopyResolver): SubBlockTransform {
+  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged) => {
     // Every resolution at fork-create IS a copy (the resolver is the copy id map), so all
     // remapped keys carry copy provenance - copy-faithful dependents (column picks) survive.
     // `blockType`/`canonicalModes` activate the mode policy: active basic remaps, active
@@ -38,11 +31,12 @@ export function createForkBootstrapTransform(
       canonicalModes,
       isCopiedTarget: (kind, sourceId) => resolveCopied(kind, sourceId) != null,
     })
+    if (result.canonicalModes) onCanonicalModesChanged?.(result.canonicalModes)
     return clearDependentsOnRemap(
       result.subBlocks,
       blockType,
       result.remappedKeys,
-      canonicalModes,
+      result.canonicalModes ?? canonicalModes,
       result.copyRemappedKeys
     )
   }

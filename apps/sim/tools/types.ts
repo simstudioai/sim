@@ -7,6 +7,7 @@ export type BYOKProviderId =
   | 'anthropic'
   | 'google'
   | 'mistral'
+  | 'zai'
   | 'fireworks'
   | 'together'
   | 'baseten'

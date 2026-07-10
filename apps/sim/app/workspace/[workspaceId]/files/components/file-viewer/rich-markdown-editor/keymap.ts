@@ -128,7 +128,8 @@ function selectAdjacentSelectedLeaf(editor: Editor, direction: 'up' | 'down'): b
  *   same scoped behavior as a code editor.
  * - **ArrowUp/ArrowDown** select an adjacent divider or image, whether arrowing off a textblock edge
  *   ({@link selectAdjacentLeaf}) or stepping from one already-selected leaf to the next
- *   ({@link selectAdjacentSelectedLeaf}).
+ *   ({@link selectAdjacentSelectedLeaf}). (The `Mod-Shift-Arrow` block-reorder chords live separately
+ *   in `./block-mover.ts`.)
  *
  * Plus a plugin that (a) highlights dividers/images falling inside a range selection (e.g. select-all),
  * which the browser's native text highlight skips because leaves carry no text, and (b) flags the
