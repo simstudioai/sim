@@ -6,8 +6,7 @@ metadata:
   name: {{ include "sim.fullname" . }}-copilot
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: copilot
+    {{- include "sim.copilot.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.copilot.server.service.type }}
   ports:
@@ -16,9 +15,7 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app.kubernetes.io/name: {{ include "sim.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/component: copilot
+    {{- include "sim.copilot.selectorLabels" . | nindent 4 }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -26,15 +23,12 @@ metadata:
   name: {{ include "sim.fullname" . }}-copilot
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: copilot
+    {{- include "sim.copilot.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.copilot.server.replicaCount }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "sim.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
-      app.kubernetes.io/component: copilot
+      {{- include "sim.copilot.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -43,9 +37,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        app.kubernetes.io/name: {{ include "sim.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: copilot
+        {{- include "sim.copilot.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -106,5 +98,23 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- include "sim.containerSecurityContext" .Values.copilot.server | nindent 10 }}
+          {{- if or .Values.extraVolumeMounts .Values.copilot.server.extraVolumeMounts }}
+          volumeMounts:
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.copilot.server.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.extraVolumes .Values.copilot.server.extraVolumes }}
+      volumes:
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.copilot.server.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
 {{- end }}
 

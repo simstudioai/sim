@@ -5,8 +5,7 @@ metadata:
   name: {{ include "sim.fullname" . }}-copilot-postgresql-secret
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: copilot-postgresql
+    {{- include "sim.copilotPostgresql.labels" . | nindent 4 }}
 type: Opaque
 stringData:
   POSTGRES_USER: {{ .Values.copilot.postgresql.auth.username | quote }}
@@ -21,8 +20,7 @@ metadata:
   name: {{ include "sim.fullname" . }}-copilot-postgresql
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: copilot-postgresql
+    {{- include "sim.copilotPostgresql.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.copilot.postgresql.service.type }}
   ports:
@@ -31,9 +29,7 @@ spec:
       protocol: TCP
       name: postgresql
   selector:
-    app.kubernetes.io/name: {{ include "sim.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/component: copilot-postgresql
+    {{- include "sim.copilotPostgresql.selectorLabels" . | nindent 4 }}
 ---
 # Headless Service for the StatefulSet (stable per-pod DNS)
 apiVersion: v1
@@ -42,8 +38,7 @@ metadata:
   name: {{ include "sim.fullname" . }}-copilot-postgresql-headless
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: copilot-postgresql
+    {{- include "sim.copilotPostgresql.labels" . | nindent 4 }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -53,9 +48,7 @@ spec:
       protocol: TCP
       name: postgresql
   selector:
-    app.kubernetes.io/name: {{ include "sim.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/component: copilot-postgresql
+    {{- include "sim.copilotPostgresql.selectorLabels" . | nindent 4 }}
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -63,8 +56,7 @@ metadata:
   name: {{ include "sim.fullname" . }}-copilot-postgresql
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: copilot-postgresql
+    {{- include "sim.copilotPostgresql.labels" . | nindent 4 }}
 spec:
   # Must remain {{ include "sim.fullname" . }}-copilot-postgresql (not the
   # -headless name) — spec.serviceName is immutable on a StatefulSet, and
@@ -77,15 +69,11 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "sim.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
-      app.kubernetes.io/component: copilot-postgresql
+      {{- include "sim.copilotPostgresql.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "sim.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: copilot-postgresql
+        {{- include "sim.copilotPostgresql.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -143,8 +131,7 @@ spec:
     - metadata:
         name: data
         labels:
-          {{- include "sim.labels" . | nindent 10 }}
-          app.kubernetes.io/component: copilot-postgresql
+          {{- include "sim.copilotPostgresql.labels" . | nindent 10 }}
       spec:
         accessModes:
           {{- range .Values.copilot.postgresql.persistence.accessModes }}

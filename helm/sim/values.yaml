@@ -1437,6 +1437,15 @@ telemetry:
     tls:
       enabled: false
 
+  # Pod security context (preserves the collector's original UID/GID/fsGroup)
+  podSecurityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+  # Container security context (sim.containerSecurityContext restricted defaults apply)
+  securityContext: {}
+
 # Copilot service configuration (optional microservice)
 copilot:
   # Enable/disable the copilot service
@@ -1498,10 +1507,15 @@ copilot:
     
     # Optional: additional static environment variables
     extraEnv: []
-    
+
     # Optional: references to existing ConfigMaps/Secrets
     extraEnvFrom: []
-    
+
+    # Optional: additional volumes/mounts (e.g. to back an emptyDir /tmp when
+    # enabling securityContext.readOnlyRootFilesystem)
+    extraVolumes: []
+    extraVolumeMounts: []
+
     # Secret generation configuration (set create=false to use an existing secret)
     secret:
       create: true
@@ -1726,6 +1740,27 @@ externalSecrets:
     externalDatabase:
       # Path to external database password in external store
       password: ""
+
+    # Copilot server secrets (used when copilot.enabled=true and copilot.server.secret.create=true).
+    # Every non-empty copilot.server.env key must have a matching entry here, or template
+    # rendering fails with a clear "map it or remove it" error — same rule as remoteRefs.app.
+    copilot:
+      # Path to AGENT_API_DB_ENCRYPTION_KEY in external store
+      AGENT_API_DB_ENCRYPTION_KEY: ""
+      # Path to INTERNAL_API_SECRET in external store (shared with app/realtime)
+      INTERNAL_API_SECRET: ""
+      # Path to LICENSE_KEY in external store
+      LICENSE_KEY: ""
+      # Path to SIM_BASE_URL in external store
+      SIM_BASE_URL: ""
+      # Path to SIM_AGENT_API_KEY in external store
+      SIM_AGENT_API_KEY: ""
+      # Path to REDIS_URL in external store
+      REDIS_URL: ""
+      # Path to OPENAI_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      OPENAI_API_KEY_1: ""
+      # Path to ANTHROPIC_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      ANTHROPIC_API_KEY_1: ""
 
 # cert-manager configuration
 # Prerequisites: Install cert-manager in your cluster first
