@@ -93,6 +93,25 @@ export const updateCustomBlockBodySchema = z
 
 export type UpdateCustomBlockBody = z.input<typeof updateCustomBlockBodySchema>
 
+/**
+ * A workflow in the org that places this block. Live editor state and the
+ * active deployment snapshot can diverge, so both placements are reported.
+ */
+export const customBlockUsageSchema = z.object({
+  workflowId: z.string(),
+  workflowName: z.string(),
+  workspaceId: z.string(),
+  workspaceName: z.string(),
+  /** The consuming workflow is currently deployed. */
+  isDeployed: z.boolean(),
+  /** Placed in the workflow's live editor state. */
+  inLiveState: z.boolean(),
+  /** Present in the workflow's ACTIVE deployment snapshot — the state that actually runs. */
+  inActiveDeployment: z.boolean(),
+})
+
+export type CustomBlockUsage = z.output<typeof customBlockUsageSchema>
+
 export const listCustomBlocksContract = defineRouteContract({
   method: 'GET',
   path: '/api/custom-blocks',
@@ -135,5 +154,15 @@ export const deleteCustomBlockContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({ success: z.literal(true) }),
+  },
+})
+
+export const getCustomBlockUsagesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/custom-blocks/[id]/usages',
+  params: customBlockIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ usages: z.array(customBlockUsageSchema) }),
   },
 })

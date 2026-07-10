@@ -1,8 +1,14 @@
 import { db } from '@sim/db'
-import { customBlock, workflow, workspace } from '@sim/db/schema'
+import {
+  customBlock,
+  workflow,
+  workflowBlocks,
+  workflowDeploymentVersion,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
@@ -431,4 +437,81 @@ export async function updateCustomBlock(
 /** Unpublish (hard-delete) a custom block. */
 export async function deleteCustomBlock(id: string): Promise<void> {
   await db.delete(customBlock).where(eq(customBlock.id, id))
+}
+
+/** A workflow in the org that places a custom block. */
+export interface CustomBlockUsageRow {
+  workflowId: string
+  workflowName: string
+  workspaceId: string
+  workspaceName: string
+  isDeployed: boolean
+  inLiveState: boolean
+  inActiveDeployment: boolean
+}
+
+/**
+ * Every non-archived workflow in the org that places the block, in its live
+ * editor state and/or its ACTIVE deployment snapshot. The two are scanned
+ * independently — a block removed in the editor can still ship in the active
+ * deployment (and vice versa), and the deployed placement is the one that
+ * actually runs. The deployment scan pre-filters with a raw-text match on the
+ * unique type slug so only near-exact matches pay the jsonb parse.
+ */
+export async function getCustomBlockUsages(
+  organizationId: string,
+  blockType: string
+): Promise<CustomBlockUsageRow[]> {
+  const meta = {
+    workflowId: workflow.id,
+    workflowName: workflow.name,
+    workspaceId: workspace.id,
+    workspaceName: workspace.name,
+    isDeployed: workflow.isDeployed,
+  }
+  const orgActiveWorkflow = and(
+    eq(workspace.organizationId, organizationId),
+    isNull(workflow.archivedAt)
+  )
+
+  const [liveRows, deployedRows] = await Promise.all([
+    db
+      .selectDistinct(meta)
+      .from(workflowBlocks)
+      .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))
+      .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
+      .where(and(eq(workflowBlocks.type, blockType), orgActiveWorkflow)),
+    db
+      .select(meta)
+      .from(workflowDeploymentVersion)
+      .innerJoin(workflow, eq(workflow.id, workflowDeploymentVersion.workflowId))
+      .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
+      .where(
+        and(
+          eq(workflowDeploymentVersion.isActive, true),
+          eq(workflow.isDeployed, true),
+          orgActiveWorkflow,
+          sql`${workflowDeploymentVersion.state}::text LIKE ${`%${blockType}%`}`,
+          sql`EXISTS (
+            SELECT 1 FROM jsonb_each((${workflowDeploymentVersion.state})::jsonb -> 'blocks') AS b
+            WHERE b.value ->> 'type' = ${blockType}
+          )`
+        )
+      ),
+  ])
+
+  const byWorkflowId = new Map<string, CustomBlockUsageRow>()
+  for (const row of liveRows) {
+    byWorkflowId.set(row.workflowId, { ...row, inLiveState: true, inActiveDeployment: false })
+  }
+  for (const row of deployedRows) {
+    const existing = byWorkflowId.get(row.workflowId)
+    if (existing) existing.inActiveDeployment = true
+    else byWorkflowId.set(row.workflowId, { ...row, inLiveState: false, inActiveDeployment: true })
+  }
+
+  return [...byWorkflowId.values()].sort(
+    (a, b) =>
+      a.workspaceName.localeCompare(b.workspaceName) || a.workflowName.localeCompare(b.workflowName)
+  )
 }

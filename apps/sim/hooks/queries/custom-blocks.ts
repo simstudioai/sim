@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type CustomBlock,
+  type CustomBlockUsage,
   deleteCustomBlockContract,
+  getCustomBlockUsagesContract,
   listCustomBlocksContract,
   type PublishCustomBlockBody,
   publishCustomBlockContract,
@@ -11,11 +13,14 @@ import {
 } from '@/lib/api/contracts/custom-blocks'
 
 export const CUSTOM_BLOCK_LIST_STALE_TIME = 60 * 1000
+/** Short — the usage list is a pre-delete safety check and must stay fresh. */
+export const CUSTOM_BLOCK_USAGES_STALE_TIME = 30 * 1000
 
 export const customBlockKeys = {
   all: ['custom-blocks'] as const,
   lists: () => [...customBlockKeys.all, 'list'] as const,
   list: (workspaceId?: string) => [...customBlockKeys.lists(), workspaceId ?? ''] as const,
+  usages: (id?: string) => [...customBlockKeys.all, 'usages', id ?? ''] as const,
 }
 
 interface CustomBlocksResult {
@@ -51,6 +56,24 @@ export function useCustomBlocks(workspaceId?: string) {
 /** Whether this workspace may publish/use custom blocks (feature flag + enterprise plan). */
 export function useCanPublishCustomBlock(workspaceId?: string) {
   return useCustomBlocksQuery(workspaceId, (r) => r.enabled)
+}
+
+async function fetchCustomBlockUsages(
+  id: string,
+  signal?: AbortSignal
+): Promise<CustomBlockUsage[]> {
+  const data = await requestJson(getCustomBlockUsagesContract, { params: { id }, signal })
+  return data.usages
+}
+
+/** Workflows across the org that place this block (live editor state and/or active deployment). */
+export function useCustomBlockUsages(blockId?: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: customBlockKeys.usages(blockId),
+    queryFn: ({ signal }) => fetchCustomBlockUsages(blockId as string, signal),
+    enabled: Boolean(blockId) && (options?.enabled ?? true),
+    staleTime: CUSTOM_BLOCK_USAGES_STALE_TIME,
+  })
 }
 
 export function usePublishCustomBlock(workspaceId?: string) {
