@@ -33,6 +33,8 @@ interface UseAutosaveOptions {
    */
   draftKey?: string
   onRestoreDraft?: (content: string) => void
+  /** Called if `discard()`'s corrective save fails — the only way that failure can surface, since it happens after the component may already have unmounted. */
+  onDiscardCorrectionFailed?: () => void
 }
 
 interface UseAutosaveReturn {
@@ -56,6 +58,7 @@ export function useAutosave({
   enabled = true,
   draftKey,
   onRestoreDraft,
+  onDiscardCorrectionFailed,
 }: UseAutosaveOptions): UseAutosaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -75,6 +78,8 @@ export function useAutosave({
   draftKeyRef.current = effectiveDraftKey
   const onRestoreDraftRef = useRef(onRestoreDraft)
   onRestoreDraftRef.current = onRestoreDraft
+  const onDiscardCorrectionFailedRef = useRef(onDiscardCorrectionFailed)
+  onDiscardCorrectionFailedRef.current = onDiscardCorrectionFailed
 
   const isDirty = content !== savedContent
   const savingStartRef = useRef(0)
@@ -85,6 +90,8 @@ export function useAutosave({
   const discardedRef = useRef(false)
   const idbQueueRef = useRef<Promise<void>>(Promise.resolve())
   const MIN_SAVING_DISPLAY_MS = 600
+
+  if (discardedRef.current && isDirty) discardedRef.current = false
 
   const persistLocalDraft = useCallback(() => {
     const key = draftKeyRef.current
@@ -262,6 +269,7 @@ export function useAutosave({
     void pendingSave.then(() =>
       onSaveRef.current(target).catch((error) => {
         logger.warn('Corrective save after discard failed', { error })
+        onDiscardCorrectionFailedRef.current?.()
       })
     )
   }, [clearLocalDraft])

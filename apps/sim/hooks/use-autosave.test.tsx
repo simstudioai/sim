@@ -25,11 +25,12 @@ import { type SaveStatus, useAutosave } from '@/hooks/use-autosave'
 interface ProbeProps {
   content: string
   savedContent: string
-  onSave: () => Promise<void>
+  onSave: (overrideContent?: string) => Promise<void>
   delay?: number
   enabled?: boolean
   draftKey?: string
   onRestoreDraft?: (content: string) => void
+  onDiscardCorrectionFailed?: () => void
 }
 
 interface HookHandle {
@@ -577,6 +578,64 @@ describe('useAutosave', () => {
       // not whatever the still-dirty ambient content ('a1') happened to be.
       expect(onSave).toHaveBeenCalledTimes(2)
       expect(onSave).toHaveBeenNthCalledWith(2, 'a')
+    })
+
+    it('surfaces a corrective save failure instead of only logging it', async () => {
+      let resolveSave: (() => void) | undefined
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSave = resolve
+          })
+      )
+      const onDiscardCorrectionFailed = vi.fn()
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-6',
+        onDiscardCorrectionFailed,
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      act(() => handle.discard())
+
+      // The corrective save (the second call) fails.
+      onSave.mockImplementationOnce(() => Promise.reject(new Error('offline')))
+      await act(async () => {
+        resolveSave?.()
+      })
+      await flush()
+      expect(onDiscardCorrectionFailed).toHaveBeenCalledTimes(1)
+    })
+
+    it('resumes normal autosave for a genuinely new edit made after discard', async () => {
+      const onSave = vi.fn(async () => {})
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-7',
+      })
+
+      handle.rerender({ content: 'a1' })
+      act(() => handle.discard())
+      // The caller resets content back to the baseline, mirroring discardChanges.
+      handle.rerender({ content: 'a' })
+
+      // The editor stays mounted a moment longer and the user starts a fresh edit.
+      handle.rerender({ content: 'b' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      // A brand-new edit made after discard must not be silently swallowed forever.
+      expect(onSave).toHaveBeenCalledTimes(1)
+      expect(onSave).toHaveBeenCalledWith()
     })
 
     it('does not issue a corrective save when discard finds nothing in flight', async () => {
