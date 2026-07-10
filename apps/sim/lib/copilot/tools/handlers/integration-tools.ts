@@ -1,17 +1,24 @@
-import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
+import {
+  filterExposedIntegrationTools,
+  getExposedIntegrationTools,
+} from '@/lib/copilot/integration-tools'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { stripVersionSuffix } from '@/tools/utils'
 
 export async function executeListIntegrationTools(
   params: Record<string, unknown>,
-  _context: ExecutionContext
+  context: ExecutionContext
 ): Promise<ToolCallResult> {
   const raw = typeof params.integration === 'string' ? params.integration.trim() : ''
   if (!raw) {
     return { success: false, error: "Missing required parameter 'integration'" }
   }
 
-  const all = getExposedIntegrationTools()
+  // The exposed set is the ungated universe — project it for this viewer so
+  // gated (preview / kill-switched) integrations stay undiscoverable.
+  const vis = await getBlockVisibilityForCopilot(context.userId, context.workspaceId)
+  const all = filterExposedIntegrationTools(getExposedIntegrationTools(), vis)
   const service = stripVersionSuffix(raw.toLowerCase())
   const matches = all.filter((tool) => tool.service === service)
 
