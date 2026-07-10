@@ -42,6 +42,15 @@ function requiresJsonValue(paramSchema: any): boolean {
   )
 }
 
+/**
+ * Stable signature of a tool schema's properties, for detecting whether the
+ * effective param shape has changed (independent of object identity).
+ */
+function schemaSignature(schema: unknown): string {
+  const properties = (schema as { properties?: unknown } | undefined)?.properties
+  return properties ? JSON.stringify(properties) : ''
+}
+
 interface McpDynamicArgsProps {
   blockId: string
   subBlockId: string
@@ -101,12 +110,13 @@ export function McpDynamicArgs({
    * Draft text for JSON-value params (object/array/non-primitive-enum) whose current
    * edit isn't valid JSON yet. Keeping this out of toolArgs means the stored argument
    * is always either the last valid parsed value or untouched — never malformed text
-   * that could reach tool execution. Drafts reset whenever the selected tool or its
-   * effective schema changes, so a stale draft can't outlive the param shape it was
-   * typed against.
+   * that could reach tool execution. Drafts reset whenever the selected tool or either
+   * schema source changes — `toolSchema` prefers the cached `_toolSchema` snapshot over
+   * the live discovered schema, so the reset key tracks both independently rather than
+   * the resolved `toolSchema`, which wouldn't change on a live-only refresh.
    */
   const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<Record<string, string>>({})
-  const draftResetKey = `${selectedTool ?? ''}|${toolSchema?.properties ? JSON.stringify(toolSchema.properties) : ''}`
+  const draftResetKey = `${selectedTool ?? ''}|${schemaSignature(cachedSchema)}|${schemaSignature(selectedToolConfig?.inputSchema)}`
   const [prevDraftResetKey, setPrevDraftResetKey] = useState(draftResetKey)
   if (prevDraftResetKey !== draftResetKey) {
     setPrevDraftResetKey(draftResetKey)
