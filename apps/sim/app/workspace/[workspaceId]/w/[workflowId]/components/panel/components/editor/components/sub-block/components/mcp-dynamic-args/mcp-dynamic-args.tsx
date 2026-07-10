@@ -15,6 +15,33 @@ import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('McpDynamicArgs')
 
+/**
+ * The dropdown UI renders each enum member as a string label/value, so it can only
+ * represent JSON Schema enums whose members are primitives — a non-primitive member
+ * (object/array) would collapse to "[object Object]" and lose its identity. Callers
+ * route a non-primitive enum to the JSON editor (`long-input`) instead.
+ */
+function isPrimitiveEnum(
+  enumValues: unknown
+): enumValues is Array<string | number | boolean | null> {
+  return (
+    Array.isArray(enumValues) &&
+    enumValues.every((value) => value === null || typeof value !== 'object')
+  )
+}
+
+/**
+ * True when the schema's actual value must be a JSON object/array (a plain
+ * object/array type, or a non-primitive enum member) rather than a string.
+ */
+function requiresJsonValue(paramSchema: any): boolean {
+  return (
+    paramSchema.type === 'object' ||
+    paramSchema.type === 'array' ||
+    (Array.isArray(paramSchema.enum) && !isPrimitiveEnum(paramSchema.enum))
+  )
+}
+
 interface McpDynamicArgsProps {
   blockId: string
   subBlockId: string
@@ -116,7 +143,9 @@ export function McpDynamicArgs({
   )
 
   const getInputType = (paramSchema: any) => {
-    if (paramSchema.enum) return 'dropdown'
+    if (Array.isArray(paramSchema.enum)) {
+      return isPrimitiveEnum(paramSchema.enum) ? 'dropdown' : 'long-input'
+    }
     if (paramSchema.type === 'boolean') return 'switch'
     if (paramSchema.type === 'number' || paramSchema.type === 'integer') {
       if (paramSchema.minimum !== undefined && paramSchema.maximum !== undefined) {
@@ -241,6 +270,8 @@ export function McpDynamicArgs({
 
       case 'long-input': {
         const config = createParamConfig(paramName, paramSchema, 'long-input')
+        const displayValue =
+          typeof value === 'string' || value == null ? value || '' : JSON.stringify(value)
         return (
           <LongInput
             key={`${paramName}-long`}
@@ -249,8 +280,18 @@ export function McpDynamicArgs({
             config={config}
             placeholder={config.placeholder}
             rows={4}
-            value={value || ''}
-            onChange={(newValue) => updateParameter(paramName, newValue)}
+            value={displayValue}
+            onChange={(newValue) => {
+              if (!requiresJsonValue(paramSchema)) {
+                updateParameter(paramName, newValue)
+                return
+              }
+              try {
+                updateParameter(paramName, JSON.parse(newValue))
+              } catch {
+                updateParameter(paramName, newValue)
+              }
+            }}
             isPreview={isPreview}
             disabled={disabled}
             workflowSearchValuePath={[paramName]}
