@@ -402,6 +402,15 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
     }
 
     await db.transaction(async (tx) => {
+      // This UPDATE is also this workflow's write-serialization point, not
+      // just a timestamp bump: it takes a row lock on `workflow` for the
+      // rest of the transaction, so two concurrent persistWorkflowOperation
+      // calls for the same workflowId cannot interleave — the second blocks
+      // here until the first commits or rolls back. Every handler dispatched
+      // below (including the edge-add validate-then-insert sequence in
+      // filterEdgesForPersist) relies on this to read a consistent snapshot;
+      // do not make this UPDATE conditional/skippable as an optimization
+      // without replacing the serialization it provides.
       await tx
         .update(workflow)
         .set({ updatedAt: new Date(timestamp) })
