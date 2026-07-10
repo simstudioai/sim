@@ -17,10 +17,21 @@ import { LandingShell } from '@/app/(landing)/components'
  *
  * Each page supplies only its `<main id='main-content'>` content (and any
  * page-specific metadata / JSON-LD). `metadataBase` here lets pages express
- * relative canonical/OG URLs; every other metadata field stays per-page.
+ * relative canonical/OG URLs; shared icon metadata keeps favicons consistent,
+ * while every other metadata field stays per-page.
  */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' },
+      { url: '/favicon/favicon.svg', type: 'image/svg+xml', sizes: 'any' },
+      { url: '/favicon/favicon-32x32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon/favicon-16x16.png', type: 'image/png', sizes: '16x16' },
+    ],
+    shortcut: '/favicon/favicon.ico',
+    apple: '/favicon/apple-touch-icon.png',
+  },
 }
 
 export default function LandingLayout({ children }: { children: ReactNode }) {
