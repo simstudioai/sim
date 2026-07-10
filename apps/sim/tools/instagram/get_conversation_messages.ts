@@ -2,7 +2,7 @@ import type {
   InstagramGetConversationMessagesParams,
   InstagramGetConversationMessagesResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramGetConversationMessagesTool: ToolConfig<
@@ -62,7 +62,7 @@ export const instagramGetConversationMessagesTool: ToolConfig<
     return {
       success: true,
       output: {
-        conversationId: params?.conversationId ?? data.id ?? '',
+        conversationId: params?.conversationId ?? idString(data.id) ?? '',
         messages: items.map((item: Record<string, unknown>) => ({
           id: String(item.id ?? ''),
           createdTime: (item.created_time as string | undefined) ?? null,

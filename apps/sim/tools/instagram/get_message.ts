@@ -2,7 +2,7 @@ import type {
   InstagramGetMessageParams,
   InstagramGetMessageResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramGetMessageTool: ToolConfig<
@@ -60,18 +60,18 @@ export const instagramGetMessageTool: ToolConfig<
     }
 
     const data = await response.json()
-    const from = data.from as { id?: string; username?: string } | undefined
+    const from = data.from as { id?: string | number; username?: string } | undefined
     const toData = data.to?.data
     const toFirst = Array.isArray(toData) ? toData[0] : undefined
 
     return {
       success: true,
       output: {
-        id: data.id ?? null,
+        id: idString(data.id),
         createdTime: data.created_time ?? null,
-        fromId: from?.id ?? null,
+        fromId: idString(from?.id),
         fromUsername: from?.username ?? null,
-        toId: toFirst?.id ?? null,
+        toId: idString(toFirst?.id),
         message: data.message ?? null,
       },
     }

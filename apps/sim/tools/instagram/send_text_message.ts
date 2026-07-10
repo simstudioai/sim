@@ -2,7 +2,7 @@ import type {
   InstagramSendTextMessageParams,
   InstagramSendTextMessageResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramSendTextMessageTool: ToolConfig<
@@ -69,12 +69,15 @@ export const instagramSendTextMessageTool: ToolConfig<
       }
     }
 
-    const data = (await response.json()) as { message_id?: string; recipient_id?: string }
+    const data = (await response.json()) as {
+      message_id?: string | number
+      recipient_id?: string | number
+    }
     return {
       success: true,
       output: {
-        messageId: data.message_id ?? null,
-        recipientId: data.recipient_id ?? params?.recipientId.trim() ?? null,
+        messageId: idString(data.message_id),
+        recipientId: idString(data.recipient_id) ?? params?.recipientId.trim() ?? null,
       },
     }
   },

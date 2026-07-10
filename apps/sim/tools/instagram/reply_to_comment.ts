@@ -2,7 +2,7 @@ import type {
   InstagramReplyToCommentParams,
   InstagramReplyToCommentResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramReplyToCommentTool: ToolConfig<
@@ -60,7 +60,7 @@ export const instagramReplyToCommentTool: ToolConfig<
     const data = await response.json()
     return {
       success: true,
-      output: { id: data.id ?? null },
+      output: { id: idString(data.id) },
     }
   },
 

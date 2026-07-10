@@ -24,6 +24,15 @@ export function graphUrl(path: string, query?: Record<string, string | undefined
   return url.toString()
 }
 
+/**
+ * Graph may serialize IDs as strings or numbers. Normalize to a string (or
+ * null) so downstream tools can safely call .trim() on wired ID outputs.
+ */
+export function idString(value: unknown): string | null {
+  if (value == null || value === '') return null
+  return String(value)
+}
+
 export async function readGraphError(response: Response): Promise<string> {
   const text = await response.text()
   try {
@@ -149,11 +158,12 @@ export async function createMediaContainer(
     throw new Error(`Failed to create media container: ${await readGraphError(response)}`)
   }
 
-  const data = (await response.json()) as { id?: string }
-  if (!data.id) {
+  const data = (await response.json()) as { id?: string | number }
+  const id = idString(data.id)
+  if (!id) {
     throw new Error('Create media container response missing id')
   }
-  return data.id
+  return id
 }
 
 export async function publishMediaContainer(
@@ -169,11 +179,12 @@ export async function publishMediaContainer(
     throw new Error(`Failed to publish media: ${await readGraphError(response)}`)
   }
 
-  const data = (await response.json()) as { id?: string }
-  if (!data.id) {
+  const data = (await response.json()) as { id?: string | number }
+  const id = idString(data.id)
+  if (!id) {
     throw new Error('Publish media response missing id')
   }
-  return data.id
+  return id
 }
 
 export function parseCommaSeparated(value?: string): string[] {

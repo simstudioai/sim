@@ -1,5 +1,5 @@
 import type { InstagramGetMediaParams, InstagramGetMediaResponse } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const DEFAULT_FIELDS =
@@ -73,7 +73,7 @@ export const instagramGetMediaTool: ToolConfig<InstagramGetMediaParams, Instagra
       return {
         success: true,
         output: {
-          id: data.id ?? null,
+          id: idString(data.id),
           caption: data.caption ?? null,
           mediaType: data.media_type ?? null,
           mediaProductType: data.media_product_type ?? null,

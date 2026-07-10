@@ -2,7 +2,7 @@ import type {
   InstagramGetContainerStatusParams,
   InstagramGetContainerStatusResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramGetContainerStatusTool: ToolConfig<
@@ -57,7 +57,7 @@ export const instagramGetContainerStatusTool: ToolConfig<
     return {
       success: true,
       output: {
-        containerId: params?.containerId ?? data.id ?? '',
+        containerId: params?.containerId ?? idString(data.id) ?? '',
         statusCode: data.status_code ?? null,
         status: data.status ?? null,
       },

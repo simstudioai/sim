@@ -2,7 +2,7 @@ import type {
   InstagramGetProfileParams,
   InstagramGetProfileResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const PROFILE_FIELDS =
@@ -61,8 +61,8 @@ export const instagramGetProfileTool: ToolConfig<
     return {
       success: true,
       output: {
-        userId: data.user_id ?? null,
-        id: data.id ?? null,
+        userId: idString(data.user_id),
+        id: idString(data.id),
         username: data.username ?? null,
         name: data.name ?? null,
         accountType: data.account_type ?? null,
