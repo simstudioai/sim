@@ -73,8 +73,8 @@ function parseVscodeLanguage(data: string | undefined): string {
   }
 }
 
-/** `<style>`/`<script>` elements (with their content), matched as a pair via the tag backreference. */
-const NON_CONTENT_HTML = /<(style|script)\b[\s\S]*?<\/\1>/gi
+/** A `<style>`/`<script>` open or close tag token, scanned one at a time (never the element body). */
+const NON_CONTENT_TAG = /<\/?\s*(style|script)\b[^>]*>/gi
 
 /**
  * Strips `<style>`/`<script>` elements from pasted HTML. Google Sheets and Word prepend a `<style>`
@@ -82,18 +82,34 @@ const NON_CONTENT_HTML = /<(style|script)\b[\s\S]*?<\/\1>/gi
  * rule for `<style>`, so it would walk the element's CSS text into the document as literal paragraphs.
  * Removing these before parsing keeps the pasted content clean (PM already discards unknown wrappers).
  *
- * Replaces in a loop (not a single pass) so nested/overlapping tags — e.g. `<script><script>x</script>` —
- * can't leave a surviving `<script>` behind: each pass can only remove the innermost non-overlapping
- * matches, and a single pass over nested tags leaves the outer one dangling.
+ * Scans tag tokens in a single linear pass, tracking nesting depth of the currently-open tag name, so
+ * nested/overlapping tags — e.g. `<script><script>x</script>` — can't leave a surviving `<script>`
+ * behind. A naive single `replace()` pass over `<tag>[\s\S]*?<\/tag>` matches only the innermost pair
+ * and leaves the outer tag dangling; repeating that replace until stable fixes correctness but costs
+ * O(depth) full-string rescans on attacker-controlled clipboard input. This does it in one pass instead.
  */
 function stripNonContentHtml(html: string): string {
-  let previous: string
-  let stripped = html
-  do {
-    previous = stripped
-    stripped = previous.replace(NON_CONTENT_HTML, '')
-  } while (stripped !== previous)
-  return stripped
+  let result = ''
+  let cursor = 0
+  let depth = 0
+  let openTagName = ''
+  NON_CONTENT_TAG.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = NON_CONTENT_TAG.exec(html))) {
+    const isClosing = match[0][1] === '/'
+    const tagName = match[1].toLowerCase()
+    if (depth === 0) {
+      if (isClosing) continue // stray close tag outside any open element — leave it in place
+      result += html.slice(cursor, match.index)
+      openTagName = tagName
+      depth = 1
+    } else if (tagName === openTagName) {
+      depth += isClosing ? -1 : 1
+      if (depth === 0) cursor = match.index + match[0].length
+    }
+  }
+  result += html.slice(cursor)
+  return result
 }
 
 /**
