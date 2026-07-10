@@ -18,7 +18,8 @@ const logger = createLogger('McpDynamicArgs')
 /**
  * The dropdown UI renders each enum member as a string label/value, so it can only
  * represent JSON Schema enums whose members are primitives — a non-primitive member
- * (object/array) would collapse to "[object Object]" and lose its identity.
+ * (object/array) would collapse to "[object Object]" and lose its identity. Callers
+ * route a non-primitive enum to the JSON editor (`long-input`) instead.
  */
 function isPrimitiveEnum(
   enumValues: unknown
@@ -131,9 +132,6 @@ export function McpDynamicArgs({
 
   const getInputType = (paramSchema: any) => {
     if (Array.isArray(paramSchema.enum)) {
-      // A non-primitive enum member (object/array) can't be represented by the
-      // dropdown's string label/value model — fall back to the JSON editor so the
-      // user can enter (and round-trip) one of the allowed JSON values verbatim.
       return isPrimitiveEnum(paramSchema.enum) ? 'dropdown' : 'long-input'
     }
     if (paramSchema.type === 'boolean') return 'switch'
