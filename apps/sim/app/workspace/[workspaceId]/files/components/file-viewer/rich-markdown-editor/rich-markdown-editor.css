@@ -232,6 +232,27 @@
   padding: 0.125rem 0.375rem;
 }
 
+/* A mark (bold/italic/strikethrough/inline-code) stacked with a link must not steal the link's blue —
+ * each mark rule above sets its own explicit `color` for the no-link case, which otherwise wins over
+ * the inherited link color (an inherited value never beats an element's own explicit rule, regardless
+ * of the ancestor selector's specificity). Covers both DOM nesting orders since ProseMirror's mark
+ * array — and so the render order marks nest in — depends on which was toggled first, not a fixed
+ * schema order. Declared after every mark rule above so it wins on source order too, not just
+ * specificity. Only `color` is overridden here: each mark's own font-weight/font-style/
+ * text-decoration/background is unrelated to color and keeps compositing normally underneath. */
+.rich-markdown-prose a strong,
+.rich-markdown-prose a em,
+.rich-markdown-prose a del,
+.rich-markdown-prose a s,
+.rich-markdown-prose a code,
+.rich-markdown-prose strong a,
+.rich-markdown-prose em a,
+.rich-markdown-prose del a,
+.rich-markdown-prose s a,
+.rich-markdown-prose code a {
+  color: var(--brand-secondary);
+}
+
 .rich-markdown-prose pre,
 .rich-markdown-prose .mermaid-diagram-frame {
   background: var(--surface-5);
