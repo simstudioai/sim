@@ -352,6 +352,23 @@ describe('workflow store', () => {
       expect(state.edges.some((e) => e.id === 'e2')).toBe(false)
     })
 
+    it('should treat an empty-string handle as equivalent to no handle when deduping', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+      addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
+
+      batchAddEdges([
+        { id: 'e1', source: 'block-1', target: 'block-2', sourceHandle: '' },
+        { id: 'e2', source: 'block-1', target: 'block-2' },
+      ])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 1)
+      expect(state.edges.some((e) => e.id === 'e1')).toBe(true)
+      expect(state.edges.some((e) => e.id === 'e2')).toBe(false)
+    })
+
     it('should not add a self-loop edge', () => {
       const { batchAddEdges } = useWorkflowStore.getState()
 

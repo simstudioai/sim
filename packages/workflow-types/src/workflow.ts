@@ -212,15 +212,27 @@ export interface WorkflowEdgeHandles extends WorkflowEdgeEndpoints {
   targetHandle?: string | null
 }
 
+// Falsy-coalesce (not nullish-coalesce): persistence normalizes a missing
+// handle to `null` via `edge.sourceHandle || null` (see
+// apps/realtime/src/database/operations.ts), which also maps `''` to
+// `null`. Comparing with `??` would treat `''` and `null` as distinct
+// handles pre-insert while both are written as the same `null` value,
+// letting a `sourceHandle: ''` edge slip past the duplicate check.
+function normalizeWorkflowEdgeHandle(handle: string | null | undefined): string | null {
+  return handle || null
+}
+
 function isDuplicateWorkflowEdge(
   edge: WorkflowEdgeHandles,
   existing: WorkflowEdgeHandles
 ): boolean {
   return (
     edge.source === existing.source &&
-    (edge.sourceHandle ?? null) === (existing.sourceHandle ?? null) &&
+    normalizeWorkflowEdgeHandle(edge.sourceHandle) ===
+      normalizeWorkflowEdgeHandle(existing.sourceHandle) &&
     edge.target === existing.target &&
-    (edge.targetHandle ?? null) === (existing.targetHandle ?? null)
+    normalizeWorkflowEdgeHandle(edge.targetHandle) ===
+      normalizeWorkflowEdgeHandle(existing.targetHandle)
   )
 }
 
