@@ -34,7 +34,8 @@ interface UseEditableFileContentOptions {
   streamingContent?: string
   isAgentEditing?: boolean
   onDirtyChange?: (isDirty: boolean) => void
-  onSaveStatusChange?: (status: SaveStatus) => void
+  /** `retry` is this instance's own `saveImmediately`, passed alongside an `'error'` status so a caller-side retry never depends on a shared, remount-able ref. */
+  onSaveStatusChange?: (status: SaveStatus, retry?: () => Promise<void>) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   /** Bridges an imperative "discard the current draft" command up to the caller, mirroring `saveRef`. */
   discardRef?: React.MutableRefObject<(() => void) | null>
@@ -210,8 +211,11 @@ export function useEditableFileContent({
   }, [isDirty])
 
   useEffect(() => {
-    onSaveStatusChangeRef.current?.(saveStatus)
-  }, [saveStatus])
+    onSaveStatusChangeRef.current?.(
+      saveStatus,
+      saveStatus === 'error' ? saveImmediately : undefined
+    )
+  }, [saveStatus, saveImmediately])
 
   useEffect(() => {
     if (!saveRef) return

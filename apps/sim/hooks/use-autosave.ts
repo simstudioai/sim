@@ -228,7 +228,11 @@ export function useAutosave({
     let cancelled = false
     void get<LocalDraft>(localDraftDbKey(effectiveDraftKey))
       .then((draft) => {
-        if (cancelled || !draft || draft.savedContent !== savedContentRef.current) return
+        if (cancelled || !draft) return
+        if (draft.savedContent !== savedContentRef.current) {
+          clearLocalDraft()
+          return
+        }
         if (draft.content === draft.savedContent) return
         if (contentRef.current !== savedContentRef.current) return
         onRestoreDraftRef.current?.(draft.content)
@@ -239,7 +243,7 @@ export function useAutosave({
     return () => {
       cancelled = true
     }
-  }, [effectiveDraftKey])
+  }, [effectiveDraftKey, clearLocalDraft])
 
   const saveImmediately = useCallback(async () => {
     clearTimeout(timerRef.current)

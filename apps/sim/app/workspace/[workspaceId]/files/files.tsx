@@ -971,16 +971,14 @@ export function Files() {
     await saveRef.current()
   }, [])
 
-  const prevSaveStatusRef = useRef(saveStatus)
-  useEffect(() => {
-    if (saveStatus === 'error' && prevSaveStatusRef.current !== 'error') {
-      const retrySave = saveRef.current
+  const handleSaveStatusChange = useCallback((status: SaveStatus, retry?: () => Promise<void>) => {
+    setSaveStatus(status)
+    if (status === 'error') {
       toast.error(`Failed to save "${selectedFileRef.current?.name ?? 'file'}"`, {
-        action: { label: 'Retry', onClick: () => void retrySave?.() },
+        action: { label: 'Retry', onClick: () => void retry?.() },
       })
     }
-    prevSaveStatusRef.current = saveStatus
-  }, [saveStatus])
+  }, [])
 
   const handleNavigateFromFileDetail = useCallback(
     (url: string) => {
@@ -1877,7 +1875,7 @@ export function Files() {
             previewMode={previewMode}
             autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
-            onSaveStatusChange={setSaveStatus}
+            onSaveStatusChange={handleSaveStatusChange}
             saveRef={saveRef}
             discardRef={discardRef}
           />

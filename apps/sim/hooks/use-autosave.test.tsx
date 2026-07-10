@@ -470,7 +470,7 @@ describe('useAutosave', () => {
       expect(onRestoreDraft).not.toHaveBeenCalled()
     })
 
-    it('discards a stale draft instead of restoring it when the server baseline has moved on', async () => {
+    it('discards and purges a stale draft when the server baseline has moved on', async () => {
       fakeDraftStore.set('autosave-draft:file-5', {
         content: 'stale-edit',
         savedContent: 'old-baseline',
@@ -487,6 +487,9 @@ describe('useAutosave', () => {
 
       await flush()
       expect(onRestoreDraft).not.toHaveBeenCalled()
+      // Purged, not merely skipped — otherwise a later open where the baseline coincidentally
+      // matches this stale snapshot again would silently resurrect the outdated edit.
+      expect(fakeDraftStore.has('autosave-draft:file-5')).toBe(false)
     })
 
     it('discard clears the local draft immediately and blocks any further write, even mid-race with unmount', async () => {

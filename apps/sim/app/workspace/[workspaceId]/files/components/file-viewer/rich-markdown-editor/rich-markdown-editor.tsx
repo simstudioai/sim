@@ -46,7 +46,7 @@ interface RichMarkdownEditorProps {
   canEdit: boolean
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
-  onSaveStatusChange?: (status: SaveStatus) => void
+  onSaveStatusChange?: (status: SaveStatus, retry?: () => Promise<void>) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
