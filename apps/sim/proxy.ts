@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { sendToProfound } from './lib/analytics/profound'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isHosted } from './lib/core/config/env-flags'
-import { generateRuntimeCSP } from './lib/core/security/csp'
+import { generateLandingRuntimeCSP, generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
 
 const logger = createLogger('Proxy')
@@ -284,10 +284,12 @@ export async function proxy(request: NextRequest) {
   const securityBlock = handleSecurityFiltering(request)
   if (securityBlock) return track(request, securityBlock)
 
+  // Everything else is the public marketing/landing site — the only place
+  // the HubSpot tracking loader renders — so it gets the landing-scoped CSP.
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+  response.headers.set('Content-Security-Policy', generateLandingRuntimeCSP())
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 
