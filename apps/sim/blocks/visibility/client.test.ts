@@ -11,7 +11,7 @@ vi.mock('@/blocks/custom/client-overlay', () => ({
 
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 // client-boundary-allow: vitest ignores the 'use client' directive; this node-env test exercises the module directly
-import { hydrateBlockVisibility } from '@/blocks/visibility/client'
+import { hydrateBlockVisibility, resetBlockVisibilityForSwitch } from '@/blocks/visibility/client'
 import { overlayVisibility, registerBlockCacheInvalidator } from '@/blocks/visibility/context'
 
 function state(revealed: string[], disabled: string[] = []): BlockVisibilityState {
@@ -50,19 +50,22 @@ describe('hydrateBlockVisibility', () => {
     unregister()
   })
 
-  it('resets to a fail-closed empty state on workspace switch', () => {
+  it('drops reveals but carries kill switches over on workspace switch', () => {
     const invalidator = vi.fn()
     const unregister = registerBlockCacheInvalidator(invalidator)
 
-    // Reveal in workspace A, then switch (loader hydrates empty while loading).
-    // (notion_v3: distinct from prior tests' state — module state persists.)
-    hydrateBlockVisibility(state(['notion_v3']))
-    hydrateBlockVisibility(state([]))
+    // Reveal + kill-switch in workspace A, then switch (loader resets while the
+    // new projection loads). (notion_v3: distinct from prior tests' state —
+    // module state persists.)
+    hydrateBlockVisibility(state(['notion_v3'], ['slack']))
+    resetBlockVisibilityForSwitch()
     expect(overlayVisibility()?.revealed.size).toBe(0)
+    expect(overlayVisibility()?.previewTagged.size).toBe(0)
+    expect(overlayVisibility()?.disabled).toEqual(new Set(['slack']))
     expect(invalidator).toHaveBeenCalledTimes(2)
 
-    // Repeated empties are no-ops (empty deep-equals empty).
-    hydrateBlockVisibility(state([]))
+    // Repeated resets are no-ops (deep-equal).
+    resetBlockVisibilityForSwitch()
     expect(invalidator).toHaveBeenCalledTimes(2)
 
     unregister()

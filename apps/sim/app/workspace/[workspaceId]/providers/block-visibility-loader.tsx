@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { hydrateBlockVisibility } from '@/blocks/visibility/client'
+import { hydrateBlockVisibility, resetBlockVisibilityForSwitch } from '@/blocks/visibility/client'
 import { useBlockVisibility } from '@/hooks/queries/block-visibility'
 
 /**
@@ -22,14 +22,18 @@ export function BlockVisibilityLoader() {
 
   useEffect(() => {
     // On a workspace switch the query key changes and `data` is undefined while
-    // the new projection loads — hydrate an EMPTY (fail-closed) state so the
-    // previous workspace's reveals/kill-switches never linger across orgs.
-    // The empty-while-null guard inside hydrateBlockVisibility makes the first
-    // mount free.
+    // the new projection loads — reset fail-closed so the previous workspace's
+    // preview reveals never linger across orgs, while carrying kill-switch
+    // entries over so disabled blocks don't flash back during the flight
+    // window. No-ops on first mount (nothing hydrated yet).
+    if (!data) {
+      resetBlockVisibilityForSwitch()
+      return
+    }
     hydrateBlockVisibility({
-      revealed: new Set(data?.revealed),
-      disabled: new Set(data?.disabled),
-      previewTagged: new Set(data?.previewTagged),
+      revealed: new Set(data.revealed),
+      disabled: new Set(data.disabled),
+      previewTagged: new Set(data.previewTagged),
     })
   }, [data])
 

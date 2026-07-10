@@ -51,3 +51,20 @@ export function hydrateBlockVisibility(next: BlockVisibilityState): void {
   invalidateBlockCaches()
   notifyBlockOverlayChanged()
 }
+
+/**
+ * Fail-closed reset while a workspace switch's visibility fetch is in flight:
+ * preview reveals are dropped immediately (they may not apply to the new
+ * workspace), but kill-switch entries are CARRIED OVER until the new
+ * projection arrives — dropping `disabled` would flash kill-switched blocks
+ * back into discovery for the flight window, while briefly over-hiding in the
+ * new workspace is benign in both directions.
+ */
+export function resetBlockVisibilityForSwitch(): void {
+  if (state === null) return
+  hydrateBlockVisibility({
+    revealed: new Set(),
+    disabled: state.disabled,
+    previewTagged: new Set(),
+  })
+}
