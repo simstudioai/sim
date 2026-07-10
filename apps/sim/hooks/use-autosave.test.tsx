@@ -763,6 +763,371 @@ describe('useAutosave', () => {
       await flush()
     })
 
+    it('does not let the original save leftover status timer clobber a still-running correction', async () => {
+      const resolvers: Array<() => void> = []
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvers.push(resolve)
+          })
+      )
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-9',
+      })
+
+      // A save is in flight when the user discards.
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      // The original save resolves; the correction starts (savingRef/inFlightRef now belong to it).
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      // The original save's own MIN_SAVING_DISPLAY_MS timer fires while the correction is still
+      // unresolved. Without the inFlightRef guard, this used to unconditionally reset savingRef,
+      // letting a debounced save for a new edit start concurrently with the correction.
+      await act(async () => {
+        vi.advanceTimersByTime(600)
+      })
+      await flush()
+
+      // A new edit made in this window must not be able to schedule a concurrent save while the
+      // correction (still unresolved) rightfully holds the mutex.
+      handle.rerender({ content: 'a2' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      resolvers[1]?.()
+      await flush()
+    })
+
+    it('reaches a terminal status once the discard correction settles instead of sticking on saving', async () => {
+      const resolvers: Array<() => void> = []
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvers.push(resolve)
+          })
+      )
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-10',
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      // The original save resolves; the correction starts. Its own MIN_SAVING_DISPLAY_MS timer
+      // must not resolve status to 'saved'/'idle' for content the user no longer sees.
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      await act(async () => {
+        vi.advanceTimersByTime(600)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+      expect(handle.status()).toBe('saving')
+
+      // The correction itself settles — without this, status stayed on 'saving' forever.
+      await act(async () => {
+        resolvers[1]?.()
+      })
+      await flush()
+      expect(handle.status()).toBe('idle')
+    })
+
+    it('surfaces an error if the discard correction itself fails, rather than drifting to idle', async () => {
+      const resolvers: Array<() => void> = []
+      const rejecters: Array<(error: Error) => void> = []
+      let callCount = 0
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            callCount += 1
+            if (callCount === 1) resolvers.push(resolve)
+            else rejecters.push(reject)
+          })
+      )
+      const onDiscardCorrectionFailed = vi.fn()
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-11',
+        onDiscardCorrectionFailed,
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      await act(async () => {
+        rejecters[0]?.(new Error('network down'))
+      })
+      await flush()
+      expect(onDiscardCorrectionFailed).toHaveBeenCalledTimes(1)
+      expect(handle.status()).toBe('error')
+    })
+
+    it('does not let discard suppression from a previous file block saves for a newly switched-to file', async () => {
+      const onSave = vi.fn(async () => {})
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-x',
+      })
+
+      handle.rerender({ content: 'a1' })
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      // Switch to a different file whose content coincidentally equals the previous file's
+      // discard target — without keying discard suppression to draftKey, this would stay
+      // wrongly suppressed forever, since content would never differ from the stale target.
+      handle.rerender({ draftKey: 'file-y', savedContent: 'z', content: 'a' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+    })
+
+    it('autosaves an edit made while a discard correction was in flight, once the correction settles', async () => {
+      const resolvers: Array<() => void> = []
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvers.push(resolve)
+          })
+      )
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-12',
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      // The original save resolves; the correction starts and holds the savingRef mutex.
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      // The user keeps typing while the correction is still in flight. The debounce effect sees
+      // savingRef held and bails — without a re-chain once the mutex frees, this edit would never
+      // autosave until some unrelated future change happened to fire the effect again.
+      handle.rerender({ content: 'a2' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      await act(async () => {
+        resolvers[1]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(3)
+      expect(onSave).toHaveBeenLastCalledWith()
+    })
+
+    it('surfaces the newer edit’s own save outcome if a discard correction fails after being superseded', async () => {
+      const resolvers: Array<() => void> = []
+      const rejecters: Array<(error: Error) => void> = []
+      let callCount = 0
+      const onSave = vi.fn(() => {
+        callCount += 1
+        if (callCount === 1) return new Promise<void>((resolve) => resolvers.push(resolve))
+        if (callCount === 2) return new Promise<void>((_, reject) => rejecters.push(reject))
+        // The third call is the superseding edit's own save — never resolved, since we only
+        // need to observe that it was picked up at all.
+        return new Promise<void>(() => {})
+      })
+      const onDiscardCorrectionFailed = vi.fn()
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-13',
+        onDiscardCorrectionFailed,
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      // A newer edit supersedes the in-flight correction before it settles.
+      handle.rerender({ content: 'a2' })
+
+      await act(async () => {
+        rejecters[0]?.(new Error('network down'))
+      })
+      await flush()
+
+      // The failed correction still reports itself, but the superseding edit's own save must be
+      // picked up immediately instead of leaving the hook stalled on a dead mutex.
+      expect(onDiscardCorrectionFailed).toHaveBeenCalledTimes(1)
+      expect(onSave).toHaveBeenCalledTimes(3)
+      expect(onSave).toHaveBeenLastCalledWith()
+    })
+
+    it('does not lift discard suppression when only `enabled` toggles for the same document', async () => {
+      const resolvers: Array<() => void> = []
+      const rejecters: Array<(error: Error) => void> = []
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            resolvers.push(resolve)
+            rejecters.push(reject)
+          })
+      )
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-14',
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      // The correction starts once the original save settles.
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      // A streaming lock (or any other reason `enabled` flips) toggles for the SAME document
+      // while the correction is still in flight — this must not be mistaken for switching files
+      // and clear discard's ownership of saveStatus.
+      handle.rerender({ enabled: false })
+      handle.rerender({ enabled: true })
+
+      // Without keying off the raw draftKey, the `enabled` round-trip would have cleared
+      // discardedRef, so the correction's failure handler would skip setSaveStatus('error') and
+      // leave the hook stuck on 'saving' with no visible retry affordance.
+      await act(async () => {
+        rejecters[1]?.(new Error('network down'))
+      })
+      await flush()
+      expect(handle.status()).toBe('error')
+    })
+
+    it('retries a failed discard correction via saveImmediately instead of silently no-opping', async () => {
+      const resolvers: Array<() => void> = []
+      const rejecters: Array<(error: Error) => void> = []
+      let callCount = 0
+      const onSave = vi.fn(() => {
+        callCount += 1
+        if (callCount === 1) return new Promise<void>((resolve) => resolvers.push(resolve))
+        if (callCount === 2) return new Promise<void>((_, reject) => rejecters.push(reject))
+        return Promise.resolve()
+      })
+      const onDiscardCorrectionFailed = vi.fn()
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-15',
+        onDiscardCorrectionFailed,
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      await act(async () => {
+        rejecters[0]?.(new Error('network down'))
+      })
+      await flush()
+      expect(onDiscardCorrectionFailed).toHaveBeenCalledTimes(1)
+      expect(handle.status()).toBe('error')
+
+      // Content already equals savedContent (that's what discard reverted to), so a naive retry
+      // through save()'s dirty-check would be a silent no-op. saveImmediately must still push
+      // the reverted baseline again.
+      await act(async () => {
+        await handle.saveImmediately()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(3)
+      expect(onSave).toHaveBeenLastCalledWith('a')
+      expect(handle.status()).toBe('idle')
+    })
+
     it('serializes IndexedDB writes and deletes so a slow write cannot resurrect a discarded draft', async () => {
       let resolveWrite: (() => void) | undefined
       const idbKeyval = await import('idb-keyval')

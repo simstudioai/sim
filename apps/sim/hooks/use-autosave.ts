@@ -106,9 +106,24 @@ export function useAutosave({
   const lastPersistedContentRef = useRef<string | null>(null)
 
   const discardedRef = useRef(false)
+  const discardTargetRef = useRef<string | null>(null)
+  const failedCorrectionTargetRef = useRef<string | null>(null)
+  // Keyed off the raw `draftKey`, not `effectiveDraftKey` — the latter also flips with `enabled`
+  // (e.g. a streaming lock toggling for the SAME document), which must not be mistaken for a
+  // hook instance being reused across documents (today's callers all remount per file instead).
+  const documentKeyRef = useRef(draftKey)
+  const documentChanged = documentKeyRef.current !== draftKey
+  documentKeyRef.current = draftKey
+  if (documentChanged) {
+    discardedRef.current = false
+    failedCorrectionTargetRef.current = null
+  }
 
   const isDirty = content !== savedContent
-  if (discardedRef.current && isDirty) discardedRef.current = false
+  if (discardedRef.current && content !== discardTargetRef.current) {
+    discardedRef.current = false
+    failedCorrectionTargetRef.current = null
+  }
 
   const persistLocalDraft = useCallback(() => {
     const key = draftKeyRef.current
@@ -165,9 +180,15 @@ export function useAutosave({
           const elapsed = Date.now() - savingStartRef.current
           const remaining = Math.max(0, MIN_SAVING_DISPLAY_MS - elapsed)
           displayTimerRef.current = setTimeout(() => {
-            setSaveStatus(nextStatus)
-            clearTimeout(idleTimerRef.current)
-            idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+            // While discarded, status is owned by discard()'s corrective save instead — this
+            // save's outcome no longer reflects what the user is looking at, and letting the
+            // idle-timer fire anyway would prematurely clear a status the correction just set.
+            if (!discardedRef.current) {
+              setSaveStatus(nextStatus)
+              clearTimeout(idleTimerRef.current)
+              idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+            }
+            if (inFlightRef.current) return
             savingRef.current = false
             if (nextStatus !== 'error' && contentRef.current !== savedContentRef.current) {
               save()
@@ -245,11 +266,11 @@ export function useAutosave({
     }
   }, [effectiveDraftKey, persistLocalDraft])
 
-  const recoveryAttemptedRef = useRef(false)
+  const recoveredForKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!effectiveDraftKey || recoveryAttemptedRef.current) return
-    recoveryAttemptedRef.current = true
+    if (!effectiveDraftKey || recoveredForKeyRef.current === effectiveDraftKey) return
+    recoveredForKeyRef.current = effectiveDraftKey
     let cancelled = false
     void enqueueDraftOp(effectiveDraftKey, () =>
       get<LocalDraft>(localDraftDbKey(effectiveDraftKey))
@@ -272,38 +293,70 @@ export function useAutosave({
     }
   }, [effectiveDraftKey, clearLocalDraft])
 
+  /** Pushes `target` (the reverted baseline) to the server. Used both by `discard()`'s initial correction and by `saveImmediately`'s retry of a correction that previously failed — content already equals `target` in both cases, so this bypasses `save()`'s dirty-check entirely rather than special-casing it there. */
+  const runCorrection = useCallback(
+    (target: string) => {
+      savingRef.current = true
+      const correctionRun = onSaveRef
+        .current(target)
+        .then(
+          () => {
+            failedCorrectionTargetRef.current = null
+            // Only ours to set if nothing has since un-suppressed discard (a newer edit) — that
+            // flow owns status once it takes over.
+            if (!unmountedRef.current && discardedRef.current) setSaveStatus('idle')
+          },
+          (error) => {
+            failedCorrectionTargetRef.current = target
+            logger.warn('Corrective save after discard failed', { error })
+            onDiscardCorrectionFailedRef.current?.()
+            if (!unmountedRef.current && discardedRef.current) setSaveStatus('error')
+          }
+        )
+        .finally(() => {
+          savingRef.current = false
+          inFlightRef.current = null
+          // A newer edit made while the correction was in flight bailed out of the debounce
+          // effect (savingRef was held) and never got rescheduled — pick it up now that the
+          // mutex is free. This also gives that edit's own save cycle ownership of saveStatus,
+          // covering a correction that failed after a newer edit already un-suppressed discard.
+          if (!unmountedRef.current && contentRef.current !== savedContentRef.current) save()
+        })
+      inFlightRef.current = correctionRun
+      return correctionRun
+    },
+    [save]
+  )
+
   const saveImmediately = useCallback(async () => {
     clearTimeout(timerRef.current)
+    // Retrying after a failed correction: content already equals savedContent (that's what
+    // discard reverted to), so save()'s own dirty-check would treat this as a no-op and the
+    // error's retry button would silently do nothing.
+    if (failedCorrectionTargetRef.current !== null) {
+      await runCorrection(failedCorrectionTargetRef.current)
+      return
+    }
     await save()
-  }, [save])
+  }, [save, runCorrection])
 
   const discard = useCallback(() => {
     discardedRef.current = true
+    discardTargetRef.current = savedContentRef.current
+    failedCorrectionTargetRef.current = null
     clearTimeout(timerRef.current)
     clearTimeout(localDraftTimerRef.current)
     clearLocalDraft()
     const pendingSave = inFlightRef.current
     if (!pendingSave) return
-    const target = savedContentRef.current
+    const target = discardTargetRef.current
     const contentAtDiscard = contentRef.current
     void pendingSave.then(() => {
       const current = contentRef.current
       if (inFlightRef.current || (current !== target && current !== contentAtDiscard)) return
-      savingRef.current = true
-      const correctionRun = onSaveRef
-        .current(target)
-        .catch((error) => {
-          logger.warn('Corrective save after discard failed', { error })
-          onDiscardCorrectionFailedRef.current?.()
-        })
-        .finally(() => {
-          savingRef.current = false
-          inFlightRef.current = null
-        })
-      inFlightRef.current = correctionRun
-      return correctionRun
+      runCorrection(target)
     })
-  }, [clearLocalDraft])
+  }, [clearLocalDraft, runCorrection])
 
   return { saveStatus, saveImmediately, isDirty, discard }
 }
