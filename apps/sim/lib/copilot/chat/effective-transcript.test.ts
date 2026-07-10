@@ -417,7 +417,11 @@ describe('tool ownership is call-frame authoritative', () => {
     const blocks = (result[1].contentBlocks ?? []) as Array<Record<string, unknown>>
     const tool = blocks.find((b) => b.type === MothershipStreamV1EventType.tool)
     const tc = tool?.toolCall as Record<string, unknown> | undefined
-    return { calledBy: tc?.calledBy, parentToolCallId: tool?.parentToolCallId, spanId: tool?.spanId }
+    return {
+      calledBy: tc?.calledBy,
+      parentToolCallId: tool?.parentToolCallId,
+      spanId: tool?.spanId,
+    }
   }
 
   it('an unscoped main call clears provisional subagent attribution', () => {
@@ -427,10 +431,7 @@ describe('tool ownership is call-frame authoritative', () => {
       messages: [buildUserMessage('stream-1', 'Hello')],
       activeStreamId: 'stream-1',
       streamSnapshot: {
-        events: [
-          toolEvent(1, 'result', 'fc_1', superagentScope),
-          toolEvent(2, 'call', 'fc_1'),
-        ],
+        events: [toolEvent(1, 'result', 'fc_1', superagentScope), toolEvent(2, 'call', 'fc_1')],
         previewSessions: [],
         status: 'active',
       },
@@ -446,10 +447,7 @@ describe('tool ownership is call-frame authoritative', () => {
       messages: [buildUserMessage('stream-1', 'Hello')],
       activeStreamId: 'stream-1',
       streamSnapshot: {
-        events: [
-          toolEvent(1, 'call', 'fc_1'),
-          toolEvent(2, 'result', 'fc_1', superagentScope),
-        ],
+        events: [toolEvent(1, 'call', 'fc_1'), toolEvent(2, 'result', 'fc_1', superagentScope)],
         previewSessions: [],
         status: 'active',
       },
@@ -464,10 +462,7 @@ describe('tool ownership is call-frame authoritative', () => {
       messages: [buildUserMessage('stream-1', 'Hello')],
       activeStreamId: 'stream-1',
       streamSnapshot: {
-        events: [
-          toolEvent(1, 'call', 'fc_2', superagentScope),
-          toolEvent(2, 'result', 'fc_2'),
-        ],
+        events: [toolEvent(1, 'call', 'fc_2', superagentScope), toolEvent(2, 'result', 'fc_2')],
         previewSessions: [],
         status: 'active',
       },

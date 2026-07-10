@@ -173,7 +173,8 @@ function buildLiveAssistantMessage(params: {
     state?: string
     isCallFrame?: boolean
   }): RawPersistedBlock => {
-    const ownershipWritable = input.isCallFrame === true || !toolOwnershipSettled.has(input.toolCallId)
+    const ownershipWritable =
+      input.isCallFrame === true || !toolOwnershipSettled.has(input.toolCallId)
     if (input.isCallFrame) toolOwnershipSettled.add(input.toolCallId)
     const existingIndex = toolIndexById.get(input.toolCallId)
     if (existingIndex !== undefined) {
@@ -208,10 +209,10 @@ function buildLiveAssistantMessage(params: {
           // subagent attribution so the tool renders under Sim, not the
           // forwarding caller.
           const tc = asPayloadRecord(existing.toolCall)
-          if (tc) delete tc.calledBy
-          delete existing.parentToolCallId
-          delete existing.spanId
-          delete existing.parentSpanId
+          if (tc) tc.calledBy = undefined
+          existing.parentToolCallId = undefined
+          existing.spanId = undefined
+          existing.parentSpanId = undefined
         }
       }
       return existing
