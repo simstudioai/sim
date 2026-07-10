@@ -29,6 +29,11 @@ const logger = createLogger('NvidiaProvider')
 
 const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1'
 
+/**
+ * NVIDIA NIM's Nemotron models via an OpenAI-compatible chat-completions API
+ * (`integrate.api.nvidia.com`). Output length is capped via `max_tokens`, not OpenAI's newer
+ * `max_completion_tokens`, which vLLM-served NIM models don't recognize.
+ */
 export const nvidiaProvider: ProviderConfig = {
   id: 'nvidia',
   name: 'NVIDIA NIM',
@@ -84,8 +89,6 @@ export const nvidiaProvider: ProviderConfig = {
       }
 
       if (request.temperature !== undefined) payload.temperature = request.temperature
-      // NVIDIA NIM's chat-completions API documents `max_tokens`, not OpenAI's newer
-      // `max_completion_tokens` — vLLM-served NIM models don't recognize the latter.
       if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
       const responseFormatPayload = request.responseFormat
@@ -124,9 +127,6 @@ export const nvidiaProvider: ProviderConfig = {
         }
       }
 
-      // Structured output and tool calling cannot be sent together — OpenAI-compatible
-      // backends reject a request that carries both `response_format` and active
-      // `tools`/`tool_choice`. Defer the schema until after the tool loop completes.
       const deferResponseFormat = !!responseFormatPayload && hasActiveTools
       if (responseFormatPayload && !deferResponseFormat) {
         payload.response_format = responseFormatPayload
@@ -259,9 +259,6 @@ export const nvidiaProvider: ProviderConfig = {
               const toolArgs = JSON.parse(toolCall.function.arguments)
               const tool = request.tools?.find((t) => t.id === toolName)
 
-              // Every tool_call in the assistant message must be answered by a matching
-              // `tool` message, or the next request violates the OpenAI message contract.
-              // Emit an error result for an unknown tool rather than dropping it.
               if (!tool) {
                 const toolCallEndTime = Date.now()
                 return {
@@ -465,9 +462,6 @@ export const nvidiaProvider: ProviderConfig = {
       if (request.stream) {
         logger.info('Using streaming for final NVIDIA NIM response after tool processing')
 
-        // The tool loop is complete: this final pass only produces the textual answer.
-        // Force `tool_choice: 'none'` so the model cannot emit fresh tool calls that the
-        // text-only stream adapter would silently drop.
         const streamingPayload: any = {
           ...payload,
           messages: currentMessages,
@@ -545,8 +539,6 @@ export const nvidiaProvider: ProviderConfig = {
         return streamingResult
       }
 
-      // Tools were active, so `response_format` was withheld from the loop. Make one final
-      // tool-free call to obtain the structured response now that the tool work is done.
       if (deferResponseFormat && responseFormatPayload) {
         logger.info('Applying deferred JSON schema response format after tool processing')
 
