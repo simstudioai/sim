@@ -1018,27 +1018,54 @@ async function handleBlocksOperationTx(
       }
 
       if (edges && edges.length > 0) {
-        const edgeValues = edges.map((edge: Record<string, unknown>) => ({
-          id: edge.id as string,
-          workflowId,
-          sourceBlockId: edge.source as string,
-          targetBlockId: edge.target as string,
-          sourceHandle: (edge.sourceHandle as string | null) || null,
-          targetHandle: (edge.targetHandle as string | null) || null,
-        }))
-
-        await tx
-          .insert(workflowEdges)
-          .values(edgeValues)
-          .onConflictDoUpdate({
-            target: workflowEdges.id,
-            set: {
-              sourceBlockId: sql`excluded.source_block_id`,
-              targetBlockId: sql`excluded.target_block_id`,
-              sourceHandle: sql`excluded.source_handle`,
-              targetHandle: sql`excluded.target_handle`,
-            },
+        // Runs after the block insert above, so filterEdgesForPersist's
+        // blocksById lookup (a plain `tx.select` from `workflowBlocks`) also
+        // sees the blocks this same batch just inserted — reads observe a
+        // transaction's own prior writes.
+        const candidates: EdgeAddCandidate[] = (edges as Array<Record<string, unknown>>).map(
+          (e) => ({
+            id: e.id as string,
+            source: e.source as string,
+            target: e.target as string,
+            sourceHandle: (e.sourceHandle as string | null) ?? null,
+            targetHandle: (e.targetHandle as string | null) ?? null,
           })
+        )
+
+        const { safeEdges, droppedCounts, droppedDuplicates, droppedCyclic } =
+          await filterEdgesForPersist(tx, workflowId, candidates)
+
+        if (safeEdges.length < edges.length) {
+          logger.info(`Dropped ${edges.length - safeEdges.length} invalid edge(s)`, {
+            droppedCounts,
+            droppedDuplicates,
+            droppedCyclic,
+          })
+        }
+
+        if (safeEdges.length > 0) {
+          const edgeValues = safeEdges.map((edge) => ({
+            id: edge.id as string,
+            workflowId,
+            sourceBlockId: edge.source,
+            targetBlockId: edge.target,
+            sourceHandle: edge.sourceHandle || null,
+            targetHandle: edge.targetHandle || null,
+          }))
+
+          await tx
+            .insert(workflowEdges)
+            .values(edgeValues)
+            .onConflictDoUpdate({
+              target: workflowEdges.id,
+              set: {
+                sourceBlockId: sql`excluded.source_block_id`,
+                targetBlockId: sql`excluded.target_block_id`,
+                sourceHandle: sql`excluded.source_handle`,
+                targetHandle: sql`excluded.target_handle`,
+              },
+            })
+        }
       }
 
       if (loops && Object.keys(loops).length > 0) {
