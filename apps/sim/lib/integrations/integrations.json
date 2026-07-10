@@ -8974,7 +8974,7 @@
         },
         {
           "name": "Publish Carousel",
-          "description": "Publish a carousel of up to 10 images/videos from uploaded files or public HTTPS URLs"
+          "description": "Publish a carousel of 2-10 images/videos from uploaded files or public HTTPS URLs"
         },
         {
           "name": "Get Container Status",

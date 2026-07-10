@@ -16,8 +16,8 @@ import {
 
 export const dynamic = 'force-dynamic'
 /**
- * Carousel children are created and polled sequentially; allow headroom beyond a
- * single container's five-minute window.
+ * Children are polled in parallel, so the worst case is one five-minute poll
+ * window for the children plus another for the parent container.
  */
 export const maxDuration = 900
 
@@ -58,8 +58,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const igUserId = await resolveIgUserId(body.accessToken, body.igUserId ?? undefined)
-    const childIds: string[] = []
 
+    // Create every child container before polling any of them: Meta fetches each
+    // media URL at container creation, so presigned links are consumed while
+    // fresh, and polling in parallel bounds the total wait to a single
+    // five-minute window instead of five minutes per item.
+    const childIds: string[] = []
     for (const item of resolved.items) {
       const childBody: Record<string, unknown> = {
         is_carousel_item: true,
@@ -70,10 +74,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       } else {
         childBody.image_url = item.url
       }
+      childIds.push(await createMediaContainer(body.accessToken, igUserId, childBody))
+    }
 
-      const childId = await createMediaContainer(body.accessToken, igUserId, childBody)
-      await waitForContainerReady(body.accessToken, childId)
-      childIds.push(childId)
+    // allSettled so a fast-failing child doesn't leave sibling polls rejecting
+    // with no handler (Node terminates on unhandled rejections).
+    const childResults = await Promise.allSettled(
+      childIds.map((childId) => waitForContainerReady(body.accessToken, childId))
+    )
+    const failedChild = childResults.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    )
+    if (failedChild) {
+      throw failedChild.reason
     }
 
     const parentBody: Record<string, unknown> = {

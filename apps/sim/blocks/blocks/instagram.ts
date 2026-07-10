@@ -238,7 +238,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       title: 'Media',
       type: 'file-upload',
       canonicalParamId: 'carouselMedia',
-      placeholder: 'Upload up to 10 images/videos to publish',
+      placeholder: 'Upload 2-10 images/videos to publish',
       acceptedTypes: '.jpg,.jpeg,.mp4,.mov,image/jpeg,video/mp4,video/quicktime',
       condition: { field: 'operation', value: 'instagram_publish_carousel' },
       mode: 'basic',
@@ -259,7 +259,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
         enabled: true,
         prompt: `Generate a comma-separated list of public HTTPS media URLs for an Instagram carousel.
 Use plain image URLs for photos. Prefix video URLs with "video:" (e.g. video:https://example.com/clip.mp4).
-Maximum 10 items. Do not invent unreachable URLs — only use URLs the user provided or clearly implied.
+Between 2 and 10 items. Do not invent unreachable URLs — only use URLs the user provided or clearly implied.
 Examples:
 - "two photos" with urls A and B -> https://cdn.example/a.jpg,https://cdn.example/b.jpg
 - "photo then video" -> https://cdn.example/a.jpg,video:https://cdn.example/b.mp4
@@ -481,7 +481,10 @@ Return ONLY the comma-separated metric names - no explanations, no extra text.`,
       type: 'dropdown',
       options: [
         { label: 'Day', id: 'day' },
+        { label: 'Week', id: 'week' },
+        { label: '28 Days', id: 'days_28' },
         { label: 'Lifetime', id: 'lifetime' },
+        { label: 'Total Over Range', id: 'total_over_range' },
       ],
       value: () => 'day',
       condition: { field: 'operation', value: 'instagram_get_account_insights' },
@@ -705,7 +708,7 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     carouselMedia: {
       type: 'json',
       description:
-        'Carousel media: up to 10 files, or comma-separated public HTTPS URLs (prefix videos with video:)',
+        'Carousel media: 2-10 files, or comma-separated public HTTPS URLs (prefix videos with video:)',
     },
     caption: { type: 'string', description: 'Post caption' },
     altText: { type: 'string', description: 'Image accessibility alt text' },

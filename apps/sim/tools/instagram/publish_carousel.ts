@@ -10,8 +10,7 @@ export const instagramPublishCarouselTool: ToolConfig<
 > = {
   id: 'instagram_publish_carousel',
   name: 'Instagram Publish Carousel',
-  description:
-    'Publish a carousel of up to 10 images/videos from uploaded files or public HTTPS URLs',
+  description: 'Publish a carousel of 2-10 images/videos from uploaded files or public HTTPS URLs',
   version: '1.0.0',
 
   oauth: {
@@ -37,7 +36,7 @@ export const instagramPublishCarouselTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Up to 10 media files, or a comma-separated public URL string (prefix videos with video:)',
+        '2-10 media files, or a comma-separated public URL string (prefix videos with video:)',
     },
     caption: {
       type: 'string',

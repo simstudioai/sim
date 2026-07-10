@@ -319,11 +319,8 @@ export async function resolveInstagramCarouselMedia(
       .map((part) => part.trim())
       .filter(Boolean)
 
-    if (entries.length === 0) {
-      return { error: { status: 400, message: 'Provide at least one carousel media item' } }
-    }
-    if (entries.length > 10) {
-      return { error: { status: 400, message: 'Carousels support a maximum of 10 items' } }
+    if (entries.length < 2 || entries.length > 10) {
+      return { error: { status: 400, message: 'Carousels require between 2 and 10 items' } }
     }
 
     for (let i = 0; i < entries.length; i++) {
@@ -354,11 +351,8 @@ export async function resolveInstagramCarouselMedia(
   }
 
   const list = Array.isArray(input) ? input : [input]
-  if (list.length === 0) {
-    return { error: { status: 400, message: 'Provide at least one carousel media item' } }
-  }
-  if (list.length > 10) {
-    return { error: { status: 400, message: 'Carousels support a maximum of 10 items' } }
+  if (list.length < 2 || list.length > 10) {
+    return { error: { status: 400, message: 'Carousels require between 2 and 10 items' } }
   }
 
   for (let i = 0; i < list.length; i++) {

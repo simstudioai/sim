@@ -80,8 +80,10 @@ export async function getContainerStatus(
 }
 
 // Meta recommends checking once per minute for no more than five minutes.
+// Six attempts = an immediate check plus five minute-spaced checks, so the
+// full five-minute window is covered before timing out.
 const POLL_INTERVAL_MS = 60_000
-const POLL_MAX_ATTEMPTS = 5
+const POLL_MAX_ATTEMPTS = 6
 
 export async function waitForContainerReady(
   accessToken: string,

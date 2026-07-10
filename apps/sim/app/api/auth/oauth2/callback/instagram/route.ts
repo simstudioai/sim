@@ -206,17 +206,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       name?: string
     }
 
-    const igUserId =
-      (typeof profile.user_id === 'string' && profile.user_id) ||
-      (typeof shortLived.user_id === 'string'
-        ? shortLived.user_id
-        : shortLived.user_id != null
-          ? String(shortLived.user_id)
-          : null) ||
-      (typeof profile.id === 'string' ? profile.id : null)
+    // account.accountId must always be the Instagram professional account ID
+    // (/me user_id). The token exchange's user_id and /me's id are app-scoped
+    // IDs — a different ID space — so falling back to them would break
+    // reconnect dedupe by storing the same account under two identifiers.
+    const igUserId = typeof profile.user_id === 'string' && profile.user_id ? profile.user_id : null
 
     if (!igUserId) {
-      logger.error('Instagram profile response missing user id', { profile })
+      logger.error('Instagram profile response missing user_id', { profile })
       return clearOAuthCookies(
         NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_user_id`)
       )
