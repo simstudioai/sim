@@ -213,7 +213,7 @@
     "twilio": "5.9.0",
     "undici": "7.28.0",
     "unpdf": "1.4.0",
-    "xlsx": "npm:@e965/xlsx@0.20.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "4.3.6",
     "zustand": "^5.0.13"
   },
