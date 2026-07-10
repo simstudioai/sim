@@ -111,16 +111,39 @@ export async function waitForContainerReady(
   throw new Error(`Timed out waiting for Instagram container ${containerId} to finish processing`)
 }
 
+/**
+ * Graph content publishing endpoints document query/form parameters, not JSON
+ * bodies (JSON is only documented for the messaging endpoints), so publish
+ * POSTs are sent form-encoded.
+ */
+async function postGraphForm(
+  accessToken: string,
+  path: string,
+  params: Record<string, unknown>
+): Promise<Response> {
+  const form = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) {
+      form.set(key, String(value))
+    }
+  }
+
+  return fetch(graphUrl(path), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form.toString(),
+  })
+}
+
 export async function createMediaContainer(
   accessToken: string,
   igUserId: string,
   body: Record<string, unknown>
 ): Promise<string> {
-  const response = await fetch(graphUrl(`/${igUserId}/media`), {
-    method: 'POST',
-    headers: bearerHeaders(accessToken),
-    body: JSON.stringify(body),
-  })
+  const response = await postGraphForm(accessToken, `/${igUserId}/media`, body)
 
   if (!response.ok) {
     throw new Error(`Failed to create media container: ${await readGraphError(response)}`)
@@ -138,10 +161,8 @@ export async function publishMediaContainer(
   igUserId: string,
   creationId: string
 ): Promise<string> {
-  const response = await fetch(graphUrl(`/${igUserId}/media_publish`), {
-    method: 'POST',
-    headers: bearerHeaders(accessToken),
-    body: JSON.stringify({ creation_id: creationId }),
+  const response = await postGraphForm(accessToken, `/${igUserId}/media_publish`, {
+    creation_id: creationId,
   })
 
   if (!response.ok) {

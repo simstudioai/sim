@@ -41,10 +41,11 @@ export const instagramReplyToCommentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => graphUrl(`/${params.commentId.trim()}/replies`),
+    // Graph comment endpoints document message as a query/form parameter, not
+    // a JSON body (same style as hide_comment and set_comments_enabled).
+    url: (params) => graphUrl(`/${params.commentId.trim()}/replies`, { message: params.message }),
     method: 'POST',
     headers: (params) => bearerHeaders(params.accessToken),
-    body: (params) => ({ message: params.message }),
   },
 
   transformResponse: async (response): Promise<InstagramReplyToCommentResponse> => {

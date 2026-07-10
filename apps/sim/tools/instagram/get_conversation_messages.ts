@@ -38,7 +38,7 @@ export const instagramGetConversationMessagesTool: ToolConfig<
   request: {
     url: (params) =>
       graphUrl(`/${params.conversationId.trim()}`, {
-        fields: 'messages',
+        fields: 'messages{id,created_time}',
       }),
     method: 'GET',
     headers: (params) => bearerHeaders(params.accessToken),
