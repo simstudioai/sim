@@ -84,7 +84,9 @@ export const nvidiaProvider: ProviderConfig = {
       }
 
       if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+      // NVIDIA NIM's chat-completions API documents `max_tokens`, not OpenAI's newer
+      // `max_completion_tokens` — vLLM-served NIM models don't recognize the latter.
+      if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
       const responseFormatPayload = request.responseFormat
         ? {

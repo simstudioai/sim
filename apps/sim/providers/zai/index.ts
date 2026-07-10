@@ -55,10 +55,19 @@ export const zaiProvider: ProviderConfig = {
 
       const allMessages = []
 
-      if (request.systemPrompt) {
+      // Z.ai's `response_format` has no `json_schema` mode (only `text`/`json_object`), so the
+      // param alone can't enforce field names/types. Inject the expected schema into the system
+      // prompt as best-effort guidance in addition to the `json_object` hint set below.
+      const schemaGuidance = request.responseFormat
+        ? `\n\nYour response must be valid JSON matching this schema${
+            request.responseFormat.name ? ` ("${request.responseFormat.name}")` : ''
+          }:\n${JSON.stringify(request.responseFormat.schema, null, 2)}`
+        : ''
+
+      if (request.systemPrompt || schemaGuidance) {
         allMessages.push({
           role: 'system',
-          content: request.systemPrompt,
+          content: `${request.systemPrompt || ''}${schemaGuidance}`,
         })
       }
 
@@ -84,7 +93,9 @@ export const zaiProvider: ProviderConfig = {
       }
 
       if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+      // Z.ai's chat-completions API documents `max_tokens`, not OpenAI's newer
+      // `max_completion_tokens` — the latter is silently ignored.
+      if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
       // GLM's `thinking` toggle (models where `capabilities.thinking.levels` is
       // ['disabled', 'enabled']) maps directly to Z.ai's `thinking: { type }` request param.
@@ -98,9 +109,9 @@ export const zaiProvider: ProviderConfig = {
         payload.reasoning_effort = request.reasoningEffort
       }
 
-      // Z.ai's chat-completions API supports `text` and `json_object` response formats but
-      // does not have confirmed `json_schema` support, unlike the shared OpenAI-compatible
-      // template — request a plain JSON-object hint instead of a strict schema.
+      // Z.ai's chat-completions API only documents `text`/`json_object` response formats, not
+      // `json_schema` — request a plain JSON-object hint; the schema itself is enforced
+      // best-effort via `schemaGuidance` in the system prompt above.
       const responseFormatPayload = request.responseFormat
         ? ({ type: 'json_object' as const } as const)
         : undefined
