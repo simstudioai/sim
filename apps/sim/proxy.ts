@@ -135,7 +135,7 @@ const NON_LANDING_PATH_PREFIXES = [
   '/unsubscribe',
 ]
 
-function isNonLandingPath(pathname: string): boolean {
+export function isNonLandingPath(pathname: string): boolean {
   return NON_LANDING_PATH_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   )
