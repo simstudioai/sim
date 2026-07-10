@@ -6,6 +6,7 @@ import {
   customTools as customToolsTable,
   document,
   jobExecutionLogs,
+  knowledgeBaseTagDefinitions,
   knowledgeConnector,
   mcpServers as mcpServersTable,
   skill as skillTable,
@@ -18,7 +19,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -50,7 +51,7 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
+import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
 import {
   serializeApiKeys,
   serializeBlockSchema,
@@ -1542,6 +1543,8 @@ export class WorkspaceVFS {
   ): Promise<WorkspaceMdData['knowledgeBases']> {
     const kbs = await getKnowledgeBases(userId, workspaceId)
 
+    const tagDefinitionsByKb = await this.loadKbTagDefinitions(kbs.map((kb) => kb.id))
+
     await Promise.all(
       kbs.map(async (kb) => {
         const safeName = sanitizeName(kb.name)
@@ -1560,6 +1563,7 @@ export class WorkspaceVFS {
             updatedAt: kb.updatedAt,
             documentCount: kb.docCount,
             connectorTypes: kb.connectorTypes,
+            tagDefinitions: tagDefinitionsByKb.get(kb.id),
           })
         )
 
@@ -1629,6 +1633,61 @@ export class WorkspaceVFS {
       description: kb.description,
       connectorTypes: kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
     }))
+  }
+
+  /**
+   * Load tag definitions for the given knowledge bases in a single query, grouped by
+   * KB id and ordered by tag slot. Surfaced inline in each KB's meta.json so the agent
+   * knows which tags exist (and their slot binding) when editing a knowledge-tag filter.
+   *
+   * @remarks
+   * Tag definitions are an optional enrichment, so a query failure degrades to a meta.json
+   * without them rather than rejecting. This materializer runs inside the top-level
+   * `Promise.all`, whose rejection would fail the entire workspace VFS build and leave the
+   * agent unable to read any file.
+   */
+  private async loadKbTagDefinitions(
+    kbIds: string[]
+  ): Promise<Map<string, KbTagDefinitionSummary[]>> {
+    const byKb = new Map<string, KbTagDefinitionSummary[]>()
+    if (kbIds.length === 0) return byKb
+
+    let rows: Array<{
+      knowledgeBaseId: string
+      tagSlot: string
+      displayName: string
+      fieldType: string
+    }>
+    try {
+      rows = await db
+        .select({
+          knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
+          tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+          displayName: knowledgeBaseTagDefinitions.displayName,
+          fieldType: knowledgeBaseTagDefinitions.fieldType,
+        })
+        .from(knowledgeBaseTagDefinitions)
+        .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
+        .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+    } catch (err) {
+      logger.warn('Failed to load knowledge base tag definitions', {
+        error: toError(err).message,
+      })
+      return byKb
+    }
+
+    for (const row of rows) {
+      const entry = {
+        tagName: row.displayName,
+        tagSlot: row.tagSlot,
+        fieldType: row.fieldType,
+      }
+      const existing = byKb.get(row.knowledgeBaseId)
+      if (existing) existing.push(entry)
+      else byKb.set(row.knowledgeBaseId, [entry])
+    }
+
+    return byKb
   }
 
   /**
