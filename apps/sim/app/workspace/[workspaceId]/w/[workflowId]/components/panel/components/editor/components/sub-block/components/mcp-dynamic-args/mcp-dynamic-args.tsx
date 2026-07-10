@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { Combobox, FieldDivider, Label, Slider, Switch } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
@@ -94,6 +94,19 @@ export function McpDynamicArgs({
     : schemaFromStore
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
 
+  /**
+   * Draft text for JSON-value params (object/array/non-primitive-enum) whose current
+   * edit isn't valid JSON yet. Keeping this out of toolArgs means the stored argument
+   * is always either the last valid parsed value or untouched — never malformed text
+   * that could reach tool execution.
+   */
+  const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<Record<string, string>>({})
+  const [prevSelectedTool, setPrevSelectedTool] = useState(selectedTool)
+  if (prevSelectedTool !== selectedTool) {
+    setPrevSelectedTool(selectedTool)
+    setInvalidJsonDrafts({})
+  }
+
   const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)
   const toolSchema = cachedSchema || selectedToolConfig?.inputSchema
 
@@ -158,7 +171,7 @@ export function McpDynamicArgs({
       if (paramSchema.maxLength && paramSchema.maxLength > 100) return 'long-input'
       return 'short-input'
     }
-    if (paramSchema.type === 'array') return 'long-input'
+    if (paramSchema.type === 'array' || paramSchema.type === 'object') return 'long-input'
     return 'short-input'
   }
 
@@ -270,8 +283,14 @@ export function McpDynamicArgs({
 
       case 'long-input': {
         const config = createParamConfig(paramName, paramSchema, 'long-input')
+        const needsJsonValue = requiresJsonValue(paramSchema)
+        const draft = invalidJsonDrafts[paramName]
         const displayValue =
-          typeof value === 'string' || value == null ? value || '' : JSON.stringify(value)
+          needsJsonValue && draft !== undefined
+            ? draft
+            : typeof value === 'string' || value == null
+              ? value || ''
+              : JSON.stringify(value)
         return (
           <LongInput
             key={`${paramName}-long`}
@@ -282,14 +301,26 @@ export function McpDynamicArgs({
             rows={4}
             value={displayValue}
             onChange={(newValue) => {
-              if (!requiresJsonValue(paramSchema)) {
+              if (!needsJsonValue) {
                 updateParameter(paramName, newValue)
+                return
+              }
+              const clearDraft = () =>
+                setInvalidJsonDrafts((prev) => {
+                  if (!(paramName in prev)) return prev
+                  const { [paramName]: _removed, ...rest } = prev
+                  return rest
+                })
+              if (newValue === '') {
+                updateParameter(paramName, '')
+                clearDraft()
                 return
               }
               try {
                 updateParameter(paramName, JSON.parse(newValue))
+                clearDraft()
               } catch {
-                updateParameter(paramName, newValue)
+                setInvalidJsonDrafts((prev) => ({ ...prev, [paramName]: newValue }))
               }
             }}
             isPreview={isPreview}
