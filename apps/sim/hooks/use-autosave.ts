@@ -106,9 +106,10 @@ export function useAutosave({
   const lastPersistedContentRef = useRef<string | null>(null)
 
   const discardedRef = useRef(false)
+  const discardTargetRef = useRef<string | null>(null)
 
   const isDirty = content !== savedContent
-  if (discardedRef.current && isDirty) discardedRef.current = false
+  if (discardedRef.current && content !== discardTargetRef.current) discardedRef.current = false
 
   const persistLocalDraft = useCallback(() => {
     const key = draftKeyRef.current
@@ -165,9 +166,10 @@ export function useAutosave({
           const elapsed = Date.now() - savingStartRef.current
           const remaining = Math.max(0, MIN_SAVING_DISPLAY_MS - elapsed)
           displayTimerRef.current = setTimeout(() => {
-            setSaveStatus(nextStatus)
+            if (!discardedRef.current) setSaveStatus(nextStatus)
             clearTimeout(idleTimerRef.current)
             idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+            if (inFlightRef.current) return
             savingRef.current = false
             if (nextStatus !== 'error' && contentRef.current !== savedContentRef.current) {
               save()
@@ -245,11 +247,11 @@ export function useAutosave({
     }
   }, [effectiveDraftKey, persistLocalDraft])
 
-  const recoveryAttemptedRef = useRef(false)
+  const recoveredForKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!effectiveDraftKey || recoveryAttemptedRef.current) return
-    recoveryAttemptedRef.current = true
+    if (!effectiveDraftKey || recoveredForKeyRef.current === effectiveDraftKey) return
+    recoveredForKeyRef.current = effectiveDraftKey
     let cancelled = false
     void enqueueDraftOp(effectiveDraftKey, () =>
       get<LocalDraft>(localDraftDbKey(effectiveDraftKey))
@@ -279,12 +281,13 @@ export function useAutosave({
 
   const discard = useCallback(() => {
     discardedRef.current = true
+    discardTargetRef.current = savedContentRef.current
     clearTimeout(timerRef.current)
     clearTimeout(localDraftTimerRef.current)
     clearLocalDraft()
     const pendingSave = inFlightRef.current
     if (!pendingSave) return
-    const target = savedContentRef.current
+    const target = discardTargetRef.current
     const contentAtDiscard = contentRef.current
     void pendingSave.then(() => {
       const current = contentRef.current

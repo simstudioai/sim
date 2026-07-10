@@ -763,6 +763,59 @@ describe('useAutosave', () => {
       await flush()
     })
 
+    it('does not let the original save leftover status timer clobber a still-running correction', async () => {
+      const resolvers: Array<() => void> = []
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvers.push(resolve)
+          })
+      )
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-9',
+      })
+
+      // A save is in flight when the user discards.
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      // The original save resolves; the correction starts (savingRef/inFlightRef now belong to it).
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      // The original save's own MIN_SAVING_DISPLAY_MS timer fires while the correction is still
+      // unresolved. Without the inFlightRef guard, this used to unconditionally reset savingRef,
+      // letting a debounced save for a new edit start concurrently with the correction.
+      await act(async () => {
+        vi.advanceTimersByTime(600)
+      })
+      await flush()
+
+      // A new edit made in this window must not be able to schedule a concurrent save while the
+      // correction (still unresolved) rightfully holds the mutex.
+      handle.rerender({ content: 'a2' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      resolvers[1]?.()
+      await flush()
+    })
+
     it('serializes IndexedDB writes and deletes so a slow write cannot resurrect a discarded draft', async () => {
       let resolveWrite: (() => void) | undefined
       const idbKeyval = await import('idb-keyval')
