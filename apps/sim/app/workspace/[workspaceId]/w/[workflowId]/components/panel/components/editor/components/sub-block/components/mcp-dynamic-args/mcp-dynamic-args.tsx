@@ -129,12 +129,14 @@ export function McpDynamicArgs({
    * Drafts also reset wholesale on either of two independent triggers:
    *  - the selected tool or the cached `_toolSchema` snapshot changes (this pair
    *    always drives `toolSchema` whenever a cached snapshot exists), or
-   *  - the live discovered schema's signature changes from one non-empty value to
-   *    a *different* non-empty value — a genuine re-discovery/refresh. A bare empty
-   *    → non-empty transition is excluded because that's just `mcpTools` finishing
-   *    its initial async load, not a schema change, and would otherwise spuriously
-   *    wipe drafts even while a cached snapshot (unaffected by the load) still
-   *    governs what's actually rendered.
+   *  - the live discovered schema's signature changes to a *different* non-empty
+   *    value than the last non-empty value actually observed — a genuine
+   *    re-discovery/refresh. Comparing against the last known non-empty value
+   *    (rather than merely the previous render's value) means a schema that
+   *    transiently disappears and reappears — e.g. `mcpTools` refetching, or the
+   *    tool briefly missing from a fresh list — still resets drafts if it comes
+   *    back different, while a plain empty → non-empty transition (the initial
+   *    async load) does not, since there is no prior non-empty value to compare.
    */
   const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<
     Record<string, { text: string; baseline: string }>
@@ -143,20 +145,24 @@ export function McpDynamicArgs({
   const liveSchemaSignature = schemaSignature(selectedToolConfig?.inputSchema)
   const [prevToolAndCachedSchemaKey, setPrevToolAndCachedSchemaKey] =
     useState(toolAndCachedSchemaKey)
-  const [prevLiveSchemaSignature, setPrevLiveSchemaSignature] = useState(liveSchemaSignature)
+  const [lastNonEmptyLiveSchemaSignature, setLastNonEmptyLiveSchemaSignature] =
+    useState(liveSchemaSignature)
+  const toolOrCachedSchemaChanged = prevToolAndCachedSchemaKey !== toolAndCachedSchemaKey
+  const nextLastNonEmptyLiveSchemaSignature =
+    liveSchemaSignature !== '' ? liveSchemaSignature : lastNonEmptyLiveSchemaSignature
   if (
-    prevToolAndCachedSchemaKey !== toolAndCachedSchemaKey ||
-    prevLiveSchemaSignature !== liveSchemaSignature
+    toolOrCachedSchemaChanged ||
+    nextLastNonEmptyLiveSchemaSignature !== lastNonEmptyLiveSchemaSignature
   ) {
     const isGenuineLiveRefresh =
-      prevLiveSchemaSignature !== '' &&
       liveSchemaSignature !== '' &&
-      prevLiveSchemaSignature !== liveSchemaSignature
-    if (prevToolAndCachedSchemaKey !== toolAndCachedSchemaKey || isGenuineLiveRefresh) {
+      lastNonEmptyLiveSchemaSignature !== '' &&
+      liveSchemaSignature !== lastNonEmptyLiveSchemaSignature
+    if (toolOrCachedSchemaChanged || isGenuineLiveRefresh) {
       setInvalidJsonDrafts({})
     }
     setPrevToolAndCachedSchemaKey(toolAndCachedSchemaKey)
-    setPrevLiveSchemaSignature(liveSchemaSignature)
+    setLastNonEmptyLiveSchemaSignature(nextLastNonEmptyLiveSchemaSignature)
   }
 
   const currentArgs = useCallback(() => {
