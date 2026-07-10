@@ -719,5 +719,53 @@ describe('useAutosave', () => {
       await flush()
       expect(fakeDraftStore.has('autosave-draft:file-race')).toBe(false)
     })
+
+    it('serializes IndexedDB ops across an unmount and a fresh remount of the same draft key', async () => {
+      let resolveWrite: (() => void) | undefined
+      const idbKeyval = await import('idb-keyval')
+      vi.mocked(idbKeyval.set).mockImplementationOnce(
+        (key: string, value: unknown) =>
+          new Promise<void>((resolve) => {
+            resolveWrite = () => {
+              fakeDraftStore.set(key, value)
+              resolve()
+            }
+          })
+      )
+      const onSaveA = vi.fn(async () => {})
+      const { handle: handleA } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave: onSaveA,
+        draftKey: 'file-cross-mount',
+      })
+
+      handleA.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(400)
+      })
+      await flush()
+      // The write is in flight when this instance unmounts — its own idbQueueRef dies with it,
+      // but the operation must still be ordered relative to whatever comes next for this key.
+      handleA.unmount()
+      await flush()
+
+      // A fresh instance mounts for the same file and immediately discards.
+      const onSaveB = vi.fn(async () => {})
+      const { handle: handleB } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave: onSaveB,
+        draftKey: 'file-cross-mount',
+      })
+      act(() => handleB.discard())
+      await flush()
+
+      // The old instance's slow write finally resolves — it must not resurrect the entry the
+      // new instance's delete already removed, even though they belong to different mounts.
+      resolveWrite?.()
+      await flush()
+      expect(fakeDraftStore.has('autosave-draft:file-cross-mount')).toBe(false)
+    })
   })
 })

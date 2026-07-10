@@ -19,6 +19,20 @@ function localDraftDbKey(draftKey: string) {
   return `autosave-draft:${draftKey}`
 }
 
+const draftOpQueues = new Map<string, Promise<unknown>>()
+
+/** Serializes IndexedDB reads/writes for a given draft key across every `useAutosave` instance (including one that already unmounted), so a late write from a just-unmounted instance can't land after a newly-mounted instance's delete or recovery read. */
+function enqueueDraftOp<T>(key: string, op: () => Promise<T>): Promise<T> {
+  const prev = draftOpQueues.get(key) ?? Promise.resolve()
+  const result = prev.then(op, op)
+  const settled = result.catch(() => {})
+  draftOpQueues.set(key, settled)
+  void settled.then(() => {
+    if (draftOpQueues.get(key) === settled) draftOpQueues.delete(key)
+  })
+  return result
+}
+
 interface UseAutosaveOptions {
   content: string
   savedContent: string
@@ -88,7 +102,6 @@ export function useAutosave({
   const localDraftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const lastPersistedContentRef = useRef<string | null>(null)
   const discardedRef = useRef(false)
-  const idbQueueRef = useRef<Promise<void>>(Promise.resolve())
   const MIN_SAVING_DISPLAY_MS = 600
 
   if (discardedRef.current && isDirty) discardedRef.current = false
@@ -99,13 +112,12 @@ export function useAutosave({
     if (contentRef.current === lastPersistedContentRef.current) return
     const content = contentRef.current
     const savedContentSnapshot = savedContentRef.current
-    idbQueueRef.current = idbQueueRef.current
-      .then(() =>
-        set(localDraftDbKey(key), {
-          content,
-          savedContent: savedContentSnapshot,
-        } satisfies LocalDraft)
-      )
+    void enqueueDraftOp(key, () =>
+      set(localDraftDbKey(key), {
+        content,
+        savedContent: savedContentSnapshot,
+      } satisfies LocalDraft)
+    )
       .then(() => {
         lastPersistedContentRef.current = content
       })
@@ -118,11 +130,9 @@ export function useAutosave({
     const key = draftKeyRef.current
     lastPersistedContentRef.current = null
     if (!key) return
-    idbQueueRef.current = idbQueueRef.current
-      .then(() => del(localDraftDbKey(key)))
-      .catch((error) => {
-        logger.warn('IndexedDB draft delete failed', { key, error })
-      })
+    void enqueueDraftOp(key, () => del(localDraftDbKey(key))).catch((error) => {
+      logger.warn('IndexedDB draft delete failed', { key, error })
+    })
   }, [])
 
   const save = useCallback(async () => {
@@ -234,7 +244,9 @@ export function useAutosave({
   useEffect(() => {
     if (!effectiveDraftKey) return
     let cancelled = false
-    void get<LocalDraft>(localDraftDbKey(effectiveDraftKey))
+    void enqueueDraftOp(effectiveDraftKey, () =>
+      get<LocalDraft>(localDraftDbKey(effectiveDraftKey))
+    )
       .then((draft) => {
         if (cancelled || !draft) return
         if (draft.savedContent !== savedContentRef.current) {
