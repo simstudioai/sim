@@ -43,12 +43,13 @@ function requiresJsonValue(paramSchema: any): boolean {
 }
 
 /**
- * Stable signature of a tool schema's properties, for detecting whether the
- * effective param shape has changed (independent of object identity).
+ * Stable signature of an entire tool schema, for detecting whether the effective
+ * param shape has changed (independent of object identity). Signs the whole schema
+ * rather than cherry-picking fields (e.g. just `properties`) so a refresh that only
+ * changes `required`, or any other schema-level field, isn't silently missed.
  */
 function schemaSignature(schema: unknown): string {
-  const properties = (schema as { properties?: unknown } | undefined)?.properties
-  return properties ? JSON.stringify(properties) : ''
+  return schema ? JSON.stringify(schema) : ''
 }
 
 interface McpDynamicArgsProps {
@@ -108,14 +109,20 @@ export function McpDynamicArgs({
 
   /**
    * Draft text for JSON-value params (object/array/non-primitive-enum) whose current
-   * edit isn't valid JSON yet. Keeping this out of toolArgs means the stored argument
-   * is always either the last valid parsed value or untouched — never malformed text
-   * that could reach tool execution. Drafts reset whenever the selected tool or either
-   * schema source changes — `toolSchema` prefers the cached `_toolSchema` snapshot over
-   * the live discovered schema, so the reset key tracks both independently rather than
-   * the resolved `toolSchema`, which wouldn't change on a live-only refresh.
+   * edit isn't valid JSON yet, paired with a signature of the persisted value it was
+   * typed against. Keeping this out of toolArgs means the stored argument is always
+   * either the last valid parsed value or untouched — never malformed text that could
+   * reach tool execution. A draft is only displayed while its baseline still matches
+   * the live persisted value, so an external change to that value (undo/redo, a diff
+   * baseline switch, a collaborator's edit) can't be shadowed by stale draft text.
+   * Drafts also reset wholesale whenever the selected tool or either schema source
+   * changes — `toolSchema` prefers the cached `_toolSchema` snapshot over the live
+   * discovered schema, so the reset key tracks both independently rather than the
+   * resolved `toolSchema`, which wouldn't change on a live-only refresh.
    */
-  const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<Record<string, string>>({})
+  const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<
+    Record<string, { text: string; baseline: string }>
+  >({})
   const draftResetKey = `${selectedTool ?? ''}|${schemaSignature(cachedSchema)}|${schemaSignature(selectedToolConfig?.inputSchema)}`
   const [prevDraftResetKey, setPrevDraftResetKey] = useState(draftResetKey)
   if (prevDraftResetKey !== draftResetKey) {
@@ -297,10 +304,13 @@ export function McpDynamicArgs({
       case 'long-input': {
         const config = createParamConfig(paramName, paramSchema, 'long-input')
         const needsJsonValue = requiresJsonValue(paramSchema)
+        const valueSignature = JSON.stringify(value ?? null)
         const draft = invalidJsonDrafts[paramName]
+        const activeDraft =
+          needsJsonValue && draft && draft.baseline === valueSignature ? draft.text : undefined
         const displayValue =
-          needsJsonValue && draft !== undefined
-            ? draft
+          activeDraft !== undefined
+            ? activeDraft
             : typeof value === 'string' || value == null
               ? value || ''
               : JSON.stringify(value)
@@ -333,7 +343,10 @@ export function McpDynamicArgs({
                 updateParameter(paramName, JSON.parse(newValue))
                 clearDraft()
               } catch {
-                setInvalidJsonDrafts((prev) => ({ ...prev, [paramName]: newValue }))
+                setInvalidJsonDrafts((prev) => ({
+                  ...prev,
+                  [paramName]: { text: newValue, baseline: valueSignature },
+                }))
               }
             }}
             isPreview={isPreview}
