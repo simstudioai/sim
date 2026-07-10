@@ -5,7 +5,7 @@ import { tiktokPublishVideoContract } from '@/lib/api/contracts/tiktok-tools'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getFileExtension,
@@ -26,13 +26,13 @@ const TIKTOK_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/
 
 /** TikTok requires each chunk between 5MB and 64MB; the final chunk absorbs the remainder (up to ~2x this size, well under the 128MB cap). Capped at 1000 chunks total, which this default comfortably satisfies up to TikTok's 4GB video size limit. */
 const DEFAULT_CHUNK_SIZE = 10_000_000
+const TIKTOK_ERROR_RESPONSE_MAX_BYTES = 64 * 1024
 
 /** Maximum size this route will buffer in memory for a single file-upload request. TikTok's
  * own limit is 4GB, but relaying that much through this server's memory per request isn't
  * safe under concurrent load. Enforced before downloading the file so an oversized upload
  * fails fast with a clean 413 instead of materializing hundreds of MB to multiple GB
- * in-process. Users with larger files can use the "Public URL" source instead, since
- * PULL_FROM_URL never routes bytes through this process. */
+ * in-process. */
 const TIKTOK_MAX_VIDEO_BYTES = 250 * 1024 * 1024
 
 function computeChunkPlan(totalBytes: number): { chunkSize: number; totalChunkCount: number } {
@@ -43,10 +43,47 @@ function computeChunkPlan(totalBytes: number): { chunkSize: number; totalChunkCo
   return { chunkSize: DEFAULT_CHUNK_SIZE, totalChunkCount }
 }
 
-function resolveVideoMimeType(fileName: string, fileType: string | undefined): string {
+function resolveVideoMimeType(fileName: string, fileType: string | undefined): string | null {
   if (fileType && TIKTOK_VIDEO_MIME_TYPES.has(fileType)) return fileType
   const fromExtension = getMimeTypeFromExtension(getFileExtension(fileName))
-  return TIKTOK_VIDEO_MIME_TYPES.has(fromExtension) ? fromExtension : 'video/mp4'
+  return TIKTOK_VIDEO_MIME_TYPES.has(fromExtension) ? fromExtension : null
+}
+
+async function validateDirectPostSettings(
+  accessToken: string,
+  postInfo: { privacy_level: string; brand_content_toggle: boolean },
+  requestId: string
+): Promise<string | null> {
+  if (postInfo.brand_content_toggle && postInfo.privacy_level === 'SELF_ONLY') {
+    return 'Branded content cannot use Only Me privacy.'
+  }
+
+  const response = await fetch('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json; charset=UTF-8',
+    },
+    body: '{}',
+  })
+  const data = await response.json()
+  if (!response.ok || (data.error?.code && data.error.code !== 'ok')) {
+    logger.warn(`[${requestId}] TikTok creator-info preflight failed`, {
+      status: response.status,
+      code: data.error?.code,
+    })
+    return data.error?.message || 'TikTok creator information could not be verified.'
+  }
+
+  const privacyOptions: unknown = data.data?.privacy_level_options
+  if (
+    !Array.isArray(privacyOptions) ||
+    !privacyOptions.some((option) => option === postInfo.privacy_level)
+  ) {
+    return `The selected privacy level (${postInfo.privacy_level}) is not currently available for this TikTok account. Run Query Creator Info and choose one of the returned options.`
+  }
+
+  return null
 }
 
 async function uploadChunks(
@@ -75,7 +112,10 @@ async function uploadChunks(
     })
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
+      const errorText = await readResponseTextWithLimit(response, {
+        maxBytes: TIKTOK_ERROR_RESPONSE_MAX_BYTES,
+        label: 'TikTok upload error response',
+      }).catch(() => 'Error response exceeded the allowed size')
       logger.error(`[${requestId}] TikTok chunk upload failed`, {
         chunkIndex: i,
         status: response.status,
@@ -118,6 +158,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
 
+    if (data.mode === 'direct') {
+      const settingsError = await validateDirectPostSettings(
+        data.accessToken,
+        data.postInfo,
+        requestId
+      )
+      if (settingsError) {
+        return NextResponse.json({ success: false, error: settingsError }, { status: 400 })
+      }
+    }
+
+    const mimeType = resolveVideoMimeType(userFile.name, userFile.type)
+    if (!mimeType) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unsupported video type. TikTok accepts MP4, MOV/QuickTime, or WebM files.',
+        },
+        { status: 400 }
+      )
+    }
+
     logger.info(`[${requestId}] Downloading video from storage`, {
       fileName: userFile.name,
       size: userFile.size,
@@ -126,7 +188,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger, {
       maxBytes: TIKTOK_MAX_VIDEO_BYTES,
     })
-    const mimeType = resolveVideoMimeType(userFile.name, userFile.type)
+    if (fileBuffer.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'The video file is empty.' },
+        { status: 400 }
+      )
+    }
     const { chunkSize, totalChunkCount } = computeChunkPlan(fileBuffer.length)
 
     const initUrl =
@@ -143,7 +210,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     }
     if (data.mode === 'direct') {
-      initBody.post_info = data.postInfo ?? {}
+      initBody.post_info = data.postInfo
     }
 
     logger.info(`[${requestId}] Initializing TikTok video ${data.mode}`, {
@@ -206,7 +273,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(
         {
           success: false,
-          error: `Video exceeds the ${maxMb}MB limit for file uploads. Use a public video URL instead to post larger files.`,
+          error: `Video exceeds the ${maxMb}MB limit for file uploads.`,
         },
         { status: 413 }
       )

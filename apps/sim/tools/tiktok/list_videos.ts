@@ -59,6 +59,9 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
       if (!Number.isInteger(maxCount) || maxCount < 1 || maxCount > 20) {
         throw new Error('maxCount must be an integer between 1 and 20')
       }
+      if (params.cursor !== undefined && (!Number.isInteger(params.cursor) || params.cursor < 0)) {
+        throw new Error('cursor must be a non-negative integer')
+      }
       return {
         max_count: maxCount,
         ...(params.cursor !== undefined && { cursor: params.cursor }),

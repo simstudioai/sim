@@ -207,44 +207,9 @@ export function assertTikTokArrayLength(values: unknown[], label: string, maximu
   }
 }
 
-/** Validates photo count and returns a cover index that points into the image list. */
-export function resolveTikTokPhotoCoverIndex(
-  photoImages: string[],
-  requestedIndex?: number
-): number {
-  assertTikTokArrayLength(photoImages, 'photoImages', 35)
-  const coverIndex = requestedIndex ?? 0
-  if (!Number.isInteger(coverIndex) || coverIndex < 0) {
-    throw new Error('photoCoverIndex must be a non-negative integer')
-  }
-  if (coverIndex >= photoImages.length) {
-    throw new Error('photoCoverIndex must refer to an item in photoImages')
-  }
-  return coverIndex
-}
-
-/** Validates that the selected video transfer source has its corresponding input. */
-export function assertTikTokVideoSourceInput(
-  source: string,
-  videoUrl: string | undefined,
-  file: unknown
-): void {
-  if (source === 'PULL_FROM_URL') {
-    if (!videoUrl?.trim()) throw new Error('videoUrl is required when source is PULL_FROM_URL')
-    return
-  }
-  if (source === 'FILE_UPLOAD') {
-    if (!file) throw new Error('file is required when source is FILE_UPLOAD')
-    return
-  }
-  throw new Error('source must be PULL_FROM_URL or FILE_UPLOAD')
-}
-
 /**
- * Video/photo publish-init tools can hit TikTok directly (PULL_FROM_URL, calling
- * TikTok's own `/init/` endpoints) or an internal Sim route (FILE_UPLOAD, which
- * downloads the workflow file and performs the chunked PUT before responding).
- * The two paths return different envelopes, so reading and normalization share one boundary.
+ * The internal Sim upload route and TikTok both return publish-init envelopes.
+ * Reading and normalization share one boundary.
  */
 export async function readTikTokPublishInitResponse(
   response: Response

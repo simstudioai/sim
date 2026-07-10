@@ -2,11 +2,7 @@ import type {
   TikTokUploadVideoDraftParams,
   TikTokUploadVideoDraftResponse,
 } from '@/tools/tiktok/types'
-import {
-  assertTikTokVideoSourceInput,
-  readTikTokPublishInitResponse,
-  toTikTokPublishToolResponse,
-} from '@/tools/tiktok/utils'
+import { readTikTokPublishInitResponse, toTikTokPublishToolResponse } from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tiktokUploadVideoDraftTool: ToolConfig<
@@ -16,7 +12,7 @@ export const tiktokUploadVideoDraftTool: ToolConfig<
   id: 'tiktok_upload_video_draft',
   name: 'TikTok Upload Video Draft',
   description:
-    "Send a video to the authenticated user's TikTok inbox (by public URL or uploaded file) for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.",
+    "Send an uploaded video to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.",
   version: '1.0.0',
 
   oauth: {
@@ -32,55 +28,25 @@ export const tiktokUploadVideoDraftTool: ToolConfig<
       visibility: 'hidden',
       description: 'TikTok OAuth access token',
     },
-    source: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: "Media transfer method: 'PULL_FROM_URL' or 'FILE_UPLOAD'.",
-    },
-    videoUrl: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Public URL of the video to upload (used when source is PULL_FROM_URL). The domain/URL prefix must be verified in the TikTok developer portal.',
-    },
     file: {
       type: 'file',
-      required: false,
+      required: true,
       visibility: 'user-only',
-      description: 'Video file to upload from the workflow (used when source is FILE_UPLOAD).',
+      description: 'Video file to upload from the workflow. Maximum size: 250 MB.',
     },
   },
 
   request: {
-    url: (params: TikTokUploadVideoDraftParams) =>
-      params.source === 'FILE_UPLOAD'
-        ? '/api/tools/tiktok/publish-video'
-        : 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
+    url: () => '/api/tools/tiktok/publish-video',
     method: 'POST',
-    headers: (params: TikTokUploadVideoDraftParams) => ({
-      ...(params.source !== 'FILE_UPLOAD' && { Authorization: `Bearer ${params.accessToken}` }),
-      'Content-Type':
-        params.source === 'FILE_UPLOAD' ? 'application/json' : 'application/json; charset=UTF-8',
+    headers: () => ({
+      'Content-Type': 'application/json',
     }),
-    body: (params: TikTokUploadVideoDraftParams) => {
-      assertTikTokVideoSourceInput(params.source, params.videoUrl, params.file)
-      if (params.source === 'FILE_UPLOAD') {
-        return {
-          accessToken: params.accessToken,
-          mode: 'draft',
-          file: params.file,
-        }
-      }
-
-      return {
-        source_info: {
-          source: 'PULL_FROM_URL',
-          video_url: params.videoUrl,
-        },
-      }
-    },
+    body: (params: TikTokUploadVideoDraftParams) => ({
+      accessToken: params.accessToken,
+      mode: 'draft',
+      file: params.file,
+    }),
   },
 
   transformResponse: async (response: Response): Promise<TikTokUploadVideoDraftResponse> => {

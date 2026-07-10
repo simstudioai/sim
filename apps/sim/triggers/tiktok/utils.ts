@@ -1,3 +1,4 @@
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
@@ -60,6 +61,7 @@ export function buildTikTokTriggerSubBlocks(
       title: 'TikTok Account',
       type: 'oauth-input',
       serviceId: 'tiktok',
+      requiredScopes: getScopesForService('tiktok'),
       mode: 'trigger',
       required: true,
       condition: { field: 'selectedTriggerId', value: triggerId },

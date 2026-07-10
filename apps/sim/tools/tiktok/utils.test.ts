@@ -5,11 +5,9 @@ import { describe, expect, it } from 'vitest'
 import { tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import {
   assertTikTokArrayLength,
-  assertTikTokVideoSourceInput,
   mapTikTokVideo,
   readTikTokApiResponse,
   readTikTokPublishInitResponse,
-  resolveTikTokPhotoCoverIndex,
 } from '@/tools/tiktok/utils'
 
 describe('TikTok tool utilities', () => {
@@ -75,25 +73,6 @@ describe('TikTok tool utilities', () => {
       'videoIds supports at most 20 items'
     )
     expect(() => assertTikTokArrayLength(['video-1'], 'videoIds', 20)).not.toThrow()
-  })
-
-  it('requires the input matching the selected video source', () => {
-    expect(() => assertTikTokVideoSourceInput('PULL_FROM_URL', undefined, undefined)).toThrow(
-      'videoUrl is required when source is PULL_FROM_URL'
-    )
-    expect(() => assertTikTokVideoSourceInput('FILE_UPLOAD', undefined, undefined)).toThrow(
-      'file is required when source is FILE_UPLOAD'
-    )
-    expect(() =>
-      assertTikTokVideoSourceInput('PULL_FROM_URL', 'https://example.com/video.mp4', undefined)
-    ).not.toThrow()
-  })
-
-  it('validates photo cover indexes against the image list', () => {
-    expect(resolveTikTokPhotoCoverIndex(['photo-1'])).toBe(0)
-    expect(() => resolveTikTokPhotoCoverIndex(['photo-1'], 1)).toThrow(
-      'photoCoverIndex must refer to an item in photoImages'
-    )
   })
 
   it('maps TikTok embed HTML', () => {

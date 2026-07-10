@@ -7,7 +7,6 @@ import type { TikTokResponse } from '@/tools/tiktok/types'
 import { getTrigger } from '@/triggers'
 
 const VIDEO_POST_OPERATIONS = ['tiktok_direct_post_video', 'tiktok_upload_video_draft']
-const PHOTO_POST_OPERATIONS = ['tiktok_direct_post_photo', 'tiktok_upload_photo_draft']
 
 export const TikTokBlock: BlockConfig<TikTokResponse> = {
   type: 'tiktok',
@@ -15,12 +14,13 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
   description: 'Access TikTok profiles and videos, and publish content',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos and photos directly to TikTok (or send them to the inbox as drafts) from a public URL or a file uploaded in the workflow, then track post status.',
+    'Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos directly to TikTok (or send them to the inbox as drafts) from an uploaded file or a file produced earlier in the workflow, then track post status.',
   docsLink: 'https://docs.sim.ai/integrations/tiktok',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#000000',
   icon: TikTokIcon,
+  triggerAllowed: true,
 
   subBlocks: [
     {
@@ -34,8 +34,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
         { label: 'Query Creator Info', id: 'tiktok_query_creator_info' },
         { label: 'Direct Post Video', id: 'tiktok_direct_post_video' },
         { label: 'Upload Video Draft', id: 'tiktok_upload_video_draft' },
-        { label: 'Direct Post Photo', id: 'tiktok_direct_post_photo' },
-        { label: 'Upload Photo Draft', id: 'tiktok_upload_photo_draft' },
         { label: 'Get Post Status', id: 'tiktok_get_post_status' },
       ],
       value: () => 'tiktok_get_user',
@@ -109,36 +107,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       required: { field: 'operation', value: 'tiktok_query_videos' },
     },
 
-    // --- Video source (Direct Post Video / Upload Video Draft) ---
-    {
-      id: 'videoSource',
-      title: 'Video Source',
-      type: 'dropdown',
-      options: [
-        { label: 'Public URL', id: 'PULL_FROM_URL' },
-        { label: 'Upload File', id: 'FILE_UPLOAD' },
-      ],
-      value: () => 'PULL_FROM_URL',
-      condition: { field: 'operation', value: VIDEO_POST_OPERATIONS },
-    },
-    {
-      id: 'videoUrl',
-      title: 'Video URL',
-      type: 'short-input',
-      placeholder: 'https://example.com/video.mp4',
-      description:
-        'Public URL of the video. The domain/URL prefix must be verified in the TikTok developer portal.',
-      condition: {
-        field: 'operation',
-        value: VIDEO_POST_OPERATIONS,
-        and: { field: 'videoSource', value: 'PULL_FROM_URL' },
-      },
-      required: {
-        field: 'operation',
-        value: VIDEO_POST_OPERATIONS,
-        and: { field: 'videoSource', value: 'PULL_FROM_URL' },
-      },
-    },
+    // --- Video file (Direct Post Video / Upload Video Draft) — Gmail-style upload ⇄ block ref ---
     {
       id: 'videoFile',
       title: 'Video File',
@@ -148,16 +117,10 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       placeholder: 'Upload video',
       acceptedTypes: '.mp4,.mov,.webm',
       multiple: false,
-      condition: {
-        field: 'operation',
-        value: VIDEO_POST_OPERATIONS,
-        and: { field: 'videoSource', value: 'FILE_UPLOAD' },
-      },
-      required: {
-        field: 'operation',
-        value: VIDEO_POST_OPERATIONS,
-        and: { field: 'videoSource', value: 'FILE_UPLOAD' },
-      },
+      maxSize: 250,
+      description: 'MP4, MOV, or WebM video up to 250 MB.',
+      condition: { field: 'operation', value: VIDEO_POST_OPERATIONS },
+      required: { field: 'operation', value: VIDEO_POST_OPERATIONS },
     },
     {
       id: 'videoFileRef',
@@ -165,67 +128,22 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       type: 'short-input',
       canonicalParamId: 'file',
       mode: 'advanced',
-      placeholder: 'Reference a video from a previous block (e.g., <videogenerator1.videoFile>)',
-      condition: {
-        field: 'operation',
-        value: VIDEO_POST_OPERATIONS,
-        and: { field: 'videoSource', value: 'FILE_UPLOAD' },
-      },
-      required: {
-        field: 'operation',
-        value: VIDEO_POST_OPERATIONS,
-        and: { field: 'videoSource', value: 'FILE_UPLOAD' },
-      },
+      placeholder: 'Reference a video from a previous block',
+      condition: { field: 'operation', value: VIDEO_POST_OPERATIONS },
+      required: { field: 'operation', value: VIDEO_POST_OPERATIONS },
     },
 
-    // --- Photo images (Direct Post Photo / Upload Photo Draft) ---
-    {
-      id: 'photoImages',
-      title: 'Photo URLs',
-      type: 'long-input',
-      placeholder: 'One public image URL per line (up to 35, JPEG or WEBP only — no PNG)',
-      description:
-        'Public, verified-domain URLs of the images to post. Photos only support public URLs, not file upload.',
-      condition: { field: 'operation', value: PHOTO_POST_OPERATIONS },
-      required: { field: 'operation', value: PHOTO_POST_OPERATIONS },
-    },
-    {
-      id: 'photoCoverIndex',
-      title: 'Cover Photo Index',
-      type: 'short-input',
-      placeholder: '0',
-      description: 'Index (starting from 0) of the photo to use as the cover.',
-      mode: 'advanced',
-      condition: { field: 'operation', value: PHOTO_POST_OPERATIONS },
-    },
-
-    // --- Shared caption/title (video + photo posts) ---
+    // --- Caption (Direct Post Video) ---
     {
       id: 'title',
       title: 'Title / Caption',
       type: 'long-input',
       placeholder: 'Caption with #hashtags and @mentions',
-      description:
-        'Caption or title. Max 2200 characters for videos, 90 characters for photo posts.',
-      condition: {
-        field: 'operation',
-        value: [
-          'tiktok_direct_post_video',
-          'tiktok_direct_post_photo',
-          'tiktok_upload_photo_draft',
-        ],
-      },
-    },
-    {
-      id: 'description',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'Post description',
-      description: 'Post description. Max 4000 characters. Photo posts only.',
-      condition: { field: 'operation', value: PHOTO_POST_OPERATIONS },
+      description: 'Video caption. Maximum 2200 characters.',
+      condition: { field: 'operation', value: 'tiktok_direct_post_video' },
     },
 
-    // --- Privacy & interaction settings (Direct Post Video / Direct Post Photo) ---
+    // --- Privacy & interaction settings (Direct Post Video) ---
     {
       id: 'privacyLevel',
       title: 'Privacy Level',
@@ -236,17 +154,10 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
         { label: 'Followers', id: 'FOLLOWER_OF_CREATOR' },
         { label: 'Only Me', id: 'SELF_ONLY' },
       ],
-      value: () => 'SELF_ONLY',
       description:
-        'Must match one of the privacyLevelOptions returned by Query Creator Info. Unaudited apps (including sandbox apps) are restricted to Only Me.',
-      condition: {
-        field: 'operation',
-        value: ['tiktok_direct_post_video', 'tiktok_direct_post_photo'],
-      },
-      required: {
-        field: 'operation',
-        value: ['tiktok_direct_post_video', 'tiktok_direct_post_photo'],
-      },
+        'Choose manually from the privacyLevelOptions returned by Query Creator Info. TikTok prohibits preselecting a privacy level. Unaudited apps are restricted to Only Me.',
+      condition: { field: 'operation', value: 'tiktok_direct_post_video' },
+      required: { field: 'operation', value: 'tiktok_direct_post_video' },
     },
     {
       id: 'disableComment',
@@ -256,12 +167,8 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
-      value: () => 'false',
-      mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['tiktok_direct_post_video', 'tiktok_direct_post_photo'],
-      },
+      condition: { field: 'operation', value: 'tiktok_direct_post_video' },
+      required: { field: 'operation', value: 'tiktok_direct_post_video' },
     },
     {
       id: 'disableDuet',
@@ -271,9 +178,8 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
-      value: () => 'false',
-      mode: 'advanced',
       condition: { field: 'operation', value: 'tiktok_direct_post_video' },
+      required: { field: 'operation', value: 'tiktok_direct_post_video' },
     },
     {
       id: 'disableStitch',
@@ -283,9 +189,8 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
-      value: () => 'false',
-      mode: 'advanced',
       condition: { field: 'operation', value: 'tiktok_direct_post_video' },
+      required: { field: 'operation', value: 'tiktok_direct_post_video' },
     },
     {
       id: 'videoCoverTimestampMs',
@@ -309,18 +214,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       condition: { field: 'operation', value: 'tiktok_direct_post_video' },
     },
     {
-      id: 'autoAddMusic',
-      title: 'Auto-Add Music',
-      type: 'dropdown',
-      options: [
-        { label: 'No', id: 'false' },
-        { label: 'Yes', id: 'true' },
-      ],
-      value: () => 'false',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'tiktok_direct_post_photo' },
-    },
-    {
       id: 'brandContentToggle',
       title: 'Paid Partnership',
       type: 'dropdown',
@@ -332,10 +225,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       description:
         'Disclose this post as a paid partnership promoting a third-party business. Branded content cannot be posted with Only Me privacy.',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['tiktok_direct_post_video', 'tiktok_direct_post_photo'],
-      },
+      condition: { field: 'operation', value: 'tiktok_direct_post_video' },
     },
     {
       id: 'brandOrganicToggle',
@@ -348,10 +238,22 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       value: () => 'false',
       description: "Disclose this post as promoting the creator's own business.",
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['tiktok_direct_post_video', 'tiktok_direct_post_photo'],
-      },
+      condition: { field: 'operation', value: 'tiktok_direct_post_video' },
+    },
+    {
+      id: 'musicUsageConsent',
+      title: 'TikTok Music Usage Confirmation',
+      type: 'dropdown',
+      options: [
+        {
+          label: "I agree to TikTok's Music Usage Confirmation",
+          id: 'accepted',
+        },
+      ],
+      description:
+        "By posting, you agree to TikTok's Music Usage Confirmation. TikTok requires explicit consent before content is uploaded.",
+      condition: { field: 'operation', value: 'tiktok_direct_post_video' },
+      required: { field: 'operation', value: 'tiktok_direct_post_video' },
     },
 
     // --- Get Post Status ---
@@ -396,8 +298,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       'tiktok_query_creator_info',
       'tiktok_direct_post_video',
       'tiktok_upload_video_draft',
-      'tiktok_direct_post_photo',
-      'tiktok_upload_photo_draft',
       'tiktok_get_post_status',
     ],
     config: {
@@ -430,11 +330,9 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
           case 'tiktok_direct_post_video': {
             const file = normalizeFileInput(params.file, { single: true })
             return {
-              source: params.videoSource || 'PULL_FROM_URL',
-              videoUrl: params.videoUrl,
               file,
               title: params.title,
-              privacyLevel: params.privacyLevel || 'SELF_ONLY',
+              privacyLevel: params.privacyLevel,
               disableDuet: toBoolean(params.disableDuet),
               disableStitch: toBoolean(params.disableStitch),
               disableComment: toBoolean(params.disableComment),
@@ -445,47 +343,15 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
               isAigc: toBoolean(params.isAigc),
               brandContentToggle: toBoolean(params.brandContentToggle),
               brandOrganicToggle: toBoolean(params.brandOrganicToggle),
+              musicUsageConsent: params.musicUsageConsent,
             }
           }
           case 'tiktok_upload_video_draft': {
             const file = normalizeFileInput(params.file, { single: true })
             return {
-              source: params.videoSource || 'PULL_FROM_URL',
-              videoUrl: params.videoUrl,
               file,
             }
           }
-          case 'tiktok_direct_post_photo':
-            return {
-              photoImages: (params.photoImages || '')
-                .split('\n')
-                .map((url: string) => url.trim())
-                .filter(Boolean),
-              ...(params.photoCoverIndex !== undefined &&
-                params.photoCoverIndex !== '' && {
-                  photoCoverIndex: Number(params.photoCoverIndex),
-                }),
-              title: params.title,
-              description: params.description,
-              privacyLevel: params.privacyLevel || 'SELF_ONLY',
-              disableComment: toBoolean(params.disableComment),
-              autoAddMusic: toBoolean(params.autoAddMusic),
-              brandContentToggle: toBoolean(params.brandContentToggle),
-              brandOrganicToggle: toBoolean(params.brandOrganicToggle),
-            }
-          case 'tiktok_upload_photo_draft':
-            return {
-              photoImages: (params.photoImages || '')
-                .split('\n')
-                .map((url: string) => url.trim())
-                .filter(Boolean),
-              ...(params.photoCoverIndex !== undefined &&
-                params.photoCoverIndex !== '' && {
-                  photoCoverIndex: Number(params.photoCoverIndex),
-                }),
-              title: params.title,
-              description: params.description,
-            }
           case 'tiktok_get_post_status':
             return {
               publishId: params.publishId,
@@ -507,26 +373,17 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       type: 'string',
       description: 'List of video IDs to query, one per line or comma-separated',
     },
-    videoSource: {
-      type: 'string',
-      description: 'Video transfer method (PULL_FROM_URL/FILE_UPLOAD)',
-    },
-    videoUrl: { type: 'string', description: 'Public URL of the video' },
     file: {
       type: 'json',
       description: 'Video file to upload (uploaded file or reference from a previous block)',
     },
-    photoImages: { type: 'string', description: 'Newline-separated public photo URLs' },
-    photoCoverIndex: { type: 'number', description: 'Index of the photo to use as cover' },
-    title: { type: 'string', description: 'Video/photo caption or title' },
-    description: { type: 'string', description: 'Photo post description' },
+    title: { type: 'string', description: 'Video caption or title' },
     privacyLevel: { type: 'string', description: 'Privacy level for the post' },
     disableComment: { type: 'string', description: 'Whether to disable comments' },
     disableDuet: { type: 'string', description: 'Whether to disable duet' },
     disableStitch: { type: 'string', description: 'Whether to disable stitch' },
     videoCoverTimestampMs: { type: 'number', description: 'Video cover timestamp in ms' },
     isAigc: { type: 'string', description: 'Whether the video is AI-generated content' },
-    autoAddMusic: { type: 'string', description: 'Whether to auto-add recommended music' },
     brandContentToggle: {
       type: 'string',
       description: 'Whether the post is a paid partnership promoting a third-party business',
@@ -534,6 +391,10 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
     brandOrganicToggle: {
       type: 'string',
       description: "Whether the post promotes the creator's own business",
+    },
+    musicUsageConsent: {
+      type: 'string',
+      description: "Explicit acceptance of TikTok's Music Usage Confirmation",
     },
     publishId: { type: 'string', description: 'Publish ID to check status for' },
   },
@@ -662,13 +523,13 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       condition: { field: 'operation', value: 'tiktok_query_creator_info' },
     },
 
-    // Direct Post / Upload Draft (video and photo)
+    // Direct Post / Upload Draft
     publishId: {
       type: 'string',
       description: 'Publish ID for tracking post status',
       condition: {
         field: 'operation',
-        value: [...VIDEO_POST_OPERATIONS, ...PHOTO_POST_OPERATIONS],
+        value: VIDEO_POST_OPERATIONS,
       },
     },
 
@@ -691,12 +552,12 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
     },
     uploadedBytes: {
       type: 'number',
-      description: 'Bytes uploaded to TikTok for a file upload',
+      description: 'Number of video bytes TikTok has received for a file upload',
       condition: { field: 'operation', value: 'tiktok_get_post_status' },
     },
     downloadedBytes: {
       type: 'number',
-      description: 'Bytes TikTok downloaded from a public URL',
+      description: 'Number of video bytes TikTok reports as downloaded',
       condition: { field: 'operation', value: 'tiktok_get_post_status' },
     },
   },
@@ -708,18 +569,18 @@ export const TikTokBlockMeta = {
   templates: [
     {
       icon: TikTokIcon,
-      title: 'AI video auto-publisher',
+      title: 'User-reviewed TikTok publisher',
       prompt:
-        'Build a workflow that takes a generated video file and publishes it directly to TikTok with an AI-written caption, then checks the post status until it completes.',
+        'Build a workflow that prepares a generated video and editable AI-written caption, asks the user to review the video, choose TikTok privacy and interaction settings, and explicitly accept the Music Usage Confirmation before publishing, then checks post status until it completes.',
       modules: ['agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation'],
     },
     {
       icon: TikTokIcon,
-      title: 'TikTok content calendar scheduler',
+      title: 'TikTok content calendar drafts',
       prompt:
-        'Create a scheduled workflow that reads the next due row from a Tables-based content calendar and publishes the matching video or photo to TikTok at the right time.',
+        'Create a scheduled workflow that reads the next due row from a Tables-based content calendar, uploads the matching video to the creator’s TikTok inbox as a draft, and notifies them to review and publish it in TikTok.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation'],
@@ -744,61 +605,26 @@ export const TikTokBlockMeta = {
       tags: ['marketing', 'automation'],
       alsoIntegrations: ['slack'],
     },
-    {
-      icon: TikTokIcon,
-      title: 'TikTok carousel campaign launcher',
-      prompt:
-        'Build a campaign workflow that turns approved product images into a TikTok photo carousel, publishes it, and sends the resulting post link to Slack.',
-      modules: ['tables', 'agent', 'workflows'],
-      category: 'marketing',
-      tags: ['marketing', 'automation'],
-      alsoIntegrations: ['slack'],
-    },
-    {
-      icon: TikTokIcon,
-      title: 'TikTok publishing failure alerts',
-      prompt:
-        'Create a workflow triggered when a TikTok post fails to publish, summarize the failure reason, and alert the content team in Slack with the publish ID.',
-      modules: ['agent', 'workflows'],
-      category: 'operations',
-      tags: ['monitoring', 'automation'],
-      alsoIntegrations: ['slack'],
-    },
-    {
-      icon: TikTokIcon,
-      title: 'TikTok authorization monitor',
-      prompt:
-        'Create a workflow triggered when a TikTok user removes app authorization, record the affected account, and notify the operations team to reconnect it.',
-      modules: ['tables', 'workflows'],
-      category: 'operations',
-      tags: ['monitoring', 'automation'],
-      alsoIntegrations: ['slack'],
-    },
   ],
   skills: [
     {
       name: 'publish-video-to-tiktok',
-      description: 'Publish a video directly to TikTok from a public URL or an uploaded file.',
+      description:
+        'Guide a user-reviewed direct post to TikTok from an uploaded file or a previous block.',
       content:
-        '# Publish a Video to TikTok\n\nPost a video straight to a connected TikTok account.\n\n## Steps\n1. Use the Direct Post Video operation with a connected TikTok Account.\n2. Before the first post, run Query Creator Info to confirm posting permissions and see the allowed privacy levels — sandbox/unaudited apps are restricted to Only Me.\n3. Choose the Video Source: Public URL (the domain must be verified in the TikTok developer portal) or Upload File (a file produced earlier in the workflow).\n4. Set the Title/Caption with hashtags and mentions, and pick a Privacy Level from the options Query Creator Info returned.\n5. Use the Get Post Status operation with the returned Publish ID to confirm the post completed.\n\n## Output\nReturn the Publish ID and the final status (PUBLISH_COMPLETE or FAILED with a reason).',
+        '# Publish a Video to TikTok\n\nGuide a user-reviewed post to a connected TikTok account.\n\n## Steps\n1. Run Query Creator Info immediately before posting to confirm the account, posting permissions, allowed privacy levels, interaction restrictions, and maximum duration.\n2. Show the user the video and an editable Title/Caption; never publish an unattended or unreviewed file.\n3. Have the user manually choose Privacy Level and each interaction setting from the currently allowed options.\n4. Require the user to accept the TikTok Music Usage Confirmation, then use Direct Post Video with the reviewed settings.\n5. Use Get Post Status with the returned Publish ID until the post completes or fails.\n\n## Output\nReturn the Publish ID and final status (PUBLISH_COMPLETE or FAILED with a reason).',
     },
     {
       name: 'send-video-draft-to-inbox',
       description: "Send a video to the user's TikTok inbox for manual review before posting.",
       content:
-        "# Send a TikTok Video Draft\n\nDeliver a video to the connected account's TikTok inbox so a human can review, edit, and publish it from the app.\n\n## Steps\n1. Use the Upload Video Draft operation with a connected TikTok Account.\n2. Choose the Video Source: Public URL or Upload File.\n3. Submit the draft — no caption or privacy level is set here, since the user finishes the post manually in the TikTok app.\n4. Use Get Post Status with the returned Publish ID to see when the user has acted on the inbox notification (SEND_TO_USER_INBOX until they do).\n\n## Output\nReturn the Publish ID so the draft's status can be tracked or referenced later.",
-    },
-    {
-      name: 'publish-photo-carousel',
-      description: 'Publish a set of photos to TikTok as a photo carousel post.',
-      content:
-        '# Publish a Photo Carousel to TikTok\n\nPost a carousel of images to a connected TikTok account. Photos only support public URLs (no file upload).\n\n## Steps\n1. Run Query Creator Info first to confirm the account can post and to read the allowed privacy levels.\n2. Use the Direct Post Photo operation with a connected TikTok Account.\n3. Provide Photo URLs, one public JPEG or WEBP URL per line (PNG is rejected), up to 35 images.\n4. Set a Title (max 90 characters), an optional Description (max 4000 characters), the Cover Photo Index, and a Privacy Level.\n5. Check progress with Get Post Status using the returned Publish ID.\n\n## Output\nReturn the Publish ID and the final status of the photo post.',
+        "# Send a TikTok Video Draft\n\nDeliver a video to the connected account's TikTok inbox so a human can review, edit, and publish it from the app.\n\n## Steps\n1. Use the Upload Video Draft operation with a connected TikTok Account.\n2. Provide a Video File: upload one, or reference a file from a previous block.\n3. Submit the draft — no caption or privacy level is set here, since the user finishes the post manually in the TikTok app.\n4. Use Get Post Status with the returned Publish ID to see when the user has acted on the inbox notification (SEND_TO_USER_INBOX until they do).\n\n## Output\nReturn the Publish ID so the draft's status can be tracked or referenced later.",
     },
     {
       name: 'check-tiktok-post-status',
       description: 'Poll the status of a TikTok post or draft until it completes or fails.',
       content:
-        '# Check TikTok Post Status\n\nTrack the outcome of a post or draft submitted with any TikTok publish operation.\n\n## Steps\n1. Capture the Publish ID returned by Direct Post Video, Upload Video Draft, Direct Post Photo, or Upload Photo Draft.\n2. Call Get Post Status with that Publish ID.\n3. Branch on the returned status: PROCESSING_UPLOAD/PROCESSING_DOWNLOAD means still in progress, SEND_TO_USER_INBOX means a draft is waiting on the user, PUBLISH_COMPLETE means it succeeded, and FAILED means it did not (read failReason for why).\n4. Repeat on a delay for in-progress statuses until a terminal state is reached.\n\n## Output\nReturn the final status, failReason (if any), and the publiclyAvailablePostId once published.',
+        '# Check TikTok Post Status\n\nTrack the outcome of a post or draft submitted with any TikTok publish operation.\n\n## Steps\n1. Capture the Publish ID returned by Direct Post Video or Upload Video Draft.\n2. Call Get Post Status with that Publish ID.\n3. Branch on the returned status: PROCESSING_UPLOAD/PROCESSING_DOWNLOAD means still in progress, SEND_TO_USER_INBOX means a draft is waiting on the user, PUBLISH_COMPLETE means it succeeded, and FAILED means it did not (read failReason for why).\n4. Repeat on a delay for in-progress statuses until a terminal state is reached.\n\n## Output\nReturn the final status, failReason (if any), and the publiclyAvailablePostId once published.',
     },
     {
       name: 'summarize-tiktok-video-performance',

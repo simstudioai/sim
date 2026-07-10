@@ -21,7 +21,7 @@ TikTok webhooks use a single app-level Callback URL configured in the [TikTok De
 
 ## Usage Instructions
 
-Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos and photos directly to TikTok (or send them to the inbox as drafts) from a public URL or a file uploaded in the workflow, then track post status.
+Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos directly to TikTok (or send them to the inbox as drafts) from an uploaded file or a file produced earlier in the workflow, then track post status.
 
 
 
@@ -141,24 +141,23 @@ Check if the authenticated TikTok user can post content and retrieve their avail
 
 ### `tiktok_direct_post_video`
 
-Publish a video to TikTok, either by public URL (TikTok fetches it) or by uploading a file from the workflow. Rate limit: 6 requests per minute per user.
+Publish a video to TikTok by uploading a file from the workflow (uploaded file or a file from a previous block). Rate limit: 6 requests per minute per user.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `source` | string | Yes | Media transfer method: 'PULL_FROM_URL' or 'FILE_UPLOAD'. |
-| `videoUrl` | string | No | Public URL of the video to post \(used when source is PULL_FROM_URL\). The domain/URL prefix must be verified in the TikTok developer portal. |
-| `file` | file | No | Video file to upload from the workflow \(used when source is FILE_UPLOAD\). |
+| `file` | file | Yes | MP4, MOV, or WebM video file to upload from the workflow \(maximum 250 MB\). |
 | `title` | string | No | Video caption/description. Maximum 2200 characters. |
 | `privacyLevel` | string | Yes | Privacy level for the video. Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY. Must match one of the privacyLevelOptions returned by Query Creator Info. Note: unaudited apps \(including sandbox apps\) are restricted to SELF_ONLY. |
-| `disableDuet` | boolean | No | Disable duet for this video. Defaults to false. |
-| `disableStitch` | boolean | No | Disable stitch for this video. Defaults to false. |
-| `disableComment` | boolean | No | Disable comments for this video. Defaults to false. |
+| `disableDuet` | boolean | Yes | Whether to disable Duet for this video. Must be chosen explicitly. |
+| `disableStitch` | boolean | Yes | Whether to disable Stitch for this video. Must be chosen explicitly. |
+| `disableComment` | boolean | Yes | Whether to disable comments for this video. Must be chosen explicitly. |
 | `videoCoverTimestampMs` | number | No | Timestamp in milliseconds to use as the video cover image. |
 | `isAigc` | boolean | No | Set to true if the video is AI-generated content \(AIGC\). |
-| `brandContentToggle` | boolean | No | Set to true if the video is a paid partnership promoting a third-party business. Branded content cannot be posted with Only Me privacy. |
+| `brandContentToggle` | boolean | Yes | Set to true if the video is a paid partnership promoting a third-party business; otherwise false. Branded content cannot be posted with Only Me privacy. |
 | `brandOrganicToggle` | boolean | No | Set to true if the video is promoting the creator's own business. |
+| `musicUsageConsent` | string | Yes | Must be 'accepted' after the user explicitly agrees to TikTok's Music Usage Confirmation. |
 
 #### Output
 
@@ -168,58 +167,13 @@ Publish a video to TikTok, either by public URL (TikTok fetches it) or by upload
 
 ### `tiktok_upload_video_draft`
 
-Send a video to the authenticated user's TikTok inbox (by public URL or uploaded file) for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.
+Send a video file from the workflow to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `source` | string | Yes | Media transfer method: 'PULL_FROM_URL' or 'FILE_UPLOAD'. |
-| `videoUrl` | string | No | Public URL of the video to upload \(used when source is PULL_FROM_URL\). The domain/URL prefix must be verified in the TikTok developer portal. |
-| `file` | file | No | Video file to upload from the workflow \(used when source is FILE_UPLOAD\). |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `publishId` | string | Unique identifier for tracking the draft status. Use this with the Get Post Status tool to check when the user has completed posting from their inbox. |
-
-### `tiktok_direct_post_photo`
-
-Publish one or more photos to TikTok from public URLs. TikTok will fetch each image and post them as a photo carousel. Photos only support PULL_FROM_URL (no file upload). Rate limit: 6 requests per minute per user.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `photoImages` | array | Yes | Public, verified-domain URLs of the images to post \(up to 35\). Must be JPEG or WEBP — TikTok rejects PNG. |
-| `photoCoverIndex` | number | No | Index \(starting from 0\) of the photo to use as the cover. |
-| `title` | string | No | Post title. Maximum 90 characters. |
-| `description` | string | No | Post description. Maximum 4000 characters. |
-| `privacyLevel` | string | Yes | Privacy level for the post. Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY. Must match one of the privacyLevelOptions returned by Query Creator Info. Note: unaudited apps \(including sandbox apps\) are restricted to SELF_ONLY. |
-| `disableComment` | boolean | No | Disable comments for this post. Defaults to false. |
-| `autoAddMusic` | boolean | No | Automatically add recommended music to the photo post. Defaults to false. |
-| `brandContentToggle` | boolean | No | Set to true if the post is a paid partnership promoting a third-party business. Branded content cannot be posted with Only Me privacy. |
-| `brandOrganicToggle` | boolean | No | Set to true if the post is promoting the creator's own business. |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `publishId` | string | Unique identifier for tracking the post status. Use this with the Get Post Status tool to check if the photos were successfully published. |
-
-### `tiktok_upload_photo_draft`
-
-Send one or more photos (from public URLs) to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Photos only support PULL_FROM_URL (no file upload). Rate limit: 6 requests per minute per user.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `photoImages` | array | Yes | Public, verified-domain URLs of the images to upload \(up to 35\). Must be JPEG or WEBP — TikTok rejects PNG. |
-| `photoCoverIndex` | number | No | Index \(starting from 0\) of the photo to use as the cover. |
-| `title` | string | No | Post title. Maximum 90 characters. |
-| `description` | string | No | Post description. Maximum 4000 characters. |
+| `file` | file | Yes | MP4, MOV, or WebM video file to upload from the workflow \(maximum 250 MB\). |
 
 #### Output
 
@@ -229,7 +183,7 @@ Send one or more photos (from public URLs) to the authenticated user's TikTok in
 
 ### `tiktok_get_post_status`
 
-Check the status of a post initiated with Direct Post Video, Upload Video Draft, Direct Post Photo, or Upload Photo Draft. Use the publishId returned from the post request to track progress.
+Check the status of a post initiated with Direct Post Video or Upload Video Draft. Use the publishId returned from the post request to track progress.
 
 #### Input
 
@@ -244,6 +198,8 @@ Check the status of a post initiated with Direct Post Video, Upload Video Draft,
 | `status` | string | Current status of the post. Values: PROCESSING_UPLOAD/PROCESSING_DOWNLOAD \(TikTok is processing the media\), SEND_TO_USER_INBOX \(draft delivered, awaiting user action\), PUBLISH_COMPLETE \(successfully posted\), FAILED \(check failReason\). |
 | `failReason` | string | Reason for failure if status is FAILED. Null otherwise. |
 | `publiclyAvailablePostId` | array | Array of public post IDs \(as strings\) once the content is published and publicly viewable. Can be used to construct the TikTok post URL. |
+| `uploadedBytes` | number | Number of video bytes TikTok has received for a FILE_UPLOAD post. |
+| `downloadedBytes` | number | Number of video bytes TikTok has downloaded for a PULL_FROM_URL post. |
 
 
 

@@ -109,26 +109,20 @@ export interface TikTokQueryCreatorInfoResponse extends ToolResponse {
 }
 
 /**
- * Shared media transfer source for video operations
- */
-export type TikTokVideoSource = 'PULL_FROM_URL' | 'FILE_UPLOAD'
-
-/**
- * Direct Post Video - Publish video (by URL or uploaded file) to TikTok
+ * Direct Post Video - Publish an uploaded video to TikTok
  */
 export interface TikTokDirectPostVideoParams extends TikTokBaseParams {
-  source: TikTokVideoSource
-  videoUrl?: string
-  file?: UserFile
+  file: UserFile
   title?: string
   privacyLevel: string
-  disableDuet?: boolean
-  disableStitch?: boolean
-  disableComment?: boolean
+  disableDuet: boolean
+  disableStitch: boolean
+  disableComment: boolean
   videoCoverTimestampMs?: number
   isAigc?: boolean
-  brandContentToggle?: boolean
+  brandContentToggle: boolean
   brandOrganicToggle?: boolean
+  musicUsageConsent: 'accepted'
 }
 
 /** Shared response shape for TikTok publish and draft initialization tools. */
@@ -144,41 +138,10 @@ export type TikTokDirectPostVideoResponse = TikTokPublishResponse
  * Upload Video Draft - Send a video to the user's TikTok inbox for manual editing/posting
  */
 export interface TikTokUploadVideoDraftParams extends TikTokBaseParams {
-  source: TikTokVideoSource
-  videoUrl?: string
-  file?: UserFile
+  file: UserFile
 }
 
 export type TikTokUploadVideoDraftResponse = TikTokPublishResponse
-
-/**
- * Direct Post Photo - Publish photo(s) from public URLs to TikTok
- */
-export interface TikTokDirectPostPhotoParams extends TikTokBaseParams {
-  photoImages: string[]
-  photoCoverIndex?: number
-  title?: string
-  description?: string
-  privacyLevel: string
-  disableComment?: boolean
-  autoAddMusic?: boolean
-  brandContentToggle?: boolean
-  brandOrganicToggle?: boolean
-}
-
-export type TikTokDirectPostPhotoResponse = TikTokPublishResponse
-
-/**
- * Upload Photo Draft - Send photo(s) to the user's TikTok inbox for manual editing/posting
- */
-export interface TikTokUploadPhotoDraftParams extends TikTokBaseParams {
-  photoImages: string[]
-  photoCoverIndex?: number
-  title?: string
-  description?: string
-}
-
-export type TikTokUploadPhotoDraftResponse = TikTokPublishResponse
 
 /**
  * Get Post Status - Check status of a published/uploaded post
@@ -207,6 +170,4 @@ export type TikTokResponse =
   | TikTokQueryCreatorInfoResponse
   | TikTokDirectPostVideoResponse
   | TikTokUploadVideoDraftResponse
-  | TikTokDirectPostPhotoResponse
-  | TikTokUploadPhotoDraftResponse
   | TikTokGetPostStatusResponse

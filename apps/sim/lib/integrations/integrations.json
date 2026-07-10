@@ -18696,7 +18696,7 @@
       "slug": "tiktok",
       "name": "TikTok",
       "description": "Access TikTok profiles and videos, and publish content",
-      "longDescription": "Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos and photos directly to TikTok (or send them to the inbox as drafts) from a public URL or a file uploaded in the workflow, then track post status.",
+      "longDescription": "Integrate TikTok into your workflow. Get user profile information including follower counts and video statistics. List and query videos with cover images, embed links, and metadata. Publish videos directly to TikTok (or send them to the inbox as drafts) from an uploaded file or a file produced earlier in the workflow, then track post status.",
       "bgColor": "#000000",
       "iconName": "TikTokIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tiktok",
@@ -18719,26 +18719,18 @@
         },
         {
           "name": "Direct Post Video",
-          "description": "Publish a video to TikTok, either by public URL (TikTok fetches it) or by uploading a file from the workflow. Rate limit: 6 requests per minute per user."
+          "description": "Publish a video to TikTok by uploading a file from the workflow (uploaded file or a file from a previous block). Rate limit: 6 requests per minute per user."
         },
         {
           "name": "Upload Video Draft",
-          "description": "Send a video to the authenticated user's TikTok inbox (by public URL or uploaded file) for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user."
-        },
-        {
-          "name": "Direct Post Photo",
-          "description": "Publish one or more photos to TikTok from public URLs. TikTok will fetch each image and post them as a photo carousel. Photos only support PULL_FROM_URL (no file upload). Rate limit: 6 requests per minute per user."
-        },
-        {
-          "name": "Upload Photo Draft",
-          "description": "Send one or more photos (from public URLs) to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Photos only support PULL_FROM_URL (no file upload). Rate limit: 6 requests per minute per user."
+          "description": "Send a video file from the workflow to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user."
         },
         {
           "name": "Get Post Status",
-          "description": "Check the status of a post initiated with Direct Post Video, Upload Video Draft, Direct Post Photo, or Upload Photo Draft. Use the publishId returned from the post request to track progress."
+          "description": "Check the status of a post initiated with Direct Post Video or Upload Video Draft. Use the publishId returned from the post request to track progress."
         }
       ],
-      "operationCount": 9,
+      "operationCount": 7,
       "triggers": [
         {
           "id": "tiktok_post_publish_complete",

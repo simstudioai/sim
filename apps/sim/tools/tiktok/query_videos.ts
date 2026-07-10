@@ -54,10 +54,11 @@ export const tiktokQueryVideosTool: ToolConfig<TikTokQueryVideosParams, TikTokQu
         'Content-Type': 'application/json',
       }),
       body: (params: TikTokQueryVideosParams) => {
-        assertTikTokArrayLength(params.videoIds, 'videoIds', 20)
+        const videoIds = params.videoIds.map((id) => id.trim()).filter(Boolean)
+        assertTikTokArrayLength(videoIds, 'videoIds', 20)
         return {
           filters: {
-            video_ids: params.videoIds,
+            video_ids: videoIds,
           },
         }
       },

@@ -7,23 +7,37 @@ import {
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const tiktokPublishVideoPostInfoSchema = z.object({
-  title: z.string().optional(),
-  privacy_level: z.string().optional(),
-  disable_duet: z.boolean().optional(),
-  disable_stitch: z.boolean().optional(),
-  disable_comment: z.boolean().optional(),
-  video_cover_timestamp_ms: z.number().optional(),
+  title: z.string().max(2200).optional(),
+  privacy_level: z.enum([
+    'PUBLIC_TO_EVERYONE',
+    'MUTUAL_FOLLOW_FRIENDS',
+    'FOLLOWER_OF_CREATOR',
+    'SELF_ONLY',
+  ]),
+  disable_duet: z.boolean(),
+  disable_stitch: z.boolean(),
+  disable_comment: z.boolean(),
+  video_cover_timestamp_ms: z.number().int().nonnegative().optional(),
   is_aigc: z.boolean().optional(),
-  brand_content_toggle: z.boolean().optional(),
+  brand_content_toggle: z.boolean(),
   brand_organic_toggle: z.boolean().optional(),
 })
 
-export const tiktokPublishVideoBodySchema = z.object({
+const tiktokPublishVideoBaseSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
-  mode: z.enum(['direct', 'draft']),
   file: RawFileInputSchema,
-  postInfo: tiktokPublishVideoPostInfoSchema.optional().nullable(),
 })
+
+export const tiktokPublishVideoBodySchema = z.discriminatedUnion('mode', [
+  tiktokPublishVideoBaseSchema.extend({
+    mode: z.literal('direct'),
+    postInfo: tiktokPublishVideoPostInfoSchema,
+    musicUsageConsent: z.literal('accepted'),
+  }),
+  tiktokPublishVideoBaseSchema.extend({
+    mode: z.literal('draft'),
+  }),
+])
 
 export const tiktokPublishVideoResponseSchema = z.object({
   success: z.boolean(),

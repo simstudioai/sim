@@ -20,7 +20,7 @@ export const tiktokGetPostStatusTool: ToolConfig<
   id: 'tiktok_get_post_status',
   name: 'TikTok Get Post Status',
   description:
-    'Check the status of a post initiated with Direct Post Video, Upload Video Draft, Direct Post Photo, or Upload Photo Draft. Use the publishId returned from the post request to track progress.',
+    'Check the status of a post initiated with Direct Post Video or Upload Video Draft. Use the publishId returned from the post request to track progress.',
   version: '1.0.0',
 
   oauth: {
@@ -51,9 +51,11 @@ export const tiktokGetPostStatusTool: ToolConfig<
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json; charset=UTF-8',
     }),
-    body: (params: TikTokGetPostStatusParams) => ({
-      publish_id: params.publishId.trim(),
-    }),
+    body: (params: TikTokGetPostStatusParams) => {
+      const publishId = params.publishId.trim()
+      if (!publishId) throw new Error('publishId is required')
+      return { publish_id: publishId }
+    },
   },
 
   transformResponse: async (response: Response): Promise<TikTokGetPostStatusResponse> => {
@@ -126,7 +128,7 @@ export const tiktokGetPostStatusTool: ToolConfig<
     },
     downloadedBytes: {
       type: 'number',
-      description: 'Number of bytes TikTok downloaded for PULL_FROM_URL posts',
+      description: 'Number of bytes TikTok reports as downloaded',
       optional: true,
     },
   },
