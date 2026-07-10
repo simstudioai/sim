@@ -63,7 +63,9 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/instagram',
   category: 'tools',
   integrationType: IntegrationType.Marketing,
-  bgColor: '#E4405F',
+  // Gradient fills the tile; white camera glyph sits on top (same pattern as AWS icons).
+  bgColor:
+    'radial-gradient(circle at 28% 96%, #fa8f21 9%, #d82d7e 55%, #8c3aaa 100%)',
   iconColor: '#E4405F',
   icon: InstagramIcon,
   subBlocks: [
