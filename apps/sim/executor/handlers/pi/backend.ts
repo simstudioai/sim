@@ -62,7 +62,7 @@ export interface PiLocalRunParams extends PiRunBaseParams {
   tools: PiToolSpec[]
 }
 
-/** Parameters for a cloud (E2B) Pi run. */
+/** Parameters for a cloud (E2B) Pi run that opens a PR. */
 export interface PiCloudRunParams extends PiRunBaseParams {
   mode: 'cloud'
   owner: string
@@ -75,7 +75,17 @@ export interface PiCloudRunParams extends PiRunBaseParams {
   prBody?: string
 }
 
-export type PiRunParams = PiLocalRunParams | PiCloudRunParams
+/** Parameters for a cloud (E2B) Pi run that reviews an existing PR. */
+export interface PiCloudReviewRunParams extends PiRunBaseParams {
+  mode: 'cloud_review'
+  owner: string
+  repo: string
+  githubToken: string
+  pullNumber: number
+  reviewEvent: 'COMMENT' | 'REQUEST_CHANGES' | 'APPROVE'
+}
+
+export type PiRunParams = PiLocalRunParams | PiCloudRunParams | PiCloudReviewRunParams
 
 /** Progress callbacks and cancellation passed into a backend run. */
 export interface PiRunContext {
@@ -90,6 +100,8 @@ export interface PiRunResult {
   diff?: string
   prUrl?: string
   branch?: string
+  reviewUrl?: string
+  commentsPosted?: number
 }
 
 /** A Pi execution backend. Implemented by the local (SSH) and cloud (E2B) runners. */

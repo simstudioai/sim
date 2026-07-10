@@ -12,12 +12,14 @@ import { parseOptionalNumberInput } from '@/blocks/utils'
 import { BlockType } from '@/executor/constants'
 import type {
   PiBackendRun,
+  PiCloudReviewRunParams,
   PiCloudRunParams,
   PiLocalRunParams,
   PiRunParams,
   PiRunResult,
 } from '@/executor/handlers/pi/backend'
 import { runCloudPi } from '@/executor/handlers/pi/cloud-backend'
+import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
 import {
   appendPiMemory,
   loadPiMemory,
@@ -38,6 +40,7 @@ import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('PiBlockHandler')
 const DEFAULT_MODEL = 'claude-sonnet-5'
+const REVIEW_EVENTS = new Set(['COMMENT', 'REQUEST_CHANGES', 'APPROVE'])
 
 function asOptString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -65,10 +68,10 @@ export class PiBlockHandler implements BlockHandler {
 
     // Validate the mode up front so an invalid value reports a mode error rather
     // than a misattributed credential error from key resolution below.
-    if (inputs.mode !== 'cloud' && inputs.mode !== 'local') {
+    if (inputs.mode !== 'cloud' && inputs.mode !== 'cloud_review' && inputs.mode !== 'local') {
       throw new Error(`Invalid Pi mode: ${String(inputs.mode)}`)
     }
-    const mode: 'cloud' | 'local' = inputs.mode
+    const mode: 'cloud' | 'cloud_review' | 'local' = inputs.mode
 
     const { providerId, apiKey, isBYOK } = await resolvePiModelKey({
       model,
@@ -149,6 +152,37 @@ export class PiBlockHandler implements BlockHandler {
       return this.runPi(ctx, block, runCloudPi, params, memoryConfig)
     }
 
+    if (mode === 'cloud_review') {
+      const owner = asOptString(inputs.owner)
+      const repo = asOptString(inputs.repo)
+      const githubToken = asRawString(inputs.githubToken)
+      const pullNumber = parseOptionalNumberInput(inputs.pullNumber, 'pullNumber', {
+        integer: true,
+        min: 1,
+      })
+      if (!owner || !repo || !githubToken || pullNumber === undefined) {
+        throw new Error(
+          'Cloud Code Review mode requires repository owner, name, a GitHub token, and a pull request number'
+        )
+      }
+      const reviewEventRaw = asOptString(inputs.reviewEvent) ?? 'COMMENT'
+      if (!REVIEW_EVENTS.has(reviewEventRaw)) {
+        throw new Error(
+          `Invalid review event: ${reviewEventRaw}. Use COMMENT, REQUEST_CHANGES, or APPROVE.`
+        )
+      }
+      const params: PiCloudReviewRunParams = {
+        ...base,
+        mode: 'cloud_review',
+        owner,
+        repo,
+        githubToken,
+        pullNumber,
+        reviewEvent: reviewEventRaw as PiCloudReviewRunParams['reviewEvent'],
+      }
+      return this.runPi(ctx, block, runCloudReviewPi, params, memoryConfig)
+    }
+
     throw new Error(`Invalid Pi mode: ${String(inputs.mode)}`)
   }
 
@@ -178,6 +212,10 @@ export class PiBlockHandler implements BlockHandler {
       diff: result.diff ?? '',
       ...(result.prUrl ? { prUrl: result.prUrl } : {}),
       ...(result.branch ? { branch: result.branch } : {}),
+      ...(result.reviewUrl ? { reviewUrl: result.reviewUrl } : {}),
+      ...(typeof result.commentsPosted === 'number'
+        ? { commentsPosted: result.commentsPosted }
+        : {}),
       tokens: {
         input: totals.inputTokens,
         output: totals.outputTokens,

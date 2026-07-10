@@ -1,11 +1,11 @@
 /**
- * Model, provider-key, and cost resolution shared by both Pi backends. Local
- * mode mirrors the Agent block — keys resolve through `getApiKeyWithBYOK`, so a
- * Sim-hosted key may be used and billed. Cloud mode requires the user's own key
- * (the block's API Key field, or a stored workspace BYOK key) and never a hosted
- * key, since the key is handed to an untrusted sandbox. Vertex resolves through
- * `resolveVertexCredential`; cost uses the billing multiplier and is zeroed for
- * BYOK / non-billable models.
+ * Model, provider-key, and cost resolution shared by Pi backends. Local mode
+ * mirrors the Agent block — keys resolve through `getApiKeyWithBYOK`, so a
+ * Sim-hosted key may be used and billed. Cloud modes (Cloud PR and Cloud Code
+ * Review) require the user's own key (the block's API Key field, or a stored
+ * workspace BYOK key) and never a hosted key, since the key is handed to an
+ * untrusted sandbox. Vertex resolves through `resolveVertexCredential`; cost
+ * uses the billing multiplier and is zeroed for BYOK / non-billable models.
  */
 
 import type { CreateAgentSessionOptions } from '@earendil-works/pi-coding-agent'
@@ -23,9 +23,11 @@ export interface PiKeyResolution {
   isBYOK: boolean
 }
 
+type PiKeyMode = 'cloud' | 'cloud_review' | 'local'
+
 interface ResolvePiModelKeyParams {
   model: string
-  mode: 'cloud' | 'local'
+  mode: PiKeyMode
   workspaceId?: string
   userId?: string
   apiKey?: string
@@ -34,6 +36,10 @@ interface ResolvePiModelKeyParams {
 
 /** Providers whose key Sim can store as a workspace BYOK key (read back for cloud). */
 const WORKSPACE_BYOK_PROVIDERS = new Set<string>(['anthropic', 'openai', 'google', 'mistral'])
+
+function isCloudSandboxMode(mode: PiKeyMode): boolean {
+  return mode === 'cloud' || mode === 'cloud_review'
+}
 
 /** Resolves the provider and a usable API key for the selected model. */
 export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promise<PiKeyResolution> {
@@ -51,7 +57,7 @@ export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promis
   // Cloud hands the model key to an untrusted sandbox, so it must be the user's
   // own key — never a Sim-hosted/rotating key. Prefer the block's API Key field,
   // then a stored workspace BYOK key; refuse to fall back to a hosted key.
-  if (params.mode === 'cloud') {
+  if (isCloudSandboxMode(params.mode)) {
     if (params.apiKey) {
       return { providerId, apiKey: params.apiKey, isBYOK: true }
     }

@@ -143,4 +143,28 @@ describe('resolvePiModelKey', () => {
     ).rejects.toThrow(/your own provider API key/)
     expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
   })
+
+  it('cloud_review mode uses the same BYOK path as cloud', async () => {
+    mockGetProviderFromModel.mockReturnValue('anthropic')
+
+    const result = await resolvePiModelKey({
+      model: 'claude',
+      mode: 'cloud_review',
+      workspaceId: 'ws-1',
+      apiKey: 'sk-user',
+    })
+
+    expect(result).toEqual({ providerId: 'anthropic', apiKey: 'sk-user', isBYOK: true })
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
+
+  it('cloud_review mode rejects when no user key is available', async () => {
+    mockGetProviderFromModel.mockReturnValue('anthropic')
+    mockGetBYOKKey.mockResolvedValue(null)
+
+    await expect(
+      resolvePiModelKey({ model: 'claude', mode: 'cloud_review', workspaceId: 'ws-1' })
+    ).rejects.toThrow(/your own provider API key/)
+    expect(mockGetApiKeyWithBYOK).not.toHaveBeenCalled()
+  })
 })

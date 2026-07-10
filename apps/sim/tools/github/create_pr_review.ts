@@ -1,6 +1,50 @@
-import type { CreatePRReviewParams, PRReviewResponse } from '@/tools/github/types'
+import type {
+  CreatePRReviewComment,
+  CreatePRReviewParams,
+  PRReviewResponse,
+} from '@/tools/github/types'
 import { USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+
+function normalizeReviewComments(
+  comments: CreatePRReviewParams['comments'] | string | undefined
+): CreatePRReviewComment[] {
+  if (!comments) return []
+  let parsed: unknown = comments
+  if (typeof comments === 'string') {
+    try {
+      parsed = JSON.parse(comments)
+    } catch {
+      throw new Error('comments must be a JSON array of inline review comments')
+    }
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error('comments must be an array of inline review comments')
+  }
+  return parsed.map((item, index) => {
+    if (!item || typeof item !== 'object') {
+      throw new Error(`comments[${index}] must be an object`)
+    }
+    const comment = item as Record<string, unknown>
+    if (typeof comment.path !== 'string' || !comment.path.trim()) {
+      throw new Error(`comments[${index}].path is required`)
+    }
+    if (typeof comment.body !== 'string' || !comment.body.trim()) {
+      throw new Error(`comments[${index}].body is required`)
+    }
+    const normalized: CreatePRReviewComment = {
+      path: comment.path.trim(),
+      body: comment.body,
+    }
+    if (typeof comment.line === 'number') normalized.line = comment.line
+    if (comment.side === 'LEFT' || comment.side === 'RIGHT') normalized.side = comment.side
+    if (typeof comment.start_line === 'number') normalized.start_line = comment.start_line
+    if (comment.start_side === 'LEFT' || comment.start_side === 'RIGHT') {
+      normalized.start_side = comment.start_side
+    }
+    return normalized
+  })
+}
 
 export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewResponse> = {
   id: 'github_create_pr_review',
@@ -44,7 +88,15 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The SHA of the commit that needs a review (defaults to the most recent commit)',
+      description:
+        'The SHA of the commit that needs a review (required when posting inline comments; defaults to the most recent commit otherwise)',
+    },
+    comments: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Optional array of inline review comments: [{ path, body, line?, side?, start_line?, start_side? }]',
     },
     apiKey: {
       type: 'string',
@@ -64,11 +116,17 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
       'X-GitHub-Api-Version': '2022-11-28',
     }),
     body: (params) => {
+      const comments = normalizeReviewComments(params.comments)
+      if (comments.length > 0 && !params.commit_id) {
+        throw new Error('commit_id is required when posting inline review comments')
+      }
+
       const body: Record<string, any> = {
         event: params.event,
       }
       if (params.body) body.body = params.body
       if (params.commit_id) body.commit_id = params.commit_id
+      if (comments.length > 0) body.comments = comments
       return body
     },
   },

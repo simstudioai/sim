@@ -3,9 +3,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRunLocal, mockRunCloud, mockResolveKey } = vi.hoisted(() => ({
+const { mockRunLocal, mockRunCloud, mockRunCloudReview, mockResolveKey } = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
+  mockRunCloudReview: vi.fn(),
   mockResolveKey: vi.fn(),
 }))
 
@@ -23,6 +24,9 @@ vi.mock('@/executor/handlers/pi/sim-tools', () => ({
 }))
 vi.mock('@/executor/handlers/pi/local-backend', () => ({ runLocalPi: mockRunLocal }))
 vi.mock('@/executor/handlers/pi/cloud-backend', () => ({ runCloudPi: mockRunCloud }))
+vi.mock('@/executor/handlers/pi/cloud-review-backend', () => ({
+  runCloudReviewPi: mockRunCloudReview,
+}))
 vi.mock('@/blocks/utils', () => ({
   parseOptionalNumberInput: (value: unknown) => {
     const parsed = Number(value)
@@ -75,6 +79,11 @@ describe('PiBlockHandler', () => {
       changedFiles: ['a.ts'],
       diff: 'diff',
     })
+    mockRunCloudReview.mockResolvedValue({
+      totals: { finalText: 'looks good', inputTokens: 0, outputTokens: 0, toolCalls: [] },
+      reviewUrl: 'https://github.com/o/r/pull/7#pullrequestreview-1',
+      commentsPosted: 2,
+    })
   })
 
   it('canHandle matches the pi block type', () => {
@@ -88,10 +97,17 @@ describe('PiBlockHandler', () => {
     await expect(handler.execute(ctx(), block, { mode: 'local', task: '' })).rejects.toThrow(/Task/)
   })
 
+  it('throws on an invalid mode', async () => {
+    await expect(
+      handler.execute(ctx(), block, { mode: 'spaceship', task: 'x', model: 'claude' })
+    ).rejects.toThrow(/Invalid Pi mode/)
+  })
+
   it('routes local mode to the local backend with SSH params', async () => {
     const output = await handler.execute(ctx(), block, localInputs())
     expect(mockRunLocal).toHaveBeenCalledTimes(1)
     expect(mockRunCloud).not.toHaveBeenCalled()
+    expect(mockRunCloudReview).not.toHaveBeenCalled()
     const params = mockRunLocal.mock.calls[0][0]
     expect(params.mode).toBe('local')
     expect(params.ssh.host).toBe('box.example.com')
@@ -109,8 +125,32 @@ describe('PiBlockHandler', () => {
       githubToken: 'ghp',
     })) as Record<string, unknown>
     expect(mockRunCloud).toHaveBeenCalledTimes(1)
+    expect(mockRunCloudReview).not.toHaveBeenCalled()
     expect(output.prUrl).toBe('https://github.com/o/r/pull/1')
     expect(output.branch).toBe('pi/abc')
+  })
+
+  it('routes cloud_review mode and surfaces review output', async () => {
+    const output = (await handler.execute(ctx(), block, {
+      mode: 'cloud_review',
+      task: 'review it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+      pullNumber: '7',
+      reviewEvent: 'REQUEST_CHANGES',
+    })) as Record<string, unknown>
+
+    expect(mockRunCloudReview).toHaveBeenCalledTimes(1)
+    expect(mockRunCloud).not.toHaveBeenCalled()
+    const params = mockRunCloudReview.mock.calls[0][0]
+    expect(params.mode).toBe('cloud_review')
+    expect(params.pullNumber).toBe(7)
+    expect(params.reviewEvent).toBe('REQUEST_CHANGES')
+    expect(output.reviewUrl).toBe('https://github.com/o/r/pull/7#pullrequestreview-1')
+    expect(output.commentsPosted).toBe(2)
+    expect(output.content).toBe('looks good')
   })
 
   it('requires SSH fields in local mode', async () => {
@@ -123,6 +163,19 @@ describe('PiBlockHandler', () => {
     await expect(
       handler.execute(ctx(), block, { mode: 'cloud', task: 'x', model: 'claude', owner: 'o' })
     ).rejects.toThrow(/Cloud mode requires/)
+  })
+
+  it('requires pullNumber in cloud_review mode', async () => {
+    await expect(
+      handler.execute(ctx(), block, {
+        mode: 'cloud_review',
+        task: 'x',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+      })
+    ).rejects.toThrow(/Cloud Code Review mode requires/)
   })
 
   it('streams text when the block is selected for streaming output', async () => {

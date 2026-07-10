@@ -965,12 +965,24 @@ export interface RequestReviewersParams extends BaseGitHubParams {
   team_reviewers?: string
 }
 
+/** Inline review comment attached to a submitted PR review. */
+export interface CreatePRReviewComment {
+  path: string
+  body: string
+  line?: number
+  side?: 'LEFT' | 'RIGHT'
+  start_line?: number
+  start_side?: 'LEFT' | 'RIGHT'
+}
+
 // Create PR review parameters
 export interface CreatePRReviewParams extends BaseGitHubParams {
   pullNumber: number
   event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'
   body?: string
   commit_id?: string
+  /** Inline line comments submitted atomically with the review. */
+  comments?: CreatePRReviewComment[]
 }
 
 // Response metadata interfaces

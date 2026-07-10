@@ -1,5 +1,5 @@
 /**
- * Cloud-mode backend: runs the Pi CLI inside an E2B sandbox against a cloned
+ * Cloud PR backend: runs the Pi CLI inside an E2B sandbox against a cloned
  * GitHub repo, then pushes a branch and opens a PR. Secrets are isolated per
  * command (S2/KTD10): the GitHub token is present only for the clone and push
  * commands (and stripped from the cloned remote), while the Pi loop runs with a
@@ -15,9 +15,18 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withPiSandbox } from '@/lib/execution/e2b'
 import type { PiBackendRun, PiCloudRunParams } from '@/executor/handlers/pi/backend'
+import {
+  CLONE_TIMEOUT_MS,
+  extractMarkerValues,
+  PI_SCRIPT,
+  PI_TIMEOUT_MS,
+  PROMPT_PATH,
+  REPO_DIR,
+  raceAbort,
+  scrubGitSecrets,
+} from '@/executor/handlers/pi/cloud-shared'
 import { buildPiPrompt } from '@/executor/handlers/pi/context'
 import {
   applyPiEvent,
@@ -30,16 +39,9 @@ import { executeTool } from '@/tools'
 
 const logger = createLogger('PiCloudBackend')
 
-const REPO_DIR = '/workspace/repo'
 const DIFF_PATH = '/workspace/pi.diff'
-
-const PROMPT_PATH = '/workspace/pi-prompt.txt'
 const COMMIT_MSG_PATH = '/workspace/pi-commit.txt'
-
 const PUSH_ERR_PATH = '/workspace/pi-push-err.txt'
-const CLONE_TIMEOUT_MS = 10 * 60 * 1000
-
-const PI_TIMEOUT_MS = getMaxExecutionTimeout()
 const FINALIZE_TIMEOUT_MS = 10 * 60 * 1000
 const MAX_DIFF_BYTES = 200_000
 const COMMIT_TITLE_MAX = 72
@@ -68,9 +70,6 @@ echo "__DEFAULT_BRANCH__=$DEFAULT_BRANCH"
 git checkout -b "$BRANCH"
 git remote set-url origin "https://github.com/$REPO_OWNER/$REPO_NAME.git"`
 
-const PI_SCRIPT = `cd ${REPO_DIR}
-pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING" < ${PROMPT_PATH}`
-
 // Finalize is split so the GitHub token is in scope for ONLY the push. `git add`,
 // `commit`, and `diff` run repo-config-driven programs that `core.hooksPath` does
 // NOT disable — gitattributes clean/smudge filters (on add), `core.fsmonitor`
@@ -94,43 +93,6 @@ if git diff --quiet "$BASE_SHA" HEAD; then echo "__NO_CHANGES__=1"; else echo "_
 // Filters/textconv don't run on push (no checkout/add/diff here).
 const PUSH_SCRIPT = `cd ${REPO_DIR}
 git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "$BRANCH" >/dev/null 2>${PUSH_ERR_PATH} && echo "__PUSHED__=1"`
-
-function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return promise
-  if (signal.aborted) return Promise.reject(new Error('Pi run aborted'))
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new Error('Pi run aborted'))
-    signal.addEventListener('abort', onAbort, { once: true })
-    promise.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
-      },
-      (error) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
-      }
-    )
-  })
-}
-
-function extractMarkerValues(stdout: string, prefix: string): string[] {
-  return stdout
-    .split('\n')
-    .filter((line) => line.startsWith(prefix))
-    .map((line) => line.slice(prefix.length).trim())
-    .filter(Boolean)
-}
-
-/**
- * Redacts the GitHub token from git output before it is surfaced in an error.
- * Removes the literal token and any URL userinfo (`//user:token@`), so a failure
- * message can quote git's real stderr without leaking the credential.
- */
-function scrubGitSecrets(text: string, token: string): string {
-  const withoutToken = token ? text.split(token).join('***') : text
-  return withoutToken.replace(/\/\/[^/@\s]+@/g, '//***@')
-}
 
 function buildPrBody(task: string, finalText: string): string {
   const summary = finalText.trim()
