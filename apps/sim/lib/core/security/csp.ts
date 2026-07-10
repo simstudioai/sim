@@ -102,10 +102,10 @@ const STATIC_CONNECT_SRC = [
         'https://www.google.com',
         'https://analytics.ahrefs.com',
         'https://*.g.doubleclick.net',
-        // HubSpot tracking — form-tracking API (hscollectedforms.js) and
-        // the visitor beacon (track.hubspot.com)
+        // HubSpot tracking — form-tracking API (hscollectedforms.js).
+        // The visitor beacon itself is an image pixel (img-src, already
+        // permitted below), not a connect-src request.
         'https://*.hscollectedforms.net',
-        'https://*.hubspot.com',
       ]
     : []),
 ] as const
