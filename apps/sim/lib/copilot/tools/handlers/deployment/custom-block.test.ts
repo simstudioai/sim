@@ -215,6 +215,19 @@ describe('executeDeployCustomBlock', () => {
     })
   })
 
+  it('updates an existing block without requiring the enterprise plan', async () => {
+    isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
+    getCustomBlockWithInputsByWorkflowIdMock
+      .mockResolvedValueOnce(publishedBlock)
+      .mockResolvedValueOnce(publishedBlock)
+
+    const result = await executeDeployCustomBlock({ description: 'refreshed copy' }, context)
+
+    expect(result.success).toBe(true)
+    expect(updateCustomBlockMock).toHaveBeenCalled()
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
+  })
+
   it('undeploys without requiring the enterprise plan', async () => {
     isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
     getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(publishedBlock)

@@ -174,10 +174,6 @@ export async function executeDeployCustomBlock(
       return { success: true, output: customBlockOutput(existing, 'undeploy') }
     }
 
-    if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
-      return { success: false, error: 'Custom blocks require an enterprise plan' }
-    }
-
     const name = params.name?.trim()
     const description = params.description?.trim()
     if (name && name.length > 60) {
@@ -241,6 +237,9 @@ export async function executeDeployCustomBlock(
       return { success: true, output: { ...customBlockOutput(updated, 'deploy'), updated: true } }
     }
 
+    if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
+      return { success: false, error: 'Custom blocks require an enterprise plan' }
+    }
     if (!name) {
       return { success: false, error: 'name is required when publishing a new custom block' }
     }
