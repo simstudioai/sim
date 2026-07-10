@@ -1,15 +1,15 @@
 import { tiktokVideosApiDataSchema } from '@/tools/tiktok/api-schemas'
-import type {
-  TikTokQueryVideosParams,
-  TikTokQueryVideosResponse,
-  TikTokVideo,
+import {
+  TIKTOK_VIDEO_OUTPUT_PROPERTIES,
+  type TikTokQueryVideosParams,
+  type TikTokQueryVideosResponse,
+  type TikTokVideo,
 } from '@/tools/tiktok/types'
 import {
   assertTikTokArrayLength,
   mapTikTokVideo,
   readTikTokApiResponse,
   TIKTOK_VIDEO_FIELDS,
-  TIKTOK_VIDEO_OUTPUT_PROPERTIES,
 } from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 

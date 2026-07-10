@@ -18719,11 +18719,11 @@
         },
         {
           "name": "Direct Post Video",
-          "description": "Publish a video to TikTok by uploading a file from the workflow (uploaded file or a file from a previous block). Rate limit: 6 requests per minute per user."
+          "description": "Publish a video to TikTok by uploading a file from the workflow. Rate limit: 6 requests per minute per user."
         },
         {
           "name": "Upload Video Draft",
-          "description": "Send a video file from the workflow to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user."
+          "description": "Send an uploaded video to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user."
         },
         {
           "name": "Get Post Status",

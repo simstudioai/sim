@@ -1,15 +1,11 @@
 import { tiktokVideosApiDataSchema } from '@/tools/tiktok/api-schemas'
-import type {
-  TikTokListVideosParams,
-  TikTokListVideosResponse,
-  TikTokVideo,
-} from '@/tools/tiktok/types'
 import {
-  mapTikTokVideo,
-  readTikTokApiResponse,
-  TIKTOK_VIDEO_FIELDS,
   TIKTOK_VIDEO_OUTPUT_PROPERTIES,
-} from '@/tools/tiktok/utils'
+  type TikTokListVideosParams,
+  type TikTokListVideosResponse,
+  type TikTokVideo,
+} from '@/tools/tiktok/types'
+import { mapTikTokVideo, readTikTokApiResponse, TIKTOK_VIDEO_FIELDS } from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokListVideosResponse> = {

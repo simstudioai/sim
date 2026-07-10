@@ -1,5 +1,5 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
  * Base params that include OAuth access token
@@ -68,6 +68,41 @@ export interface TikTokVideo {
   commentCount: number | null
   shareCount: number | null
 }
+
+/**
+ * Shared output schema for video objects returned by list and query tools.
+ * Lives in types.ts so the docs generator can resolve the const reference.
+ */
+export const TIKTOK_VIDEO_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Video ID' },
+  title: { type: 'string', description: 'Video title', optional: true },
+  coverImageUrl: {
+    type: 'string',
+    description:
+      'Signed TikTok CDN cover URL. It is public but time-limited, so consume it immediately.',
+    optional: true,
+  },
+  embedLink: { type: 'string', description: 'Embeddable video URL', optional: true },
+  embedHtml: { type: 'string', description: 'HTML embed markup for the video', optional: true },
+  duration: { type: 'number', description: 'Video duration in seconds', optional: true },
+  createTime: {
+    type: 'number',
+    description: 'Unix timestamp when the video was created',
+    optional: true,
+  },
+  shareUrl: { type: 'string', description: 'Shareable video URL', optional: true },
+  videoDescription: {
+    type: 'string',
+    description: 'Video description or caption',
+    optional: true,
+  },
+  width: { type: 'number', description: 'Video width in pixels', optional: true },
+  height: { type: 'number', description: 'Video height in pixels', optional: true },
+  viewCount: { type: 'number', description: 'Number of views', optional: true },
+  likeCount: { type: 'number', description: 'Number of likes', optional: true },
+  commentCount: { type: 'number', description: 'Number of comments', optional: true },
+  shareCount: { type: 'number', description: 'Number of shares', optional: true },
+} satisfies Record<keyof TikTokVideo, OutputProperty>
 
 export interface TikTokListVideosResponse extends ToolResponse {
   output: {

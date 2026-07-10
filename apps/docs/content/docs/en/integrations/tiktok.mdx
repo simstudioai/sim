@@ -72,12 +72,13 @@ Get a list of the authenticated user's TikTok videos with cover images, titles, 
 | `videos` | array | List of TikTok videos |
 |   ↳ `id` | string | Video ID |
 |   ↳ `title` | string | Video title |
-|   ↳ `coverImageUrl` | string | Signed cover image URL from TikTok CDN. Publicly fetchable without auth, but time-limited \(embeds an x-expires param\) — use it right away rather than storing it for later. |
+|   ↳ `coverImageUrl` | string | Signed TikTok CDN cover URL. It is public but time-limited, so consume it immediately. |
 |   ↳ `embedLink` | string | Embeddable video URL |
+|   ↳ `embedHtml` | string | HTML embed markup for the video |
 |   ↳ `duration` | number | Video duration in seconds |
-|   ↳ `createTime` | number | Unix timestamp when video was created |
+|   ↳ `createTime` | number | Unix timestamp when the video was created |
 |   ↳ `shareUrl` | string | Shareable video URL |
-|   ↳ `videoDescription` | string | Video description/caption |
+|   ↳ `videoDescription` | string | Video description or caption |
 |   ↳ `width` | number | Video width in pixels |
 |   ↳ `height` | number | Video height in pixels |
 |   ↳ `viewCount` | number | Number of views |
@@ -104,12 +105,13 @@ Query specific TikTok videos by their IDs to get fresh metadata including cover 
 | `videos` | array | List of queried TikTok videos |
 |   ↳ `id` | string | Video ID |
 |   ↳ `title` | string | Video title |
-|   ↳ `coverImageUrl` | string | Signed cover image URL from TikTok CDN. Publicly fetchable without auth, but time-limited \(embeds an x-expires param\) — use it right away rather than storing it for later. |
+|   ↳ `coverImageUrl` | string | Signed TikTok CDN cover URL. It is public but time-limited, so consume it immediately. |
 |   ↳ `embedLink` | string | Embeddable video URL |
+|   ↳ `embedHtml` | string | HTML embed markup for the video |
 |   ↳ `duration` | number | Video duration in seconds |
-|   ↳ `createTime` | number | Unix timestamp when video was created |
+|   ↳ `createTime` | number | Unix timestamp when the video was created |
 |   ↳ `shareUrl` | string | Shareable video URL |
-|   ↳ `videoDescription` | string | Video description/caption |
+|   ↳ `videoDescription` | string | Video description or caption |
 |   ↳ `width` | number | Video width in pixels |
 |   ↳ `height` | number | Video height in pixels |
 |   ↳ `viewCount` | number | Number of views |
@@ -141,21 +143,21 @@ Check if the authenticated TikTok user can post content and retrieve their avail
 
 ### `tiktok_direct_post_video`
 
-Publish a video to TikTok by uploading a file from the workflow (uploaded file or a file from a previous block). Rate limit: 6 requests per minute per user.
+Publish a video to TikTok by uploading a file from the workflow. Rate limit: 6 requests per minute per user.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `file` | file | Yes | MP4, MOV, or WebM video file to upload from the workflow \(maximum 250 MB\). |
+| `file` | file | Yes | Video file to upload from the workflow. Maximum size: 250 MB. |
 | `title` | string | No | Video caption/description. Maximum 2200 characters. |
 | `privacyLevel` | string | Yes | Privacy level for the video. Options: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY. Must match one of the privacyLevelOptions returned by Query Creator Info. Note: unaudited apps \(including sandbox apps\) are restricted to SELF_ONLY. |
-| `disableDuet` | boolean | Yes | Whether to disable Duet for this video. Must be chosen explicitly. |
-| `disableStitch` | boolean | Yes | Whether to disable Stitch for this video. Must be chosen explicitly. |
-| `disableComment` | boolean | Yes | Whether to disable comments for this video. Must be chosen explicitly. |
+| `disableDuet` | boolean | Yes | Whether to disable duet for this video. The user must choose explicitly. |
+| `disableStitch` | boolean | Yes | Whether to disable stitch for this video. The user must choose explicitly. |
+| `disableComment` | boolean | Yes | Whether to disable comments for this video. The user must choose explicitly. |
 | `videoCoverTimestampMs` | number | No | Timestamp in milliseconds to use as the video cover image. |
 | `isAigc` | boolean | No | Set to true if the video is AI-generated content \(AIGC\). |
-| `brandContentToggle` | boolean | Yes | Set to true if the video is a paid partnership promoting a third-party business; otherwise false. Branded content cannot be posted with Only Me privacy. |
+| `brandContentToggle` | boolean | Yes | Whether the video is a paid partnership promoting a third-party business. The user must choose explicitly. Branded content cannot be posted with Only Me privacy. |
 | `brandOrganicToggle` | boolean | No | Set to true if the video is promoting the creator's own business. |
 | `musicUsageConsent` | string | Yes | Must be 'accepted' after the user explicitly agrees to TikTok's Music Usage Confirmation. |
 
@@ -167,13 +169,13 @@ Publish a video to TikTok by uploading a file from the workflow (uploaded file o
 
 ### `tiktok_upload_video_draft`
 
-Send a video file from the workflow to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.
+Send an uploaded video to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `file` | file | Yes | MP4, MOV, or WebM video file to upload from the workflow \(maximum 250 MB\). |
+| `file` | file | Yes | Video file to upload from the workflow. Maximum size: 250 MB. |
 
 #### Output
 
@@ -198,8 +200,8 @@ Check the status of a post initiated with Direct Post Video or Upload Video Draf
 | `status` | string | Current status of the post. Values: PROCESSING_UPLOAD/PROCESSING_DOWNLOAD \(TikTok is processing the media\), SEND_TO_USER_INBOX \(draft delivered, awaiting user action\), PUBLISH_COMPLETE \(successfully posted\), FAILED \(check failReason\). |
 | `failReason` | string | Reason for failure if status is FAILED. Null otherwise. |
 | `publiclyAvailablePostId` | array | Array of public post IDs \(as strings\) once the content is published and publicly viewable. Can be used to construct the TikTok post URL. |
-| `uploadedBytes` | number | Number of video bytes TikTok has received for a FILE_UPLOAD post. |
-| `downloadedBytes` | number | Number of video bytes TikTok has downloaded for a PULL_FROM_URL post. |
+| `uploadedBytes` | number | Number of bytes uploaded to TikTok for FILE_UPLOAD posts |
+| `downloadedBytes` | number | Number of bytes TikTok reports as downloaded |
 
 
 

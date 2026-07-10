@@ -2,7 +2,6 @@ import { truncate } from '@sim/utils/string'
 import type { ZodType } from 'zod'
 import { type TikTokApiVideo, tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type { TikTokApiError, TikTokPublishResponse, TikTokVideo } from '@/tools/tiktok/types'
-import type { OutputProperty } from '@/tools/types'
 
 /**
  * Default fields requested from TikTok's `/v2/user/info/` endpoint, covering the
@@ -18,38 +17,6 @@ export const TIKTOK_USER_FIELDS =
  */
 export const TIKTOK_VIDEO_FIELDS =
   'id,title,cover_image_url,embed_link,embed_html,duration,create_time,share_url,video_description,width,height,view_count,like_count,comment_count,share_count'
-
-/** Shared output schema for video objects returned by list and query tools. */
-export const TIKTOK_VIDEO_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Video ID' },
-  title: { type: 'string', description: 'Video title', optional: true },
-  coverImageUrl: {
-    type: 'string',
-    description:
-      'Signed TikTok CDN cover URL. It is public but time-limited, so consume it immediately.',
-    optional: true,
-  },
-  embedLink: { type: 'string', description: 'Embeddable video URL', optional: true },
-  embedHtml: { type: 'string', description: 'HTML embed markup for the video', optional: true },
-  duration: { type: 'number', description: 'Video duration in seconds', optional: true },
-  createTime: {
-    type: 'number',
-    description: 'Unix timestamp when the video was created',
-    optional: true,
-  },
-  shareUrl: { type: 'string', description: 'Shareable video URL', optional: true },
-  videoDescription: {
-    type: 'string',
-    description: 'Video description or caption',
-    optional: true,
-  },
-  width: { type: 'number', description: 'Video width in pixels', optional: true },
-  height: { type: 'number', description: 'Video height in pixels', optional: true },
-  viewCount: { type: 'number', description: 'Number of views', optional: true },
-  likeCount: { type: 'number', description: 'Number of likes', optional: true },
-  commentCount: { type: 'number', description: 'Number of comments', optional: true },
-  shareCount: { type: 'number', description: 'Number of shares', optional: true },
-} satisfies Record<keyof TikTokVideo, OutputProperty>
 
 export function mapTikTokVideo(video: TikTokApiVideo): TikTokVideo {
   return {
