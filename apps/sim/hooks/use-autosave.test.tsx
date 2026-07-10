@@ -816,6 +816,118 @@ describe('useAutosave', () => {
       await flush()
     })
 
+    it('reaches a terminal status once the discard correction settles instead of sticking on saving', async () => {
+      const resolvers: Array<() => void> = []
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvers.push(resolve)
+          })
+      )
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-10',
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      // The original save resolves; the correction starts. Its own MIN_SAVING_DISPLAY_MS timer
+      // must not resolve status to 'saved'/'idle' for content the user no longer sees.
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      await act(async () => {
+        vi.advanceTimersByTime(600)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+      expect(handle.status()).toBe('saving')
+
+      // The correction itself settles — without this, status stayed on 'saving' forever.
+      await act(async () => {
+        resolvers[1]?.()
+      })
+      await flush()
+      expect(handle.status()).toBe('idle')
+    })
+
+    it('surfaces an error if the discard correction itself fails, rather than drifting to idle', async () => {
+      const resolvers: Array<() => void> = []
+      const rejecters: Array<(error: Error) => void> = []
+      let callCount = 0
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            callCount += 1
+            if (callCount === 1) resolvers.push(resolve)
+            else rejecters.push(reject)
+          })
+      )
+      const onDiscardCorrectionFailed = vi.fn()
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-11',
+        onDiscardCorrectionFailed,
+      })
+
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(2)
+
+      await act(async () => {
+        rejecters[0]?.(new Error('network down'))
+      })
+      await flush()
+      expect(onDiscardCorrectionFailed).toHaveBeenCalledTimes(1)
+      expect(handle.status()).toBe('error')
+    })
+
+    it('does not let discard suppression from a previous file block saves for a newly switched-to file', async () => {
+      const onSave = vi.fn(async () => {})
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-x',
+      })
+
+      handle.rerender({ content: 'a1' })
+      act(() => handle.discard())
+      handle.rerender({ content: 'a' })
+
+      // Switch to a different file whose content coincidentally equals the previous file's
+      // discard target — without keying discard suppression to draftKey, this would stay
+      // wrongly suppressed forever, since content would never differ from the stale target.
+      handle.rerender({ draftKey: 'file-y', savedContent: 'z', content: 'a' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+    })
+
     it('serializes IndexedDB writes and deletes so a slow write cannot resurrect a discarded draft', async () => {
       let resolveWrite: (() => void) | undefined
       const idbKeyval = await import('idb-keyval')

@@ -96,6 +96,7 @@ export function useAutosave({
 
   const effectiveDraftKey = enabled ? draftKey : undefined
   const draftKeyRef = useRef(effectiveDraftKey)
+  const draftKeyChanged = draftKeyRef.current !== effectiveDraftKey
   draftKeyRef.current = effectiveDraftKey
   const onRestoreDraftRef = useRef(onRestoreDraft)
   onRestoreDraftRef.current = onRestoreDraft
@@ -107,6 +108,9 @@ export function useAutosave({
 
   const discardedRef = useRef(false)
   const discardTargetRef = useRef<string | null>(null)
+  // A hook instance reused across draftKeys (today's callers all remount per file instead) must
+  // not carry a discard suppression from the previous file into the new one.
+  if (draftKeyChanged) discardedRef.current = false
 
   const isDirty = content !== savedContent
   if (discardedRef.current && content !== discardTargetRef.current) discardedRef.current = false
@@ -166,9 +170,14 @@ export function useAutosave({
           const elapsed = Date.now() - savingStartRef.current
           const remaining = Math.max(0, MIN_SAVING_DISPLAY_MS - elapsed)
           displayTimerRef.current = setTimeout(() => {
-            if (!discardedRef.current) setSaveStatus(nextStatus)
-            clearTimeout(idleTimerRef.current)
-            idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+            // While discarded, status is owned by discard()'s corrective save instead — this
+            // save's outcome no longer reflects what the user is looking at, and letting the
+            // idle-timer fire anyway would prematurely clear a status the correction just set.
+            if (!discardedRef.current) {
+              setSaveStatus(nextStatus)
+              clearTimeout(idleTimerRef.current)
+              idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+            }
             if (inFlightRef.current) return
             savingRef.current = false
             if (nextStatus !== 'error' && contentRef.current !== savedContentRef.current) {
@@ -295,10 +304,18 @@ export function useAutosave({
       savingRef.current = true
       const correctionRun = onSaveRef
         .current(target)
-        .catch((error) => {
-          logger.warn('Corrective save after discard failed', { error })
-          onDiscardCorrectionFailedRef.current?.()
-        })
+        .then(
+          () => {
+            // Only ours to set if nothing has since un-suppressed discard (a newer edit) — that
+            // flow owns status once it takes over.
+            if (!unmountedRef.current && discardedRef.current) setSaveStatus('idle')
+          },
+          (error) => {
+            logger.warn('Corrective save after discard failed', { error })
+            onDiscardCorrectionFailedRef.current?.()
+            if (!unmountedRef.current && discardedRef.current) setSaveStatus('error')
+          }
+        )
         .finally(() => {
           savingRef.current = false
           inFlightRef.current = null
