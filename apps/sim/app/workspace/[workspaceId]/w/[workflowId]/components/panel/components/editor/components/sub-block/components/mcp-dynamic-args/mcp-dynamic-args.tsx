@@ -94,21 +94,24 @@ export function McpDynamicArgs({
     : schemaFromStore
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
 
+  const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)
+  const toolSchema = cachedSchema || selectedToolConfig?.inputSchema
+
   /**
    * Draft text for JSON-value params (object/array/non-primitive-enum) whose current
    * edit isn't valid JSON yet. Keeping this out of toolArgs means the stored argument
    * is always either the last valid parsed value or untouched — never malformed text
-   * that could reach tool execution.
+   * that could reach tool execution. Drafts reset whenever the selected tool or its
+   * effective schema changes, so a stale draft can't outlive the param shape it was
+   * typed against.
    */
   const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<Record<string, string>>({})
-  const [prevSelectedTool, setPrevSelectedTool] = useState(selectedTool)
-  if (prevSelectedTool !== selectedTool) {
-    setPrevSelectedTool(selectedTool)
+  const draftResetKey = `${selectedTool ?? ''}|${toolSchema?.properties ? JSON.stringify(toolSchema.properties) : ''}`
+  const [prevDraftResetKey, setPrevDraftResetKey] = useState(draftResetKey)
+  if (prevDraftResetKey !== draftResetKey) {
+    setPrevDraftResetKey(draftResetKey)
     setInvalidJsonDrafts({})
   }
-
-  const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)
-  const toolSchema = cachedSchema || selectedToolConfig?.inputSchema
 
   const currentArgs = useCallback(() => {
     if (isPreview && previewValue) {
