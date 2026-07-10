@@ -386,6 +386,7 @@ export const env = createEnv({
     DROPBOX_CLIENT_SECRET:                 z.string().optional(),                  // Dropbox OAuth client secret
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
     SLACK_CLIENT_SECRET:                   z.string().optional(),                  // Slack OAuth client secret
+    SLACK_SIGNING_SECRET:                  z.string().optional(),                  // Official Sim Slack app signing secret (verifies inbound events for the native OAuth trigger)
     REDDIT_CLIENT_ID:                      z.string().optional(),                  // Reddit OAuth client ID
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID

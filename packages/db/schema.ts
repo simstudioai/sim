@@ -743,7 +743,19 @@ export const webhook = pgTable(
       { onDelete: 'cascade' }
     ),
     blockId: text('block_id'),
-    path: text('path').notNull(),
+    /**
+     * URL-addressable webhook path. NULL for shared-app providers (e.g. the
+     * native Slack OAuth trigger) whose events arrive on a single shared
+     * endpoint and route by `routingKey` instead of a per-workflow path.
+     */
+    path: text('path'),
+    /**
+     * Tenant routing key for shared-app providers. For `provider='slack_app'`
+     * this is the Slack `team_id`, derived server-side from the connected
+     * credential at deploy time — never user input. Inbound events match on
+     * this after HMAC verification.
+     */
+    routingKey: text('routing_key'),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
     providerConfig: json('provider_config'), // Store provider-specific configuration
     isActive: boolean('is_active').notNull().default(true),
@@ -763,6 +775,10 @@ export const webhook = pgTable(
         table.workflowId,
         table.deploymentVersionId
       ),
+      // Shared-app inbound routing (Slack native OAuth trigger). routingKey leads.
+      routingKeyActiveIdx: index('webhook_routing_key_active_idx')
+        .on(table.routingKey, table.provider)
+        .where(sql`${table.archivedAt} IS NULL AND ${table.routingKey} IS NOT NULL`),
       archivedAtPartialIdx: index('webhook_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),

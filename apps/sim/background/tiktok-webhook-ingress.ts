@@ -60,7 +60,7 @@ export async function executeTikTokWebhookIngress(
       request,
       {
         requestId: payload.requestId,
-        path: webhook.path,
+        path: webhook.path ?? undefined,
         receivedAt: payload.receivedAt,
         triggerTimestampMs: payload.envelope.create_time * 1000,
       }

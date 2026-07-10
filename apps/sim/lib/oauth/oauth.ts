@@ -723,6 +723,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Slack',
         description: 'Use Slack messaging, files, reactions, views, and canvases.',
         providerId: 'slack',
+        serviceAccountProviderId: 'slack-custom-bot',
         icon: SlackIcon,
         baseProviderIcon: SlackIcon,
         scopes: [
@@ -734,7 +735,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
-          // TODO: Add 'assistant:write' once Slack app review is approved
+          'assistant:write',
+          'app_mentions:read',
+          'im:history',
           'im:write',
           'im:read',
           'users:read',
@@ -745,6 +748,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'canvases:write',
           'reactions:write',
           'reactions:read',
+          'pins:read',
         ],
       },
     },
