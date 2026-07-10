@@ -54,6 +54,7 @@ import {
   deleteFromBlob,
   downloadFromBlob,
   getPresignedUrl,
+  parseConnectionString,
   uploadToBlob,
 } from '@/lib/uploads/providers/blob/client'
 import { sanitizeFilenameForMetadata } from '@/lib/uploads/utils/file-utils'
@@ -204,6 +205,27 @@ describe('Azure Blob Storage Client', () => {
       expect(mockGenerateBlobSASQueryParameters).toHaveBeenCalled()
       expect(result).toContain('https://test.blob.core.windows.net/container/test-file')
       expect(result).toContain('sv=2021-06-08')
+    })
+  })
+
+  describe('parseConnectionString', () => {
+    it('extracts accountName and accountKey from a well-formed connection string', () => {
+      const result = parseConnectionString(
+        'DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey123;EndpointSuffix=core.windows.net'
+      )
+      expect(result).toEqual({ accountName: 'myaccount', accountKey: 'mykey123' })
+    })
+
+    it('throws when AccountName is missing', () => {
+      expect(() =>
+        parseConnectionString('DefaultEndpointsProtocol=https;AccountKey=mykey123')
+      ).toThrow('Cannot extract account name from connection string')
+    })
+
+    it('throws when AccountKey is missing', () => {
+      expect(() =>
+        parseConnectionString('DefaultEndpointsProtocol=https;AccountName=myaccount')
+      ).toThrow('Cannot extract account key from connection string')
     })
   })
 
