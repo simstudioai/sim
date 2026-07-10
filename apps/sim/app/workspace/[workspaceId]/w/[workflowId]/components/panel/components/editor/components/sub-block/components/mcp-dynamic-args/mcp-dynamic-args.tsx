@@ -258,6 +258,8 @@ export function McpDynamicArgs({
 
       case 'long-input': {
         const config = createParamConfig(paramName, paramSchema, 'long-input')
+        const displayValue =
+          typeof value === 'string' || value == null ? value || '' : JSON.stringify(value)
         return (
           <LongInput
             key={`${paramName}-long`}
@@ -266,7 +268,7 @@ export function McpDynamicArgs({
             config={config}
             placeholder={config.placeholder}
             rows={4}
-            value={value || ''}
+            value={displayValue}
             onChange={(newValue) => updateParameter(paramName, newValue)}
             isPreview={isPreview}
             disabled={disabled}
