@@ -68,15 +68,15 @@ async function deriveInputFields(workflowId: string): Promise<WorkflowInputField
   }
 }
 
-/** A stored per-input placeholder override, keyed by the Start field's stable id. */
-type InputPlaceholder = { id: string; placeholder?: string }
+/** A stored per-input override (placeholder + required), keyed by the Start field's stable id. */
+type InputPlaceholder = { id: string; placeholder?: string; required?: boolean }
 
 /**
  * The block's input fields: the LIVE deployed Start fields (authoritative for which
  * inputs exist and their name/type — so an input removed from the source and
- * redeployed simply disappears) with the stored per-id `placeholder` overrides
- * merged in. When the source is undeployed there are no live fields, so there are
- * no inputs — the block can't run undeployed anyway.
+ * redeployed simply disappears) with the stored per-id `placeholder`/`required`
+ * overrides merged in. When the source is undeployed there are no live fields, so
+ * there are no inputs — the block can't run undeployed anyway.
  */
 function applyInputPlaceholders(
   placeholders: InputPlaceholder[] | null,
@@ -84,12 +84,17 @@ function applyInputPlaceholders(
 ): WorkflowInputField[] {
   if (deployed.length === 0) return []
   if (!placeholders?.length) return deployed
-  const byId = new Map(placeholders.map((p) => [p.id, p.placeholder]))
-  // Placeholders are stored under `field.id ?? field.name` (the form's key), so a
+  const byId = new Map(placeholders.map((p) => [p.id, p]))
+  // Overrides are stored under `field.id ?? field.name` (the form's key), so a
   // legacy field with no stable id is keyed by name — look it up the same way.
   return deployed.map((field) => {
-    const placeholder = byId.get(field.id ?? field.name)
-    return placeholder ? { ...field, placeholder } : field
+    const override = byId.get(field.id ?? field.name)
+    if (!override) return field
+    return {
+      ...field,
+      ...(override.placeholder ? { placeholder: override.placeholder } : {}),
+      ...(override.required ? { required: true } : {}),
+    }
   })
 }
 
@@ -256,6 +261,8 @@ export async function getCustomBlockAuthority(
   organizationId: string
   ownerUserId: string
   exposedOutputs: CustomBlockOutput[]
+  /** Start-field ids (form keys) the publisher marked required. May reference removed fields. */
+  requiredInputIds: string[]
 } | null> {
   // Scope resolution to the consumer's org: `(organizationId, type)` is the unique
   // key, so without the org filter a `custom_block_*` type smuggled in from another
@@ -273,6 +280,7 @@ export async function getCustomBlockAuthority(
       organizationId: customBlock.organizationId,
       enabled: customBlock.enabled,
       outputs: customBlock.outputs,
+      inputs: customBlock.inputs,
       ownerUserId: workflow.userId,
     })
     .from(customBlock)
@@ -288,6 +296,7 @@ export async function getCustomBlockAuthority(
     organizationId: row.organizationId,
     ownerUserId: row.ownerUserId,
     exposedOutputs: row.outputs ?? [],
+    requiredInputIds: (row.inputs ?? []).filter((i) => i.required).map((i) => i.id),
   }
 }
 

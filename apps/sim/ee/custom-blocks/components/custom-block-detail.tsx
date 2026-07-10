@@ -16,6 +16,7 @@ import {
   ExpandableContent,
   Label,
   Loader,
+  Switch,
   toast,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -214,15 +215,15 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     return m
   }, [availableFields])
 
-  const placeholderById = useMemo(() => {
-    const m = new Map<string, string | undefined>()
-    for (const i of inputs) m.set(i.id, i.placeholder)
+  const overrideById = useMemo(() => {
+    const m = new Map<string, CustomBlockInput>()
+    for (const i of inputs) m.set(i.id, i)
     return m
   }, [inputs])
 
   // Every deployed Start input is exposed (no selection). Name/type/description are
-  // inherited from the field itself (the Start block already defines them); the only
-  // thing authored here is the placeholder.
+  // inherited from the field itself (the Start block already defines them); only
+  // the placeholder and required flag are authored here.
   const visibleInputs = useMemo<CustomBlockInput[]>(
     () =>
       deployedLoaded
@@ -233,11 +234,12 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               name: f.name,
               type: f.type,
               description: f.description,
-              placeholder: placeholderById.get(id),
+              placeholder: overrideById.get(id)?.placeholder,
+              required: overrideById.get(id)?.required,
             }
           })
         : inputs,
-    [deployedLoaded, availableFields, placeholderById, inputs]
+    [deployedLoaded, availableFields, overrideById, inputs]
   )
 
   const [expandedInputs, setExpandedInputs] = useState<ReadonlySet<string>>(new Set())
@@ -318,15 +320,18 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     deployed.isLoading ||
     (deployedLoaded && visibleOutputs.length === 0)
 
-  // Upsert the per-input placeholder (the only authored field). `visibleInputs`
+  // Upsert an authored per-input override (placeholder/required). `visibleInputs`
   // shows every deployed field; the first edit of a field adds its override row.
-  function setPlaceholder(id: string, placeholder: string) {
+  function setInputOverride(
+    id: string,
+    patch: Partial<Pick<CustomBlockInput, 'placeholder' | 'required'>>
+  ) {
     setInputs((prev) => {
       if (prev.some((i) => i.id === id)) {
-        return prev.map((i) => (i.id === id ? { ...i, placeholder } : i))
+        return prev.map((i) => (i.id === id ? { ...i, ...patch } : i))
       }
       const f = fieldById.get(id)
-      return [...prev, { id, name: f?.name ?? id, type: f?.type ?? 'string', placeholder }]
+      return [...prev, { id, name: f?.name ?? id, type: f?.type ?? 'string', ...patch }]
     })
   }
 
@@ -377,11 +382,15 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
       setError('Output names must be unique')
       return
     }
-    // Only the placeholder is authored; the field set/name/type are always derived
-    // from the deployed Start. Persist just the non-empty placeholder overrides.
+    // Only the placeholder and required flag are authored; the field set/name/type
+    // are always derived from the deployed Start. Persist only non-empty overrides.
     const inputPlaceholders = visibleInputs
-      .filter((i) => i.placeholder?.trim())
-      .map((i) => ({ id: i.id, placeholder: i.placeholder!.trim() }))
+      .filter((i) => i.placeholder?.trim() || i.required)
+      .map((i) => ({
+        id: i.id,
+        ...(i.placeholder?.trim() ? { placeholder: i.placeholder.trim() } : {}),
+        ...(i.required ? { required: true } : {}),
+      }))
 
     try {
       if (existing) {
@@ -729,11 +738,24 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                                     </p>
                                   </div>
                                 )}
+                                <div className='flex items-center justify-between'>
+                                  <Label htmlFor={`input-required-${i.id}`}>Required</Label>
+                                  <Switch
+                                    id={`input-required-${i.id}`}
+                                    checked={i.required ?? false}
+                                    onCheckedChange={(checked) =>
+                                      setInputOverride(i.id, { required: checked })
+                                    }
+                                    disabled={!canManageBlock}
+                                  />
+                                </div>
                                 <div className='flex flex-col gap-1.5'>
                                   <Label>Placeholder</Label>
                                   <ChipInput
                                     value={i.placeholder ?? ''}
-                                    onChange={(e) => setPlaceholder(i.id, e.target.value)}
+                                    onChange={(e) =>
+                                      setInputOverride(i.id, { placeholder: e.target.value })
+                                    }
                                     placeholder='Shown in the empty field'
                                     maxLength={200}
                                     disabled={!canManageBlock}
@@ -865,6 +887,7 @@ function toCustomBlockInputs(
         type: string
         placeholder?: string
         description?: string
+        required?: boolean
       }>
     | undefined
 ): CustomBlockInput[] {
@@ -874,17 +897,20 @@ function toCustomBlockInputs(
     type: f.type,
     placeholder: f.placeholder,
     description: f.description,
+    required: f.required,
   }))
 }
 
 /**
- * Compare inputs by only the authored data — the field id and its placeholder.
- * name/type/description are derived live from the deployed Start (not stored), so
- * comparing them would flag the form dirty when only Start metadata drifted.
+ * Compare inputs by only the authored data — the field id, placeholder, and
+ * required flag. name/type/description are derived live from the deployed Start
+ * (not stored), so comparing them would flag the form dirty when only Start
+ * metadata drifted.
  */
 function normalizeInputsForCompare(items: ReadonlyArray<Partial<CustomBlockInput>>) {
   return items.map((i) => ({
     id: i.id ?? i.name ?? '',
     placeholder: i.placeholder ?? '',
+    required: i.required ?? false,
   }))
 }
