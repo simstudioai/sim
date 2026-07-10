@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Script from 'next/script'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { LandingShell } from '@/app/(landing)/components'
+import { HubspotPageViewTracker } from '@/app/(landing)/hubspot-page-view-tracker'
 
 const HUBSPOT_SCRIPT_SRC = 'https://js-na2.hs-scripts.com/246720681.js' as const
 
@@ -33,7 +35,12 @@ export default function LandingLayout({ children }: { children: ReactNode }) {
       {children}
       {/* HubSpot tracking code — hosted marketing site only, not self-hosted deployments */}
       {isHosted && (
-        <Script id='hs-script-loader' src={HUBSPOT_SCRIPT_SRC} strategy='afterInteractive' />
+        <>
+          <Script id='hs-script-loader' src={HUBSPOT_SCRIPT_SRC} strategy='afterInteractive' />
+          <Suspense fallback={null}>
+            <HubspotPageViewTracker />
+          </Suspense>
+        </>
       )}
     </LandingShell>
   )
