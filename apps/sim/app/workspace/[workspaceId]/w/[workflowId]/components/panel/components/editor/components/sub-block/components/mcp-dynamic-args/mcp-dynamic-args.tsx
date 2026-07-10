@@ -128,15 +128,19 @@ export function McpDynamicArgs({
    * baseline switch, a collaborator's edit) can't be shadowed by stale draft text.
    * Drafts also reset wholesale on either of two independent triggers:
    *  - the selected tool or the cached `_toolSchema` snapshot changes (this pair
-   *    always drives `toolSchema` whenever a cached snapshot exists), or
-   *  - the live discovered schema's signature changes to a *different* non-empty
-   *    value than the last non-empty value actually observed — a genuine
-   *    re-discovery/refresh. Comparing against the last known non-empty value
-   *    (rather than merely the previous render's value) means a schema that
-   *    transiently disappears and reappears — e.g. `mcpTools` refetching, or the
-   *    tool briefly missing from a fresh list — still resets drafts if it comes
-   *    back different, while a plain empty → non-empty transition (the initial
-   *    async load) does not, since there is no prior non-empty value to compare.
+   *    always drives `toolSchema` whenever a cached snapshot exists) — the live
+   *    schema tracker is also re-baselined to the new tool's current signature
+   *    here (even if still empty), so a tool switch never leaves the *previous*
+   *    tool's signature behind to be misread as a "refresh" once the new tool's
+   *    schema loads a moment later, or
+   *  - for the *same* tool, the live discovered schema's signature changes to a
+   *    different non-empty value than the last non-empty value actually observed
+   *    — a genuine re-discovery/refresh. Comparing against the last known
+   *    non-empty value (rather than merely the previous render's value) means a
+   *    schema that transiently disappears and reappears — e.g. `mcpTools`
+   *    refetching — still resets drafts if it comes back different, while a
+   *    plain empty → non-empty transition (the initial async load) does not,
+   *    since there is no prior non-empty value for this tool to compare against.
    */
   const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<
     Record<string, { text: string; baseline: string }>
@@ -147,22 +151,23 @@ export function McpDynamicArgs({
     useState(toolAndCachedSchemaKey)
   const [lastNonEmptyLiveSchemaSignature, setLastNonEmptyLiveSchemaSignature] =
     useState(liveSchemaSignature)
-  const toolOrCachedSchemaChanged = prevToolAndCachedSchemaKey !== toolAndCachedSchemaKey
-  const nextLastNonEmptyLiveSchemaSignature =
-    liveSchemaSignature !== '' ? liveSchemaSignature : lastNonEmptyLiveSchemaSignature
-  if (
-    toolOrCachedSchemaChanged ||
-    nextLastNonEmptyLiveSchemaSignature !== lastNonEmptyLiveSchemaSignature
-  ) {
-    const isGenuineLiveRefresh =
-      liveSchemaSignature !== '' &&
-      lastNonEmptyLiveSchemaSignature !== '' &&
-      liveSchemaSignature !== lastNonEmptyLiveSchemaSignature
-    if (toolOrCachedSchemaChanged || isGenuineLiveRefresh) {
-      setInvalidJsonDrafts({})
-    }
+  if (prevToolAndCachedSchemaKey !== toolAndCachedSchemaKey) {
+    setInvalidJsonDrafts({})
     setPrevToolAndCachedSchemaKey(toolAndCachedSchemaKey)
-    setLastNonEmptyLiveSchemaSignature(nextLastNonEmptyLiveSchemaSignature)
+    setLastNonEmptyLiveSchemaSignature(liveSchemaSignature)
+  } else {
+    const nextLastNonEmptyLiveSchemaSignature =
+      liveSchemaSignature !== '' ? liveSchemaSignature : lastNonEmptyLiveSchemaSignature
+    if (nextLastNonEmptyLiveSchemaSignature !== lastNonEmptyLiveSchemaSignature) {
+      const isGenuineLiveRefresh =
+        liveSchemaSignature !== '' &&
+        lastNonEmptyLiveSchemaSignature !== '' &&
+        liveSchemaSignature !== lastNonEmptyLiveSchemaSignature
+      if (isGenuineLiveRefresh) {
+        setInvalidJsonDrafts({})
+      }
+      setLastNonEmptyLiveSchemaSignature(nextLastNonEmptyLiveSchemaSignature)
+    }
   }
 
   const currentArgs = useCallback(() => {
