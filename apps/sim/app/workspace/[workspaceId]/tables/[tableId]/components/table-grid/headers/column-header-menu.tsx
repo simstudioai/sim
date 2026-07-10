@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import type { WorkflowGroup } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
 import type { ColumnSourceInfo, DisplayColumn } from '../types'
@@ -278,6 +279,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             ref={renameInputRef}
             type='text'
             value={renameValue}
+            maxLength={TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH}
             onChange={(e) => onRenameValueChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') onRenameSubmit()

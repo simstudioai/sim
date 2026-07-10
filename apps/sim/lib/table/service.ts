@@ -17,8 +17,13 @@ import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  assertValidNewColumnName,
+  generateColumnId,
+  getColumnId,
+  withGeneratedColumnIds,
+} from '@/lib/table/column-keys'
+import { COLUMN_TYPES, TABLE_LIMITS } from '@/lib/table/constants'
 import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -421,30 +426,16 @@ export async function addTableColumnsWithTx(
 ): Promise<TableDefinition> {
   if (columns.length === 0) return table
 
-  const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
+  const batchNames = new Set<string>()
   const additions: TableSchema['columns'] = []
 
   for (const column of columns) {
-    if (!NAME_PATTERN.test(column.name)) {
-      throw new Error(
-        `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
-      )
-    }
-    if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new Error(
-        `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
-      )
-    }
+    assertValidNewColumnName(column.name, table.schema.columns, { extraTakenLower: batchNames })
     if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
       throw new Error(
         `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
       )
     }
-    const lower = column.name.toLowerCase()
-    if (usedNames.has(lower)) {
-      throw new Error(`Column "${column.name}" already exists`)
-    }
-    usedNames.add(lower)
     // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
     // and persistence agree); otherwise mint one.
     const id = column.id ?? generateColumnId()

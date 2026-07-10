@@ -1,12 +1,35 @@
 /**
- * Shared column-naming helpers used by every path that auto-derives a
- * column name + type from a workflow block output: the table column-sidebar
- * UI, and the Copilot/Mothership `add_workflow_group` op. Keeping one
- * implementation means the AI's auto-named columns match what a user would
- * get from the sidebar.
+ * Shared column-naming helpers: collision-free name claiming (CSV/JSON import,
+ * enrichment output naming) and block-output auto-derivation (the table
+ * column-sidebar UI and the Copilot/Mothership `add_workflow_group` op).
+ * Keeping one implementation means every path — importer, AI, or sidebar —
+ * names columns the same way.
  */
 
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { ColumnDefinition } from '@/lib/table/types'
+
+/**
+ * Claims a column name not present in `takenLower` (a set of LOWERCASED names,
+ * matching the schema's case-insensitive uniqueness) by appending `_2`, `_3`, …
+ * to `base` on collision. The base is trimmed so the suffixed result stays
+ * within `MAX_COLUMN_NAME_LENGTH`. The chosen name is added (lowercased) to
+ * `takenLower` before returning, so callers never hand-maintain the set's
+ * casing convention.
+ */
+export function uniqueColumnName(base: string, takenLower: Set<string>): string {
+  const claim = (name: string): string => {
+    takenLower.add(name.toLowerCase())
+    return name
+  }
+  if (!takenLower.has(base.toLowerCase())) return claim(base)
+  for (let suffix = 2; ; suffix++) {
+    const tail = `_${suffix}`
+    const head = base.slice(0, TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH - tail.length).trimEnd()
+    const candidate = `${head}${tail}`
+    if (!takenLower.has(candidate.toLowerCase())) return claim(candidate)
+  }
+}
 
 /**
  * Slugifies a string into a `NAME_PATTERN`-safe column name. Lowercase,
@@ -25,16 +48,22 @@ export function slugifyColumnName(value: string): string {
 
 /**
  * Pick a non-colliding column name for a block-output `path`. Uses the bare
- * path slug; on collision, appends `_0`, `_1`, …
+ * path slug; on collision, appends `_0`, `_1`, … Like `uniqueColumnName`,
+ * takes a set of LOWERCASED names and claims the chosen name into it (slugs
+ * are already lowercase), so callers never hand-maintain the set.
  */
-export function deriveOutputColumnName(path: string, taken: Set<string>): string {
+export function deriveOutputColumnName(path: string, takenLower: Set<string>): string {
+  const claim = (name: string): string => {
+    takenLower.add(name)
+    return name
+  }
   const base = slugifyColumnName(path)
-  if (!taken.has(base)) return base
+  if (!takenLower.has(base)) return claim(base)
   for (let i = 0; i < 1000; i++) {
     const candidate = `${base}_${i}`
-    if (!taken.has(candidate)) return candidate
+    if (!takenLower.has(candidate)) return claim(candidate)
   }
-  return `${base}_${Date.now()}`
+  return claim(`${base}_${Date.now()}`)
 }
 
 /**

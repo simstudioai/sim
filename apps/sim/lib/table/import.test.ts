@@ -3,6 +3,7 @@
  */
 import { Readable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
+import { uniqueColumnName } from '@/lib/table/column-naming'
 import {
   buildAutoMapping,
   CsvImportValidationError,
@@ -13,6 +14,7 @@ import {
   inferColumnType,
   inferSchemaFromCsv,
   parseCsvBuffer,
+  sanitizeColumnName,
   sanitizeName,
   validateMapping,
 } from '@/lib/table/import'
@@ -92,8 +94,50 @@ describe('import', () => {
     })
   })
 
+  describe('sanitizeColumnName', () => {
+    it('preserves spaces, digits, punctuation, and unicode verbatim', () => {
+      expect(sanitizeColumnName('First Name')).toBe('First Name')
+      expect(sanitizeColumnName('2024 Revenue ($)')).toBe('2024 Revenue ($)')
+      expect(sanitizeColumnName('caf\u00e9')).toBe('caf\u00e9')
+    })
+
+    it('collapses control chars and whitespace runs, strips invisible chars, and trims', () => {
+      expect(sanitizeColumnName('a\u0000b')).toBe('a b')
+      expect(sanitizeColumnName('  a   b  ')).toBe('a b')
+      expect(sanitizeColumnName('zero\u200bwidth')).toBe('zerowidth')
+      expect(sanitizeColumnName('$$or')).toBe('or')
+    })
+
+    it('truncates to the max column-name length', () => {
+      expect(sanitizeColumnName('x'.repeat(80))).toHaveLength(50)
+    })
+
+    it('falls back for empty or invisible-only input', () => {
+      expect(sanitizeColumnName('')).toBe('column')
+      expect(sanitizeColumnName('\u0001\u200b')).toBe('column')
+      expect(sanitizeColumnName('', 'field')).toBe('field')
+    })
+  })
+
+  describe('uniqueColumnName', () => {
+    it('returns the base when free, suffixes case-insensitively when taken, and claims the result', () => {
+      const taken = new Set(['first name'])
+      expect(uniqueColumnName('Email', taken)).toBe('Email')
+      expect(uniqueColumnName('First Name', taken)).toBe('First Name_2')
+      expect(taken).toEqual(new Set(['first name', 'email', 'first name_2']))
+    })
+
+    it('keeps the suffixed result within the max length', () => {
+      const base = 'x'.repeat(50)
+      const taken = new Set([base])
+      const result = uniqueColumnName(base, taken)
+      expect(result).toBe(`${'x'.repeat(48)}_2`)
+      expect(result.length).toBeLessThanOrEqual(50)
+    })
+  })
+
   describe('inferSchemaFromCsv', () => {
-    it('produces sanitized column names and inferred types', () => {
+    it('preserves raw headers as column names and infers types', () => {
       const { columns, headerToColumn } = inferSchemaFromCsv(
         ['First Name', 'Age', 'Active'],
         [
@@ -102,20 +146,20 @@ describe('import', () => {
         ]
       )
       expect(columns).toEqual([
-        { name: 'First_Name', type: 'string' },
+        { name: 'First Name', type: 'string' },
         { name: 'Age', type: 'number' },
         { name: 'Active', type: 'boolean' },
       ])
-      expect(headerToColumn.get('First Name')).toBe('First_Name')
+      expect(headerToColumn.get('First Name')).toBe('First Name')
       expect(headerToColumn.get('Age')).toBe('Age')
     })
 
-    it('disambiguates duplicate sanitized headers', () => {
+    it('disambiguates headers that collide case-insensitively', () => {
       const { columns } = inferSchemaFromCsv(
-        ['a b', 'a-b', 'a.b'],
-        [{ 'a b': '1', 'a-b': '2', 'a.b': '3' }]
+        ['a b', 'A B', 'a b '],
+        [{ 'a b': '1', 'A B': '2', 'a b ': '3' }]
       )
-      expect(columns.map((c) => c.name)).toEqual(['a_b', 'a_b_2', 'a_b_3'])
+      expect(columns.map((c) => c.name)).toEqual(['a b', 'A B_2', 'a b_3'])
     })
   })
 
@@ -168,6 +212,19 @@ describe('import', () => {
     it('returns null for headers without a match', () => {
       const mapping = buildAutoMapping(['unmatched'], schema)
       expect(mapping).toEqual({ unmatched: null })
+    })
+
+    it('exact-matches raw display names, trimming padded headers', () => {
+      const rawSchema: TableSchema = { columns: [{ name: 'First Name', type: 'string' }] }
+      expect(buildAutoMapping(['First Name'], rawSchema)).toEqual({ 'First Name': 'First Name' })
+      expect(buildAutoMapping([' First Name '], rawSchema)).toEqual({
+        ' First Name ': 'First Name',
+      })
+    })
+
+    it('never fuzzy-matches columns whose names collapse to an empty loose key', () => {
+      const nonLatin: TableSchema = { columns: [{ name: '\u540d\u524d', type: 'string' }] }
+      expect(buildAutoMapping(['!!!'], nonLatin)).toEqual({ '!!!': null })
     })
   })
 

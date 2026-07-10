@@ -5,10 +5,12 @@
  * refs, and filter/sort all key on a column's stable **id**. `name` is a
  * display label that changes on rename. The two name-translating boundaries
  * (public v1 API, mothership tool) and CSV convert between the two with the
- * map builders here.
+ * map builders here. Also hosts the write-time display-name validator
+ * (`assertValidNewColumnName`) since it depends on the id/name semantics.
  */
 
 import { generateId } from '@sim/utils/id'
+import { COLUMN_NAME_PATTERN, COLUMN_NAME_RULE, TABLE_LIMITS } from '@/lib/table/constants'
 import type {
   ColumnDefinition,
   Filter,
@@ -49,6 +51,60 @@ export function generateColumnId(): string {
  */
 export function columnMatchesRef(col: ColumnDefinition, ref: string): boolean {
   return getColumnId(col) === ref || col.name.toLowerCase() === ref.toLowerCase()
+}
+
+/**
+ * True when `name` equals some other column's storage key. Such a name would
+ * make `columnMatchesRef` and the name→id remaps ambiguous (a ref intended for
+ * the other column's id would resolve by name instead) — reject it at write
+ * time. `excludeIndex` skips the column being renamed.
+ */
+export function nameShadowsColumnId(
+  columns: readonly ColumnDefinition[],
+  name: string,
+  excludeIndex = -1
+): boolean {
+  return columns.some((c, i) => i !== excludeIndex && getColumnId(c) === name)
+}
+
+/**
+ * The single write-time validator for a column display name: pattern, length,
+ * case-insensitive uniqueness against `columns`, and id shadowing. Every
+ * column-creating or renaming service path calls this so the rule can never
+ * drift between them. The pattern/length rules mirror `validateColumnDefinition`
+ * (validation.ts), which accumulates errors for bulk schema checks — duplicated
+ * because validation.ts is server-only while this module is client-safe.
+ *
+ * `excludeIndex` skips the column being renamed. `extraTakenLower` holds
+ * LOWERCASED names claimed earlier in the same batch; an accepted name is
+ * claimed into it before returning, so batch callers never hand-maintain the
+ * set. Throws with a caller-facing message on the first violation.
+ */
+export function assertValidNewColumnName(
+  name: string,
+  columns: readonly ColumnDefinition[],
+  options: { excludeIndex?: number; extraTakenLower?: Set<string> } = {}
+): void {
+  const { excludeIndex = -1, extraTakenLower } = options
+  if (!COLUMN_NAME_PATTERN.test(name)) {
+    throw new Error(`Invalid column name "${name}". ${COLUMN_NAME_RULE}.`)
+  }
+  if (name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+    throw new Error(
+      `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
+    )
+  }
+  const lower = name.toLowerCase()
+  if (
+    columns.some((c, i) => i !== excludeIndex && c.name.toLowerCase() === lower) ||
+    extraTakenLower?.has(lower)
+  ) {
+    throw new Error(`Column "${name}" already exists`)
+  }
+  if (nameShadowsColumnId(columns, name, excludeIndex)) {
+    throw new Error(`Column name "${name}" conflicts with another column's id`)
+  }
+  extraTakenLower?.add(lower)
 }
 
 /**
@@ -119,11 +175,21 @@ export function remapGroupColumnRefs(
   }
 }
 
-/** `name → id` for translating inbound wire data (v1 / mothership / CSV import). */
+/**
+ * `lowercased name → id` for translating inbound wire data (v1 / mothership /
+ * CSV import). Keys are lowercased so lookups match the schema's
+ * case-insensitive name uniqueness — the same semantics as `columnMatchesRef` —
+ * instead of silently dropping a miscased key. Look up via `idForName`.
+ */
 export function buildIdByName(schema: TableSchema): Map<string, string> {
   const map = new Map<string, string>()
-  for (const col of schema.columns) map.set(col.name, getColumnId(col))
+  for (const col of schema.columns) map.set(col.name.toLowerCase(), getColumnId(col))
   return map
+}
+
+/** Case-insensitive lookup into a {@link buildIdByName} map. */
+function idForName(idByName: ReadonlyMap<string, string>, name: string): string | undefined {
+  return idByName.get(name.toLowerCase())
 }
 
 /** `id → name` for translating outbound wire data (v1 / mothership / CSV export). */
@@ -135,13 +201,14 @@ export function buildNameById(schema: TableSchema): Map<string, string> {
 
 /**
  * Remaps a wire row keyed by column **name** to the stored **id** keying. Used
- * at the name-translating boundaries on the way in. Keys not matching a known
+ * at the name-translating boundaries on the way in. Names match
+ * case-insensitively (mirroring `columnMatchesRef`); keys not matching a known
  * column are dropped (validation has already run against the schema).
  */
 export function rowDataNameToId(data: RowData, idByName: Map<string, string>): RowData {
   const out: RowData = {}
   for (const [name, value] of Object.entries(data)) {
-    const id = idByName.get(name)
+    const id = idForName(idByName, name)
     if (id !== undefined) out[id] = value
   }
   return out
@@ -158,7 +225,7 @@ export function filterNamesToIds(filter: Filter, idByName: ReadonlyMap<string, s
     if ((key === '$or' || key === '$and') && Array.isArray(value)) {
       out[key] = (value as Filter[]).map((f) => filterNamesToIds(f, idByName))
     } else {
-      out[idByName.get(key) ?? key] = value
+      out[idForName(idByName, key) ?? key] = value
     }
   }
   return out
@@ -167,7 +234,7 @@ export function filterNamesToIds(filter: Filter, idByName: ReadonlyMap<string, s
 /** Translates a sort's field names → column ids. Unknown fields pass through. */
 export function sortNamesToIds(sort: Sort, idByName: ReadonlyMap<string, string>): Sort {
   const out: Sort = {}
-  for (const [field, dir] of Object.entries(sort)) out[idByName.get(field) ?? field] = dir
+  for (const [field, dir] of Object.entries(sort)) out[idForName(idByName, field) ?? field] = dir
   return out
 }
 

@@ -34,7 +34,11 @@ import {
   rowDataNameToId,
   sortNamesToIds,
 } from '@/lib/table/column-keys'
-import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import {
+  columnTypeForLeaf,
+  deriveOutputColumnName,
+  uniqueColumnName,
+} from '@/lib/table/column-naming'
 import {
   addTableColumn,
   deleteColumn,
@@ -1645,13 +1649,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             flattened.map((f) => [`${f.blockId}::${f.path}`, f.leafType])
           )
 
-          const taken = new Set(tableForGroup.schema.columns.map((c) => c.name))
+          const taken = new Set(tableForGroup.schema.columns.map((c) => c.name.toLowerCase()))
           const groupId = generateId()
           const outputs: WorkflowGroupOutput[] = []
           const outputColumns: ColumnDefinition[] = []
           for (const o of rawOutputs) {
             const colName = o.columnName ?? deriveOutputColumnName(o.path, taken)
-            taken.add(colName)
+            taken.add(colName.toLowerCase())
             outputs.push({ blockId: o.blockId, path: o.path, columnName: colName })
             const leafType = o.columnType ?? leafTypeByKey.get(`${o.blockId}::${o.path}`)
             outputColumns.push({
@@ -2009,14 +2013,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // Each enrichment output becomes a new column. Names can be overridden
           // per output id; otherwise the enrichment's default name is used.
           const outputNameOverrides = (args.outputColumnNames ?? {}) as Record<string, string>
-          const taken = new Set(tableForEnrichment.schema.columns.map((c) => c.name))
+          const taken = new Set(tableForEnrichment.schema.columns.map((c) => c.name.toLowerCase()))
           const groupId = generateId()
           const outputs: WorkflowGroupOutput[] = []
           const outputColumns: ColumnDefinition[] = []
           for (const out of enrichment.outputs) {
             const desired = (outputNameOverrides[out.id] ?? '').trim() || out.name
-            const colName = deriveOutputColumnName(desired, taken)
-            taken.add(colName)
+            const colName = uniqueColumnName(desired, taken)
             outputs.push({ blockId: '', path: '', outputId: out.id, columnName: colName })
             outputColumns.push({
               name: colName,

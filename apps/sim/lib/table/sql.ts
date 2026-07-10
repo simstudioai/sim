@@ -241,8 +241,12 @@ function validateFieldName(field: string): void {
   }
 
   if (!NAME_PATTERN.test(field)) {
+    // Fields reaching this layer are storage keys (column ids) or unmatched
+    // passthrough names — by this point a non-identifier field means the caller
+    // referenced a column that doesn't exist, so say that instead of reciting
+    // the identifier rule (display names are allowed to violate it).
     throw new TableQueryValidationError(
-      `Invalid field name "${field}". Field names must start with a letter or underscore, followed by alphanumeric characters or underscores.`
+      `Unknown field "${field}". Filter and sort fields must reference an existing column.`
     )
   }
 }

@@ -13,12 +13,13 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  assertValidNewColumnName,
   columnMatchesRef,
   generateColumnId,
   getColumnId,
   remapGroupColumnRefs,
 } from '@/lib/table/column-keys'
-import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { getTableById, withLockedTable } from '@/lib/table/service'
 import { setTableTxTimeouts } from '@/lib/table/tx'
@@ -36,6 +37,27 @@ import type {
 import { assertValidSchema, runWorkflowColumn, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableWorkflowGroupsService')
+
+/**
+ * Validates the display names of to-be-created output columns (via
+ * `assertValidNewColumnName`, including duplicates within the batch) and the
+ * resulting column count. Shared by all three column-creating group ops so
+ * none of them drifts. No-op for an empty batch so ops that add no columns
+ * (e.g. a mapping-only group update) never trip the count check on a legacy
+ * over-limit table.
+ */
+function assertNewOutputColumns(names: string[], schema: TableSchema): void {
+  if (names.length === 0) return
+  const batchLower = new Set<string>()
+  for (const name of names) {
+    assertValidNewColumnName(name, schema.columns, { extraTakenLower: batchLower })
+  }
+  if (schema.columns.length + names.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+    throw new Error(
+      `Adding ${names.length} column${names.length === 1 ? '' : 's'} would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
+    )
+  }
+}
 /**
  * Drops references to deleted blocks from every workflow group on every table
  * that targets the just-deployed workflow. Called from the workflow deploy
@@ -126,23 +148,10 @@ export async function addWorkflowGroup(
       throw new Error(`Workflow group "${data.group.id}" already exists`)
     }
 
-    const existingNames = new Set(schema.columns.map((c) => c.name.toLowerCase()))
-    for (const col of data.outputColumns) {
-      if (!NAME_PATTERN.test(col.name)) {
-        throw new Error(
-          `Invalid output column name "${col.name}". Must satisfy ${NAME_PATTERN.source}.`
-        )
-      }
-      if (existingNames.has(col.name.toLowerCase())) {
-        throw new Error(`Column "${col.name}" already exists`)
-      }
-    }
-
-    if (schema.columns.length + data.outputColumns.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
-      throw new Error(
-        `Adding ${data.outputColumns.length} columns would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
-      )
-    }
+    assertNewOutputColumns(
+      data.outputColumns.map((c) => c.name),
+      schema
+    )
 
     // Assign stable ids to the new output columns, then rewrite the group's
     // column refs from name → id so outputs/deps/inputMappings key on ids —
@@ -289,6 +298,16 @@ export async function updateWorkflowGroup(
         throw new Error(`Workflow group "${data.groupId}" not found`)
       }
       const group = groups[groupIndex]
+
+      // New output columns go through the same validation as the other two
+      // column-creating group ops (addWorkflowGroup / addWorkflowGroupOutput) —
+      // this path was the only one that skipped it. Names are checked against
+      // the pre-update schema, so re-using the name of an output removed in
+      // this same update is rejected.
+      assertNewOutputColumns(
+        (data.newOutputColumns ?? []).map((c) => c.name),
+        schema
+      )
 
       // Normalize every caller-supplied column reference to its stable id, so
       // the diff/splice/clear logic below operates uniformly in id-space (the
@@ -674,19 +693,10 @@ export async function addWorkflowGroupOutput(
       )
     }
 
-    const taken = new Set(schema.columns.map((c) => c.name))
-    const columnName = data.columnName ?? deriveOutputColumnName(data.path, taken)
-    if (!NAME_PATTERN.test(columnName)) {
-      throw new Error(`Invalid column name "${columnName}". Must satisfy ${NAME_PATTERN.source}.`)
-    }
-    if (taken.has(columnName)) {
-      throw new Error(`Column "${columnName}" already exists`)
-    }
-    if (schema.columns.length + 1 > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
-      throw new Error(
-        `Adding a column would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
-      )
-    }
+    const columnName =
+      data.columnName ??
+      deriveOutputColumnName(data.path, new Set(schema.columns.map((c) => c.name.toLowerCase())))
+    assertNewOutputColumns([columnName], schema)
 
     const newColDef: ColumnDefinition = {
       id: generateColumnId(),

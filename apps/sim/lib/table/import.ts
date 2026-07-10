@@ -13,6 +13,8 @@
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import { getColumnId } from '@/lib/table/column-keys'
+import { uniqueColumnName } from '@/lib/table/column-naming'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 
@@ -160,9 +162,11 @@ export function inferColumnType(values: unknown[]): Exclude<CsvColumnType, 'json
 }
 
 /**
- * Sanitizes a raw header into a valid column/table name. Strips disallowed
- * characters, collapses runs of underscores, and ensures the first character
- * is a letter or underscore (prefixing with `fallbackPrefix` otherwise).
+ * Sanitizes a raw string into a valid **table** name (`NAME_PATTERN`). Strips
+ * disallowed characters, collapses runs of underscores, and ensures the first
+ * character is a letter or underscore (prefixing with `fallbackPrefix`
+ * otherwise). Column display names are not identifiers — use
+ * {@link sanitizeColumnName} for headers.
  */
 export function sanitizeName(raw: string, fallbackPrefix = 'col'): string {
   let name = raw
@@ -179,6 +183,27 @@ export function sanitizeName(raw: string, fallbackPrefix = 'col'): string {
 }
 
 /**
+ * Sanitizes a raw header into a valid column display name
+ * (`COLUMN_NAME_PATTERN`): control characters collapse to a space, other
+ * `\p{C}` characters (zero-width/bidi format, surrogates) and leading `$`s are
+ * stripped, whitespace runs collapse to one space, and the result is trimmed
+ * and truncated to `MAX_COLUMN_NAME_LENGTH`. Everything else — spaces, digits,
+ * punctuation, unicode — is preserved verbatim. Empty results fall back to
+ * `fallback`.
+ */
+export function sanitizeColumnName(raw: string, fallback = 'column'): string {
+  const name = raw
+    .replace(/\p{Cc}+/gu, ' ')
+    .replace(/\p{C}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^\$+\s*/, '')
+    .slice(0, TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH)
+    .trim()
+  return name || fallback
+}
+
+/**
  * Returns column definitions inferred from CSV headers + sample rows. Duplicate
  * sanitized names are suffixed with `_2`, `_3`, etc. Also returns the header ->
  * column-name mapping used when coercing row values.
@@ -192,14 +217,7 @@ export function inferSchemaFromCsv(
   const headerToColumn = new Map<string, string>()
 
   const columns = headers.map((header) => {
-    const base = sanitizeName(header)
-    let colName = base
-    let suffix = 2
-    while (seen.has(colName.toLowerCase())) {
-      colName = `${base}_${suffix}`
-      suffix++
-    }
-    seen.add(colName.toLowerCase())
+    const colName = uniqueColumnName(sanitizeColumnName(header), seen)
     headerToColumn.set(header, colName)
 
     return {
@@ -362,8 +380,10 @@ export function validateMapping(params: {
 
 /**
  * Builds an auto-mapping from CSV headers to table columns: prefers exact
- * sanitized-name matches and falls back to a case- and punctuation-insensitive
- * comparison. Unmapped headers are set to `null`.
+ * name matches (trimmed header) and falls back to a case- and
+ * punctuation-insensitive comparison, which also covers columns created by the
+ * legacy header slugger (`First Name` → `First_Name`). Unmapped headers are
+ * set to `null`.
  */
 export function buildAutoMapping(csvHeaders: string[], tableSchema: TableSchema): CsvHeaderMapping {
   const mapping: CsvHeaderMapping = {}
@@ -372,14 +392,16 @@ export function buildAutoMapping(csvHeaders: string[], tableSchema: TableSchema)
   const exactByName = new Map(columns.map((c) => [c.name, c.name]))
   const loose = new Map<string, string>()
   for (const col of columns) {
-    loose.set(col.name.toLowerCase().replace(/[^a-z0-9]/g, ''), col.name)
+    // Skip names that collapse to nothing (all-punctuation / non-Latin) — an
+    // empty key would make any unmatched header auto-map to this column.
+    const key = col.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (key) loose.set(key, col.name)
   }
 
   const usedTargets = new Set<string>()
 
   for (const header of csvHeaders) {
-    const sanitized = sanitizeName(header)
-    const exact = exactByName.get(sanitized)
+    const exact = exactByName.get(sanitizeColumnName(header))
     if (exact && !usedTargets.has(exact)) {
       mapping[header] = exact
       usedTargets.add(exact)
@@ -430,8 +452,9 @@ export function coerceRowsForTable(
 /**
  * Sanitizes raw JSON keys so they conform to the same column-name rules as CSV
  * headers, letting `inferSchemaFromCsv` and `coerceRowsForTable` be reused for
- * JSON imports. Collisions after sanitization are disambiguated with a trailing
- * underscore. Returns the headers and rows untouched when no key needs renaming.
+ * JSON imports. Collisions are disambiguated the same way as CSV headers
+ * (case-insensitive `_N` suffixes via `uniqueColumnName`). Returns the headers
+ * and rows untouched when no key needs renaming.
  */
 export function sanitizeJsonHeaders(
   headers: string[],
@@ -441,10 +464,7 @@ export function sanitizeJsonHeaders(
   const seen = new Set<string>()
 
   for (const raw of headers) {
-    let safe = sanitizeName(raw)
-    while (seen.has(safe)) safe = `${safe}_`
-    seen.add(safe)
-    renamed.set(raw, safe)
+    renamed.set(raw, uniqueColumnName(sanitizeColumnName(raw), seen))
   }
 
   const noChange = headers.every((h) => renamed.get(h) === h)

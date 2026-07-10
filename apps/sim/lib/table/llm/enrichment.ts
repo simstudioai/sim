@@ -44,21 +44,23 @@ export function enrichTableToolDescription(
     const stringCols = table.columns.filter((c) => c.type === 'string')
     const numberCols = table.columns.filter((c) => c.type === 'number')
 
+    // Names are JSON-encoded (not hand-quoted) so a name containing `"` still
+    // produces a well-formed example object.
     let filterExample = ''
     if (stringCols.length > 0 && numberCols.length > 0) {
       filterExample = `
 
-Example filter: {"${stringCols[0].name}": {"$eq": "value"}, "${numberCols[0].name}": {"$lt": 50}}`
+Example filter: {${JSON.stringify(stringCols[0].name)}: {"$eq": "value"}, ${JSON.stringify(numberCols[0].name)}: {"$lt": 50}}`
     } else if (stringCols.length > 0) {
       filterExample = `
 
-Example filter: {"${stringCols[0].name}": {"$eq": "value"}}`
+Example filter: {${JSON.stringify(stringCols[0].name)}: {"$eq": "value"}}`
     }
 
     let sortExample = ''
     if (toolId === 'table_query_rows' && numberCols.length > 0) {
       sortExample = `
-Example sort: {"${numberCols[0].name}": "desc"} for highest first, {"${numberCols[0].name}": "asc"} for lowest first`
+Example sort: {${JSON.stringify(numberCols[0].name)}: "desc"} for highest first, {${JSON.stringify(numberCols[0].name)}: "asc"} for lowest first`
     }
 
     const queryInstructions =

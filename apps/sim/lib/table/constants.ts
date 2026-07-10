@@ -135,7 +135,28 @@ export function getTablePlanLimits(): TablePlanLimitsByPlan {
 
 export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
 
+/**
+ * Identifier pattern for table names and column **storage keys** (stable column
+ * ids and legacy name-keys). Storage keys are interpolated into JSONB path SQL
+ * (`data->>'key'`), so this doubles as the injection guard — never relax it.
+ */
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
+
+/**
+ * Column **display names** are metadata only (rows key on the stable column id),
+ * so any printable characters are allowed — including spaces and leading digits.
+ * Rejected: the Unicode "Other" category `\p{C}` (control, zero-width/bidi
+ * format, surrogate, private-use — invisible or spoofable, never intentional),
+ * leading/trailing whitespace (visually identical duplicates), and a leading
+ * `$` (collides with the `$or`/`$and` filter-grammar keys on the name-keyed
+ * wire). The CSV import dialog's NUL-prefixed combobox sentinels depend on
+ * `\p{C}` staying rejected — don't relax it without changing those sentinels.
+ */
+export const COLUMN_NAME_PATTERN = /^(?![$\s])(?!.*\s$)[^\p{C}]+$/u
+
+/** Human-readable form of `COLUMN_NAME_PATTERN`, shared by every validation site. */
+export const COLUMN_NAME_RULE =
+  'Column name cannot contain control or invisible characters, start with "$", or start/end with whitespace'
 
 export const USER_TABLE_ROWS_SQL_NAME = 'user_table_rows'
 

@@ -13,7 +13,13 @@ import type {
   TableRow,
   TableRowsCursor,
 } from '@/lib/table'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  COLUMN_NAME_PATTERN,
+  COLUMN_NAME_RULE,
+  COLUMN_TYPES,
+  NAME_PATTERN,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
@@ -25,7 +31,7 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 export const columnTypeSchema = z.enum(COLUMN_TYPES)
 
 /**
- * Identifier for tables/columns: starts with letter or underscore, contains
+ * Identifier for tables: starts with letter or underscore, contains
  * only alphanumerics + underscores, capped at `MAX_TABLE_NAME_LENGTH`.
  */
 const tableNameSchema = z
@@ -47,9 +53,21 @@ const columnNameSchema = z
     TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH,
     `Column name must be ${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters or less`
   )
+  .regex(COLUMN_NAME_PATTERN, COLUMN_NAME_RULE)
+
+/**
+ * Stable column id — the JSONB row-data storage key, interpolated into SQL
+ * paths after a `NAME_PATTERN` guard. Enforce the identifier shape at the
+ * boundary so a caller-supplied id (undo re-create, schema copy) fails fast at
+ * write time instead of wedging every later filter/sort/unique-check.
+ */
+const columnIdSchema = z
+  .string()
+  .min(1, 'Column id cannot be empty')
+  .max(64, 'Column id must be 64 characters or less')
   .regex(
     NAME_PATTERN,
-    'Column name must start with a letter or underscore and contain only alphanumeric characters and underscores'
+    'Column id must start with a letter or underscore and contain only alphanumeric characters and underscores'
   )
 
 const descriptionSchema = z
@@ -80,7 +98,7 @@ export const getTableQuerySchema = z.object({
 
 export const tableColumnSchema = z.object({
   /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
-  id: z.string().optional(),
+  id: columnIdSchema.optional(),
   name: columnNameSchema,
   type: columnTypeSchema,
   required: z.boolean().optional().default(false),
@@ -115,7 +133,7 @@ export const createTableColumnBodySchema = z.object({
   column: z.object({
     // Optional stable id — first-party undo of a delete re-creates the column
     // with its original id so saved (id-keyed) cell data restores correctly.
-    id: z.string().optional(),
+    id: columnIdSchema.optional(),
     name: columnNameSchema,
     type: columnTypeSchema,
     required: z.boolean().optional(),
@@ -1020,7 +1038,7 @@ const workflowGroupInputMappingSchema = z.object({
 })
 
 const workflowGroupOutputColumnSchema = z.object({
-  name: z.string().min(1),
+  name: columnNameSchema,
   type: columnTypeSchema,
   required: z.boolean().optional(),
   unique: z.boolean().optional(),

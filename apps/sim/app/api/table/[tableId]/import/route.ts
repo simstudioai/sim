@@ -30,9 +30,10 @@ import {
   inferColumnType,
   markTableJobRunning,
   releaseJobClaim,
-  sanitizeName,
+  sanitizeColumnName,
   type TableDefinition,
   type TableSchema,
+  uniqueColumnName,
   validateMapping,
   wouldExceedRowLimit,
 } from '@/lib/table'
@@ -53,6 +54,30 @@ export const maxDuration = 300
 
 interface RouteParams {
   params: Promise<{ tableId: string }>
+}
+
+/**
+ * Classifies a thrown import error as caller-caused (→ 400 with the message)
+ * vs unexpected (→ 500, message hidden). The shared column/row services throw
+ * bare `Error`s, so this matches on their message markers — one list for every
+ * catch site in this route so a new marker can't be added to only some of
+ * them. Interim until those services throw typed errors.
+ */
+function isImportClientError(message: string): boolean {
+  return (
+    message.includes('row limit') ||
+    message.includes('Insufficient capacity') ||
+    message.includes('Schema validation') ||
+    message.includes('must be unique') ||
+    message.includes('Row size exceeds') ||
+    message.includes('already exists') ||
+    message.includes('Invalid column name') ||
+    message.includes('exceeds maximum length') ||
+    message.includes('maximum column limit') ||
+    message.includes("conflicts with another column's id") ||
+    message.includes('CSV file has no') ||
+    /^Row \d+:/.test(message)
+  )
 }
 
 export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
@@ -211,14 +236,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       const newColumns: TableSchema['columns'] = []
 
       for (const header of createColumns) {
-        const base = sanitizeName(header)
-        let columnName = base
-        let suffix = 2
-        while (usedNames.has(columnName.toLowerCase())) {
-          columnName = `${base}_${suffix}`
-          suffix++
-        }
-        usedNames.add(columnName.toLowerCase())
+        const columnName = uniqueColumnName(sanitizeColumnName(header), usedNames)
         const inferredType = inferColumnType(rows.map((r) => r[header]))
         // Pre-assign the id so the prospective schema (used to coerce rows) and
         // the persisted column (created in importAppendRows) share the same key.
@@ -334,15 +352,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
           createdColumns: additions.length,
           error: message,
         })
-        const isClientError =
-          message.includes('row limit') ||
-          message.includes('Insufficient capacity') ||
-          message.includes('Schema validation') ||
-          message.includes('must be unique') ||
-          message.includes('Row size exceeds') ||
-          message.includes('already exists') ||
-          message.includes('Invalid column name') ||
-          /^Row \d+:/.test(message)
+        const isClientError = isImportClientError(message)
         return NextResponse.json(
           {
             error: isClientError ? message : 'Failed to import CSV',
@@ -386,14 +396,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       })
     } catch (err) {
       const message = toError(err).message
-      const isClientError =
-        message.includes('row limit') ||
-        message.includes('Schema validation') ||
-        message.includes('must be unique') ||
-        message.includes('Row size exceeds') ||
-        message.includes('already exists') ||
-        message.includes('Invalid column name') ||
-        /^Row \d+:/.test(message)
+      const isClientError = isImportClientError(message)
       if (isClientError) {
         return NextResponse.json({ error: message }, { status: 400 })
       }
@@ -405,10 +408,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const message = toError(error).message
     logger.error(`[${requestId}] CSV import into existing table failed:`, error)
 
-    const isClientError =
-      message.includes('CSV file has no') ||
-      message.includes('already exists') ||
-      message.includes('Invalid column name')
+    const isClientError = isImportClientError(message)
 
     return NextResponse.json(
       { error: isClientError ? message : 'Failed to import CSV' },
