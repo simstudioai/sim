@@ -485,7 +485,7 @@ export async function getCustomBlockUsageCounts(
           eq(workflowDeploymentVersion.isActive, true),
           eq(workflow.isDeployed, true),
           orgActiveWorkflow,
-          sql`${workflowDeploymentVersion.state}::text LIKE ${likePattern}`,
+          sql`${workflowDeploymentVersion.state}::text LIKE ${likePattern} ESCAPE '\\'`,
           sql`EXISTS (
             SELECT 1 FROM jsonb_each((${workflowDeploymentVersion.state})::jsonb -> 'blocks') AS b
             WHERE b.value ->> 'type' = ${blockType}
