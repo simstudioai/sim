@@ -515,7 +515,7 @@ export async function checkWebhookPreprocessing(
   }
 }
 
-export type WebhookDispatchOutcome = 'queued' | 'ignored' | 'failed'
+export type WebhookDispatchOutcome = 'queued' | 'ignored' | 'failed' | 'verified'
 
 export interface WebhookDispatchResult {
   outcome: WebhookDispatchOutcome
@@ -739,7 +739,10 @@ async function queueWebhookExecutionWithResult(
 
 /**
  * Runs the common post-authentication lifecycle for a resolved webhook target and returns a typed
- * outcome so app-level fanout workers do not infer queue state from HTTP response bodies.
+ * outcome so app-level fanout workers do not infer queue state from HTTP response bodies. A
+ * `verified` outcome is the pre-deployment URL verification handshake some providers require
+ * before a workflow is even deployed; callers must return it as-is rather than treating it as a
+ * droppable per-webhook failure on a path shared by other webhooks.
  */
 export async function dispatchResolvedWebhookTarget(
   foundWebhook: typeof webhook.$inferSelect,
@@ -778,11 +781,12 @@ export async function dispatchResolvedWebhookTarget(
     const blockExists = await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId)
     if (!blockExists) {
       const verificationResponse = handlePreDeploymentVerification(webhookRecord, options.requestId)
+      if (verificationResponse) {
+        return { outcome: 'verified', response: verificationResponse, reason: 'block-missing' }
+      }
       return {
         outcome: 'ignored',
-        response:
-          verificationResponse ??
-          new NextResponse('Trigger block not found in deployment', { status: 404 }),
+        response: new NextResponse('Trigger block not found in deployment', { status: 404 }),
         reason: 'block-missing',
       }
     }

@@ -186,6 +186,10 @@ async function handleWebhookPost(
       continue
     }
 
+    if (dispatchResult.outcome === 'verified') {
+      return dispatchResult.response
+    }
+
     if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
       if (webhooksForPath.length > 1) {
         logger.warn(

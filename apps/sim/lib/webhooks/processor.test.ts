@@ -8,6 +8,8 @@ import {
   envFlagsMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,6 +21,7 @@ const {
   mockProviderHandler,
   mockShouldExecuteInline,
   mockWebhookLookupResult,
+  mockRequiresPendingWebhookVerification,
 } = vi.hoisted(() => ({
   mockGenerateId: vi.fn(),
   mockEnqueue: vi.fn(),
@@ -26,6 +29,7 @@ const {
   mockProviderHandler: { current: {} as Record<string, unknown> },
   mockShouldExecuteInline: vi.fn(),
   mockWebhookLookupResult: { rows: [] as Array<{ webhook: any; workflow: any }> },
+  mockRequiresPendingWebhookVerification: vi.fn().mockReturnValue(false),
 }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
@@ -86,8 +90,10 @@ vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 vi.mock('@/lib/webhooks/pending-verification', () => ({
   getPendingWebhookVerification: vi.fn(),
   matchesPendingWebhookVerificationProbe: vi.fn().mockReturnValue(false),
-  requiresPendingWebhookVerification: vi.fn().mockReturnValue(false),
+  requiresPendingWebhookVerification: mockRequiresPendingWebhookVerification,
 }))
+
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/webhooks/utils', () => ({
   convertSquareBracketsToTwiML: vi.fn((value: string) => value),
@@ -328,5 +334,44 @@ describe('webhook processor execution identity', () => {
       }),
       expect.any(Object)
     )
+  })
+})
+
+describe('webhook processor dispatch when the trigger block is missing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(false)
+    mockRequiresPendingWebhookVerification.mockReturnValue(false)
+    mockProviderHandler.current = {}
+  })
+
+  it('reports outcome "verified" so callers never treat the URL-verification response as droppable', async () => {
+    mockRequiresPendingWebhookVerification.mockReturnValue(true)
+
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ blockId: 'block-not-yet-deployed', provider: 'generic' }),
+      makeWorkflowRecord({}),
+      {},
+      createMockRequest('POST', {}) as NextRequest,
+      { requestId: 'request-verify' }
+    )
+
+    expect(result.outcome).toBe('verified')
+    expect(result.reason).toBe('block-missing')
+    expect(result.response.status).toBe(200)
+  })
+
+  it('reports outcome "ignored" with a 404 when no verification is required', async () => {
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ blockId: 'block-not-yet-deployed', provider: 'generic' }),
+      makeWorkflowRecord({}),
+      {},
+      createMockRequest('POST', {}) as NextRequest,
+      { requestId: 'request-missing' }
+    )
+
+    expect(result.outcome).toBe('ignored')
+    expect(result.reason).toBe('block-missing')
+    expect(result.response.status).toBe(404)
   })
 })

@@ -666,6 +666,49 @@ describe('Webhook Trigger API Route', () => {
       expect(response.status).toBe(402)
     })
 
+    it('returns the pre-deployment verification 200 immediately even when the path is shared', async () => {
+      testData.webhooks.push(
+        {
+          id: 'not-yet-deployed-webhook',
+          provider: 'microsoft-teams',
+          path: 'test-path',
+          isActive: true,
+          providerConfig: {},
+          workflowId: 'test-workflow-id',
+        },
+        {
+          id: 'generic-webhook-b',
+          provider: 'generic',
+          path: 'test-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+        }
+      )
+      testData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+      })
+
+      const { NextResponse } = await import('next/server')
+      dispatchResolvedWebhookTargetMock.mockImplementationOnce(async () => ({
+        outcome: 'verified',
+        reason: 'block-missing',
+        response: NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' }),
+      }))
+
+      const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const response = await POST(req as any, { params })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.message).toBe('Webhook endpoint verified')
+      expect(dispatchResolvedWebhookTargetMock).toHaveBeenCalledOnce()
+    })
+
     it('should authenticate with Bearer token when no custom header is configured', async () => {
       testData.webhooks.push({
         id: 'generic-webhook-id',
