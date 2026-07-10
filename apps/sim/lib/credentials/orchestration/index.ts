@@ -54,6 +54,8 @@ export interface PerformCredentialResult {
   success: boolean
   error?: string
   errorCode?: CredentialOrchestrationErrorCode
+  /** Provider-specific code (e.g. Atlassian `invalid_credentials`) for client message mapping. */
+  providerErrorCode?: string
   workspaceId?: string
   updatedFields?: string[]
 }
@@ -139,7 +141,14 @@ export async function performUpdateCredential(
           return { success: false, error: error.message, errorCode: 'validation' }
         }
         if (error instanceof AtlassianValidationError) {
-          return { success: false, error: error.code, errorCode: 'validation' }
+          // Surface the provider code so the client maps it to the specific
+          // token/domain message (create returns it too).
+          return {
+            success: false,
+            error: error.code,
+            errorCode: 'validation',
+            providerErrorCode: error.code,
+          }
         }
         throw error
       }

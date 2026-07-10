@@ -99,7 +99,13 @@ export const PUT = withRouteHandler(
                 : result.errorCode === 'validation'
                   ? 400
                   : 500
-        return NextResponse.json({ error: result.error }, { status })
+        return NextResponse.json(
+          {
+            error: result.error,
+            ...(result.providerErrorCode ? { code: result.providerErrorCode } : {}),
+          },
+          { status }
+        )
       }
 
       const access = await getCredentialActorContext(id, session.user.id)

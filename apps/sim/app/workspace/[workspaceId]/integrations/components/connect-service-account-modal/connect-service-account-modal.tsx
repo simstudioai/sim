@@ -142,6 +142,8 @@ export function ConnectServiceAccountModal({
         serviceName={serviceName}
         serviceIcon={serviceIcon}
         credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
       />
     )
   }
@@ -153,6 +155,8 @@ export function ConnectServiceAccountModal({
       serviceName={serviceName}
       serviceIcon={serviceIcon}
       credentialId={credentialId}
+      initialDisplayName={credentialDisplayName}
+      initialDescription={credentialDescription}
     />
   )
 }
@@ -165,6 +169,9 @@ interface ProviderModalProps {
   serviceIcon: ComponentType<{ className?: string }>
   /** When set, reconnect (rotate secrets on) this credential in place. */
   credentialId?: string
+  /** Existing name/description, seeded into the fields on reconnect. */
+  initialDisplayName?: string
+  initialDescription?: string
 }
 
 /**
@@ -179,11 +186,13 @@ function GoogleServiceAccountModal({
   serviceName,
   serviceIcon: ServiceIcon,
   credentialId,
+  initialDisplayName,
+  initialDescription,
 }: ProviderModalProps) {
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
-  const [displayName, setDisplayName] = useState('')
-  const [description, setDescription] = useState('')
+  const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
+  const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
 
   const createCredential = useCreateWorkspaceCredential()
@@ -193,10 +202,10 @@ function GoogleServiceAccountModal({
     if (open) return
     setJsonInput('')
     setUploadedFileName(null)
-    setDisplayName('')
-    setDescription('')
+    setDisplayName(initialDisplayName ?? '')
+    setDescription(initialDescription ?? '')
     setError(null)
-  }, [open])
+  }, [open, initialDisplayName, initialDescription])
 
   /**
    * Try to auto-populate display name from the JSON `client_email`. Silent on
@@ -249,7 +258,12 @@ function GoogleServiceAccountModal({
     }
     try {
       if (credentialId) {
-        await updateCredential.mutateAsync({ credentialId, serviceAccountJson: trimmed })
+        await updateCredential.mutateAsync({
+          credentialId,
+          serviceAccountJson: trimmed,
+          displayName: displayName.trim() || undefined,
+          description: description.trim() || undefined,
+        })
       } else {
         await createCredential.mutateAsync({
           workspaceId,
@@ -359,11 +373,13 @@ function AtlassianServiceAccountModal({
   serviceName,
   serviceIcon: ServiceIcon,
   credentialId,
+  initialDisplayName,
+  initialDescription,
 }: ProviderModalProps) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [description, setDescription] = useState('')
+  const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
+  const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
 
   const createCredential = useCreateWorkspaceCredential()
@@ -373,10 +389,10 @@ function AtlassianServiceAccountModal({
     if (open) return
     setApiToken('')
     setDomain('')
-    setDisplayName('')
-    setDescription('')
+    setDisplayName(initialDisplayName ?? '')
+    setDescription(initialDescription ?? '')
     setError(null)
-  }, [open])
+  }, [open, initialDisplayName, initialDescription])
 
   const trimmedToken = apiToken.trim()
   const normalizedDomain = normalizeAtlassianDomain(domain)
@@ -395,6 +411,8 @@ function AtlassianServiceAccountModal({
           credentialId,
           apiToken: trimmedToken,
           domain: normalizedDomain,
+          displayName: displayName.trim() || undefined,
+          description: description.trim() || undefined,
         })
       } else {
         await createCredential.mutateAsync({
