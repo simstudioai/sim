@@ -1328,6 +1328,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
           id: workflowBlocks.id,
           type: workflowBlocks.type,
           locked: workflowBlocks.locked,
+          triggerMode: workflowBlocks.triggerMode,
           data: workflowBlocks.data,
         })
         .from(workflowBlocks)
@@ -1670,6 +1671,7 @@ async function handleEdgesOperationTx(
           id: workflowBlocks.id,
           type: workflowBlocks.type,
           locked: workflowBlocks.locked,
+          triggerMode: workflowBlocks.triggerMode,
           data: workflowBlocks.data,
         })
         .from(workflowBlocks)

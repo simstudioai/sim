@@ -227,17 +227,26 @@ function isDuplicateWorkflowEdge(
 /**
  * Filters a batch of candidate edges down to the ones that are not
  * self-loops and do not duplicate an edge already present (same source,
- * target, and handles). Shared between the client store, the collaborative
- * queueing layer, and the realtime persistence layer.
+ * target, and handles), evaluated incrementally so two duplicate edges
+ * within the same batch are also caught (only the first survives). Shared
+ * between the client store, the collaborative queueing layer, and the
+ * realtime persistence layer.
  */
 export function filterUniqueWorkflowEdges<T extends WorkflowEdgeHandles>(
   edgesToAdd: T[],
   currentEdges: WorkflowEdgeHandles[]
 ): T[] {
-  return edgesToAdd.filter((edge) => {
-    if (edge.source === edge.target) return false
-    return !currentEdges.some((existing) => isDuplicateWorkflowEdge(edge, existing))
-  })
+  const workingEdges: WorkflowEdgeHandles[] = [...currentEdges]
+  const uniqueEdges: T[] = []
+
+  for (const edge of edgesToAdd) {
+    if (edge.source === edge.target) continue
+    if (workingEdges.some((existing) => isDuplicateWorkflowEdge(edge, existing))) continue
+    workingEdges.push(edge)
+    uniqueEdges.push(edge)
+  }
+
+  return uniqueEdges
 }
 
 const WORKFLOW_CONTAINER_BLOCK_TYPES = new Set(['loop', 'parallel'])
