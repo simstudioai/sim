@@ -8,7 +8,9 @@ import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createConnectDraft } from '@/lib/credentials/connect-draft'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InstagramAuthorize')
 
@@ -28,6 +30,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const parsed = await parseRequest(authorizeInstagramContract, request, {})
     if (!parsed.success) return parsed.response
+    const { returnUrl, workspaceId } = parsed.data.query
+
+    if (workspaceId) {
+      const access = await checkWorkspaceAccess(workspaceId, session.user.id)
+      if (!access.canWrite) {
+        return NextResponse.json({ error: 'Workspace write access denied' }, { status: 403 })
+      }
+      await createConnectDraft({
+        userId: session.user.id,
+        workspaceId,
+        providerId: 'instagram',
+      })
+    }
 
     const clientId = env.INSTAGRAM_CLIENT_ID
     if (!clientId) {
@@ -56,7 +71,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       path: INSTAGRAM_STATE_COOKIE_PATH,
     })
 
-    const returnUrl = parsed.data.query.returnUrl
     if (returnUrl && isSameOrigin(returnUrl)) {
       response.cookies.set(INSTAGRAM_RETURN_URL_COOKIE, returnUrl, {
         httpOnly: true,

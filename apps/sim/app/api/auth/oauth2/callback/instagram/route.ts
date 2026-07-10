@@ -11,6 +11,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
@@ -21,12 +22,12 @@ export const dynamic = 'force-dynamic'
 const INSTAGRAM_STATE_COOKIE = 'instagram_oauth_state'
 const INSTAGRAM_RETURN_URL_COOKIE = 'instagram_return_url'
 const INSTAGRAM_STATE_COOKIE_PATH = '/api/auth'
-const INSTAGRAM_GRAPH_VERSION = 'v22.0'
-
 interface ShortLivedTokenPayload {
   access_token?: string
   user_id?: string | number
-  permissions?: string
+  // Meta returns granted permissions as a comma-separated string or an array
+  // depending on the response shape.
+  permissions?: string | string[]
 }
 
 function unwrapShortLivedToken(body: unknown): ShortLivedTokenPayload | null {
@@ -184,7 +185,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const expiresIn = longLivedBody.expires_in ?? 5184000
 
     const profileResponse = await fetch(
-      `https://graph.instagram.com/${INSTAGRAM_GRAPH_VERSION}/me?fields=user_id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`
+      `${INSTAGRAM_GRAPH_BASE}/me?fields=user_id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`
     )
 
     if (!profileResponse.ok) {
@@ -221,14 +222,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    let grantedPermissions: string[] = []
+    if (Array.isArray(shortLived.permissions)) {
+      grantedPermissions = shortLived.permissions.filter(
+        (s): s is string => typeof s === 'string' && s.length > 0
+      )
+    } else if (typeof shortLived.permissions === 'string' && shortLived.permissions.length > 0) {
+      grantedPermissions = shortLived.permissions
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
     const permissions =
-      typeof shortLived.permissions === 'string' && shortLived.permissions.length > 0
-        ? shortLived.permissions
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
+      grantedPermissions.length > 0
+        ? grantedPermissions
         : getCanonicalScopesForProvider('instagram')
-    const scope = permissions.join(',')
+    // Space-joined: the standard OAuth format both credential routes parse
+    // (`/api/auth/oauth/connections` splits on whitespace only).
+    const scope = permissions.join(' ')
 
     const now = new Date()
     const accessTokenExpiresAt = new Date(now.getTime() + expiresIn * 1000)

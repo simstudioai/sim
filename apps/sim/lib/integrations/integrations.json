@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-09",
+  "updatedAt": "2026-07-10",
   "integrations": [
     {
       "type": "onepassword",
@@ -8958,23 +8958,23 @@
         },
         {
           "name": "Publish Image",
-          "description": "Create and publish a single JPEG image post from a public URL"
+          "description": "Create and publish a single JPEG image post from an uploaded file or public HTTPS URL (polls until the container is ready)"
         },
         {
           "name": "Publish Video",
-          "description": "Create and publish a feed video from a public URL (published as a Reel shared to the feed; polls until ready)"
+          "description": "Create and publish a feed video from an uploaded file or public HTTPS URL (published as a Reel shared to the feed; polls until ready)"
         },
         {
           "name": "Publish Reel",
-          "description": "Create and publish a Reel from a public video URL (polls until ready)"
+          "description": "Create and publish a Reel from an uploaded video file or public HTTPS URL (polls until ready)"
         },
         {
           "name": "Publish Story",
-          "description": "Publish an image or video story from a public URL"
+          "description": "Publish an image or video story from an uploaded file or public HTTPS URL"
         },
         {
           "name": "Publish Carousel",
-          "description": "Publish a carousel of up to 10 images/videos from public URLs"
+          "description": "Publish a carousel of up to 10 images/videos from uploaded files or public HTTPS URLs"
         },
         {
           "name": "Get Container Status",

@@ -105,14 +105,14 @@ List active stories on the Instagram professional account
 
 ### `instagram_publish_image`
 
-Create and publish a single JPEG image post from a public URL
+Create and publish a single JPEG image post from an uploaded file or public HTTPS URL (polls until the container is ready)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
-| `imageUrl` | string | Yes | Public HTTPS URL of a JPEG image \(Meta will download it\) |
+| `image` | file | Yes | JPEG image file or public HTTPS URL \(Meta will download it\) |
 | `caption` | string | No | Post caption \(max 2200 characters\) |
 | `altText` | string | No | Accessibility alt text for the image |
 | `isAiGenerated` | boolean | No | Mark the post as AI-generated |
@@ -127,16 +127,16 @@ Create and publish a single JPEG image post from a public URL
 
 ### `instagram_publish_video`
 
-Create and publish a feed video from a public URL (published as a Reel shared to the feed; polls until ready)
+Create and publish a feed video from an uploaded file or public HTTPS URL (published as a Reel shared to the feed; polls until ready)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
-| `videoUrl` | string | Yes | Public HTTPS URL of the video file |
+| `video` | file | Yes | Video file or public HTTPS URL |
 | `caption` | string | No | Post caption |
-| `coverUrl` | string | No | Optional public JPEG cover image URL |
+| `cover` | file | No | Optional JPEG cover image file or public HTTPS URL |
 
 #### Output
 
@@ -148,16 +148,16 @@ Create and publish a feed video from a public URL (published as a Reel shared to
 
 ### `instagram_publish_reel`
 
-Create and publish a Reel from a public video URL (polls until ready)
+Create and publish a Reel from an uploaded video file or public HTTPS URL (polls until ready)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
-| `videoUrl` | string | Yes | Public HTTPS URL of the Reel video |
+| `video` | file | Yes | Reel video file or public HTTPS URL |
 | `caption` | string | No | Reel caption |
-| `coverUrl` | string | No | Optional public JPEG cover image URL |
+| `cover` | file | No | Optional JPEG cover image file or public HTTPS URL |
 | `shareToFeed` | boolean | No | Also share the Reel to the main feed |
 | `thumbOffset` | number | No | Frame offset in milliseconds for the cover thumbnail |
 
@@ -171,15 +171,14 @@ Create and publish a Reel from a public video URL (polls until ready)
 
 ### `instagram_publish_story`
 
-Publish an image or video story from a public URL
+Publish an image or video story from an uploaded file or public HTTPS URL
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
-| `imageUrl` | string | No | Public HTTPS JPEG URL for an image story |
-| `videoUrl` | string | No | Public HTTPS video URL for a video story |
+| `media` | file | Yes | JPEG image or MP4/MOV video file, or a public HTTPS URL |
 
 #### Output
 
@@ -191,14 +190,14 @@ Publish an image or video story from a public URL
 
 ### `instagram_publish_carousel`
 
-Publish a carousel of up to 10 images/videos from public URLs
+Publish a carousel of up to 10 images/videos from uploaded files or public HTTPS URLs
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
-| `mediaUrls` | string | Yes | Comma-separated public media URLs \(max 10\). Prefix video URLs with video: \(e.g. https://.../a.jpg,video:https://.../b.mp4\) |
+| `media` | file[] | Yes | Up to 10 media files, or a comma-separated public URL string \(prefix videos with video:\) |
 | `caption` | string | No | Carousel caption |
 
 #### Output
@@ -347,6 +346,7 @@ Send a private Direct message reply to a commenter (one per commenter)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `messageId` | string | Sent message id |
+| `recipientId` | string | Instagram-scoped recipient id |
 
 ### `instagram_list_conversations`
 
@@ -382,7 +382,7 @@ List recent message ids/content in a conversation (only the last ~20 messages ar
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `conversationId` | string | Conversation id |
-| `messages` | json | Messages \(id, createdTime, fromId, fromUsername, message\) |
+| `messages` | json | Message references \(id, createdTime\). Use Get Message for sender, recipient, and text. |
 
 ### `instagram_get_message`
 
@@ -439,6 +439,7 @@ Get insights metrics for the Instagram professional account
 | `until` | string | No | Unix timestamp or date for range end |
 | `metricType` | string | No | Optional metric_type \(e.g. time_series, total_value\) |
 | `breakdown` | string | No | Optional breakdown dimension |
+| `timeframe` | string | No | Required lookback window for demographic metrics |
 
 #### Output
 
@@ -461,6 +462,6 @@ Get insights metrics for a specific Instagram media object
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `insights` | json | Media insight metrics \(name, period, values\) |
+| `insights` | json | Media insight metrics \(name, period, title, description, values, totalValue\) |
 
 

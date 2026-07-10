@@ -1,7 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
-
-export const INSTAGRAM_GRAPH_VERSION = 'v22.0'
-export const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${INSTAGRAM_GRAPH_VERSION}`
+import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram'
 
 export function bearerHeaders(accessToken: string): Record<string, string> {
   return {
@@ -81,8 +79,9 @@ export async function getContainerStatus(
   }
 }
 
-const POLL_INTERVAL_MS = 8_000
-const POLL_MAX_ATTEMPTS = 40 // ~5 minutes
+// Meta recommends checking once per minute for no more than five minutes.
+const POLL_INTERVAL_MS = 60_000
+const POLL_MAX_ATTEMPTS = 5
 
 export async function waitForContainerReady(
   accessToken: string,
@@ -100,7 +99,9 @@ export async function waitForContainerReady(
       )
     }
 
-    await sleep(POLL_INTERVAL_MS)
+    if (attempt < POLL_MAX_ATTEMPTS - 1) {
+      await sleep(POLL_INTERVAL_MS)
+    }
   }
 
   throw new Error(`Timed out waiting for Instagram container ${containerId} to finish processing`)

@@ -73,7 +73,10 @@ export const instagramGetMediaInsightsTool: ToolConfig<
         insights: items.map((item: Record<string, unknown>) => ({
           name: (item.name as string | undefined) ?? null,
           period: (item.period as string | undefined) ?? null,
+          title: (item.title as string | undefined) ?? null,
+          description: (item.description as string | undefined) ?? null,
           values: Array.isArray(item.values) ? item.values : [],
+          totalValue: item.total_value ?? null,
         })),
       },
     }
@@ -82,7 +85,7 @@ export const instagramGetMediaInsightsTool: ToolConfig<
   outputs: {
     insights: {
       type: 'json',
-      description: 'Media insight metrics (name, period, values)',
+      description: 'Media insight metrics (name, period, title, description, values, totalValue)',
     },
   },
 }

@@ -48,7 +48,7 @@ export const instagramSendTextMessageTool: ToolConfig<
   },
 
   request: {
-    url: () => 'https://graph.instagram.com/v22.0/me?fields=user_id',
+    url: () => graphUrl('/me', { fields: 'user_id' }),
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
   },

@@ -2,7 +2,41 @@ import { InstagramIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { InstagramResponse } from '@/tools/instagram/types'
+
+/**
+ * Resolves a canonical media input to either an uploaded file object or a plain URL string.
+ * `normalizeFileInput` only recognizes file objects (or JSON-serialized file references) — a raw
+ * HTTPS URL typed into the advanced field is passed through as a string.
+ */
+function resolveSingleMediaInput(value: unknown): object | string | undefined {
+  const file = normalizeFileInput(value, { single: true })
+  if (file) return file
+  if (typeof value === 'string' && value.trim() !== '') return value.trim()
+  return undefined
+}
+
+/**
+ * Resolves carousel media to a file array, or a legacy comma-separated URL string.
+ */
+function resolveCarouselMediaInput(value: unknown): object[] | string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      const files = normalizeFileInput(parsed)
+      if (files) return files
+    } catch {
+      // plain URL or comma-separated URLs
+    }
+    return trimmed
+  }
+  const files = normalizeFileInput(value)
+  if (files) return files
+  return undefined
+}
 
 const IG_USER_ID_OPS = [
   'instagram_list_media',
@@ -86,37 +120,140 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       required: true,
     },
 
+    // Publish Image — JPEG upload / file ref / public HTTPS URL
     {
-      id: 'imageUrl',
-      title: 'Image URL',
-      type: 'short-input',
-      placeholder: 'https://example.com/image.jpg',
-      condition: {
-        field: 'operation',
-        value: ['instagram_publish_image', 'instagram_publish_story'],
-      },
+      id: 'imageUpload',
+      title: 'Image',
+      type: 'file-upload',
+      canonicalParamId: 'image',
+      placeholder: 'Upload a JPEG image to publish',
+      acceptedTypes: '.jpg,.jpeg,image/jpeg',
+      condition: { field: 'operation', value: 'instagram_publish_image' },
+      mode: 'basic',
+      multiple: false,
       required: { field: 'operation', value: 'instagram_publish_image' },
     },
     {
-      id: 'videoUrl',
-      title: 'Video URL',
+      id: 'imageRef',
+      title: 'Image',
       type: 'short-input',
-      placeholder: 'https://example.com/video.mp4 (for stories: use image OR video URL, not both)',
+      canonicalParamId: 'image',
+      placeholder: 'Reference files from previous blocks (or paste a public HTTPS JPEG URL)',
+      condition: { field: 'operation', value: 'instagram_publish_image' },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'instagram_publish_image' },
+    },
+
+    // Publish Video / Reel — video + optional cover
+    {
+      id: 'videoUpload',
+      title: 'Video',
+      type: 'file-upload',
+      canonicalParamId: 'video',
+      placeholder: 'Upload a video to publish',
+      acceptedTypes: '.mp4,.mov,video/mp4,video/quicktime',
       condition: {
         field: 'operation',
-        value: ['instagram_publish_video', 'instagram_publish_reel', 'instagram_publish_story'],
+        value: ['instagram_publish_video', 'instagram_publish_reel'],
       },
+      mode: 'basic',
+      multiple: false,
       required: {
         field: 'operation',
         value: ['instagram_publish_video', 'instagram_publish_reel'],
       },
     },
     {
-      id: 'mediaUrls',
-      title: 'Media URLs',
-      type: 'long-input',
-      placeholder: 'Comma-separated public URLs (prefix videos with video:)',
+      id: 'videoRef',
+      title: 'Video',
+      type: 'short-input',
+      canonicalParamId: 'video',
+      placeholder: 'Reference files from previous blocks (or paste a public HTTPS video URL)',
+      condition: {
+        field: 'operation',
+        value: ['instagram_publish_video', 'instagram_publish_reel'],
+      },
+      mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: ['instagram_publish_video', 'instagram_publish_reel'],
+      },
+    },
+    {
+      id: 'coverUpload',
+      title: 'Cover Image',
+      type: 'file-upload',
+      canonicalParamId: 'cover',
+      placeholder: 'Upload a JPEG cover image',
+      acceptedTypes: '.jpg,.jpeg,image/jpeg',
+      condition: {
+        field: 'operation',
+        value: ['instagram_publish_video', 'instagram_publish_reel'],
+      },
+      mode: 'basic',
+      multiple: false,
+      required: false,
+    },
+    {
+      id: 'coverRef',
+      title: 'Cover Image',
+      type: 'short-input',
+      canonicalParamId: 'cover',
+      placeholder: 'Reference files from previous blocks (or paste a public HTTPS JPEG URL)',
+      condition: {
+        field: 'operation',
+        value: ['instagram_publish_video', 'instagram_publish_reel'],
+      },
+      mode: 'advanced',
+      required: false,
+    },
+
+    // Publish Story — single image or video
+    {
+      id: 'storyMediaUpload',
+      title: 'Media',
+      type: 'file-upload',
+      canonicalParamId: 'media',
+      placeholder: 'Upload a JPEG image or MP4/MOV video for the story',
+      acceptedTypes: '.jpg,.jpeg,.mp4,.mov,image/jpeg,video/mp4,video/quicktime',
+      condition: { field: 'operation', value: 'instagram_publish_story' },
+      mode: 'basic',
+      multiple: false,
+      required: { field: 'operation', value: 'instagram_publish_story' },
+    },
+    {
+      id: 'storyMediaRef',
+      title: 'Media',
+      type: 'short-input',
+      canonicalParamId: 'media',
+      placeholder: 'Reference files from previous blocks (or paste a public HTTPS URL)',
+      condition: { field: 'operation', value: 'instagram_publish_story' },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'instagram_publish_story' },
+    },
+
+    // Publish Carousel — up to 10 items
+    {
+      id: 'carouselMediaUpload',
+      title: 'Media',
+      type: 'file-upload',
+      canonicalParamId: 'carouselMedia',
+      placeholder: 'Upload up to 10 images/videos to publish',
+      acceptedTypes: '.jpg,.jpeg,.mp4,.mov,image/jpeg,video/mp4,video/quicktime',
       condition: { field: 'operation', value: 'instagram_publish_carousel' },
+      mode: 'basic',
+      multiple: true,
+      required: { field: 'operation', value: 'instagram_publish_carousel' },
+    },
+    {
+      id: 'carouselMediaRef',
+      title: 'Media',
+      type: 'long-input',
+      canonicalParamId: 'carouselMedia',
+      placeholder:
+        'Reference files from previous blocks, or paste comma-separated public HTTPS URLs (prefix videos with video:)',
+      condition: { field: 'operation', value: 'instagram_publish_carousel' },
+      mode: 'advanced',
       required: { field: 'operation', value: 'instagram_publish_carousel' },
       wandConfig: {
         enabled: true,
@@ -131,6 +268,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
         placeholder: 'Describe the carousel media URLs to include...',
       },
     },
+
     {
       id: 'caption',
       title: 'Caption',
@@ -165,17 +303,6 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       value: () => 'false',
       mode: 'advanced',
       condition: { field: 'operation', value: 'instagram_publish_image' },
-    },
-    {
-      id: 'coverUrl',
-      title: 'Cover URL',
-      type: 'short-input',
-      placeholder: 'https://example.com/cover.jpg',
-      mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['instagram_publish_video', 'instagram_publish_reel'],
-      },
     },
     {
       id: 'shareToFeed',
@@ -340,7 +467,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       wandConfig: {
         enabled: true,
         prompt: `Generate a comma-separated list of Instagram Insights metric names based on the user's request.
-Account insights examples: reach,views,accounts_engaged,profile_views,follower_count,website_clicks
+Account insights examples: reach,views,accounts_engaged,likes,comments,saves,shares,total_interactions
 Media insights examples: views,reach,likes,comments,saved,shares,total_interactions
 Use only valid Instagram Graph metric names. Prefer the smallest useful set.
 
@@ -354,10 +481,7 @@ Return ONLY the comma-separated metric names - no explanations, no extra text.`,
       type: 'dropdown',
       options: [
         { label: 'Day', id: 'day' },
-        { label: 'Week', id: 'week' },
-        { label: '28 Days', id: 'days_28' },
         { label: 'Lifetime', id: 'lifetime' },
-        { label: 'Total Over Range', id: 'total_over_range' },
       ],
       value: () => 'day',
       condition: { field: 'operation', value: 'instagram_get_account_insights' },
@@ -422,6 +546,21 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'instagram_get_account_insights' },
     },
+    {
+      id: 'timeframe',
+      title: 'Demographic Timeframe',
+      type: 'dropdown',
+      options: [
+        // Empty default keeps timeframe out of the request; it is only valid
+        // for demographic metrics (follower_demographics, engaged_audience_demographics).
+        { label: 'Default', id: '' },
+        { label: 'This Week', id: 'this_week' },
+        { label: 'This Month', id: 'this_month' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'instagram_get_account_insights' },
+    },
 
     {
       id: 'limit',
@@ -483,14 +622,51 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        const { oauthCredential, ...rest } = params
+        const { oauthCredential, image, video, cover, media, carouselMedia, ...rest } = params
         const result: Record<string, unknown> = {
           credential: oauthCredential,
+        }
+
+        const operation = params.operation as string | undefined
+
+        if (operation === 'instagram_publish_image') {
+          const resolved = resolveSingleMediaInput(image)
+          if (resolved) result.image = resolved
+        } else if (
+          operation === 'instagram_publish_video' ||
+          operation === 'instagram_publish_reel'
+        ) {
+          const resolvedVideo = resolveSingleMediaInput(video)
+          if (resolvedVideo) result.video = resolvedVideo
+          const resolvedCover = resolveSingleMediaInput(cover)
+          if (resolvedCover) result.cover = resolvedCover
+        } else if (operation === 'instagram_publish_story') {
+          const resolved = resolveSingleMediaInput(media)
+          if (resolved) result.media = resolved
+        } else if (operation === 'instagram_publish_carousel') {
+          // Distinct UI canonical (carouselMedia) so it doesn't collide with story's media pair
+          const resolved = resolveCarouselMediaInput(carouselMedia)
+          if (resolved) result.media = resolved
         }
 
         for (const [key, value] of Object.entries(rest)) {
           if (value === undefined || value === null || value === '') continue
           if (key === 'operation' || key === 'credential' || key === 'manualCredential') continue
+          // Skip raw upload/ref subBlock ids — only canonical media params above
+          if (
+            key === 'imageUpload' ||
+            key === 'imageRef' ||
+            key === 'videoUpload' ||
+            key === 'videoRef' ||
+            key === 'coverUpload' ||
+            key === 'coverRef' ||
+            key === 'storyMediaUpload' ||
+            key === 'storyMediaRef' ||
+            key === 'carouselMediaUpload' ||
+            key === 'carouselMediaRef'
+          ) {
+            continue
+          }
 
           if (key === 'limit' || key === 'thumbOffset') {
             result[key] = Number(value)
@@ -513,13 +689,27 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Instagram OAuth credential' },
-    imageUrl: { type: 'string', description: 'Public HTTPS image URL' },
-    videoUrl: { type: 'string', description: 'Public HTTPS video URL' },
-    mediaUrls: { type: 'string', description: 'Comma-separated media URLs for carousel' },
+    image: { type: 'json', description: 'JPEG image file or public HTTPS URL for Publish Image' },
+    video: {
+      type: 'json',
+      description: 'Video file or public HTTPS URL for Publish Video / Publish Reel',
+    },
+    cover: {
+      type: 'json',
+      description: 'Optional JPEG cover image file or public HTTPS URL',
+    },
+    media: {
+      type: 'json',
+      description: 'Story media: single JPEG image or MP4/MOV video file, or a public HTTPS URL',
+    },
+    carouselMedia: {
+      type: 'json',
+      description:
+        'Carousel media: up to 10 files, or comma-separated public HTTPS URLs (prefix videos with video:)',
+    },
     caption: { type: 'string', description: 'Post caption' },
     altText: { type: 'string', description: 'Image accessibility alt text' },
     isAiGenerated: { type: 'boolean', description: 'Whether the image is AI-generated' },
-    coverUrl: { type: 'string', description: 'Cover image URL for video or Reel' },
     shareToFeed: { type: 'boolean', description: 'Also share Reel to the main feed' },
     thumbOffset: {
       type: 'number',
@@ -540,6 +730,10 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     until: { type: 'string', description: 'Account insights range end' },
     metricType: { type: 'string', description: 'Account insights metric_type' },
     breakdown: { type: 'string', description: 'Account insights breakdown dimension' },
+    timeframe: {
+      type: 'string',
+      description: 'Lookback window required for demographic insight metrics',
+    },
     limit: { type: 'number', description: 'Maximum number of results' },
     after: { type: 'string', description: 'Pagination cursor' },
     igUserId: { type: 'string', description: 'Instagram professional account user ID' },
@@ -595,7 +789,8 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     conversationId: { type: 'string', description: 'Conversation id' },
     messages: {
       type: 'json',
-      description: 'Messages (id, createdTime, fromId, fromUsername, message)',
+      description:
+        'Message references (id, createdTime); use Get Message for sender, recipient, and text',
     },
     createdTime: { type: 'string', description: 'Message created timestamp' },
     fromId: { type: 'string', description: 'Sender Instagram-scoped id' },
@@ -640,7 +835,7 @@ export const InstagramBlockMeta = {
       icon: InstagramIcon,
       title: 'Instagram DM reply assistant',
       prompt:
-        'Build a workflow that lists Instagram Direct conversations, fetches unread messages, drafts helpful replies with an agent, and sends text messages back to the recipient while logging the thread to a support table.',
+        'Build a workflow that lists Instagram Direct conversations, fetches recent message references and details, drafts helpful replies with an agent, and sends text messages back to the recipient while logging the thread to a support table.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'support',
       tags: ['messaging', 'support', 'automation'],
@@ -661,7 +856,7 @@ export const InstagramBlockMeta = {
       description:
         'Publish a JPEG image to Instagram with an optional caption and accessibility alt text.',
       content:
-        '# Publish Instagram Image\n\nPublish a single image post to the connected Instagram professional account.\n\n## Steps\n1. Confirm a public HTTPS JPEG URL for the image and draft a caption within Instagram length limits.\n2. Optionally set alt text for accessibility and mark the post as AI-generated when applicable.\n3. Run Publish Image, then optionally Get Container Status if you need to confirm publishing finished.\n\n## Output\nThe published media ID, container ID, status, and the final caption used.',
+        '# Publish Instagram Image\n\nPublish a single image post to the connected Instagram professional account.\n\n## Steps\n1. Upload a JPEG image (or reference a file from a previous block / paste a public HTTPS JPEG URL) and draft a caption within Instagram length limits.\n2. Optionally set alt text for accessibility and mark the post as AI-generated when applicable.\n3. Run Publish Image, then optionally Get Container Status if you need to confirm publishing finished.\n\n## Output\nThe published media ID, container ID, status, and the final caption used.',
     },
     {
       name: 'moderate-instagram-comments',
@@ -681,7 +876,7 @@ export const InstagramBlockMeta = {
       description:
         'Pull account-level or media-level Instagram insights for reporting and analysis.',
       content:
-        '# Fetch Instagram Insights\n\nRetrieve performance metrics for the account or a specific post.\n\n## Steps\n1. For account trends, run Get Account Insights with comma-separated metrics and a period such as day, week, or days_28.\n2. For a specific post, run Get Media Insights with the media ID and metrics like views, reach, likes, comments, saved, or shares.\n3. Summarize the returned insight values for the reporting window.\n\n## Output\nThe insights JSON plus a short plain-language summary of the key metrics.',
+        '# Fetch Instagram Insights\n\nRetrieve performance metrics for the account or a specific post.\n\n## Steps\n1. For account interaction trends, run Get Account Insights with comma-separated metrics and the day period. Use lifetime plus a timeframe for demographic metrics.\n2. For a specific post, run Get Media Insights with the media ID and metrics like views, reach, likes, comments, saved, or shares.\n3. Summarize the returned insight values for the reporting window.\n\n## Output\nThe insights JSON plus a short plain-language summary of the key metrics.',
     },
   ],
 } as const satisfies BlockMeta

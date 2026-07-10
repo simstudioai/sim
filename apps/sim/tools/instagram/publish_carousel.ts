@@ -2,27 +2,7 @@ import type {
   InstagramPublishCarouselParams,
   InstagramPublishResponse,
 } from '@/tools/instagram/types'
-import {
-  createMediaContainer,
-  parseCommaSeparated,
-  publishMediaContainer,
-  resolveIgUserId,
-  waitForContainerReady,
-} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
-
-/**
- * Parse media URL entries. Prefix with `video:` for video items, otherwise treated as images.
- * Example: `https://cdn.example.com/a.jpg,video:https://cdn.example.com/b.mp4`
- */
-function parseCarouselItems(mediaUrls: string): Array<{ type: 'image' | 'video'; url: string }> {
-  return parseCommaSeparated(mediaUrls).map((entry) => {
-    if (entry.toLowerCase().startsWith('video:')) {
-      return { type: 'video' as const, url: entry.slice('video:'.length).trim() }
-    }
-    return { type: 'image' as const, url: entry }
-  })
-}
 
 export const instagramPublishCarouselTool: ToolConfig<
   InstagramPublishCarouselParams,
@@ -30,7 +10,8 @@ export const instagramPublishCarouselTool: ToolConfig<
 > = {
   id: 'instagram_publish_carousel',
   name: 'Instagram Publish Carousel',
-  description: 'Publish a carousel of up to 10 images/videos from public URLs',
+  description:
+    'Publish a carousel of up to 10 images/videos from uploaded files or public HTTPS URLs',
   version: '1.0.0',
 
   oauth: {
@@ -51,12 +32,12 @@ export const instagramPublishCarouselTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Instagram professional account user id (defaults to /me)',
     },
-    mediaUrls: {
-      type: 'string',
+    media: {
+      type: 'file[]',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated public media URLs (max 10). Prefix video URLs with video: (e.g. https://.../a.jpg,video:https://.../b.mp4)',
+        'Up to 10 media files, or a comma-separated public URL string (prefix videos with video:)',
     },
     caption: {
       type: 'string',
@@ -67,90 +48,31 @@ export const instagramPublishCarouselTool: ToolConfig<
   },
 
   request: {
-    url: () => 'https://graph.instagram.com/v22.0/me?fields=user_id',
-    method: 'GET',
-    headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
-  },
-
-  postProcess: async (result, params) => {
-    if (!result.success) {
-      return {
-        success: false,
-        output: { containerId: null, mediaId: null, statusCode: null },
-        error: result.error || 'Failed to resolve Instagram account',
-      }
-    }
-
-    const items = parseCarouselItems(params.mediaUrls)
-    if (items.length === 0) {
-      return {
-        success: false,
-        output: { containerId: null, mediaId: null, statusCode: null },
-        error: 'Provide at least one media URL',
-      }
-    }
-    if (items.length > 10) {
-      return {
-        success: false,
-        output: { containerId: null, mediaId: null, statusCode: null },
-        error: 'Carousels support a maximum of 10 items',
-      }
-    }
-
-    try {
-      const igUserId = await resolveIgUserId(params.accessToken, params.igUserId)
-      const childIds: string[] = []
-
-      for (const item of items) {
-        const childBody: Record<string, unknown> = {
-          is_carousel_item: true,
-        }
-        if (item.type === 'video') {
-          childBody.media_type = 'VIDEO'
-          childBody.video_url = item.url
-        } else {
-          childBody.image_url = item.url
-        }
-
-        const childId = await createMediaContainer(params.accessToken, igUserId, childBody)
-        await waitForContainerReady(params.accessToken, childId)
-        childIds.push(childId)
-      }
-
-      const parentBody: Record<string, unknown> = {
-        media_type: 'CAROUSEL',
-        children: childIds.join(','),
-      }
-      if (params.caption) parentBody.caption = params.caption
-
-      const containerId = await createMediaContainer(params.accessToken, igUserId, parentBody)
-      const { statusCode } = await waitForContainerReady(params.accessToken, containerId)
-      const mediaId = await publishMediaContainer(params.accessToken, igUserId, containerId)
-
-      return {
-        success: true,
-        output: { containerId, mediaId, statusCode },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        output: { containerId: null, mediaId: null, statusCode: null },
-        error: error instanceof Error ? error.message : 'Failed to publish carousel',
-      }
-    }
+    url: '/api/tools/instagram/publish-carousel',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params: InstagramPublishCarouselParams) => ({
+      accessToken: params.accessToken,
+      igUserId: params.igUserId,
+      media: params.media,
+      caption: params.caption,
+    }),
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
+    const data = await response.json()
+    if (!response.ok || data.success === false) {
       return {
         success: false,
-        output: { containerId: null, mediaId: null, statusCode: null },
-        error: `Failed to resolve Instagram account: ${response.statusText}`,
+        output: data.output || { containerId: null, mediaId: null, statusCode: null },
+        error: data.error || 'Failed to publish carousel',
       }
     }
     return {
       success: true,
-      output: { containerId: null, mediaId: null, statusCode: null },
+      output: data.output || { containerId: null, mediaId: null, statusCode: null },
     }
   },
 

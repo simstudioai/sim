@@ -1,10 +1,4 @@
 import type { InstagramPublishResponse, InstagramPublishVideoParams } from '@/tools/instagram/types'
-import {
-  createMediaContainer,
-  publishMediaContainer,
-  resolveIgUserId,
-  waitForContainerReady,
-} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramPublishVideoTool: ToolConfig<
@@ -14,7 +8,7 @@ export const instagramPublishVideoTool: ToolConfig<
   id: 'instagram_publish_video',
   name: 'Instagram Publish Video',
   description:
-    'Create and publish a feed video from a public URL (published as a Reel shared to the feed; polls until ready)',
+    'Create and publish a feed video from an uploaded file or public HTTPS URL (published as a Reel shared to the feed; polls until ready)',
   version: '1.0.0',
 
   oauth: {
@@ -35,11 +29,11 @@ export const instagramPublishVideoTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Instagram professional account user id (defaults to /me)',
     },
-    videoUrl: {
-      type: 'string',
+    video: {
+      type: 'file',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Public HTTPS URL of the video file',
+      description: 'Video file or public HTTPS URL',
     },
     caption: {
       type: 'string',
@@ -47,69 +41,41 @@ export const instagramPublishVideoTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Post caption',
     },
-    coverUrl: {
-      type: 'string',
+    cover: {
+      type: 'file',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional public JPEG cover image URL',
+      description: 'Optional JPEG cover image file or public HTTPS URL',
     },
   },
 
   request: {
-    url: () => 'https://graph.instagram.com/v22.0/me?fields=user_id',
-    method: 'GET',
-    headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
-  },
-
-  postProcess: async (result, params) => {
-    if (!result.success) {
-      return {
-        success: false,
-        output: { containerId: null, mediaId: null, statusCode: null },
-        error: result.error || 'Failed to resolve Instagram account',
-      }
-    }
-
-    try {
-      const igUserId = await resolveIgUserId(params.accessToken, params.igUserId)
-      // Meta deprecated media_type=VIDEO for standalone posts (Nov 2023);
-      // feed videos must be published as REELS shared to the feed.
-      const body: Record<string, unknown> = {
-        media_type: 'REELS',
-        video_url: params.videoUrl,
-        share_to_feed: true,
-      }
-      if (params.caption) body.caption = params.caption
-      if (params.coverUrl) body.cover_url = params.coverUrl
-
-      const containerId = await createMediaContainer(params.accessToken, igUserId, body)
-      const { statusCode } = await waitForContainerReady(params.accessToken, containerId)
-      const mediaId = await publishMediaContainer(params.accessToken, igUserId, containerId)
-
-      return {
-        success: true,
-        output: { containerId, mediaId, statusCode },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        output: { containerId: null, mediaId: null, statusCode: null },
-        error: error instanceof Error ? error.message : 'Failed to publish video',
-      }
-    }
+    url: '/api/tools/instagram/publish-video',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params: InstagramPublishVideoParams) => ({
+      accessToken: params.accessToken,
+      igUserId: params.igUserId,
+      video: params.video,
+      cover: params.cover,
+      caption: params.caption,
+    }),
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
+    const data = await response.json()
+    if (!response.ok || data.success === false) {
       return {
         success: false,
-        output: { containerId: null, mediaId: null, statusCode: null },
-        error: `Failed to resolve Instagram account: ${response.statusText}`,
+        output: data.output || { containerId: null, mediaId: null, statusCode: null },
+        error: data.error || 'Failed to publish video',
       }
     }
     return {
       success: true,
-      output: { containerId: null, mediaId: null, statusCode: null },
+      output: data.output || { containerId: null, mediaId: null, statusCode: null },
     }
   },
 

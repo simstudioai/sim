@@ -193,6 +193,7 @@ export const trelloCallbackContract = defineRouteContract({
 
 export const instagramAuthorizeQuerySchema = z.object({
   returnUrl: z.string().optional(),
+  workspaceId: workspaceIdSchema.optional(),
 })
 
 export const authorizeInstagramContract = defineRouteContract({

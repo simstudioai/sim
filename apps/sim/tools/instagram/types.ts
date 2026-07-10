@@ -78,35 +78,37 @@ export interface InstagramListStoriesResponse extends ToolResponse {
   }
 }
 
+/** Uploaded UserFile object, or a public HTTPS URL string (advanced paste / legacy). */
+export type InstagramMediaInput = object | string
+
 export interface InstagramPublishImageParams extends InstagramAccessParams {
-  imageUrl: string
+  image: InstagramMediaInput
   caption?: string
   altText?: string
   isAiGenerated?: boolean
 }
 
 export interface InstagramPublishVideoParams extends InstagramAccessParams {
-  videoUrl: string
+  video: InstagramMediaInput
   caption?: string
-  coverUrl?: string
+  cover?: InstagramMediaInput
 }
 
 export interface InstagramPublishReelParams extends InstagramAccessParams {
-  videoUrl: string
+  video: InstagramMediaInput
   caption?: string
-  coverUrl?: string
+  cover?: InstagramMediaInput
   shareToFeed?: boolean
   thumbOffset?: number
 }
 
 export interface InstagramPublishStoryParams extends InstagramAccessParams {
-  imageUrl?: string
-  videoUrl?: string
+  media: InstagramMediaInput
 }
 
 export interface InstagramPublishCarouselParams extends InstagramAccessParams {
-  /** Comma-separated public image/video URLs (max 10). Prefix video URLs with video: */
-  mediaUrls: string
+  /** File array, single file, or comma-separated public URLs (prefix videos with video:). */
+  media: InstagramMediaInput | InstagramMediaInput[]
   caption?: string
 }
 
@@ -219,6 +221,7 @@ export interface InstagramPrivateReplyParams extends InstagramAccessParams {
 export interface InstagramPrivateReplyResponse extends ToolResponse {
   output: {
     messageId: string | null
+    recipientId: string | null
   }
 }
 
@@ -248,9 +251,6 @@ export interface InstagramGetConversationMessagesResponse extends ToolResponse {
     messages: Array<{
       id: string
       createdTime: string | null
-      fromId: string | null
-      fromUsername: string | null
-      message: string | null
     }>
   }
 }
@@ -290,6 +290,7 @@ export interface InstagramGetAccountInsightsParams extends InstagramAccessParams
   until?: string
   metricType?: string
   breakdown?: string
+  timeframe?: string
 }
 
 export interface InstagramGetAccountInsightsResponse extends ToolResponse {
@@ -316,7 +317,10 @@ export interface InstagramGetMediaInsightsResponse extends ToolResponse {
     insights: Array<{
       name: string | null
       period: string | null
+      title: string | null
+      description: string | null
       values: unknown[]
+      totalValue: unknown
     }>
   }
 }

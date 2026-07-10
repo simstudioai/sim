@@ -74,6 +74,12 @@ export const instagramGetAccountInsightsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Optional breakdown dimension',
     },
+    timeframe: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Required lookback window for demographic metrics',
+    },
   },
 
   request: {
@@ -86,6 +92,7 @@ export const instagramGetAccountInsightsTool: ToolConfig<
         until: params.until?.trim() || undefined,
         metric_type: params.metricType?.trim() || undefined,
         breakdown: params.breakdown?.trim() || undefined,
+        timeframe: params.timeframe?.trim() || undefined,
       })
     },
     method: 'GET',

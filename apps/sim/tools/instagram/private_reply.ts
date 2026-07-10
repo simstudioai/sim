@@ -47,7 +47,7 @@ export const instagramPrivateReplyTool: ToolConfig<
   },
 
   request: {
-    url: () => 'https://graph.instagram.com/v22.0/me?fields=user_id',
+    url: () => graphUrl('/me', { fields: 'user_id' }),
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
   },
@@ -56,7 +56,7 @@ export const instagramPrivateReplyTool: ToolConfig<
     if (!result.success) {
       return {
         success: false,
-        output: { messageId: null },
+        output: { messageId: null, recipientId: null },
         error: result.error || 'Failed to resolve Instagram account',
       }
     }
@@ -75,20 +75,23 @@ export const instagramPrivateReplyTool: ToolConfig<
       if (!response.ok) {
         return {
           success: false,
-          output: { messageId: null },
+          output: { messageId: null, recipientId: null },
           error: await readGraphError(response),
         }
       }
 
-      const data = (await response.json()) as { message_id?: string }
+      const data = (await response.json()) as { message_id?: string; recipient_id?: string }
       return {
         success: true,
-        output: { messageId: data.message_id ?? null },
+        output: {
+          messageId: data.message_id ?? null,
+          recipientId: data.recipient_id ?? null,
+        },
       }
     } catch (error) {
       return {
         success: false,
-        output: { messageId: null },
+        output: { messageId: null, recipientId: null },
         error: error instanceof Error ? error.message : 'Failed to send private reply',
       }
     }
@@ -98,14 +101,19 @@ export const instagramPrivateReplyTool: ToolConfig<
     if (!response.ok) {
       return {
         success: false,
-        output: { messageId: null },
+        output: { messageId: null, recipientId: null },
         error: `Failed to resolve Instagram account: ${response.statusText}`,
       }
     }
-    return { success: true, output: { messageId: null } }
+    return { success: true, output: { messageId: null, recipientId: null } }
   },
 
   outputs: {
     messageId: { type: 'string', description: 'Sent message id', optional: true },
+    recipientId: {
+      type: 'string',
+      description: 'Instagram-scoped recipient id',
+      optional: true,
+    },
   },
 }

@@ -38,7 +38,7 @@ export const instagramGetConversationMessagesTool: ToolConfig<
   request: {
     url: (params) =>
       graphUrl(`/${params.conversationId.trim()}`, {
-        fields: 'messages{id,created_time,from,to,message}',
+        fields: 'messages',
       }),
     method: 'GET',
     headers: (params) => bearerHeaders(params.accessToken),
@@ -63,16 +63,10 @@ export const instagramGetConversationMessagesTool: ToolConfig<
       success: true,
       output: {
         conversationId: params?.conversationId ?? data.id ?? '',
-        messages: items.map((item: Record<string, unknown>) => {
-          const from = item.from as { id?: string; username?: string } | undefined
-          return {
-            id: String(item.id ?? ''),
-            createdTime: (item.created_time as string | undefined) ?? null,
-            fromId: from?.id ?? null,
-            fromUsername: from?.username ?? null,
-            message: (item.message as string | undefined) ?? null,
-          }
-        }),
+        messages: items.map((item: Record<string, unknown>) => ({
+          id: String(item.id ?? ''),
+          createdTime: (item.created_time as string | undefined) ?? null,
+        })),
       },
     }
   },
@@ -81,7 +75,8 @@ export const instagramGetConversationMessagesTool: ToolConfig<
     conversationId: { type: 'string', description: 'Conversation id' },
     messages: {
       type: 'json',
-      description: 'Messages (id, createdTime, fromId, fromUsername, message)',
+      description:
+        'Message references (id, createdTime). Use Get Message for sender, recipient, and text.',
     },
   },
 }
