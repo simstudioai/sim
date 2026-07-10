@@ -255,6 +255,15 @@ export async function performCreateJob(
       { groups: { workspace: params.workspaceId } }
     )
 
+    if (schedule?.workflowId) {
+      captureServerEvent(
+        params.userId,
+        'workflow_schedule_created',
+        { workflow_id: schedule.workflowId, workspace_id: params.workspaceId },
+        { groups: { workspace: params.workspaceId } }
+      )
+    }
+
     return { success: true, schedule, humanReadable }
   } catch (error) {
     logger.error('Failed to create job', { error: toError(error).message })
@@ -502,6 +511,15 @@ export async function performDeleteJob(
     { workspace_id: params.workspaceId },
     { groups: { workspace: params.workspaceId } }
   )
+
+  if (job.workflowId) {
+    captureServerEvent(
+      params.userId,
+      'workflow_schedule_deleted',
+      { workflow_id: job.workflowId, workspace_id: params.workspaceId },
+      { groups: { workspace: params.workspaceId } }
+    )
+  }
 
   return { success: true, schedule: job }
 }

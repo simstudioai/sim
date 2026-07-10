@@ -11,6 +11,7 @@ import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
 import { litellmProvider } from '@/providers/litellm'
+import { metaProvider } from '@/providers/meta'
 import { mistralProvider } from '@/providers/mistral'
 import { ollamaProvider } from '@/providers/ollama'
 import { ollamaCloudProvider } from '@/providers/ollama-cloud'
@@ -36,6 +37,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   cerebras: cerebrasProvider,
   groq: groqProvider,
   sakana: sakanaProvider,
+  meta: metaProvider,
   vllm: vllmProvider,
   litellm: litellmProvider,
   mistral: mistralProvider,

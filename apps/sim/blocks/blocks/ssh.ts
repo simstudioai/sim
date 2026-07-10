@@ -1,13 +1,5 @@
-import {
-  ClipboardList,
-  Download,
-  File,
-  Search,
-  Server,
-  TerminalWindow,
-  Wrench,
-} from '@sim/emcn/icons'
-import { SshIcon } from '@/components/icons'
+import { ClipboardList, Download, File, Search, Server, Wrench } from '@sim/emcn/icons'
+import { SshIcon, SshTerminalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SSHResponse } from '@/tools/ssh/types'
@@ -616,7 +608,7 @@ export const SSHBlockMeta = {
   url: 'https://www.openssh.com',
   templates: [
     {
-      icon: TerminalWindow,
+      icon: SshTerminalIcon,
       title: 'Scheduled server health check to Slack',
       prompt:
         'Every morning, SSH into the production server and run a health check command (uptime, load average, and free memory). Summarize stdout with an agent and post the result to the #ops Slack channel so the team starts the day knowing the box is healthy.',

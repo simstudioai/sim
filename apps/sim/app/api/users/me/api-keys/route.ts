@@ -11,6 +11,7 @@ import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('ApiKeysAPI')
 
@@ -120,6 +121,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceName: name,
       description: `Created personal API key: ${name}`,
       request,
+    })
+
+    captureServerEvent(userId, 'api_key_created', {
+      key_name: name,
+      scope: 'personal',
     })
 
     return NextResponse.json({

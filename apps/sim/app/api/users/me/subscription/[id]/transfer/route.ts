@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -13,6 +14,7 @@ import {
   hasPaidSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
@@ -131,6 +133,26 @@ export const POST = withRouteHandler(
           subscriptionId,
           organizationId,
           userId,
+        })
+
+        recordAudit({
+          actorId: userId,
+          action: AuditAction.SUBSCRIPTION_TRANSFERRED,
+          resourceType: AuditResourceType.SUBSCRIPTION,
+          resourceId: subscriptionId,
+          description: `Subscription transferred to organization ${organizationId}`,
+          metadata: {
+            subscriptionId,
+            organizationId,
+            fromEntity: 'user',
+            toEntity: 'organization',
+          },
+          request,
+        })
+        captureServerEvent(userId, 'subscription_transferred', {
+          subscription_id: subscriptionId,
+          from_entity: 'user',
+          to_entity: 'organization',
         })
       }
 

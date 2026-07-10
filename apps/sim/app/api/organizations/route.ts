@@ -23,6 +23,7 @@ import {
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   attachOwnedWorkspacesToOrganization,
   WorkspaceOrganizationMembershipConflictError,
@@ -256,6 +257,15 @@ export const POST = withRouteHandler(async (request: Request) => {
         metadata: { organizationSlug },
         request,
       })
+      captureServerEvent(
+        user.id,
+        'organization_created',
+        {
+          organization_id: organizationId,
+          ...(organizationName ? { name: organizationName } : {}),
+        },
+        { groups: { organization: organizationId } }
+      )
     }
 
     return NextResponse.json({
