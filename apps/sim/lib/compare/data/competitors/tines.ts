@@ -331,6 +331,32 @@ export const tinesProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Tines has no feature that lets a builder publish a Story as its own named, iconed entry in a shared block toolbar. The closest features are (1) Private/Public Templates, which are scoped to configuring a single action (e.g. a pre-built HTTP Request) with parameterized 'Action inputs' that hide that one action's underlying config, and can be shared team-wide or org-wide; and (2) Send to Story, one generic action type used to call any sub-story via a picker — the caller selects the target sub-story and enters its defined parameters, without needing view/edit access to the sub-story's own actions. Neither meets the bar: templates wrap one action, not a multi-step Story, and Send to Story is a single generic action a builder configures per call site, not a distinct block appearing in the toolbar for each published Story.",
+        detail:
+          "Public docs describe template edits as letting a builder 'optionally replace storyboard actions that use the template in one step,' confirming propagation is a manual, opt-in action rather than always running the source's latest deployed version automatically. Send to Story does genuinely hide a sub-story's internals from a caller without permission on it ('will not be able to view or modify the contents of the story unless you have the relevant permissions'), but it is one generic action configured with a target-story picker each time, not a separate published block per Story.",
+        shortValue:
+          'No: templates are single-action; Send to Story is a generic picker, not a block',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/docs/actions/templates/private-templates/',
+            label: 'Private Templates | Docs | Tines',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.tines.com/docs/actions/templates/templates/',
+            label: 'Public Templates | Docs | Tines',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://www.tines.com/docs/stories/send-to-story/',
+            label: 'Send to Story | Docs | Tines',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -915,24 +941,24 @@ export const tinesProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Each workflow run ("Story run") gets a unique ID and a full, action-by-action event chain viewable in the UI or API. A Tenant Health dashboard (self-hosted) and Story/Action status views surface errors, run volume, and worker capacity, but this isn\'t OpenTelemetry-style distributed tracing by default; a separate community guide shows customers wiring up their own OpenTelemetry dashboard',
+          'Each workflow run ("Story run") gets a unique ID and a full, action-by-action event chain viewable in the UI or API. A Tenant Health dashboard (self-hosted) and Story/Action status views surface errors, run volume, and worker capacity, but this isn\'t OpenTelemetry-style distributed tracing by default; Tines\' own documentation includes an official guide showing customers how to wire up their own OpenTelemetry dashboard',
         shortValue: 'Per-run GUID trace; no built-in OpenTelemetry dashboards',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.tines.com/docs/stories/story-runs/',
             label: 'Story runs docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://www.tines.com/docs/self-hosted/monitoring-tines/tenant-health-dashboard/',
             label: 'Tenant health dashboard docs',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://explained.tines.com/en/articles/14120923-opentelemetry-designing-a-dashboard',
-            label: 'OpenTelemetry: Designing a Dashboard',
-            asOf: '2026-07-02',
+            label: 'OpenTelemetry: Designing a Dashboard (official Tines guide)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1086,14 +1112,16 @@ export const tinesProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Dedicated support and training for Business/Enterprise plans; community Slack and documentation for lower tiers',
-        shortValue: 'Dedicated support for Business/Enterprise, Slack for others',
+          '"Dedicated support and training" for Business/Enterprise plans, per the pricing page; specific mechanisms (named CSM/CSE role, SLA terms) are not publicly itemized',
+        detail:
+          'The pricing page lists "Dedicated support and training" as a Business/Enterprise inclusion but does not name a specific role (e.g. Customer Success Manager/Engineer) or publish SLA terms.',
+        shortValue: 'Dedicated support and training for Business/Enterprise',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://explained.tines.com/en/articles/9620399-understanding-tines-pricing-and-packaging',
-            label: 'Understanding Tines pricing and packaging',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/pricing/',
+            label: 'Pricing | Tines',
+            asOf: '2026-07-08',
           },
         ],
       },

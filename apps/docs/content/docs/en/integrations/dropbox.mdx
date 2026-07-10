@@ -216,10 +216,10 @@ Get metadata for a file or folder in Dropbox
 |   ↳ `path_display` | string | Display path |
 |   ↳ `path_lower` | string | Lowercase path |
 |   ↳ `size` | number | Size in bytes \(files only\) |
-|   ↳ `client_modified` | string | Client modification time |
-|   ↳ `server_modified` | string | Server modification time |
-|   ↳ `rev` | string | Revision identifier |
-|   ↳ `content_hash` | string | Content hash |
+|   ↳ `client_modified` | string | Client modification time \(files only\) |
+|   ↳ `server_modified` | string | Server modification time \(files only\) |
+|   ↳ `rev` | string | Revision identifier \(files only\) |
+|   ↳ `content_hash` | string | Content hash \(files only\) |
 
 ### `dropbox_create_shared_link`
 
@@ -245,6 +245,30 @@ Create a shareable link for a file or folder in Dropbox
 |   ↳ `expires` | string | Expiration date if set |
 |   ↳ `link_permissions` | object | Permissions for the shared link |
 
+### `dropbox_list_shared_links`
+
+List shared links for a path, or for the entire account if no path is given
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | No | Path to list shared links for. If omitted, lists all shared links. |
+| `directOnly` | boolean | No | If true, only return links directly to the path, not parent folder links |
+| `cursor` | string | No | Cursor from a previous call to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `links` | array | Shared links applicable to the path argument |
+|   ↳ `url` | string | The shared link URL |
+|   ↳ `name` | string | Name of the shared item |
+|   ↳ `path_lower` | string | Lowercase path of the shared item |
+|   ↳ `expires` | string | Expiration date if set |
+| `hasMore` | boolean | Whether there are more results |
+| `cursor` | string | Cursor for pagination \(only returned when no path is given\) |
+
 ### `dropbox_search`
 
 Search for files and folders in Dropbox
@@ -267,5 +291,55 @@ Search for files and folders in Dropbox
 |   ↳ `metadata` | object | File or folder metadata |
 | `hasMore` | boolean | Whether there are more results |
 | `cursor` | string | Cursor for pagination |
+
+### `dropbox_list_revisions`
+
+List the revision history for a file in Dropbox (files only, not folders)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path of the file to list revisions for |
+| `limit` | number | No | Maximum number of revisions to return, 1-100 \(default: 10\) |
+| `beforeRev` | string | No | Only return revisions before this one. Pass the rev of the last revision from a previous call to fetch the next page. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | array | The revisions for the file, most recent first |
+|   ↳ `id` | string | Unique identifier for this revision |
+|   ↳ `name` | string | Name of the file |
+|   ↳ `path_display` | string | Display path |
+|   ↳ `rev` | string | Revision identifier, pass to Restore |
+|   ↳ `size` | number | Size of this revision in bytes |
+|   ↳ `server_modified` | string | Server modification time |
+| `isDeleted` | boolean | Whether the file identified by the latest revision is deleted or moved |
+| `hasMore` | boolean | Whether there are more revisions available |
+
+### `dropbox_restore`
+
+Restore a specific revision of a file to the given path
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | The path to save the restored file to |
+| `rev` | string | Yes | The revision identifier to restore \(from Dropbox List Revisions\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | object | Metadata of the restored file |
+|   ↳ `id` | string | Unique identifier for the file |
+|   ↳ `name` | string | Name of the file |
+|   ↳ `path_display` | string | Display path of the file |
+|   ↳ `path_lower` | string | Lowercase path of the file |
+|   ↳ `size` | number | Size of the file in bytes |
+|   ↳ `rev` | string | Revision identifier of the restored file |
+|   ↳ `server_modified` | string | Server modification time |
 
 

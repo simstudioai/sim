@@ -468,6 +468,16 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     }
   }
   hideFromToolbar?: boolean
+  /**
+   * Marks an unreleased block. Preview blocks are hidden from every discovery
+   * surface (toolbar, search, mentions, copilot/VFS, docs) in every environment —
+   * hosted, self-hosted, dev, and SSR — until revealed via the hosted
+   * `block-visibility` AppConfig document or the `PREVIEW_BLOCKS` env allowlist.
+   * Fail-closed by design; distinct from {@link hideFromToolbar} (permanently
+   * hidden superseded versions). Execution of already-placed instances is never
+   * gated. Remove at GA.
+   */
+  preview?: boolean
   triggers?: {
     enabled: boolean
     available: string[] // List of trigger IDs this block supports

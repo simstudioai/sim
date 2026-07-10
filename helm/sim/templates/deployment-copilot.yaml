@@ -6,8 +6,7 @@ metadata:
   name: {{ include "sim.fullname" . }}-copilot
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: copilot
+    {{- include "sim.copilot.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.copilot.server.service.type }}
   ports:
@@ -16,9 +15,7 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app.kubernetes.io/name: {{ include "sim.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/component: copilot
+    {{- include "sim.copilot.selectorLabels" . | nindent 4 }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -26,26 +23,30 @@ metadata:
   name: {{ include "sim.fullname" . }}-copilot
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "sim.labels" . | nindent 4 }}
-    app.kubernetes.io/component: copilot
+    {{- include "sim.copilot.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.copilot.server.replicaCount }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "sim.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
-      app.kubernetes.io/component: copilot
+      {{- include "sim.copilot.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secrets-copilot.yaml") . | sha256sum }}
+        {{- /*
+          Hash both the inline Secret and the ExternalSecret template — whichever mode is
+          active, only one renders non-empty content, but concatenating both means a mode
+          switch or a remoteRefs.copilot mapping change still changes the checksum and
+          forces a rollout. This can't see the live value ESO syncs from the external
+          store (Helm only has the ExternalSecret manifest at render time, not the
+          store's payload) — that's an inherent ESO limitation, not something a Helm
+          checksum can close; ESO's own reconciliation handles picking up rotated values.
+        */}}
+        checksum/secret: {{ printf "%s%s" (include (print $.Template.BasePath "/secrets-copilot.yaml") .) (include (print $.Template.BasePath "/external-secret-copilot.yaml") .) | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        app.kubernetes.io/name: {{ include "sim.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: copilot
+        {{- include "sim.copilot.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -85,9 +86,35 @@ spec:
             {{- with .Values.copilot.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.copilot.server.extraEnv }}
+          {{- /*
+            copilot.server.env flows through envFrom (the Secret/ExternalSecret) above.
+            copilot.server.envDefaults are inlined here so they don't leak into the
+            chart-managed Secret and don't need to be mapped when
+            externalSecrets.enabled=true — same rationale as app.envDefaults. Skipped
+            entirely in existingSecret mode: the pre-created Secret is the source of
+            truth, and inlining defaults would silently shadow keys (PORT, LOG_LEVEL,
+            etc.) the user stored there via envFrom, since explicit env wins over
+            envFrom. Keyed purely on copilot.server.secret.create, NOT the global
+            externalSecrets.enabled flag — envFrom always points at the user-provided
+            Secret name whenever secret.create=false, regardless of whether ESO is used
+            for other components, so the global flag is irrelevant here.
+          */}}
+          {{- $useExistingSecret := not .Values.copilot.server.secret.create }}
+          {{- if or (not $useExistingSecret) .Values.copilot.server.extraEnv }}
           env:
+            {{- $copilotEnv := .Values.copilot.server.env | default dict }}
+            {{- if not $useExistingSecret }}
+            {{- range $key, $value := .Values.copilot.server.envDefaults | default dict }}
+            {{- $override := index $copilotEnv $key }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.copilot.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           {{- if .Values.copilot.server.startupProbe }}
           startupProbe:
@@ -106,5 +133,23 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- include "sim.containerSecurityContext" .Values.copilot.server | nindent 10 }}
+          {{- if or .Values.extraVolumeMounts .Values.copilot.server.extraVolumeMounts }}
+          volumeMounts:
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.copilot.server.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.extraVolumes .Values.copilot.server.extraVolumes }}
+      volumes:
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.copilot.server.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
 {{- end }}
 

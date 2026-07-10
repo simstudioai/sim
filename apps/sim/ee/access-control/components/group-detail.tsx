@@ -25,6 +25,7 @@ import {
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDate } from '@sim/utils/formatting'
 import { ChevronDown, Plus } from 'lucide-react'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -614,8 +615,19 @@ export function GroupDetail({
   const { data: roster } = useOrganizationRoster(organizationId)
   const { data: blacklistedProvidersData } = useBlacklistedProviders({ enabled: true })
 
-  // Recompute when custom (deploy-as-block) blocks hydrate into the overlay.
+  // Recompute when custom (deploy-as-block) blocks or the viewer's block
+  // visibility hydrate into the overlay.
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
+
+  /**
+   * The allowlist UNIVERSE: every access-controllable block, INCLUDING blocks
+   * gated for this viewer (they arrive as clones with `hideFromToolbar: true`,
+   * clone-not-remove). Materialization and the collapse-to-null comparison in
+   * `toggleIntegration`/`setBlocksAllowed` must use this viewer-independent set —
+   * otherwise a null→partial transition by a non-revealed admin would silently
+   * drop a preview block from the stored allowlist and deny it to revealed
+   * users already running it.
+   */
   const allBlocks = useMemo(() => {
     const blocks = getAllBlocks().filter((b) => !isBlockTypeAccessControlExempt(b.type))
     return blocks.sort((a, b) => {
@@ -626,6 +638,14 @@ export function GroupDetail({
       return a.name.localeCompare(b.name)
     })
   }, [customBlockOverlayVersion])
+
+  /**
+   * The RENDERED list: hides blocks gated for this viewer by reading the
+   * registry projection's effective flag off the clone (the single source of
+   * truth — never re-derive visibility here). Revealed viewers see preview
+   * blocks (with their " (Preview)" suffix) and can toggle them explicitly.
+   */
+  const visibleBlocks = useMemo(() => allBlocks.filter((b) => !b.hideFromToolbar), [allBlocks])
 
   const allProviderIds = useMemo(() => {
     const allIds = getAllProviderIds()
@@ -829,10 +849,10 @@ export function GroupDetail({
   }, [allProviderIds, providerSearchTerm])
 
   const filteredBlocks = useMemo(() => {
-    if (!integrationSearchTerm.trim()) return allBlocks
+    if (!integrationSearchTerm.trim()) return visibleBlocks
     const query = integrationSearchTerm.toLowerCase()
-    return allBlocks.filter((b) => b.name.toLowerCase().includes(query))
-  }, [allBlocks, integrationSearchTerm])
+    return visibleBlocks.filter((b) => b.name.toLowerCase().includes(query))
+  }, [visibleBlocks, integrationSearchTerm])
 
   const filteredCoreBlocks = useMemo(
     () => filteredBlocks.filter((block) => block.category === 'blocks'),
@@ -1378,7 +1398,7 @@ export function GroupDetail({
                             name={member.userName || member.userEmail || 'Unknown'}
                             email={member.userEmail || member.userName || 'Unknown'}
                             image={member.userImage}
-                            status={`Added ${new Date(member.assignedAt).toLocaleDateString()}`}
+                            status={`Added ${formatDate(new Date(member.assignedAt))}`}
                             menu={
                               <RowActionsMenu
                                 label='Member actions'

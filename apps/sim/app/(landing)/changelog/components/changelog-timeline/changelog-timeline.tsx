@@ -4,6 +4,7 @@ import { type ReactNode, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { Avatar, AvatarFallback, AvatarImage, Chip, cn } from '@sim/emcn'
+import { formatDate } from '@sim/utils/formatting'
 import type { ChangelogEntry, GitHubRelease } from '@/app/(landing)/changelog/types'
 import { mapReleases, releasesEndpoint } from '@/app/(landing)/changelog/utils'
 
@@ -51,14 +52,6 @@ function cleanMarkdown(body: string): string {
 
 function isContributorsLabel(children: ReactNode): boolean {
   return /^\s*contributors\s*:?\s*$/i.test(String(children))
-}
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
 }
 
 export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
@@ -133,7 +126,9 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
                   </div>
                 ) : null}
               </div>
-              <span className='text-[12px] text-[var(--text-muted)]'>{formatDate(entry.date)}</span>
+              <span className='text-[12px] text-[var(--text-muted)]'>
+                {formatDate(new Date(entry.date))}
+              </span>
             </div>
 
             <div aria-hidden='true' className='mt-[9px] mb-3 h-px bg-[var(--border)]' />

@@ -108,11 +108,13 @@
           "properties": {
             "BETTER_AUTH_SECRET": {
               "type": "string",
-              "description": "Auth secret (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Auth secret (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "ENCRYPTION_KEY": {
               "type": "string",
-              "description": "Encryption key (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Encryption key (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
@@ -185,6 +187,10 @@
             "AWS_SES_REGION": {
               "type": "string",
               "description": "AWS region for SES (e.g., 'us-east-1'). Credentials are resolved via the standard AWS provider chain (env vars, IRSA, EC2/ECS task role, SSO)."
+            },
+            "AZURE_ACS_CONNECTION_STRING": {
+              "type": "string",
+              "description": "Azure Communication Services connection string (email provider — used when Resend/SES/SMTP are not configured)."
             },
             "SMTP_HOST": {
               "type": "string",
@@ -269,6 +275,26 @@
             "ELEVENLABS_API_KEY": {
               "type": "string",
               "description": "ElevenLabs API key for text-to-speech in deployed chat"
+            },
+            "KB_OPENAI_MODEL_NAME": {
+              "type": "string",
+              "description": "Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set)."
+            },
+            "WAND_OPENAI_MODEL_NAME": {
+              "type": "string",
+              "description": "Wand generation model deployment name (works with both regular OpenAI and Azure OpenAI)."
+            },
+            "OCR_AZURE_ENDPOINT": {
+              "type": "string",
+              "description": "Azure Mistral OCR service endpoint."
+            },
+            "OCR_AZURE_MODEL_NAME": {
+              "type": "string",
+              "description": "Azure Mistral OCR model name."
+            },
+            "OCR_AZURE_API_KEY": {
+              "type": "string",
+              "description": "Azure Mistral OCR API key."
             },
             "RATE_LIMIT_WINDOW_MS": {
               "type": "string",
@@ -408,7 +434,8 @@
           "properties": {
             "BETTER_AUTH_SECRET": {
               "type": "string",
-              "description": "Auth secret (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Auth secret (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
@@ -504,7 +531,8 @@
             },
             "password": {
               "type": "string",
-              "description": "PostgreSQL password (minimum 8 characters when not using existingSecret)"
+              "anyOf": [{ "minLength": 8 }, { "const": "" }],
+              "description": "PostgreSQL password (minimum 8 characters when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "existingSecret": {
               "type": "object",
@@ -710,6 +738,15 @@
         "enabled": {
           "type": "boolean",
           "description": "Enable the Presidio PII redaction service"
+        },
+        "engine": {
+          "type": "string",
+          "enum": ["spacy", "gliner"],
+          "description": "NER engine (spacy default, gliner opt-in; both ship in the image)"
+        },
+        "device": {
+          "type": "string",
+          "description": "Torch device for the gliner engine (cpu, cuda, cuda:N); empty auto-detects"
         },
         "replicaCount": {
           "type": "integer",

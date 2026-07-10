@@ -153,7 +153,7 @@ export default function EnterprisePage() {
       <main
         id='main-content'
         className={cn(
-          'mx-auto flex w-full max-w-[1446px] flex-col',
+          'mx-auto flex w-full max-w-[1460px] flex-col',
           SOLUTIONS_SPACING.sectionRhythm,
           SOLUTIONS_SPACING.gutter
         )}

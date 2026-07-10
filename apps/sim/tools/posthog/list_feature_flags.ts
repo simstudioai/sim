@@ -1,8 +1,10 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListFeatureFlagsParams {
   projectId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   limit?: number
   offset?: number
@@ -34,6 +36,7 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
   name: 'PostHog List Feature Flags',
   description: 'List all feature flags in a PostHog project',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -47,6 +50,13 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
       required: true,
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
     },
     apiKey: {
       type: 'string',
@@ -70,7 +80,7 @@ export const listFeatureFlagsTool: ToolConfig<ListFeatureFlagsParams, ListFeatur
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       const url = new URL(`${baseUrl}/api/projects/${params.projectId}/feature_flags/`)
 
       if (params.limit) url.searchParams.append('limit', String(params.limit))

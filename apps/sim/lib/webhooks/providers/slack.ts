@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import {
@@ -26,7 +27,8 @@ import { type SlackEventFilter, slackEventSupportsFilter } from '@/triggers/slac
 
 const logger = createLogger('WebhookProvider:Slack')
 
-const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
+/** 50 MB */
+const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024
 const SLACK_MAX_FILES = 15
 
 const SLACK_REACTION_EVENTS = new Set(['reaction_added', 'reaction_removed'])
@@ -36,6 +38,11 @@ const SLACK_REACTION_EVENTS = new Set(['reaction_added', 'reaction_removed'])
  * `payload` field (button clicks, selects, shortcuts, modal submits). These have
  * no Events-API `event` envelope, so they need their own mapping.
  * See https://api.slack.com/interactivity/handling#payloads
+ *
+ * `block_suggestion` (external select option loading) is deliberately excluded:
+ * Slack requires a synchronous JSON `options` response within 3 seconds, which
+ * this trigger's fire-and-forget webhook execution model cannot provide — it is
+ * skipped explicitly in `formatInput` instead of being routed here.
  */
 const SLACK_INTERACTIVE_TYPES = new Set([
   'block_actions',
@@ -44,7 +51,6 @@ const SLACK_INTERACTIVE_TYPES = new Set([
   'shortcut',
   'view_submission',
   'view_closed',
-  'block_suggestion',
 ])
 
 /**
@@ -217,6 +223,8 @@ function formatSlackSlashCommand(b: Record<string, unknown>): SlackTriggerEvent 
  * Interactivity payloads (button clicks, selects, shortcuts, modal submits).
  * The actionable data lives in `actions[]` / `view`, plus `response_url` and
  * `trigger_id` which are needed to respond to or follow up on the interaction.
+ * `text` prefers the source message text, falling back to the triggering
+ * action's value so a blocks-only message still surfaces something useful.
  */
 function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
   const event = createSlackEvent()
@@ -244,8 +252,6 @@ function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
   event.message_ts = asString(message?.ts) || asString(container?.message_ts)
   event.timestamp = event.message_ts || asString(firstAction?.action_ts)
   event.thread_ts = asString(message?.thread_ts)
-  // Prefer the source message text; fall back to the triggering action's value
-  // so a blocks-only message still surfaces something useful in `text`.
   event.text = asString(message?.text) || event.action_value
   event.message = message ?? null
 
@@ -502,9 +508,12 @@ export function resolveSlackEventChannel(
  * Handle Slack verification challenges
  */
 export function handleSlackChallenge(body: unknown): NextResponse | null {
-  const obj = body as Record<string, unknown>
-  if (obj.type === 'url_verification' && obj.challenge) {
-    return NextResponse.json({ challenge: obj.challenge })
+  if (!isRecordLike(body)) {
+    return null
+  }
+
+  if (body.type === 'url_verification' && body.challenge) {
+    return NextResponse.json({ challenge: body.challenge })
   }
 
   return null
@@ -815,21 +824,28 @@ export const slackHandler: WebhookProviderHandler = {
     return shouldSkipSlackTriggerEvent(body as Record<string, unknown>, providerConfig)
   },
 
+  /**
+   * `event_id` (Events API) and `team_id:event.ts` are the primary keys.
+   * `trigger_id` is the fallback for interactivity and slash-command payloads,
+   * which carry no `event_id` but reuse the same `trigger_id` across Slack's
+   * retries of a given interaction.
+   */
   extractIdempotencyId(body: unknown) {
-    const obj = body as Record<string, unknown>
-    if (obj.event_id) {
-      return String(obj.event_id)
+    if (!isRecordLike(body)) {
+      return null
     }
 
-    const event = obj.event as Record<string, unknown> | undefined
-    if (event?.ts && obj.team_id) {
-      return `${obj.team_id}:${event.ts}`
+    if (body.event_id) {
+      return String(body.event_id)
     }
 
-    // Interactivity and slash-command payloads carry a unique `trigger_id`
-    // per interaction, which Slack reuses across retries of the same payload.
-    if (obj.trigger_id) {
-      return String(obj.trigger_id)
+    const event = isRecordLike(body.event) ? body.event : undefined
+    if (event?.ts && body.team_id) {
+      return `${body.team_id}:${event.ts}`
+    }
+
+    if (body.trigger_id) {
+      return String(body.trigger_id)
     }
 
     return null
@@ -843,8 +859,15 @@ export const slackHandler: WebhookProviderHandler = {
     return new NextResponse(null, { status: 200 })
   },
 
+  /**
+   * Routes across Slack's three distinct payload families, each identified by
+   * a different shape: slash commands (flat form fields with a leading-slash
+   * `command`), interactivity (a JSON `payload` with an interactive `type` or
+   * `actions[]` and no Events-API `event` envelope), and the Events API
+   * (app_mention, message, reaction_added, ... nested under `event`).
+   */
   async formatInput({ body, webhook, requestId }: FormatInputContext): Promise<FormatInputResult> {
-    const b = body as Record<string, unknown>
+    const b = isRecordLike(body) ? body : {}
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     let botToken = providerConfig.botToken as string | undefined
     // Reusable custom Slack bot credential: use its stored bot token directly.
@@ -873,13 +896,20 @@ export const slackHandler: WebhookProviderHandler = {
     }
     const includeFiles = Boolean(providerConfig.includeFiles)
 
-    // Slash commands: flat form fields identified by a leading-slash `command`.
     if (typeof b?.command === 'string' && b.command.startsWith('/')) {
       return { input: { event: formatSlackSlashCommand(b) } }
     }
 
-    // Interactivity (button clicks, selects, shortcuts, modal submits): a JSON
-    // `payload` with an interactive `type` and no Events-API `event` envelope.
+    if (b?.type === 'block_suggestion') {
+      return {
+        input: null,
+        skip: {
+          message:
+            'Slack block_suggestion payloads require a synchronous options response and cannot be served by an async workflow trigger',
+        },
+      }
+    }
+
     if (
       !b?.event &&
       ((typeof b?.type === 'string' && SLACK_INTERACTIVE_TYPES.has(b.type)) ||
@@ -888,7 +918,6 @@ export const slackHandler: WebhookProviderHandler = {
       return { input: { event: formatSlackInteractive(b) } }
     }
 
-    // Events API (app_mention, message, reaction_added, ...).
     const rawEvent = b?.event as Record<string, unknown> | undefined
 
     if (!rawEvent) {

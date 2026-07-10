@@ -18,7 +18,7 @@ import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-p
  * separate so the solutions layout and its components can diverge from the
  * platform layout without coupling.
  *
- * This component owns the entire `<main>`: the shared `max-w-[1446px]` content
+ * This component owns the entire `<main>`: the shared `max-w-[1460px]` content
  * column (centered with `mx-auto`, matching the navbar and landing sections), the
  * one horizontal gutter (`SOLUTIONS_SPACING.gutter`), and the inter-section
  * vertical rhythm (`SOLUTIONS_SPACING.sectionRhythm`, the `<main>` flex gap). The
@@ -47,7 +47,7 @@ export function SolutionsPage({ config }: SolutionsPageProps) {
       <main
         id='main-content'
         className={cn(
-          'mx-auto flex w-full max-w-[1446px] flex-col',
+          'mx-auto flex w-full max-w-[1460px] flex-col',
           SOLUTIONS_SPACING.sectionRhythm,
           SOLUTIONS_SPACING.gutter
         )}

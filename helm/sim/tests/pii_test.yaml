@@ -3,12 +3,11 @@ release:
   name: t
   namespace: sim
 set:
-  app.env.BETTER_AUTH_SECRET: x
-  app.env.ENCRYPTION_KEY: x
+  app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   app.env.INTERNAL_API_SECRET: x
   app.env.CRON_SECRET: x
-  postgresql.auth.password: x
-
+  postgresql.auth.password: xxxxxxxx
 tests:
   - it: does not render the pii deployment when disabled
     template: deployment-pii.yaml
@@ -30,6 +29,65 @@ tests:
         equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 5001
+
+  - it: pii pod defaults to the spacy engine
+    template: deployment-pii.yaml
+    set:
+      pii.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_ENGINE
+            value: "spacy"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_DEVICE
+            value: "cpu"
+
+  - it: pii.engine and pii.device render through to the container env
+    template: deployment-pii.yaml
+    set:
+      pii.enabled: true
+      pii.engine: gliner
+      pii.device: cuda
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_ENGINE
+            value: "gliner"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_DEVICE
+            value: "cuda"
+
+  - it: user-set pii.env cannot override the chart-owned engine keys
+    template: deployment-pii.yaml
+    set:
+      pii.enabled: true
+      pii.env:
+        PII_ENGINE: evil
+        PII_DEVICE: evil
+        PII_GLINER_MODEL: acme/custom-model
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_ENGINE
+            value: "evil"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_DEVICE
+            value: "evil"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PII_GLINER_MODEL
+            value: "acme/custom-model"
 
   - it: app pod gets chart-computed PII_URL pointing at the in-cluster service
     template: deployment-app.yaml

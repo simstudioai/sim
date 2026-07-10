@@ -30,7 +30,7 @@ Connect Microsoft Dataverse to your automations to unlock sophisticated data man
 
 ## Usage Instructions
 
-Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, and relevance search. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
+Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
 
 
 
@@ -149,7 +149,7 @@ Remove an association between two records in Microsoft Dataverse. For collection
 
 ### `microsoft_dataverse_download_file`
 
-Download a file from a file or image column on a Dataverse record. Returns the file content as a base64-encoded string along with file metadata from response headers.
+Download a file from a file or image column on a Dataverse record. Stores the file in execution storage and returns a file reference, plus the base64 content and metadata directly.
 
 #### Input
 
@@ -164,10 +164,12 @@ Download a file from a file or image column on a Dataverse record. Returns the f
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
 | `fileContent` | string | Base64-encoded file content |
 | `fileName` | string | Name of the downloaded file |
 | `fileSize` | number | File size in bytes |
 | `mimeType` | string | MIME type of the file |
+| `fileColumn` | string | File column the file was downloaded from |
 | `success` | boolean | Whether the file was downloaded successfully |
 
 ### `microsoft_dataverse_execute_action`
@@ -203,7 +205,7 @@ Execute a bound or unbound Dataverse function. Functions are read-only operation
 | `functionName` | string | Yes | Function name \(e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount\). Do not include the Microsoft.Dynamics.CRM. namespace prefix for unbound functions. |
 | `entitySetName` | string | No | Entity set name for bound functions \(e.g., systemusers\). Leave empty for unbound functions. |
 | `recordId` | string | No | Record GUID for bound functions. Leave empty for unbound functions. |
-| `parameters` | string | No | Function parameters as a comma-separated list of name=value pairs for the URL \(e.g., "LocalizedStandardName=\'Pacific Standard Time\ |
+| `parameters` | string | No | Function parameters for the URL. Simple values can be inlined \(e.g., "LocalizedStandardName=\'Pacific Standard Time\ |
 
 #### Output
 
@@ -233,6 +235,32 @@ Execute a FetchXML query against a Microsoft Dataverse table. FetchXML supports 
 | `fetchXmlPagingCookie` | string | Paging cookie for retrieving the next page of results |
 | `moreRecords` | boolean | Whether more records are available beyond the current page |
 | `success` | boolean | Operation success status |
+
+### `microsoft_dataverse_get_entity_metadata`
+
+Retrieve table (entity) and column (attribute) definitions for a Microsoft Dataverse table by its singular logical name. Use this to look up the correct entity set name and column logical names before building record data for other operations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `entityLogicalName` | string | Yes | Singular table logical name to look up \(e.g., account, contact\) |
+| `select` | string | No | Comma-separated table metadata properties to return \(OData $select, e.g., LogicalName,DisplayName,EntitySetName,PrimaryIdAttribute\) |
+| `includeAttributes` | string | No | Set to "true" to also return the column \(attribute\) definitions for the table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entitySetName` | string | The entity set name \(plural, used in Web API URLs\) for this table |
+| `logicalName` | string | The singular logical name of the table |
+| `displayName` | string | The localized display name of the table |
+| `primaryIdAttribute` | string | The logical name of the primary key column |
+| `primaryNameAttribute` | string | The logical name of the primary name \(title\) column |
+| `attributes` | array | Column \(attribute\) definitions for the table \(only populated when includeAttributes is "true"\) |
+| `metadata` | object | The full raw entity metadata response from Dataverse |
+| `success` | boolean | Whether the metadata was retrieved successfully |
 
 ### `microsoft_dataverse_get_record`
 

@@ -8,6 +8,7 @@ import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { normalizeDateCellValue } from '@/lib/table/dates'
 import { withSeqscanOff } from '@/lib/table/planner'
 import type {
   ColumnDefinition,
@@ -296,7 +297,10 @@ function coerceValueToColumnType(
       }
       return { ok: false }
     case 'date': {
-      if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) return { ok: true, value }
+      if (typeof value === 'string') {
+        const normalized = normalizeDateCellValue(value)
+        return normalized === null ? { ok: false } : { ok: true, value: normalized }
+      }
       // Date instances and epoch numbers may still be out of the representable
       // range (>±8.64e15ms) — guard `toISOString()`, which throws RangeError on
       // an Invalid Date, so an over-range value degrades to `{ ok: false }`

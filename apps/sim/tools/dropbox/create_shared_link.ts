@@ -59,7 +59,7 @@ export const dropboxCreateSharedLinkTool: ToolConfig<
     },
     body: (params) => {
       const body: Record<string, any> = {
-        path: params.path,
+        path: params.path.trim(),
       }
 
       const settings: Record<string, any> = {}
@@ -88,12 +88,24 @@ export const dropboxCreateSharedLinkTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      // Check if a shared link already exists
+      // A link may already exist for this path - Dropbox includes its metadata in the error
+      // when the requested settings match the existing link, so surface it as a success.
+      // Per Stone's JSON rules, a union member whose payload is a struct (SharedLinkMetadata)
+      // flattens that struct's fields alongside ".tag" - there is no nested "metadata" key.
+      const existingLink = data.error?.shared_link_already_exists
+      if (existingLink) {
+        return {
+          success: true,
+          output: {
+            sharedLink: existingLink,
+          },
+        }
+      }
       if (data.error_summary?.includes('shared_link_already_exists')) {
         return {
           success: false,
           error:
-            'A shared link already exists for this path. Use list_shared_links to get the existing link.',
+            'A shared link already exists for this path with different settings. Use Dropbox List Shared Links to retrieve it.',
           output: {},
         }
       }
@@ -119,8 +131,12 @@ export const dropboxCreateSharedLinkTool: ToolConfig<
       properties: {
         url: { type: 'string', description: 'The shared link URL' },
         name: { type: 'string', description: 'Name of the shared item' },
-        path_lower: { type: 'string', description: 'Lowercase path of the shared item' },
-        expires: { type: 'string', description: 'Expiration date if set' },
+        path_lower: {
+          type: 'string',
+          description: 'Lowercase path of the shared item',
+          optional: true,
+        },
+        expires: { type: 'string', description: 'Expiration date if set', optional: true },
         link_permissions: {
           type: 'object',
           description: 'Permissions for the shared link',

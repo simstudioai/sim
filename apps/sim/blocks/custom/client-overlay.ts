@@ -24,11 +24,22 @@ registerBlockOverlayResolver({
   all: () => [...map.values()],
 })
 
+/**
+ * Bump the overlay version and notify subscribers that block-registry-derived
+ * data changed. Shared signal for BOTH custom-block hydration and the
+ * block-visibility hydrate path — subscribers treat the version as an opaque
+ * "re-read `getAllBlocks()`" token, never as "custom blocks specifically
+ * changed".
+ */
+export function notifyBlockOverlayChanged(): void {
+  version += 1
+  for (const listener of listeners) listener()
+}
+
 /** Replace the in-scope custom blocks and notify subscribers. */
 export function hydrateClientCustomBlocks(configs: BlockConfig[]): void {
   map = new Map(configs.map((config) => [config.type, config]))
-  version += 1
-  for (const listener of listeners) listener()
+  notifyBlockOverlayChanged()
 }
 
 function subscribe(listener: () => void): () => void {

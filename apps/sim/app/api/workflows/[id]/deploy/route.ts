@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
@@ -186,6 +187,19 @@ export const PATCH = withRouteHandler(
       logger.info(`[${requestId}] Updated isPublicApi for workflow ${id} to ${isPublicApi}`)
 
       const wsId = workflowData?.workspaceId
+
+      recordAudit({
+        workspaceId: wsId ?? null,
+        actorId: session!.user.id,
+        action: AuditAction.WORKFLOW_PUBLIC_API_TOGGLED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: id,
+        resourceName: workflowData?.name ?? undefined,
+        description: `${isPublicApi ? 'Enabled' : 'Disabled'} public API for workflow "${workflowData?.name ?? id}"`,
+        metadata: { isPublicApi },
+        request,
+      })
+
       captureServerEvent(
         session!.user.id,
         'workflow_public_api_toggled',

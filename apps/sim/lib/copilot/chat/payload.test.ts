@@ -53,7 +53,17 @@ vi.mock('@/tools/utils', () => ({
   stripVersionSuffix: vi.fn((toolId: string) => toolId),
 }))
 
+vi.mock('@/lib/copilot/block-visibility', () => ({
+  getBlockVisibilityForCopilot: vi.fn(async () => ({
+    revealed: new Set<string>(),
+    disabled: new Set<string>(),
+    previewTagged: new Set<string>(),
+  })),
+  visibilitySignature: vi.fn(() => 'vis:none'),
+}))
+
 vi.mock('@/lib/copilot/integration-tools', () => ({
+  filterExposedIntegrationTools: vi.fn((tools: unknown[]) => tools),
   getExposedIntegrationTools: vi.fn(() => [
     {
       toolId: 'gmail_send',

@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -86,8 +87,27 @@ export const GET = withRouteHandler(
         throw new FileNotFoundError('Not found')
       }
 
-      // Content-truth gate (`sniff`): render only genuine raster image bytes.
-      return await serveInlineImage(image, { sniff: true })
+      // Content-truth gate (`sniff`): render only genuine raster image bytes; audit after.
+      const response = await serveInlineImage(image, { sniff: true })
+
+      // Anonymous access: null actor (owner-as-actor would misread as a self-download).
+      recordAudit({
+        workspaceId: doc.workspaceId,
+        actorId: null,
+        action: AuditAction.FILE_DOWNLOADED,
+        resourceType: AuditResourceType.FILE,
+        resourceName: image.filename,
+        description: `Public share inline image "${image.filename}"`,
+        metadata: {
+          access: 'public_share',
+          anonymous: true,
+          inline: true,
+          sharedByUserId: doc.userId,
+        },
+        request,
+      })
+
+      return response
     } catch (error) {
       if (error instanceof FileNotFoundError) {
         return createErrorResponse(error)

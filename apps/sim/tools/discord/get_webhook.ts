@@ -31,11 +31,11 @@ export const discordGetWebhookTool: ToolConfig<DiscordGetWebhookParams, DiscordG
 
     request: {
       url: (params: DiscordGetWebhookParams) => {
-        return `https://discord.com/api/v10/webhooks/${params.webhookId}`
+        return `https://discord.com/api/v10/webhooks/${params.webhookId.trim()}`
       },
       method: 'GET',
       headers: (params) => ({
-        Authorization: `Bot ${params.botToken}`,
+        Authorization: `Bot ${params.botToken.trim()}`,
       }),
     },
 

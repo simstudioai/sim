@@ -1,5 +1,5 @@
 {
-  "id": "1162a848-e204-4470-90c2-8c704161625f",
+  "id": "b932608c-c10f-4085-8f59-0621b23071f4",
   "prevId": "89ca1946-db4f-4726-b15f-b7869d9bcf41",
   "version": "7",
   "dialect": "postgresql",
@@ -3242,6 +3242,12 @@
         "icon_url": {
           "name": "icon_url",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inputs": {
+          "name": "inputs",
+          "type": "json",
           "primaryKey": false,
           "notNull": false
         },
@@ -12127,13 +12133,7 @@
           "name": "path",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "routing_key": {
-          "name": "routing_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "provider": {
           "name": "provider",
@@ -12228,28 +12228,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "webhook_routing_key_active_idx": {
-          "name": "webhook_routing_key_active_idx",
-          "columns": [
-            {
-              "expression": "routing_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "provider",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"webhook\".\"archived_at\" IS NULL AND \"webhook\".\"routing_key\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

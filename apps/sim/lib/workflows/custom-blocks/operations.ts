@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { customBlock, workflow } from '@sim/db/schema'
+import { customBlock, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
@@ -33,6 +33,10 @@ export interface CustomBlockWithInputs {
   id: string
   organizationId: string
   workflowId: string
+  workflowName: string
+  /** Source workflow's home workspace id — used client-side to gate manage affordances. */
+  workspaceId: string | null
+  workspaceName: string | null
   type: string
   name: string
   description: string
@@ -58,13 +62,43 @@ async function deriveInputFields(workflowId: string): Promise<WorkflowInputField
   }
 }
 
+/** A stored per-input placeholder override, keyed by the Start field's stable id. */
+type InputPlaceholder = { id: string; placeholder?: string }
+
 /**
- * The org's custom blocks as bare `CustomBlockRow`s for the server overlay
- * (`withCustomBlockOverlay`). Only enabled rows — a disabled block must not
- * resolve for execution. No input fields (the server's `inputMapping` is
- * schema-agnostic).
+ * The block's input fields: the LIVE deployed Start fields (authoritative for which
+ * inputs exist and their name/type — so an input removed from the source and
+ * redeployed simply disappears) with the stored per-id `placeholder` overrides
+ * merged in. When the source is undeployed there are no live fields, so there are
+ * no inputs — the block can't run undeployed anyway.
  */
-export async function getCustomBlockRowsForOrg(organizationId: string): Promise<CustomBlockRow[]> {
+function applyInputPlaceholders(
+  placeholders: InputPlaceholder[] | null,
+  deployed: WorkflowInputField[]
+): WorkflowInputField[] {
+  if (deployed.length === 0) return []
+  if (!placeholders?.length) return deployed
+  const byId = new Map(placeholders.map((p) => [p.id, p.placeholder]))
+  // Placeholders are stored under `field.id ?? field.name` (the form's key), so a
+  // legacy field with no stable id is keyed by name — look it up the same way.
+  return deployed.map((field) => {
+    const placeholder = byId.get(field.id ?? field.name)
+    return placeholder ? { ...field, placeholder } : field
+  })
+}
+
+/**
+ * The org's custom blocks for the server overlay (`withCustomBlockOverlay`).
+ * Includes DISABLED rows (carrying `enabled`) so a still-placed disabled block
+ * stays resolvable — it survives serialization and fails loudly at run via
+ * `getCustomBlockAuthority` instead of being silently dropped from the graph; the
+ * overlay marks it `hideFromToolbar` so no new instance can be placed. No input
+ * fields: the server's `inputMapping` is schema-agnostic and the handler's remap
+ * filters every value against the child's live deployed Start.
+ */
+export async function getCustomBlockRowsForOrg(
+  organizationId: string
+): Promise<Array<CustomBlockRow & { enabled: boolean }>> {
   const rows = await db
     .select({
       type: customBlock.type,
@@ -72,9 +106,10 @@ export async function getCustomBlockRowsForOrg(organizationId: string): Promise<
       description: customBlock.description,
       workflowId: customBlock.workflowId,
       outputs: customBlock.outputs,
+      enabled: customBlock.enabled,
     })
     .from(customBlock)
-    .where(and(eq(customBlock.organizationId, organizationId), eq(customBlock.enabled, true)))
+    .where(eq(customBlock.organizationId, organizationId))
 
   return rows.map(({ outputs, ...r }) => ({ ...r, exposedOutputs: outputs ?? [] }))
 }
@@ -129,21 +164,35 @@ export async function listCustomBlocksWithInputs(
   organizationId: string
 ): Promise<CustomBlockWithInputs[]> {
   const rows = await db
-    .select()
+    .select({
+      block: customBlock,
+      workflowName: workflow.name,
+      workspaceId: workflow.workspaceId,
+      workspaceName: workspace.name,
+    })
     .from(customBlock)
+    .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
+    .leftJoin(workspace, eq(workspace.id, workflow.workspaceId))
     .where(eq(customBlock.organizationId, organizationId))
 
   return Promise.all(
-    rows.map(async (row) => ({
+    rows.map(async ({ block: row, workflowName, workspaceId, workspaceName }) => ({
       id: row.id,
       organizationId: row.organizationId,
       workflowId: row.workflowId,
+      workflowName,
+      workspaceId,
+      workspaceName,
       type: row.type,
       name: row.name,
       description: row.description,
       iconUrl: row.iconUrl,
       enabled: row.enabled,
-      inputFields: row.enabled ? await deriveInputFields(row.workflowId) : [],
+      // Field set derived live from the deployed Start; stored placeholders merged
+      // in. Derive even for a disabled block — the source workflow's deployment is
+      // independent of the block's enabled flag, and the edit form needs the real
+      // fields so a save doesn't overwrite the block's stored placeholders.
+      inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
       exposedOutputs: row.outputs ?? [],
     }))
   )
@@ -162,13 +211,18 @@ export async function getCustomBlockById(id: string) {
  * (or an org admin, who holds admin on every org workspace) can change its outputs.
  * `null` when no block matches.
  */
-export async function getCustomBlockManageContext(
-  id: string
-): Promise<{ organizationId: string; sourceWorkspaceId: string | null } | null> {
+export async function getCustomBlockManageContext(id: string): Promise<{
+  organizationId: string
+  sourceWorkspaceId: string | null
+  type: string
+  name: string
+} | null> {
   const [row] = await db
     .select({
       organizationId: customBlock.organizationId,
       sourceWorkspaceId: workflow.workspaceId,
+      type: customBlock.type,
+      name: customBlock.name,
     })
     .from(customBlock)
     .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
@@ -254,6 +308,7 @@ export async function publishCustomBlock(params: {
   name: string
   description: string
   iconUrl?: string
+  inputs?: InputPlaceholder[]
   exposedOutputs?: CustomBlockOutput[]
 }): Promise<CustomBlockWithInputs> {
   const {
@@ -264,11 +319,17 @@ export async function publishCustomBlock(params: {
     name,
     description,
     iconUrl,
+    inputs,
     exposedOutputs,
   } = params
 
   const [wf] = await db
-    .select({ id: workflow.id, workspaceId: workflow.workspaceId, isDeployed: workflow.isDeployed })
+    .select({
+      id: workflow.id,
+      name: workflow.name,
+      workspaceId: workflow.workspaceId,
+      isDeployed: workflow.isDeployed,
+    })
     .from(workflow)
     .where(eq(workflow.id, workflowId))
     .limit(1)
@@ -313,6 +374,7 @@ export async function publishCustomBlock(params: {
     name,
     description,
     iconUrl: iconUrl ?? null,
+    inputs: inputs ?? [],
     outputs: exposedOutputs ?? [],
     enabled: true,
     createdBy: userId,
@@ -326,12 +388,15 @@ export async function publishCustomBlock(params: {
     id,
     organizationId,
     workflowId,
+    workflowName: wf.name,
+    workspaceId: wf.workspaceId,
+    workspaceName: ws?.name ?? null,
     type,
     name,
     description,
     iconUrl: iconUrl ?? null,
     enabled: true,
-    inputFields: await deriveInputFields(workflowId),
+    inputFields: applyInputPlaceholders(inputs ?? null, await deriveInputFields(workflowId)),
     exposedOutputs: exposedOutputs ?? [],
   }
 }
@@ -348,6 +413,7 @@ export async function updateCustomBlock(
     description?: string
     enabled?: boolean
     iconUrl?: string | null
+    inputs?: InputPlaceholder[]
     exposedOutputs?: CustomBlockOutput[]
   }
 ): Promise<void> {
@@ -355,6 +421,7 @@ export async function updateCustomBlock(
   if (updates.name !== undefined) patch.name = updates.name
   if (updates.description !== undefined) patch.description = updates.description
   if (updates.enabled !== undefined) patch.enabled = updates.enabled
+  if (updates.inputs !== undefined) patch.inputs = updates.inputs
   if (updates.exposedOutputs !== undefined) patch.outputs = updates.exposedOutputs
   if (updates.iconUrl !== undefined) patch.iconUrl = updates.iconUrl
 

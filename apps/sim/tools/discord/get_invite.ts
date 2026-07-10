@@ -30,11 +30,11 @@ export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGet
 
   request: {
     url: (params: DiscordGetInviteParams) => {
-      return `https://discord.com/api/v10/invites/${params.inviteCode}?with_counts=true`
+      return `https://discord.com/api/v10/invites/${params.inviteCode.trim()}?with_counts=true`
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

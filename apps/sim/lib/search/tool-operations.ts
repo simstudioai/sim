@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { getAllBlocks } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { registerBlockCacheInvalidator } from '@/blocks/visibility/context'
 
 /**
  * Represents a searchable tool operation extracted from block configurations.
@@ -169,13 +170,17 @@ export function buildToolOperationsIndex(): ToolOperationItem[] {
 
 /**
  * Cached operations index to avoid rebuilding on every search.
- * The index is built lazily on first access.
+ * The index is built lazily on first access and reset when the client
+ * block-visibility state changes (a preview reveal / kill switch alters the
+ * `hideFromToolbar` projection this index is filtered on).
  */
 let cachedOperations: ToolOperationItem[] | null = null
 
+registerBlockCacheInvalidator(() => clearToolOperationsCache())
+
 /**
  * Returns the tool operations index, building it if necessary.
- * The index is cached after first build since block registry is static.
+ * The index is cached after first build and dropped on visibility changes.
  */
 export function getToolOperationsIndex(): ToolOperationItem[] {
   if (!cachedOperations) {

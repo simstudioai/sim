@@ -576,6 +576,39 @@ async function handleBlockOperationTx(
       break
     }
 
+    case BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES: {
+      if (!payload.id || !payload.data?.canonicalModes) {
+        throw new Error('Missing required fields for replace canonical modes operation')
+      }
+
+      const existingBlock = await tx
+        .select({ data: workflowBlocks.data })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      const currentData = (existingBlock?.[0]?.data as Record<string, unknown>) || {}
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          data: {
+            ...currentData,
+            canonicalModes: payload.data.canonicalModes,
+          },
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Replaced block canonical modes: ${payload.id}`)
+      break
+    }
+
     case BLOCK_OPERATIONS.TOGGLE_HANDLES: {
       if (!payload.id || payload.horizontalHandles === undefined) {
         throw new Error('Missing required fields for toggle handles operation')

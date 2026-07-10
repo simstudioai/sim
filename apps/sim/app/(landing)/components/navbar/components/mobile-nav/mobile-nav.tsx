@@ -67,7 +67,7 @@ export function MobileNav({ stars }: MobileNavProps) {
 
   return (
     <div className='ml-auto flex items-center gap-2 lg:hidden'>
-      <ChipLink variant='primary' href='/signup'>
+      <ChipLink variant='primary' href='/signup' prefetch={false}>
         Sign up
       </ChipLink>
       <button
@@ -99,7 +99,7 @@ export function MobileNav({ stars }: MobileNavProps) {
             : '-translate-y-2 pointer-events-none opacity-0'
         )}
       >
-        <div className='mx-auto flex w-full max-w-[1446px] flex-col gap-1 px-5 pt-2 pb-5'>
+        <div className='mx-auto flex w-full max-w-[1460px] flex-col gap-1 px-5 pt-2 pb-5'>
           {NAV_MENUS.map((menu) => (
             <div key={menu.label} className='flex flex-col'>
               <span className='px-3 pt-2.5 pb-1 text-[13px] text-[var(--text-muted)]'>
@@ -154,6 +154,7 @@ export function MobileNav({ stars }: MobileNavProps) {
               href='/login'
               fullWidth
               flush
+              prefetch={false}
               className='h-[40px] justify-center border border-[var(--border-1)] [&>span]:flex-none'
               onClick={() => setOpen(false)}
             >

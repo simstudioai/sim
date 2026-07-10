@@ -13,6 +13,7 @@ import {
   Label,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -106,7 +107,7 @@ export function AccessControl() {
       setNewGroupWorkspaceIds([])
     } catch (error) {
       logger.error('Failed to create permission group', error)
-      setCreateError(error instanceof Error ? error.message : 'Failed to create permission group')
+      setCreateError(getErrorMessage(error, 'Failed to create permission group'))
     }
   }, [
     newGroupName,

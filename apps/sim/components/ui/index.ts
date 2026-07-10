@@ -14,3 +14,4 @@ export {
   SelectTrigger,
   SelectValue,
 } from './select'
+export { ThinkingLoader, type ThinkingLoaderVariant } from './thinking-loader'

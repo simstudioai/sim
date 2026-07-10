@@ -30,6 +30,7 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
   turbopack: {
+    root: path.join(import.meta.dirname, '../..'),
     resolveAlias: minimalRegistryAlias,
   },
   webpack: (config) => {
@@ -47,6 +48,12 @@ const nextConfig: NextConfig = {
   },
   images: {
     formats: ['image/avif', 'image/webp'],
+    /**
+     * Allowed `quality` values for next/image. 75 is the app-wide default;
+     * 90 exists for large photographic marketing assets (the landing hero
+     * backdrop) where the default visibly softens texture.
+     */
+    qualities: [75, 90],
     remotePatterns: [
       {
         protocol: 'https',
@@ -130,7 +137,8 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    optimizeCss: true,
+    optimizeCss: !isDev,
+    turbopackFileSystemCacheForDev: false,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',
@@ -400,6 +408,26 @@ const nextConfig: NextConfig = {
       destination: '/contact',
       permanent: true,
     })
+
+    /**
+     * AEO/GEO-style posts (listicles, comparisons, how-tos) were split out of
+     * `/blog` into the dedicated `/library` section so `/blog` stays
+     * editorial-only. Preserve previously indexed URLs for the moved posts.
+     */
+    for (const slug of [
+      'best-zapier-alternatives',
+      'ai-agents-vs-rpa',
+      'ai-agent-vs-chatbot',
+      'openai-vs-n8n-vs-sim',
+      'ai-agent-ideas',
+      'how-to-create-an-ai-agent',
+    ]) {
+      redirects.push({
+        source: `/blog/${slug}`,
+        destination: `/library/${slug}`,
+        permanent: true,
+      })
+    }
 
     return redirects
   },

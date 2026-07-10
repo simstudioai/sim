@@ -6,7 +6,7 @@ export const createMattersTool: ToolConfig<GoogleVaultCreateMattersParams> = {
   id: 'google_vault_create_matters',
   name: 'Vault Create Matter',
   description: 'Create a new matter in Google Vault',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,

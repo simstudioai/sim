@@ -30,7 +30,7 @@ interface ParsedCredentials {
  * Extract account name and key from an Azure connection string.
  * Connection strings have the format: DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=...
  */
-function parseConnectionString(connectionString: string): ParsedCredentials {
+export function parseConnectionString(connectionString: string): ParsedCredentials {
   const accountNameMatch = connectionString.match(/AccountName=([^;]+)/)
   if (!accountNameMatch) {
     throw new Error('Cannot extract account name from connection string')

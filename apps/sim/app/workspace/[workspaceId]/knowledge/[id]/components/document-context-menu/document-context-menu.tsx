@@ -22,7 +22,6 @@ interface DocumentContextMenuProps {
   onAddDocument?: () => void
   isDocumentEnabled?: boolean
   hasDocument: boolean
-  hasTags?: boolean
   disableRename?: boolean
   disableToggleEnabled?: boolean
   disableDelete?: boolean
@@ -50,7 +49,6 @@ export function DocumentContextMenu({
   onAddDocument,
   isDocumentEnabled = true,
   hasDocument,
-  hasTags = false,
   disableRename = false,
   disableToggleEnabled = false,
   disableDelete = false,
@@ -70,7 +68,7 @@ export function DocumentContextMenu({
   }
 
   const hasNavigationSection = !isMultiSelect && (!!onOpenInNewTab || !!onOpenSource)
-  const hasEditSection = !isMultiSelect && (!!onRename || (hasTags && !!onViewTags))
+  const hasEditSection = !isMultiSelect && (!!onRename || !!onViewTags)
   const hasStateSection = !!onToggleEnabled
   const hasDestructiveSection = !!onDelete
 
@@ -121,10 +119,10 @@ export function DocumentContextMenu({
                 Rename
               </DropdownMenuItem>
             )}
-            {!isMultiSelect && hasTags && onViewTags && (
+            {!isMultiSelect && onViewTags && (
               <DropdownMenuItem onSelect={onViewTags}>
                 <TagIcon />
-                View tags
+                Tags
               </DropdownMenuItem>
             )}
             {hasEditSection && (hasStateSection || hasDestructiveSection) && (

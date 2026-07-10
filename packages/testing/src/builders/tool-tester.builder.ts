@@ -43,16 +43,11 @@ export interface ToolResponse {
  */
 const createMockHeaders = (customHeaders: Record<string, string> = {}) => {
   return {
-    'User-Agent':
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    'User-Agent': 'Sim/1.0 (+https://sim.ai)',
     Accept: '*/*',
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
-    Referer: 'https://www.sim.ai',
-    'Sec-Ch-Ua': 'Chromium;v=91, Not-A.Brand;v=99',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"macOS"',
     ...customHeaders,
   }
 }

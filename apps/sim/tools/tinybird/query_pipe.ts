@@ -80,7 +80,7 @@ export const queryPipeTool: ToolConfig<TinybirdQueryPipeParams, TinybirdQueryPip
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Tinybird API Token with PIPE:READ scope',
+      description: 'Tinybird API Token with PIPES:READ scope',
     },
   },
 

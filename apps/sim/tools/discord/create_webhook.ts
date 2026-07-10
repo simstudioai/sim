@@ -42,12 +42,12 @@ export const discordCreateWebhookTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateWebhookParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId}/webhooks`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/webhooks`
     },
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordCreateWebhookParams) => {
       return {

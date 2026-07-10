@@ -117,6 +117,7 @@ app:
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     AWS_SES_REGION: ""                                    # AWS region for SES (e.g., "us-east-1"); credentials resolved via the standard AWS provider chain (env, IRSA, instance profile)
+    AZURE_ACS_CONNECTION_STRING: ""                       # Azure Communication Services connection string (email provider — used when Resend/SES/SMTP are not configured)
     SMTP_HOST: ""                                         # SMTP server hostname (alternative to Resend/SES)
     SMTP_PORT: ""                                         # SMTP server port (465 for TLS, 587 for STARTTLS, 25 for plain)
     SMTP_USER: ""                                         # SMTP username (optional — omit for unauthenticated relays like MailHog)
@@ -145,6 +146,13 @@ app:
     AZURE_ANTHROPIC_ENDPOINT: ""                          # Azure AI Foundry endpoint for Anthropic models
     AZURE_ANTHROPIC_API_KEY: ""                           # Azure Anthropic API key
     AZURE_ANTHROPIC_API_VERSION: ""                       # Azure Anthropic API version (e.g., 2023-06-01)
+    KB_OPENAI_MODEL_NAME: ""                              # Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set)
+    WAND_OPENAI_MODEL_NAME: ""                            # Wand generation model deployment name (works with both regular OpenAI and Azure OpenAI)
+
+    # Azure Mistral OCR Configuration (leave empty if not using Azure-hosted OCR for document processing)
+    OCR_AZURE_ENDPOINT: ""                                # Azure Mistral OCR service endpoint
+    OCR_AZURE_MODEL_NAME: ""                              # Azure Mistral OCR model name
+    OCR_AZURE_API_KEY: ""                                 # Azure Mistral OCR API key
 
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
@@ -822,6 +830,18 @@ pii:
     digest: ""       # sha256: pin overrides tag
     pullPolicy: IfNotPresent
 
+  # NER engine: "spacy" (default) or "gliner" (opt-in zero-shot transformer NER
+  # for PERSON/LOCATION/NRP/DATE_TIME; regex/checksum recognizers are identical
+  # on both engines). The image ships both engines, so this is a pure env flip
+  # — no image change needed. Note: gliner on CPU is orders of magnitude slower
+  # than spacy; it is intended for GPU nodes.
+  engine: "spacy"
+
+  # Torch device for the gliner engine: "cpu", "cuda", or "cuda:N". Empty
+  # auto-detects (cuda when a GPU is visible, else cpu). GPU resource requests
+  # (nvidia.com/gpu) are not wired yet — GPU scheduling is an infra follow-up.
+  device: ""
+
   # Number of replicas
   replicaCount: 1
 
@@ -1417,6 +1437,15 @@ telemetry:
     tls:
       enabled: false
 
+  # Pod security context (preserves the collector's original UID/GID/fsGroup)
+  podSecurityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+  # Container security context (sim.containerSecurityContext restricted defaults apply)
+  securityContext: {}
+
 # Copilot service configuration (optional microservice)
 copilot:
   # Enable/disable the copilot service
@@ -1458,11 +1487,12 @@ copilot:
       runAsNonRoot: true
       runAsUser: 1001
     
-    # Environment variables (required and optional)
+    # Environment variables that go through the chart-managed Secret (or ExternalSecret
+    # when externalSecrets.enabled=true). Every non-empty key here must have a matching
+    # externalSecrets.remoteRefs.copilot entry under ESO — reserve this block for values
+    # that are genuinely sensitive or user-provided; static operational config belongs in
+    # envDefaults below instead.
     env:
-      PORT: "8080"
-      SERVICE_NAME: "copilot"
-      ENVIRONMENT: "production"
       AGENT_API_DB_ENCRYPTION_KEY: ""
       INTERNAL_API_SECRET: ""
       LICENSE_KEY: ""
@@ -1471,17 +1501,31 @@ copilot:
       SIM_BASE_URL: ""
       SIM_AGENT_API_KEY: ""
       REDIS_URL: ""
-      # Optional configuration
-      LOG_LEVEL: "info"
       CORS_ALLOWED_ORIGINS: ""
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
-    
+
+    # Operational tunables shipped with the chart. Rendered as inline `env:` on the
+    # copilot container — NOT written into the chart-managed Secret and NOT required to
+    # be mapped when externalSecrets.enabled=true. Override any key by setting
+    # copilot.server.envDefaults.KEY in your values file. Move a key into
+    # copilot.server.env above only if it must be treated as secret.
+    envDefaults:
+      PORT: "8080"
+      SERVICE_NAME: "copilot"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+
     # Optional: additional static environment variables
     extraEnv: []
-    
+
     # Optional: references to existing ConfigMaps/Secrets
     extraEnvFrom: []
-    
+
+    # Optional: additional volumes/mounts (e.g. to back an emptyDir /tmp when
+    # enabling securityContext.readOnlyRootFilesystem)
+    extraVolumes: []
+    extraVolumeMounts: []
+
     # Secret generation configuration (set create=false to use an existing secret)
     secret:
       create: true
@@ -1706,6 +1750,27 @@ externalSecrets:
     externalDatabase:
       # Path to external database password in external store
       password: ""
+
+    # Copilot server secrets (used when copilot.enabled=true and copilot.server.secret.create=true).
+    # Every non-empty copilot.server.env key must have a matching entry here, or template
+    # rendering fails with a clear "map it or remove it" error — same rule as remoteRefs.app.
+    copilot:
+      # Path to AGENT_API_DB_ENCRYPTION_KEY in external store
+      AGENT_API_DB_ENCRYPTION_KEY: ""
+      # Path to INTERNAL_API_SECRET in external store (shared with app/realtime)
+      INTERNAL_API_SECRET: ""
+      # Path to LICENSE_KEY in external store
+      LICENSE_KEY: ""
+      # Path to SIM_BASE_URL in external store
+      SIM_BASE_URL: ""
+      # Path to SIM_AGENT_API_KEY in external store
+      SIM_AGENT_API_KEY: ""
+      # Path to REDIS_URL in external store
+      REDIS_URL: ""
+      # Path to OPENAI_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      OPENAI_API_KEY_1: ""
+      # Path to ANTHROPIC_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      ANTHROPIC_API_KEY_1: ""
 
 # cert-manager configuration
 # Prerequisites: Install cert-manager in your cluster first

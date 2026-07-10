@@ -7,6 +7,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
@@ -51,6 +52,8 @@ export interface PerformUpdateWorkflowParams {
   workspaceId: string
   currentName: string
   currentFolderId?: string | null
+  /** Prior `locked` value, used to detect lock-state transitions for instrumentation. */
+  currentLocked?: boolean | null
   name?: string
   description?: string | null
   folderId?: string | null
@@ -337,6 +340,31 @@ export async function performUpdateWorkflow(
     logger.info(`[${requestId}] Successfully updated workflow ${params.workflowId}`, {
       updates: updateData,
     })
+
+    if (params.locked !== undefined && params.locked !== (params.currentLocked ?? false)) {
+      const workspaceId = updatedWorkflow.workspaceId
+      recordAudit({
+        workspaceId: workspaceId ?? null,
+        actorId: params.userId,
+        action: params.locked ? AuditAction.WORKFLOW_LOCKED : AuditAction.WORKFLOW_UNLOCKED,
+        resourceType: AuditResourceType.WORKFLOW,
+        resourceId: params.workflowId,
+        resourceName: updatedWorkflow.name,
+        description: `${params.locked ? 'Locked' : 'Unlocked'} workflow "${updatedWorkflow.name}"`,
+        metadata: { locked: params.locked },
+      })
+
+      captureServerEvent(
+        params.userId,
+        'workflow_lock_toggled',
+        {
+          workflow_id: params.workflowId,
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          locked: params.locked,
+        },
+        workspaceId ? { groups: { workspace: workspaceId } } : undefined
+      )
+    }
 
     return { success: true, workflow: updatedWorkflow }
   } catch (error) {

@@ -39,11 +39,11 @@ export const discordUnpinMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordUnpinMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId}/pins/${params.messageId}`
+      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/pins/${params.messageId.trim()}`
     },
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bot ${params.botToken}`,
+      Authorization: `Bot ${params.botToken.trim()}`,
     }),
   },
 

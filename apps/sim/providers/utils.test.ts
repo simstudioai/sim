@@ -196,8 +196,8 @@ describe('Model Capabilities', () => {
         'gpt-5-chat-latest',
         'azure/gpt-5-chat',
         'gemini-2.5-flash',
-        'claude-sonnet-4-0',
-        'claude-opus-4-0',
+        'claude-sonnet-4-5',
+        'claude-opus-4-1',
         'grok-3-latest',
         'grok-3-fast-latest',
         'deepseek-v3',
@@ -243,7 +243,7 @@ describe('Model Capabilities', () => {
 
     it.concurrent('should be case insensitive', () => {
       expect(supportsTemperature('GPT-4O')).toBe(true)
-      expect(supportsTemperature('claude-sonnet-4-0')).toBe(true)
+      expect(supportsTemperature('claude-sonnet-4-5')).toBe(true)
     })
 
     it.concurrent(
@@ -277,7 +277,7 @@ describe('Model Capabilities', () => {
     })
 
     it.concurrent('should return 1 for models with temperature range 0-1', () => {
-      const modelsRange01 = ['claude-sonnet-4-0', 'claude-opus-4-0']
+      const modelsRange01 = ['claude-sonnet-4-5', 'claude-opus-4-1']
 
       for (const model of modelsRange01) {
         expect(getMaxTemperature(model)).toBe(1)
@@ -316,7 +316,7 @@ describe('Model Capabilities', () => {
 
     it.concurrent('should be case insensitive', () => {
       expect(getMaxTemperature('GPT-4O')).toBe(2)
-      expect(getMaxTemperature('CLAUDE-SONNET-4-0')).toBe(1)
+      expect(getMaxTemperature('CLAUDE-SONNET-4-5')).toBe(1)
     })
 
     it.concurrent(
@@ -413,7 +413,7 @@ describe('Model Capabilities', () => {
       expect(supportsThinking('claude-opus-4-6')).toBe(true)
       expect(supportsThinking('claude-opus-4-5')).toBe(true)
       expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
-      expect(supportsThinking('claude-sonnet-4-0')).toBe(true)
+      expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
       expect(supportsThinking('claude-haiku-4-5')).toBe(true)
       expect(supportsThinking('gemini-3-flash-preview')).toBe(true)
     })
@@ -438,11 +438,11 @@ describe('Model Capabilities', () => {
       expect(MODELS_TEMP_RANGE_0_2).toContain('gemini-2.5-flash')
       expect(MODELS_TEMP_RANGE_0_2).toContain('deepseek-v3')
       expect(MODELS_TEMP_RANGE_0_2).toContain('grok-3-latest')
-      expect(MODELS_TEMP_RANGE_0_2).not.toContain('claude-sonnet-4-0')
+      expect(MODELS_TEMP_RANGE_0_2).not.toContain('claude-sonnet-4-5')
     })
 
     it.concurrent('should have correct models in MODELS_TEMP_RANGE_0_1', () => {
-      expect(MODELS_TEMP_RANGE_0_1).toContain('claude-sonnet-4-0')
+      expect(MODELS_TEMP_RANGE_0_1).toContain('claude-sonnet-4-5')
       expect(MODELS_TEMP_RANGE_0_1).not.toContain('grok-3-latest')
       expect(MODELS_TEMP_RANGE_0_1).not.toContain('gpt-4o')
     })
@@ -464,7 +464,7 @@ describe('Model Capabilities', () => {
             MODELS_TEMP_RANGE_0_1.length
         )
         expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('gpt-4o')
-        expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('claude-sonnet-4-0')
+        expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('claude-sonnet-4-5')
       }
     )
 
@@ -496,7 +496,7 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5-chat')
 
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-4o')
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('claude-sonnet-4-0')
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('claude-sonnet-4-5')
     })
 
     it.concurrent('should have correct models in MODELS_WITH_VERBOSITY', () => {
@@ -525,16 +525,14 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_VERBOSITY).not.toContain('o4-mini')
 
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-4o')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('claude-sonnet-4-0')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('claude-sonnet-4-5')
     })
 
     it.concurrent('should have correct models in MODELS_WITH_THINKING', () => {
       expect(MODELS_WITH_THINKING).toContain('claude-opus-4-6')
       expect(MODELS_WITH_THINKING).toContain('claude-opus-4-5')
       expect(MODELS_WITH_THINKING).toContain('claude-opus-4-1')
-      expect(MODELS_WITH_THINKING).toContain('claude-opus-4-0')
       expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-5')
-      expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-0')
 
       expect(MODELS_WITH_THINKING).toContain('gemini-3-flash-preview')
 
@@ -659,7 +657,7 @@ describe('Model Capabilities', () => {
     })
 
     it.concurrent('should return correct levels for other Claude models (budget_tokens)', () => {
-      for (const model of ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-sonnet-4-0']) {
+      for (const model of ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5']) {
         const levels = getThinkingLevelsForModel(model)
         expect(levels).toBeDefined()
         expect(levels).toContain('low')
@@ -713,7 +711,7 @@ describe('Max Output Tokens', () => {
     })
 
     it.concurrent('should return updated max for Claude Sonnet 4.6', () => {
-      expect(getMaxOutputTokensForModel('claude-sonnet-4-6')).toBe(64000)
+      expect(getMaxOutputTokensForModel('claude-sonnet-4-6')).toBe(128000)
     })
 
     it.concurrent('should return published max for Gemini 2.5 Pro', () => {
@@ -873,8 +871,8 @@ describe('getHostedModels', () => {
     expect(hostedModels).toContain('gpt-4o')
     expect(hostedModels).toContain('o1')
 
-    expect(hostedModels).toContain('claude-sonnet-4-0')
-    expect(hostedModels).toContain('claude-opus-4-0')
+    expect(hostedModels).toContain('claude-sonnet-4-5')
+    expect(hostedModels).toContain('claude-opus-4-1')
 
     expect(hostedModels).toContain('gemini-2.5-pro')
     expect(hostedModels).toContain('gemini-2.5-flash')
@@ -899,8 +897,8 @@ describe('shouldBillModelUsage', () => {
     expect(shouldBillModelUsage('gpt-4o')).toBe(true)
     expect(shouldBillModelUsage('o1')).toBe(true)
 
-    expect(shouldBillModelUsage('claude-sonnet-4-0')).toBe(true)
-    expect(shouldBillModelUsage('claude-opus-4-0')).toBe(true)
+    expect(shouldBillModelUsage('claude-sonnet-4-5')).toBe(true)
+    expect(shouldBillModelUsage('claude-opus-4-1')).toBe(true)
 
     expect(shouldBillModelUsage('gemini-2.5-pro')).toBe(true)
     expect(shouldBillModelUsage('gemini-2.5-flash')).toBe(true)
@@ -921,7 +919,7 @@ describe('shouldBillModelUsage', () => {
 
   it.concurrent('should be case insensitive', () => {
     expect(shouldBillModelUsage('GPT-4O')).toBe(true)
-    expect(shouldBillModelUsage('Claude-Sonnet-4-0')).toBe(true)
+    expect(shouldBillModelUsage('Claude-Sonnet-4-5')).toBe(true)
     expect(shouldBillModelUsage('GEMINI-2.5-PRO')).toBe(true)
   })
 
@@ -936,7 +934,7 @@ describe('Provider Management', () => {
   describe('getProviderFromModel', () => {
     it.concurrent('should return correct provider for known models', () => {
       expect(getProviderFromModel('gpt-4o')).toBe('openai')
-      expect(getProviderFromModel('claude-sonnet-4-0')).toBe('anthropic')
+      expect(getProviderFromModel('claude-sonnet-4-5')).toBe('anthropic')
       expect(getProviderFromModel('gemini-2.5-pro')).toBe('google')
       expect(getProviderFromModel('azure/gpt-4o')).toBe('azure-openai')
     })
@@ -985,7 +983,7 @@ describe('Provider Management', () => {
       expect(config).toBeDefined()
       expect(config?.id).toBe('openai')
 
-      const anthropicConfig = getProviderConfigFromModel('claude-sonnet-4-0')
+      const anthropicConfig = getProviderConfigFromModel('claude-sonnet-4-5')
       expect(anthropicConfig).toBeDefined()
       expect(anthropicConfig?.id).toBe('anthropic')
     })
@@ -998,7 +996,7 @@ describe('Provider Management', () => {
       expect(allModels.length).toBeGreaterThan(0)
 
       expect(allModels).toContain('gpt-4o')
-      expect(allModels).toContain('claude-sonnet-4-0')
+      expect(allModels).toContain('claude-sonnet-4-5')
       expect(allModels).toContain('gemini-2.5-pro')
     })
   })
@@ -1022,8 +1020,8 @@ describe('Provider Management', () => {
       expect(openaiModels).toContain('o1')
 
       const anthropicModels = getProviderModels('anthropic')
-      expect(anthropicModels).toContain('claude-sonnet-4-0')
-      expect(anthropicModels).toContain('claude-opus-4-0')
+      expect(anthropicModels).toContain('claude-sonnet-4-5')
+      expect(anthropicModels).toContain('claude-opus-4-1')
     })
 
     it.concurrent('should return empty array for unknown providers', () => {
@@ -1037,7 +1035,7 @@ describe('Provider Management', () => {
       const allProviders = getAllModelProviders()
       expect(typeof allProviders).toBe('object')
       expect(allProviders['gpt-4o']).toBe('openai')
-      expect(allProviders['claude-sonnet-4-0']).toBe('anthropic')
+      expect(allProviders['claude-sonnet-4-5']).toBe('anthropic')
 
       const baseProviders = getBaseModelProviders()
       expect(typeof baseProviders).toBe('object')
@@ -1564,11 +1562,12 @@ describe('transformBlockTool multi-instance unique IDs', () => {
 
   const transformTable = (
     params: Record<string, unknown>,
-    canonicalModes?: Record<string, 'basic' | 'advanced'>
+    canonicalModes?: Record<string, 'basic' | 'advanced'>,
+    toolIndex?: number
   ) =>
     transformBlockTool(
       { type: 'table', operation: 'query_rows', params },
-      { selectedOperation: 'query_rows', getAllBlocks, getTool, canonicalModes }
+      { selectedOperation: 'query_rows', getAllBlocks, getTool, canonicalModes, toolIndex }
     )
 
   it('appends the table id when stored under the basic selector subblock key', async () => {
@@ -1579,7 +1578,8 @@ describe('transformBlockTool multi-instance unique IDs', () => {
   it('appends the table id resolved from the advanced manual input', async () => {
     const result = await transformTable(
       { manualTableId: 'tbl_xyz' },
-      { 'table:tableId': 'advanced' }
+      { '0:tableId': 'advanced' },
+      0
     )
     expect(result?.id).toBe('table_query_rows_tbl_xyz')
   })
@@ -1599,6 +1599,21 @@ describe('transformBlockTool multi-instance unique IDs', () => {
   it('falls back to the base tool id when no table is selected', async () => {
     const result = await transformTable({})
     expect(result?.id).toBe('table_query_rows')
+  })
+
+  it('regression: two Table tool instances on one Agent block resolve their canonical mode independently', async () => {
+    // Both tools are type "table" with canonicalId "tableId" and BOTH basic + advanced values
+    // populated, so only the explicit per-instance mode determines which one wins. Before the fix,
+    // canonicalModes was keyed by `${toolType}:${canonicalId}` (shared across every "table" tool),
+    // so toggling tool #0 to advanced also flipped tool #1's resolved value.
+    const sharedParams = { tableSelector: 'tbl_basic', manualTableId: 'tbl_advanced' }
+    const canonicalModes = { '0:tableId': 'advanced', '1:tableId': 'basic' }
+
+    const first = await transformTable(sharedParams, canonicalModes, 0)
+    const second = await transformTable(sharedParams, canonicalModes, 1)
+
+    expect(first?.id).toBe('table_query_rows_tbl_advanced')
+    expect(second?.id).toBe('table_query_rows_tbl_basic')
   })
 })
 
@@ -1637,11 +1652,12 @@ describe('transformBlockTool knowledge-base multi-instance unique IDs', () => {
 
   const transformKb = (
     params: Record<string, unknown>,
-    canonicalModes?: Record<string, 'basic' | 'advanced'>
+    canonicalModes?: Record<string, 'basic' | 'advanced'>,
+    toolIndex?: number
   ) =>
     transformBlockTool(
       { type: 'knowledge', operation: 'search', params },
-      { selectedOperation: 'search', getAllBlocks, getTool, canonicalModes }
+      { selectedOperation: 'search', getAllBlocks, getTool, canonicalModes, toolIndex }
     )
 
   it('appends the knowledge base id when stored under the basic selector subblock key', async () => {
@@ -1652,7 +1668,8 @@ describe('transformBlockTool knowledge-base multi-instance unique IDs', () => {
   it('appends the knowledge base id resolved from the advanced manual input', async () => {
     const result = await transformKb(
       { manualKnowledgeBaseId: 'kb_xyz' },
-      { 'knowledge:knowledgeBaseId': 'advanced' }
+      { '0:knowledgeBaseId': 'advanced' },
+      0
     )
     expect(result?.id).toBe('knowledge_search_kb_xyz')
   })

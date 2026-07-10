@@ -1,13 +1,55 @@
 import type { Editor } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import { GapCursor } from '@tiptap/pm/gapcursor'
-import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state'
+import type { ResolvedPos } from '@tiptap/pm/model'
+import { NodeSelection, Plugin, PluginKey, Selection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { MENTION_PLUGIN_KEY } from './mention'
 import { SLASH_COMMAND_PLUGIN_KEY } from './slash-command/slash-command'
 
 /** Leaf nodes that have no text position, so they can only be reached as a NodeSelection. */
 const SELECTABLE_LEAVES = new Set(['horizontalRule', 'image'])
+
+/**
+ * Wrapper nodes whose empty child a boundary key must remove cleanly rather than lift. Lifting an empty
+ * block out of one of these splits the container in two and strands an empty paragraph — a visible gap
+ * that also fails to round-trip through markdown (see {@link removeEmptyWrappedBlock}).
+ */
+const WRAPPER_TYPES = new Set(['listItem', 'taskItem', 'blockquote'])
+
+/** Item node types a list is built from, used to detect an empty item's position within its list. */
+const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem'])
+
+/** True when the resolved position sits anywhere inside a {@link WRAPPER_TYPES} ancestor. */
+function isInsideWrapper($from: ResolvedPos): boolean {
+  for (let depth = $from.depth - 1; depth >= 1; depth--) {
+    if (WRAPPER_TYPES.has($from.node(depth).type.name)) return true
+  }
+  return false
+}
+
+/**
+ * Removes the empty textblock at `$from`, deleting up through the outermost ancestor it is the sole
+ * child of, then places the caret at the end of the preceding block. This keeps a list or blockquote
+ * whole when its middle/first/last item is emptied — where ProseMirror's default lift would split the
+ * container and strand an empty paragraph (a visible gap, and markdown that re-parses to a different
+ * document). Walking up while `childCount === 1` deletes the whole now-empty wrapper (the emptied list
+ * item, not just its paragraph) so no orphan `<li>` or empty continuation line is left behind.
+ */
+function removeEmptyWrappedBlock(editor: Editor, $from: ResolvedPos): boolean {
+  let depth = $from.depth
+  while (depth > 1 && $from.node(depth - 1).childCount === 1) depth--
+  const start = $from.before(depth)
+  const end = $from.after(depth)
+  return editor.commands.command(({ tr, dispatch }) => {
+    if (dispatch) {
+      tr.delete(start, end)
+      tr.setSelection(Selection.near(tr.doc.resolve(start), -1))
+      dispatch(tr.scrollIntoView())
+    }
+    return true
+  })
+}
 
 /**
  * True while a `/` or `@` suggestion menu is open. Arrow keys must reach that menu's own handler, so
@@ -66,18 +108,28 @@ function selectAdjacentSelectedLeaf(editor: Editor, direction: 'up' | 'down'): b
  * Editor-specific keyboard behavior layered on top of StarterKit's defaults:
  *
  * - **Backspace** at the start of a heading reverts it to a paragraph (ProseMirror's default joins or
- *   no-ops, stranding the heading style; a second Backspace then merges as usual). At the start of a
- *   block whose previous sibling is a divider or image, where ProseMirror's `joinBackward` can't cross
- *   the leaf and no-ops: an *empty* block is deleted (clearing the blank line between/below dividers
- *   without touching the divider itself), while a *non-empty* block selects the leaf — so a first
- *   Backspace highlights what a second deletes, the same highlight-before-delete affordance as clicking
- *   it and parity with the arrow-key leaf selection.
+ *   no-ops, stranding the heading style; a second Backspace then merges as usual). At the start of an
+ *   *empty block inside a list item, task item, or blockquote* it removes that whole emptied wrapper via
+ *   {@link removeEmptyWrappedBlock} instead of ProseMirror's default lift — lifting an empty item out of
+ *   the middle of a list/quote splits the container in two and strands an empty paragraph (a visible gap
+ *   that also re-parses to a different markdown document), while the default `joinBackward` alternately
+ *   no-ops on nested items (leaving them stuck) or merges an empty continuation paragraph into the
+ *   previous item. At the start of a block whose previous sibling is a divider or image, where
+ *   ProseMirror's `joinBackward` can't cross the leaf and no-ops: an *empty* block is deleted (clearing
+ *   the blank line between/below dividers without touching the divider itself), while a *non-empty*
+ *   block selects the leaf — so a first Backspace highlights what a second deletes, the same
+ *   highlight-before-delete affordance as clicking it and parity with the arrow-key leaf selection.
+ * - **Enter** on an *empty, non-trailing list/task item* removes the empty item ({@link
+ *   removeEmptyWrappedBlock}) rather than letting the default split the list into two around a stranded
+ *   empty paragraph (which does not round-trip). A *trailing* empty item still falls through to the
+ *   default, which exits the list — the standard "press Enter on a blank bullet to leave the list".
  * - **Mod-A** inside a code block selects only that block's contents; pressing it again (when the
  *   block is already fully selected) falls through to the default whole-document select-all, the
  *   same scoped behavior as a code editor.
  * - **ArrowUp/ArrowDown** select an adjacent divider or image, whether arrowing off a textblock edge
  *   ({@link selectAdjacentLeaf}) or stepping from one already-selected leaf to the next
- *   ({@link selectAdjacentSelectedLeaf}).
+ *   ({@link selectAdjacentSelectedLeaf}). (The `Mod-Shift-Arrow` block-reorder chords live separately
+ *   in `./block-mover.ts`.)
  *
  * Plus a plugin that (a) highlights dividers/images falling inside a range selection (e.g. select-all),
  * which the browser's native text highlight skips because leaves carry no text, and (b) flags the
@@ -97,6 +149,9 @@ export const RichMarkdownKeymap = Extension.create({
         if ($from.parent.type.name === 'heading') {
           return editor.commands.setParagraph()
         }
+        if ($from.parent.content.size === 0 && isInsideWrapper($from)) {
+          return removeEmptyWrappedBlock(editor, $from)
+        }
         const blockStart = $from.before($from.depth)
         const nodeBefore = doc.resolve(blockStart).nodeBefore
         if (!nodeBefore || !SELECTABLE_LEAVES.has(nodeBefore.type.name)) return false
@@ -112,6 +167,18 @@ export const RichMarkdownKeymap = Extension.create({
           })
         }
         return editor.commands.setNodeSelection(leafStart)
+      },
+      Enter: ({ editor }) => {
+        const { selection } = editor.state
+        if (!selection.empty || selection.$from.parentOffset !== 0) return false
+        const { $from } = selection
+        if ($from.parent.content.size !== 0) return false
+        const itemDepth = $from.depth - 1
+        if (itemDepth < 1 || !LIST_ITEM_TYPES.has($from.node(itemDepth).type.name)) return false
+        const listDepth = itemDepth - 1
+        const isTrailingItem = $from.index(listDepth) === $from.node(listDepth).childCount - 1
+        if (isTrailingItem) return false
+        return removeEmptyWrappedBlock(editor, $from)
       },
       'Mod-a': ({ editor }) => {
         const { $from } = editor.state.selection

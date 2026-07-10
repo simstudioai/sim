@@ -575,6 +575,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         menuRef={menuRef}
         onClose={closeMenu}
         onRename={handleStartEdit}
+        renameInputRef={inputRef}
         onCreate={handleCreateWorkflowInFolder}
         onCreateFolder={handleCreateFolderInFolder}
         onDuplicate={handleDuplicate}

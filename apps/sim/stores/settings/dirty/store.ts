@@ -1,28 +1,28 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 interface SettingsDirtyStore {
   isDirty: boolean
-  pendingSection: SettingsSection | null
+  /** Leave action deferred until the user confirms discard. */
+  pendingLeave: (() => void) | null
   setDirty: (dirty: boolean) => void
   /**
-   * Call before navigating to a new section. Returns `true` if navigation may
-   * proceed immediately; returns `false` if there are unsaved changes — in that
-   * case `pendingSection` is set so a confirmation dialog can be shown.
+   * Call before leaving the current settings surface. If clean, runs `leave` immediately
+   * and returns `true`. If dirty, stashes `leave` and returns `false` so the shared
+   * discard dialog can confirm before running it.
    */
-  requestNavigation: (section: SettingsSection) => boolean
-  /** Clears dirty + pending state and returns the section to navigate to. */
-  confirmNavigation: () => SettingsSection | null
-  /** Cancels a pending navigation without clearing dirty state. */
-  cancelNavigation: () => void
+  requestLeave: (leave: () => void) => boolean
+  /** Clears dirty + pending state and runs the deferred leave action. */
+  confirmLeave: () => void
+  /** Cancels a pending leave without clearing dirty state. */
+  cancelLeave: () => void
   /** Resets all state — call on component unmount. */
   reset: () => void
 }
 
 const initialState = {
   isDirty: false,
-  pendingSection: null as SettingsSection | null,
+  pendingLeave: null as (() => void) | null,
 }
 
 export const useSettingsDirtyStore = create<SettingsDirtyStore>()(
@@ -32,19 +32,22 @@ export const useSettingsDirtyStore = create<SettingsDirtyStore>()(
 
       setDirty: (dirty) => set({ isDirty: dirty }),
 
-      requestNavigation: (section) => {
-        if (!get().isDirty) return true
-        set({ pendingSection: section })
+      requestLeave: (leave) => {
+        if (!get().isDirty) {
+          leave()
+          return true
+        }
+        set({ pendingLeave: leave })
         return false
       },
 
-      confirmNavigation: () => {
-        const { pendingSection } = get()
+      confirmLeave: () => {
+        const { pendingLeave } = get()
         set({ ...initialState })
-        return pendingSection
+        pendingLeave?.()
       },
 
-      cancelNavigation: () => set({ pendingSection: null }),
+      cancelLeave: () => set({ pendingLeave: null }),
 
       reset: () => set({ ...initialState }),
     }),

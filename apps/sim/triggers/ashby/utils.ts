@@ -144,6 +144,10 @@ export function buildApplicationSubmitOutputs(): Record<string, TriggerOutput> {
       currentInterviewStage: {
         id: { type: 'string', description: 'Current interview stage UUID' },
         title: { type: 'string', description: 'Current interview stage title' },
+        stageType: {
+          type: 'string',
+          description: 'Current interview stage type (e.g., Lead, Applied, Interview, Offer)',
+        },
       },
       job: {
         id: { type: 'string', description: 'Job UUID' },
@@ -181,6 +185,10 @@ export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput
       currentInterviewStage: {
         id: { type: 'string', description: 'Current interview stage UUID' },
         title: { type: 'string', description: 'Current interview stage title' },
+        stageType: {
+          type: 'string',
+          description: 'Current interview stage type (e.g., Lead, Applied, Interview, Offer)',
+        },
       },
       job: {
         id: { type: 'string', description: 'Job UUID' },
@@ -213,6 +221,10 @@ export function buildCandidateHireOutputs(): Record<string, TriggerOutput> {
       currentInterviewStage: {
         id: { type: 'string', description: 'Current interview stage UUID' },
         title: { type: 'string', description: 'Current interview stage title' },
+        stageType: {
+          type: 'string',
+          description: 'Current interview stage type (e.g., Lead, Applied, Interview, Offer)',
+        },
       },
       job: {
         id: { type: 'string', description: 'Job UUID' },
@@ -262,7 +274,7 @@ export function buildJobCreateOutputs(): Record<string, TriggerOutput> {
       status: { type: 'string', description: 'Job status (Open, Closed, Draft, Archived)' },
       employmentType: {
         type: 'string',
-        description: 'Employment type (Full-time, Part-time, etc.)',
+        description: 'Employment type (FullTime, PartTime, Intern, Contract)',
       },
     },
   } as Record<string, TriggerOutput>
@@ -281,13 +293,12 @@ export function buildOfferCreateOutputs(): Record<string, TriggerOutput> {
       applicationId: { type: 'string', description: 'Associated application UUID' },
       acceptanceStatus: {
         type: 'string',
-        description:
-          'Offer acceptance status (Accepted, Declined, Pending, Created, Cancelled, WaitingOnResponse)',
+        description: 'Offer acceptance status (Accepted, Declined, Pending, Created, Cancelled)',
       },
       offerStatus: {
         type: 'string',
         description:
-          'Offer process status (WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnCandidateResponse, CandidateAccepted, CandidateRejected, OfferCancelled)',
+          'Offer process status (WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnApprovalDefinition, WaitingOnCandidateResponse, CandidateRejected, CandidateAccepted, OfferCancelled)',
       },
       decidedAt: {
         type: 'string',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -9,7 +9,6 @@ import {
   ChipInput,
   ChipSelect,
   type ComboboxOption,
-  cn,
   Download,
   Popover,
   PopoverAnchor,
@@ -21,10 +20,13 @@ import {
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
-import { ChevronDown } from 'lucide-react'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  ActivityLog,
+  type ActivityLogEntry,
+} from '@/app/workspace/[workspaceId]/settings/components/activity-log'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
@@ -162,97 +164,63 @@ function ActionBadge({ action }: ActionBadgeProps) {
   )
 }
 
-interface AuditLogRowProps {
-  entry: EnterpriseAuditLogEntry
-}
-
-function AuditLogRow({ entry }: AuditLogRowProps) {
-  const [expanded, setExpanded] = useState(false)
-  const timestamp = formatDateTime(new Date(entry.createdAt))
+/** The expanded detail box content for one audit entry (resource, actor, metadata). */
+function auditLogDetails(entry: EnterpriseAuditLogEntry): ReactNode {
   const metadataEntries = getMetadataEntries(entry.metadata)
-
   return (
-    <div
-      className={cn(
-        'rounded-md transition-colors',
-        'hover-hover:bg-[var(--surface-2)]',
-        expanded && 'bg-[var(--surface-2)]'
-      )}
-    >
-      <button
-        type='button'
-        className='flex w-full items-center gap-3 px-3 py-2 text-left'
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className='w-[160px] flex-shrink-0 text-[var(--text-secondary)] text-small'>
-          {timestamp}
+    <>
+      <div className='flex gap-2'>
+        <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Resource</span>
+        <span className='text-[var(--text-primary)]'>
+          {formatResourceType(entry.resourceType)}
+          {entry.resourceId && (
+            <span className='ml-1 text-[var(--text-muted)]'>({entry.resourceId})</span>
+          )}
         </span>
-        <span className='w-[180px] flex-shrink-0'>
-          <ActionBadge action={entry.action} />
-        </span>
-        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-small'>
-          {entry.description || entry.resourceName || entry.resourceId || '-'}
-        </span>
-        <span className='flex w-[160px] flex-shrink-0 items-center justify-end gap-1.5 text-[var(--text-secondary)] text-small'>
-          <span className='min-w-0 truncate'>
-            {entry.actorEmail || entry.actorName || 'System'}
-          </span>
-          <ChevronDown
-            className={cn(
-              'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
-              expanded && 'rotate-180'
-            )}
-          />
-        </span>
-      </button>
-      {expanded && (
-        <div className='px-3 pb-2'>
-          <div className='flex flex-col gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)] p-3 text-small'>
-            <div className='flex gap-2'>
-              <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Resource</span>
-              <span className='text-[var(--text-primary)]'>
-                {formatResourceType(entry.resourceType)}
-                {entry.resourceId && (
-                  <span className='ml-1 text-[var(--text-muted)]'>({entry.resourceId})</span>
-                )}
-              </span>
-            </div>
-            {entry.resourceName && (
-              <div className='flex gap-2'>
-                <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Name</span>
-                <span className='text-[var(--text-primary)]'>{entry.resourceName}</span>
-              </div>
-            )}
-            <div className='flex gap-2'>
-              <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Actor</span>
-              <span className='text-[var(--text-primary)]'>
-                {entry.actorName || 'Unknown'}
-                {entry.actorEmail && (
-                  <span className='ml-1 text-[var(--text-muted)]'>({entry.actorEmail})</span>
-                )}
-              </span>
-            </div>
-            {entry.description && (
-              <div className='flex gap-2'>
-                <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>
-                  Description
-                </span>
-                <span className='text-[var(--text-primary)]'>{entry.description}</span>
-              </div>
-            )}
-            {metadataEntries.map(([key, value]) => (
-              <div key={key} className='flex gap-2'>
-                <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>
-                  {formatMetadataLabel(key)}
-                </span>
-                <div className='min-w-0 flex-1'>{renderMetadataValue(value)}</div>
-              </div>
-            ))}
-          </div>
+      </div>
+      {entry.resourceName && (
+        <div className='flex gap-2'>
+          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Name</span>
+          <span className='text-[var(--text-primary)]'>{entry.resourceName}</span>
         </div>
       )}
-    </div>
+      <div className='flex gap-2'>
+        <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Actor</span>
+        <span className='text-[var(--text-primary)]'>
+          {entry.actorName || 'Unknown'}
+          {entry.actorEmail && (
+            <span className='ml-1 text-[var(--text-muted)]'>({entry.actorEmail})</span>
+          )}
+        </span>
+      </div>
+      {entry.description && (
+        <div className='flex gap-2'>
+          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Description</span>
+          <span className='text-[var(--text-primary)]'>{entry.description}</span>
+        </div>
+      )}
+      {metadataEntries.map(([key, value]) => (
+        <div key={key} className='flex gap-2'>
+          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>
+            {formatMetadataLabel(key)}
+          </span>
+          <div className='min-w-0 flex-1'>{renderMetadataValue(value)}</div>
+        </div>
+      ))}
+    </>
   )
+}
+
+/** Maps an audit entry to the shared {@link ActivityLog} row shape. */
+function toActivityEntry(entry: EnterpriseAuditLogEntry): ActivityLogEntry {
+  return {
+    id: entry.id,
+    timestamp: formatDateTime(new Date(entry.createdAt)),
+    event: <ActionBadge action={entry.action} />,
+    description: entry.description || entry.resourceName || entry.resourceId || '-',
+    actor: entry.actorEmail || entry.actorName || 'System',
+    details: auditLogDetails(entry),
+  }
 }
 
 export function AuditLogs() {
@@ -481,37 +449,27 @@ export function AuditLogs() {
         </Button>
       </div>
 
-      <div className='flex flex-col'>
-        <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
-          <span className='w-[160px] flex-shrink-0'>Timestamp</span>
-          <span className='w-[180px] flex-shrink-0'>Event</span>
-          <span className='min-w-0 flex-1'>Description</span>
-          <span className='w-[160px] flex-shrink-0 text-right'>Actor</span>
-        </div>
-
-        {isLoading ? null : allEntries.length === 0 ? (
-          debouncedSearch ? (
+      <ActivityLog
+        entries={allEntries.map(toActivityEntry)}
+        emptyState={
+          isLoading ? undefined : debouncedSearch ? (
             <SettingsEmptyState variant='inline'>
               No results for "{debouncedSearch}"
             </SettingsEmptyState>
           ) : (
             <SettingsEmptyState>No audit logs found</SettingsEmptyState>
           )
-        ) : (
-          <div className='flex flex-col gap-0.5'>
-            {allEntries.map((entry) => (
-              <AuditLogRow key={entry.id} entry={entry} />
-            ))}
-            {hasNextPage && (
-              <div className='flex justify-center py-4'>
-                <Button variant='ghost' onClick={handleLoadMore} disabled={isFetchingNextPage}>
-                  {isFetchingNextPage ? 'Loading...' : 'Load more'}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        }
+        footer={
+          hasNextPage ? (
+            <div className='flex justify-center py-4'>
+              <Button variant='ghost' onClick={handleLoadMore} disabled={isFetchingNextPage}>
+                {isFetchingNextPage ? 'Loading...' : 'Load more'}
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
     </SettingsPanel>
   )
 }

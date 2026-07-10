@@ -1,6 +1,8 @@
 # Landing Page - Build & Optimization Instructions
 
-This route group owns `/` and the entire public marketing surface - the home page, platform/solutions pages, pricing, legal, and the marketing subroutes (`/blog`, `/models`, `/integrations`, `/demo`, `/partners`, `/changelog`). Read this file in full before adding or changing anything here. Positioning and language rules live in `.claude/rules/constitution.md`; SEO/GEO rules in `.claude/rules/landing-seo-geo.md`. Both apply to every file in this directory.
+This route group owns `/` and the entire public marketing surface - the home page, platform/solutions pages, pricing, legal, and the marketing subroutes (`/blog`, `/library`, `/models`, `/integrations`, `/demo`, `/partners`, `/changelog`). Read this file in full before adding or changing anything here. Positioning and language rules live in `.claude/rules/constitution.md`; SEO/GEO rules in `.claude/rules/landing-seo-geo.md`. Both apply to every file in this directory.
+
+`/blog` (editorial/company-voice posts) and `/library` (AEO/GEO content - listicles, comparisons, how-tos) are two separate route trees over one shared engine: `apps/sim/lib/content/` (generic registry factory, MDX components, SEO builders) instantiated per-section by the thin `apps/sim/lib/blog/` and `apps/sim/lib/library/` modules, rendered through the shared `Content*Page` components in `components/`. Content lives in `apps/sim/content/blog/` and `apps/sim/content/library/`; both share `apps/sim/content/authors/`. Adding a post to either section, or adding a new content section entirely, must reuse this engine - never hand-roll a divergent registry or page layout. Every new marketing subroute (including any future content section) needs `app/sitemap.ts` and `app/robots.ts` updated, same as `/blog` and `/library` were.
 
 ## What this is
 
@@ -18,11 +20,11 @@ The landing page looks like the product. Its visual language is the workspace UI
 - **Never touch global styles.** No additions to `app/_styles/globals.css`. All styling is local Tailwind classes; `cn()` from `@/lib/core/utils/cn` for conditionals; no inline `style` attributes.
 - **Responsive - desktop is the source of truth, scaled down via `max-*` overrides.** The page is fully responsive (iPad + phone). The desktop layout stays the unprefixed baseline; smaller screens are handled by *layering* `max-*` overrides on top, so desktop renders byte-identically. Tiers:
   - `max-xl:` (≤1279) - the hero's two-panel split (absolute visual + logos) collapses to a stacked, in-flow column. The split needs ≥1280 to avoid the headline colliding with the visual panel; iPad-landscape (1024) therefore gets the stacked hero with the desktop nav.
-  - `max-lg:` (≤1023) - the desktop nav clusters hide (`hidden lg:flex`) and `MobileNav` (hamburger sheet) takes over; multi-column grids step down (mothership 4→2, footer 7→3); shared gutter `px-12 → max-lg:px-8`; section gaps tighten.
+  - `max-lg:` (≤1023) - the desktop nav clusters hide (`hidden lg:flex`) and `MobileNav` (hamburger sheet) takes over; multi-column grids step down (mothership 4→2, footer 7→3); shared gutter `px-20 → max-lg:px-8`; section gaps tighten.
   - `max-md:` (≤767) - Features beats drop the floating callout (`max-md:hidden`) and show the un-masked backdrop preview full-width.
   - `max-sm:` (≤639) - single-column grids, smallest type scale, `px-5` gutter, hero CTA row stacks.
 
-  When adding a new section, give it the same `px-12 max-lg:px-8 max-sm:px-5` gutter so the navbar wordmark stays aligned with section content at every width. Verify desktop is unchanged and there is zero horizontal overflow at 1280 / 1024 / 768 / 390 before shipping.
+  When adding a new section, give it the same `px-20 max-lg:px-8 max-sm:px-5` gutter so the navbar wordmark stays aligned with section content at every width. Verify desktop is unchanged and there is zero horizontal overflow at 1280 / 1024 / 768 / 390 before shipping.
 
 ## Performance - page speed is a feature
 
@@ -32,8 +34,11 @@ Target: Lighthouse 95+ on mobile, LCP < 2.0s, CLS < 0.05, minimal hydration cost
 - **No heavy client libraries above the fold.** No animation frameworks (framer-motion etc.), no ReactFlow, no chart libs in the initial bundle. If a below-fold section truly needs one, load it with `next/dynamic` and a dimension-stable placeholder.
 - **Images via `next/image` always.** The LCP element (logo or hero visual) gets `priority`; everything below the fold lazy-loads (the default). Every image has explicit `width`/`height` - zero layout shift.
 - **Prefer CSS over JS.** Hover states, transitions, marquees, and reveal effects in CSS (`transition-*`, `animation`) rather than scroll listeners or animation libraries. Decorative motion respects `prefers-reduced-motion`.
-- **Static rendering.** The page is statically generated with `revalidate` (set in `page.tsx`). Never fetch per-request data in the page tree; anything dynamic (e.g. GitHub stars) is fetched at build/revalidate time on the server or deferred to a tiny client island.
+- **Static rendering.** The page is statically generated with `revalidate` (set in `page.tsx`). Never fetch per-request data in the page tree; anything dynamic (e.g. GitHub stars) is fetched at build/revalidate time or deferred to a client island. A `cookies()`/`headers()`/`unstable_noStore()` call anywhere in the tree - including the root `app/layout.tsx` - silently overrides every page's `revalidate` and forces the whole app dynamic. If a marketing page builds as `ƒ` instead of `○`/`●` (check `bun run build`'s route table), look upstream, not just at the page itself.
 - **Reserve space for everything.** Fixed dimensions or aspect ratios on all media, embeds, and async content. CLS budget is effectively zero.
+- **Decorative canvases and animations are non-interactive.** A hand-built product-demo animation or embedded ReactFlow canvas is presentation only - no drag handlers, no `nodesDraggable`/`panOnDrag`/`elementsSelectable` on ReactFlow. A visitor should never be able to click or drag a decorative element.
+- **Lazy-mount a heavy client island's second occurrence.** If the same animated component appears twice on a page, only the first (usually the hero) loads eagerly - the rest go through a small `'use client'` mount wrapper built on the shared `hooks/use-lazy-mount.ts` hook: `next/dynamic(..., { ssr: false })` gated by the hook's `IntersectionObserver`. See `components/product-demo/components/product-demo-visual-mount/` for the reference pattern, and `.claude/rules/sim-imports.md` for the barrel-cleanup step that must come with it.
+- **Don't prefetch authenticated-app routes from an always-visible CTA.** `<Link>` prefetches its target route's JS once it's in the viewport - a navbar/hero CTA to `/signup` or `/login` is always in view, so it downloads that route's bundle on every pageview. Pass `prefetch={false}` there. Leave the default on CTAs that only enter the viewport on scroll (prefetch-on-approach is the desired behavior there).
 
 ## SEO
 
@@ -70,6 +75,7 @@ Follow `.claude/rules/constitution.md` exactly: Sim is "the open-source AI works
 ├── page.tsx                             # route entry: metadata + <Landing />
 ├── landing.tsx                          # root composition: <main> section order
 ├── workflows/                           # a platform route: page.tsx (metadata) + workflows.tsx (config + shell)
+├── hooks/                               # cross-page client hooks (useLazyMount, …) - bare files, no folder/barrel
 └── components/
     ├── index.ts                         # top barrel
     ├── navbar/{navbar.tsx, index.ts, components/<chip>/…}   # <header><nav>: wordmark, dropdowns, stars, auth chips

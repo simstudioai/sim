@@ -117,13 +117,13 @@ function PreviewFlow({ workflow, animate = false }: LandingPreviewWorkflowProps)
       edgeTypes={EDGE_TYPES}
       defaultEdgeOptions={{ type: 'previewEdge' }}
       elementsSelectable={false}
-      nodesDraggable
+      nodesDraggable={false}
       nodesConnectable={false}
       zoomOnScroll={false}
       zoomOnDoubleClick={false}
       panOnScroll={false}
       zoomOnPinch={false}
-      panOnDrag
+      panOnDrag={false}
       preventScrolling={false}
       autoPanOnNodeDrag={false}
       proOptions={PRO_OPTIONS}
@@ -136,7 +136,8 @@ function PreviewFlow({ workflow, animate = false }: LandingPreviewWorkflowProps)
 }
 
 /**
- * Lightweight ReactFlow canvas displaying an interactive workflow preview.
+ * Lightweight ReactFlow canvas displaying a static workflow preview -
+ * decorative, so panning, dragging, zooming, and selecting are all disabled.
  * The key on workflow.id forces a clean remount on switch - instant fitView,
  * no timers, no flicker.
  */

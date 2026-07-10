@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
@@ -27,6 +28,9 @@ function toWire(block: CustomBlockWithInputs) {
     id: block.id,
     organizationId: block.organizationId,
     workflowId: block.workflowId,
+    workflowName: block.workflowName,
+    workspaceId: block.workspaceId,
+    workspaceName: block.workspaceName,
     type: block.type,
     name: block.name,
     description: block.description,
@@ -78,7 +82,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const userId = session.user.id
-  const { workspaceId, workflowId, name, description, iconUrl, exposedOutputs } = parsed.data.body
+  const { workspaceId, workflowId, name, description, iconUrl, inputs, exposedOutputs } =
+    parsed.data.body
 
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.canAdmin) {
@@ -113,7 +118,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       name,
       description,
       iconUrl,
+      inputs,
       exposedOutputs,
+    })
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CUSTOM_BLOCK_PUBLISHED,
+      resourceType: AuditResourceType.CUSTOM_BLOCK,
+      resourceId: block.id,
+      resourceName: block.name,
+      description: `Published custom block "${block.name}"`,
+      metadata: { organizationId, type: block.type, workflowId },
+      request,
     })
     return NextResponse.json({ customBlock: toWire(block) })
   } catch (error) {

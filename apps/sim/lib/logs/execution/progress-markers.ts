@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike as isRecord } from '@sim/utils/object'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getExecutionReservationTtlMs } from '@/lib/core/execution-limits'
 import type { ExecutionLastCompletedBlock, ExecutionLastStartedBlock } from '@/lib/logs/types'
@@ -155,10 +156,6 @@ function safeJsonParse(raw: string | undefined): unknown {
   } catch {
     return undefined
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

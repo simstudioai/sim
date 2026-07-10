@@ -13,6 +13,8 @@
  *    falsely marks the file dirty ("unsaved changes"). The fix normalizes the dirty-check baseline to
  *    the canonical form; this asserts that normalized form equals what the live editor emits.
  */
+
+import { sleep } from '@sim/utils/helpers'
 import { Editor } from '@tiptap/core'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createMarkdownEditorExtensions } from './editor-extensions'
@@ -94,7 +96,7 @@ describe('baseline neutralizes the mount-time dirty signal', () => {
       },
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 30))
+    await sleep(30)
 
     // The deferred mount transaction re-serializes to canonical markdown; the baseline must match it
     // exactly, so `content === savedContent` and the file is never falsely dirty on open.

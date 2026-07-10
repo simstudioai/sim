@@ -417,19 +417,9 @@ export const SIM_FEATURES: SimFeature[] = [
       'This is a genuine git-like fork/diff/promote/rollback system scoped to an entire workspace, not a single-workflow versioning feature. Most workflow-automation competitors only version individual workflows, not whole environments with cross-environment resource remapping.',
     sources: [
       {
-        url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
-        label: 'Sim codebase: workspaceForkResourceMap / workspaceForkPromoteRun tables',
-        asOf: '2026-07-02',
-      },
-      {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workspaces/fork/promote/promote.ts',
-        label: 'Sim codebase: fork promote engine',
-        asOf: '2026-07-02',
-      },
-      {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/workspaces/[id]/fork/route.ts',
-        label: 'Sim codebase: fork creation API',
-        asOf: '2026-07-02',
+        url: 'https://docs.sim.ai/platform/enterprise/forks',
+        label: 'Sim Docs: Workspace Forks',
+        asOf: '2026-07-08',
       },
     ],
   },
@@ -444,19 +434,9 @@ export const SIM_FEATURES: SimFeature[] = [
       'Treating credentials/env-vars as required-and-blocking on promote (rather than silently copying secrets) is a specific, auditable safety design for enterprise dev→qa→prod pipelines.',
     sources: [
       {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workspaces/fork/create-fork.ts',
-        label: 'Sim codebase: fork creation (credentials cleared)',
-        asOf: '2026-07-02',
-      },
-      {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workspaces/fork/remap/remap-references.ts',
-        label: 'Sim codebase: required-kinds remap/block logic',
-        asOf: '2026-07-02',
-      },
-      {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/api/workspaces/[id]/fork/mapping/route.ts',
-        label: 'Sim codebase: fork credential mapping API',
-        asOf: '2026-07-02',
+        url: 'https://docs.sim.ai/platform/enterprise/forks',
+        label: 'Sim Docs: Workspace Forks (mappings)',
+        asOf: '2026-07-08',
       },
     ],
   },
@@ -469,9 +449,9 @@ export const SIM_FEATURES: SimFeature[] = [
       'Forking/promotion is gated on the billed account having Enterprise-tier access on hosted Sim, mirroring the same access-gate pattern used for SSO. Self-hosted deployments can enable it independent of billing via a FORKING_ENABLED/NEXT_PUBLIC_FORKING_ENABLED environment flag.',
     sources: [
       {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workspaces/fork/lineage/authz.ts',
-        label: 'Sim codebase: assertForkingEnabled / assertCanFork',
-        asOf: '2026-07-02',
+        url: 'https://docs.sim.ai/platform/enterprise/forks',
+        label: 'Sim Docs: Workspace Forks (self-hosted setup)',
+        asOf: '2026-07-08',
       },
     ],
   },

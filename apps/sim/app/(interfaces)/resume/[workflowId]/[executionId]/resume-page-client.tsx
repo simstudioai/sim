@@ -18,6 +18,7 @@ import {
   TableRow,
   Tooltip,
 } from '@sim/emcn'
+import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -68,7 +69,7 @@ const STATUS_BADGE_VARIANT: Record<string, 'orange' | 'blue' | 'green' | 'red' |
 function formatDate(value: string | null): string {
   if (!value) return '—'
   try {
-    return new Date(value).toLocaleString()
+    return formatDateTime(new Date(value))
   } catch {
     return value
   }

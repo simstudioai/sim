@@ -1,9 +1,11 @@
+import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogUpdateEventDefinitionParams {
   projectId: string
   eventDefinitionId: string
   region: 'us' | 'eu'
+  host?: string
   apiKey: string
   description?: string
   tags?: string
@@ -15,8 +17,6 @@ interface EventDefinition {
   name: string
   description: string
   tags: string[]
-  volume_30_day: number | null
-  query_usage_30_day: number | null
   created_at: string
   last_seen_at: string | null
   updated_at: string
@@ -41,6 +41,7 @@ export const updateEventDefinitionTool: ToolConfig<
   description:
     'Update an event definition in PostHog. Can modify description, tags, and verification status to maintain clean event schemas.',
   version: '1.0.0',
+  errorExtractor: 'posthog-errors',
 
   params: {
     projectId: {
@@ -60,6 +61,13 @@ export const updateEventDefinitionTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'PostHog cloud region: us or eu',
+    },
+    host: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Self-hosted PostHog instance host (e.g., "posthog.mycompany.com"). Overrides the region setting when provided.',
     },
     apiKey: {
       type: 'string',
@@ -89,7 +97,7 @@ export const updateEventDefinitionTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.region === 'eu' ? 'https://eu.posthog.com' : 'https://us.posthog.com'
+      const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
       return `${baseUrl}/api/projects/${params.projectId}/event_definitions/${params.eventDefinitionId}`
     },
     method: 'PATCH',
@@ -127,8 +135,6 @@ export const updateEventDefinitionTool: ToolConfig<
       name: data.name,
       description: data.description || '',
       tags: data.tags || [],
-      volume_30_day: data.volume_30_day ?? null,
-      query_usage_30_day: data.query_usage_30_day ?? null,
       created_at: data.created_at,
       last_seen_at: data.last_seen_at ?? null,
       updated_at: data.updated_at,
@@ -155,16 +161,6 @@ export const updateEventDefinitionTool: ToolConfig<
     tags: {
       type: 'array',
       description: 'Updated tags associated with the event',
-    },
-    volume_30_day: {
-      type: 'number',
-      description: 'Number of events received in the last 30 days',
-      optional: true,
-    },
-    query_usage_30_day: {
-      type: 'number',
-      description: 'Number of times this event was queried in the last 30 days',
-      optional: true,
     },
     created_at: {
       type: 'string',

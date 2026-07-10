@@ -31,13 +31,13 @@ export const flowiseProfile: CompetitorProfile = {
     {
       title: 'Built-in dataset-based batch evaluation',
       description:
-        "Flowise ships a built-in Evaluations feature that runs chatflows/agentflows against a saved dataset in one batch, scoring outputs with string, numeric, or LLM-as-judge evaluators and reporting pass/fail rate, average tokens, and latency across the whole run. Sim's own Evaluator block scores individual calls against user-defined metrics, but has no equivalent golden-dataset batch runner. (Flowise's Agentflow V2 also has a Human Input node for pausing on approve/reject feedback, comparable to Sim's own human-in-the-loop approval block.)",
+        "Flowise ships an Evaluations feature, available on Flowise Cloud/Enterprise plans (not the open-source self-hosted product), that runs chatflows/agentflows against a saved dataset in one batch, scoring outputs with string, numeric, or LLM-as-judge evaluators and reporting pass/fail rate, average tokens, and latency across the whole run. Sim's own Evaluator block scores individual calls against user-defined metrics, but has no equivalent golden-dataset batch runner. (Flowise's Agentflow V2 also has a Human Input node for pausing on approve/reject feedback, comparable to Sim's own human-in-the-loop approval block.)",
       shortDescription:
-        'Built-in dataset-based batch evaluation with LLM-judge scoring and pass/fail reporting.',
+        'Built-in dataset-based batch evaluation (Cloud/Enterprise plans) with LLM-judge scoring and pass/fail reporting.',
       source: {
         url: 'https://docs.flowiseai.com/using-flowise/evaluations',
         label: 'Flowise Docs: Evaluations',
-        asOf: '2026-07-02',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -69,12 +69,12 @@ export const flowiseProfile: CompetitorProfile = {
     {
       title: 'No native real-time multiplayer canvas editing',
       description:
-        "Flowise's core canvas supports only one user editing a flow at a time, with no built-in real-time co-editing (like Google Docs) of the same chatflow. Community members have requested true multi-user collaborative editing as a feature.",
+        "Flowise's core canvas supports only one user editing a flow at a time, with no built-in real-time co-editing of the same chatflow. A related multi-user/collaboration feature request (GitHub issue #2661) was closed as not planned.",
       shortDescription: 'No live multi-cursor concurrent editing of the same flow.',
       source: {
         url: 'https://github.com/FlowiseAI/Flowise/issues/2661',
-        label: 'GitHub Issue #2661: Multi User Support',
-        asOf: '2026-07-02',
+        label: 'GitHub Issue #2661: Multi User Support (closed, not planned)',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -163,9 +163,14 @@ export const flowiseProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/FlowiseAI/Flowise/issues/5164',
-            label: 'GitHub Issue #5164: Clarify Licensing Terms for Community vs Enterprise Code',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/workspaces',
+            label: 'Flowise Docs: Workspaces',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.flowiseai.com/configuration/sso',
+            label: 'Flowise Docs: SSO',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -191,16 +196,16 @@ export const flowiseProfile: CompetitorProfile = {
       },
       realtimeCollaboration: {
         value:
-          "No: Flowise's canvas supports only one user per session, with no live, multi-cursor editing of the same flow. This has been an open community feature request.",
+          "No: Flowise's canvas supports only one user per session, with no live, multi-cursor editing of the same flow. Cloud/Enterprise multi-user features (workspaces, RBAC) govern access, not concurrent editing.",
         detail:
-          'Cloud/Enterprise multi-user features (workspaces, RBAC) govern access, not concurrent editing.',
+          'No public Flowise GitHub issue specifically tracks multi-cursor/real-time canvas collaboration as a feature request; GitHub issue #2661, sometimes cited for this, is actually a closed request about user authentication, RBAC, and audit trails, not concurrent editing.',
         shortValue: 'No live multi-user concurrent canvas editing',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/FlowiseAI/Flowise/issues/2661',
-            label: 'GitHub Issue #2661: Multi User Support',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/workspaces',
+            label: 'Flowise Docs: Workspaces',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -238,11 +243,31 @@ export const flowiseProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          "No: Flowise has no feature for publishing a deployed chatflow/agentflow as a named, encapsulated block that appears in the node palette for other users across an organization. Its closest feature, the Execute Flow node, only lets a flow call another saved flow by name or ID from within the same Flowise instance, passing input and receiving output; the docs describe this as invoking an existing flow, not publishing a version-synced, credential-hidden component into a shared toolbar. Flowise's Custom Tool node is likewise scoped to inline JavaScript written within a single flow, not a published workflow-as-block. There is no documented mechanism that hides a source flow's internal steps/credentials from consumers, restricts a published block via access control/permission groups, or automatically points every consumer at the source flow's latest deployed version.",
+        detail:
+          "This is distinct from Flowise's Execute Flow sub-workflow calling (see subWorkflows above), which is same-instance flow-to-flow composition, not org-wide reuse of a hidden, centrally-updated block by other users.",
+        shortValue: 'No, only same-instance Execute Flow calls; no published org-wide block',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
+            label: 'Flowise Docs: Agentflow V2 (Execute Flow node)',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
+            label: 'Flowise Docs: Custom Tool',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: Flowise integrates a broad set of LLM providers including OpenAI, Azure OpenAI, AWS Bedrock, Google PaLM/Vertex AI, Cohere, HuggingFace Inference, Ollama, Replicate, and Anthropic models (Claude 3.5/4), covering both hosted and self-hosted open-source models.',
+          'Yes: Flowise integrates a broad set of LLM providers including OpenAI, Azure OpenAI, AWS Bedrock, Google Vertex AI, Cohere, HuggingFace Inference, Ollama, and Replicate, plus (via its separate Chat Models integrations, e.g. ChatAnthropic) Anthropic Claude models, covering both hosted and self-hosted open-source models.',
         shortValue: 'Broad support: OpenAI, Azure, Bedrock, Google, Anthropic, Ollama, more',
         confidence: 'verified',
         sources: [
@@ -250,6 +275,11 @@ export const flowiseProfile: CompetitorProfile = {
             url: 'https://docs.flowiseai.com/integrations/langchain/llms',
             label: 'Flowise Docs: LLMs',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://docs.flowiseai.com/integrations/langchain/chat-models',
+            label: 'Flowise Docs: Chat Models (incl. ChatAnthropic)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -498,9 +528,9 @@ export const flowiseProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
-            label: 'Flowise Docs: Custom JS Function',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
+            label: 'Flowise Docs: Custom Tool (JS function support, built-in/external modules)',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -871,9 +901,9 @@ export const flowiseProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.aicuflow.com/blog/enterprise-ai-sso-rbac-audit',
-            label: 'Aicuflow: Enterprise AI Platform with SSO, Role-Based Access, and Audit Trails',
-            asOf: '2026-07-02',
+            url: 'https://www.lindy.ai/blog/flowise-pricing',
+            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
+            asOf: '2026-07-08',
           },
         ],
       },

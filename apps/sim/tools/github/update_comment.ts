@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import type { IssueCommentResponse, UpdateCommentParams } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
@@ -58,7 +59,7 @@ export const updateCommentTool: ToolConfig<UpdateCommentParams, IssueCommentResp
   transformResponse: async (response) => {
     const data = await response.json()
 
-    const content = `Comment #${data.id} updated: "${data.body.substring(0, 100)}${data.body.length > 100 ? '...' : ''}"`
+    const content = `Comment #${data.id} updated: "${truncate(data.body, 100)}"`
 
     return {
       success: true,

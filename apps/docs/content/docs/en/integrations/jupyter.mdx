@@ -1,0 +1,383 @@
+---
+title: Jupyter
+description: Manage files, notebooks, kernels, and sessions on a Jupyter server
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jupyter"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate a self-hosted Jupyter server into the workflow. Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.
+
+
+
+## Actions
+
+### `jupyter_list_contents`
+
+List files, notebooks, and subdirectories at a path on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `path` | string | No | Directory path to list, relative to the server root. Leave blank for root. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Directory entries at the requested path |
+|   ↳ `name` | string | Entry name |
+|   ↳ `path` | string | Entry path relative to server root |
+|   ↳ `type` | string | directory, file, or notebook |
+|   ↳ `writable` | boolean | Whether the entry is writable |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `lastModified` | string | Last modified timestamp |
+|   ↳ `size` | number | Size in bytes |
+|   ↳ `mimetype` | string | MIME type \(files only\) |
+|   ↳ `format` | string | json, text, or base64 |
+| `path` | string | The listed directory path |
+
+### `jupyter_get_content`
+
+Read a file or notebook from a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `path` | string | Yes | Path of the file or notebook to read, relative to the server root |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | File or notebook name |
+| `path` | string | Path relative to the server root |
+| `mimetype` | string | MIME type of the content |
+| `text` | string | Text content, for text files and notebooks \(JSON-stringified\) |
+| `file` | file | Binary content stored as a file, for base64-format content |
+
+### `jupyter_create_file`
+
+Create a file, notebook, or directory on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `path` | string | Yes | Path to create, relative to the server root |
+| `type` | string | Yes | Type of entry to create: file, notebook, or directory |
+| `content` | string | No | Content to write. For a file, plain text. For a notebook, a JSON-stringified nbformat document \(defaults to an empty notebook\). Ignored for directories. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Created entry name |
+| `path` | string | Created entry path |
+| `type` | string | directory, file, or notebook |
+| `createdAt` | string | Creation timestamp |
+| `lastModified` | string | Last modified timestamp |
+
+### `jupyter_upload_file`
+
+Upload a file to a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `directory` | string | No | Destination directory, relative to the server root. Leave blank to upload to the root directory. |
+| `file` | file | No | The file to upload \(UserFile object\) |
+| `fileContent` | string | No | Legacy: base64 encoded file content |
+| `fileName` | string | No | Optional filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Uploaded file name |
+| `path` | string | Uploaded file path |
+| `size` | number | File size in bytes |
+| `lastModified` | string | Last modified timestamp |
+
+### `jupyter_rename_content`
+
+Rename or move a file, notebook, or directory on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `path` | string | Yes | Current path of the entry, relative to the server root |
+| `newPath` | string | Yes | New path for the entry, relative to the server root |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | New entry name |
+| `path` | string | New entry path |
+| `lastModified` | string | Last modified timestamp |
+
+### `jupyter_delete_content`
+
+Delete a file, notebook, or directory on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `path` | string | Yes | Path of the entry to delete, relative to the server root |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the entry was deleted |
+| `path` | string | Deleted entry path |
+
+### `jupyter_copy_content`
+
+Duplicate a file or notebook into a directory on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `path` | string | Yes | Destination directory path, relative to the server root |
+| `copyFromPath` | string | Yes | Path of the file or notebook to copy, relative to the server root |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the copied entry |
+| `path` | string | Path of the copied entry |
+| `createdAt` | string | Creation timestamp |
+
+### `jupyter_list_kernels`
+
+List running kernels on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `kernels` | array | Running kernels |
+|   ↳ `id` | string | Kernel ID |
+|   ↳ `name` | string | Kernel spec name |
+|   ↳ `lastActivity` | string | Last activity timestamp |
+|   ↳ `executionState` | string | Kernel execution state |
+|   ↳ `connections` | number | Active connection count |
+
+### `jupyter_start_kernel`
+
+Start a new kernel on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `kernelName` | string | No | Kernel spec name to start \(e.g. python3\). Defaults to the server default. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Kernel ID |
+| `name` | string | Kernel spec name |
+| `lastActivity` | string | Last activity timestamp |
+| `executionState` | string | Kernel execution state |
+| `connections` | number | Active connection count |
+
+### `jupyter_stop_kernel`
+
+Shut down a running kernel on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `kernelId` | string | Yes | ID of the kernel to shut down |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the kernel was shut down |
+| `kernelId` | string | Shut down kernel ID |
+
+### `jupyter_restart_kernel`
+
+Restart a running kernel on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `kernelId` | string | Yes | ID of the kernel to restart |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Kernel ID |
+| `name` | string | Kernel spec name |
+| `lastActivity` | string | Last activity timestamp |
+| `executionState` | string | Kernel execution state |
+| `connections` | number | Active connection count |
+
+### `jupyter_interrupt_kernel`
+
+Interrupt a running kernel on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `kernelId` | string | Yes | ID of the kernel to interrupt |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the interrupt was sent |
+| `kernelId` | string | Interrupted kernel ID |
+
+### `jupyter_list_kernelspecs`
+
+List available kernel specs (languages/runtimes) on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `defaultKernelName` | string | Default kernel spec name |
+| `kernelspecs` | array | Available kernel specs |
+|   ↳ `name` | string | Kernel spec name |
+|   ↳ `displayName` | string | Human-readable display name |
+|   ↳ `language` | string | Kernel language |
+|   ↳ `argv` | array | Launch command arguments |
+|   ↳ `interruptMode` | string | Interrupt mode |
+
+### `jupyter_list_sessions`
+
+List active sessions (notebook-to-kernel bindings) on a Jupyter server
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessions` | array | Active sessions |
+|   ↳ `id` | string | Session ID |
+|   ↳ `path` | string | Notebook path bound to this session |
+|   ↳ `name` | string | Session name |
+|   ↳ `type` | string | Session type |
+|   ↳ `kernel` | object | Kernel bound to this session |
+|     ↳ `id` | string | Kernel ID |
+|     ↳ `name` | string | Kernel spec name |
+|     ↳ `lastActivity` | string | Last activity timestamp |
+|     ↳ `executionState` | string | Kernel execution state |
+|     ↳ `connections` | number | Active connection count |
+
+### `jupyter_create_session`
+
+Create a session that binds a notebook path to a (new or existing) kernel
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `path` | string | Yes | Notebook path to bind the session to, relative to the server root |
+| `kernelName` | string | No | Kernel spec name to start for this session \(e.g. python3\) |
+| `name` | string | No | Optional session name |
+| `type` | string | No | Session type, defaults to 'notebook' |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Session ID |
+| `path` | string | Notebook path bound to this session |
+| `name` | string | Session name |
+| `type` | string | Session type |
+| `kernel` | object | Kernel bound to this session |
+|   ↳ `id` | string | Kernel ID |
+|   ↳ `name` | string | Kernel spec name |
+|   ↳ `lastActivity` | string | Last activity timestamp |
+|   ↳ `executionState` | string | Kernel execution state |
+|   ↳ `connections` | number | Active connection count |
+
+### `jupyter_delete_session`
+
+Delete a session on a Jupyter server (does not shut down its kernel)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `serverUrl` | string | Yes | Base URL of the Jupyter server \(e.g. http://localhost:8888\) |
+| `token` | string | Yes | Jupyter server authentication token |
+| `sessionId` | string | Yes | ID of the session to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the session was deleted |
+| `sessionId` | string | Deleted session ID |
+
+

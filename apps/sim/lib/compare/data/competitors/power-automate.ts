@@ -33,9 +33,9 @@ export const powerAutomateProfile: CompetitorProfile = {
       shortDescription:
         'Flows promote dev to test to production via Dataverse Solutions and Pipelines.',
       source: {
-        url: 'https://learn.microsoft.com/en-us/power-automate/export-flow-solution',
-        label: 'Export a solution - Power Automate | Microsoft Learn',
-        asOf: '2026-07-02',
+        url: 'https://learn.microsoft.com/en-us/power-platform/alm/pipelines',
+        label: 'Overview of pipelines in Power Platform - Microsoft Learn',
+        asOf: '2026-07-08',
       },
     },
     {
@@ -62,15 +62,14 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Built-in per-run analytics dashboard and proactive failure alerting',
+      title: 'Built-in per-run analytics dashboard for cloud flows',
       description:
-        'Each flow has an Analytics dashboard (run counts, success/failure rate, average execution time, 30-day rolling history) plus automatic per-run failure alert emails and a weekly failure digest, without needing a third-party observability tool.',
-      shortDescription:
-        'Native run analytics and automatic failure alert emails, no third-party tool needed.',
+        'The Power Platform admin center ships a native Power Automate Analytics dashboard with Runs, Usage, Created, Errors, Shared, and Connectors reports for cloud flows, without needing a third-party observability tool.',
+      shortDescription: 'Native run analytics dashboard, no third-party tool needed.',
       source: {
-        url: 'https://learn.microsoft.com/en-us/power-automate/understand-flow-failure-notifications',
-        label: 'Understand flow failure notifications - Power Automate | Microsoft Learn',
-        asOf: '2026-07-02',
+        url: 'https://learn.microsoft.com/en-us/power-platform/admin/analytics-flow',
+        label: 'View analytics for Power Automate cloud flows - Power Platform | Microsoft Learn',
+        asOf: '2026-07-08',
       },
     },
   ],
@@ -182,31 +181,41 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       deploymentOptions: {
         value:
-          'Commercial multi-tenant cloud; Office 365 GCC, GCC High, and DoD sovereign/government cloud environments; on-prem gateway and desktop-flow runtime for local systems',
+          'Commercial multi-tenant cloud; Office 365 GCC, GCC High, and DoD sovereign/government cloud environments; an on-premises data gateway for connecting cloud flows to on-prem systems (e.g., on-prem SQL Server, file shares); and a local desktop-flow runtime (Power Automate for desktop) for automating tasks on individual Windows workstations',
         detail:
-          "Microsoft's SOC 2 compliance documentation lists Commercial/GCC/GCC High/DoD as in-scope environments for Power Apps/Power Automate.",
-        shortValue: 'Commercial cloud plus GCC/GCC High/DoD government clouds',
+          "Microsoft's Power Automate US Government service description confirms separate Commercial, GCC, GCC High, and DoD deployment environments; the on-premises data gateway is a locally installed Windows service that relays cloud flow connections to on-prem resources without opening inbound ports; desktop flows run via a locally installed Power Automate for desktop application on the user's machine.",
+        shortValue: 'Commercial cloud, GCC/GCC High/DoD, on-prem gateway, desktop-flow runtime',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-automate/us-govt',
+            label: 'Power Automate US Government - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-platform/admin/wp-onpremises-gateway',
+            label: 'About on-premises gateways - Power Platform | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/introduction',
+            label: 'Introduction to desktop flows - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
       templates: {
         value:
-          'Large built-in template gallery for common connector-to-connector automations (approvals, notifications, file sync) accessible from the flow creation screen',
+          'Built-in template gallery for common connector-to-connector automations, searchable or browsable by category from the Templates navigation pane when creating a flow',
         detail:
-          'Templates surface directly on the flow creation screen for common automation patterns.',
-        shortValue: 'Large built-in template gallery',
-        confidence: 'estimated',
+          "Users can search all templates or browse by category to find a matching scenario, then create a cloud flow directly from the template's predefined triggers and actions.",
+        shortValue: 'Built-in template gallery, searchable or browsable by category',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
-            label: 'Power Automate product page',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-automate/get-started-logic-template',
+            label: 'Get started from a template - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -359,6 +368,27 @@ export const powerAutomateProfile: CompetitorProfile = {
           },
         ],
       },
+      customBlocks: {
+        value:
+          'No: Power Automate has no feature to publish a deployed flow as a named, iconed, encapsulated block that shows up in the action picker for the whole tenant/organization. The closest mechanisms are child flows ("Run a Child Flow"), which are scoped to makers with access to the same Dataverse solution, and manually wrapping a flow behind a Custom Connector, which requires hand-authoring an OpenAPI/Swagger definition instead of auto-deriving inputs from the flow.',
+        detail:
+          'Child-flow docs state a maker only sees "the flows only to which you have access and are located in a solution," so reuse is scoped to that solution\'s makers, not the whole org, and a caller can still open the child flow and see its steps and connections, no encapsulation. A Custom Connector can wrap any REST API (including a flow\'s own HTTP-triggered URL) so it appears as a reusable action, but the maker must hand-author or import an OpenAPI/Swagger definition describing its request/response shape, and the connector can be shared within the organization once created; it is the same generic API-wrapping mechanic Power Automate uses for any third-party API, not a one-click "publish this flow as a block" feature with live input derivation, hand-picked outputs, or automatic latest-deployed-version tracking.',
+        shortValue:
+          'No: closest is solution-scoped child flows or manually wrapped custom connectors',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/create-child-flows',
+            label: 'Create child flows - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/connectors/custom-connectors/define-openapi-definition',
+            label: 'Create a custom connector from an OpenAPI definition - Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+        ],
+      },
     },
     aiCapabilities: {
       multiLlmSupport: {
@@ -385,10 +415,16 @@ export const powerAutomateProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/agent-extend-action-mcp',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/generative-orchestration',
             label:
-              'Extend your agent with Model Context Protocol - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+              'Apply generative orchestration capabilities - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/multi-agent-patterns',
+            label:
+              'Multi-agent orchestration patterns and best practices - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -408,21 +444,21 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       knowledgeBaseRag: {
         value:
-          'Yes: agents can be grounded via Retrieval-Augmented Generation over Dataverse tables, SharePoint/Office files, and connectors to systems like Salesforce/ServiceNow, using a semantic index with vector embeddings',
+          'Yes: agents can be grounded via Retrieval-Augmented Generation over Dataverse tables and connectors to systems like Salesforce, Oracle, SAP, and Zendesk (Power Automate prompts only), using a semantic search index',
         detail:
           'Dataverse is positioned as the agent data platform: the same semantic search index powering Power Apps global search provides retrieval/grounding for Copilot, agents, and MCP tools.',
-        shortValue: 'RAG grounding over Dataverse, SharePoint, connectors',
+        shortValue: 'RAG grounding over Dataverse and select connector tables',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.microsoft.com/en-us/power-platform/blog/2026/05/05/dataverse-agent-data-platform/',
             label: 'Dataverse Is Your Agent Data Platform - Microsoft Power Platform Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://learn.microsoft.com/en-us/ai-builder/use-your-own-prompt-data',
             label: 'Add knowledge to your prompt - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -478,7 +514,7 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       generativeMedia: {
         value:
-          'Partial: AI Builder ships an image-description (captioning) model and GPT-based text generation/summarization prompts, but no dedicated native image-generation, video-generation, or text-to-speech/speech-to-text block exists in its catalog',
+          "Partial: AI Builder ships an image-description (captioning) model and GPT-based text generation/summarization via the current prompt builder ('Create text using a prompt'/'Run a prompt'), but no dedicated native image-generation, video-generation, or text-to-speech/speech-to-text block exists in its catalog",
         detail:
           'Generating images or audio requires calling an external connector, such as Azure OpenAI DALL-E or Azure AI Speech, rather than a first-party AI Builder generative-media model.',
         shortValue: 'Captioning and text gen only, no native image/audio generation',
@@ -490,9 +526,9 @@ export const powerAutomateProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://learn.microsoft.com/en-us/ai-builder/azure-openai-model-pauto',
-            label: 'Use the text generation model in Power Automate - Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/ai-builder/use-a-custom-prompt-in-flow',
+            label: 'Use your prompt in Power Automate - Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -579,10 +615,10 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          "Yes: a flow can add a dedicated 'Parallel branch' from any step, so multiple branches of actions execute concurrently rather than sequentially, and the flow only continues once all parallel branches complete. Power Automate supports up to 50 total branches (main path plus up to 49 parallel branches) in a single flow.",
+          "Yes: a flow can add a dedicated 'Parallel branch' from any step, so multiple branches of actions execute concurrently rather than sequentially, and the flow only continues once all parallel branches complete.",
         detail:
-          "Added via the '+' icon between steps, then 'Add a parallel branch'; this is a native canvas feature, not a workaround using separate flows or a sequential loop.",
-        shortValue: 'Yes, native parallel branch (up to 50 concurrent branches)',
+          "Added via the '+' icon between steps, then 'Add a parallel branch'; this is a native canvas feature, not a workaround using separate flows or a sequential loop. Microsoft's guidance doesn't publish a specific numeric limit on the number of parallel branches in a flow (a separate, unrelated setting lets a maker set 'Apply to each' loop concurrency from 1 to 50).",
+        shortValue: 'Yes, native parallel branch functionality',
         confidence: 'verified',
         sources: [
           {
@@ -600,23 +636,17 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       a2aProtocol: {
         value:
-          "No native support: Power Automate/Copilot Studio do not ship a first-party Agent2Agent (A2A) implementation. A third-party custom connector (built on the standard Custom Connector framework) can wrap an external A2A v1.0 agent's JSON-RPC or HTTP+JSON endpoints, and Microsoft has stated A2A is 'coming soon' to Azure AI Foundry and Copilot Studio as of mid-2026, but no built-in Agent Card discovery or native A2A peer-to-peer calling feature ships today.",
+          'Yes, native support: Copilot Studio agents can connect to an external agent that implements the open Agent2Agent (A2A) protocol, letting the Copilot Studio agent delegate a task to the remote A2A agent and receive back a structured response (including full chat-history metadata for context continuity), rather than only calling it as a plain HTTP API.',
         detail:
-          'The available A2A connectors, such as the community-built Agent2Agent/Power A2A Template connectors for Work IQ, are custom connectors that translate Power Platform requests into A2A protocol calls; they are not a native, first-party A2A feature in the Power Automate or Copilot Studio product surface.',
-        shortValue:
-          'No native A2A; only third-party custom connectors, native support "coming soon"',
-        confidence: 'estimated',
+          "Configured from the agent's Agents page via 'Add an agent' > 'Connect to an external agent' > 'Agent2Agent', pointing at the remote agent's endpoint URL (with None, API key, or OAuth 2.0 authentication); Copilot Studio auto-populates the agent's name/description from its `.well-known` agent card when available.",
+        shortValue: 'Yes, native A2A protocol support for task delegation',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://troystaylor.com/power%20platform/custom%20connectors/2026-05-05-agent-to-agent-a2a-connector-work-iq.html',
-            label: 'Agent-to-Agent (A2A) connector for Copilot Studio and Power Automate',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.powercommunity.com/empowering-multi-agent-apps-with-the-open-agent2agent-a2a-protocol/',
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/add-agent-agent-to-agent',
             label:
-              'Empowering multi-agent apps with the open Agent2Agent (A2A) protocol - Power Community',
-            asOf: '2026-07-02',
+              'Connect to an agent over the Agent2Agent (A2A) protocol - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -669,16 +699,33 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       triggerTypes: {
         value:
-          'Connector-event triggers (e.g., new email, new SharePoint item), scheduled/recurrence triggers, manual/button triggers (incl. Mobile), HTTP request/webhook triggers, Dataverse record-change triggers, and desktop-flow/UI-automation triggers',
+          "Connector-event triggers (e.g., new email, new SharePoint item), scheduled/recurrence triggers, manual/instant triggers (incl. mobile), the 'When an HTTP request is received' webhook trigger, and Dataverse 'row added, modified, or deleted' triggers. Desktop flows (RPA) are launched from a cloud flow via the 'Run a flow built with Power Automate for desktop' action, in attended or unattended mode, rather than having their own independent trigger type.",
         detail:
-          'Trigger types span connector events, schedules, manual buttons, HTTP webhooks, Dataverse record changes, and desktop UI-automation events.',
-        shortValue: 'Connector, schedule, manual, webhook, Dataverse, desktop triggers',
-        confidence: 'estimated',
+          'Trigger types span connector events, schedules, manual buttons, HTTP request/webhook endpoints, and Dataverse record changes; desktop-flow automation is invoked as a cloud-flow action, not a standalone trigger category.',
+        shortValue: 'Connector, schedule, manual, HTTP/webhook, and Dataverse triggers',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
-            label: 'Power Automate product page',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-automate/triggers-introduction',
+            label: 'Triggers - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/oauth-authentication',
+            label:
+              'Add OAuth authentication for HTTP request triggers - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/dataverse/create-update-delete-trigger',
+            label:
+              'Trigger flows when a row is added, modified, or deleted - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/trigger-desktop-flows',
+            label: 'Trigger desktop flows from cloud flows - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -711,9 +758,15 @@ export const powerAutomateProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.microsoft.com/en-us/power-platform/products/power-automate',
-            label: 'Power Automate product page',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-automate/oauth-authentication',
+            label:
+              'Add OAuth authentication for HTTP request triggers - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview',
+            label: 'Use the Microsoft Dataverse Web API (Dataverse) - Power Apps | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -937,10 +990,10 @@ export const powerAutomateProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://powerusers.microsoft.com/t5/Building-Power-Apps/Can-we-Rebrand-Power-APP-mobile-app-for-our-own-company-or/td-p/690023',
+            url: 'https://community.powerplatform.com/forums/thread/details/?threadid=76b575a4-f741-46fc-84e0-8de11a6f7b78',
             label:
               'Can we Rebrand Power APP mobile app for our own company - Power Platform Community',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -966,23 +1019,24 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          "Yes, but as a block rather than a redaction: Microsoft Purview Data Loss Prevention (DLP) for Microsoft 365 Copilot (GA per Ignite 2025) scans Copilot prompts for sensitive content like SSNs and credit card numbers and blocks processing when it finds them. This protection extends to agents built in Copilot Studio, the Power Platform's agent surface. It stops sensitive content from being processed rather than redacting it in-line, and is not a feature built into Power Automate flows themselves.",
+          'Yes, but as a block rather than a redaction: Microsoft Purview DLP for Microsoft 365 Copilot can block files/emails with sensitivity labels from being processed (generally available) and, in preview, can block prompts containing sensitive information types like SSNs and credit card numbers. It stops sensitive content from being processed rather than redacting it in-line, and is not a feature built into Power Automate flows themselves.',
         detail:
-          'This is Microsoft Purview functionality (a separate, integrated compliance product) covering Microsoft 365 Copilot and Copilot Studio agents; it blocks processing rather than performing in-line redaction, and is not a native Power Automate flow-content feature.',
-        shortValue: 'Purview DLP blocks/detects PII in Copilot prompts (incl. Studio agents)',
+          'This is Microsoft Purview functionality (a separate, integrated compliance product). Blocking prompts with sensitive information types is still a preview capability, not GA; DLP protection for agents built in Copilot Studio is currently limited to sensitivity-label-based restriction when the knowledge source is SharePoint, not general SIT-based prompt blocking, and none of this is a native Power Automate flow-content feature.',
+        shortValue:
+          'Purview DLP blocks sensitivity-labeled content (GA); SIT prompt block (preview)',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/purview/dlp-microsoft365-copilot-location-learn-about',
             label:
               'Microsoft Purview DLP for Microsoft 365 Copilot and Copilot Chat | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
           {
             url: 'https://learn.microsoft.com/en-us/purview/ai-copilot-studio',
             label:
               'Use Microsoft Purview to manage data security & compliance for Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1053,21 +1107,22 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       durabilityModel: {
         value:
-          "Yes: configurable retry policies with exponential backoff on individual actions, and flow run history (including a Dataverse-backed FlowRun table option) that lets a user review a past run's inputs/outputs; resubmission/resubmit-from-history is a documented pattern for reprocessing a failed run",
+          "Yes: configurable retry policies with exponential backoff on individual actions, flow run history that lets a user review a past run's inputs/outputs, and a documented Resubmit action from the Run history page that reprocesses a past run with its original inputs after an issue (e.g., a connection or parameter) has been fixed",
         detail:
-          "Retry policies are set per-action with configurable interval/count and exponential backoff; run history in Dataverse's FlowRun table records start/end time, duration, status, and error detail for large-scale tracking.",
-        shortValue: 'Per-action retries with backoff plus resubmit-from-history',
+          "Retry policies are set per-action with configurable interval/count and exponential backoff. Resubmit is available from the flow's Run history page (individually or in bulk, up to 20 runs at a time); flows initiated by instant/manual triggers can always be resubmitted by their owner, and admins can extend resubmission to other users via a tenant setting.",
+        shortValue: 'Per-action retries with backoff, plus resubmit from run history',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.citrincooperman.com/In-Focus-Resource-Center/How-to-Automatically-Retry-a-Flow-in-Power-Automate',
-            label: 'Power Automate Flow: How to Automatically Retry When Flows Fail',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-automate/guidance/coding-guidelines/error-handling',
+            label: 'Employ robust error handling - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
           },
           {
-            url: 'https://learn.microsoft.com/en-us/power-automate/guidance/coding-guidelines/monitoring-and-alerting',
-            label: 'Monitor your flows - Power Automate | Microsoft Learn',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-automate/how-tos-bulk-resubmit',
+            label:
+              'Cancel or resubmit flow runs in bulk in Power Automate - Power Automate | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1187,16 +1242,23 @@ export const powerAutomateProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Documentation via Microsoft Learn, the large Power Users community forum, and paid Microsoft support plans. Enterprise customers typically get support through their Microsoft account or Unified Support contract.',
+          'Documentation via Microsoft Learn, the Power Platform Community forums, and paid Microsoft support plans (Professional Direct and Microsoft Unified Support) with severity-based initial response times, available on top of self-help resources in the Power Platform admin center.',
         detail:
-          "Drawn from Microsoft's broader support ecosystem and the active Power Platform community forum, rather than a single Power Automate-specific support-tier page.",
-        shortValue: 'Docs, community forum, and paid Microsoft support plans',
-        confidence: 'estimated',
+          'Technical break-fix support and billing/subscription support are available at all support levels; advisory, escalation, and account-management services require a Professional Direct or Unified Support plan. Initial response times range from under 1 hour (Severity A, critical business impact) to under 8 hours (Severity C, minimum impact) depending on plan tier.',
+        shortValue: 'Docs, community forums, and paid Professional Direct/Unified Support plans',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://powerusers.microsoft.com/t5/Building-Flows/How-to-restore-a-previous-version-of-a-flow/td-p/288145',
-            label: 'Power Platform Community forum example thread',
-            asOf: '2026-07-02',
+            url: 'https://learn.microsoft.com/en-us/power-platform/admin/support-overview',
+            label:
+              'Support for Microsoft Power Platform and Dynamics 365 apps - Power Platform | Microsoft Learn',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-platform/admin/get-help-support',
+            label:
+              'Get support in the Power Platform admin center - Power Platform | Microsoft Learn',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -1211,16 +1273,16 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       community: {
         value:
-          'Large. Active official Power Platform/Power Users community forums with structured Q&A on building, approvals, and troubleshooting flows',
+          'Active, Microsoft-hosted Power Platform Community forums for Power Automate, organized into structured category boards (Building flows, Using flows, Using connectors, Power Automate Desktop, AI Builder, Power Automate Mobile App, General topics) with ongoing Q&A threads',
         detail:
-          'Multiple community threads on powerusers.microsoft.com cover real production troubleshooting scenarios, such as restoring flow versions, showing an active, Microsoft-hosted community forum.',
-        shortValue: 'Large, active Power Platform community forum',
+          'The Power Automate forum area on community.powerplatform.com is split into dedicated boards for building flows, using connectors, using flows, desktop automation, and AI Builder, with active threads receiving dozens of replies.',
+        shortValue: 'Active Power Platform community forum with structured category boards',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://powerusers.microsoft.com/t5/Building-Flows/How-to-restore-a-previous-version-of-a-flow/td-p/288145',
-            label: 'Power Platform Community - How to restore a previous version of a flow',
-            asOf: '2026-07-02',
+            url: 'https://community.powerplatform.com/forums/thread/?groupid=46ce02a3-e1a7-4176-81fc-d93a4001d287',
+            label: 'Power Automate forums - Microsoft Power Platform Community',
+            asOf: '2026-07-08',
           },
         ],
       },

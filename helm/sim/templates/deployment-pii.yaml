@@ -44,16 +44,20 @@ spec:
             - name: http
               containerPort: {{ .Values.pii.service.targetPort }}
               protocol: TCP
-          {{- if or .Values.pii.env .Values.extraEnvVars }}
           env:
-            {{- range $key, $value := .Values.pii.env }}
+            - name: PII_ENGINE
+              value: {{ .Values.pii.engine | quote }}
+            {{- if .Values.pii.device }}
+            - name: PII_DEVICE
+              value: {{ .Values.pii.device | quote }}
+            {{- end }}
+            {{- range $key, $value := omit (.Values.pii.env | default dict) "PII_ENGINE" "PII_DEVICE" }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- end }}
           {{- if .Values.pii.startupProbe }}
           startupProbe:
             {{- toYaml .Values.pii.startupProbe | nindent 12 }}

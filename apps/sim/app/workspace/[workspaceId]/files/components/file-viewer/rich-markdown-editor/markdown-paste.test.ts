@@ -21,10 +21,11 @@ function mount(editable = true): Editor {
 }
 
 /** Run the plugin paste handlers the way ProseMirror would, with a mocked clipboard. */
-function paste(ed: Editor, text: string, html = ''): boolean {
+function paste(ed: Editor, text: string, html = '', extra: Record<string, string> = {}): boolean {
   const event = {
     clipboardData: {
-      getData: (type: string) => (type === 'text/plain' ? text : type === 'text/html' ? html : ''),
+      getData: (type: string) =>
+        type === 'text/plain' ? text : type === 'text/html' ? html : (extra[type] ?? ''),
     },
   } as unknown as ClipboardEvent
   for (const plugin of ed.view.state.plugins) {
@@ -33,6 +34,16 @@ function paste(ed: Editor, text: string, html = ''): boolean {
     }
   }
   return false
+}
+
+/** Run the plugin `transformPastedHTML` chain the way ProseMirror would. */
+function transformHtml(ed: Editor, html: string): string {
+  let out = html
+  for (const plugin of ed.view.state.plugins) {
+    const fn = plugin.props?.transformPastedHTML
+    if (fn) out = fn.call(plugin.props, out, ed.view)
+  }
+  return out
 }
 
 describe('markdown paste', () => {
@@ -94,6 +105,14 @@ describe('markdown paste', () => {
     expect(paste(editor, '[link](https://example.com)')).toBe(false)
   })
 
+  it('keeps pasted markdown literal inside inline code', () => {
+    editor = mount()
+    editor.commands.setContent('a `codehere` b', { contentType: 'markdown' })
+    editor.commands.setTextSelection(6)
+    expect(editor.isActive('code')).toBe(true)
+    expect(paste(editor, '*italic*')).toBe(false)
+  })
+
   it('rejects the paste entirely in a read-only editor', () => {
     editor = mount(false)
     expect(paste(editor, '# heading\n\n- one\n- two')).toBe(false)
@@ -104,21 +123,21 @@ describe('markdown paste', () => {
     ['empty string', ''],
     ['whitespace only', '   \n\n  '],
     ['a bare thematic break (ambiguous — needs another markdown signal)', '---'],
-    ['inline-only italic (single asterisk would false-positive on e.g. *args)', 'an *italic* word'],
-    ['inline-only strikethrough', 'a ~~struck~~ word'],
-    ['inline-only code', 'some `code` here'],
   ])('leaves %s to the default handler', (_label, text) => {
     editor = mount()
     expect(paste(editor, text)).toBe(false)
   })
 
-  // Only structural / unambiguous constructs gate the markdown parse. Inline-only marks that
-  // `looksLikeMarkdown` deliberately omits to avoid false positives — single-asterisk italic
-  // (`*args`), `~~`, single-backtick code — are covered by the Markdown extension's own paste path,
-  // not MarkdownPaste, so they belong to a different test surface.
   it.each([
     ['heading', '# Heading', 'heading'],
     ['bold', 'a **bold** word', 'bold'],
+    ['italic', 'an *italic* word', 'italic'],
+    ['underscore italic', 'an _italic_ word', 'italic'],
+    ['underscore bold', 'a __bold__ word', 'bold'],
+    ['strikethrough', 'a ~~struck~~ word', 'strike'],
+    ['highlight', 'a ==marked== word', 'highlight'],
+    ['highlight with interior equals', 'x ==a=b== y', 'highlight'],
+    ['inline code', 'some `code` here', 'code'],
     ['bullet list', '- one\n- two', 'bulletList'],
     ['ordered list', '1. one\n2. two', 'orderedList'],
     ['task list', '- [x] done\n- [ ] todo', 'taskList'],
@@ -130,6 +149,28 @@ describe('markdown paste', () => {
     editor = mount()
     expect(paste(editor, md)).toBe(true)
     expect(JSON.stringify(editor.getJSON())).toContain(`"type":"${nodeType}"`)
+  })
+
+  it.each([
+    ['italic', 'an *italic* word', '<p>an <em>italic</em> word</p>'],
+    ['strikethrough', 'a ~~struck~~ word', '<p>a <del>struck</del> word</p>'],
+    ['inline code', 'some `code` here', '<p>some <code>code</code> here</p>'],
+  ])('defers inline-only %s to a rich HTML sibling (keeps its structure)', (_label, text, html) => {
+    editor = mount()
+    expect(paste(editor, text, html)).toBe(false)
+  })
+
+  it.each([
+    ['space-flanked asterisks', 'area = 5 * width * height'],
+    ['python args and kwargs', 'def foo(*args, **kwargs): pass'],
+    ['snake_case identifiers', 'call user_name and file_path_here'],
+  ])('claims %s but leaves it byte-for-byte literal (strict CommonMark)', (_label, text) => {
+    editor = mount()
+    expect(paste(editor, text)).toBe(true)
+    const json = JSON.stringify(editor.getJSON())
+    expect(json).not.toContain('"type":"italic"')
+    expect(json).not.toContain('"type":"bold"')
+    expect(editor.getText()).toBe(text)
   })
 
   it('parses markdown-shaped plain text even when an HTML sibling is present', () => {
@@ -149,5 +190,68 @@ describe('markdown paste', () => {
       .map((node) => node.type)
       .filter((type) => type !== 'paragraph')
     expect(structural).toEqual(['heading', 'bulletList', 'blockquote'])
+  })
+
+  it('pastes VSCode code (vscode-editor-data) as a fenced code block with its language', () => {
+    editor = mount()
+    const code = 'const x: number = 1\nreturn x'
+    const handled = paste(editor, code, '<div><span>const</span></div>', {
+      'vscode-editor-data': JSON.stringify({ mode: 'typescript' }),
+    })
+    expect(handled).toBe(true)
+    const block = (editor.getJSON().content ?? []).find((n) => n.type === 'codeBlock')
+    expect(block).toBeDefined()
+    expect(block?.attrs?.language).toBe('typescript')
+    expect(block?.content?.[0]?.text).toBe(code)
+  })
+
+  it.each([
+    ['html', 'markup'],
+    ['shellscript', 'bash'],
+  ])('maps VSCode language id %s to our code-block value %s', (mode, expected) => {
+    editor = mount()
+    paste(editor, 'code', '', { 'vscode-editor-data': JSON.stringify({ mode }) })
+    const block = (editor.getJSON().content ?? []).find((n) => n.type === 'codeBlock')
+    expect(block?.attrs?.language).toBe(expected)
+  })
+
+  it.each(['markdown', 'md', 'mdx', 'plaintext'])(
+    'does NOT force a code block for VSCode %s copies (parses as markdown instead)',
+    (mode) => {
+      editor = mount()
+      const handled = paste(editor, '# Title\n\n- item', '', {
+        'vscode-editor-data': JSON.stringify({ mode }),
+      })
+      expect(handled).toBe(true)
+      const types = (editor.getJSON().content ?? []).map((n) => n.type)
+      expect(types).not.toContain('codeBlock')
+      expect(types).toContain('heading')
+      expect(types).toContain('bulletList')
+    }
+  )
+
+  it('strips <style>/<script> from pasted HTML so their text never leaks into the doc', () => {
+    editor = mount()
+    const gsheets =
+      '<google-sheets-html-origin><style>td{mso-1:2}</style><table><tr><td>a</td></tr></table></google-sheets-html-origin>'
+    const cleaned = transformHtml(editor, gsheets)
+    expect(cleaned).not.toContain('<style>')
+    expect(cleaned).not.toContain('mso-1')
+    expect(cleaned).toContain('<td>a</td>')
+    expect(transformHtml(editor, 'a<script>alert(1)</script>b')).toBe('ab')
+  })
+
+  it('strips nested/repeated <script> tags in a single pass, even deeply nested', () => {
+    editor = mount()
+    expect(transformHtml(editor, 'a<script>x<script>y</script></script>b')).toBe('ab')
+    const deeplyNested = `a${'<script>'.repeat(50)}x${'</script>'.repeat(50)}b`
+    expect(transformHtml(editor, deeplyNested)).toBe('ab')
+  })
+
+  it('drops an unterminated <script>/<style> and everything after it, without duplicating the prefix', () => {
+    editor = mount()
+    expect(transformHtml(editor, 'abc<script>never-closes')).toBe('abc')
+    expect(transformHtml(editor, 'abc<style>never-closes')).toBe('abc')
+    expect(transformHtml(editor, '<script>x<script>y</script>')).toBe('')
   })
 })

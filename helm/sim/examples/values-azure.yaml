@@ -98,6 +98,16 @@ app:
     AZURE_ANTHROPIC_API_KEY: ""                           # Azure Anthropic API key
     AZURE_ANTHROPIC_API_VERSION: ""                       # Azure Anthropic API version (e.g., 2023-06-01)
     NEXT_PUBLIC_AZURE_CONFIGURED: "true"                  # Set to "true" once credentials are configured above
+    KB_OPENAI_MODEL_NAME: ""                              # Azure deployment name serving the KB embedding model (used only when AZURE_OPENAI_* is set)
+    WAND_OPENAI_MODEL_NAME: ""                            # Wand generation model deployment name
+
+    # Azure Mistral OCR (optional — Azure-hosted document OCR for knowledge base processing)
+    OCR_AZURE_ENDPOINT: ""                                # Azure Mistral OCR service endpoint
+    OCR_AZURE_MODEL_NAME: ""                              # Azure Mistral OCR model name
+    OCR_AZURE_API_KEY: ""                                 # Azure Mistral OCR API key
+
+    # Email — Azure Communication Services (recommended on Azure; alternative to Resend/SES/SMTP)
+    AZURE_ACS_CONNECTION_STRING: ""                       # Azure Communication Services connection string
 
     # Azure Blob Storage Configuration (RECOMMENDED for production)
     # Create a storage account and containers in your Azure subscription
@@ -308,5 +318,13 @@ ingressInternal:
 #       AZURE_ACCOUNT_KEY:       "sim-azure-storage-account-key"
 #       # Use AZURE_CONNECTION_STRING instead if you prefer a single connection string:
 #       # AZURE_CONNECTION_STRING: "sim-azure-storage-connection-string"
+#       OCR_AZURE_API_KEY:       "sim-azure-ocr-api-key"
+#       AZURE_ACS_CONNECTION_STRING: "sim-azure-acs-connection-string"
+#       # Non-secret config (deployment names, endpoints) — still required here: ESO mode requires
+#       # every non-empty app.env key to be mapped, even ones that aren't sensitive.
+#       KB_OPENAI_MODEL_NAME:    "sim-kb-openai-model-name"
+#       WAND_OPENAI_MODEL_NAME:  "sim-wand-openai-model-name"
+#       OCR_AZURE_ENDPOINT:      "sim-azure-ocr-endpoint"
+#       OCR_AZURE_MODEL_NAME:    "sim-azure-ocr-model-name"
 #     postgresql:
 #       password: "sim-postgresql-password"

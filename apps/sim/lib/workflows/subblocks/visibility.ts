@@ -259,19 +259,11 @@ export function resolveActiveCanonicalValue(
   return mode === 'advanced' ? advancedValue : basicValue
 }
 
-/**
- * Strip the `${toolType}:` prefix from canonical-mode override keys, returning the overrides for a
- * nested tool keyed by bare `canonicalId`. An agent block stores its nested tools' modes scoped as
- * `${toolType}:${canonicalId}` (to avoid cross-tool collisions when tools share a `canonicalParamId`),
- * so this is the canonical un-scoping primitive. Returns `undefined` when there are no overrides, no
- * `toolType`, or no matching keys.
- */
-export function scopeCanonicalModesForTool(
-  overrides: CanonicalModeOverrides | undefined,
-  toolType: string | undefined
+/** Extract override entries matching a `${prefix}` key into a bare-`canonicalId`-keyed object. */
+function extractPrefixedModes(
+  overrides: CanonicalModeOverrides,
+  prefix: string
 ): CanonicalModeOverrides | undefined {
-  if (!overrides || !toolType) return undefined
-  const prefix = `${toolType}:`
   let scoped: CanonicalModeOverrides | undefined
   for (const [key, value] of Object.entries(overrides)) {
     if (key.startsWith(prefix) && value) {
@@ -280,6 +272,99 @@ export function scopeCanonicalModesForTool(
     }
   }
   return scoped
+}
+
+/**
+ * Strip the `${toolIndex}:` prefix from canonical-mode override keys, returning the overrides for a
+ * nested tool keyed by bare `canonicalId`. An agent block stores its nested tools' modes scoped as
+ * `${toolIndex}:${canonicalId}` — keyed by the tool's position in the `tool-input` array, not its
+ * `type` — so that two tool entries of the SAME type (e.g. two Table tools on one Agent block) get
+ * independent canonical modes instead of colliding on a shared `${toolType}:${canonicalId}` key.
+ *
+ * Falls back to the legacy `${legacyToolType}:` prefix (the pre-instance-scoping format) when no
+ * index-scoped key matches, so an override saved before this scoping change isn't silently dropped -
+ * it keeps applying (type-shared, the old behavior) until the user re-toggles it explicitly, at which
+ * point it's rewritten under the new index-scoped key.
+ *
+ * Returns `undefined` when there are no overrides, no `toolIndex`, and no legacy match.
+ */
+export function scopeCanonicalModesForTool(
+  overrides: CanonicalModeOverrides | undefined,
+  toolIndex: number | undefined,
+  legacyToolType?: string
+): CanonicalModeOverrides | undefined {
+  if (!overrides) return undefined
+  const scoped =
+    toolIndex !== undefined ? extractPrefixedModes(overrides, `${toolIndex}:`) : undefined
+  if (scoped) return scoped
+  return legacyToolType ? extractPrefixedModes(overrides, `${legacyToolType}:`) : undefined
+}
+
+const INDEX_SCOPED_KEY = /^(\d+):(.+)$/
+
+/**
+ * Canonical-mode overrides are keyed by a tool's position in its `tool-input` array
+ * (`${toolIndex}:${canonicalId}`), so anything that reorders or removes tools - the editor
+ * (drag-reorder, remove, delete), fork/promote copy (dropping an unresolved custom-tool/MCP
+ * entry) - must carry each surviving tool's overrides to its new position and DROP the
+ * vacated index. Otherwise a saved basic/advanced choice can attach to whichever DIFFERENT
+ * tool later lands on that old index (e.g. a newly-added tool, always appended at the end,
+ * can refill a slot a removal just freed).
+ *
+ * Returns the full replacement `canonicalModes` object (for an atomic whole-map write - a
+ * per-key merge can't drop a key, and sequential per-key writes can clobber each other when
+ * two tools swap positions), or `undefined` when nothing needs to change. A legacy,
+ * non-index-scoped key (the `${toolType}:` fallback format) isn't tied to any array position,
+ * so it's carried over unchanged.
+ */
+export function reindexCanonicalModesByPosition(
+  newIndexByOldIndex: ReadonlyMap<number, number>,
+  overrides: CanonicalModeOverrides | undefined
+): Record<string, 'basic' | 'advanced'> | undefined {
+  if (!overrides) return undefined
+
+  let changed = false
+  const result: Record<string, 'basic' | 'advanced'> = {}
+  for (const [key, mode] of Object.entries(overrides)) {
+    if (!mode) continue
+    const match = INDEX_SCOPED_KEY.exec(key)
+    if (!match) {
+      result[key] = mode
+      continue
+    }
+    const newIndex = newIndexByOldIndex.get(Number(match[1]))
+    if (newIndex === undefined) {
+      changed = true // Tool removed (or an already-stale index) - drop the key.
+      continue
+    }
+    if (newIndex !== Number(match[1])) changed = true
+    result[`${newIndex}:${match[2]}`] = mode
+  }
+  return changed ? result : undefined
+}
+
+/**
+ * {@link reindexCanonicalModesByPosition}, diffing `oldTools` against `newTools` by OBJECT
+ * IDENTITY to derive the old-index -> new-index map. Callers must not clone the tool objects
+ * they keep (only filter/splice/reorder the array itself) - a kept-but-cloned tool (e.g. a
+ * `{ ...tool, someField: x }` spread) won't match its old reference and will be treated as
+ * removed. Use {@link reindexCanonicalModesByPosition} directly when a caller's remap can
+ * clone kept entries (fork/promote does, to rewrite a remapped id) and already knows each
+ * surviving old index's new position by other means (e.g. tracking it during the same pass
+ * that builds the new array, rather than post-hoc identity comparison).
+ */
+export function reindexToolCanonicalModes<T>(
+  oldTools: readonly T[],
+  newTools: readonly T[],
+  overrides: CanonicalModeOverrides | undefined
+): Record<string, 'basic' | 'advanced'> | undefined {
+  const newIndexByRef = new Map(newTools.map((tool, index) => [tool, index]))
+  const newIndexByOldIndex = new Map<number, number>()
+  oldTools.forEach((tool, oldIndex) => {
+    const newIndex = newIndexByRef.get(tool)
+    if (newIndex !== undefined) newIndexByOldIndex.set(oldIndex, newIndex)
+  })
+  return reindexCanonicalModesByPosition(newIndexByOldIndex, overrides)
 }
 
 /**

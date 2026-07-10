@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
+import { ThinkingLoader } from '@/components/ui'
 import { BlockHandles } from '@/app/(landing)/components/hero/components/hero-visual/block-handles'
 import {
   type HomeMode,
@@ -37,7 +38,6 @@ import {
   TYPE_MS_PER_ATOM,
   WORKFLOW_FOCUS_SCALE,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
-import { ThinkingLoader } from '@/app/(landing)/components/thinking-loader'
 
 /**
  * Animated hero visual - the only client island in the hero, decorative and

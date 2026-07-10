@@ -95,6 +95,7 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   TABLE_LIST_STALE_TIME,
   type TableQueryScope,
@@ -271,8 +272,9 @@ export function getTableDetailQueryOptions(workspaceId: string, tableId: string)
 
 export interface TableRunState {
   dispatches: ActiveDispatch[]
-  runningCellCount: number
   runningByRowId: Record<string, number>
+  /** Any in-flight cell claimed by a worker, table-wide. */
+  hasRunning: boolean
 }
 
 async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promise<TableRunState> {
@@ -282,8 +284,8 @@ async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promis
   })
   return {
     dispatches: response.data.dispatches,
-    runningCellCount: response.data.runningCellCount,
     runningByRowId: response.data.runningByRowId,
+    hasRunning: response.data.hasRunning,
   }
 }
 
@@ -335,46 +337,28 @@ function countNewlyInFlight(before: RowExecutions, after: RowExecutions): number
   return n
 }
 
-/** The table's maintained, unfiltered `rowCount` from the detail cache (or
- *  `null` when the detail hasn't loaded). This is the right scope for a Run-all
- *  estimate: the dispatcher runs every row regardless of the active view
- *  filter, whereas the rows query's `totalCount` is filter-scoped. */
-function readTableRowCount(
-  queryClient: ReturnType<typeof useQueryClient>,
-  tableId: string
-): number | null {
-  const def = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
-  return typeof def?.rowCount === 'number' ? def.rowCount : null
-}
-
 /** Optimistically reflect a run on the "X running" badge + per-row gutter Stop
- *  instantly (the optimistic stamp eats the dispatcher's `pending` SSE, so
- *  `applyCell` never bumps the count, and the server's dispatch-scope count
- *  isn't live until the first window). `stampedByRow` drives the per-row gutter
- *  (loaded rows only); `cellCountDelta` is the badge delta — pass the full run
- *  scope (rows × groups) for Run-all so it matches the server, or omit to use
- *  the stamped total. Returns the prior snapshot for rollback. */
-function bumpRunState(
+ *  instantly, ahead of the dispatcher's real pending stamps and the next
+ *  server snapshot refetch. Cancels any in-flight run-state fetch first — a
+ *  fetch started before the click would otherwise resolve after this write
+ *  and clobber the bump back to the pre-run snapshot. Returns the prior
+ *  snapshot for rollback. */
+async function bumpRunState(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
-  stampedByRow: Record<string, number>,
-  cellCountDelta?: number
-): { snapshot: TableRunState | undefined } | null {
+  stampedByRow: Record<string, number>
+): Promise<{ snapshot: TableRunState | undefined } | null> {
   const stampedTotal = Object.values(stampedByRow).reduce((s, n) => s + n, 0)
-  const countDelta = cellCountDelta ?? stampedTotal
-  if (countDelta === 0 && stampedTotal === 0) return null
+  if (stampedTotal === 0) return null
+  await queryClient.cancelQueries({ queryKey: tableKeys.activeDispatches(tableId) })
   const snapshot = queryClient.getQueryData<TableRunState>(tableKeys.activeDispatches(tableId))
   queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-    const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+    const base = prev ?? { dispatches: [], runningByRowId: {}, hasRunning: false }
     const nextByRow = { ...base.runningByRowId }
     for (const [rid, n] of Object.entries(stampedByRow)) {
       nextByRow[rid] = (nextByRow[rid] ?? 0) + n
     }
-    return {
-      ...base,
-      runningCellCount: base.runningCellCount + countDelta,
-      runningByRowId: nextByRow,
-    }
+    return { ...base, runningByRowId: nextByRow }
   })
   return { snapshot }
 }
@@ -647,7 +631,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         },
       })
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       const row = response.data.row
       if (!row) return
 
@@ -660,7 +644,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       // the "X running" badge + gutter Stop show immediately (the row had no
       // prior executions, so the stamped set is the full delta).
       const stampedCount = countNewlyInFlight({}, stamped.executions ?? {})
-      if (stampedCount > 0) bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
+      if (stampedCount > 0) await bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
 
       // `reconcileCreatedRow` only patches the default-order view. Filtered /
       // column-sorted rows queries can't be reconciled from that heuristic
@@ -833,7 +817,7 @@ type BatchCreateTableRowsParams = Omit<BatchInsertTableRowsBodyInput, 'workspace
 type BatchCreateTableRowsResponse = ContractJsonResponse<typeof batchCreateTableRowsContract>
 
 /**
- * Batch create rows in a table. Supports optional per-row positions for undo restore.
+ * Batch create rows in a table. Supports optional per-row order keys for undo restore.
  */
 export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
@@ -848,7 +832,6 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         body: {
           workspaceId,
           rows: variables.rows as RowData[],
-          positions: variables.positions,
           orderKeys: variables.orderKeys,
         },
       })
@@ -904,7 +887,7 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
         }
       })
 
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return {
         previousQueries,
         runStateSnapshot: bumped?.snapshot,
@@ -995,7 +978,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         }
       })
 
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return {
         previousQueries,
         runStateSnapshot: bumped?.snapshot,
@@ -1319,6 +1302,7 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
             })
           )
         : undefined
+      const touchedRowIds = new Set<string>()
       const snapshots = await snapshotAndMutateRows(
         queryClient,
         tableId,
@@ -1350,21 +1334,55 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
             }
             rowTouched = true
           }
-          return rowTouched ? { ...r, executions: nextExecutions } : null
+          if (!rowTouched) return null
+          touchedRowIds.add(r.id)
+          return { ...r, executions: nextExecutions }
         },
         { onlyKey }
       )
-      return { snapshots }
+
+      // Zero the badge + per-row gutter for the stopped rows immediately.
+      // Cancel any in-flight run-state fetch first — one started before the
+      // server processed the cancel would resolve with stale non-zero counts
+      // and resurrect the badge until onSettled's refetch lands.
+      await queryClient.cancelQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+      const runStateSnapshot = queryClient.getQueryData<TableRunState>(
+        tableKeys.activeDispatches(tableId)
+      )
+      queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
+        if (!prev) return prev
+        const nextByRow: Record<string, number> = {}
+        for (const [rid, n] of Object.entries(prev.runningByRowId)) {
+          if (scope === 'all' && !filter) {
+            // Table-wide stop: everything not explicitly excluded is cancelled,
+            // including rows outside the loaded page slice.
+            if (!excludedRowIds?.has(rid)) continue
+          } else if (touchedRowIds.has(rid)) {
+            continue
+          }
+          nextByRow[rid] = n
+        }
+        // An unexcluded table-wide stop cancels every claim, so the stale
+        // table-wide flag must drop with it (else the header reads "0
+        // running" until onSettled refetches). Scoped stops leave other rows'
+        // claims running — keep it.
+        const hasRunning = scope === 'all' && !filter && !excludedRowIds ? false : prev.hasRunning
+        return { ...prev, runningByRowId: nextByRow, hasRunning }
+      })
+      return { snapshots, runStateSnapshot }
     },
-    onError: (_err, _variables, context) => {
+    onError: (error, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+      queryClient.setQueryData(tableKeys.activeDispatches(tableId), context?.runStateSnapshot)
+      // A failed Stop must be loud — the optimistic clear above made the run
+      // look stopped, and silently reverting reads as "the cancel didn't work".
+      toast.error(`Failed to stop runs: ${error.message}`, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      // Refetch the run-state snapshot — server re-derives runningCellCount +
-      // runningByRowId from the freshly-updated sidecar via countRunningCells.
-      // Without this, the counter and row gutter button stay stale until the
-      // user refetches manually.
+      // Refetch the run-state snapshot — server re-derives runningByRowId from
+      // the freshly-updated sidecar via countRunningCells. Reconciles the
+      // optimistic clear above with whatever the cancel actually stopped.
       queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
     },
   })
@@ -1410,6 +1428,7 @@ interface UploadCsvParams {
  */
 export function useUploadCsvToTable() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
 
   return useMutation({
     mutationFn: async ({ workspaceId, file }: UploadCsvParams) => {
@@ -1417,6 +1436,7 @@ export function useUploadCsvToTable() {
       // stream and needs workspaceId before it reaches the (large) file.
       const formData = new FormData()
       formData.append('workspaceId', workspaceId)
+      formData.append('timezone', timezone)
       formData.append('file', file)
 
       // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
@@ -1474,11 +1494,12 @@ async function uploadCsvToWorkspaceStorage(
  */
 export function useImportCsvAsync() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({ workspaceId, file, onProgress }: ImportCsvAsyncParams) => {
       const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
       const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName: file.name },
+        body: { workspaceId, fileKey, fileName: file.name, timezone },
       })
       return response.data
     },
@@ -1507,10 +1528,11 @@ interface ImportFileAsTableParams {
  */
 export function useImportFileAsTable() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
       const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName, deleteSourceFile: false },
+        body: { workspaceId, fileKey, fileName, deleteSourceFile: false, timezone },
       })
       return response.data
     },
@@ -1543,6 +1565,7 @@ interface ImportCsvIntoTableAsyncParams {
  */
 export function useImportCsvIntoTableAsync() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({
       workspaceId,
@@ -1556,7 +1579,7 @@ export function useImportCsvIntoTableAsync() {
       const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
       const response = await requestJson(importIntoTableAsyncContract, {
         params: { tableId },
-        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns },
+        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns, timezone },
       })
       return response.data
     },
@@ -1601,6 +1624,7 @@ interface ImportCsvIntoTableResponse {
  */
 export function useImportCsvIntoTable() {
   const queryClient = useQueryClient()
+  const timezone = useTimezone()
 
   return useMutation({
     mutationFn: async ({
@@ -1616,6 +1640,7 @@ export function useImportCsvIntoTable() {
       const formData = new FormData()
       formData.append('workspaceId', workspaceId)
       formData.append('mode', mode)
+      formData.append('timezone', timezone)
       if (mapping) {
         formData.append('mapping', JSON.stringify(mapping))
       }
@@ -2062,14 +2087,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         return { ...r, data: nextData, executions: next }
       })
 
-      // Badge counts the whole run scope (rows × groups), matching the server's
-      // dispatch-scope count — not just the loaded rows we could stamp. For
-      // Run-all that's the table's totalCount; for a scoped run, the rowIds.
-      const scopeRowCount = targetRowIds
-        ? targetRowIds.size
-        : (readTableRowCount(queryClient, tableId) ?? Object.keys(stampedByRow).length)
-      const cellCountDelta = scopeRowCount * targetGroupIds.size
-      const bumped = bumpRunState(queryClient, tableId, stampedByRow, cellCountDelta)
+      const bumped = await bumpRunState(queryClient, tableId, stampedByRow)
       return { snapshots, runStateSnapshot: bumped?.snapshot, didBumpRunState: bumped !== null }
     },
     onError: (_err, _variables, context) => {
@@ -2085,14 +2103,21 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       // optimistic counter to the server's still-zero count.
       const dispatchId = data?.data?.dispatchId
       if (!dispatchId) {
-        // No dispatch created → no SSE to reconcile the bump; roll it back.
+        // No dispatch created (empty scope, or a Stop-all cancelled the run
+        // during server prep) → no SSE will reconcile the optimistic state.
+        // Refetch both caches rather than restoring the onMutate snapshots —
+        // either restore could clobber fresher state applied since (SSE
+        // events, throttled refetches, a concurrent Stop-all's clear).
         if (context?.didBumpRunState) {
-          queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
+          void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+        }
+        if (context?.snapshots) {
+          void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         }
         return
       }
       queryClient.setQueryData<TableRunState>(tableKeys.activeDispatches(tableId), (prev) => {
-        const base = prev ?? { dispatches: [], runningCellCount: 0, runningByRowId: {} }
+        const base = prev ?? { dispatches: [], runningByRowId: {}, hasRunning: false }
         if (base.dispatches.some((d) => d.id === dispatchId)) return base
         const dispatch: ActiveDispatch = {
           id: dispatchId,

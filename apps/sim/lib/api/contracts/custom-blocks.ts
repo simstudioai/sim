@@ -9,7 +9,22 @@ const inputFieldSchema = z.object({
   name: z.string(),
   type: z.string(),
   description: z.string().optional(),
+  /** Consumer-facing placeholder hint (curated inputs only). */
+  placeholder: z.string().optional(),
 })
+
+/**
+ * The only authored per-input datum: a placeholder, keyed by the source Start
+ * field's stable `id`. The field's name/type/description are NOT stored — they're
+ * always derived from the live deployed Start (so they can't go stale), and this
+ * map only supplies the consumer-facing placeholder hint.
+ */
+const inputPlaceholderSchema = z.object({
+  id: z.string().min(1),
+  placeholder: z.string().max(200).optional(),
+})
+
+export type CustomBlockInputPlaceholder = z.input<typeof inputPlaceholderSchema>
 
 /** A curated output: a child-workflow block output (blockId + dot-path) exposed under `name`. */
 const exposedOutputSchema = z.object({
@@ -22,6 +37,12 @@ export const customBlockSchema = z.object({
   id: z.string(),
   organizationId: z.string(),
   workflowId: z.string(),
+  /** Name of the bound source workflow (for display; the source can't be changed). */
+  workflowName: z.string(),
+  /** Source workflow's home workspace id — used client-side to gate manage affordances. */
+  workspaceId: z.string().nullable(),
+  /** Name of the source workflow's home workspace (display only). */
+  workspaceName: z.string().nullable(),
   type: z.string(),
   name: z.string(),
   description: z.string(),
@@ -46,6 +67,8 @@ export const publishCustomBlockBodySchema = z.object({
   description: z.string().max(280, 'Description must be 280 characters or fewer').default(''),
   /** Uploaded icon image URL; omit for the default icon. */
   iconUrl: z.string().min(1).max(2048).optional(),
+  /** Per-input placeholder hints keyed by Start field id; the field set itself is always derived from the deployment. */
+  inputs: z.array(inputPlaceholderSchema).max(50).optional(),
   /** Curated outputs; omit/empty to expose the child's whole result. */
   exposedOutputs: z.array(exposedOutputSchema).max(50).optional(),
 })
@@ -63,6 +86,7 @@ export const updateCustomBlockBodySchema = z
     enabled: z.boolean().optional(),
     /** A URL sets/replaces the icon; `null` clears it (default icon). */
     iconUrl: z.string().min(1).max(2048).nullable().optional(),
+    inputs: z.array(inputPlaceholderSchema).max(50).optional(),
     exposedOutputs: z.array(exposedOutputSchema).max(50).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'At least one field is required' })

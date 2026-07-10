@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { renderOTPEmail } from '@/components/emails'
@@ -71,7 +72,7 @@ export const POST = withRouteHandler(
       const { token } = parsed.data.params
       // Normalize once so allow-list matching, OTP storage, and the verify lookup
       // all key off the same value (allow-list entries are stored lowercase).
-      const email = parsed.data.body.email.trim().toLowerCase()
+      const email = normalizeEmail(parsed.data.body.email)
 
       const resolved = await resolveActiveShareByToken(token)
       if (!resolved) {
@@ -133,7 +134,7 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params
       const { otp } = parsed.data.body
-      const email = parsed.data.body.email.trim().toLowerCase()
+      const email = normalizeEmail(parsed.data.body.email)
 
       const resolved = await resolveActiveShareByToken(token)
       if (!resolved) {

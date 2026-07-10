@@ -11,7 +11,9 @@ import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
 import { litellmProvider } from '@/providers/litellm'
+import { metaProvider } from '@/providers/meta'
 import { mistralProvider } from '@/providers/mistral'
+import { nvidiaProvider } from '@/providers/nvidia'
 import { ollamaProvider } from '@/providers/ollama'
 import { ollamaCloudProvider } from '@/providers/ollama-cloud'
 import { openaiProvider } from '@/providers/openai'
@@ -22,6 +24,7 @@ import type { ProviderConfig, ProviderId } from '@/providers/types'
 import { vertexProvider } from '@/providers/vertex'
 import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
+import { zaiProvider } from '@/providers/zai'
 
 const logger = createLogger('ProviderRegistry')
 
@@ -36,6 +39,9 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   cerebras: cerebrasProvider,
   groq: groqProvider,
   sakana: sakanaProvider,
+  nvidia: nvidiaProvider,
+  meta: metaProvider,
+  zai: zaiProvider,
   vllm: vllmProvider,
   litellm: litellmProvider,
   mistral: mistralProvider,

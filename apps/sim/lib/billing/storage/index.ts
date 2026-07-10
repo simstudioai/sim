@@ -1,2 +1,8 @@
 export { checkStorageQuota, getUserStorageLimit, getUserStorageUsage } from './limits'
-export { decrementStorageUsage, incrementStorageUsage } from './tracking'
+export {
+  checkAndIncrementStorageUsageInTx,
+  decrementStorageUsage,
+  decrementStorageUsageInTx,
+  incrementStorageUsage,
+  maybeNotifyStorageLimit,
+} from './tracking'

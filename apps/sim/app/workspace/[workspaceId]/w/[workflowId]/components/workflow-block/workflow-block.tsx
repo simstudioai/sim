@@ -44,6 +44,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
@@ -67,6 +68,9 @@ const logger = createLogger('WorkflowBlock')
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
+
+/** Stable empty map for rows that never resolve MCP tool names */
+const EMPTY_MCP_TOOL_NAMES: ReadonlyMap<string, string> = new Map()
 
 interface SubBlockRowProps {
   title: string
@@ -274,17 +278,23 @@ const SubBlockRow = memo(function SubBlockRow({
   }, [subBlock?.type, rawValue, mcpServers])
 
   const { data: mcpToolsData = [] } = useMcpToolsQuery(workspaceId || '')
+  const mcpToolNamesById = useMemo(() => {
+    if (subBlock?.type !== 'mcp-tool-selector' && subBlock?.type !== 'tool-input') {
+      return EMPTY_MCP_TOOL_NAMES
+    }
+    const names = new Map<string, string>()
+    for (const t of mcpToolsData) {
+      const toolId = createMcpToolId(t.serverId, t.name)
+      if (!names.has(toolId)) names.set(toolId, t.name)
+    }
+    return names
+  }, [subBlock?.type, mcpToolsData])
   const mcpToolDisplayName = useMemo(() => {
     if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
       return null
     }
-
-    const tool = mcpToolsData.find((t) => {
-      const toolId = createMcpToolId(t.serverId, t.name)
-      return toolId === rawValue
-    })
-    return tool?.name ?? null
-  }, [subBlock?.type, rawValue, mcpToolsData])
+    return mcpToolNamesById.get(rawValue) ?? null
+  }, [subBlock?.type, rawValue, mcpToolNamesById])
 
   const { data: tables = [] } = useTablesList(workspaceId || '')
   const tableDisplayName = useMemo(() => {
@@ -329,11 +339,16 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, workflowVariables]
   )
 
-  /** Hydrates tool references to display names. */
+  /**
+   * Hydrates tool references to display names. The overlay version is a dep
+   * because resolveToolsLabel reads getBlock, whose custom-block results
+   * change when the client overlay hydrates (see client-overlay.ts).
+   */
   const { data: customTools = [] } = useCustomTools(workspaceId || '')
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolsDisplayValue = useMemo(
-    () => resolveToolsLabel(subBlock, rawValue, customTools),
-    [subBlock, rawValue, customTools]
+    () => resolveToolsLabel(subBlock, rawValue, customTools, mcpToolNamesById),
+    [subBlock, rawValue, customTools, mcpToolNamesById, customBlockOverlayVersion]
   )
 
   const filterDisplayValue = useMemo(

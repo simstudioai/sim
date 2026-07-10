@@ -90,7 +90,7 @@ List issues in a GitLab project
 | `assigneeId` | number | No | Filter by assignee user ID |
 | `milestoneTitle` | string | No | Filter by milestone title |
 | `search` | string | No | Search issues by title and description |
-| `orderBy` | string | No | Order by field \(created_at, updated_at\) |
+| `orderBy` | string | No | Order by field \(created_at, updated_at, priority, due_date, relative_position, label_priority, milestone_due, popularity, title, weight\) |
 | `sort` | string | No | Sort direction \(asc, desc\) |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
 | `page` | number | No | Page number for pagination |
@@ -217,11 +217,11 @@ List merge requests in a GitLab project
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or URL-encoded path |
-| `state` | string | No | Filter by state \(opened, closed, merged, all\) |
+| `state` | string | No | Filter by state \(opened, closed, locked, merged, all\) |
 | `labels` | string | No | Comma-separated list of label names |
 | `sourceBranch` | string | No | Filter by source branch |
 | `targetBranch` | string | No | Filter by target branch |
-| `orderBy` | string | No | Order by field \(created_at, updated_at\) |
+| `orderBy` | string | No | Order by field \(created_at, updated_at, merged_at, priority, label_priority, milestone_due, popularity, title\) |
 | `sort` | string | No | Sort direction \(asc, desc\) |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
 | `page` | number | No | Page number for pagination |
@@ -560,6 +560,49 @@ Create a new branch in a GitLab project repository
 | `protected` | boolean | Whether the branch is protected |
 | `commit` | object | The commit the branch points to |
 
+### `gitlab_delete_branch`
+
+Delete a branch from a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `branch` | string | Yes | Name of the branch to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the branch was deleted successfully |
+
+### `gitlab_compare_branches`
+
+Compare two branches, tags, or commits in a GitLab project repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `from` | string | Yes | Commit SHA or branch/tag name to compare from |
+| `to` | string | Yes | Commit SHA or branch/tag name to compare to |
+| `straight` | boolean | No | Compare directly from..to instead of using the merge base \(defaults to false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commit` | object | The latest commit in the comparison |
+| `commits` | array | Commits between the two references |
+| `diffs` | array | File diffs between the two references |
+| `compareTimeout` | boolean | Whether the comparison exceeded size limits or timed out |
+| `compareSameRef` | boolean | Whether both references point to the same commit |
+| `webUrl` | string | The web URL for viewing the comparison |
+
 ### `gitlab_list_branches`
 
 List branches in a GitLab project repository
@@ -709,6 +752,51 @@ Trigger (play) a manual GitLab job
 | `status` | string | The job status |
 | `webUrl` | string | The web URL of the job |
 
+### `gitlab_list_releases`
+
+List releases in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `orderBy` | string | No | Order by field \(released_at, created_at\) |
+| `sort` | string | No | Sort direction \(asc, desc\) |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `releases` | array | List of GitLab releases |
+| `total` | number | Total number of releases |
+
+### `gitlab_create_release`
+
+Create a new release in a GitLab project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `tagName` | string | Yes | The Git tag for the release |
+| `name` | string | No | The release name |
+| `description` | string | No | Release description/notes \(Markdown supported\) |
+| `ref` | string | No | Commit SHA, branch, or tag to create the tag from if it does not already exist |
+| `releasedAt` | string | No | ISO 8601 date for an upcoming or historical release |
+| `milestones` | array | No | Array of milestone titles to associate with the release |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `release` | object | The created GitLab release |
+
 
 
 ## Triggers
@@ -794,6 +882,7 @@ Trigger workflow when an issue is opened, updated, or closed in GitLab
 |   ↳ `description` | string | Issue description |
 |   ↳ `confidential` | boolean | Whether the issue is confidential |
 |   ↳ `url` | string | Issue URL |
+|   ↳ `work_item_type` | string | Work item type \(e.g. Issue, Incident, Task\); GitLab 17.2+ only |
 
 
 ---
@@ -824,7 +913,8 @@ Trigger workflow when a merge request is opened, updated, or merged in GitLab
 |   ↳ `action` | string | Action \(open, close, reopen, update, merge, etc.\) |
 |   ↳ `source_branch` | string | Source branch |
 |   ↳ `target_branch` | string | Target branch |
-|   ↳ `merge_status` | string | Merge status |
+|   ↳ `merge_status` | string | Merge status \(deprecated by GitLab\) |
+|   ↳ `detailed_merge_status` | string | Detailed merge status |
 |   ↳ `draft` | boolean | Whether the merge request is a draft |
 |   ↳ `url` | string | Merge request URL |
 

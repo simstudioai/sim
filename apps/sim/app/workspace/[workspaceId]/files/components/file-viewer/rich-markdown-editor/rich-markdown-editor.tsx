@@ -45,8 +45,9 @@ interface RichMarkdownEditorProps {
   canEdit: boolean
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
-  onSaveStatusChange?: (status: SaveStatus) => void
+  onSaveStatusChange?: (status: SaveStatus, retry?: () => Promise<void>) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
   /**
@@ -70,6 +71,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  discardRef,
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
@@ -93,6 +95,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
+    discardRef,
     normalizeBaseline: normalizeMarkdownContent,
   })
 
@@ -250,6 +253,7 @@ export function LoadedRichMarkdownEditor({
   const editor = useEditor({
     extensions: EXTENSIONS,
     editable: isEditable,
+    enablePasteRules: false,
     autofocus: streamingAtMountRef.current ? false : autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
@@ -355,6 +359,14 @@ export function LoadedRichMarkdownEditor({
   const lastStreamParseAtRef = useRef(0)
   useEffect(() => {
     if (!editor) return
+    const syncEditorBody = (body: string) => {
+      if (body === lastSyncedBodyRef.current) return
+      lastSyncedBodyRef.current = body
+      editor.commands.setContent(parseMarkdownToDoc(body), {
+        contentType: 'json',
+        emitUpdate: false,
+      })
+    }
     if (isStreaming) {
       wasStreamingRef.current = true
       if (editor.isEditable) editor.setEditable(false)
@@ -406,14 +418,7 @@ export function LoadedRichMarkdownEditor({
     if (isInitialSettle || wasStreamingRef.current) {
       wasStreamingRef.current = false
       settledRef.current = lockSettled(content)
-      const body = splitFrontmatter(content).body
-      if (body !== lastSyncedBodyRef.current) {
-        lastSyncedBodyRef.current = body
-        editor.commands.setContent(parseMarkdownToDoc(body), {
-          contentType: 'json',
-          emitUpdate: false,
-        })
-      }
+      syncEditorBody(splitFrontmatter(content).body)
       // `setContent` maps any pre-existing selection onto the new doc rather than clearing it — a
       // select-all survives as "select everything," permanently painting every divider/image with the
       // `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks elsewhere. This must run
@@ -427,6 +432,7 @@ export function LoadedRichMarkdownEditor({
       if (isInitialSettle && autoFocus) editor.commands.focus('end')
       return
     }
+    syncEditorBody(splitFrontmatter(content).body)
     if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict)
   }, [editor, content, isStreaming, canEdit, autoFocus, disableStreamingAutoScroll])
 

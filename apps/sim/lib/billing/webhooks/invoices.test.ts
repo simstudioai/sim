@@ -94,6 +94,7 @@ vi.mock('@/lib/messaging/email/utils', () => ({
     from: 'billing@sim.test',
     replyTo: 'support@sim.test',
   })),
+  getHelpEmailAddress: vi.fn(() => 'help@sim.test'),
 }))
 
 vi.mock('@/lib/messaging/email/validation', () => ({
@@ -109,6 +110,7 @@ import {
   handleInvoicePaymentSucceeded,
   resetUsageForSubscription,
 } from '@/lib/billing/webhooks/invoices'
+import { sendEmail } from '@/lib/messaging/email/mailer'
 
 interface SelectResponse {
   limitResult?: unknown
@@ -192,6 +194,50 @@ describe('invoice billing recovery', () => {
 
     expect(mockBlockOrgMembers).toHaveBeenCalledWith('org-1', 'payment_failed')
     expect(mockUnblockOrgMembers).not.toHaveBeenCalled()
+  })
+
+  it('sends the payment-failure email with the shared help inbox as reply-to', async () => {
+    queueSelectResponse({
+      limitResult: [
+        {
+          id: 'sub-db-1',
+          plan: 'team_8000',
+          referenceId: 'org-1',
+          stripeSubscriptionId: 'sub_stripe_1',
+        },
+      ],
+    })
+    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] }) // resolveBillingActorId owner lookup (payment_failed instrumentation)
+    queueSelectResponse({
+      whereResult: [{ userId: 'owner-1', role: 'owner' }],
+    })
+    queueSelectResponse({
+      whereResult: [{ email: 'owner@sim.test', name: 'Owner' }],
+    })
+
+    await handleInvoicePaymentFailed(
+      createInvoiceEvent('invoice.payment_failed', {
+        amount_due: 3582,
+        attempt_count: 1,
+        customer: 'cus_123',
+        customer_email: 'owner@sim.test',
+        hosted_invoice_url: 'https://stripe.test/invoices/in_123',
+        id: 'in_123',
+        metadata: {
+          billingPeriod: '2026-04',
+          subscriptionId: 'sub_stripe_1',
+          type: 'overage_threshold_billing_org',
+        },
+      })
+    )
+
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'owner@sim.test',
+        from: 'billing@sim.test',
+        replyTo: 'help@sim.test',
+      })
+    )
   })
 
   it('unblocks org members when the matching metadata-backed invoice payment succeeds', async () => {
