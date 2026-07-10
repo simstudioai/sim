@@ -954,9 +954,7 @@ export async function executeGeminiRequest(
       )
     }
 
-    // Configure thinking based on the user's selected level.
-    // Gemini 3.x accepts thinkingLevel directly; Gemini 2.5-series rejects thinkingLevel
-    // entirely and requires a numeric thinkingBudget instead.
+    // Gemini 3.x takes thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
     if (request.thinkingLevel && request.thinkingLevel !== 'none') {
       const thinkingConfig: ThinkingConfig = { includeThoughts: false }
       if (isGemini3Model(model)) {
@@ -970,8 +968,8 @@ export async function executeGeminiRequest(
       !isGemini3Model(model) &&
       supportsDisablingGemini25Thinking(model)
     ) {
-      // Omitting thinkingConfig entirely falls back to the API's own dynamic default, which
-      // is ON for gemini-2.5-flash — an explicit budget of 0 is required to actually disable it.
+      // Omitting thinkingConfig falls back to the API's dynamic default (ON for gemini-2.5-flash),
+      // so disabling requires an explicit budget of 0.
       geminiConfig.thinkingConfig = { includeThoughts: false, thinkingBudget: 0 }
     }
 

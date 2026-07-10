@@ -344,8 +344,9 @@ export async function executeAnthropicProviderRequest(
         payload.output_config = thinkingConfig.outputConfig
       }
 
-      // Per Anthropic docs: budget_tokens must be >= 1024 and less than max_tokens.
-      // Ensure max_tokens leaves room for both thinking and text output.
+      // Keep budget_tokens < max_tokens (see constants above) by shrinking the budget
+      // itself when the model's output cap is too tight — clamping max_tokens alone
+      // can leave budget_tokens >= max_tokens.
       if (
         thinkingConfig.thinking.type === 'enabled' &&
         'budget_tokens' in thinkingConfig.thinking
@@ -353,9 +354,6 @@ export async function executeAnthropicProviderRequest(
         const modelMax = getMaxOutputTokensForModel(request.model)
         let budgetTokens = thinkingConfig.thinking.budget_tokens
 
-        // If this level's budget doesn't leave room for text output within the
-        // model's own output cap, shrink the budget itself (not just max_tokens) —
-        // otherwise clamping max_tokens alone can leave budget_tokens >= max_tokens.
         if (budgetTokens + ANTHROPIC_THINKING_OUTPUT_HEADROOM > modelMax) {
           budgetTokens = Math.max(
             ANTHROPIC_MIN_BUDGET_TOKENS,
