@@ -87,7 +87,10 @@ const NON_CONTENT_TAG = /<\/?\s*(style|script)\b[^>]*>/gi
  * behind. A naive single `replace()` pass over `<tag>[\s\S]*?<\/tag>` matches only the innermost pair
  * and leaves the outer tag dangling; repeating that replace until stable fixes correctness but costs
  * O(depth) full-string rescans on attacker-controlled clipboard input. This does it in one pass instead.
- * A stray close tag encountered outside any open element (depth 0) is left in place untouched.
+ * A stray close tag encountered outside any open element (depth 0) is left in place untouched. `cursor`
+ * advances past an open tag the moment it opens (not when it closes), so if the input ends before the
+ * element closes — truncated or malformed clipboard HTML — the unterminated element and everything
+ * after it is dropped rather than reappearing unstripped in the final `html.slice(cursor)` flush.
  */
 function stripNonContentHtml(html: string): string {
   let result = ''
@@ -104,12 +107,13 @@ function stripNonContentHtml(html: string): string {
       result += html.slice(cursor, match.index)
       openTagName = tagName
       depth = 1
+      cursor = match.index + match[0].length
     } else if (tagName === openTagName) {
       depth += isClosing ? -1 : 1
       if (depth === 0) cursor = match.index + match[0].length
     }
   }
-  result += html.slice(cursor)
+  if (depth === 0) result += html.slice(cursor)
   return result
 }
 

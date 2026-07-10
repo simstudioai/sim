@@ -247,4 +247,11 @@ describe('markdown paste', () => {
     const deeplyNested = `a${'<script>'.repeat(50)}x${'</script>'.repeat(50)}b`
     expect(transformHtml(editor, deeplyNested)).toBe('ab')
   })
+
+  it('drops an unterminated <script>/<style> and everything after it, without duplicating the prefix', () => {
+    editor = mount()
+    expect(transformHtml(editor, 'abc<script>never-closes')).toBe('abc')
+    expect(transformHtml(editor, 'abc<style>never-closes')).toBe('abc')
+    expect(transformHtml(editor, '<script>x<script>y</script>')).toBe('')
+  })
 })
