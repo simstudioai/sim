@@ -29,6 +29,22 @@ const logger = createLogger('ZaiProvider')
 
 const ZAI_BASE_URL = 'https://api.z.ai/api/paas/v4'
 
+function buildSchemaGuidance(responseFormat: ProviderRequest['responseFormat']): string {
+  if (!responseFormat) return ''
+  const schema = responseFormat.schema || responseFormat
+  return `\n\nYour response must be valid JSON matching this schema${
+    responseFormat.name ? ` ("${responseFormat.name}")` : ''
+  }:\n${JSON.stringify(schema, null, 2)}`
+}
+
+function withSchemaGuidance(messages: any[], guidance: string): any[] {
+  if (!guidance) return messages
+  if (messages[0]?.role === 'system') {
+    return [{ ...messages[0], content: `${messages[0].content}${guidance}` }, ...messages.slice(1)]
+  }
+  return [{ role: 'system', content: guidance.trimStart() }, ...messages]
+}
+
 /**
  * Z.ai's GLM models via an OpenAI-compatible chat-completions API (`api.z.ai`), with these
  * documented deviations from a standard OpenAI-compatible adapter:
@@ -68,16 +84,10 @@ export const zaiProvider: ProviderConfig = {
 
       const allMessages = []
 
-      const schemaGuidance = request.responseFormat
-        ? `\n\nYour response must be valid JSON matching this schema${
-            request.responseFormat.name ? ` ("${request.responseFormat.name}")` : ''
-          }:\n${JSON.stringify(request.responseFormat.schema, null, 2)}`
-        : ''
-
-      if (request.systemPrompt || schemaGuidance) {
+      if (request.systemPrompt) {
         allMessages.push({
           role: 'system',
-          content: `${request.systemPrompt || ''}${schemaGuidance}`,
+          content: request.systemPrompt,
         })
       }
 
@@ -147,6 +157,10 @@ export const zaiProvider: ProviderConfig = {
       const deferResponseFormat = !!responseFormatPayload && hasActiveTools
       if (responseFormatPayload && !deferResponseFormat) {
         payload.response_format = responseFormatPayload
+        payload.messages = withSchemaGuidance(
+          payload.messages,
+          buildSchemaGuidance(request.responseFormat)
+        )
       }
 
       if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
@@ -489,6 +503,10 @@ export const zaiProvider: ProviderConfig = {
         streamingPayload.tool_choice = undefined
         if (deferResponseFormat && responseFormatPayload) {
           streamingPayload.response_format = responseFormatPayload
+          streamingPayload.messages = withSchemaGuidance(
+            streamingPayload.messages,
+            buildSchemaGuidance(request.responseFormat)
+          )
         }
 
         const streamResponse = await zai.chat.completions.create(
@@ -562,7 +580,10 @@ export const zaiProvider: ProviderConfig = {
         const finalFormatStartTime = Date.now()
         const finalPayload: any = {
           ...payload,
-          messages: currentMessages,
+          messages: withSchemaGuidance(
+            currentMessages,
+            buildSchemaGuidance(request.responseFormat)
+          ),
           response_format: responseFormatPayload,
         }
         finalPayload.tools = undefined
