@@ -3252,6 +3252,12 @@ export const Respond: ToolCatalogEntry = {
           'The result — facts, status, VFS paths to persisted data, whatever the caller needs to act on.',
         type: 'string',
       },
+      paths: {
+        description:
+          'Affected VFS file paths. Required when the File Agent reports a successful file mutation.',
+        items: { type: 'string' },
+        type: 'array',
+      },
       success: { description: 'Whether the task completed successfully', type: 'boolean' },
       type: { description: 'Optional logical result type override', type: 'string' },
     },
@@ -4296,10 +4302,23 @@ export const Workflow: ToolCatalogEntry = {
     properties: {
       prompt: {
         description:
-          "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+          'Optional brief instruction (one short sentence) to add scoping that the conversation does not convey. Usually omit it: a new session inherits the current conversation, and a resumed session receives the parent messages it has not yet seen. Do NOT restate or rewrite conversation content.',
+        type: 'string',
+      },
+      sessionId: {
+        description:
+          'Reusable session ID returned by an earlier workflow call in this chat. Supply it only on a later user message that continues the same task; the agent resumes from its saved transcript and receives unseen parent conversation messages. Omit it for a new or independent task.',
+        type: 'string',
+      },
+      title: {
+        description:
+          "Required private orchestration label (3–8 words) for this session's stable objective. It is stored in the request-local, chat-scoped Subagent Registry supplied only to the main orchestrator and is not shown to or used as an instruction for the workflow agent. When resuming with sessionId, copy the registry title unchanged.",
+        maxLength: 120,
+        minLength: 1,
         type: 'string',
       },
     },
+    required: ['title'],
     type: 'object',
   },
   subagentId: 'workflow',
