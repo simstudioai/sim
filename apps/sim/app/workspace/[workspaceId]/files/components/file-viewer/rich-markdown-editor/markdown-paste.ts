@@ -87,6 +87,7 @@ const NON_CONTENT_TAG = /<\/?\s*(style|script)\b[^>]*>/gi
  * behind. A naive single `replace()` pass over `<tag>[\s\S]*?<\/tag>` matches only the innermost pair
  * and leaves the outer tag dangling; repeating that replace until stable fixes correctness but costs
  * O(depth) full-string rescans on attacker-controlled clipboard input. This does it in one pass instead.
+ * A stray close tag encountered outside any open element (depth 0) is left in place untouched.
  */
 function stripNonContentHtml(html: string): string {
   let result = ''
@@ -99,7 +100,7 @@ function stripNonContentHtml(html: string): string {
     const isClosing = match[0][1] === '/'
     const tagName = match[1].toLowerCase()
     if (depth === 0) {
-      if (isClosing) continue // stray close tag outside any open element — leave it in place
+      if (isClosing) continue
       result += html.slice(cursor, match.index)
       openTagName = tagName
       depth = 1
