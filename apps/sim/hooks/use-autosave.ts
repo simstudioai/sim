@@ -14,6 +14,7 @@ interface LocalDraft {
 }
 
 const LOCAL_DRAFT_DELAY_MS = 400
+const MIN_SAVING_DISPLAY_MS = 600
 
 function localDraftDbKey(draftKey: string) {
   return `autosave-draft:${draftKey}`
@@ -75,18 +76,24 @@ export function useAutosave({
   onDiscardCorrectionFailed,
 }: UseAutosaveOptions): UseAutosaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const displayTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const savingRef = useRef(false)
+  const savingStartRef = useRef(0)
+  const inFlightRef = useRef<Promise<void> | null>(null)
+  const unmountedRef = useRef(false)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
   const enabledRef = useRef(enabled)
   enabledRef.current = enabled
+
   const savedContentRef = useRef(savedContent)
   savedContentRef.current = savedContent
   const contentRef = useRef(content)
   contentRef.current = content
+
   const effectiveDraftKey = enabled ? draftKey : undefined
   const draftKeyRef = useRef(effectiveDraftKey)
   draftKeyRef.current = effectiveDraftKey
@@ -95,15 +102,12 @@ export function useAutosave({
   const onDiscardCorrectionFailedRef = useRef(onDiscardCorrectionFailed)
   onDiscardCorrectionFailedRef.current = onDiscardCorrectionFailed
 
-  const isDirty = content !== savedContent
-  const savingStartRef = useRef(0)
-  const inFlightRef = useRef<Promise<void> | null>(null)
-  const unmountedRef = useRef(false)
   const localDraftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const lastPersistedContentRef = useRef<string | null>(null)
-  const discardedRef = useRef(false)
-  const MIN_SAVING_DISPLAY_MS = 600
 
+  const discardedRef = useRef(false)
+
+  const isDirty = content !== savedContent
   if (discardedRef.current && isDirty) discardedRef.current = false
 
   const persistLocalDraft = useCallback(() => {
@@ -207,7 +211,7 @@ export function useAutosave({
       // latest sequentially (last) prevents an out-of-order completion from clobbering it.
       void (async () => {
         await inFlightRef.current
-        if (!discardedRef.current && contentRef.current !== savedContentRef.current) {
+        if (!discardedRef.current) {
           await onSaveRef.current().then(clearLocalDraft, () => {})
         }
       })()

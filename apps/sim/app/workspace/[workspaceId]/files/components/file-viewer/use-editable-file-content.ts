@@ -198,10 +198,6 @@ export function useEditableFileContent({
 
   const autosaveEnabled = canEdit && isInitialized && !isStreamInteractionLocked
 
-  const onDiscardCorrectionFailed = useCallback(() => {
-    toast.error(`Failed to discard "${file.name}" — the server may still have the discarded edit`)
-  }, [file.name])
-
   const { saveStatus, saveImmediately, isDirty, discard } = useAutosave({
     content,
     savedContent,
@@ -209,7 +205,10 @@ export function useEditableFileContent({
     enabled: autosaveEnabled,
     draftKey: autosaveEnabled ? `${workspaceId}:${file.id}` : undefined,
     onRestoreDraft: setDraftContent,
-    onDiscardCorrectionFailed,
+    onDiscardCorrectionFailed: () =>
+      toast.error(
+        `Failed to discard "${file.name}" — the server may still have the discarded edit`
+      ),
   })
 
   useEffect(() => {
