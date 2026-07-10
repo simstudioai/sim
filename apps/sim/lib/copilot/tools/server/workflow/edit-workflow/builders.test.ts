@@ -133,6 +133,21 @@ describe('normalizeSubblockValue', () => {
     expect(normalizeSubblockValue('systemPrompt', 'hello')).toBe('hello')
   })
 
+  // Validation treats null as an explicit clear. Coercing it to "[]" would persist a value
+  // where the caller asked for none, so the agent reads back an empty filter rather than an
+  // absent one -- the same absent-vs-empty ambiguity that caused the original data loss.
+  it.each(['tagFilters', 'documentTags', 'conditions', 'routes'])(
+    'passes a null %s through as a clear rather than serializing it to "[]"',
+    (key) => {
+      expect(normalizeSubblockValue(key, null)).toBeNull()
+      expect(normalizeSubblockValue(key, undefined)).toBeUndefined()
+    }
+  )
+
+  it('still serializes an explicitly empty array, which clears the field with a value', () => {
+    expect(normalizeSubblockValue('tagFilters', [])).toBe('[]')
+  })
+
   it('replaces non-uuid ids so copilot-authored rows match UI-created ones', () => {
     const result = normalizeSubblockValue('tagFilters', [{ id: 'filter-1', tagName: 'Department' }])
 

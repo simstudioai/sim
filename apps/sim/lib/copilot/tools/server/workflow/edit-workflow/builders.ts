@@ -323,9 +323,16 @@ function shouldNormalizeArrayIds(key: string): boolean {
  *
  * Every write path that persists LLM-supplied subblock values must route through this so the
  * two concerns cannot drift apart; returns non-array-with-id values untouched.
+ *
+ * @remarks
+ * A nullish value passes through unchanged. `validateValueForSubBlockType` treats null as an
+ * explicit clear, and coercing it to `"[]"` here would persist a value where the caller asked
+ * for none -- leaving `sanitizeForCopilot` to show the agent an empty filter rather than an
+ * absent one, and callers that branch on the field's presence to see it as set.
  */
 export function normalizeSubblockValue(key: string, value: unknown): unknown {
   if (!shouldNormalizeArrayIds(key)) return value
+  if (value === null || value === undefined) return value
   const normalized = normalizeArrayWithIds(value)
   return JSON_STRING_SUBBLOCK_KEYS.has(key) ? JSON.stringify(normalized) : normalized
 }
