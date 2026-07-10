@@ -25,6 +25,7 @@ import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
   CopilotChatFinalizeOutcome,
   CopilotChatPersistOutcome,
@@ -46,7 +47,6 @@ import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { computeWorkspaceEntitlements } from '@/lib/workflows/custom-blocks/operations'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
   getUserEntityPermissions,

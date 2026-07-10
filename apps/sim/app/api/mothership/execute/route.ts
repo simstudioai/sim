@@ -8,6 +8,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
@@ -18,7 +19,6 @@ import type { StreamEvent } from '@/lib/copilot/request/types'
 import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildUserSkillTool } from '@/lib/mothership/skills'
-import { computeWorkspaceEntitlements } from '@/lib/workflows/custom-blocks/operations'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
