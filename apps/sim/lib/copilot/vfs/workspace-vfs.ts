@@ -1552,6 +1552,12 @@ export class WorkspaceVFS {
    * Load tag definitions for the given knowledge bases in a single query, grouped by
    * KB id and ordered by tag slot. Surfaced inline in each KB's meta.json so the agent
    * knows which tags exist (and their slot binding) when editing a knowledge-tag filter.
+   *
+   * @remarks
+   * Tag definitions are an optional enrichment, so a query failure degrades to a meta.json
+   * without them rather than rejecting. This materializer runs inside the top-level
+   * `Promise.all`, whose rejection would fail the entire workspace VFS build and leave the
+   * agent unable to read any file.
    */
   private async loadKbTagDefinitions(
     kbIds: string[]
@@ -1559,16 +1565,29 @@ export class WorkspaceVFS {
     const byKb = new Map<string, KbTagDefinitionSummary[]>()
     if (kbIds.length === 0) return byKb
 
-    const rows = await db
-      .select({
-        knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
-        tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-        displayName: knowledgeBaseTagDefinitions.displayName,
-        fieldType: knowledgeBaseTagDefinitions.fieldType,
+    let rows: Array<{
+      knowledgeBaseId: string
+      tagSlot: string
+      displayName: string
+      fieldType: string
+    }>
+    try {
+      rows = await db
+        .select({
+          knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
+          tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+          displayName: knowledgeBaseTagDefinitions.displayName,
+          fieldType: knowledgeBaseTagDefinitions.fieldType,
+        })
+        .from(knowledgeBaseTagDefinitions)
+        .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
+        .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+    } catch (err) {
+      logger.warn('Failed to load knowledge base tag definitions', {
+        error: toError(err).message,
       })
-      .from(knowledgeBaseTagDefinitions)
-      .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
-      .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+      return byKb
+    }
 
     for (const row of rows) {
       const entry = {

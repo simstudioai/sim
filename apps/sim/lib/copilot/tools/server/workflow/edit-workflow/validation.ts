@@ -367,7 +367,9 @@ export function validateValueForSubBlockType(
     }
 
     case 'condition-input':
-    case 'router-input': {
+    case 'router-input':
+    case 'knowledge-tag-filters':
+    case 'document-tag-entry': {
       const parsedValue =
         typeof value === 'string'
           ? (() => {
