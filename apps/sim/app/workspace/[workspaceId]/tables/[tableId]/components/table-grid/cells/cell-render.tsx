@@ -73,10 +73,6 @@ export function resolveCellRender({
     const inFlight =
       exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
     if (inFlight && blockRunning) return { kind: 'running' }
-    // Enrichment outputs share an empty blockId, so `runningBlockIds` can never
-    // match them — the group-level `running` status is the only "worker picked
-    // this up" signal an enrichment cell has.
-    if (isEnrichmentOutput && exec?.status === 'running') return { kind: 'running' }
 
     // Value wins over pending-upstream: a finished column stays finished even
     // while other blocks in the group are still running. An empty string is not
@@ -88,6 +84,12 @@ export function resolveCellRender({
       const text = stringifyValue(value)
       return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'value', text }
     }
+
+    // Enrichment outputs share an empty blockId, so `runningBlockIds` can never
+    // match them — the group-level `running` status is the only "worker picked
+    // this up" signal an enrichment cell has. Checked after the value so a
+    // rerun keeps showing the previous output until the new result lands.
+    if (isEnrichmentOutput && exec?.status === 'running') return { kind: 'running' }
 
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
       // A `pending` cell whose jobId starts with `paused-` is mid-pause
