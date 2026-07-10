@@ -29,6 +29,8 @@ export interface ServiceAccountSecretResult {
   encryptedServiceAccountKey: string
   displayName: string
   auditMetadata: Record<string, string>
+  /** Slack custom bot: the derived bot user id (for reaction self-drop). */
+  botUserId?: string
 }
 
 /** Thrown when a service-account secret is missing or fails provider verification. */
@@ -114,6 +116,7 @@ export async function verifyAndBuildServiceAccountSecret(
       encryptedServiceAccountKey: encrypted,
       displayName: teamName || 'Slack bot',
       auditMetadata: { slackTeamId: teamId },
+      botUserId,
     }
   }
 

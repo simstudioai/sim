@@ -59,6 +59,7 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     expect(result.providerId).toBe(SLACK_CUSTOM_BOT_PROVIDER_ID)
     expect(result.displayName).toBe('Acme')
     expect(result.auditMetadata.slackTeamId).toBe('T1')
+    expect(result.botUserId).toBe('U_BOT')
     const blob = JSON.parse(result.encryptedServiceAccountKey)
     expect(blob).toMatchObject({
       signingSecret: 'sec',

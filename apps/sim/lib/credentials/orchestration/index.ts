@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { credential, environment, workspaceEnvironment } from '@sim/db/schema'
+import { credential, environment, webhook, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
@@ -124,6 +124,7 @@ export async function performUpdateCredential(
       params.botToken !== undefined ||
       params.apiToken !== undefined ||
       params.domain !== undefined
+    let rotatedSlackBotUserId: string | undefined
     if (hasRotationSecret && access.credential.type === 'service_account') {
       try {
         const secret = await verifyAndBuildServiceAccountSecret(
@@ -136,6 +137,7 @@ export async function performUpdateCredential(
           }
         )
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
+        rotatedSlackBotUserId = secret.botUserId
       } catch (error) {
         if (error instanceof ServiceAccountSecretError) {
           return { success: false, error: error.message, errorCode: 'validation' }
@@ -168,6 +170,20 @@ export async function performUpdateCredential(
 
     updates.updatedAt = new Date()
     await db.update(credential).set(updates).where(eq(credential.id, params.credentialId))
+
+    // Reconnecting to a recreated Slack app changes the bot user id, but each
+    // deployed webhook cached the old one at deploy for reaction self-drop.
+    // Propagate the rotated id to the credential's live custom-bot webhooks so
+    // the bot's own reactions keep being dropped (a stale id lets them re-enter).
+    if (rotatedSlackBotUserId) {
+      await db
+        .update(webhook)
+        .set({
+          providerConfig: sql`jsonb_set((${webhook.providerConfig})::jsonb, '{bot_user_id}', to_jsonb(${rotatedSlackBotUserId}::text))::json`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(webhook.provider, 'slack'), eq(webhook.routingKey, params.credentialId)))
+    }
 
     const updatedFields = Object.keys(updates).filter((key) => key !== 'updatedAt')
     recordAudit({

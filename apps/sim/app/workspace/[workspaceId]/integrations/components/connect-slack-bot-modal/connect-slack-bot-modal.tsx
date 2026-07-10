@@ -200,7 +200,10 @@ export function ConnectSlackBotModal({
       title={isReconnect ? 'Reconnect a custom Slack bot' : 'Create a custom Slack bot'}
       doneLabel='Done'
     >
-      <Wizard.Step title='Configure your bot'>
+      {/* Bot name is required so the credential name, the manifest app name, and
+          uniqueness all use the user's choice — never the shared Slack team name
+          fallback, which collides for a second bot in the same workspace. */}
+      <Wizard.Step title='Configure your bot' canAdvance={appName.trim().length > 0}>
         <StepConfigure
           appName={appName}
           onAppNameChange={setAppName}
