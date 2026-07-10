@@ -435,6 +435,44 @@ describe('reduceEvent — error tag + compaction coverage', () => {
     expect(compaction.status).toBe('success')
     expect(compaction.uiTitle).toBe('Compacted context')
   })
+
+  it('pairs concurrent compactions only within their scoped subagent spans', () => {
+    const scopeA: Scope = {
+      lane: 'subagent',
+      spanId: 'S1',
+      parentSpanId: MAIN_SPAN,
+      parentToolCallId: 'tc-A',
+      agentId: 'workflow',
+    }
+    const scopeB: Scope = {
+      lane: 'subagent',
+      spanId: 'S2',
+      parentSpanId: MAIN_SPAN,
+      parentToolCallId: 'tc-B',
+      agentId: 'workflow',
+    }
+    const m = apply([
+      envelope(1, 'run', { kind: 'compaction_start' }, scopeA),
+      envelope(2, 'run', { kind: 'compaction_start' }, scopeB),
+      envelope(3, 'run', { kind: 'compaction_done' }, scopeA),
+    ])
+
+    expect(agent(m, 'S1').agentId).toBe('workflow')
+    expect(agent(m, 'S2').agentId).toBe('workflow')
+    expect(tool(m, 'compaction:1')).toEqual(
+      expect.objectContaining({ spanId: 'S1', status: 'success', uiTitle: 'Compacted context' })
+    )
+    expect(tool(m, 'compaction:2')).toEqual(
+      expect.objectContaining({
+        spanId: 'S2',
+        status: 'running',
+        uiTitle: 'Compacting context...',
+      })
+    )
+
+    reduceEvent(m, envelope(4, 'run', { kind: 'compaction_done' }, scopeB))
+    expect(tool(m, 'compaction:2').status).toBe('success')
+  })
 })
 
 describe('turn-terminal propagation', () => {

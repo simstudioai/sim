@@ -115,7 +115,7 @@ function buildLiveAssistantMessage(params: {
   const subagentBySpanId = new Map<string, string>()
   let activeSubagent: string | undefined
   let activeSubagentParentToolCallId: string | undefined
-  let activeCompactionId: string | undefined
+  const activeCompactionIdByLane = new Map<string, string>()
   let runningText = ''
   let lastContentSource: 'main' | 'subagent' | null = null
   let requestId: string | undefined
@@ -129,7 +129,6 @@ function buildLiveAssistantMessage(params: {
     parentToolCallId: string | undefined,
     spanId?: string
   ): string | undefined => {
-    if (agentId) return agentId
     if (spanId) {
       const scoped = subagentBySpanId.get(spanId)
       if (scoped) return scoped
@@ -138,7 +137,7 @@ function buildLiveAssistantMessage(params: {
       const scoped = subagentByParentToolCallId.get(parentToolCallId)
       if (scoped) return scoped
     }
-    return undefined
+    return agentId
   }
 
   const resolveParentForSubagentBlock = (
@@ -240,6 +239,11 @@ function buildLiveAssistantMessage(params: {
       ...(scopedSpanId ? { spanId: scopedSpanId } : {}),
       ...(scopedParentSpanId ? { parentSpanId: scopedParentSpanId } : {}),
     }
+    const compactionLaneKey = scopedSpanId
+      ? `span:${scopedSpanId}`
+      : scopedParentToolCallId
+        ? `parent:${scopedParentToolCallId}`
+        : 'main'
 
     switch (parsed.type) {
       case MothershipStreamV1EventType.session: {
@@ -385,10 +389,18 @@ function buildLiveAssistantMessage(params: {
       }
       case MothershipStreamV1EventType.run: {
         if (parsed.payload.kind === MothershipStreamV1RunKind.compaction_start) {
-          activeCompactionId = `compaction_${entry.eventId}`
+          const compactionId = `compaction_${entry.eventId}`
+          activeCompactionIdByLane.set(compactionLaneKey, compactionId)
+          const parentForBlock = resolveParentForSubagentBlock(
+            scopedSubagent,
+            scopedParentToolCallId
+          )
           ensureToolBlock({
-            toolCallId: activeCompactionId,
+            toolCallId: compactionId,
             toolName: 'context_compaction',
+            calledBy: scopedSubagent,
+            ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
+            ...spanIdentity,
             displayTitle: 'Compacting context...',
             state: 'executing',
           })
@@ -396,11 +408,19 @@ function buildLiveAssistantMessage(params: {
         }
 
         if (parsed.payload.kind === MothershipStreamV1RunKind.compaction_done) {
-          const compactionId = activeCompactionId ?? `compaction_${entry.eventId}`
-          activeCompactionId = undefined
+          const compactionId =
+            activeCompactionIdByLane.get(compactionLaneKey) ?? `compaction_${entry.eventId}`
+          activeCompactionIdByLane.delete(compactionLaneKey)
+          const parentForBlock = resolveParentForSubagentBlock(
+            scopedSubagent,
+            scopedParentToolCallId
+          )
           ensureToolBlock({
             toolCallId: compactionId,
             toolName: 'context_compaction',
+            calledBy: scopedSubagent,
+            ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
+            ...spanIdentity,
             displayTitle: 'Compacted context',
             state: MothershipStreamV1ToolOutcome.success,
           })

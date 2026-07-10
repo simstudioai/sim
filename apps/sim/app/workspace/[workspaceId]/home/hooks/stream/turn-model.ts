@@ -564,6 +564,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       const payload = payloadRecord(envelope.payload)
       const kind = payload.kind
       if (kind === MothershipStreamV1RunKind.compaction_start) {
+        ensureSubagentLane(model, spanId, scope, seq, tsMs)
         const node = upsertToolNode(
           model,
           `compaction:${seq}`,
@@ -574,11 +575,13 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         )
         node.uiTitle = 'Compacting context...'
       } else if (kind === MothershipStreamV1RunKind.compaction_done) {
+        ensureSubagentLane(model, spanId, scope, seq, tsMs)
         let finalized = false
         for (let i = model.order.length - 1; i >= 0; i--) {
           const node = model.nodes.get(model.order[i])
           if (
             node?.kind === 'tool' &&
+            node.spanId === spanId &&
             node.name === 'context_compaction' &&
             node.status === 'running'
           ) {
