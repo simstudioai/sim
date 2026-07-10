@@ -430,7 +430,10 @@ export async function saveTriggerWebhooksForDeploy({
     let effectivePath: string | null = triggerPath
     let routingKey: string | null = null
     if (triggerId === 'slack_oauth') {
-      const appType = typeof providerConfig.appType === 'string' ? providerConfig.appType : 'sim'
+      // Absent appType means custom: it's the only mode this ship exposes (the
+      // hidden selector seeds/persists 'custom'), and defaulting to sim would
+      // send credential-less configs down the OAuth/team-id branch.
+      const appType = typeof providerConfig.appType === 'string' ? providerConfig.appType : 'custom'
       if (appType === 'sim') {
         const eventType =
           typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null

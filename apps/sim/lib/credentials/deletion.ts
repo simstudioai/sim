@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
@@ -95,10 +95,11 @@ export async function clearCredentialRefs(
 }
 
 /**
- * Deactivates native Slack (`slack_app`) trigger webhooks bound to this
- * credential so inbound events stop routing once the account is disconnected.
- * The credential id lives in `providerConfig`, not a foreign key, so it is not
- * covered by CASCADE.
+ * Deactivates Slack trigger webhooks bound to this credential so inbound
+ * events stop routing once the account is disconnected: native (`slack_app`)
+ * rows reference it via `providerConfig.credentialId`, custom-bot (`slack`)
+ * rows via `routingKey` = the bot credential id. Neither is a foreign key, so
+ * neither is covered by CASCADE.
  */
 async function deactivateSlackAppWebhooks(credentialId: string): Promise<void> {
   await db
@@ -106,9 +107,14 @@ async function deactivateSlackAppWebhooks(credentialId: string): Promise<void> {
     .set({ isActive: false, updatedAt: new Date() })
     .where(
       and(
-        eq(schema.webhook.provider, 'slack_app'),
         eq(schema.webhook.isActive, true),
-        sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
+        or(
+          and(
+            eq(schema.webhook.provider, 'slack_app'),
+            sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
+          ),
+          and(eq(schema.webhook.provider, 'slack'), eq(schema.webhook.routingKey, credentialId))
+        )
       )
     )
 }

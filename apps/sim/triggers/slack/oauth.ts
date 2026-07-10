@@ -73,6 +73,10 @@ export const slackOAuthTrigger: TriggerConfig = {
         { label: 'Custom', id: 'custom' },
       ],
       value: () => 'custom',
+      // `value()` only seeds editor-created blocks; `defaultValue` is what
+      // buildProviderConfig persists when the stored value is absent
+      // (imported / programmatically-created workflows).
+      defaultValue: 'custom',
       description: 'Use the official Sim Slack app, or your own custom Slack app.',
       mode: 'trigger',
     },
