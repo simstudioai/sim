@@ -59,6 +59,14 @@ export interface ToolSchema {
   params?: Record<string, unknown>
   /** Canonical integration service/folder (e.g. "slack"), for server-side grouping. */
   service?: string
+  /**
+   * Operation stem within the service — the VFS doc filename without `.json`
+   * (e.g. "list_users" for id "slack_list_users"). Stamped so the server can
+   * hand agents the exact `components/integrations/{service}/{operation}.json`
+   * path instead of making them derive it from the id (deriving is how the id
+   * gets guessed as the filename).
+   */
+  operation?: string
   oauth?: { required: boolean; provider: string }
 }
 
@@ -203,7 +211,7 @@ async function buildIntegrationToolSchemasUncached(
     }
 
     const exposedTools = filterExposedIntegrationTools(getExposedIntegrationTools(), vis)
-    for (const { toolId, config: toolConfig, service } of exposedTools) {
+    for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
       try {
         if (allowedIntegrations && toolIdToBlockType) {
           const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
@@ -218,6 +226,7 @@ async function buildIntegrationToolSchemasUncached(
         integrationTools.push({
           name: toolId,
           service,
+          operation,
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
             fallbackName: toolId,
