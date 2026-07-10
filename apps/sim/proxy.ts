@@ -132,6 +132,7 @@ const NON_LANDING_PATH_PREFIXES = [
   '/f',
   '/invite',
   '/playground',
+  '/unsubscribe',
 ]
 
 function isNonLandingPath(pathname: string): boolean {
