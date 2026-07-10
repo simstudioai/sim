@@ -6,6 +6,7 @@ import {
   convertToGeminiFormat,
   ensureStructResponse,
   mapToThinkingBudget,
+  supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
 import type { ProviderRequest } from '@/providers/types'
 
@@ -39,6 +40,26 @@ describe('mapToThinkingBudget', () => {
     expect(mapToThinkingBudget('gemini-2.5-flash', 'unknown-level')).toBe(
       mapToThinkingBudget('gemini-2.5-flash', 'high')
     )
+  })
+})
+
+describe('supportsDisablingGemini25Thinking', () => {
+  it('returns true for gemini-2.5-flash and gemini-2.5-flash-lite', () => {
+    expect(supportsDisablingGemini25Thinking('gemini-2.5-flash')).toBe(true)
+    expect(supportsDisablingGemini25Thinking('gemini-2.5-flash-lite')).toBe(true)
+  })
+
+  it('returns false for gemini-2.5-pro, which cannot disable thinking', () => {
+    expect(supportsDisablingGemini25Thinking('gemini-2.5-pro')).toBe(false)
+  })
+
+  it('strips the vertex/ prefix before checking', () => {
+    expect(supportsDisablingGemini25Thinking('vertex/gemini-2.5-flash')).toBe(true)
+    expect(supportsDisablingGemini25Thinking('vertex/gemini-2.5-pro')).toBe(false)
+  })
+
+  it('returns false for models with no explicit mapping', () => {
+    expect(supportsDisablingGemini25Thinking('gemini-3.5-flash')).toBe(false)
   })
 })
 

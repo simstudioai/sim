@@ -294,7 +294,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],

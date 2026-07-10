@@ -375,6 +375,23 @@ export function mapToThinkingBudget(model: string, level: string): number {
 }
 
 /**
+ * Gemini 2.5-series models that accept `thinkingBudget: 0` to explicitly disable thinking.
+ * gemini-2.5-pro cannot disable thinking at all (its documented budget floor is 128, not 0),
+ * so it's deliberately excluded here.
+ */
+const GEMINI_25_MODELS_SUPPORTING_DISABLE = new Set(['gemini-2.5-flash', 'gemini-2.5-flash-lite'])
+
+/**
+ * Whether this Gemini 2.5-series model supports explicitly disabling thinking via budget=0.
+ * Omitting thinkingConfig entirely (the 'none' no-op path) falls back to the API's own
+ * dynamic default, which is ON for gemini-2.5-flash — not the same as actually disabling it.
+ */
+export function supportsDisablingGemini25Thinking(model: string): boolean {
+  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  return GEMINI_25_MODELS_SUPPORTING_DISABLE.has(normalized)
+}
+
+/**
  * Result of checking forced tool usage
  */
 export interface ForcedToolResult {
