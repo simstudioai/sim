@@ -1,0 +1,466 @@
+---
+title: Instagram
+description: Publish content, moderate comments, and manage Instagram DMs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="instagram"
+  color="#E4405F"
+/>
+
+## Usage Instructions
+
+Integrate Instagram into workflows. Publish images, videos, Reels, stories, and carousels; moderate comments; send DMs; and pull account or media insights.
+
+
+
+## Actions
+
+### `instagram_get_profile`
+
+Get the connected Instagram professional account profile
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userId` | string | Instagram professional account user_id |
+| `id` | string | Graph object id |
+| `username` | string | Instagram username |
+| `name` | string | Display name |
+| `accountType` | string | Business or Media_Creator |
+| `profilePictureUrl` | string | Profile picture URL |
+| `followersCount` | number | Follower count |
+| `followsCount` | number | Following count |
+| `mediaCount` | number | Media count |
+
+### `instagram_list_media`
+
+List recent media on the Instagram professional account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `limit` | number | No | Max number of media items to return \(default 25, max 100\) |
+| `after` | string | No | Pagination cursor from a previous list_media response |
+| `fields` | string | No | Comma-separated media fields to request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `media` | json | List of media objects \(id, caption, mediaType, mediaProductType, mediaUrl, permalink, timestamp, likeCount, commentsCount\) |
+| `nextCursor` | string | Pagination cursor for the next page |
+
+### `instagram_get_media`
+
+Get details for a specific Instagram media object
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `mediaId` | string | Yes | Instagram media id |
+| `fields` | string | No | Comma-separated fields to request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Media id |
+| `caption` | string | Caption text |
+| `mediaType` | string | IMAGE, VIDEO, or CAROUSEL_ALBUM |
+| `mediaProductType` | string | Feed, Reels, or Stories product type |
+| `mediaUrl` | string | CDN media URL when available |
+| `permalink` | string | Permalink to the post |
+| `timestamp` | string | ISO timestamp |
+| `likeCount` | number | Like count |
+| `commentsCount` | number | Comments count |
+| `children` | json | Carousel child media ids |
+
+### `instagram_list_stories`
+
+List active stories on the Instagram professional account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stories` | json | Active stories \(id, mediaType, mediaUrl, timestamp\) |
+
+### `instagram_publish_image`
+
+Create and publish a single JPEG image post from a public URL
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `imageUrl` | string | Yes | Public HTTPS URL of a JPEG image \(Meta will download it\) |
+| `caption` | string | No | Post caption \(max 2200 characters\) |
+| `altText` | string | No | Accessibility alt text for the image |
+| `isAiGenerated` | boolean | No | Mark the post as AI-generated |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `containerId` | string | Media container id |
+| `mediaId` | string | Published media id |
+| `statusCode` | string | Final container status |
+
+### `instagram_publish_video`
+
+Create and publish a feed video from a public URL (published as a Reel shared to the feed; polls until ready)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `videoUrl` | string | Yes | Public HTTPS URL of the video file |
+| `caption` | string | No | Post caption |
+| `coverUrl` | string | No | Optional public JPEG cover image URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `containerId` | string | Media container id |
+| `mediaId` | string | Published media id |
+| `statusCode` | string | Final container status |
+
+### `instagram_publish_reel`
+
+Create and publish a Reel from a public video URL (polls until ready)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `videoUrl` | string | Yes | Public HTTPS URL of the Reel video |
+| `caption` | string | No | Reel caption |
+| `coverUrl` | string | No | Optional public JPEG cover image URL |
+| `shareToFeed` | boolean | No | Also share the Reel to the main feed |
+| `thumbOffset` | number | No | Frame offset in milliseconds for the cover thumbnail |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `containerId` | string | Media container id |
+| `mediaId` | string | Published media id |
+| `statusCode` | string | Final container status |
+
+### `instagram_publish_story`
+
+Publish an image or video story from a public URL
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `imageUrl` | string | No | Public HTTPS JPEG URL for an image story |
+| `videoUrl` | string | No | Public HTTPS video URL for a video story |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `containerId` | string | Media container id |
+| `mediaId` | string | Published media id |
+| `statusCode` | string | Final container status |
+
+### `instagram_publish_carousel`
+
+Publish a carousel of up to 10 images/videos from public URLs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `mediaUrls` | string | Yes | Comma-separated public media URLs \(max 10\). Prefix video URLs with video: \(e.g. https://.../a.jpg,video:https://.../b.mp4\) |
+| `caption` | string | No | Carousel caption |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `containerId` | string | Carousel container id |
+| `mediaId` | string | Published media id |
+| `statusCode` | string | Final status |
+
+### `instagram_get_container_status`
+
+Check the publishing status of a media container
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `containerId` | string | Yes | Media container id returned from a create/publish step |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `containerId` | string | Container id |
+| `statusCode` | string | EXPIRED, ERROR, FINISHED, IN_PROGRESS, or PUBLISHED |
+| `status` | string | Detailed status message when available |
+
+### `instagram_get_publishing_limit`
+
+Check the content publishing rate limit usage for the account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `quotaUsage` | number | Number of publishes used in the current window |
+| `config` | json | Quota config \(quotaTotal, quotaDuration\) |
+
+### `instagram_list_comments`
+
+List comments on an Instagram media object
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `mediaId` | string | Yes | Instagram media id |
+| `limit` | number | No | Max number of comments to return \(default 25, max 100\) |
+| `after` | string | No | Pagination cursor |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | json | Comments \(id, text, username, timestamp, likeCount, hidden\) |
+| `nextCursor` | string | Pagination cursor |
+
+### `instagram_reply_to_comment`
+
+Reply to a comment on Instagram media
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | Comment id to reply to |
+| `message` | string | Yes | Reply text |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created reply comment id |
+
+### `instagram_hide_comment`
+
+Hide or unhide a comment on Instagram media
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | Comment id |
+| `hide` | boolean | Yes | True to hide, false to unhide |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the hide/unhide succeeded |
+
+### `instagram_delete_comment`
+
+Delete a comment on Instagram media
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | Comment id to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the delete succeeded |
+
+### `instagram_set_comments_enabled`
+
+Enable or disable comments on an Instagram media object
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `mediaId` | string | Yes | Instagram media id |
+| `commentEnabled` | boolean | Yes | True to enable comments, false to disable |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the update succeeded |
+
+### `instagram_private_reply`
+
+Send a private Direct message reply to a commenter (one per commenter)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `commentId` | string | Yes | Comment id to privately reply to |
+| `message` | string | Yes | Private reply text |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Sent message id |
+
+### `instagram_list_conversations`
+
+List Instagram Direct conversations for the professional account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `limit` | number | No | Max number of conversations to return \(default 25, max 100\) |
+| `after` | string | No | Pagination cursor |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(id, updatedTime\) |
+| `nextCursor` | string | Pagination cursor |
+
+### `instagram_get_conversation_messages`
+
+List recent message ids/content in a conversation (only the last ~20 messages are fetchable)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation id from list_conversations |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversationId` | string | Conversation id |
+| `messages` | json | Messages \(id, createdTime, fromId, fromUsername, message\) |
+
+### `instagram_get_message`
+
+Get a single Instagram Direct message by id (only recent messages are available)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | Message id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Message id |
+| `createdTime` | string | Created timestamp |
+| `fromId` | string | Sender Instagram-scoped id |
+| `fromUsername` | string | Sender username |
+| `toId` | string | Recipient id |
+| `message` | string | Message text |
+
+### `instagram_send_text_message`
+
+Send a text Direct message. The recipient must have messaged the account first (24h window).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `recipientId` | string | Yes | Instagram-scoped user id \(IGSID\) of the recipient |
+| `message` | string | Yes | Message text \(max 1000 bytes UTF-8\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Sent message id |
+| `recipientId` | string | Recipient id |
+
+### `instagram_get_account_insights`
+
+Get insights metrics for the Instagram professional account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
+| `metrics` | string | Yes | Comma-separated metrics \(e.g. reach,views,accounts_engaged,profile_views,follower_count\) |
+| `period` | string | Yes | Aggregation period: day, week, days_28, lifetime, or total_over_range |
+| `since` | string | No | Unix timestamp or date for range start |
+| `until` | string | No | Unix timestamp or date for range end |
+| `metricType` | string | No | Optional metric_type \(e.g. time_series, total_value\) |
+| `breakdown` | string | No | Optional breakdown dimension |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `insights` | json | Insight metrics \(name, period, title, description, values, totalValue\) |
+
+### `instagram_get_media_insights`
+
+Get insights metrics for a specific Instagram media object
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `mediaId` | string | Yes | Instagram media id |
+| `metrics` | string | Yes | Comma-separated metrics \(e.g. views,reach,likes,comments,saved,shares,total_interactions\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `insights` | json | Media insight metrics \(name, period, values\) |
+
+

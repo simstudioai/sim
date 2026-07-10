@@ -24,6 +24,7 @@ import {
   GoogleSheetsIcon,
   GoogleTasksIcon,
   HubspotIcon,
+  InstagramIcon,
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
@@ -948,6 +949,27 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'linkedin',
   },
+  instagram: {
+    name: 'Instagram',
+    icon: InstagramIcon,
+    services: {
+      instagram: {
+        name: 'Instagram',
+        description: 'Publish content, moderate comments, and message on Instagram.',
+        providerId: 'instagram',
+        icon: InstagramIcon,
+        baseProviderIcon: InstagramIcon,
+        scopes: [
+          'instagram_business_basic',
+          'instagram_business_content_publish',
+          'instagram_business_manage_comments',
+          'instagram_business_manage_messages',
+          'instagram_business_manage_insights',
+        ],
+      },
+    },
+    defaultService: 'instagram',
+  },
   salesforce: {
     name: 'Salesforce',
     icon: SalesforceIcon,
@@ -1057,6 +1079,12 @@ interface ProviderAuthConfig {
    * instead of the default application/x-www-form-urlencoded. Used by Notion.
    */
   useJsonBody?: boolean
+  /**
+   * Token refresh strategy. `instagram_long_lived` uses Meta's GET
+   * `refresh_access_token?grant_type=ig_refresh_token` flow instead of a
+   * standard OAuth refresh_token POST.
+   */
+  refreshStrategy?: 'standard' | 'instagram_long_lived'
 }
 
 /**
@@ -1340,6 +1368,20 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         supportsRefreshTokenRotation: false,
       }
     }
+    case 'instagram': {
+      const { clientId, clientSecret } = getCredentials(
+        env.INSTAGRAM_CLIENT_ID,
+        env.INSTAGRAM_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://graph.instagram.com/refresh_access_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+        refreshStrategy: 'instagram_long_lived',
+      }
+    }
     case 'salesforce': {
       const { clientId, clientSecret } = getCredentials(
         env.SALESFORCE_CLIENT_ID,
@@ -1512,6 +1554,66 @@ function extractErrorCode(value: unknown): string | undefined {
  */
 const TOKEN_REFRESH_TIMEOUT_MS = 15_000
 
+async function refreshInstagramLongLivedToken(
+  config: ProviderAuthConfig,
+  longLivedToken: string,
+  providerId: string
+): Promise<RefreshTokenResult> {
+  const url = new URL(config.tokenEndpoint)
+  url.searchParams.set('grant_type', 'ig_refresh_token')
+  url.searchParams.set('access_token', longLivedToken)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    let errorData: unknown = errorText
+    try {
+      errorData = JSON.parse(errorText)
+    } catch {
+      // keep text
+    }
+    logger.error('Instagram long-lived token refresh failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorText,
+      parsedError: errorData,
+      providerId,
+      tokenEndpoint: config.tokenEndpoint,
+    })
+    return {
+      ok: false,
+      errorCode: extractErrorCode(errorData),
+      message: `Failed to refresh token: ${response.status} ${errorText}`,
+    }
+  }
+
+  const data = await response.json()
+  const accessToken = data.access_token
+  const expiresIn = data.expires_in || data.expiresIn || 5184000
+
+  if (!accessToken) {
+    logger.warn('No access token found in Instagram refresh response', {
+      providerId,
+      response: data,
+    })
+    return { ok: false, message: 'No access token in refresh response' }
+  }
+
+  logger.info('Instagram long-lived token refreshed successfully', { expiresIn, providerId })
+
+  // Instagram returns a new long-lived token; store it as both access and refresh.
+  return {
+    ok: true,
+    accessToken,
+    expiresIn,
+    refreshToken: accessToken,
+  }
+}
+
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
@@ -1520,6 +1622,10 @@ export async function refreshOAuthToken(
     const provider = getBaseProviderForService(providerId)
 
     const config = getProviderAuthConfig(provider)
+
+    if (config.refreshStrategy === 'instagram_long_lived') {
+      return await refreshInstagramLongLivedToken(config, refreshToken, providerId)
+    }
 
     const { headers, bodyParams, useJsonBody } = buildAuthRequest(config, refreshToken)
 

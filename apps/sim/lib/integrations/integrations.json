@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-07",
+  "updatedAt": "2026-07-09",
   "integrations": [
     {
       "type": "onepassword",
@@ -8929,6 +8929,118 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["secrets-management"]
+    },
+    {
+      "type": "instagram",
+      "slug": "instagram",
+      "name": "Instagram",
+      "description": "Publish content, moderate comments, and manage Instagram DMs",
+      "longDescription": "Integrate Instagram into workflows. Publish images, videos, Reels, stories, and carousels; moderate comments; send DMs; and pull account or media insights.",
+      "bgColor": "#E4405F",
+      "iconName": "InstagramIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/instagram",
+      "operations": [
+        {
+          "name": "Get Profile",
+          "description": "Get the connected Instagram professional account profile"
+        },
+        {
+          "name": "List Media",
+          "description": "List recent media on the Instagram professional account"
+        },
+        {
+          "name": "Get Media",
+          "description": "Get details for a specific Instagram media object"
+        },
+        {
+          "name": "List Stories",
+          "description": "List active stories on the Instagram professional account"
+        },
+        {
+          "name": "Publish Image",
+          "description": "Create and publish a single JPEG image post from a public URL"
+        },
+        {
+          "name": "Publish Video",
+          "description": "Create and publish a feed video from a public URL (published as a Reel shared to the feed; polls until ready)"
+        },
+        {
+          "name": "Publish Reel",
+          "description": "Create and publish a Reel from a public video URL (polls until ready)"
+        },
+        {
+          "name": "Publish Story",
+          "description": "Publish an image or video story from a public URL"
+        },
+        {
+          "name": "Publish Carousel",
+          "description": "Publish a carousel of up to 10 images/videos from public URLs"
+        },
+        {
+          "name": "Get Container Status",
+          "description": "Check the publishing status of a media container"
+        },
+        {
+          "name": "Get Publishing Limit",
+          "description": "Check the content publishing rate limit usage for the account"
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments on an Instagram media object"
+        },
+        {
+          "name": "Reply to Comment",
+          "description": "Reply to a comment on Instagram media"
+        },
+        {
+          "name": "Hide Comment",
+          "description": "Hide or unhide a comment on Instagram media"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment on Instagram media"
+        },
+        {
+          "name": "Set Comments Enabled",
+          "description": "Enable or disable comments on an Instagram media object"
+        },
+        {
+          "name": "Private Reply",
+          "description": "Send a private Direct message reply to a commenter (one per commenter)"
+        },
+        {
+          "name": "List Conversations",
+          "description": "List Instagram Direct conversations for the professional account"
+        },
+        {
+          "name": "Get Conversation Messages",
+          "description": "List recent message ids/content in a conversation (only the last ~20 messages are fetchable)"
+        },
+        {
+          "name": "Get Message",
+          "description": "Get a single Instagram Direct message by id (only recent messages are available)"
+        },
+        {
+          "name": "Send Text Message",
+          "description": "Send a text Direct message. The recipient must have messaged the account first (24h window)."
+        },
+        {
+          "name": "Get Account Insights",
+          "description": "Get insights metrics for the Instagram professional account"
+        },
+        {
+          "name": "Get Media Insights",
+          "description": "Get insights metrics for a specific Instagram media object"
+        }
+      ],
+      "operationCount": 23,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "instagram",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["marketing", "messaging", "automation"]
     },
     {
       "type": "instantly",

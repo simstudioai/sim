@@ -191,6 +191,32 @@ export const trelloCallbackContract = defineRouteContract({
   response: { mode: 'text' },
 })
 
+export const instagramAuthorizeQuerySchema = z.object({
+  returnUrl: z.string().optional(),
+})
+
+export const authorizeInstagramContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/instagram/authorize',
+  query: instagramAuthorizeQuerySchema,
+  response: { mode: 'redirect' },
+})
+
+export const instagramCallbackQuerySchema = z.object({
+  code: z.string().optional(),
+  state: z.string().optional(),
+  error: z.string().optional(),
+  error_reason: z.string().optional(),
+  error_description: z.string().optional(),
+})
+
+export const instagramCallbackContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/auth/oauth2/callback/instagram',
+  query: instagramCallbackQuerySchema,
+  response: { mode: 'redirect' },
+})
+
 export const authorizeOAuth2QuerySchema = z.object({
   providerId: z.string().min(1, 'providerId is required'),
   workspaceId: workspaceIdSchema,
