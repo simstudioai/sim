@@ -458,6 +458,12 @@ describe('shouldSkipSlackTriggerEvent', () => {
     expect(fires({ eventType: 'reaction_added', emoji: 'eyes, thumbsup' }, event)).toBe(true)
   })
 
+  it('fails closed when no eventType and the legacy events selection is empty or missing', () => {
+    const event = { type: 'message', channel_type: 'channel', channel: 'C1', ts: '7.0' }
+    expect(fires({}, event)).toBe(false)
+    expect(fires({ events: [] }, event)).toBe(false)
+  })
+
   it('honors the legacy events array for pre-redesign webhooks', () => {
     expect(
       fires(
