@@ -891,6 +891,26 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         deprecated: true,
       },
       {
+        id: 'claude-opus-4-0',
+        pricing: {
+          input: 15.0,
+          cachedInput: 1.5,
+          output: 75.0,
+          updatedAt: '2026-06-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: 32000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+        releaseDate: '2025-05-22',
+        deprecated: true,
+      },
+      {
         id: 'claude-sonnet-4-5',
         pricing: {
           input: 3.0,
@@ -909,6 +929,26 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-09-29',
+      },
+      {
+        id: 'claude-sonnet-4-0',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-06-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: 64000,
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
+        },
+        contextWindow: 200000,
+        releaseDate: '2025-05-22',
+        deprecated: true,
       },
       {
         id: 'claude-haiku-4-5',
@@ -930,6 +970,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 200000,
         releaseDate: '2025-10-15',
         speedOptimized: true,
+      },
+      {
+        id: 'claude-3-haiku-20240307',
+        pricing: {
+          input: 0.25,
+          cachedInput: 0.03,
+          output: 1.25,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          maxOutputTokens: 4096,
+        },
+        contextWindow: 200000,
+        releaseDate: '2024-03-13',
+        deprecated: true,
       },
     ],
   },
