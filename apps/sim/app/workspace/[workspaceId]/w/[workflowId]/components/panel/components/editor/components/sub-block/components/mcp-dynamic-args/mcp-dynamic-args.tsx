@@ -126,20 +126,37 @@ export function McpDynamicArgs({
    * reach tool execution. A draft is only displayed while its baseline still matches
    * the live persisted value, so an external change to that value (undo/redo, a diff
    * baseline switch, a collaborator's edit) can't be shadowed by stale draft text.
-   * Drafts also reset wholesale whenever the selected tool or the schema actually
-   * backing `toolSchema` changes. The live discovered schema only factors in when
-   * there's no cached snapshot to prefer — otherwise it's not what's rendered, so
-   * live schema arriving/changing while a cached snapshot is already in effect
-   * (e.g. `mcpTools` finishing an async load) must not spuriously reset drafts.
+   * Drafts also reset wholesale on either of two independent triggers:
+   *  - the selected tool or the cached `_toolSchema` snapshot changes (this pair
+   *    always drives `toolSchema` whenever a cached snapshot exists), or
+   *  - the live discovered schema's signature changes from one non-empty value to
+   *    a *different* non-empty value — a genuine re-discovery/refresh. A bare empty
+   *    → non-empty transition is excluded because that's just `mcpTools` finishing
+   *    its initial async load, not a schema change, and would otherwise spuriously
+   *    wipe drafts even while a cached snapshot (unaffected by the load) still
+   *    governs what's actually rendered.
    */
   const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<
     Record<string, { text: string; baseline: string }>
   >({})
-  const draftResetKey = `${selectedTool ?? ''}|${schemaSignature(cachedSchema)}|${cachedSchema ? '' : schemaSignature(selectedToolConfig?.inputSchema)}`
-  const [prevDraftResetKey, setPrevDraftResetKey] = useState(draftResetKey)
-  if (prevDraftResetKey !== draftResetKey) {
-    setPrevDraftResetKey(draftResetKey)
-    setInvalidJsonDrafts({})
+  const toolAndCachedSchemaKey = `${selectedTool ?? ''}|${schemaSignature(cachedSchema)}`
+  const liveSchemaSignature = schemaSignature(selectedToolConfig?.inputSchema)
+  const [prevToolAndCachedSchemaKey, setPrevToolAndCachedSchemaKey] =
+    useState(toolAndCachedSchemaKey)
+  const [prevLiveSchemaSignature, setPrevLiveSchemaSignature] = useState(liveSchemaSignature)
+  if (
+    prevToolAndCachedSchemaKey !== toolAndCachedSchemaKey ||
+    prevLiveSchemaSignature !== liveSchemaSignature
+  ) {
+    const isGenuineLiveRefresh =
+      prevLiveSchemaSignature !== '' &&
+      liveSchemaSignature !== '' &&
+      prevLiveSchemaSignature !== liveSchemaSignature
+    if (prevToolAndCachedSchemaKey !== toolAndCachedSchemaKey || isGenuineLiveRefresh) {
+      setInvalidJsonDrafts({})
+    }
+    setPrevToolAndCachedSchemaKey(toolAndCachedSchemaKey)
+    setPrevLiveSchemaSignature(liveSchemaSignature)
   }
 
   const currentArgs = useCallback(() => {
