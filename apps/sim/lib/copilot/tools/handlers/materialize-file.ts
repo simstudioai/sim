@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workspaceFiles } from '@sim/db/schema'
+import { workflow, workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -312,7 +312,6 @@ function archiveFolderBaseName(displayName: string): string {
   const stripped = displayName
     .replace(/\.zip$/i, '')
     .normalize('NFC')
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally stripping control chars
     .replace(/[\x00-\x1f\x7f]/g, '')
     .replace(/[/\\]/g, '-')
     .trim()
@@ -379,25 +378,40 @@ async function executeExtract(
   const folderPath = `files/${encodeVfsPathSegments([baseName])}`
 
   // Re-running extract must not silently duplicate the tree with " (1)"-suffixed
-  // copies: when the destination folder already holds files, report it as
-  // already extracted instead of extracting beside the previous run.
+  // copies: when the destination folder already holds content, report it as
+  // already extracted instead of extracting beside the previous run. Direct
+  // files AND direct subfolders both count — extraction roots its whole tree
+  // here, so a prior run of a nested-only zip (e.g. src/index.ts) leaves a
+  // subfolder even when no file sits at the top level.
   const existingFolderId = await findWorkspaceFileFolderIdByPath(workspaceId, [baseName])
   if (existingFolderId) {
-    const [existingFile] = await db
-      .select({ id: workspaceFiles.id })
-      .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.folderId, existingFolderId),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
+    const [[existingFile], [existingSubfolder]] = await Promise.all([
+      db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(
+          and(
+            eq(workspaceFiles.folderId, existingFolderId),
+            eq(workspaceFiles.context, 'workspace'),
+            isNull(workspaceFiles.deletedAt)
+          )
         )
-      )
-      .limit(1)
-    if (existingFile) {
+        .limit(1),
+      db
+        .select({ id: workspaceFileFolder.id })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.parentId, existingFolderId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+        .limit(1),
+    ])
+    if (existingFile || existingSubfolder) {
       return {
         success: false,
-        error: `"${fileName}" appears to be already extracted — ${folderPath}/ exists and contains files. List them with glob("${folderPath}/**"). To re-extract, delete that folder first.`,
+        error: `"${fileName}" appears to be already extracted — ${folderPath}/ exists and contains content. List it with glob("${folderPath}/**"). To re-extract, delete that folder first.`,
       }
     }
   }

@@ -411,6 +411,25 @@ describe('executeMaterializeFile - extract operation', () => {
     expect(mockDecompress).not.toHaveBeenCalled()
   })
 
+  it('detects a prior nested-only extraction via subfolders, not just direct files', async () => {
+    // A zip containing only nested entries (src/index.ts) leaves NO direct files
+    // under the archive root — only subfolders. The guard must still refuse.
+    mockFindUpload.mockResolvedValue(zipRow())
+    mockFindFolder.mockResolvedValue('folder-existing')
+    dbChainMockFns.limit.mockResolvedValueOnce([]) // no direct files
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'subfolder-1' }]) // but a subfolder tree
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['bundle.zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    const output = result.output as { failed: Array<{ fileName: string; error: string }> }
+    expect(output.failed[0].error).toContain('already extracted')
+    expect(mockDecompress).not.toHaveBeenCalled()
+  })
+
   it('dedupes repeated fileNames so one call cannot double-extract', async () => {
     mockFindUpload.mockResolvedValue(zipRow())
     mockFetchBuffer.mockResolvedValue(Buffer.from('zip-bytes'))
