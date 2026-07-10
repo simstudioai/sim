@@ -73,17 +73,48 @@ function parseVscodeLanguage(data: string | undefined): string {
   }
 }
 
-/** `<style>`/`<script>` elements (with their content), matched as a pair via the tag backreference. */
-const NON_CONTENT_HTML = /<(style|script)\b[\s\S]*?<\/\1>/gi
+/** A `<style>`/`<script>` open or close tag token, scanned one at a time (never the element body). */
+const NON_CONTENT_TAG = /<\/?\s*(style|script)\b[^>]*>/gi
 
 /**
  * Strips `<style>`/`<script>` elements from pasted HTML. Google Sheets and Word prepend a `<style>`
  * block of CSS (and Sheets a `<google-sheets-html-origin>` wrapper); ProseMirror's DOM parser has no
  * rule for `<style>`, so it would walk the element's CSS text into the document as literal paragraphs.
  * Removing these before parsing keeps the pasted content clean (PM already discards unknown wrappers).
+ *
+ * Scans tag tokens in a single linear pass, tracking nesting depth of the currently-open tag name, so
+ * nested/overlapping tags — e.g. `<script><script>x</script>` — can't leave a surviving `<script>`
+ * behind. A naive single `replace()` pass over `<tag>[\s\S]*?<\/tag>` matches only the innermost pair
+ * and leaves the outer tag dangling; repeating that replace until stable fixes correctness but costs
+ * O(depth) full-string rescans on attacker-controlled clipboard input. This does it in one pass instead.
+ * A stray close tag encountered outside any open element (depth 0) is left in place untouched. `cursor`
+ * advances past an open tag the moment it opens (not when it closes), so if the input ends before the
+ * element closes — truncated or malformed clipboard HTML — the unterminated element and everything
+ * after it is dropped rather than reappearing unstripped in the final `html.slice(cursor)` flush.
  */
 function stripNonContentHtml(html: string): string {
-  return html.replace(NON_CONTENT_HTML, '')
+  let result = ''
+  let cursor = 0
+  let depth = 0
+  let openTagName = ''
+  NON_CONTENT_TAG.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = NON_CONTENT_TAG.exec(html))) {
+    const isClosing = match[0][1] === '/'
+    const tagName = match[1].toLowerCase()
+    if (depth === 0) {
+      if (isClosing) continue
+      result += html.slice(cursor, match.index)
+      openTagName = tagName
+      depth = 1
+      cursor = match.index + match[0].length
+    } else if (tagName === openTagName) {
+      depth += isClosing ? -1 : 1
+      if (depth === 0) cursor = match.index + match[0].length
+    }
+  }
+  if (depth === 0) result += html.slice(cursor)
+  return result
 }
 
 /**
