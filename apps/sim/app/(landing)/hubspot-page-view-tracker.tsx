@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 
 declare global {
   interface Window {
@@ -18,12 +18,16 @@ let hasTrackedInitialPageView = false
 /**
  * The HubSpot loader auto-tracks only the very first page load. LandingLayout
  * persists across client-side navigations between landing routes (see its
- * TSDoc), so HubSpot never sees those route changes on its own. Push a
- * manual pageview through HubSpot's `_hsq` queue on every navigation after
- * the first.
+ * TSDoc), so HubSpot never sees those route changes on its own — including
+ * query-only navigations (blog/library pagination, careers filters), which
+ * is why this depends on the full path + search string, not just the path.
+ * Push a manual pageview through HubSpot's `_hsq` queue on every navigation
+ * after the first.
  */
 export function HubspotPageViewTracker() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const query = searchParams.toString()
 
   useEffect(() => {
     if (!hasTrackedInitialPageView) {
@@ -32,9 +36,9 @@ export function HubspotPageViewTracker() {
     }
 
     window._hsq = window._hsq || []
-    window._hsq.push(['setPath', pathname])
+    window._hsq.push(['setPath', query ? `${pathname}?${query}` : pathname])
     window._hsq.push(['trackPageView'])
-  }, [pathname])
+  }, [pathname, query])
 
   return null
 }
