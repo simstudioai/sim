@@ -1,19 +1,36 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it } from 'vitest'
+import { Editor } from '@tiptap/core'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import {
   createPublicFileContentSource,
   createWorkspaceFileContentSource,
 } from '@/hooks/use-file-content-source'
+import { createMarkdownEditorExtensions } from './editor-extensions'
 import {
   extractImageFiles,
+  extractImgSrcs,
+  findHostedImageAttrs,
   hasHostedImageHtml,
   isInlineRouteSrc,
-  shouldSkipDropUpload,
-  shouldSkipPasteUpload,
+  shouldSkipFileUpload,
 } from './image-paste'
+
+// jsdom lacks `elementFromPoint`; the Placeholder extension's viewport tracking calls it on mount.
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  Element.prototype.scrollIntoView = vi.fn()
+  document.elementFromPoint = vi.fn(() => null)
+})
 
 function imageFile(name = 'shot.png'): File {
   return new File([''], name, { type: 'image/png' })
@@ -132,48 +149,54 @@ describe('hasHostedImageHtml', () => {
   })
 })
 
-describe('shouldSkipPasteUpload', () => {
+describe('extractImgSrcs', () => {
+  it('extracts every img src in document order, including duplicates', () => {
+    expect(
+      extractImgSrcs('<img src="/a.png"><p>text</p><img src="/b.png"><img src="/a.png">')
+    ).toEqual(['/a.png', '/b.png', '/a.png'])
+  })
+
+  it('returns an empty array for html with no img', () => {
+    expect(extractImgSrcs('<p>hello</p>')).toEqual([])
+    expect(extractImgSrcs('')).toEqual([])
+  })
+})
+
+describe('shouldSkipFileUpload (shared by paste and drop)', () => {
   const isHosted = (src: string) => src.startsWith('/api/files/view/')
   const hostedHtml = '<img src="/api/files/view/wf_abc">'
 
   it('skips upload for a single already-hosted image', () => {
-    expect(shouldSkipPasteUpload([imageFile()], hostedHtml, isHosted)).toBe(true)
+    expect(shouldSkipFileUpload([imageFile()], hostedHtml, isHosted)).toBe(true)
   })
 
   it('does not skip when there is no html, or the html is not one of ours', () => {
-    expect(shouldSkipPasteUpload([imageFile()], '', isHosted)).toBe(false)
-    expect(shouldSkipPasteUpload([imageFile()], '<img src="https://x.com/a.png">', isHosted)).toBe(
+    expect(shouldSkipFileUpload([imageFile()], '', isHosted)).toBe(false)
+    expect(shouldSkipFileUpload([imageFile()], '<img src="https://x.com/a.png">', isHosted)).toBe(
       false
     )
   })
 
   it('does not skip when there are no files to upload in the first place', () => {
-    expect(shouldSkipPasteUpload([], hostedHtml, isHosted)).toBe(false)
+    expect(shouldSkipFileUpload([], hostedHtml, isHosted)).toBe(false)
   })
 
-  // Regression: a genuinely mixed paste (the hosted image plus a separate new one) must still
-  // upload the new file — bailing out entirely here would silently drop it.
-  it('does not skip a mixed paste carrying more than one image file', () => {
+  // Regression: a genuinely mixed paste/drop (the hosted image plus a separate new one) must
+  // still upload the new file — bailing out entirely here would silently drop it.
+  it('does not skip a mixed paste/drop carrying more than one image file', () => {
     expect(
-      shouldSkipPasteUpload([imageFile('a.png'), imageFile('b.png')], hostedHtml, isHosted)
+      shouldSkipFileUpload([imageFile('a.png'), imageFile('b.png')], hostedHtml, isHosted)
     ).toBe(false)
   })
-})
 
-describe('shouldSkipDropUpload', () => {
-  it('skips upload for an internal image-node drag (dragging + an image file present)', () => {
-    expect(shouldSkipDropUpload({ slice: {}, move: true }, [imageFile()])).toBe(true)
-  })
-
-  it('does not skip when dragging is null (a genuine external drop)', () => {
-    expect(shouldSkipDropUpload(null, [imageFile()])).toBe(false)
-  })
-
-  // Regression: `view.dragging` can go briefly stale after a prior internal drag was dropped
-  // outside the view (ProseMirror clears it up to ~50ms late via `dragend`). It must never suppress
-  // handling of an unrelated drop that carries no image files (e.g. a PDF) in that window.
-  it('does not skip a stale dragging state when the drop carries no image files', () => {
-    expect(shouldSkipDropUpload({ slice: {}, move: true }, [])).toBe(false)
+  // Regression: this must be content-based (the accompanying html), not keyed off any mutable
+  // per-drag flag like ProseMirror's `view.dragging` — that flag can go briefly stale (cleared up
+  // to ~50ms late via `dragend` when a prior internal drag was dropped outside the view), and a
+  // flag-based check would incorrectly suppress upload of an unrelated new file dropped in that
+  // window. This function only reacts to what THIS specific event's `html`/`images` contain.
+  it('is a pure function of the images/html actually offered, independent of any drag-session flag', () => {
+    expect(shouldSkipFileUpload([imageFile()], '', isHosted)).toBe(false)
+    expect(shouldSkipFileUpload([imageFile()], hostedHtml, isHosted)).toBe(true)
   })
 })
 
@@ -192,5 +215,76 @@ describe('isInlineRouteSrc', () => {
     expect(isInlineRouteSrc('/api/workspaces/ws-1/files/inline?other=1')).toBe(false)
     expect(isInlineRouteSrc('https://other-site.com/files/inline?key=x')).toBe(false)
     expect(isInlineRouteSrc('data:image/png;base64,aaaa')).toBe(false)
+  })
+})
+
+describe('findHostedImageAttrs', () => {
+  const ws = createWorkspaceFileContentSource('ws-1')
+
+  function docWithImages(...attrs: Array<Record<string, unknown>>): Editor {
+    return new Editor({
+      extensions: createMarkdownEditorExtensions({ placeholder: '' }),
+      content: {
+        type: 'doc',
+        content: attrs.map((a) => ({ type: 'image', attrs: a })),
+      },
+    })
+  }
+
+  // Regression: this is the exact mechanism that avoids persisting the display-layer inline URL
+  // (Cursor's "Paste persists display image URLs" finding) — cloning the REAL node's attrs rather
+  // than re-deriving a node from the clipboard html's rewritten src.
+  it('finds the existing node whose RESOLVED (display) src matches, and returns its REAL persisted attrs', () => {
+    const persistedSrc = '/api/files/view/wf_abc'
+    const editor = docWithImages({ src: persistedSrc, alt: 'photo', width: '300' })
+    const renderedSrc = ws.resolveImageSrc(persistedSrc) as string
+    expect(renderedSrc).not.toBe(persistedSrc) // sanity: the rendered form really differs
+
+    const match = findHostedImageAttrs(editor.state.doc, [renderedSrc], ws.resolveImageSrc)
+    expect(match).not.toBeNull()
+    expect(match?.src).toBe(persistedSrc) // the REAL persisted src, not the rendered one
+    expect(match?.alt).toBe('photo')
+    expect(match?.width).toBe('300')
+  })
+
+  it('returns null when no node in the doc resolves to any target src', () => {
+    const editor = docWithImages({ src: '/api/files/view/wf_other' })
+    const match = findHostedImageAttrs(
+      editor.state.doc,
+      ['/api/workspaces/ws-1/files/inline?fileId=wf_abc'],
+      ws.resolveImageSrc
+    )
+    expect(match).toBeNull()
+  })
+
+  it('returns null for an empty doc or an empty target list', () => {
+    const editor = docWithImages()
+    expect(findHostedImageAttrs(editor.state.doc, ['/anything'], ws.resolveImageSrc)).toBeNull()
+    const editorWithImage = docWithImages({ src: '/api/files/view/wf_abc' })
+    expect(findHostedImageAttrs(editorWithImage.state.doc, [], ws.resolveImageSrc)).toBeNull()
+  })
+
+  it('matches the first of several images, not just the last', () => {
+    const editor = docWithImages(
+      { src: '/api/files/view/wf_one', alt: 'one' },
+      { src: '/api/files/view/wf_two', alt: 'two' }
+    )
+    const renderedTwo = ws.resolveImageSrc('/api/files/view/wf_two') as string
+    const match = findHostedImageAttrs(editor.state.doc, [renderedTwo], ws.resolveImageSrc)
+    expect(match?.alt).toBe('two')
+  })
+
+  it('returns a defensive copy, not a live reference to the node attrs object', () => {
+    const persistedSrc = '/api/files/view/wf_abc'
+    const editor = docWithImages({ src: persistedSrc, alt: 'photo' })
+    const renderedSrc = ws.resolveImageSrc(persistedSrc) as string
+    const match = findHostedImageAttrs(editor.state.doc, [renderedSrc], ws.resolveImageSrc)
+    expect(match).not.toBeNull()
+    if (match) match.alt = 'mutated'
+    let originalAlt: unknown
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === 'image') originalAlt = node.attrs.alt
+    })
+    expect(originalAlt).toBe('photo')
   })
 })

@@ -10,11 +10,17 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
+import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
-import { extractImageFiles, shouldSkipDropUpload, shouldSkipPasteUpload } from './image-paste'
+import {
+  extractImageFiles,
+  extractImgSrcs,
+  findHostedImageAttrs,
+  shouldSkipFileUpload,
+} from './image-paste'
 import {
   applyFrontmatter,
   normalizeLinkHref,
@@ -209,6 +215,7 @@ export function LoadedRichMarkdownEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const uploadFile = useUploadWorkspaceFile()
   const editorInstanceRef = useRef<Editor | null>(null)
+  const source = useFileContentSource()
 
   /**
    * The `/Image` slash command opens this hidden picker; `pendingImagePosRef` holds the caret position
@@ -248,6 +255,31 @@ export function LoadedRichMarkdownEditor({
       } catch {
         position = editor.state.doc.content.size
       }
+    }
+  }
+
+  /**
+   * A same-page copy/drag of an already-hosted `<img>` carries the clipboard/dataTransfer `html`'s
+   * *display* src (`source.resolveImageSrc`'s rewrite), not the real persisted one — inserting a node
+   * built straight from that html would bake the display-only URL into the document, breaking public
+   * share/export/referenced-by-doc tracking for it (they only recognize the persisted shape).
+   * `findHostedImageAttrs` finds the real, already-present node with a matching resolved src instead,
+   * so the clone gets the exact real `src` (and every other attribute — width, href, title…) rather
+   * than a re-derived guess. Returns `false` (falls through to a normal upload) if no match is found,
+   * which is always correct, just occasionally a redundant upload — unlike blindly trusting the html.
+   */
+  const cloneHostedImageRef = useRef<(imgSrcs: string[], at: number) => boolean>(() => false)
+  cloneHostedImageRef.current = (imgSrcs, at) => {
+    const editor = editorInstanceRef.current
+    if (!editor) return false
+    const matchedAttrs = findHostedImageAttrs(editor.state.doc, imgSrcs, source.resolveImageSrc)
+    if (!matchedAttrs) return false
+    const safePosition = Math.min(at, editor.state.doc.content.size)
+    try {
+      editor.chain().insertContentAt(safePosition, { type: 'image', attrs: matchedAttrs }).run()
+      return true
+    } catch {
+      return false
     }
   }
 
@@ -304,18 +336,26 @@ export function LoadedRichMarkdownEditor({
        * Cmd+C after clicking it to select it) makes the browser add BOTH `text/html` (the real node,
        * with its real hosted `src`) AND a synthesized image `File` to the clipboard — indistinguishable
        * from a genuine external image paste by `clipboardData` files/items alone. When the HTML sibling
-       * already names one of our own hosted files, bail out and let the editor's default HTML paste
-       * clone that node (reusing its real `src` and every other attribute) instead of re-uploading the
-       * pasted bytes as a brand-new, distinct file. Only applied when exactly one image file is offered:
-       * a genuinely mixed paste (the hosted image plus a separate new one) must still upload the new
-       * file rather than have the whole paste swallowed by the single-image bypass below.
+       * already names one of our own hosted files, look up the matching node already in this doc and
+       * clone ITS real attrs (see `cloneHostedImageRef`) instead of re-uploading the pasted bytes as a
+       * brand-new, distinct file — letting the editor's DEFAULT html-based paste do that clone instead
+       * would persist the html's display-layer src rather than the real one. Only applied when exactly
+       * one image file is offered: a genuinely mixed paste (the hosted image plus a separate new one)
+       * must still upload the new file rather than have the whole paste diverted by this bypass.
        */
       handlePaste: (view, event) => {
         if (!view.editable) return false
         const images = extractImageFiles(event.clipboardData)
         const html = event.clipboardData?.getData('text/html') ?? ''
-        if (shouldSkipPasteUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
-          return false
+        if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
+          const cloned = cloneHostedImageRef.current(
+            extractImgSrcs(html),
+            view.state.selection.from
+          )
+          if (cloned) {
+            event.preventDefault()
+            return true
+          }
         }
         if (images.length === 0) return false
         event.preventDefault()
@@ -330,17 +370,22 @@ export function LoadedRichMarkdownEditor({
        * Dragging an existing image node to reorder it is also an internal drag, but the browser's
        * native drag-and-drop synthesizes an image `File` into `event.dataTransfer` for a dragged `<img>`
        * (the same mechanism that lets a user drag a web image out to their desktop) — indistinguishable
-       * from a real external drop by `dataTransfer` contents alone. `view.dragging` is ProseMirror's own
-       * signal that this drop follows a `dragstart` within this same view, so bail out and let its
-       * default move logic run instead of re-uploading the dragged image as a duplicate. Gated on
-       * `images.length > 0` (not checked unconditionally) so a stale `view.dragging` — it's cleared up
-       * to ~50ms late by ProseMirror's own `dragend` handler when a prior internal drag was dropped
-       * outside this view — can never suppress the plain-file swallow guard below for an unrelated drop.
+       * from a real external drop by `dataTransfer` files/items alone. When the accompanying `text/html`
+       * shows it's a same-page drag of an already-hosted image, bail out and let ProseMirror's own
+       * default move logic run — it relocates the actual existing node object (`dragging.node`), never
+       * re-parsing html, so (unlike the paste case above) there's no display-vs-persisted src risk here.
+       * Checked from `html`, not `view.dragging`, so a stale `dragging` flag (ProseMirror clears it up
+       * to ~50ms late via `dragend` when a prior internal drag was dropped outside this view) can never
+       * suppress the plain-file swallow guard below for an unrelated drop that happens to land in that
+       * window — this only reacts to what THIS specific drop's `html` actually contains.
        */
       handleDrop: (view, event) => {
         if (!view.editable) return false
         const images = extractImageFiles(event.dataTransfer)
-        if (shouldSkipDropUpload(view.dragging, images)) return false
+        const html = event.dataTransfer?.getData('text/html') ?? ''
+        if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
+          return false
+        }
         if (images.length > 0) {
           event.preventDefault()
           const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
