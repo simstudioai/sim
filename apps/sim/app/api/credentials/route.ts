@@ -417,6 +417,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (existingCredential) {
+      // A retried custom-bot create with the SAME pre-generated id is an
+      // idempotent replay and falls through to the normal existing-credential
+      // path. Any other name collision must fail loudly: returning the existing
+      // row as success would orphan the new id already embedded in the user's
+      // Slack Request URL (Slack would post to a URL no credential resolves).
+      if (
+        resolvedProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID &&
+        clientCredentialId &&
+        existingCredential.id !== clientCredentialId
+      ) {
+        return NextResponse.json(
+          {
+            code: 'duplicate_display_name',
+            error: `A Slack bot named "${resolvedDisplayName}" already exists in this workspace. Give this bot a different name.`,
+          },
+          { status: 409 }
+        )
+      }
+
       const access = await getCredentialActorContext(existingCredential.id, session.user.id, {
         workspaceAccess,
       })
