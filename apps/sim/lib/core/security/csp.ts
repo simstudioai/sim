@@ -101,30 +101,24 @@ const STATIC_CONNECT_SRC = [
 ] as const
 
 /**
- * HubSpot tracking code sources. The loader is rendered only inside the
- * (landing) route group — never /workspace, /login, or /signup — so these
- * are kept out of STATIC_SCRIPT_SRC/STATIC_CONNECT_SRC (shared by every
- * route) and merged in only by the landing-scoped CSP builders below.
+ * HubSpot tracking sources. The loader only renders inside the (landing)
+ * route group, so these are kept out of STATIC_SCRIPT_SRC/STATIC_CONNECT_SRC
+ * and merged in only by the landing-scoped CSP builders below.
  */
-const HUBSPOT_SCRIPT_SRC = isHosted
-  ? [
-      // The loader plus the analytics/form-tracking/banner scripts it
-      // injects as <script> tags
-      'https://*.hs-scripts.com',
-      'https://*.hs-analytics.net',
-      'https://*.hscollectedforms.net',
-      'https://*.hs-banner.com',
-    ]
-  : []
+const HUBSPOT_SCRIPT_SRC = [
+  ...(isHosted
+    ? [
+        'https://*.hs-scripts.com',
+        'https://*.hs-analytics.net',
+        'https://*.hscollectedforms.net',
+        'https://*.hs-banner.com',
+      ]
+    : []),
+] as const
 
-const HUBSPOT_CONNECT_SRC = isHosted
-  ? [
-      // Form-tracking API calls (hscollectedforms.js) and the visitor
-      // beacon (track.hubspot.com)
-      'https://*.hscollectedforms.net',
-      'https://*.hubspot.com',
-    ]
-  : []
+const HUBSPOT_CONNECT_SRC = [
+  ...(isHosted ? ['https://*.hscollectedforms.net', 'https://*.hubspot.com'] : []),
+] as const
 
 const STATIC_FRAME_SRC = [
   "'self'",
@@ -244,8 +238,7 @@ function buildRuntimeCSPDirectives(): CSPDirectives {
 }
 
 /**
- * Generate runtime CSP header for authenticated app routes (/workspace,
- * /login, /signup) and other non-landing routes handled by proxy.ts.
+ * Generate runtime CSP header for non-landing routes (proxy.ts).
  */
 export function generateRuntimeCSP(): string {
   return buildCSPString(buildRuntimeCSPDirectives())
@@ -253,10 +246,7 @@ export function generateRuntimeCSP(): string {
 
 /**
  * Generate runtime CSP header for the public marketing/landing site.
- * Extends the shared runtime policy with HubSpot tracking hosts — the
- * HubSpot loader is rendered only inside the (landing) route group, so
- * these hosts have no reason to be allowed on /workspace, /login, or
- * /signup.
+ * Extends the shared runtime policy with HubSpot tracking hosts.
  */
 export function generateLandingRuntimeCSP(): string {
   const directives = buildRuntimeCSPDirectives()

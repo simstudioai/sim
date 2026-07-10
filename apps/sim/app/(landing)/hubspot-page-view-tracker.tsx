@@ -9,20 +9,14 @@ declare global {
   }
 }
 
-// next/script dedupes by id, so the HubSpot loader auto-tracks exactly one
-// pageview per browser session and never reloads on remount. Track that at
-// module scope so it survives LandingLayout unmounting and remounting (e.g.
-// leaving the landing site and navigating back).
+// next/script dedupes by id and never reloads on remount, so this must be
+// module-scope (not a ref) to survive LandingLayout unmounting/remounting.
 let hasTrackedInitialPageView = false
 
 /**
- * The HubSpot loader auto-tracks only the very first page load. LandingLayout
- * persists across client-side navigations between landing routes (see its
- * TSDoc), so HubSpot never sees those route changes on its own — including
- * query-only navigations (blog/library pagination, careers filters), which
- * is why this depends on the full path + search string, not just the path.
- * Push a manual pageview through HubSpot's `_hsq` queue on every navigation
- * after the first.
+ * The HubSpot loader only auto-tracks the first page load; LandingLayout
+ * persists across client-side navigations, so HubSpot never sees the rest.
+ * Pushes a manual pageview through `_hsq` on every navigation after the first.
  */
 export function HubspotPageViewTracker() {
   const pathname = usePathname()

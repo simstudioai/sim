@@ -33,7 +33,7 @@ export default function LandingLayout({ children }: { children: ReactNode }) {
   return (
     <LandingShell>
       {children}
-      {/* HubSpot tracking code — hosted marketing site only, not self-hosted deployments */}
+      {/* HubSpot tracking — hosted only */}
       {isHosted && (
         <>
           <Script id='hs-script-loader' src={HUBSPOT_SCRIPT_SRC} strategy='afterInteractive' />

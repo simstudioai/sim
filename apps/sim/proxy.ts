@@ -117,13 +117,7 @@ function buildPreflightResponse(policy: CorsPolicy): NextResponse {
   return response
 }
 
-/**
- * Top-level pages outside the (landing) route group that still reach the
- * catch-all branch below (auth sub-pages, invite links, file shares, the
- * playground). These get the tight app CSP rather than the landing-only
- * HubSpot allowance. Keep in sync with apps/sim/app/(auth)/**,
- * apps/sim/app/(interfaces)/**, and the other non-landing top-level routes.
- */
+/** Top-level pages outside (landing) that still reach the catch-all branch below. */
 const NON_LANDING_PATH_PREFIXES = [
   '/verify',
   '/sso',
@@ -308,11 +302,8 @@ export async function proxy(request: NextRequest) {
   const securityBlock = handleSecurityFiltering(request)
   if (securityBlock) return track(request, securityBlock)
 
-  // Everything else falling through here is the public marketing/landing
-  // site — except a handful of non-landing pages (auth sub-pages, invite
-  // links, file shares, the playground) that reach this branch too. Only
-  // the landing site renders the HubSpot loader, so only it gets the
-  // landing-scoped CSP.
+  // Mostly the public marketing/landing site, plus a few non-landing pages
+  // (see isNonLandingPath) that also fall through to this branch.
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
