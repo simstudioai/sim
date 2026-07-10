@@ -538,7 +538,7 @@ export const Deploy: ToolCatalogEntry = {
     properties: {
       request: {
         description:
-          'Detailed deployment instructions. Include deployment type (api/chat/mcp/custom_block) and ALL user-specified options: identifier, title, description, authType, password, allowedEmails, welcomeMessage, outputConfigs (block outputs to display), and for custom blocks the block name, description, icon URL, and exposed outputs.',
+          'Detailed deployment instructions. Include the deployment type and ALL user-specified options: identifier, title, description, authType, password, allowedEmails, welcomeMessage, outputConfigs (block outputs to display).',
         type: 'string',
       },
     },
