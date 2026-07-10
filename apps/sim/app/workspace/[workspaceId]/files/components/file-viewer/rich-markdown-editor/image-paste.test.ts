@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest'
-import { extractImageFiles } from './image-paste'
+import { extractImageFiles, hasHostedImageHtml } from './image-paste'
 
 function imageFile(name = 'shot.png'): File {
   return new File([''], name, { type: 'image/png' })
@@ -52,5 +52,28 @@ describe('extractImageFiles', () => {
       )
     )
     expect(result).toEqual([])
+  })
+})
+
+describe('hasHostedImageHtml', () => {
+  const isHosted = (src: string) => src.startsWith('/api/files/view/')
+
+  it('detects an <img> whose src is recognized as one of our own hosted files', () => {
+    expect(hasHostedImageHtml('<img src="/api/files/view/wf_abc" alt="x">', isHosted)).toBe(true)
+  })
+
+  it('is false when the html has no img, or the img src is not one of ours', () => {
+    expect(hasHostedImageHtml('<p>hello</p>', isHosted)).toBe(false)
+    expect(hasHostedImageHtml('<img src="https://other-site.com/photo.jpg">', isHosted)).toBe(false)
+    expect(hasHostedImageHtml('', isHosted)).toBe(false)
+  })
+
+  it('matches a hosted img among multiple candidates', () => {
+    expect(
+      hasHostedImageHtml(
+        '<img src="https://other-site.com/a.png"><img src="/api/files/view/wf_abc">',
+        isHosted
+      )
+    ).toBe(true)
   })
 })

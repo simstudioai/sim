@@ -7,13 +7,14 @@ import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
-import { extractImageFiles } from './image-paste'
+import { extractImageFiles, hasHostedImageHtml } from './image-paste'
 import {
   applyFrontmatter,
   normalizeLinkHref,
@@ -298,8 +299,21 @@ export function LoadedRichMarkdownEditor({
         window.open(normalized, '_blank', 'noopener,noreferrer')
         return true
       },
+      /**
+       * Inserts pasted image files at the caret. A same-page copy of an already-hosted `<img>` (e.g.
+       * Cmd+C after clicking it to select it) makes the browser add BOTH `text/html` (the real node,
+       * with its real hosted `src`) AND a synthesized image `File` to the clipboard — indistinguishable
+       * from a genuine external image paste by `clipboardData` files/items alone. When the HTML sibling
+       * already names one of our own hosted files, bail out and let the editor's default HTML paste
+       * clone that node (reusing its real `src` and every other attribute) instead of re-uploading the
+       * pasted bytes as a brand-new, distinct file.
+       */
       handlePaste: (view, event) => {
         if (!view.editable) return false
+        const html = event.clipboardData?.getData('text/html') ?? ''
+        if (html && hasHostedImageHtml(html, (src) => extractEmbeddedFileRef(src) !== null)) {
+          return false
+        }
         const images = extractImageFiles(event.clipboardData)
         if (images.length === 0) return false
         event.preventDefault()
@@ -310,9 +324,17 @@ export function LoadedRichMarkdownEditor({
        * Inserts dropped image files at the drop point. Any other file drop (e.g. a PDF) is swallowed so
        * the browser doesn't navigate away from the editor; internal text drags carry no files and fall
        * through to the default behavior.
+       *
+       * Dragging an existing image node to reorder it is also an internal drag, but the browser's
+       * native drag-and-drop synthesizes an image `File` into `event.dataTransfer` for a dragged `<img>`
+       * (the same mechanism that lets a user drag a web image out to their desktop) — indistinguishable
+       * from a real external drop by `dataTransfer` contents alone. `view.dragging` is ProseMirror's own
+       * signal that this drop follows a `dragstart` within this same view, so bail out and let its
+       * default move logic run instead of re-uploading the dragged image as a duplicate.
        */
       handleDrop: (view, event) => {
         if (!view.editable) return false
+        if (view.dragging) return false
         const images = extractImageFiles(event.dataTransfer)
         if (images.length > 0) {
           event.preventDefault()
