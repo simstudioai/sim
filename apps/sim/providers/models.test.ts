@@ -194,7 +194,9 @@ describe('zai provider definition', () => {
     expect(zai.id).toBe('zai')
     expect(zai.defaultModel).toBe('glm-4.6')
     expect(zai.defaultModel.startsWith('zai/')).toBe(false)
-    expect(zai.modelPatterns).toEqual([/^glm/])
+    // No fallback pattern — an unscoped `/^glm/` would overmatch unrelated self-hosted
+    // "glm-*" models and misroute them to Z.ai's hosted billing.
+    expect(zai.modelPatterns).toEqual([])
   })
 
   it('exposes every GLM model with the documented context window', () => {
