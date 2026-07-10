@@ -493,6 +493,36 @@ describe('useAutosave', () => {
       expect(fakeDraftStore.has('autosave-draft:file-5')).toBe(false)
     })
 
+    it('attempts recovery only once per mount, not every time draftKey toggles across a streaming lock', async () => {
+      fakeDraftStore.set('autosave-draft:file-once', { content: 'recovered', savedContent: 'a' })
+      const onSave = vi.fn(async () => {})
+      const onRestoreDraft = vi.fn()
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-once',
+        enabled: true,
+        onRestoreDraft,
+      })
+
+      await flush()
+      expect(onRestoreDraft).toHaveBeenCalledTimes(1)
+
+      // Mirrors autosave being disabled during agent streaming (effectiveDraftKey -> undefined)
+      // and re-enabled once the stream settles (effectiveDraftKey -> defined again). A stale
+      // pre-stream draft left behind in the meantime must not be re-offered on the second pass.
+      fakeDraftStore.set('autosave-draft:file-once', {
+        content: 'pre-agent-edit',
+        savedContent: 'a',
+      })
+      handle.rerender({ enabled: false })
+      await flush()
+      handle.rerender({ enabled: true })
+      await flush()
+      expect(onRestoreDraft).toHaveBeenCalledTimes(1)
+    })
+
     it('discard clears the local draft immediately and blocks any further write, even mid-race with unmount', async () => {
       const onSave = vi.fn(async () => {})
       const { handle } = renderAutosave({
@@ -682,6 +712,55 @@ describe('useAutosave', () => {
       act(() => handle.discard())
       await flush()
       expect(onSave).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not let a stale discard correction clobber a genuinely new edit made afterward', async () => {
+      const resolvers: Array<() => void> = []
+      const onSave = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvers.push(resolve)
+          })
+      )
+      const { handle } = renderAutosave({
+        content: 'a',
+        savedContent: 'a',
+        onSave,
+        draftKey: 'file-discard-8',
+      })
+
+      // A save is in flight when the user discards.
+      handle.rerender({ content: 'a1' })
+      await act(async () => {
+        vi.advanceTimersByTime(1500)
+      })
+      await flush()
+      expect(onSave).toHaveBeenCalledTimes(1)
+      act(() => handle.discard())
+
+      // The caller resets content to the baseline, then the user types something genuinely new
+      // before the in-flight save (and its scheduled correction) has settled.
+      handle.rerender({ content: 'a' })
+      handle.rerender({ content: 'a2' })
+
+      // The in-flight save resolves; the correction runs but must defer, since content has
+      // moved on to something that's neither the discarded baseline nor what it was at discard.
+      await act(async () => {
+        resolvers[0]?.()
+      })
+      await flush()
+      await act(async () => {
+        vi.advanceTimersByTime(600)
+      })
+      await flush()
+
+      // A fresh save for the new edit fires instead of a correction pushing the stale baseline.
+      const targets = onSave.mock.calls.map((call) => call[0])
+      expect(targets).not.toContain('a')
+      expect(onSave.mock.calls.length).toBeGreaterThan(1)
+
+      resolvers[resolvers.length - 1]?.()
+      await flush()
     })
 
     it('serializes IndexedDB writes and deletes so a slow write cannot resurrect a discarded draft', async () => {

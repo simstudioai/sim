@@ -245,8 +245,11 @@ export function useAutosave({
     }
   }, [effectiveDraftKey, persistLocalDraft])
 
+  const recoveryAttemptedRef = useRef(false)
+
   useEffect(() => {
-    if (!effectiveDraftKey) return
+    if (!effectiveDraftKey || recoveryAttemptedRef.current) return
+    recoveryAttemptedRef.current = true
     let cancelled = false
     void enqueueDraftOp(effectiveDraftKey, () =>
       get<LocalDraft>(localDraftDbKey(effectiveDraftKey))
@@ -282,12 +285,24 @@ export function useAutosave({
     const pendingSave = inFlightRef.current
     if (!pendingSave) return
     const target = savedContentRef.current
-    void pendingSave.then(() =>
-      onSaveRef.current(target).catch((error) => {
-        logger.warn('Corrective save after discard failed', { error })
-        onDiscardCorrectionFailedRef.current?.()
-      })
-    )
+    const contentAtDiscard = contentRef.current
+    void pendingSave.then(() => {
+      const current = contentRef.current
+      if (inFlightRef.current || (current !== target && current !== contentAtDiscard)) return
+      savingRef.current = true
+      const correctionRun = onSaveRef
+        .current(target)
+        .catch((error) => {
+          logger.warn('Corrective save after discard failed', { error })
+          onDiscardCorrectionFailedRef.current?.()
+        })
+        .finally(() => {
+          savingRef.current = false
+          inFlightRef.current = null
+        })
+      inFlightRef.current = correctionRun
+      return correctionRun
+    })
   }, [clearLocalDraft])
 
   return { saveStatus, saveImmediately, isDirty, discard }
