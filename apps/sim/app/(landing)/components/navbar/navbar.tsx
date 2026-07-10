@@ -87,7 +87,7 @@ export function Navbar({ stars, logoOnly = false }: NavbarProps) {
               <ChipLink href='/login' prefetch={false}>
                 Log in
               </ChipLink>
-              <ChipLink href='/demo' className='border border-[var(--border-1)]'>
+              <ChipLink variant='border' href='/demo'>
                 Contact sales
               </ChipLink>
               <ChipLink variant='primary' href='/signup' prefetch={false}>

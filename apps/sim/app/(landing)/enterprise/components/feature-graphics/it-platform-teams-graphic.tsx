@@ -67,7 +67,7 @@ export function ItPlatformTeamsGraphic() {
             <span className='flex shrink-0 items-center gap-1.5'>
               <span className='relative size-4 overflow-hidden rounded-full shadow-sm'>
                 <Image
-                  src='/landing/team-avatar-3.png'
+                  src='/landing/team-avatar-3.jpg'
                   alt=''
                   width={16}
                   height={16}

@@ -86,7 +86,7 @@ export function TechnicalTeamsGraphic() {
           <div className='mt-3 flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
             <span className='relative size-7 shrink-0 overflow-hidden rounded-full shadow-sm'>
               <Image
-                src='/landing/team-avatar-2.png'
+                src='/landing/team-avatar-2.jpg'
                 alt=''
                 width={28}
                 height={28}

@@ -29,6 +29,55 @@ import {
 
 const REPLY_WORDS = ENTERPRISE_REPLY.split(' ')
 
+/**
+ * Reveals an incrementing count (typed chars, streamed words) at a fixed
+ * step interval while `active`, deriving progress from ELAPSED time so a
+ * throttled background tab catches up instead of stalling mid-reveal.
+ * Resets to 0 when inactive; jumps straight to `total` under
+ * `prefers-reduced-motion`.
+ */
+function useElapsedReveal(active: boolean, stepMs: number, total: number) {
+  const [revealed, setRevealed] = useState(0)
+
+  useEffect(() => {
+    if (!active) {
+      setRevealed(0)
+      return
+    }
+
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let interval: ReturnType<typeof setInterval> | null = null
+
+    const run = () => {
+      const startedAt = performance.now()
+      interval = setInterval(() => {
+        const elapsed = performance.now() - startedAt
+        const n = Math.min(Math.floor(elapsed / stepMs) + 1, total)
+        setRevealed(n)
+        if (n >= total && interval) clearInterval(interval)
+      }, stepMs)
+    }
+
+    const syncMotionPreference = () => {
+      if (interval) clearInterval(interval)
+      if (media.matches) {
+        setRevealed(total)
+        return
+      }
+      run()
+    }
+
+    syncMotionPreference()
+    media.addEventListener('change', syncMotionPreference)
+    return () => {
+      media.removeEventListener('change', syncMotionPreference)
+      if (interval) clearInterval(interval)
+    }
+  }, [active, stepMs, total])
+
+  return revealed
+}
+
 /** Greyscale leading icons for the suggested-action rows, in row order. */
 const ACTION_ICONS = [Table, ShieldCheck, ClipboardList, Files] as const
 
@@ -112,82 +161,8 @@ export function EnterpriseHomeStage({ phase, fading }: EnterpriseHomeStageProps)
   const isReply = phase === 'reply'
   const inConversation = phase === 'dispatch' || isReply
   const promptDone = phase === 'typed' || inConversation
-  const [typedChars, setTypedChars] = useState(0)
-  const [revealedWords, setRevealedWords] = useState(0)
-
-  useEffect(() => {
-    if (!isTyping) {
-      setTypedChars(0)
-      return
-    }
-
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let interval: ReturnType<typeof setInterval> | null = null
-
-    const type = () => {
-      const startedAt = performance.now()
-      interval = setInterval(() => {
-        const elapsed = performance.now() - startedAt
-        const n = Math.min(Math.floor(elapsed / PROMPT_CHAR_MS) + 1, ENTERPRISE_PROMPT.length)
-        setTypedChars(n)
-        if (n >= ENTERPRISE_PROMPT.length && interval) clearInterval(interval)
-      }, PROMPT_CHAR_MS)
-    }
-
-    const syncMotionPreference = () => {
-      if (interval) clearInterval(interval)
-      if (media.matches) {
-        setTypedChars(ENTERPRISE_PROMPT.length)
-        return
-      }
-      type()
-    }
-
-    syncMotionPreference()
-    media.addEventListener('change', syncMotionPreference)
-    return () => {
-      media.removeEventListener('change', syncMotionPreference)
-      if (interval) clearInterval(interval)
-    }
-  }, [isTyping])
-
-  // Stream the reply word by word while the phase holds on 'reply'; any other
-  // phase (the next cycle's reset) rewinds it for the following pass.
-  useEffect(() => {
-    if (!isReply) {
-      setRevealedWords(0)
-      return
-    }
-
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let interval: ReturnType<typeof setInterval> | null = null
-
-    const stream = () => {
-      const startedAt = performance.now()
-      interval = setInterval(() => {
-        const elapsed = performance.now() - startedAt
-        const n = Math.min(Math.floor(elapsed / REPLY_WORD_MS) + 1, REPLY_WORDS.length)
-        setRevealedWords(n)
-        if (n >= REPLY_WORDS.length && interval) clearInterval(interval)
-      }, REPLY_WORD_MS)
-    }
-
-    const syncMotionPreference = () => {
-      if (interval) clearInterval(interval)
-      if (media.matches) {
-        setRevealedWords(REPLY_WORDS.length)
-        return
-      }
-      stream()
-    }
-
-    syncMotionPreference()
-    media.addEventListener('change', syncMotionPreference)
-    return () => {
-      media.removeEventListener('change', syncMotionPreference)
-      if (interval) clearInterval(interval)
-    }
-  }, [isReply])
+  const typedChars = useElapsedReveal(isTyping, PROMPT_CHAR_MS, ENTERPRISE_PROMPT.length)
+  const revealedWords = useElapsedReveal(isReply, REPLY_WORD_MS, REPLY_WORDS.length)
 
   const visiblePrompt = promptDone ? ENTERPRISE_PROMPT : ENTERPRISE_PROMPT.slice(0, typedChars)
   const hasText = visiblePrompt.length > 0

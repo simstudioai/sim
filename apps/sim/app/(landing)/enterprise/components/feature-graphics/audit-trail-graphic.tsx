@@ -31,28 +31,28 @@ const ENTRIES: readonly AuditEntry[] = [
     actor: 'Maya Chen',
     resource: 'Support agent v3',
     time: 'Now',
-    avatar: '/landing/team-avatar-1.png',
+    avatar: '/landing/team-avatar-1.jpg',
   },
   {
     action: 'Permission group updated',
     actor: 'Jordan Lee',
     resource: 'Support team',
     time: '2 min ago',
-    avatar: '/landing/team-avatar-2.png',
+    avatar: '/landing/team-avatar-2.jpg',
   },
   {
     action: 'Credential accessed',
     actor: 'Sam Ortiz',
     resource: 'Zendesk OAuth',
     time: '26 min ago',
-    avatar: '/landing/team-avatar-3.png',
+    avatar: '/landing/team-avatar-3.jpg',
   },
   {
     action: 'Workflow created',
     actor: 'Maya Chen',
     resource: 'Support agent',
     time: 'Jun 14',
-    avatar: '/landing/team-avatar-1.png',
+    avatar: '/landing/team-avatar-1.jpg',
   },
 ] as const
 

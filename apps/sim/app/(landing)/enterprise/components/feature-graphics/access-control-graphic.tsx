@@ -10,9 +10,9 @@ const CANVAS = { WIDTH: 320, HEIGHT: 250 } as const
 const PORT_Y = { TEAM: 72, CHIP: 208 } as const
 
 const TEAMS = [
-  { avatar: '/landing/team-avatar-1.png', name: 'Engineering', x: 64, leftClass: 'left-[64px]' },
-  { avatar: '/landing/team-avatar-2.png', name: 'Support', x: 160, leftClass: 'left-[160px]' },
-  { avatar: '/landing/team-avatar-3.png', name: 'Ops', x: 256, leftClass: 'left-[256px]' },
+  { avatar: '/landing/team-avatar-1.jpg', name: 'Engineering', x: 64, leftClass: 'left-[64px]' },
+  { avatar: '/landing/team-avatar-2.jpg', name: 'Support', x: 160, leftClass: 'left-[160px]' },
+  { avatar: '/landing/team-avatar-3.jpg', name: 'Ops', x: 256, leftClass: 'left-[256px]' },
 ] as const
 
 const CHIPS = [

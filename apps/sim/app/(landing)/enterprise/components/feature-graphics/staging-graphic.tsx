@@ -76,7 +76,7 @@ export function StagingGraphic() {
               <span className='mt-1.5 flex items-center gap-1.5'>
                 <span className='relative size-4 overflow-hidden rounded-full'>
                   <Image
-                    src='/landing/team-avatar-1.png'
+                    src='/landing/team-avatar-1.jpg'
                     alt=''
                     width={16}
                     height={16}

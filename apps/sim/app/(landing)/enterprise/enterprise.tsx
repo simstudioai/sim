@@ -65,7 +65,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
           alt=''
           className='object-cover object-center'
           sizes='(max-width: 1024px) 100vw, 1300px'
-          src='/landing/enterprise-hero-background.png'
+          src='/landing/enterprise-hero-background.webp'
         />
         <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex aspect-[1080/620] w-[83.08%] flex-col overflow-hidden rounded-[10px] bg-[var(--surface-1)] shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_6px_0_rgba(0,0,0,0.05),0_4px_42px_0_rgba(0,0,0,0.06)]'>
           <div className='relative flex-1'>
