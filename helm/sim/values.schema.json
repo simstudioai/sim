@@ -186,6 +186,10 @@
               "type": "string",
               "description": "AWS region for SES (e.g., 'us-east-1'). Credentials are resolved via the standard AWS provider chain (env vars, IRSA, EC2/ECS task role, SSO)."
             },
+            "AZURE_ACS_CONNECTION_STRING": {
+              "type": "string",
+              "description": "Azure Communication Services connection string (email provider — used when Resend/SES/SMTP are not configured)."
+            },
             "SMTP_HOST": {
               "type": "string",
               "description": "SMTP server hostname. When set together with SMTP_PORT, enables the SMTP mail provider."
@@ -269,6 +273,26 @@
             "ELEVENLABS_API_KEY": {
               "type": "string",
               "description": "ElevenLabs API key for text-to-speech in deployed chat"
+            },
+            "KB_OPENAI_MODEL_NAME": {
+              "type": "string",
+              "description": "Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set)."
+            },
+            "WAND_OPENAI_MODEL_NAME": {
+              "type": "string",
+              "description": "Wand generation model deployment name (works with both regular OpenAI and Azure OpenAI)."
+            },
+            "OCR_AZURE_ENDPOINT": {
+              "type": "string",
+              "description": "Azure Mistral OCR service endpoint."
+            },
+            "OCR_AZURE_MODEL_NAME": {
+              "type": "string",
+              "description": "Azure Mistral OCR model name."
+            },
+            "OCR_AZURE_API_KEY": {
+              "type": "string",
+              "description": "Azure Mistral OCR API key."
             },
             "RATE_LIMIT_WINDOW_MS": {
               "type": "string",

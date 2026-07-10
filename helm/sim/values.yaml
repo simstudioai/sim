@@ -117,6 +117,7 @@ app:
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     AWS_SES_REGION: ""                                    # AWS region for SES (e.g., "us-east-1"); credentials resolved via the standard AWS provider chain (env, IRSA, instance profile)
+    AZURE_ACS_CONNECTION_STRING: ""                       # Azure Communication Services connection string (email provider — used when Resend/SES/SMTP are not configured)
     SMTP_HOST: ""                                         # SMTP server hostname (alternative to Resend/SES)
     SMTP_PORT: ""                                         # SMTP server port (465 for TLS, 587 for STARTTLS, 25 for plain)
     SMTP_USER: ""                                         # SMTP username (optional — omit for unauthenticated relays like MailHog)
@@ -145,6 +146,13 @@ app:
     AZURE_ANTHROPIC_ENDPOINT: ""                          # Azure AI Foundry endpoint for Anthropic models
     AZURE_ANTHROPIC_API_KEY: ""                           # Azure Anthropic API key
     AZURE_ANTHROPIC_API_VERSION: ""                       # Azure Anthropic API version (e.g., 2023-06-01)
+    KB_OPENAI_MODEL_NAME: ""                              # Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set)
+    WAND_OPENAI_MODEL_NAME: ""                            # Wand generation model deployment name (works with both regular OpenAI and Azure OpenAI)
+
+    # Azure Mistral OCR Configuration (leave empty if not using Azure-hosted OCR for document processing)
+    OCR_AZURE_ENDPOINT: ""                                # Azure Mistral OCR service endpoint
+    OCR_AZURE_MODEL_NAME: ""                              # Azure Mistral OCR model name
+    OCR_AZURE_API_KEY: ""                                 # Azure Mistral OCR API key
 
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
