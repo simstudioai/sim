@@ -86,6 +86,18 @@ export const zaiProvider: ProviderConfig = {
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
 
+      // GLM's `thinking` toggle (models where `capabilities.thinking.levels` is
+      // ['disabled', 'enabled']) maps directly to Z.ai's `thinking: { type }` request param.
+      if (request.thinkingLevel === 'enabled' || request.thinkingLevel === 'disabled') {
+        payload.thinking = { type: request.thinkingLevel }
+      }
+
+      // GLM-5.2's `reasoningEffort` capability maps directly to Z.ai's `reasoning_effort`
+      // request param — the only model in this catalog that documents it.
+      if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
+        payload.reasoning_effort = request.reasoningEffort
+      }
+
       // Z.ai's chat-completions API supports `text` and `json_object` response formats but
       // does not have confirmed `json_schema` support, unlike the shared OpenAI-compatible
       // template — request a plain JSON-object hint instead of a strict schema.
