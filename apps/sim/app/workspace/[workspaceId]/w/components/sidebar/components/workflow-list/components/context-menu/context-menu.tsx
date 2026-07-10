@@ -34,6 +34,15 @@ interface ContextMenuProps {
   onMarkAsUnread?: () => void
   onTogglePin?: () => void
   onRename?: () => void
+  /**
+   * Ref to the rename input rendered by the "Rename" action, if any. Radix's
+   * FocusScope defers its close-time focus teardown to a `setTimeout(0)`, which
+   * can run after the rename input's own mount-time `focus()`/`select()` and
+   * clobber the selection (the "rename deselects the text" bug). Focusing from
+   * `onCloseAutoFocus` runs synchronously inside that same deferred teardown, so
+   * it always wins the race regardless of scheduler timing.
+   */
+  renameInputRef?: React.RefObject<HTMLInputElement | null>
   onCreate?: () => void
   onCreateFolder?: () => void
   onDuplicate?: () => void
@@ -84,6 +93,7 @@ export function ContextMenu({
   onMarkAsUnread,
   onTogglePin,
   onRename,
+  renameInputRef,
   onCreate,
   onCreateFolder,
   onDuplicate,
@@ -152,7 +162,14 @@ export function ContextMenu({
         side='bottom'
         sideOffset={4}
         className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
-        onCloseAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault()
+          const input = renameInputRef?.current
+          if (input) {
+            input.focus()
+            input.select()
+          }
+        }}
       >
         {showOpenInNewTab && onOpenInNewTab && (
           <DropdownMenuItem
