@@ -32,7 +32,6 @@ import {
   isKnownWorkflowTriggerBlock,
   isWorkflowAnnotationOnlyBlockType,
   isWorkflowBlockProtected,
-  wouldCreateCycle,
 } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -54,6 +53,155 @@ function toEdgeHandles(edge: PersistedEdgeRecord) {
     target: edge.targetBlockId,
     sourceHandle: edge.sourceHandle,
     targetHandle: edge.targetHandle,
+  }
+}
+
+interface EdgeAddCandidate {
+  id?: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+}
+
+interface FilterEdgesForPersistResult<T> {
+  safeEdges: T[]
+  droppedCounts: Record<string, number>
+  droppedDuplicates: number
+  droppedCyclic: number
+}
+
+/**
+ * Runs the full server-side edge-add validation pipeline — missing block,
+ * protected target, annotation-only block, trigger-block target, scope
+ * boundary, duplicate, cycle — against one or more candidate edges. Shared by
+ * the single-edge `ADD` and `BATCH_ADD_EDGES` handlers so the two paths
+ * can't drift out of sync with each other, the same way the client and
+ * realtime layers already share these rules via `@sim/workflow-types`.
+ */
+async function filterEdgesForPersist<T extends EdgeAddCandidate>(
+  tx: any,
+  workflowId: string,
+  candidates: T[]
+): Promise<FilterEdgesForPersistResult<T>> {
+  const connectedBlockIds = new Set<string>()
+  for (const edge of candidates) {
+    connectedBlockIds.add(edge.source)
+    connectedBlockIds.add(edge.target)
+  }
+
+  const connectedBlocks = await tx
+    .select({
+      id: workflowBlocks.id,
+      type: workflowBlocks.type,
+      locked: workflowBlocks.locked,
+      triggerMode: workflowBlocks.triggerMode,
+      data: workflowBlocks.data,
+    })
+    .from(workflowBlocks)
+    .where(
+      and(
+        eq(workflowBlocks.workflowId, workflowId),
+        inArray(workflowBlocks.id, Array.from(connectedBlockIds))
+      )
+    )
+
+  type EdgeBlockRecord = (typeof connectedBlocks)[number]
+  const blocksById: Record<string, EdgeBlockRecord> = Object.fromEntries(
+    connectedBlocks.map((b: EdgeBlockRecord) => [b.id, b])
+  )
+
+  const parentIds = new Set<string>()
+  for (const block of connectedBlocks) {
+    const parentId = (block.data as Record<string, unknown> | null)?.parentId as string | undefined
+    if (parentId && !blocksById[parentId]) {
+      parentIds.add(parentId)
+    }
+  }
+
+  if (parentIds.size > 0) {
+    const parentBlocks = await tx
+      .select({
+        id: workflowBlocks.id,
+        type: workflowBlocks.type,
+        locked: workflowBlocks.locked,
+        data: workflowBlocks.data,
+      })
+      .from(workflowBlocks)
+      .where(
+        and(
+          eq(workflowBlocks.workflowId, workflowId),
+          inArray(workflowBlocks.id, Array.from(parentIds))
+        )
+      )
+    for (const b of parentBlocks) {
+      blocksById[b.id] = b
+    }
+  }
+
+  const droppedCounts: Record<string, number> = {}
+  const countDrop = (reason: string) => {
+    droppedCounts[reason] = (droppedCounts[reason] ?? 0) + 1
+  }
+
+  // Mirrors the client's validateEdges rule order: missing block, protected
+  // target, annotation-only block, trigger-block target, scope boundary.
+  // `scopeDropReason`'s detail (which names the specific block ids/scopes)
+  // is dropped in favor of a stable 'scope boundary' key so droppedCounts
+  // aggregates across edges instead of gaining one free-text key per edge.
+  const structurallyValidEdges = candidates.filter((edge) => {
+    const sourceBlock = blocksById[edge.source]
+    const targetBlock = blocksById[edge.target]
+
+    if (!sourceBlock || !targetBlock) {
+      countDrop('missing block')
+      return false
+    }
+    if (isWorkflowBlockProtected(edge.target, blocksById)) {
+      countDrop('protected target block')
+      return false
+    }
+    if (
+      isWorkflowAnnotationOnlyBlockType(sourceBlock.type) ||
+      isWorkflowAnnotationOnlyBlockType(targetBlock.type)
+    ) {
+      countDrop('annotation-only block')
+      return false
+    }
+    if (isKnownWorkflowTriggerBlock(targetBlock)) {
+      countDrop('trigger block target')
+      return false
+    }
+    if (getWorkflowEdgeScopeDropReason(edge, blocksById)) {
+      countDrop('scope boundary')
+      return false
+    }
+    return true
+  })
+
+  if (structurallyValidEdges.length === 0) {
+    return { safeEdges: [], droppedCounts, droppedDuplicates: 0, droppedCyclic: 0 }
+  }
+
+  const existingEdgesForCycleCheck: PersistedEdgeRecord[] = await tx
+    .select({
+      sourceBlockId: workflowEdges.sourceBlockId,
+      targetBlockId: workflowEdges.targetBlockId,
+      sourceHandle: workflowEdges.sourceHandle,
+      targetHandle: workflowEdges.targetHandle,
+    })
+    .from(workflowEdges)
+    .where(eq(workflowEdges.workflowId, workflowId))
+  const existingEdgeEndpoints = existingEdgesForCycleCheck.map(toEdgeHandles)
+
+  const uniqueEdges = filterUniqueWorkflowEdges(structurallyValidEdges, existingEdgeEndpoints)
+  const safeEdges = filterAcyclicEdges(uniqueEdges, existingEdgeEndpoints)
+
+  return {
+    safeEdges,
+    droppedCounts,
+    droppedDuplicates: structurallyValidEdges.length - uniqueEdges.length,
+    droppedCyclic: uniqueEdges.length - safeEdges.length,
   }
 }
 
@@ -1323,117 +1471,28 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error('Missing required fields for add edge operation')
       }
 
-      const edgeBlocks = await tx
-        .select({
-          id: workflowBlocks.id,
-          type: workflowBlocks.type,
-          locked: workflowBlocks.locked,
-          triggerMode: workflowBlocks.triggerMode,
-          data: workflowBlocks.data,
-        })
-        .from(workflowBlocks)
-        .where(
-          and(
-            eq(workflowBlocks.workflowId, workflowId),
-            inArray(workflowBlocks.id, [payload.source, payload.target])
-          )
-        )
-
-      type EdgeBlockRecord = (typeof edgeBlocks)[number]
-      const blocksById: Record<string, EdgeBlockRecord> = Object.fromEntries(
-        edgeBlocks.map((b: EdgeBlockRecord) => [b.id, b])
+      const { safeEdges, droppedCounts, droppedDuplicates } = await filterEdgesForPersist(
+        tx,
+        workflowId,
+        [
+          {
+            id: payload.id,
+            source: payload.source,
+            target: payload.target,
+            sourceHandle: payload.sourceHandle ?? null,
+            targetHandle: payload.targetHandle ?? null,
+          },
+        ]
       )
 
-      const parentIds = new Set<string>()
-      for (const block of edgeBlocks) {
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && !blocksById[parentId]) {
-          parentIds.add(parentId)
-        }
-      }
-
-      // Fetch parent blocks if needed
-      if (parentIds.size > 0) {
-        const parentBlocks = await tx
-          .select({
-            id: workflowBlocks.id,
-            type: workflowBlocks.type,
-            locked: workflowBlocks.locked,
-            data: workflowBlocks.data,
-          })
-          .from(workflowBlocks)
-          .where(
-            and(
-              eq(workflowBlocks.workflowId, workflowId),
-              inArray(workflowBlocks.id, Array.from(parentIds))
-            )
-          )
-        for (const b of parentBlocks) {
-          blocksById[b.id] = b
-        }
-      }
-
-      if (!blocksById[payload.source] || !blocksById[payload.target]) {
-        logger.info('Skipping edge add - edge references a missing block')
-        break
-      }
-
-      if (isWorkflowBlockProtected(payload.target, blocksById)) {
-        logger.info(`Skipping edge add - target block is protected`)
-        break
-      }
-
-      if (
-        isWorkflowAnnotationOnlyBlockType(blocksById[payload.source].type) ||
-        isWorkflowAnnotationOnlyBlockType(blocksById[payload.target].type)
-      ) {
-        logger.info('Skipping edge add - edge references an annotation-only block')
-        break
-      }
-
-      if (isKnownWorkflowTriggerBlock(blocksById[payload.target])) {
-        logger.info('Skipping edge add - trigger blocks cannot be edge targets')
-        break
-      }
-
-      const scopeDropReason = getWorkflowEdgeScopeDropReason(
-        { source: payload.source, target: payload.target },
-        blocksById
-      )
-      if (scopeDropReason) {
-        logger.info(`Skipping edge add - ${scopeDropReason}`)
-        break
-      }
-
-      const existingEdgesForCycleCheck: PersistedEdgeRecord[] = await tx
-        .select({
-          sourceBlockId: workflowEdges.sourceBlockId,
-          targetBlockId: workflowEdges.targetBlockId,
-          sourceHandle: workflowEdges.sourceHandle,
-          targetHandle: workflowEdges.targetHandle,
-        })
-        .from(workflowEdges)
-        .where(eq(workflowEdges.workflowId, workflowId))
-
-      const candidateEdge = {
-        source: payload.source,
-        target: payload.target,
-        sourceHandle: payload.sourceHandle ?? null,
-        targetHandle: payload.targetHandle ?? null,
-      }
-      const existingEdgeEndpoints = existingEdgesForCycleCheck.map(toEdgeHandles)
-
-      if (filterUniqueWorkflowEdges([candidateEdge], existingEdgeEndpoints).length === 0) {
-        logger.info('Skipping edge add - duplicate edge already exists')
-        break
-      }
-
-      if (wouldCreateCycle(existingEdgeEndpoints, candidateEdge.source, candidateEdge.target)) {
-        logger.info(
-          `Skipping edge add - would create a cycle: ${payload.source} -> ${payload.target}`
-        )
+      if (safeEdges.length === 0) {
+        const [structuralDropReason] = Object.keys(droppedCounts)
+        const reason = structuralDropReason
+          ? structuralDropReason
+          : droppedDuplicates > 0
+            ? 'duplicate edge already exists'
+            : `would create a cycle: ${payload.source} -> ${payload.target}`
+        logger.info(`Skipping edge add - ${reason}`)
         break
       }
 
@@ -1658,143 +1717,22 @@ async function handleEdgesOperationTx(
 
       logger.info(`Batch adding ${edges.length} edges to workflow ${workflowId}`)
 
-      // Get all connected block IDs to check lock status
-      const connectedBlockIds = new Set<string>()
-      edges.forEach((e: Record<string, unknown>) => {
-        connectedBlockIds.add(e.source as string)
-        connectedBlockIds.add(e.target as string)
-      })
+      const candidates: EdgeAddCandidate[] = (edges as Array<Record<string, unknown>>).map((e) => ({
+        id: e.id as string,
+        source: e.source as string,
+        target: e.target as string,
+        sourceHandle: (e.sourceHandle as string | null) ?? null,
+        targetHandle: (e.targetHandle as string | null) ?? null,
+      }))
 
-      // Fetch blocks to check lock status
-      const connectedBlocks = await tx
-        .select({
-          id: workflowBlocks.id,
-          type: workflowBlocks.type,
-          locked: workflowBlocks.locked,
-          triggerMode: workflowBlocks.triggerMode,
-          data: workflowBlocks.data,
-        })
-        .from(workflowBlocks)
-        .where(
-          and(
-            eq(workflowBlocks.workflowId, workflowId),
-            inArray(workflowBlocks.id, Array.from(connectedBlockIds))
-          )
-        )
-
-      type AddEdgeBlockRecord = (typeof connectedBlocks)[number]
-      const blocksById: Record<string, AddEdgeBlockRecord> = Object.fromEntries(
-        connectedBlocks.map((b: AddEdgeBlockRecord) => [b.id, b])
-      )
-
-      // Collect parent IDs that need to be fetched
-      const parentIds = new Set<string>()
-      for (const block of connectedBlocks) {
-        const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-          | string
-          | undefined
-        if (parentId && !blocksById[parentId]) {
-          parentIds.add(parentId)
-        }
-      }
-
-      // Fetch parent blocks if needed
-      if (parentIds.size > 0) {
-        const parentBlocks = await tx
-          .select({
-            id: workflowBlocks.id,
-            type: workflowBlocks.type,
-            locked: workflowBlocks.locked,
-            data: workflowBlocks.data,
-          })
-          .from(workflowBlocks)
-          .where(
-            and(
-              eq(workflowBlocks.workflowId, workflowId),
-              inArray(workflowBlocks.id, Array.from(parentIds))
-            )
-          )
-        for (const b of parentBlocks) {
-          blocksById[b.id] = b
-        }
-      }
-
-      const droppedCounts: Record<string, number> = {}
-      const countDrop = (reason: string) => {
-        droppedCounts[reason] = (droppedCounts[reason] ?? 0) + 1
-      }
-
-      // Mirror the client's validateEdges rule order: missing block, protected
-      // target, annotation-only block, trigger-block target, scope boundary.
-      const structurallyValidEdges = (edges as Array<Record<string, unknown>>).filter((e) => {
-        const source = e.source as string
-        const target = e.target as string
-        const sourceBlock = blocksById[source]
-        const targetBlock = blocksById[target]
-
-        if (!sourceBlock || !targetBlock) {
-          countDrop('missing block')
-          return false
-        }
-        if (isWorkflowBlockProtected(target, blocksById)) {
-          countDrop('protected target block')
-          return false
-        }
-        if (
-          isWorkflowAnnotationOnlyBlockType(sourceBlock.type) ||
-          isWorkflowAnnotationOnlyBlockType(targetBlock.type)
-        ) {
-          countDrop('annotation-only block')
-          return false
-        }
-        if (isKnownWorkflowTriggerBlock(targetBlock)) {
-          countDrop('trigger block target')
-          return false
-        }
-        const scopeDropReason = getWorkflowEdgeScopeDropReason({ source, target }, blocksById)
-        if (scopeDropReason) {
-          countDrop(scopeDropReason)
-          return false
-        }
-        return true
-      })
-
-      if (structurallyValidEdges.length === 0) {
-        logger.info('All edges failed validation, skipping add', { droppedCounts })
-        return
-      }
-
-      const existingEdgesForCycleCheck: PersistedEdgeRecord[] = await tx
-        .select({
-          sourceBlockId: workflowEdges.sourceBlockId,
-          targetBlockId: workflowEdges.targetBlockId,
-          sourceHandle: workflowEdges.sourceHandle,
-          targetHandle: workflowEdges.targetHandle,
-        })
-        .from(workflowEdges)
-        .where(eq(workflowEdges.workflowId, workflowId))
-      const existingEdgeEndpoints = existingEdgesForCycleCheck.map(toEdgeHandles)
-
-      const uniqueEdges = filterUniqueWorkflowEdges(
-        structurallyValidEdges.map((e) => ({
-          source: e.source as string,
-          target: e.target as string,
-          sourceHandle: (e.sourceHandle as string | null) ?? null,
-          targetHandle: (e.targetHandle as string | null) ?? null,
-          original: e,
-        })),
-        existingEdgeEndpoints
-      )
-
-      const safeEdges = filterAcyclicEdges(uniqueEdges, existingEdgeEndpoints).map(
-        (e) => e.original
-      )
+      const { safeEdges, droppedCounts, droppedDuplicates, droppedCyclic } =
+        await filterEdgesForPersist(tx, workflowId, candidates)
 
       if (safeEdges.length < edges.length) {
         logger.info(`Dropped ${edges.length - safeEdges.length} invalid edge(s)`, {
           droppedCounts,
-          droppedDuplicates: structurallyValidEdges.length - uniqueEdges.length,
-          droppedCyclic: uniqueEdges.length - safeEdges.length,
+          droppedDuplicates,
+          droppedCyclic,
         })
       }
 
@@ -1803,13 +1741,13 @@ async function handleEdgesOperationTx(
         return
       }
 
-      const edgeValues = safeEdges.map((edge: Record<string, unknown>) => ({
+      const edgeValues = safeEdges.map((edge) => ({
         id: edge.id as string,
         workflowId,
-        sourceBlockId: edge.source as string,
-        targetBlockId: edge.target as string,
-        sourceHandle: (edge.sourceHandle as string | null) || null,
-        targetHandle: (edge.targetHandle as string | null) || null,
+        sourceBlockId: edge.source,
+        targetBlockId: edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null,
       }))
 
       await tx

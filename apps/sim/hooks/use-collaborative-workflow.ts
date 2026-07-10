@@ -12,6 +12,7 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
+import { getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
@@ -27,7 +28,6 @@ import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { getSubBlocksDependingOnChange } from '@/blocks/utils'
-import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {
@@ -1032,27 +1032,26 @@ export function useCollaborativeWorkflow() {
       }
 
       const trimmedName = name.trim()
-      const normalizedNewName = normalizeName(trimmedName)
+      const currentBlocks = useWorkflowStore.getState().blocks
+      const siblingNamesById = Object.fromEntries(
+        Object.entries(currentBlocks).map(([blockId, b]) => [blockId, b.name])
+      )
+      const conflict = getWorkflowBlockNameConflict(id, trimmedName, siblingNamesById)
 
-      if (!normalizedNewName) {
+      if (conflict?.reason === 'empty') {
         logger.error('Cannot rename block to empty name')
         toast.error('Block name cannot be empty')
         return { success: false, error: 'Block name cannot be empty' }
       }
 
-      if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedNewName)) {
+      if (conflict?.reason === 'reserved') {
         logger.error(`Cannot rename block to reserved name: "${trimmedName}"`)
         toast.error(`"${trimmedName}" is a reserved name and cannot be used`)
         return { success: false, error: `"${trimmedName}" is a reserved name` }
       }
 
-      const currentBlocks = useWorkflowStore.getState().blocks
-      const conflictingBlock = Object.entries(currentBlocks).find(
-        ([blockId, block]) => blockId !== id && normalizeName(block.name) === normalizedNewName
-      )
-
-      if (conflictingBlock) {
-        const conflictName = conflictingBlock[1].name
+      if (conflict?.reason === 'duplicate') {
+        const conflictName = currentBlocks[conflict.conflictingBlockId as string].name
         logger.error(`Cannot rename block to "${trimmedName}" - conflicts with "${conflictName}"`)
         toast.error(`Block name "${trimmedName}" already exists`)
         return { success: false, error: `Block name "${trimmedName}" already exists` }
