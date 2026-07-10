@@ -515,7 +515,25 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       if (payload.event === MothershipStreamV1SpanLifecycleEvent.start) {
         breakLane(model, parentSpanId, tsMs)
         const existingId = model.agentBySpanId.get(resolvedSpanId)
-        if (existingId && model.nodes.has(existingId)) break
+        const existing = existingId ? model.nodes.get(existingId) : undefined
+        if (existing && existing.kind === 'agent') {
+          // The lane was pre-created by ensureSubagentLane from a content event
+          // that raced ahead of this start. That event's scope may omit agentId
+          // (contract-optional) while only this start carries payload.agent —
+          // an empty agentId makes the downstream parsers drop the whole lane.
+          // Reconcile instead of ignoring the start.
+          if (!existing.agentId && agentId) existing.agentId = agentId
+          if (!existing.triggerToolCallId && triggerToolCallId) {
+            existing.triggerToolCallId = triggerToolCallId
+          }
+          if (existing.parentSpanId === MAIN_SPAN && parentSpanId !== MAIN_SPAN) {
+            existing.parentSpanId = parentSpanId
+          }
+          if (existing.startedAtMs === undefined && tsMs !== undefined) {
+            existing.startedAtMs = tsMs
+          }
+          break
+        }
         const node: AgentNode = {
           kind: 'agent',
           id: resolvedSpanId,

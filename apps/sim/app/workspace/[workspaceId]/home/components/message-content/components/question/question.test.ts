@@ -1,10 +1,13 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
+import { act, createElement } from 'react'
+import { createRoot } from 'react-dom/client'
 import { describe, expect, it } from 'vitest'
 import {
   formatQuestionAnswerMessage,
   parseQuestionAnswerMessage,
+  QuestionDisplay,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question/question'
 import type { QuestionItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
 
@@ -82,5 +85,37 @@ describe('parseQuestionAnswerMessage', () => {
     expect(parseQuestionAnswerMessage([QUESTIONS[0]], message)).toEqual([
       'newest — but keep backups',
     ])
+  })
+})
+
+describe('QuestionDisplay', () => {
+  it('focuses the free-text input when Something else is clicked', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: [QUESTIONS[0]],
+          onSelect: () => undefined,
+        })
+      )
+    })
+
+    const somethingElseButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Something else')
+    )
+    expect(somethingElseButton).toBeDefined()
+
+    act(() => somethingElseButton?.click())
+
+    const input = container.querySelector('input')
+    expect(input).not.toBeNull()
+    expect(document.activeElement).toBe(input)
+
+    act(() => root.unmount())
+    container.remove()
   })
 })

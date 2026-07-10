@@ -325,9 +325,14 @@ export function MothershipChat({
     const answersByIndex: Array<string[] | undefined> = []
     const hiddenUserByIndex: Array<boolean | undefined> = []
     for (const [index, message] of messages.entries()) {
-      if (message.role !== 'assistant' || !message.content?.includes('</question>')) continue
+      if (message.role !== 'assistant') continue
+      // Check the answering user message BEFORE scanning content: a pairing
+      // needs one anyway, and this skips the O(content) `includes` scan over
+      // the still-growing streaming message (always the last row) on every
+      // snapshot flush.
       const next = messages[index + 1]
       if (!next || next.role !== 'user' || !next.content) continue
+      if (!message.content?.includes('</question>')) continue
       const questions = parseLastQuestionTag(message.content)
       if (!questions) continue
       const answers = parseQuestionAnswerMessage(questions, next.content)

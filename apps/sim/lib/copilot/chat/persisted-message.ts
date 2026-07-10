@@ -37,6 +37,13 @@ interface PersistedToolCall {
 export interface PersistedContentBlock {
   type: MothershipStreamV1EventType
   lane?: MothershipStreamV1StreamScope['lane']
+  /**
+   * Subagent name on lane text blocks. The span-tree parser needs a name to
+   * create a group for content whose `subagent` start block is missing (resume
+   * legs re-emit text without re-emitting start); without it the prose is
+   * silently dropped on reload.
+   */
+  agent?: string
   channel?: MothershipStreamV1TextChannel
   phase?: MothershipStreamV1ToolPhase
   kind?: MothershipStreamV1SpanPayloadKind
@@ -188,6 +195,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         lane: 'subagent',
         channel: MothershipStreamV1TextChannel.assistant,
         content: block.content,
+        ...(block.subagent ? { agent: block.subagent } : {}),
       }
     case 'subagent_thinking':
       return {
@@ -195,6 +203,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         lane: 'subagent',
         channel: MothershipStreamV1TextChannel.thinking,
         content: block.content,
+        ...(block.subagent ? { agent: block.subagent } : {}),
       }
     case 'tool_call': {
       if (!block.toolCall) {
@@ -351,6 +360,7 @@ const CANONICAL_BLOCK_TYPES: Set<string> = new Set(Object.values(MothershipStrea
 interface RawBlock {
   type: string
   lane?: string
+  agent?: string
   content?: string
   /** Go persists text blocks with key "text" instead of "content" */
   text?: string
@@ -416,6 +426,7 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.lane === 'subagent') {
     result.lane = block.lane
   }
+  if (block.agent) result.agent = block.agent
   const blockContent = block.content ?? block.text
   if (blockContent !== undefined) result.content = blockContent
   if (block.channel) result.channel = block.channel as MothershipStreamV1TextChannel

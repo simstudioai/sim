@@ -440,6 +440,14 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   const groupsByKey = new Map<string, AgentGroupSegment>()
   const lastNarrationChannel = new Map<AgentGroupSegment, NarrationChannel>()
   let activeGroupKey: string | null = null
+  // Run-ordinal keys, mirroring parseBlocksWithSpanTree. A turn starts in this
+  // parser and flips to the span-tree parser when the first spanId-carrying
+  // block arrives; segments that exist in both must keep the SAME React key
+  // across that flip or their subtrees remount mid-stream (group re-expands,
+  // text re-fades). Block-index text keys and position-based mothership ids
+  // diverge from the span-tree scheme; run ordinals match it.
+  let textRun = 0
+  let mothershipRun = 0
 
   const groupKey = (name: string, parentToolCallId: string | undefined) =>
     parentToolCallId ? `${name}:${parentToolCallId}` : `${name}:legacy`
@@ -466,9 +474,14 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       type: 'agent_group',
       // Canonical key = the dispatch tool call id, identical to the span-tree
       // parser, so a transcript that gains span ids (or a DB reload) keeps the
-      // same React key and never remounts. Orphans (no dispatch tool) keep the
-      // position-based legacy id.
-      id: parentToolCallId ? `agent-${parentToolCallId}` : `agent-${key}-${segments.length}`,
+      // same React key and never remounts. The mothership group uses the same
+      // run-ordinal id as the span-tree parser for the same reason. Orphans
+      // (no dispatch tool, not mothership) keep the position-based legacy id.
+      id: parentToolCallId
+        ? `agent-${parentToolCallId}`
+        : name === 'mothership'
+          ? `agent-mothership-${mothershipRun++}`
+          : `agent-${key}-${segments.length}`,
       agentName: name,
       agentLabel: resolveAgentLabel(name),
       items: [],
@@ -547,7 +560,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       if (last?.type === 'text') {
         last.content += block.content
       } else {
-        segments.push({ type: 'text', id: `text-${i}`, content: block.content })
+        segments.push({ type: 'text', id: `text-${textRun++}`, content: block.content })
       }
       continue
     }
