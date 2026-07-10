@@ -319,11 +319,16 @@ export function useAutosave({
         .finally(() => {
           savingRef.current = false
           inFlightRef.current = null
+          // A newer edit made while the correction was in flight bailed out of the debounce
+          // effect (savingRef was held) and never got rescheduled — pick it up now that the
+          // mutex is free. This also gives that edit's own save cycle ownership of saveStatus,
+          // covering a correction that failed after a newer edit already un-suppressed discard.
+          if (!unmountedRef.current && contentRef.current !== savedContentRef.current) save()
         })
       inFlightRef.current = correctionRun
       return correctionRun
     })
-  }, [clearLocalDraft])
+  }, [clearLocalDraft, save])
 
   return { saveStatus, saveImmediately, isDirty, discard }
 }
