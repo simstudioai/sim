@@ -22,6 +22,7 @@ import {
   requiresPendingWebhookVerification,
 } from '@/lib/webhooks/pending-verification'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
 import { SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
 import { executeWebhookJob } from '@/background/webhook-execution'
@@ -567,14 +568,51 @@ export async function checkWebhookPreprocessing(
   }
 }
 
-export async function queueWebhookExecution(
-  foundWebhook: any,
-  foundWorkflow: any,
-  body: any,
+export type WebhookDispatchOutcome = 'queued' | 'ignored' | 'failed'
+
+export interface WebhookDispatchResult {
+  outcome: WebhookDispatchOutcome
+  response: NextResponse
+  reason:
+    | 'queued'
+    | 'event-mismatch'
+    | 'filtered'
+    | 'preprocessing'
+    | 'block-missing'
+    | 'queue-failed'
+}
+
+type ResolvedWebhookRecord = Omit<typeof webhook.$inferSelect, 'provider' | 'providerConfig'> & {
+  provider: string
+  providerConfig: Record<string, unknown>
+}
+
+function parseProviderConfig(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function getCredentialId(providerConfig: Record<string, unknown>): string | undefined {
+  return typeof providerConfig.credentialId === 'string' ? providerConfig.credentialId : undefined
+}
+
+function shouldUseDurableQueue(provider: string, handler: WebhookProviderHandler): boolean {
+  return (
+    isPollingWebhookProvider(provider) ||
+    provider === SIM_TRIGGER_PROVIDER ||
+    handler.executionMode === 'queue'
+  )
+}
+
+async function queueWebhookExecutionWithResult(
+  foundWebhook: ResolvedWebhookRecord,
+  foundWorkflow: typeof workflow.$inferSelect,
+  body: unknown,
   request: NextRequest,
   options: WebhookProcessorOptions
-): Promise<NextResponse> {
-  const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+): Promise<WebhookDispatchResult> {
+  const providerConfig = foundWebhook.providerConfig ?? {}
   const handler = getProviderHandler(foundWebhook.provider)
 
   try {
@@ -589,11 +627,19 @@ export async function queueWebhookExecution(
       })
       if (result !== true) {
         if (result instanceof NextResponse) {
-          return result
+          return {
+            outcome: result.ok ? 'ignored' : 'failed',
+            response: result,
+            reason: 'event-mismatch',
+          }
         }
-        return NextResponse.json({
-          message: 'Event type does not match trigger configuration. Ignoring.',
-        })
+        return {
+          outcome: 'ignored',
+          response: NextResponse.json({
+            message: 'Event type does not match trigger configuration. Ignoring.',
+          }),
+          reason: 'event-mismatch',
+        }
       }
     }
 
@@ -606,12 +652,19 @@ export async function queueWebhookExecution(
       )
     }
 
-    const credentialId = providerConfig.credentialId as string | undefined
+    const credentialId = getCredentialId(providerConfig)
 
     const actorUserId = options.actorUserId
     if (!actorUserId) {
       logger.error(`[${options.requestId}] No actorUserId provided for webhook ${foundWebhook.id}`)
-      return NextResponse.json({ error: 'Unable to resolve billing account' }, { status: 500 })
+      return {
+        outcome: 'failed',
+        response: NextResponse.json(
+          { error: 'Unable to resolve billing account' },
+          { status: 500 }
+        ),
+        reason: 'queue-failed',
+      }
     }
 
     const executionId = options.executionId ?? generateId()
@@ -627,6 +680,7 @@ export async function queueWebhookExecution(
         provider: foundWebhook.provider,
         triggerType: 'webhook',
       } satisfies AsyncExecutionCorrelation)
+    const workspaceId = foundWorkflow.workspaceId ?? undefined
 
     const payload = {
       webhookId: foundWebhook.id,
@@ -639,8 +693,8 @@ export async function queueWebhookExecution(
       body,
       headers,
       path: options.path || foundWebhook.path,
-      blockId: foundWebhook.blockId,
-      workspaceId: foundWorkflow.workspaceId,
+      blockId: foundWebhook.blockId ?? undefined,
+      workspaceId,
       ...(credentialId ? { credentialId } : {}),
       ...(options.receivedAt !== undefined ? { webhookReceivedAt: options.receivedAt } : {}),
       ...(options.triggerTimestampMs !== undefined
@@ -648,26 +702,26 @@ export async function queueWebhookExecution(
         : {}),
     }
 
-    const isPolling = isPollingWebhookProvider(payload.provider)
+    const shouldUseQueue = shouldUseDurableQueue(payload.provider, handler)
 
-    if (isPolling && !shouldExecuteInline()) {
+    if (shouldUseQueue && !shouldExecuteInline()) {
       const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
         metadata: {
           workflowId: foundWorkflow.id,
-          workspaceId: foundWorkflow.workspaceId,
+          workspaceId,
           userId: actorUserId,
           correlation,
         },
       })
       logger.info(
-        `[${options.requestId}] Queued polling webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
+        `[${options.requestId}] Queued webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
       )
     } else {
       const jobQueue = await getInlineJobQueue()
       const jobId = await jobQueue.enqueue('webhook-execution', payload, {
         metadata: {
           workflowId: foundWorkflow.id,
-          workspaceId: foundWorkflow.workspaceId,
+          workspaceId,
           userId: actorUserId,
           correlation,
         },
@@ -712,20 +766,95 @@ export async function queueWebhookExecution(
 
     const successResponse = handler.formatSuccessResponse?.(providerConfig) ?? null
     if (successResponse) {
-      return successResponse
+      return { outcome: 'queued', response: successResponse, reason: 'queued' }
     }
 
-    return NextResponse.json({ message: 'Webhook processed' })
+    return {
+      outcome: 'queued',
+      response: NextResponse.json({ message: 'Webhook processed' }),
+      reason: 'queued',
+    }
   } catch (error: unknown) {
     logger.error(`[${options.requestId}] Failed to queue webhook execution:`, error)
 
     const errorResponse = handler.formatQueueErrorResponse?.() ?? null
     if (errorResponse) {
-      return errorResponse
+      return { outcome: 'failed', response: errorResponse, reason: 'queue-failed' }
     }
 
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return {
+      outcome: 'failed',
+      response: NextResponse.json({ error: 'Internal server error' }, { status: 500 }),
+      reason: 'queue-failed',
+    }
   }
+}
+
+/**
+ * Runs the common post-authentication lifecycle for a resolved webhook target and returns a typed
+ * outcome so app-level fanout workers do not infer queue state from HTTP response bodies.
+ */
+export async function dispatchResolvedWebhookTarget(
+  foundWebhook: typeof webhook.$inferSelect,
+  foundWorkflow: typeof workflow.$inferSelect,
+  body: unknown,
+  request: NextRequest,
+  options: WebhookProcessorOptions
+): Promise<WebhookDispatchResult> {
+  if (!foundWebhook.provider) {
+    return {
+      outcome: 'failed',
+      response: NextResponse.json({ error: 'Webhook provider is missing' }, { status: 500 }),
+      reason: 'queue-failed',
+    }
+  }
+
+  const webhookRecord = {
+    ...foundWebhook,
+    provider: foundWebhook.provider,
+    providerConfig: parseProviderConfig(foundWebhook.providerConfig),
+  }
+  const preprocessResult = await checkWebhookPreprocessing(
+    foundWorkflow,
+    webhookRecord,
+    options.requestId
+  )
+  if (preprocessResult.error) {
+    return {
+      outcome: 'failed',
+      response: preprocessResult.error,
+      reason: 'preprocessing',
+    }
+  }
+
+  if (webhookRecord.blockId) {
+    const blockExists = await blockExistsInDeployment(foundWorkflow.id, webhookRecord.blockId)
+    if (!blockExists) {
+      const verificationResponse = handlePreDeploymentVerification(webhookRecord, options.requestId)
+      return {
+        outcome: 'ignored',
+        response:
+          verificationResponse ??
+          new NextResponse('Trigger block not found in deployment', { status: 404 }),
+        reason: 'block-missing',
+      }
+    }
+  }
+
+  if (shouldSkipWebhookEvent(webhookRecord, body, options.requestId)) {
+    return {
+      outcome: 'ignored',
+      response: NextResponse.json({ message: 'Webhook event ignored' }),
+      reason: 'filtered',
+    }
+  }
+
+  return queueWebhookExecutionWithResult(webhookRecord, foundWorkflow, body, request, {
+    ...options,
+    actorUserId: preprocessResult.actorUserId,
+    executionId: preprocessResult.executionId,
+    correlation: preprocessResult.correlation,
+  })
 }
 
 export interface PolledWebhookEventResult {
@@ -787,8 +916,8 @@ export async function processPolledWebhookEvent(
       }
     }
 
-    const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
-    const credentialId = providerConfig.credentialId as string | undefined
+    const providerConfig = parseProviderConfig(foundWebhook.providerConfig)
+    const credentialId = getCredentialId(providerConfig)
 
     const actorUserId = preprocessResult.actorUserId
     if (!actorUserId) {
@@ -827,8 +956,7 @@ export async function processPolledWebhookEvent(
       ...(credentialId ? { credentialId } : {}),
     }
 
-    const isQueueRoutedProvider =
-      isPollingWebhookProvider(payload.provider) || payload.provider === SIM_TRIGGER_PROVIDER
+    const isQueueRoutedProvider = shouldUseDurableQueue(provider, getProviderHandler(provider))
     if (isQueueRoutedProvider && !shouldExecuteInline()) {
       const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
         metadata: {

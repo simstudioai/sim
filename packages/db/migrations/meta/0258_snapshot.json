@@ -1,5 +1,5 @@
 {
-  "id": "b15d02ed-92fa-48ef-9edc-0c2fefba1aeb",
+  "id": "4fa65eec-f5c0-4d5c-8d9c-a3b6577228d0",
   "prevId": "c405fc48-c6bb-4786-863f-3d3e686095b5",
   "version": "7",
   "dialect": "postgresql",
@@ -12163,13 +12163,7 @@
           "name": "path",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "routing_key": {
-          "name": "routing_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "provider": {
           "name": "provider",
@@ -12268,28 +12262,6 @@
           "method": "btree",
           "with": {}
         },
-        "webhook_routing_key_active_idx": {
-          "name": "webhook_routing_key_active_idx",
-          "columns": [
-            {
-              "expression": "routing_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "provider",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"webhook\".\"archived_at\" IS NULL AND \"webhook\".\"routing_key\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "webhook_archived_at_partial_idx": {
           "name": "webhook_archived_at_partial_idx",
           "columns": [
@@ -12335,6 +12307,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "webhook_tiktok_credential_id_idx": {
+          "name": "webhook_tiktok_credential_id_idx",
+          "columns": [
+            {
+              "expression": "((\"provider_config\")::jsonb ->> 'credentialId')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"webhook\".\"provider\" = 'tiktok' AND \"webhook\".\"is_active\" = true AND \"webhook\".\"archived_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

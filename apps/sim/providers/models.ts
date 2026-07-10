@@ -2553,9 +2553,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     name: 'Z.ai',
     description: "Z.ai's GLM models via an OpenAI-compatible API",
     defaultModel: 'glm-4.6',
-    // No fallback pattern: `/^glm/` would overmatch any unrelated self-hosted "glm-*" model
-    // (e.g. a custom vLLM/LiteLLM deployment) and misroute it to Z.ai's hosted billing.
-    // Routing for zai's own models relies solely on the exact catalog match in `models`.
     modelPatterns: [],
     icon: ZaiIcon,
     color: '#2D2D2D',

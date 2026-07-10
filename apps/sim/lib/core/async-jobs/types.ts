@@ -24,6 +24,7 @@ export type JobType =
   | 'workflow-execution'
   | 'schedule-execution'
   | 'webhook-execution'
+  | 'tiktok-webhook-ingress'
   | 'resume-execution'
   | 'workflow-group-cell'
   | 'cleanup-logs'

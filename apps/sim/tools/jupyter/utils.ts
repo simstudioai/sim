@@ -1,3 +1,5 @@
+import { isPlainRecord } from '@sim/utils/object'
+
 const PROTOCOL_PATTERN = /^https?:\/\//i
 
 /**
@@ -129,6 +131,46 @@ export function assertSafeJupyterPath(path: string): string {
 export function assertSafeJupyterProxyPath(rawPath: string): void {
   const [pathname] = rawPath.split('?')
   assertNoJupyterPathTraversal(pathname)
+}
+
+interface JupyterContentModel {
+  name?: string
+  path?: string
+  type?: 'directory' | 'file' | 'notebook'
+  writable?: boolean
+  created?: string
+  lastModified?: string
+  size?: number
+  mimetype?: string
+  format?: 'json' | 'text' | 'base64'
+  content?: unknown
+}
+
+/** Parses the shared model returned by Jupyter's Contents API. */
+export function parseJupyterContentModel(value: unknown): JupyterContentModel | null {
+  if (!isPlainRecord(value)) return null
+
+  const type =
+    value.type === 'directory' || value.type === 'file' || value.type === 'notebook'
+      ? value.type
+      : undefined
+  const format =
+    value.format === 'json' || value.format === 'text' || value.format === 'base64'
+      ? value.format
+      : undefined
+
+  return {
+    ...(typeof value.name === 'string' ? { name: value.name } : {}),
+    ...(typeof value.path === 'string' ? { path: value.path } : {}),
+    ...(type ? { type } : {}),
+    ...(typeof value.writable === 'boolean' ? { writable: value.writable } : {}),
+    ...(typeof value.created === 'string' ? { created: value.created } : {}),
+    ...(typeof value.last_modified === 'string' ? { lastModified: value.last_modified } : {}),
+    ...(typeof value.size === 'number' ? { size: value.size } : {}),
+    ...(typeof value.mimetype === 'string' ? { mimetype: value.mimetype } : {}),
+    ...(format ? { format } : {}),
+    ...('content' in value ? { content: value.content } : {}),
+  }
 }
 
 interface RawJupyterKernel {

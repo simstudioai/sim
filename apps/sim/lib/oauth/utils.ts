@@ -122,6 +122,14 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'mute.write': 'Mute and unmute users',
   'offline.access': 'Access account when not using the application',
 
+  // TikTok scopes
+  'user.info.basic': "Read a user's profile info (open id, avatar, display name)",
+  'user.info.profile': "Read a user's profile info (bio, verification status, username)",
+  'user.info.stats': "Read a user's stats (follower, following, likes, and video counts)",
+  'video.publish': "Directly post content to a user's TikTok profile",
+  'video.upload': "Share content to a creator's account as a draft for further edit and post",
+  'video.list': "Read a user's public TikTok videos",
+
   // Airtable scopes
   'data.records:read': 'Read records',
   'data.records:write': 'Write to records',
