@@ -1,16 +1,23 @@
 /**
  * @vitest-environment jsdom
  *
- * A mark (bold/italic/strikethrough/inline-code) stacked on top of a link must not steal the link's
- * blue: `strong`/`em`/`del`/`s`/`code` each set their own explicit `color` for the no-link case, and an
- * element's own explicit rule always wins over an inherited value regardless of how specific the
- * ancestor's (`a`'s) selector is — so without an override targeting the mark itself, a bold/italic/
- * struck-through/code link renders in the mark's plain-text color instead of the link color.
+ * A mark stacked on top of another color-setting context must not steal that context's color: an
+ * element's own explicit `color` rule always wins over an inherited value, regardless of how specific
+ * the ancestor's selector is. Two contexts hit this in practice:
+ *
+ * - A link's blue, stacked with bold/italic/strikethrough/inline-code. `strong`/`em`/`code` no longer
+ *   set their own `color` at all (it was redundant with the prose default anyway, and — like the
+ *   `mark`/highlight rule's own `color: inherit` — the absence of a rule is what lets inheritance
+ *   carry through correctly from ANY ambient context, not just links). `del`/`s` genuinely need their
+ *   own dimmer default, so they keep an explicit `color` plus an override for the link case.
+ * - `h6`'s intentionally dimmer `--text-secondary` (vs. every other heading and the prose default,
+ *   both `--text-primary`), stacked with bold/italic — before strong/em's color was removed, a bold
+ *   run inside an `h6` incorrectly showed the brighter `--text-primary` instead of `h6`'s own tone.
  *
  * These load the real, shipped `rich-markdown-editor.css` (not a copy) and assert against
  * `getComputedStyle` in jsdom. jsdom's CSS engine does not resolve `var(...)` references to actual
- * color values, but it does correctly resolve the cascade/specificity winner and returns that
- * declaration's authored value verbatim — so asserting the winning declaration is `var(--brand-secondary)`
+ * color values, but it does correctly resolve the cascade/specificity/inheritance winner and returns
+ * that declaration's authored value verbatim — so asserting the winning value is `var(--brand-secondary)`
  * (vs. e.g. `var(--text-primary)`) is a precise, real assertion about which CSS rule wins, not a proxy.
  */
 import { readFileSync } from 'node:fs'
@@ -161,5 +168,50 @@ describe('a link elsewhere in the document does not bleed color into unrelated m
     const root = mount('<p><a href="#">a link</a> and <strong>bold text</strong></p>')
     expect(colorOf(root.querySelector('a'))).toBe(LINK_COLOR)
     expect(colorOf(root.querySelector('strong'))).toBe('var(--text-primary)')
+  })
+})
+
+describe('headings stack correctly with marks (same bug class, a different ambient color)', () => {
+  it.each(['h1', 'h2', 'h3', 'h4', 'h5'])(
+    '%s carries --text-primary, same as bold/italic inside it — no visible regression either way',
+    (tag) => {
+      const root = mount(`<${tag}><strong>bold</strong> <em>italic</em></${tag}>`)
+      expect(colorOf(root.querySelector(tag))).toBe('var(--text-primary)')
+      expect(colorOf(root.querySelector('strong'))).toBe('var(--text-primary)')
+      expect(colorOf(root.querySelector('em'))).toBe('var(--text-primary)')
+    }
+  )
+
+  // h6 is the one heading with its own dimmer tone (--text-secondary, not --text-primary like every
+  // other heading and the prose default) — the exact shape of ambient color strong/em must inherit
+  // rather than reset, the same failure mode as the link case above just triggered by a heading
+  // instead of an <a>.
+  it('h6 keeps its dimmer --text-secondary, and bold/italic inside it inherit that tone (not --text-primary)', () => {
+    const root = mount('<h6><strong>bold</strong> <em>italic</em> plain</h6>')
+    const h6 = root.querySelector('h6') as HTMLElement
+    expect(colorOf(h6)).toBe('var(--text-secondary)')
+    expect(colorOf(root.querySelector('strong'))).toBe('var(--text-secondary)')
+    expect(colorOf(root.querySelector('em'))).toBe('var(--text-secondary)')
+  })
+
+  it('inline code inside h6 also inherits --text-secondary, not its own hardcoded default', () => {
+    const root = mount('<h6><code>code</code></h6>')
+    expect(colorOf(root.querySelector('code'))).toBe('var(--text-secondary)')
+  })
+
+  it('a struck-through run inside h6 keeps its own dimmer tertiary tone (mark-own-color still wins over a non-link ambient context)', () => {
+    const root = mount('<h6><del>struck</del></h6>')
+    expect(colorOf(root.querySelector('del'))).toBe('var(--text-tertiary)')
+  })
+
+  it('an anchor heading (link wrapping the whole heading) still shows link color, unaffected by h6', () => {
+    const root = mount('<h6><a href="#">linked heading</a></h6>')
+    expect(colorOf(root.querySelector('a'))).toBe(LINK_COLOR)
+  })
+
+  it('bold + italic + link inside h6: link color wins over both the mark defaults and h6 itself', () => {
+    const root = mount('<h6><a href="#"><strong><em>bold italic link</em></strong></a></h6>')
+    expect(colorOf(root.querySelector('em'))).toBe(LINK_COLOR)
+    expect(colorOf(root.querySelector('strong'))).toBe(LINK_COLOR)
   })
 })
