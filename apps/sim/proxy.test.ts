@@ -9,7 +9,7 @@ vi.mock('@/lib/core/config/env', () =>
   createEnvMock({ NEXT_PUBLIC_APP_URL: 'https://app.sim.test' })
 )
 
-import { isNonLandingPath, resolveApiCorsPolicy } from '@/proxy'
+import { resolveApiCorsPolicy } from '@/proxy'
 
 function makeRequest(pathname: string, origin?: string): NextRequest {
   return {
@@ -120,40 +120,5 @@ describe('resolveApiCorsPolicy', () => {
         expect(policy.credentials).toBe(false)
       }
     }
-  })
-})
-
-describe('isNonLandingPath', () => {
-  it('matches known non-landing top-level pages and their subpaths', () => {
-    const paths = [
-      '/verify',
-      '/sso',
-      '/reset-password',
-      '/resume',
-      '/resume/workflow-123',
-      '/f',
-      '/f/token-abc',
-      '/invite',
-      '/invite/invite-id',
-      '/playground',
-      '/unsubscribe',
-    ]
-    for (const path of paths) {
-      expect(isNonLandingPath(path)).toBe(true)
-    }
-  })
-
-  it('does not match landing pages', () => {
-    const paths = ['/', '/pricing', '/blog/some-post', '/integrations', '/terms', '/privacy']
-    for (const path of paths) {
-      expect(isNonLandingPath(path)).toBe(false)
-    }
-  })
-
-  it('does not false-positive on landing pages that share a prefix with a non-landing page', () => {
-    // '/ffoo' and '/finance' start with 'f' but are not the '/f/:token' route
-    expect(isNonLandingPath('/ffoo')).toBe(false)
-    expect(isNonLandingPath('/finance')).toBe(false)
-    expect(isNonLandingPath('/resumes')).toBe(false)
   })
 })

@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { sendToProfound } from './lib/analytics/profound'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isHosted } from './lib/core/config/env-flags'
-import { generateLandingRuntimeCSP, generateRuntimeCSP } from './lib/core/security/csp'
+import { generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
 
 const logger = createLogger('Proxy')
@@ -115,24 +115,6 @@ function buildPreflightResponse(policy: CorsPolicy): NextResponse {
   applyCorsHeaders(response, policy)
   response.headers.set('Access-Control-Max-Age', CORS_PREFLIGHT_MAX_AGE)
   return response
-}
-
-/** Top-level pages outside (landing) that still reach the catch-all branch below. */
-const NON_LANDING_PATH_PREFIXES = [
-  '/verify',
-  '/sso',
-  '/reset-password',
-  '/resume',
-  '/f',
-  '/invite',
-  '/playground',
-  '/unsubscribe',
-]
-
-export function isNonLandingPath(pathname: string): boolean {
-  return NON_LANDING_PATH_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
 }
 
 const SUSPICIOUS_UA_PATTERNS = [
@@ -302,13 +284,10 @@ export async function proxy(request: NextRequest) {
   const securityBlock = handleSecurityFiltering(request)
   if (securityBlock) return track(request, securityBlock)
 
-  // Mostly the public marketing/landing site, plus a few non-landing pages
-  // (see isNonLandingPath) that also fall through to this branch.
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  const csp = isNonLandingPath(url.pathname) ? generateRuntimeCSP() : generateLandingRuntimeCSP()
-  response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('Content-Security-Policy', generateRuntimeCSP())
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 

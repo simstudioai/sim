@@ -60,6 +60,12 @@ const STATIC_SCRIPT_SRC = [
         'https://www.googletagmanager.com',
         'https://www.google-analytics.com',
         'https://analytics.ahrefs.com',
+        // HubSpot tracking (landing pages) — loader plus the
+        // analytics/form-tracking/banner scripts it injects as <script> tags
+        'https://*.hs-scripts.com',
+        'https://*.hs-analytics.net',
+        'https://*.hscollectedforms.net',
+        'https://*.hs-banner.com',
       ]
     : []),
 ] as const
@@ -96,28 +102,12 @@ const STATIC_CONNECT_SRC = [
         'https://www.google.com',
         'https://analytics.ahrefs.com',
         'https://*.g.doubleclick.net',
-      ]
-    : []),
-] as const
-
-/**
- * HubSpot tracking sources. The loader only renders inside the (landing)
- * route group, so these are kept out of STATIC_SCRIPT_SRC/STATIC_CONNECT_SRC
- * and merged in only by the landing-scoped CSP builders below.
- */
-const HUBSPOT_SCRIPT_SRC = [
-  ...(isHosted
-    ? [
-        'https://*.hs-scripts.com',
-        'https://*.hs-analytics.net',
+        // HubSpot tracking — form-tracking API (hscollectedforms.js) and
+        // the visitor beacon (track.hubspot.com)
         'https://*.hscollectedforms.net',
-        'https://*.hs-banner.com',
+        'https://*.hubspot.com',
       ]
     : []),
-] as const
-
-const HUBSPOT_CONNECT_SRC = [
-  ...(isHosted ? ['https://*.hscollectedforms.net', 'https://*.hubspot.com'] : []),
 ] as const
 
 const STATIC_FRAME_SRC = [
@@ -203,12 +193,12 @@ export function buildCSPString(directives: CSPDirectives): string {
 }
 
 /**
- * Build runtime CSP directives with dynamic environment variables.
+ * Generate runtime CSP header with dynamic environment variables.
  * Composes from the same STATIC_* constants as buildTimeCSPDirectives,
  * but resolves env vars at request time via getEnv() to fix Docker
  * deployments where build-time values may be stale placeholders.
  */
-function buildRuntimeCSPDirectives(): CSPDirectives {
+export function generateRuntimeCSP(): string {
   const appUrl = getEnv('NEXT_PUBLIC_APP_URL') || ''
 
   const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? DEFAULT_SOCKET_URL : '')
@@ -219,7 +209,7 @@ function buildRuntimeCSPDirectives(): CSPDirectives {
   const privacyDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_PRIVACY_URL'))
   const termsDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_TERMS_URL'))
 
-  return {
+  const runtimeDirectives: CSPDirectives = {
     ...buildTimeCSPDirectives,
 
     'img-src': [...STATIC_IMG_SRC],
@@ -235,27 +225,8 @@ function buildRuntimeCSPDirectives(): CSPDirectives {
       ...termsDomains,
     ],
   }
-}
 
-/**
- * Generate runtime CSP header for non-landing routes (proxy.ts).
- */
-export function generateRuntimeCSP(): string {
-  return buildCSPString(buildRuntimeCSPDirectives())
-}
-
-/**
- * Generate runtime CSP header for the public marketing/landing site.
- * Extends the shared runtime policy with HubSpot tracking hosts.
- */
-export function generateLandingRuntimeCSP(): string {
-  const directives = buildRuntimeCSPDirectives()
-
-  return buildCSPString({
-    ...directives,
-    'script-src': [...(directives['script-src'] ?? []), ...HUBSPOT_SCRIPT_SRC],
-    'connect-src': [...(directives['connect-src'] ?? []), ...HUBSPOT_CONNECT_SRC],
-  })
+  return buildCSPString(runtimeDirectives)
 }
 
 /**
