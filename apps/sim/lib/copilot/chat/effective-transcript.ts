@@ -9,6 +9,7 @@ import {
   MothershipStreamV1SessionKind,
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
+  MothershipStreamV1TextChannel,
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
@@ -261,6 +262,14 @@ function buildLiveAssistantMessage(params: {
       case MothershipStreamV1EventType.text: {
         const chunk = parsed.payload.text
         if (!chunk) {
+          continue
+        }
+        // Reasoning is never rendered or persisted (the stream reducer and the
+        // turn model both key on the channel; buildPersistedAssistantMessage
+        // strips it). This snapshot-derived converter must not resurrect it as
+        // visible prose — skip before block append AND runningText so thinking
+        // never leaks into the live-assistant message's content either.
+        if (parsed.payload.channel === MothershipStreamV1TextChannel.thinking) {
           continue
         }
         const contentSource: 'main' | 'subagent' = scopedSubagent ? 'subagent' : 'main'

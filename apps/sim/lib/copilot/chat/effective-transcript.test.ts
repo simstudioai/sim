@@ -154,7 +154,7 @@ describe('buildEffectiveChatTranscript', () => {
     )
   })
 
-  it('does not duplicate thinking-only text into a second assistant block', () => {
+  it('never surfaces thinking-channel text: a thinking-only stream stays a placeholder', () => {
     const result = buildEffectiveChatTranscript({
       messages: [buildUserMessage('stream-1', 'Hello')],
       activeStreamId: 'stream-1',
@@ -180,15 +180,51 @@ describe('buildEffectiveChatTranscript', () => {
     expect(result).toHaveLength(2)
     expect(result[1]).toEqual(
       expect.objectContaining({
-        content: 'Internal reasoning',
+        id: getLiveAssistantMessageId('stream-1'),
+        role: 'assistant',
+        content: '',
+      })
+    )
+    expect(JSON.stringify(result[1])).not.toContain('Internal reasoning')
+  })
+
+  it('keeps assistant text while dropping interleaved thinking chunks', () => {
+    const textEvent = (seq: number, channel: MothershipStreamV1TextChannel, text: string) =>
+      toBatchEvent(seq, {
+        v: 1,
+        seq,
+        ts: '2026-04-15T12:00:01.000Z',
+        type: MothershipStreamV1EventType.text,
+        stream: { streamId: 'stream-1' },
+        payload: { channel, text },
+      })
+    const result = buildEffectiveChatTranscript({
+      messages: [buildUserMessage('stream-1', 'Hello')],
+      activeStreamId: 'stream-1',
+      streamSnapshot: {
+        events: [
+          textEvent(1, MothershipStreamV1TextChannel.thinking, '**Planning**\n\nHidden reasoning.'),
+          textEvent(2, MothershipStreamV1TextChannel.assistant, 'Visible answer.'),
+          textEvent(3, MothershipStreamV1TextChannel.thinking, 'More hidden reasoning.'),
+        ],
+        previewSessions: [],
+        status: 'active',
+      },
+    })
+
+    expect(result).toHaveLength(2)
+    expect(result[1]).toEqual(
+      expect.objectContaining({
+        content: 'Visible answer.',
         contentBlocks: [
           expect.objectContaining({
             type: MothershipStreamV1EventType.text,
-            content: 'Internal reasoning',
+            content: 'Visible answer.',
           }),
         ],
       })
     )
+    expect(JSON.stringify(result[1])).not.toContain('reasoning')
   })
 
   it('treats user-cancelled tool results as cancelled', () => {
