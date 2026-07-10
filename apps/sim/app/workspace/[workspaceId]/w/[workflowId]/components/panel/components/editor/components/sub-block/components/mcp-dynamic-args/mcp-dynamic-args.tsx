@@ -15,6 +15,20 @@ import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('McpDynamicArgs')
 
+/**
+ * The dropdown UI renders each enum member as a string label/value, so it can only
+ * represent JSON Schema enums whose members are primitives — a non-primitive member
+ * (object/array) would collapse to "[object Object]" and lose its identity.
+ */
+function isPrimitiveEnum(
+  enumValues: unknown
+): enumValues is Array<string | number | boolean | null> {
+  return (
+    Array.isArray(enumValues) &&
+    enumValues.every((value) => value === null || typeof value !== 'object')
+  )
+}
+
 interface McpDynamicArgsProps {
   blockId: string
   subBlockId: string
@@ -116,7 +130,7 @@ export function McpDynamicArgs({
   )
 
   const getInputType = (paramSchema: any) => {
-    if (paramSchema.enum) return 'dropdown'
+    if (isPrimitiveEnum(paramSchema.enum)) return 'dropdown'
     if (paramSchema.type === 'boolean') return 'switch'
     if (paramSchema.type === 'number' || paramSchema.type === 'integer') {
       if (paramSchema.minimum !== undefined && paramSchema.maximum !== undefined) {
