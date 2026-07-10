@@ -266,3 +266,47 @@ describe('shouldSmoothTextSegment', () => {
     )
   })
 })
+
+describe('parseBlocks legacy — thinking between top-level tools', () => {
+  it('keeps consecutive mothership tools in one group across intervening thinking', () => {
+    const blocks: ContentBlock[] = [
+      { type: 'thinking', content: 'planning the search', timestamp: 1 },
+      mainToolCall('t1', 'grep'),
+      { type: 'thinking', content: 'now read the workflow', timestamp: 1 },
+      mainToolCall('t2', 'read'),
+      mainToolCall('t3', 'read'),
+    ]
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(1)
+    if (groups[0].type !== 'agent_group') throw new Error('expected group')
+    expect(groups[0].agentName).toBe('mothership')
+    expect(groups[0].items).toHaveLength(3)
+  })
+
+  it('still splits the mothership run on real main text', () => {
+    const blocks: ContentBlock[] = [
+      mainToolCall('t1', 'grep'),
+      mainText('Here is what I found so far.'),
+      mainToolCall('t2', 'read'),
+    ]
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(2)
+  })
+
+  it('still breaks subagent lanes on main thinking', () => {
+    const blocks: ContentBlock[] = [
+      { type: 'subagent', content: 'workflow', parentToolCallId: 'd1', timestamp: 1 },
+      { type: 'subagent_text', content: 'working', parentToolCallId: 'd1', timestamp: 1 },
+      { type: 'thinking', content: 'main reasoning', timestamp: 1 },
+      { type: 'subagent_text', content: 'later chunk with no lane tag', timestamp: 1 },
+    ]
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(1)
+    if (groups[0].type !== 'agent_group') throw new Error('expected group')
+    // The untagged chunk after thinking must NOT merge into the flushed lane.
+    expect(groups[0].items).toHaveLength(1)
+  })
+})
