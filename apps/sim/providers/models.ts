@@ -2211,6 +2211,20 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 131072,
         releaseDate: '2025-12-22',
       },
+      {
+        id: 'cerebras/gemma-4-31b',
+        pricing: {
+          input: 0.99,
+          output: 1.49,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          maxOutputTokens: 40000,
+        },
+        contextWindow: 131072,
+        releaseDate: '2026-04-02',
+      },
     ],
   },
   groq: {
@@ -2282,6 +2296,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 131072,
         releaseDate: '2025-04-29',
+        deprecated: true,
+      },
+      {
+        id: 'groq/qwen/qwen3.6-27b',
+        pricing: {
+          input: 0.6,
+          output: 3.0,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          maxOutputTokens: 32768,
+        },
+        contextWindow: 131072,
       },
       {
         id: 'groq/llama-3.1-8b-instant',
@@ -2322,6 +2349,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 131072,
         releaseDate: '2025-04-05',
+        deprecated: true,
       },
       {
         id: 'groq/moonshotai/kimi-k2-instruct-0905',
