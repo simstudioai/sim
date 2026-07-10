@@ -200,17 +200,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const profile = (await profileResponse.json()) as {
-      user_id?: string
+      user_id?: string | number
       id?: string
       username?: string
       name?: string
     }
 
     // account.accountId must always be the Instagram professional account ID
-    // (/me user_id). The token exchange's user_id and /me's id are app-scoped
-    // IDs — a different ID space — so falling back to them would break
-    // reconnect dedupe by storing the same account under two identifiers.
-    const igUserId = typeof profile.user_id === 'string' && profile.user_id ? profile.user_id : null
+    // (/me user_id, which Meta may serialize as a string or number). The token
+    // exchange's user_id and /me's id are app-scoped IDs — a different ID
+    // space — so falling back to them would break reconnect dedupe by storing
+    // the same account under two identifiers.
+    const igUserId =
+      profile.user_id != null && profile.user_id !== '' ? String(profile.user_id) : null
 
     if (!igUserId) {
       logger.error('Instagram profile response missing user_id', { profile })

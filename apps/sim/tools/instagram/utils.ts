@@ -42,7 +42,7 @@ export async function resolveIgUserId(accessToken: string, igUserId?: string): P
     return igUserId.trim()
   }
 
-  const response = await fetch(graphUrl('/me', { fields: 'user_id,id' }), {
+  const response = await fetch(graphUrl('/me', { fields: 'user_id' }), {
     headers: bearerHeaders(accessToken),
   })
 
@@ -50,12 +50,14 @@ export async function resolveIgUserId(accessToken: string, igUserId?: string): P
     throw new Error(`Failed to resolve Instagram user id: ${await readGraphError(response)}`)
   }
 
-  const data = (await response.json()) as { user_id?: string; id?: string }
-  const resolved = data.user_id || data.id
-  if (!resolved) {
-    throw new Error('Instagram /me response did not include a user id')
+  // Only /me's user_id is the Instagram professional account ID that publish
+  // and messaging paths expect; /me's id is an app-scoped ID from a different
+  // ID space, so never fall back to it.
+  const data = (await response.json()) as { user_id?: string | number }
+  if (data.user_id == null || data.user_id === '') {
+    throw new Error('Instagram /me response did not include a user_id')
   }
-  return resolved
+  return String(data.user_id)
 }
 
 export type ContainerStatusCode = 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED'
