@@ -464,6 +464,9 @@ export async function getCustomBlockUsageCounts(
     eq(workspace.organizationId, organizationId),
     isNull(workflow.archivedAt)
   )
+  // Escape LIKE wildcards — the `_`s in `custom_block_<id>` would otherwise match
+  // any character and let unrelated states through to the jsonb parse.
+  const likePattern = `%${blockType.replace(/[\\%_]/g, '\\$&')}%`
 
   const [liveRows, deployedRows] = await Promise.all([
     db
@@ -482,7 +485,7 @@ export async function getCustomBlockUsageCounts(
           eq(workflowDeploymentVersion.isActive, true),
           eq(workflow.isDeployed, true),
           orgActiveWorkflow,
-          sql`${workflowDeploymentVersion.state}::text LIKE ${`%${blockType}%`}`,
+          sql`${workflowDeploymentVersion.state}::text LIKE ${likePattern}`,
           sql`EXISTS (
             SELECT 1 FROM jsonb_each((${workflowDeploymentVersion.state})::jsonb -> 'blocks') AS b
             WHERE b.value ->> 'type' = ${blockType}

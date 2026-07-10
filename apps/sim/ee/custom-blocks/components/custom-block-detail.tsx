@@ -432,7 +432,12 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                 {
                   text: remove.isPending ? 'Deleting...' : 'Delete',
                   variant: 'destructive' as const,
-                  onSelect: () => setShowDelete(true),
+                  onSelect: () => {
+                    setShowDelete(true)
+                    // The warning must reflect the org's CURRENT usage, not a
+                    // ≤30s-stale cache entry.
+                    usageCountsQuery.refetch()
+                  },
                   disabled: remove.isPending,
                 },
               ]
@@ -733,16 +738,17 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           disabled: confirmationText !== (existing?.name ?? ''),
         }}
       >
-        {usageCount > 0 ? (
-          <p className='break-words px-2 text-[var(--text-error)] text-sm'>
-            {usageCount} {usageCount === 1 ? 'workflow is' : 'workflows are'} still using this block
-            and will fail at run time.
-          </p>
-        ) : (
-          <p className='break-words px-2 text-[var(--text-muted)] text-sm'>
-            No workflows are currently using it.
-          </p>
-        )}
+        {usageCountsQuery.data &&
+          (usageCount > 0 ? (
+            <p className='break-words px-2 text-[var(--text-error)] text-sm'>
+              {usageCount} {usageCount === 1 ? 'workflow is' : 'workflows are'} still using this
+              block and will fail at run time.
+            </p>
+          ) : (
+            <p className='break-words px-2 text-[var(--text-muted)] text-sm'>
+              No workflows are currently using it.
+            </p>
+          ))}
         <ChipModalField
           type='input'
           title={
