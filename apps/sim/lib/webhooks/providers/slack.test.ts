@@ -437,6 +437,16 @@ describe('shouldSkipSlackTriggerEvent', () => {
     expect(fires({ eventType: 'reaction_added', bot_user_id: 'U_OTHER' }, event)).toBe(true)
   })
 
+  it('matches the channel filter for object-form channels (channel_rename)', () => {
+    // channel_created / channel_rename deliver `channel` as an object, not a string.
+    const rename = {
+      type: 'channel_rename',
+      channel: { id: 'C1', name: 'renamed-channel', created: 1 },
+    }
+    expect(fires({ eventType: 'channel_rename', channelFilter: ['C1'] }, rename)).toBe(true)
+    expect(fires({ eventType: 'channel_rename', channelFilter: ['C2'] }, rename)).toBe(false)
+  })
+
   it('applies the emoji filter to reaction events', () => {
     const event = {
       type: 'reaction_added',

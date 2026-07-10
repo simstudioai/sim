@@ -1453,7 +1453,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       },
       required: true,
     },
-    ...getTrigger('slack_oauth').subBlocks,
+    ...getTrigger('slack_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -2660,11 +2660,15 @@ const SLACK_CUSTOM_BOT_SUBBLOCKS: SubBlockConfig[] = [
   },
 ]
 
+const SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS = new Set(
+  getTrigger('slack_webhook').subBlocks.map((sb) => sb.id)
+)
+
 /**
  * slack_v2 — the go-forward Slack action block. Identical operations, tools, and
  * outputs to v1 (shared by reference), but the "Custom Bot" auth method selects
  * a reusable bot credential set up once, instead of pasting a raw token. Also
- * hosts the native Slack trigger so it surfaces once.
+ * hosts the redesigned slack_oauth trigger (v1 keeps the legacy slack_webhook).
  */
 export const SlackV2Block: BlockConfig<SlackResponse> = {
   ...SlackBlock,
@@ -2675,11 +2679,17 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
   // self-host). At GA: drop this flag, add SlackV2BlockMeta + docs, and set
   // hideFromToolbar on v1.
   preview: true,
-  subBlocks: SlackBlock.subBlocks.flatMap((sb) => {
-    if (sb.id === 'botToken') return []
-    if (sb.id === 'authMethod') return [sb, ...SLACK_CUSTOM_BOT_SUBBLOCKS]
-    return [sb]
-  }),
+  subBlocks: [
+    ...SlackBlock.subBlocks.flatMap((sb) => {
+      // Drop the legacy paste-secret trigger config (v1 hosts slack_webhook)
+      // and v1's raw bot-token auth field — the trigger set includes an
+      // id-colliding 'botToken', so the set check covers both.
+      if (SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS.has(sb.id)) return []
+      if (sb.id === 'authMethod') return [sb, ...SLACK_CUSTOM_BOT_SUBBLOCKS]
+      return [sb]
+    }),
+    ...getTrigger('slack_oauth').subBlocks,
+  ],
   triggers: {
     enabled: true,
     available: ['slack_oauth'],

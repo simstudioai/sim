@@ -499,6 +499,10 @@ export function resolveSlackEventChannel(
 ): string | undefined {
   if (!event) return undefined
   if (typeof event.channel === 'string') return event.channel
+  // channel_created / channel_rename deliver `channel` as an object.
+  if (isRecordLike(event.channel) && typeof event.channel.id === 'string') {
+    return event.channel.id
+  }
   const item = event.item as Record<string, unknown> | undefined
   if (typeof item?.channel === 'string') return item.channel
   return typeof event.channel_id === 'string' ? event.channel_id : undefined
