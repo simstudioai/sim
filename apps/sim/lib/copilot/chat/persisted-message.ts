@@ -269,7 +269,17 @@ export function buildPersistedAssistantMessage(
   }
 
   if (result.contentBlocks.length > 0) {
-    message.contentBlocks = mergeAndRedactPersistedBlocks(result.contentBlocks.map(mapContentBlock))
+    // Reasoning is display-transient and never rendered, so it is never
+    // persisted either: storing it bloats whale chats and lets the persisted
+    // turn diverge from the streamed one (the refresh-vs-switch mismatch).
+    // This is the single write-side choke point for assistant blocks, so the
+    // guarantee holds for every terminal path (complete, cancelled, error).
+    const withoutThinking = result.contentBlocks.filter(
+      (block) => block.type !== 'thinking' && block.type !== 'subagent_thinking'
+    )
+    if (withoutThinking.length > 0) {
+      message.contentBlocks = mergeAndRedactPersistedBlocks(withoutThinking.map(mapContentBlock))
+    }
   }
 
   return message

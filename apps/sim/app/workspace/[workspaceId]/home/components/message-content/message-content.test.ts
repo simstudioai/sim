@@ -302,31 +302,6 @@ describe('completed tool titles', () => {
 })
 
 describe('narration text seams', () => {
-  it('inserts a space between glued consecutive blocks', () => {
-    const blocks: ContentBlock[] = [
-      subagentStart('research', 'S1', 'main'),
-      {
-        type: 'subagent_thinking',
-        content: 'that triggered it.',
-        spanId: 'S1',
-        subagent: 'research',
-        timestamp: 2,
-      },
-      {
-        type: 'subagent_text',
-        content: 'The failing block is X.',
-        spanId: 'S1',
-        subagent: 'research',
-        timestamp: 3,
-      },
-    ]
-    const segments = parseBlocks(blocks)
-    const group = segments.find((s) => s.type === 'agent_group')
-    if (!group || group.type !== 'agent_group') throw new Error('expected group')
-    const text = group.items.find((i) => i.type === 'text')
-    if (!text || text.type !== 'text') throw new Error('expected text')
-    expect(text.content).toBe('that triggered it. The failing block is X.')
-  })
 
   it('never inserts a space into a segment split mid-word or mid-URL', () => {
     const seam = (first: string, second: string): string => {
@@ -384,5 +359,49 @@ describe('narration text seams', () => {
     const text = group.items.find((i) => i.type === 'text')
     if (!text || text.type !== 'text') throw new Error('expected text')
     expect(text.content).toBe('first sentence. second sentence.')
+  })
+})
+
+describe('parseBlocks legacy — thinking between top-level tools', () => {
+  it('keeps consecutive mothership tools in one group across intervening thinking', () => {
+    const blocks: ContentBlock[] = [
+      { type: 'thinking', content: 'planning the search', timestamp: 1 },
+      mainToolCall('t1', 'grep'),
+      { type: 'thinking', content: 'now read the workflow', timestamp: 1 },
+      mainToolCall('t2', 'read'),
+      mainToolCall('t3', 'read'),
+    ]
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(1)
+    if (groups[0].type !== 'agent_group') throw new Error('expected group')
+    expect(groups[0].agentName).toBe('mothership')
+    expect(groups[0].items).toHaveLength(3)
+  })
+
+  it('still splits the mothership run on real main text', () => {
+    const blocks: ContentBlock[] = [
+      mainToolCall('t1', 'grep'),
+      mainText('Here is what I found so far.'),
+      mainToolCall('t2', 'read'),
+    ]
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(2)
+  })
+
+  it('still breaks subagent lanes on main thinking', () => {
+    const blocks: ContentBlock[] = [
+      { type: 'subagent', content: 'workflow', parentToolCallId: 'd1', timestamp: 1 },
+      { type: 'subagent_text', content: 'working', parentToolCallId: 'd1', timestamp: 1 },
+      { type: 'thinking', content: 'main reasoning', timestamp: 1 },
+      { type: 'subagent_text', content: 'later chunk with no lane tag', timestamp: 1 },
+    ]
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(1)
+    if (groups[0].type !== 'agent_group') throw new Error('expected group')
+    // The untagged chunk after thinking must NOT merge into the flushed lane.
+    expect(groups[0].items).toHaveLength(1)
   })
 })

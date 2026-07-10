@@ -538,10 +538,20 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
     }
 
     if (block.type === 'thinking') {
-      // Main-agent thinking is not rendered, but it still breaks open subagent
-      // lanes so later chunks don't merge across it (display-only omission).
+      // Main-agent thinking is not rendered. It still breaks open SUBAGENT
+      // lanes so later chunks don't merge across them, but it must not
+      // fracture the top-level (mothership) tool run: models stream reasoning
+      // between consecutive tool rounds (Anthropic thinking, OpenAI per-round
+      // summaries), and splitting on it renders back-to-back top-level tools
+      // as separate groups. Thinking is also stripped at persistence, so a
+      // live split would disagree with the reloaded transcript. Every other
+      // segment kind still breaks the run via its own branch.
       if (!block.content?.trim()) continue
+      const mothershipKey = groupKey('mothership', undefined)
+      const mothership = groupsByKey.get(mothershipKey)
+      if (mothership) groupsByKey.delete(mothershipKey)
       flushLanes()
+      if (mothership) groupsByKey.set(mothershipKey, mothership)
       continue
     }
 
