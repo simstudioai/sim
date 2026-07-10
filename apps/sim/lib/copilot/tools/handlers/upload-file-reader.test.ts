@@ -14,6 +14,7 @@ const { mockReadFileRecord, mockFetchBuffer } = vi.hoisted(() => ({
 
 vi.mock('@/lib/copilot/vfs/file-reader', () => ({
   readFileRecord: mockReadFileRecord,
+  MAX_TEXT_READ_BYTES: 5 * 1024 * 1024,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({

@@ -3,7 +3,11 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
-import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import {
+  type FileReadResult,
+  MAX_TEXT_READ_BYTES,
+  readFileRecord,
+} from '@/lib/copilot/vfs/file-reader'
 import {
   type GrepCountEntry,
   type GrepMatch,
@@ -27,9 +31,11 @@ const logger = createLogger('UploadFileReader')
  * bytes decide (a mislabeled text file named `data.zip` stays readable instead
  * of being trapped between read-says-extract and extract-says-invalid); above
  * it the extension is trusted so a real 100MB zip is never downloaded just to
- * refuse it.
+ * refuse it. Aligned with the read path's inline text cap — any mislabeled
+ * file too big to sniff would be rejected by read() as too large anyway, so
+ * nothing readable is ever dead-ended.
  */
-const ARCHIVE_SNIFF_MAX_BYTES = 1024 * 1024
+const ARCHIVE_SNIFF_MAX_BYTES = MAX_TEXT_READ_BYTES
 
 /**
  * True when the upload should get extract-first guidance: named like an archive

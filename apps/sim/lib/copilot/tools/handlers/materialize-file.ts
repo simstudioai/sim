@@ -14,6 +14,7 @@ import {
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { canonicalWorkspaceFilePath, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   ArchiveError,
@@ -303,6 +304,9 @@ async function executeImport(
  * empty), so a hostile upload name like `..zip` or `\x01.zip` lands in the
  * `archive` fallback instead of surfacing a raw internal error — and so the
  * VFS-encoded destination path can be computed before anything is extracted.
+ * Reserved system backing folders (`.changelogs`, `.plans`) also fall back:
+ * extraction must never write into — or hide behind — those namespaces (the
+ * already-extracted lookup skips them, so they'd also duplicate silently).
  */
 function archiveFolderBaseName(displayName: string): string {
   const stripped = displayName
@@ -312,7 +316,15 @@ function archiveFolderBaseName(displayName: string): string {
     .replace(/[\x00-\x1f\x7f]/g, '')
     .replace(/[/\\]/g, '-')
     .trim()
-  return !stripped || stripped === '.' || stripped === '..' ? 'archive' : stripped
+  if (
+    !stripped ||
+    stripped === '.' ||
+    stripped === '..' ||
+    isReservedWorkflowAliasBackingDisplayPath(stripped)
+  ) {
+    return 'archive'
+  }
+  return stripped
 }
 
 /**

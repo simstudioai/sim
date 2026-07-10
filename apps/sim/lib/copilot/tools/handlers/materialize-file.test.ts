@@ -429,6 +429,32 @@ describe('executeMaterializeFile - extract operation', () => {
     expect(mockDecompress).toHaveBeenCalledTimes(1)
   })
 
+  it('folds reserved system folder names into the "archive" fallback folder', async () => {
+    // '.changelogs' / '.plans' back workflow changelog/plan aliases; extraction
+    // must never write into them (and the already-extracted lookup hides them,
+    // so a second extract would silently duplicate).
+    mockFindUpload.mockResolvedValue(
+      zipRow({ displayName: '.changelogs.zip', originalName: '.changelogs.zip' })
+    )
+    mockFetchBuffer.mockResolvedValue(Buffer.from('zip-bytes'))
+    mockDecompress.mockResolvedValue({
+      extracted: [{ id: 'f1', name: 'a.txt', url: '/x', size: 1, type: 'text/plain', key: 'k1' }],
+      skipped: 0,
+      skippedUnsafePaths: [],
+    })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['.changelogs.zip'], operation: 'extract' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockDecompress).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      expect.objectContaining({ rootFolderSegments: ['archive'] })
+    )
+  })
+
   it('folds degenerate archive names into the "archive" fallback folder', async () => {
     mockFindUpload.mockResolvedValue(zipRow({ displayName: '..zip', originalName: '..zip' }))
     mockFetchBuffer.mockResolvedValue(Buffer.from('zip-bytes'))

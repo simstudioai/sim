@@ -5,15 +5,17 @@ import { Buffer } from 'buffer'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnsureFolder, mockUpload } = vi.hoisted(() => ({
+const { mockEnsureFolder, mockUpload, mockDelete } = vi.hoisted(() => ({
   mockEnsureFolder: vi.fn(),
   mockUpload: vi.fn(),
+  mockDelete: vi.fn(),
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   ensureWorkspaceFileFolderPath: mockEnsureFolder,
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   uploadWorkspaceFile: mockUpload,
+  deleteWorkspaceFile: mockDelete,
 }))
 
 import {
@@ -70,6 +72,7 @@ function craftCentralDirectory(records: number, extraPerRecord: number): Buffer 
 beforeEach(() => {
   vi.clearAllMocks()
   mockEnsureFolder.mockResolvedValue('folder_1')
+  mockDelete.mockResolvedValue(undefined)
   mockUpload.mockImplementation(async (_ws: string, _uid: string, buf: Buffer, name: string) => ({
     id: `f_${name}`,
     name,
@@ -182,6 +185,25 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
       decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
     ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'invalid' })
     expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('rolls back already-uploaded files when an upload fails mid-extraction', async () => {
+    // Pass 1 validates caps, but an upload itself can still fail mid-loop
+    // (storage/DB error, quota crossed). Every file written before the failure
+    // must be deleted so callers and retries never observe a partial tree.
+    const buffer = await buildZip({ 'a.txt': 'first', 'b.txt': 'second', 'c.txt': 'third' })
+    mockUpload
+      .mockResolvedValueOnce({ id: 'f_a', name: 'a.txt', url: '/a', key: 'k/a', size: 5 })
+      .mockResolvedValueOnce({ id: 'f_b', name: 'b.txt', url: '/b', key: 'k/b', size: 6 })
+      .mockRejectedValueOnce(new Error('storage quota exceeded'))
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
+    ).rejects.toThrow('storage quota exceeded')
+
+    expect(mockDelete).toHaveBeenCalledTimes(2)
+    expect(mockDelete).toHaveBeenCalledWith('ws', 'f_a')
+    expect(mockDelete).toHaveBeenCalledWith('ws', 'f_b')
   })
 
   it('does not count noise entries toward the extraction cap when they are being skipped', async () => {

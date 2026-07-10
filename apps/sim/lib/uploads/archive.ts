@@ -3,7 +3,10 @@ import type { Readable } from 'stream'
 import JSZip from 'jszip'
 import { readZipCentralDirectoryStats } from '@/lib/file-parsers/zip-guard'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  deleteWorkspaceFile,
+  uploadWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
@@ -328,40 +331,55 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   }
 
   // Pass 2 — extract: the archive is proven within caps; inflate again and upload.
+  // Uploads themselves can still fail mid-loop (storage/DB errors, quota crossed
+  // by another writer), so a failure rolls back every file written so far —
+  // callers and their retries must never observe a partial tree.
   const folderIdCache = new Map<string, string | null>()
   const extracted: UserFile[] = []
   let totalBytes = 0
-  for (const { entry, segments } of safeEntries) {
-    const result = await inflateEntryWithinCaps(entry, MAX_ARCHIVE_TOTAL_BYTES - totalBytes, true)
-    if (!result.ok) throwInflateCapError(result.reason, entry.name)
-    totalBytes += result.size
-    const entryBuffer = result.buffer as Buffer
+  try {
+    for (const { entry, segments } of safeEntries) {
+      const result = await inflateEntryWithinCaps(entry, MAX_ARCHIVE_TOTAL_BYTES - totalBytes, true)
+      if (!result.ok) throwInflateCapError(result.reason, entry.name)
+      totalBytes += result.size
+      const entryBuffer = result.buffer as Buffer
 
-    const leafName = segments[segments.length - 1]
-    const folderSegments = [...rootFolderSegments, ...segments.slice(0, -1)]
-    const folderKey = folderSegments.join('/')
-    let folderId = folderIdCache.get(folderKey)
-    if (folderId === undefined) {
-      folderId = await ensureWorkspaceFileFolderPath({
+      const leafName = segments[segments.length - 1]
+      const folderSegments = [...rootFolderSegments, ...segments.slice(0, -1)]
+      const folderKey = folderSegments.join('/')
+      let folderId = folderIdCache.get(folderKey)
+      if (folderId === undefined) {
+        folderId = await ensureWorkspaceFileFolderPath({
+          workspaceId,
+          userId,
+          pathSegments: folderSegments,
+        })
+        folderIdCache.set(folderKey, folderId)
+      }
+
+      const mimeType = getMimeTypeFromExtension(getFileExtension(leafName))
+      const uploaded = await uploadWorkspaceFile(
         workspaceId,
         userId,
-        pathSegments: folderSegments,
-      })
-      folderIdCache.set(folderKey, folderId)
+        entryBuffer,
+        leafName,
+        mimeType,
+        {
+          folderId,
+        }
+      )
+      extracted.push(uploaded)
     }
-
-    const mimeType = getMimeTypeFromExtension(getFileExtension(leafName))
-    const uploaded = await uploadWorkspaceFile(
-      workspaceId,
-      userId,
-      entryBuffer,
-      leafName,
-      mimeType,
-      {
-        folderId,
+  } catch (error) {
+    for (const file of extracted) {
+      try {
+        await deleteWorkspaceFile(workspaceId, file.id)
+      } catch {
+        // Best-effort: a file whose cleanup fails is still soft-deletable by hand;
+        // the original error is what the caller needs to see.
       }
-    )
-    extracted.push(uploaded)
+    }
+    throw error
   }
 
   return { extracted, skipped, skippedUnsafePaths }
