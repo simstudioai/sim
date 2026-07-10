@@ -77,10 +77,24 @@ spec:
             {{- with .Values.copilot.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.copilot.server.extraEnv }}
+          {{- /*
+            copilot.server.env flows through envFrom (the Secret/ExternalSecret) above.
+            copilot.server.envDefaults are inlined here so they don't leak into the
+            chart-managed Secret and don't need to be mapped when
+            externalSecrets.enabled=true — same rationale as app.envDefaults.
+          */}}
           env:
+            {{- $copilotEnv := .Values.copilot.server.env | default dict }}
+            {{- range $key, $value := .Values.copilot.server.envDefaults | default dict }}
+            {{- $override := index $copilotEnv $key }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.copilot.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           {{- if .Values.copilot.server.startupProbe }}
           startupProbe:
             {{- toYaml .Values.copilot.server.startupProbe | nindent 12 }}
