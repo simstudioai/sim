@@ -32,7 +32,16 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secrets-copilot.yaml") . | sha256sum }}
+        {{- /*
+          Hash both the inline Secret and the ExternalSecret template — whichever mode is
+          active, only one renders non-empty content, but concatenating both means a mode
+          switch or a remoteRefs.copilot mapping change still changes the checksum and
+          forces a rollout. This can't see the live value ESO syncs from the external
+          store (Helm only has the ExternalSecret manifest at render time, not the
+          store's payload) — that's an inherent ESO limitation, not something a Helm
+          checksum can close; ESO's own reconciliation handles picking up rotated values.
+        */}}
+        checksum/secret: {{ printf "%s%s" (include (print $.Template.BasePath "/secrets-copilot.yaml") .) (include (print $.Template.BasePath "/external-secret-copilot.yaml") .) | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
