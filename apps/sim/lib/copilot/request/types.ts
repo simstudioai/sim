@@ -66,6 +66,12 @@ export interface ContentBlock {
   endedAt?: number
   parentToolCallId?: string
   /**
+   * Subagent name for lane blocks (from the event scope's agentId). Persisted
+   * so a reloaded transcript can rebuild the lane's group even when the
+   * `subagent` start block is missing (resume legs re-emit text without start).
+   */
+  subagent?: string
+  /**
    * Deterministic agent-run identity. `spanId` is the stable per-invocation id
    * of the subagent that produced the block; `parentSpanId` links it to the run
    * that invoked it. These are the primary nesting keys; `parentToolCallId` is

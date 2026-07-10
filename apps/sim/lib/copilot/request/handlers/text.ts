@@ -33,6 +33,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
             type: 'subagent_thinking',
             content: '',
             parentToolCallId,
+            ...(event.scope?.agentId ? { subagent: event.scope.agentId } : {}),
             ...spanIdentity,
             timestamp: Date.now(),
           }
@@ -53,6 +54,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
         type: 'subagent_text',
         content: chunk,
         parentToolCallId,
+        ...(event.scope?.agentId ? { subagent: event.scope.agentId } : {}),
         ...spanIdentity,
       })
       return

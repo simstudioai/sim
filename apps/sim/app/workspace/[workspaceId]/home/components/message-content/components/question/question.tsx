@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowRight,
   Button,
@@ -113,6 +113,7 @@ export function QuestionDisplay({
   answers: transcriptAnswers,
   onSelect,
 }: QuestionDisplayProps) {
+  const freeTextInputRef = useRef<HTMLInputElement>(null)
   const disabled = !onSelect
   const [phase, setPhase] = useState<QuestionPhase>('active')
   const [step, setStep] = useState(0)
@@ -127,6 +128,10 @@ export function QuestionDisplay({
   const [customCheckedByStep, setCustomCheckedByStep] = useState<boolean[]>(() =>
     data.map(() => false)
   )
+
+  useEffect(() => {
+    if (freeTextEditing) freeTextInputRef.current?.focus()
+  }, [freeTextEditing, step])
 
   // The typed text that actually joins a step's answer: multi_select customs
   // only count while checked; single_select customs always count.
@@ -329,7 +334,7 @@ export function QuestionDisplay({
               ) : (
                 <RowNumber value={i + 1} />
               )}
-              <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
+              <span className='min-w-0 flex-1 whitespace-normal break-words text-[var(--text-body)] text-sm'>
                 {option.label}
               </span>
               {!isMulti && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
@@ -368,6 +373,7 @@ export function QuestionDisplay({
               <RowNumber value={options.length + 1} />
             )}
             <input
+              ref={freeTextInputRef}
               type='text'
               value={freeText}
               disabled={disabled}

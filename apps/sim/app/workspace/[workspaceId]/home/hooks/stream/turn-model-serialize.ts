@@ -217,16 +217,31 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
       // double-cast-allowed: synthetic replay envelope rebuilt from ContentBlocks for reduceEvent only; payloads are intentionally the minimal shape the reducer reads (no executor/mode), never provider-parsed or re-emitted on the wire
     }) as unknown as PersistedStreamEventEnvelope
 
-  const scopeFor = (block: ContentBlock): Record<string, unknown> | undefined =>
-    block.spanId
+  const scopeFor = (block: ContentBlock): Record<string, unknown> | undefined => {
+    // Legacy/degraded snapshots (older persisted rows, pre-span stop payloads)
+    // can carry lane linkage without spanId. Fall back to the deterministic
+    // `span:${parentToolCallId}` id — the same convention reduceEvent uses for
+    // scope-less span starts — so the lane survives the rebuild instead of
+    // collapsing into the main lane (subagent text at root, flat layout).
+    const laneLinked =
+      block.type === 'subagent' ||
+      block.type === 'subagent_text' ||
+      block.type === 'subagent_thinking' ||
+      Boolean(block.subagent) ||
+      Boolean(block.toolCall?.calledBy)
+    const spanId =
+      block.spanId ??
+      (laneLinked && block.parentToolCallId ? `span:${block.parentToolCallId}` : undefined)
+    return spanId
       ? {
           lane: 'subagent',
-          spanId: block.spanId,
+          spanId,
           ...(block.parentSpanId ? { parentSpanId: block.parentSpanId } : {}),
           ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
           ...(block.subagent ? { agentId: block.subagent } : {}),
         }
       : undefined
+  }
 
   for (const block of blocks) {
     if (block.type === 'subagent') {

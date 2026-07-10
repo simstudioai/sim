@@ -135,6 +135,12 @@ export function mergeAndRedactPersistedBlocks(
   const out: PersistedContentBlock[] = []
   let runStart = -1
   let runLane: PersistedContentBlock['lane']
+  // A run must stay within ONE lane instance: two parallel subagents both have
+  // lane 'subagent', and merging across them would append span B's prose into
+  // span A's block (B's spanId is lost with it). Key the run on span identity,
+  // not just the lane flag.
+  let runSpanId: PersistedContentBlock['spanId']
+  let runParentToolCallId: PersistedContentBlock['parentToolCallId']
 
   const flushRun = (endExclusive: number) => {
     if (runStart < 0) return
@@ -157,12 +163,19 @@ export function mergeAndRedactPersistedBlocks(
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
-    const sameRun = runStart >= 0 && isMergeableAssistantTextBlock(block) && runLane === block.lane
+    const sameRun =
+      runStart >= 0 &&
+      isMergeableAssistantTextBlock(block) &&
+      runLane === block.lane &&
+      runSpanId === block.spanId &&
+      runParentToolCallId === block.parentToolCallId
     if (sameRun) continue
     flushRun(i)
     if (isMergeableAssistantTextBlock(block)) {
       runStart = i
       runLane = block.lane
+      runSpanId = block.spanId
+      runParentToolCallId = block.parentToolCallId
     } else {
       out.push(block)
     }
