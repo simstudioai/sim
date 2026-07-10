@@ -5,7 +5,9 @@ export interface InstagramAccessParams {
   igUserId?: string
 }
 
-export interface InstagramGetProfileParams extends InstagramAccessParams {}
+export interface InstagramGetProfileParams {
+  accessToken: string
+}
 
 export interface InstagramGetProfileResponse extends ToolResponse {
   output: {

@@ -86,7 +86,7 @@ export const instagramGetAccountInsightsTool: ToolConfig<
     url: (params) => {
       const path = params.igUserId?.trim() ? `/${params.igUserId.trim()}/insights` : '/me/insights'
       return graphUrl(path, {
-        metric: parseCommaSeparated(params.metrics).join(',') || params.metrics.trim(),
+        metric: parseCommaSeparated(params.metrics).join(','),
         period: params.period.trim(),
         since: params.since?.trim() || undefined,
         until: params.until?.trim() || undefined,

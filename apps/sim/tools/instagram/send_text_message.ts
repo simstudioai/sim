@@ -2,7 +2,7 @@ import type {
   InstagramSendTextMessageParams,
   InstagramSendTextMessageResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError, resolveIgUserId } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramSendTextMessageTool: ToolConfig<
@@ -48,69 +48,35 @@ export const instagramSendTextMessageTool: ToolConfig<
   },
 
   request: {
-    url: () => graphUrl('/me', { fields: 'user_id' }),
-    method: 'GET',
-    headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
+    url: (params) => {
+      const path = params.igUserId?.trim() ? `/${params.igUserId.trim()}/messages` : '/me/messages'
+      return graphUrl(path)
+    },
+    method: 'POST',
+    headers: (params) => bearerHeaders(params.accessToken),
+    body: (params) => ({
+      recipient: { id: params.recipientId.trim() },
+      message: { text: params.message },
+    }),
   },
 
-  postProcess: async (result, params) => {
-    if (!result.success) {
-      return {
-        success: false,
-        output: { messageId: null, recipientId: null },
-        error: result.error || 'Failed to resolve Instagram account',
-      }
-    }
-
-    try {
-      const igUserId = await resolveIgUserId(params.accessToken, params.igUserId)
-      const response = await fetch(graphUrl(`/${igUserId}/messages`), {
-        method: 'POST',
-        headers: bearerHeaders(params.accessToken),
-        body: JSON.stringify({
-          recipient: { id: params.recipientId.trim() },
-          message: { text: params.message },
-        }),
-      })
-
-      if (!response.ok) {
-        return {
-          success: false,
-          output: { messageId: null, recipientId: params.recipientId.trim() },
-          error: await readGraphError(response),
-        }
-      }
-
-      const data = (await response.json()) as {
-        message_id?: string
-        recipient_id?: string
-      }
-
-      return {
-        success: true,
-        output: {
-          messageId: data.message_id ?? null,
-          recipientId: data.recipient_id ?? params.recipientId.trim() ?? null,
-        },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        output: { messageId: null, recipientId: null },
-        error: error instanceof Error ? error.message : 'Failed to send message',
-      }
-    }
-  },
-
-  transformResponse: async (response) => {
+  transformResponse: async (response, params): Promise<InstagramSendTextMessageResponse> => {
     if (!response.ok) {
       return {
         success: false,
-        output: { messageId: null, recipientId: null },
-        error: `Failed to resolve Instagram account: ${response.statusText}`,
+        output: { messageId: null, recipientId: params?.recipientId.trim() ?? null },
+        error: await readGraphError(response),
       }
     }
-    return { success: true, output: { messageId: null, recipientId: null } }
+
+    const data = (await response.json()) as { message_id?: string; recipient_id?: string }
+    return {
+      success: true,
+      output: {
+        messageId: data.message_id ?? null,
+        recipientId: data.recipient_id ?? params?.recipientId.trim() ?? null,
+      },
+    }
   },
 
   outputs: {

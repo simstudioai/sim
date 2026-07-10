@@ -1,20 +1,13 @@
 import type { Logger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
-import { StorageService } from '@/lib/uploads'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import {
-  extractStorageKey,
   getFileExtension,
   getMimeTypeFromExtension,
   isInternalFileUrl,
-  processSingleFileToUserFile,
   type RawFileInput,
   resolveFileType,
-  resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
-import { verifyFileAccess } from '@/app/api/files/authorization'
-import type { UserFile } from '@/executor/types'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 
 /** Covers Meta's poll-once-per-minute for ≤5 minutes while the container processes. */
 export const INSTAGRAM_MEDIA_URL_TTL_SECONDS = 600
@@ -27,6 +20,9 @@ const JPEG_MIME = new Set(['image/jpeg', 'image/jpg'])
 const VIDEO_MIME = new Set(['video/mp4', 'video/quicktime'])
 const JPEG_EXT = new Set(['jpg', 'jpeg'])
 const VIDEO_EXT = new Set(['mp4', 'mov'])
+
+const CLOUD_STORAGE_REQUIRED_MESSAGE =
+  'Cloud storage is required to publish uploaded Instagram media. Configure S3 or Blob storage, or paste a public HTTPS URL instead.'
 
 export type InstagramMediaRole = 'image' | 'video' | 'cover' | 'story' | 'carousel'
 
@@ -87,8 +83,6 @@ function validateMediaConstraints(
   label: string
 ): string | null {
   const mime = (mimeType || '').toLowerCase()
-  const isJpeg = !mime || JPEG_MIME.has(mime)
-  const isVideoMime = !mime || VIDEO_MIME.has(mime)
 
   if (kind === 'image') {
     if (mime && !JPEG_MIME.has(mime)) {
@@ -97,18 +91,11 @@ function validateMediaConstraints(
     if (size != null && size > IMAGE_MAX_BYTES) {
       return `${label} exceeds Instagram's ${formatBytes(IMAGE_MAX_BYTES)} JPEG limit (got ${formatBytes(size)})`
     }
-    if (!isJpeg && mime) {
-      return `${label} must be a JPEG image`
-    }
     return null
   }
 
-  // video
   if (mime && !VIDEO_MIME.has(mime)) {
     return `${label} must be an MP4 or MOV video (got ${mime})`
-  }
-  if (!isVideoMime && mime) {
-    return `${label} must be an MP4 or MOV video`
   }
 
   const maxBytes = role === 'story' ? STORY_VIDEO_MAX_BYTES : REEL_VIDEO_MAX_BYTES
@@ -118,209 +105,57 @@ function validateMediaConstraints(
   return null
 }
 
-function isPublicHttpsUrl(value: string): boolean {
+function isPublicHttpUrl(value: string): boolean {
   return (value.startsWith('https://') || value.startsWith('http://')) && !isInternalFileUrl(value)
 }
 
-async function resolvePublicUrl(
-  url: string,
-  requestId: string,
-  logger: Logger
-): Promise<ResolveInstagramMediaResult> {
-  if (!url.startsWith('https://')) {
-    return {
-      error: {
-        status: 400,
-        message: 'Instagram media URLs must use HTTPS so Meta can download them',
-      },
-    }
-  }
-
-  const validation = await validateUrlWithDNS(url, 'instagramMediaUrl')
-  if (!validation.isValid) {
-    logger.warn(`[${requestId}] Invalid Instagram media URL`, { error: validation.error })
-    return { error: { status: 400, message: validation.error || 'Invalid media URL' } }
-  }
-
-  return { media: { url, kind: 'image' } }
-}
-
-async function presignUserFile(
-  userFile: UserFile,
-  userId: string,
-  requestId: string,
-  logger: Logger
-): Promise<ResolveInstagramMediaResult> {
-  if (!hasCloudStorage()) {
-    return {
-      error: {
-        status: 400,
-        message:
-          'Cloud storage is required to publish uploaded Instagram media. Configure S3 or Blob storage, or paste a public HTTPS URL instead.',
-      },
-    }
-  }
-
-  let key = userFile.key
-  if (!key && userFile.url && isInternalFileUrl(userFile.url)) {
-    key = extractStorageKey(userFile.url)
-  }
-
-  if (!key) {
-    if (userFile.url && isPublicHttpsUrl(userFile.url)) {
-      return resolvePublicUrl(userFile.url, requestId, logger)
-    }
-    return {
-      error: {
-        status: 400,
-        message: 'Uploaded file is missing a storage key and cannot be shared with Instagram',
-      },
-    }
-  }
-
-  const context = resolveTrustedFileContext(key, userFile.context)
-  const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
-  if (!hasAccess) {
-    logger.warn(`[${requestId}] Unauthorized Instagram media presign attempt`, {
-      userId,
-      key,
-      context,
-    })
-    return { error: { status: 404, message: 'File not found' } }
-  }
-
-  try {
-    const url = await StorageService.generatePresignedDownloadUrl(
-      key,
-      context,
-      INSTAGRAM_MEDIA_URL_TTL_SECONDS
-    )
-    logger.info(`[${requestId}] Generated Instagram media presigned URL`, {
-      key,
-      ttlSeconds: INSTAGRAM_MEDIA_URL_TTL_SECONDS,
-    })
-    return {
-      media: {
-        url,
-        kind: 'image',
-        mimeType: userFile.type,
-        size: userFile.size,
-        name: userFile.name,
-      },
-    }
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to generate Instagram media URL:`, error)
-    return {
-      error: {
-        status: 500,
-        message: getErrorMessage(error, 'Failed to generate a Meta-fetchable media URL'),
-      },
-    }
-  }
+function needsCloudStorage(file?: RawFileInput, filePath?: string): boolean {
+  if (file) return true
+  if (filePath && isInternalFileUrl(filePath)) return true
+  return false
 }
 
 /**
- * Resolve a UserFile, internal serve path, or public HTTPS URL into a Meta-fetchable HTTPS URL.
- * Uploaded files are re-presigned with a 600s TTL so Meta can curl them during container processing.
+ * Split a canonical media input into the shapes {@link resolveFileInputToUrl} expects
+ * (Reducto/STT pattern: file object vs filePath string).
  */
-export async function resolveInstagramMedia(
-  options: ResolveInstagramMediaOptions
-): Promise<ResolveInstagramMediaResult> {
-  const { input, userId, requestId, logger, role, required = true, label = 'Media' } = options
-
-  if (input == null || input === '') {
-    if (required) {
-      return { error: { status: 400, message: `${label} is required` } }
-    }
-    return {}
-  }
-
-  let resolved: ResolveInstagramMediaResult
-
+function splitMediaInput(input: unknown): {
+  file?: RawFileInput
+  filePath?: string
+  name?: string
+  size?: number
+  mimeType?: string
+  error?: { status: number; message: string }
+} {
   if (typeof input === 'string') {
-    const trimmed = input.trim()
-    if (!trimmed) {
-      if (required) {
-        return { error: { status: 400, message: `${label} is required` } }
-      }
-      return {}
-    }
-
-    if (isInternalFileUrl(trimmed)) {
-      if (!hasCloudStorage()) {
-        return {
-          error: {
-            status: 400,
-            message:
-              'Cloud storage is required to publish uploaded Instagram media. Configure S3 or Blob storage, or paste a public HTTPS URL instead.',
-          },
-        }
-      }
-      const key = extractStorageKey(trimmed)
-      const context = resolveTrustedFileContext(key)
-      const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
-      if (!hasAccess) {
-        return { error: { status: 404, message: 'File not found' } }
-      }
-      try {
-        const url = await StorageService.generatePresignedDownloadUrl(
-          key,
-          context,
-          INSTAGRAM_MEDIA_URL_TTL_SECONDS
-        )
-        resolved = { media: { url, kind: 'image' } }
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to presign internal Instagram media path:`, error)
-        return {
-          error: {
-            status: 500,
-            message: getErrorMessage(error, 'Failed to generate a Meta-fetchable media URL'),
-          },
-        }
-      }
-    } else if (isPublicHttpsUrl(trimmed) || trimmed.startsWith('http://')) {
-      resolved = await resolvePublicUrl(trimmed, requestId, logger)
-    } else {
-      return {
-        error: {
-          status: 400,
-          message: `${label} must be an uploaded file or a public HTTPS URL`,
-        },
-      }
-    }
-  } else if (typeof input === 'object') {
-    let userFile: UserFile
-    try {
-      userFile = processSingleFileToUserFile(input as RawFileInput, requestId, logger)
-    } catch (error) {
-      return {
-        error: {
-          status: 400,
-          message: getErrorMessage(error, `Failed to process ${label.toLowerCase()}`),
-        },
-      }
-    }
-    resolved = await presignUserFile(userFile, userId, requestId, logger)
-    if (resolved.media) {
-      resolved.media.mimeType = resolveFileType({
-        type: userFile.type || '',
-        name: userFile.name,
-      })
-      resolved.media.size = userFile.size
-      resolved.media.name = userFile.name
-    }
-  } else {
-    return { error: { status: 400, message: `${label} must be a file or URL string` } }
+    return { filePath: input.trim() }
   }
 
-  if (resolved.error || !resolved.media) {
-    return resolved
+  if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+    const raw = input as RawFileInput
+    if (!raw.name) {
+      return { error: { status: 400, message: 'File must include a name' } }
+    }
+    return {
+      file: raw,
+      name: raw.name,
+      size: typeof raw.size === 'number' ? raw.size : undefined,
+      mimeType: resolveFileType({ type: raw.type || '', name: raw.name }),
+    }
   }
 
+  return { error: { status: 400, message: 'Media must be a file or URL string' } }
+}
+
+function applyInstagramConstraints(
+  url: string,
+  role: InstagramMediaRole,
+  label: string,
+  meta: { name?: string; size?: number; mimeType?: string }
+): ResolveInstagramMediaResult {
   const mimeType =
-    resolved.media.mimeType ||
-    getMimeTypeFromExtension(extensionFromUrlOrName(resolved.media.name || resolved.media.url))
-  const extension = extensionFromUrlOrName(resolved.media.name || resolved.media.url)
+    meta.mimeType || getMimeTypeFromExtension(extensionFromUrlOrName(meta.name || url))
+  const extension = extensionFromUrlOrName(meta.name || url)
 
   let kind: 'image' | 'video'
   if (role === 'image' || role === 'cover') {
@@ -340,7 +175,6 @@ export async function resolveInstagramMedia(
     kind = inferred
   }
 
-  // Prefer extension hints when MIME is generic
   if (
     (role === 'story' || role === 'carousel') &&
     (!mimeType || mimeType === 'application/octet-stream')
@@ -353,38 +187,100 @@ export async function resolveInstagramMedia(
     kind,
     role,
     mimeType === 'application/octet-stream' ? undefined : mimeType,
-    resolved.media.size,
+    meta.size,
     label
   )
   if (constraintError) {
     return { error: { status: 400, message: constraintError } }
   }
 
-  // Soft extension check for public URLs without MIME
   if (kind === 'image' && extension && !JPEG_EXT.has(extension) && !mimeType) {
     return {
-      error: {
-        status: 400,
-        message: `${label} must be a JPEG (.jpg/.jpeg)`,
-      },
+      error: { status: 400, message: `${label} must be a JPEG (.jpg/.jpeg)` },
     }
   }
   if (kind === 'video' && extension && !VIDEO_EXT.has(extension) && !mimeType) {
     return {
-      error: {
-        status: 400,
-        message: `${label} must be an MP4 or MOV video`,
-      },
+      error: { status: 400, message: `${label} must be an MP4 or MOV video` },
     }
   }
 
   return {
     media: {
-      ...resolved.media,
+      url,
       kind,
       mimeType,
+      size: meta.size,
+      name: meta.name,
     },
   }
+}
+
+/**
+ * Resolve a UserFile, internal serve path, or public HTTPS URL into a Meta-fetchable HTTPS URL.
+ * Delegates UserFile serialization and URL minting to {@link resolveFileInputToUrl}
+ * (600s TTL, prefer key presign). Instagram-specific MIME/size checks stay here.
+ */
+export async function resolveInstagramMedia(
+  options: ResolveInstagramMediaOptions
+): Promise<ResolveInstagramMediaResult> {
+  const { input, userId, requestId, logger, role, required = true, label = 'Media' } = options
+
+  if (input == null || input === '') {
+    if (required) {
+      return { error: { status: 400, message: `${label} is required` } }
+    }
+    return {}
+  }
+
+  const split = splitMediaInput(input)
+  if (split.error) {
+    return { error: split.error }
+  }
+
+  const { file, filePath, name, size, mimeType } = split
+  if (filePath !== undefined && filePath === '') {
+    if (required) {
+      return { error: { status: 400, message: `${label} is required` } }
+    }
+    return {}
+  }
+
+  if (needsCloudStorage(file, filePath) && !hasCloudStorage()) {
+    return { error: { status: 400, message: CLOUD_STORAGE_REQUIRED_MESSAGE } }
+  }
+
+  // Meta only curls HTTPS; reject plain HTTP before the shared helper accepts it.
+  if (filePath && isPublicHttpUrl(filePath) && !filePath.startsWith('https://')) {
+    return {
+      error: {
+        status: 400,
+        message: 'Instagram media URLs must use HTTPS so Meta can download them',
+      },
+    }
+  }
+
+  const resolution = await resolveFileInputToUrl({
+    file,
+    filePath,
+    userId,
+    requestId,
+    logger,
+    ttlSeconds: INSTAGRAM_MEDIA_URL_TTL_SECONDS,
+    preferKeyPresign: true,
+  })
+
+  if (resolution.error || !resolution.fileUrl) {
+    return {
+      error: resolution.error || { status: 400, message: `${label} is required` },
+    }
+  }
+
+  return applyInstagramConstraints(resolution.fileUrl, role, label, {
+    name,
+    size,
+    mimeType,
+  })
 }
 
 /**
@@ -409,7 +305,6 @@ export async function resolveInstagramCarouselMedia(
       return { error: { status: 400, message: 'Carousel media is required' } }
     }
 
-    // JSON-serialized file array from advanced mode
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
       try {
         const parsed = JSON.parse(trimmed) as unknown
@@ -435,7 +330,6 @@ export async function resolveInstagramCarouselMedia(
       const entry = entries[i]
       const isVideoPrefixed = entry.toLowerCase().startsWith('video:')
       const raw = isVideoPrefixed ? entry.slice('video:'.length).trim() : entry
-      // Legacy comma-separated URLs: plain = image, `video:` prefix = video
       const result = await resolveInstagramMedia({
         input: raw,
         userId,
@@ -452,11 +346,7 @@ export async function resolveInstagramCarouselMedia(
           },
         }
       }
-      if (isVideoPrefixed) {
-        result.media.kind = 'video'
-      } else {
-        result.media.kind = 'image'
-      }
+      result.media.kind = isVideoPrefixed ? 'video' : 'image'
       items.push(result.media)
     }
 

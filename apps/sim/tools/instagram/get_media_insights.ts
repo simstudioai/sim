@@ -49,7 +49,7 @@ export const instagramGetMediaInsightsTool: ToolConfig<
   request: {
     url: (params) =>
       graphUrl(`/${params.mediaId.trim()}/insights`, {
-        metric: parseCommaSeparated(params.metrics).join(',') || params.metrics.trim(),
+        metric: parseCommaSeparated(params.metrics).join(','),
       }),
     method: 'GET',
     headers: (params) => bearerHeaders(params.accessToken),
