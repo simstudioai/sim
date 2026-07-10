@@ -67,13 +67,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     esac && \
     pip install torch==${TORCH_VERSION} --index-url "${torch_index}"
 
-# A CPU-only wheel on amd64 silently degrades to the "torch.cuda.is_available()
-# is False" crash only once GLiNER loads on a GPU host, so assert at build time.
-RUN python -c "import torch; \
-have = torch.version.cuda is not None; \
-want = '${TARGETARCH}' == 'amd64'; \
-assert have == want, f'{torch.__version__}: cuda build={have}, expected={want}'"
-
 COPY apps/pii/requirements-gliner.txt ./requirements-gliner.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements-gliner.txt
@@ -105,6 +98,15 @@ ENV HF_HUB_OFFLINE=1
 COPY apps/pii/requirements-dev.txt ./requirements-dev.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements-dev.txt
+
+# Runs after every pip install, because the requirements above resolve against
+# PyPI and could swap the wheel torch_index chose. A cpu-only torch on amd64
+# otherwise surfaces only as "torch.cuda.is_available() is False" once GLiNER
+# loads on a GPU host.
+RUN python -c "import torch; \
+have = torch.version.cuda is not None; \
+want = '${TARGETARCH}' == 'amd64'; \
+assert have == want, f'{torch.__version__}: cuda build={have}, expected={want}'"
 
 RUN groupadd -g 1001 pii && \
     useradd -u 1001 -g pii pii && \
