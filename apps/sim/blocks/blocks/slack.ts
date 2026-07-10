@@ -21,7 +21,9 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   bgColor: '#611f69',
   icon: SlackIcon,
   triggerAllowed: true,
-  hideFromToolbar: true, // Legacy: superseded by slack_v2. Kept for existing workflows.
+  // Superseded by slack_v2, but stays discoverable until v2 GAs — hiding both
+  // would leave no Slack block in the toolbar while v2 is preview-gated. At v2
+  // GA this becomes `hideFromToolbar: true` (superseded-version paradigm).
   subBlocks: [
     {
       id: 'operation',
@@ -2464,9 +2466,11 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     event_id: { type: 'string', description: 'Unique event identifier for the trigger' },
   },
   // Trigger capabilities moved to slack_v2 so the trigger surfaces once.
+  // Legacy webhook trigger stays available while slack_v2 (which hosts the
+  // redesigned slack_oauth trigger) is preview-gated; drops at v2 GA.
   triggers: {
-    enabled: false,
-    available: [],
+    enabled: true,
+    available: ['slack_webhook'],
   },
 }
 
@@ -2666,6 +2670,11 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
   ...SlackBlock,
   type: 'slack_v2',
   hideFromToolbar: false,
+  // Preview-gated: hidden from every discovery surface until revealed via the
+  // block-visibility AppConfig (hosted) or PREVIEW_BLOCKS=slack_v2 (dev /
+  // self-host). At GA: drop this flag, add SlackV2BlockMeta + docs, and set
+  // hideFromToolbar on v1.
+  preview: true,
   subBlocks: SlackBlock.subBlocks.flatMap((sb) => {
     if (sb.id === 'botToken') return []
     if (sb.id === 'authMethod') return [sb, ...SLACK_CUSTOM_BOT_SUBBLOCKS]

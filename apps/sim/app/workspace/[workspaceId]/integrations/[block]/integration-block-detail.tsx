@@ -21,6 +21,8 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
+import { getBlock } from '@/blocks'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {
@@ -28,6 +30,7 @@ import {
   getTemplatesForBlock,
   type ScopedBlockTemplate,
 } from '@/blocks/registry'
+import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
@@ -73,8 +76,17 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     )
   }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
-  const hasServiceAccount = Boolean(oauthService?.serviceAccountProviderId)
   const isSlackBot = oauthService?.serviceAccountProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID
+  const blockOverlayVersion = useCustomBlockOverlayVersion()
+  // Custom Slack bots ride the slack_v2 preview flag: the setup surface stays
+  // hidden until that block is revealed for this viewer.
+  const slackBotPreviewHidden = useMemo(() => {
+    if (!isSlackBot) return false
+    const v2 = getBlock('slack_v2')
+    return !v2 || isHiddenUnder(overlayVisibility(), v2)
+  }, [isSlackBot, blockOverlayVersion])
+  const hasServiceAccount =
+    Boolean(oauthService?.serviceAccountProviderId) && !slackBotPreviewHidden
   const hasHandledConnectQueryRef = useRef(false)
 
   useEffect(() => {
@@ -85,10 +97,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     if (connectMode === CONNECT_MODE.oauth && oauthService) {
       setOAuthOpen(true)
       handled = true
-    } else if (
-      connectMode === CONNECT_MODE.serviceAccount &&
-      oauthService?.serviceAccountProviderId
-    ) {
+    } else if (connectMode === CONNECT_MODE.serviceAccount && hasServiceAccount) {
       setServiceAccountOpen(true)
       handled = true
     }
@@ -96,7 +105,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
     hasHandledConnectQueryRef.current = true
     void setConnectMode(null, { history: 'replace', scroll: false })
-  }, [connectMode, oauthService, setConnectMode])
+  }, [connectMode, oauthService, hasServiceAccount, setConnectMode])
 
   const connectOptions = oauthService
     ? [
@@ -166,7 +175,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           serviceIcon={oauthService.serviceIcon}
         />
       )}
-      {oauthService?.serviceAccountProviderId && (
+      {hasServiceAccount && oauthService?.serviceAccountProviderId && (
         <ConnectServiceAccountModal
           open={serviceAccountOpen}
           onOpenChange={setServiceAccountOpen}
