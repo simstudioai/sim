@@ -85,9 +85,12 @@ spec:
             entirely in existingSecret mode: the pre-created Secret is the source of
             truth, and inlining defaults would silently shadow keys (PORT, LOG_LEVEL,
             etc.) the user stored there via envFrom, since explicit env wins over
-            envFrom.
+            envFrom. Keyed purely on copilot.server.secret.create, NOT the global
+            externalSecrets.enabled flag — envFrom always points at the user-provided
+            Secret name whenever secret.create=false, regardless of whether ESO is used
+            for other components, so the global flag is irrelevant here.
           */}}
-          {{- $useExistingSecret := and (not .Values.externalSecrets.enabled) (not .Values.copilot.server.secret.create) }}
+          {{- $useExistingSecret := not .Values.copilot.server.secret.create }}
           {{- if or (not $useExistingSecret) .Values.copilot.server.extraEnv }}
           env:
             {{- $copilotEnv := .Values.copilot.server.env | default dict }}
