@@ -54,7 +54,11 @@ import type {
   Position,
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
-import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
+import {
+  filterAcyclicEdges,
+  findAllDescendantNodes,
+  isBlockProtected,
+} from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
 
@@ -1423,7 +1427,12 @@ export function useCollaborativeWorkflow() {
       const currentEdges = useWorkflowStore.getState().edges
       const validEdges = filterValidEdges(edges, blocks)
       const newEdges = filterNewEdges(validEdges, currentEdges)
-      if (newEdges.length === 0) return false
+      // Reject cyclic edges here, before they are queued for realtime/DB
+      // persistence — the local store also runs this check, but only after
+      // an unfiltered payload would already be enqueued. Filtering once
+      // here keeps the queued payload and the local store in agreement.
+      const acyclicEdges = filterAcyclicEdges(newEdges, currentEdges)
+      if (acyclicEdges.length === 0) return false
 
       const operationId = generateId()
 
@@ -1432,16 +1441,16 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
           target: OPERATION_TARGETS.EDGES,
-          payload: { edges: newEdges },
+          payload: { edges: acyclicEdges },
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
-      useWorkflowStore.getState().batchAddEdges(newEdges, { skipValidation: true })
+      useWorkflowStore.getState().batchAddEdges(acyclicEdges, { skipValidation: true })
 
       if (!options?.skipUndoRedo) {
-        newEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
+        acyclicEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
       }
 
       return true

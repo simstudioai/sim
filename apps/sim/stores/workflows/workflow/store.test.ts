@@ -334,6 +334,52 @@ describe('workflow store', () => {
       const state = useWorkflowStore.getState()
       expectEdgeCount(state, 1)
     })
+
+    it('should not add a self-loop edge', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+
+      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-1' }])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 0)
+    })
+
+    it('should reject an edge that would create a cycle', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+      addBlock('block-2', 'function', 'Middle', { x: 200, y: 0 })
+      addBlock('block-3', 'function', 'End', { x: 400, y: 0 })
+
+      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
+      batchAddEdges([{ id: 'e2', source: 'block-2', target: 'block-3' }])
+      // block-3 -> block-1 would close the loop back to block-1
+      batchAddEdges([{ id: 'e3', source: 'block-3', target: 'block-1' }])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 2)
+      expect(state.edges.some((e) => e.id === 'e3')).toBe(false)
+    })
+
+    it('should reject a cyclic edge within the same batch', () => {
+      const { batchAddEdges } = useWorkflowStore.getState()
+
+      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
+      addBlock('block-2', 'function', 'Middle', { x: 200, y: 0 })
+      addBlock('block-3', 'function', 'End', { x: 400, y: 0 })
+
+      batchAddEdges([
+        { id: 'e1', source: 'block-1', target: 'block-2' },
+        { id: 'e2', source: 'block-2', target: 'block-3' },
+        { id: 'e3', source: 'block-3', target: 'block-1' },
+      ])
+
+      const state = useWorkflowStore.getState()
+      expectEdgeCount(state, 2)
+      expect(state.edges.some((e) => e.id === 'e3')).toBe(false)
+    })
   })
 
   describe('batchRemoveEdges', () => {
@@ -1591,6 +1637,18 @@ describe('workflow store', () => {
       const state = useWorkflowStore.getState()
       expect(state.blocks.block1.name).toBe('Column AD')
       expect(state.blocks.block2.name).toBe('Employee Length')
+    })
+
+    it('should reject reserved names (loop, parallel, variable)', () => {
+      const { updateBlockName } = useWorkflowStore.getState()
+
+      for (const reserved of ['loop', 'Parallel', 'VARIABLE']) {
+        const result = updateBlockName('block1', reserved)
+        expect(result.success).toBe(false)
+      }
+
+      const state = useWorkflowStore.getState()
+      expect(state.blocks.block1.name).toBe('Column AD')
     })
 
     it('should return false when trying to rename a non-existent block', () => {
