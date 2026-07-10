@@ -170,6 +170,9 @@ const nextConfig: NextConfig = {
         : []),
       'localhost:3000',
       'localhost:3001',
+      '127.0.0.1',
+      '127.0.0.1:3011',
+      '127.0.0.1:3012',
     ],
   }),
   transpilePackages: [

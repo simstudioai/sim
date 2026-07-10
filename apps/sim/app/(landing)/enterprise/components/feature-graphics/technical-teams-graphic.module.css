@@ -1,0 +1,31 @@
+/**
+ * The TechnicalTeamsGraphic's only motion: a soft ring pulse blooming
+ * from the Approved tag on the review card — the same quiet 6s
+ * state-confirmation beat as the staging tile's Promote button and the
+ * audit tile's newest-entry avatar, keeping the family's shared rhythm.
+ * Under prefers-reduced-motion the pulse is removed and the tag sits
+ * static.
+ */
+
+.approvedPulse {
+  animation: technical-approved-pulse 6s ease-out infinite;
+}
+
+@keyframes technical-approved-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .approvedPulse {
+    animation: none;
+  }
+}

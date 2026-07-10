@@ -1,0 +1,141 @@
+/**
+ * Shared 4.5s animation timeline for the DeployGraphic vignette: the connector
+ * line sweep and the browser outline trace. Each connector line is a 1px
+ * faint grey track (styled in the TSX) clipping an absolutely-positioned
+ * white sweep that travels top to bottom; the lower line's sweep is delayed
+ * so the two read as one continuous flow. The moment the lower sweep's
+ * leading edge lands on the browser's top edge the outline trace takes over:
+ * four rounded-rect border overlay copies (a top pair and a side pair,
+ * mirrored left/right) are revealed by animated clip-path inset windows, so
+ * the white line splits at top-center, draws outward along the top border,
+ * bends around the exact rounded-corner geometry, and continues down the
+ * sides while the tail releases from center and follows the head — a
+ * traveling pulse that runs out and off the outline. Under
+ * prefers-reduced-motion everything is static: plain faint lines, no sweep,
+ * no trace.
+ *
+ * Timeline (percent of 4.5s): each sweep's full pass spans 22% (~1s); the
+ * lower sweep is delayed 0.9s, so its leading edge reaches the line bottom at
+ * 0.9s + 0.5s = 1.395s = 31%, where the trace begins with no gap. Trace head
+ * runs center → corner over 31→43%, head descends the sides while the tail
+ * crosses the top over 43→55%, and the tail descends and exits the open
+ * bottom by 67%; the loop rests until 100%. The top windows keep a 14px-tall
+ * strip (12px radius + 1px border on each box edge) so the corner arc
+ * belongs to the top pair; the side pair starts 13px down, exactly where the
+ * arc ends.
+ */
+
+.sweep {
+  position: absolute;
+  inset: 0;
+  background: var(--text-inverse);
+  transform: translateY(-101%);
+  animation: deploy-line-sweep 4.5s linear infinite;
+}
+
+.sweepLower {
+  animation-delay: 0.9s;
+}
+
+@keyframes deploy-line-sweep {
+  0% {
+    transform: translateY(-101%);
+  }
+  22% {
+    transform: translateY(101%);
+  }
+  100% {
+    transform: translateY(101%);
+  }
+}
+
+.traceTopLeft {
+  clip-path: inset(0 50% calc(100% - 14px) 50%);
+  animation: deploy-trace-top-left 4.5s linear infinite;
+}
+
+.traceTopRight {
+  clip-path: inset(0 50% calc(100% - 14px) 50%);
+  animation: deploy-trace-top-right 4.5s linear infinite;
+}
+
+.traceSideLeft {
+  clip-path: inset(13px calc(100% - 14px) calc(100% - 13px) 0);
+  animation: deploy-trace-side-left 4.5s linear infinite;
+}
+
+.traceSideRight {
+  clip-path: inset(13px 0 calc(100% - 13px) calc(100% - 14px));
+  animation: deploy-trace-side-right 4.5s linear infinite;
+}
+
+@keyframes deploy-trace-top-left {
+  0%,
+  31% {
+    clip-path: inset(0 50% calc(100% - 14px) 50%);
+  }
+  43% {
+    clip-path: inset(0 50% calc(100% - 14px) 0);
+  }
+  55%,
+  100% {
+    clip-path: inset(0 100% calc(100% - 14px) 0);
+  }
+}
+
+@keyframes deploy-trace-top-right {
+  0%,
+  31% {
+    clip-path: inset(0 50% calc(100% - 14px) 50%);
+  }
+  43% {
+    clip-path: inset(0 0 calc(100% - 14px) 50%);
+  }
+  55%,
+  100% {
+    clip-path: inset(0 0 calc(100% - 14px) 100%);
+  }
+}
+
+@keyframes deploy-trace-side-left {
+  0%,
+  43% {
+    clip-path: inset(13px calc(100% - 14px) calc(100% - 13px) 0);
+  }
+  55% {
+    clip-path: inset(13px calc(100% - 14px) 0 0);
+  }
+  67%,
+  100% {
+    clip-path: inset(100% calc(100% - 14px) 0 0);
+  }
+}
+
+@keyframes deploy-trace-side-right {
+  0%,
+  43% {
+    clip-path: inset(13px 0 calc(100% - 13px) calc(100% - 14px));
+  }
+  55% {
+    clip-path: inset(13px 0 0 calc(100% - 14px));
+  }
+  67%,
+  100% {
+    clip-path: inset(100% 0 0 calc(100% - 14px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep {
+    display: none;
+    animation: none;
+  }
+
+  .traceTopLeft,
+  .traceTopRight,
+  .traceSideLeft,
+  .traceSideRight {
+    display: none;
+    animation: none;
+  }
+}
