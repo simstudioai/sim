@@ -52,6 +52,17 @@ function schemaSignature(schema: unknown): string {
   return schema ? JSON.stringify(schema) : ''
 }
 
+/**
+ * True when text looks like an attempted JSON array/object literal (starts with `[`
+ * or `{`), as opposed to plain freeform text. Used to tell an in-progress, incomplete
+ * JSON literal (which must not persist until valid — see `requiresJsonValue`) apart
+ * from the comma-separated/plain-text shorthand array params also accept.
+ */
+function looksLikeJsonLiteral(text: string): boolean {
+  const trimmed = text.trim()
+  return trimmed.startsWith('[') || trimmed.startsWith('{')
+}
+
 interface McpDynamicArgsProps {
   blockId: string
   subBlockId: string
@@ -115,15 +126,16 @@ export function McpDynamicArgs({
    * reach tool execution. A draft is only displayed while its baseline still matches
    * the live persisted value, so an external change to that value (undo/redo, a diff
    * baseline switch, a collaborator's edit) can't be shadowed by stale draft text.
-   * Drafts also reset wholesale whenever the selected tool or either schema source
-   * changes — `toolSchema` prefers the cached `_toolSchema` snapshot over the live
-   * discovered schema, so the reset key tracks both independently rather than the
-   * resolved `toolSchema`, which wouldn't change on a live-only refresh.
+   * Drafts also reset wholesale whenever the selected tool or the schema actually
+   * backing `toolSchema` changes. The live discovered schema only factors in when
+   * there's no cached snapshot to prefer — otherwise it's not what's rendered, so
+   * live schema arriving/changing while a cached snapshot is already in effect
+   * (e.g. `mcpTools` finishing an async load) must not spuriously reset drafts.
    */
   const [invalidJsonDrafts, setInvalidJsonDrafts] = useState<
     Record<string, { text: string; baseline: string }>
   >({})
-  const draftResetKey = `${selectedTool ?? ''}|${schemaSignature(cachedSchema)}|${schemaSignature(selectedToolConfig?.inputSchema)}`
+  const draftResetKey = `${selectedTool ?? ''}|${schemaSignature(cachedSchema)}|${cachedSchema ? '' : schemaSignature(selectedToolConfig?.inputSchema)}`
   const [prevDraftResetKey, setPrevDraftResetKey] = useState(draftResetKey)
   if (prevDraftResetKey !== draftResetKey) {
     setPrevDraftResetKey(draftResetKey)
@@ -343,6 +355,11 @@ export function McpDynamicArgs({
                 updateParameter(paramName, JSON.parse(newValue))
                 clearDraft()
               } catch {
+                if (paramSchema.type === 'array' && !looksLikeJsonLiteral(newValue)) {
+                  updateParameter(paramName, newValue)
+                  clearDraft()
+                  return
+                }
                 setInvalidJsonDrafts((prev) => ({
                   ...prev,
                   [paramName]: { text: newValue, baseline: valueSignature },
