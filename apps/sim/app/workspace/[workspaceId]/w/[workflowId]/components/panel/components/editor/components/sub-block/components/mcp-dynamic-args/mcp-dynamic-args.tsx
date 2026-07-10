@@ -30,6 +30,18 @@ function isPrimitiveEnum(
   )
 }
 
+/**
+ * True when the schema's actual value must be a JSON object/array (a plain
+ * object/array type, or a non-primitive enum member) rather than a string.
+ */
+function requiresJsonValue(paramSchema: any): boolean {
+  return (
+    paramSchema.type === 'object' ||
+    paramSchema.type === 'array' ||
+    (Array.isArray(paramSchema.enum) && !isPrimitiveEnum(paramSchema.enum))
+  )
+}
+
 interface McpDynamicArgsProps {
   blockId: string
   subBlockId: string
@@ -269,7 +281,17 @@ export function McpDynamicArgs({
             placeholder={config.placeholder}
             rows={4}
             value={displayValue}
-            onChange={(newValue) => updateParameter(paramName, newValue)}
+            onChange={(newValue) => {
+              if (!requiresJsonValue(paramSchema)) {
+                updateParameter(paramName, newValue)
+                return
+              }
+              try {
+                updateParameter(paramName, JSON.parse(newValue))
+              } catch {
+                updateParameter(paramName, newValue)
+              }
+            }}
             isPreview={isPreview}
             disabled={disabled}
             workflowSearchValuePath={[paramName]}
