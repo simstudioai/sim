@@ -144,6 +144,9 @@ export const env = createEnv({
     GEMINI_API_KEY_1:                      z.string().min(1).optional(),           // Primary Gemini API key
     GEMINI_API_KEY_2:                      z.string().min(1).optional(),           // Additional Gemini API key for load balancing
     GEMINI_API_KEY_3:                      z.string().min(1).optional(),           // Additional Gemini API key for load balancing
+    ZAI_API_KEY_1:                         z.string().min(1).optional(),           // Primary Z.ai API key for load balancing
+    ZAI_API_KEY_2:                         z.string().min(1).optional(),           // Additional Z.ai API key for load balancing
+    ZAI_API_KEY_3:                         z.string().min(1).optional(),           // Additional Z.ai API key for load balancing
     OLLAMA_URL:                            z.string().url().optional(),            // Ollama local LLM server URL
     VLLM_BASE_URL:                         z.string().url().optional(),            // vLLM self-hosted base URL (OpenAI-compatible)
     VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
