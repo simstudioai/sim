@@ -320,5 +320,11 @@ ingressInternal:
 #       # AZURE_CONNECTION_STRING: "sim-azure-storage-connection-string"
 #       OCR_AZURE_API_KEY:       "sim-azure-ocr-api-key"
 #       AZURE_ACS_CONNECTION_STRING: "sim-azure-acs-connection-string"
+#       # Non-secret config (deployment names, endpoints) — still required here: ESO mode requires
+#       # every non-empty app.env key to be mapped, even ones that aren't sensitive.
+#       KB_OPENAI_MODEL_NAME:    "sim-kb-openai-model-name"
+#       WAND_OPENAI_MODEL_NAME:  "sim-wand-openai-model-name"
+#       OCR_AZURE_ENDPOINT:      "sim-azure-ocr-endpoint"
+#       OCR_AZURE_MODEL_NAME:    "sim-azure-ocr-model-name"
 #     postgresql:
 #       password: "sim-postgresql-password"
