@@ -1,12 +1,9 @@
 import { cn } from '@sim/emcn'
 import {
   SolutionsCard,
-  SolutionsPillCta,
+  SolutionsCardRowHeader,
 } from '@/app/(landing)/components/solutions-page/components/solutions-card-row/components'
-import {
-  SOLUTIONS_SPACING,
-  SOLUTIONS_TEXT_MEASURE,
-} from '@/app/(landing)/components/solutions-page/constants'
+import { SOLUTIONS_SPACING } from '@/app/(landing)/components/solutions-page/constants'
 import type { SolutionsCardRowConfig } from '@/app/(landing)/components/solutions-page/types'
 
 /**
@@ -46,8 +43,6 @@ export function SolutionsCardRow({
 }: SolutionsCardRowProps) {
   const headingId = `solutions-row-${row.id}-heading`
   const gridCols = GRID_COLS[row.cards.length] ?? GRID_COLS[3]
-  const centered = align === 'center'
-  const featureHeader = headerVariant === 'feature'
 
   return (
     <section
@@ -55,45 +50,12 @@ export function SolutionsCardRow({
       aria-labelledby={headingId}
       className={cn('flex flex-col', SOLUTIONS_SPACING.cardRowHeaderToGrid)}
     >
-      <div
-        className={cn(
-          'flex flex-col',
-          centered ? 'items-center text-center' : 'items-start text-left',
-          featureHeader ? 'gap-3' : SOLUTIONS_SPACING.cardRowHeaderStack
-        )}
-      >
-        <h2
-          id={headingId}
-          className={cn(
-            'text-balance text-[var(--text-primary)] leading-[1.3]',
-            featureHeader
-              ? 'max-w-[540px] font-medium text-[22px] max-sm:text-[20px]'
-              : 'max-w-[760px] text-[32px] max-sm:text-[24px]'
-          )}
-        >
-          {row.title}
-        </h2>
-        <p
-          className={cn(
-            featureHeader ? 'w-full min-w-0 max-w-[48ch]' : SOLUTIONS_TEXT_MEASURE.rowSubtitle,
-            'text-pretty',
-            featureHeader
-              ? 'text-[15px] text-[var(--text-muted)] leading-[1.6]'
-              : 'text-[20px] text-[var(--text-body)] leading-[1.5]'
-          )}
-        >
-          {row.subtitle}
-        </p>
-        <div
-          className={
-            featureHeader
-              ? SOLUTIONS_SPACING.cardRowHeaderCtaGapFeature
-              : SOLUTIONS_SPACING.cardRowHeaderCtaGap
-          }
-        >
-          <SolutionsPillCta cta={row.cta} />
-        </div>
-      </div>
+      <SolutionsCardRowHeader
+        row={row}
+        headingId={headingId}
+        align={align}
+        variant={headerVariant}
+      />
 
       <div
         className={cn(

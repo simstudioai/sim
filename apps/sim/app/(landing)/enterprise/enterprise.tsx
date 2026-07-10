@@ -3,13 +3,13 @@ import Image from 'next/image'
 import { Cta } from '@/app/(landing)/components/cta/cta'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import {
-  SolutionsCardRow,
   SolutionsHero,
   SolutionsLogosRow,
   SolutionsStructuredData,
 } from '@/app/(landing)/components/solutions-page/components'
 import { SOLUTIONS_SPACING } from '@/app/(landing)/components/solutions-page/constants'
 import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-page/types'
+import { EnterpriseFeatureGrid } from '@/app/(landing)/enterprise/components/enterprise-feature-grid'
 import { EnterprisePlatformLoop } from '@/app/(landing)/enterprise/components/enterprise-platform-loop'
 import {
   AccessControlGraphic,
@@ -32,9 +32,12 @@ import {
  *
  * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows) but
  * composes its own `<main>` so it can append the shared homepage CTA that
- * `SolutionsPage` does not render. The shared `SOLUTIONS_SPACING` constants own
- * the enterprise content gutter and inter-section rhythm, while the homepage
- * {@link Cta} owns the closing conversion band.
+ * `SolutionsPage` does not render. The four feature rows render through
+ * {@link EnterpriseFeatureGrid} - one shared grid that regroups the 12 cards
+ * into 4/4/2/2 in the two-column band so no section leaves an orphan cell.
+ * The shared `SOLUTIONS_SPACING` constants own the enterprise content gutter
+ * and inter-section rhythm, while the homepage {@link Cta} owns the closing
+ * conversion band.
  *
  * The strict heading outline is H1 (hero) → H2 (each card row + the CTA) → H3
  * (each card), never skipped. Server Component; the interactive leaves live in
@@ -202,14 +205,7 @@ export default function EnterprisePage() {
           )}
         >
           <SolutionsLogosRow />
-          {ENTERPRISE_CONFIG.rows.map((row) => (
-            <SolutionsCardRow
-              key={row.id}
-              row={row}
-              cardVariant='featureTile'
-              headerVariant='feature'
-            />
-          ))}
+          <EnterpriseFeatureGrid rows={ENTERPRISE_CONFIG.rows} />
         </div>
 
         <Cta />
