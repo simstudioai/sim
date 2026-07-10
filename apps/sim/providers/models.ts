@@ -294,7 +294,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -315,7 +315,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -335,7 +335,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -841,7 +841,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: 64000,
+          maxOutputTokens: 128000,
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
@@ -891,26 +891,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         deprecated: true,
       },
       {
-        id: 'claude-opus-4-0',
-        pricing: {
-          input: 15.0,
-          cachedInput: 1.5,
-          output: 75.0,
-          updatedAt: '2026-06-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          maxOutputTokens: 32000,
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'high',
-          },
-        },
-        contextWindow: 200000,
-        releaseDate: '2025-05-22',
-        deprecated: true,
-      },
-      {
         id: 'claude-sonnet-4-5',
         pricing: {
           input: 3.0,
@@ -929,26 +909,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-09-29',
-      },
-      {
-        id: 'claude-sonnet-4-0',
-        pricing: {
-          input: 3.0,
-          cachedInput: 0.3,
-          output: 15.0,
-          updatedAt: '2026-06-11',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          maxOutputTokens: 64000,
-          thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'high',
-          },
-        },
-        contextWindow: 200000,
-        releaseDate: '2025-05-22',
-        deprecated: true,
       },
       {
         id: 'claude-haiku-4-5',
@@ -970,22 +930,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 200000,
         releaseDate: '2025-10-15',
         speedOptimized: true,
-      },
-      {
-        id: 'claude-3-haiku-20240307',
-        pricing: {
-          input: 0.25,
-          cachedInput: 0.03,
-          output: 1.25,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-          maxOutputTokens: 4096,
-        },
-        contextWindow: 200000,
-        releaseDate: '2024-03-13',
-        deprecated: true,
       },
     ],
   },
@@ -1509,7 +1453,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2025-12-17',
-        deprecated: true,
       },
       {
         id: 'gemini-2.5-pro',
@@ -1521,6 +1464,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
@@ -1536,6 +1483,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
@@ -1551,6 +1502,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'low',
+          },
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
@@ -1725,6 +1680,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
           maxOutputTokens: 65535,
         },
         contextWindow: 1048576,
@@ -1740,6 +1699,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
           maxOutputTokens: 65535,
         },
         contextWindow: 1048576,
@@ -1755,6 +1718,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'low',
+          },
           maxOutputTokens: 65535,
         },
         contextWindow: 1048576,
@@ -2876,6 +2843,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-08-05',
+        deprecated: true,
       },
       {
         id: 'bedrock/amazon.nova-2-pro-v1:0',

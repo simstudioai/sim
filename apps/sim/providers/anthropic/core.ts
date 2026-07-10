@@ -82,6 +82,12 @@ const THINKING_BUDGET_TOKENS: Record<string, number> = {
   high: 32768,
 }
 
+/** Anthropic's documented floor for `budget_tokens` (Messages API reference: "Must be >=1024 and less than max_tokens"). */
+const ANTHROPIC_MIN_BUDGET_TOKENS = 1024
+
+/** Headroom reserved for text output above the thinking budget when computing max_tokens. */
+const ANTHROPIC_THINKING_OUTPUT_HEADROOM = 4096
+
 /**
  * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
  * Fable 5 supports ONLY adaptive thinking (always on; type: "disabled" is rejected).
@@ -338,16 +344,28 @@ export async function executeAnthropicProviderRequest(
         payload.output_config = thinkingConfig.outputConfig
       }
 
-      // Per Anthropic docs: budget_tokens must be less than max_tokens.
+      // Per Anthropic docs: budget_tokens must be >= 1024 and less than max_tokens.
       // Ensure max_tokens leaves room for both thinking and text output.
       if (
         thinkingConfig.thinking.type === 'enabled' &&
         'budget_tokens' in thinkingConfig.thinking
       ) {
-        const budgetTokens = thinkingConfig.thinking.budget_tokens
-        const minMaxTokens = budgetTokens + 4096
+        const modelMax = getMaxOutputTokensForModel(request.model)
+        let budgetTokens = thinkingConfig.thinking.budget_tokens
+
+        // If this level's budget doesn't leave room for text output within the
+        // model's own output cap, shrink the budget itself (not just max_tokens) —
+        // otherwise clamping max_tokens alone can leave budget_tokens >= max_tokens.
+        if (budgetTokens + ANTHROPIC_THINKING_OUTPUT_HEADROOM > modelMax) {
+          budgetTokens = Math.max(
+            ANTHROPIC_MIN_BUDGET_TOKENS,
+            modelMax - ANTHROPIC_THINKING_OUTPUT_HEADROOM
+          )
+          thinkingConfig.thinking.budget_tokens = budgetTokens
+        }
+
+        const minMaxTokens = budgetTokens + ANTHROPIC_THINKING_OUTPUT_HEADROOM
         if (payload.max_tokens < minMaxTokens) {
-          const modelMax = getMaxOutputTokensForModel(request.model)
           payload.max_tokens = Math.min(minMaxTokens, modelMax)
           logger.info(
             `Adjusted max_tokens to ${payload.max_tokens} to satisfy budget_tokens (${budgetTokens}) constraint`

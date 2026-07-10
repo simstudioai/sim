@@ -24,6 +24,7 @@ import {
   ensureStructResponse,
   extractAllFunctionCallParts,
   extractTextContent,
+  mapToThinkingBudget,
   mapToThinkingLevel,
 } from '@/providers/google/utils'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
@@ -952,11 +953,15 @@ export async function executeGeminiRequest(
       )
     }
 
-    // Configure thinking only when the user explicitly selects a thinking level
+    // Configure thinking only when the user explicitly selects a thinking level.
+    // Gemini 3.x accepts thinkingLevel directly; Gemini 2.5-series rejects thinkingLevel
+    // entirely and requires a numeric thinkingBudget instead.
     if (request.thinkingLevel && request.thinkingLevel !== 'none') {
-      const thinkingConfig: ThinkingConfig = {
-        includeThoughts: false,
-        thinkingLevel: mapToThinkingLevel(request.thinkingLevel),
+      const thinkingConfig: ThinkingConfig = { includeThoughts: false }
+      if (isGemini3Model(model)) {
+        thinkingConfig.thinkingLevel = mapToThinkingLevel(request.thinkingLevel)
+      } else {
+        thinkingConfig.thinkingBudget = mapToThinkingBudget(model, request.thinkingLevel)
       }
       geminiConfig.thinkingConfig = thinkingConfig
     }

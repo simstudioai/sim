@@ -2,8 +2,45 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { convertToGeminiFormat, ensureStructResponse } from '@/providers/google/utils'
+import {
+  convertToGeminiFormat,
+  ensureStructResponse,
+  mapToThinkingBudget,
+} from '@/providers/google/utils'
 import type { ProviderRequest } from '@/providers/types'
+
+describe('mapToThinkingBudget', () => {
+  it('maps named levels to a within-range budget for gemini-2.5-pro (128-32768, cannot disable)', () => {
+    expect(mapToThinkingBudget('gemini-2.5-pro', 'low')).toBeGreaterThanOrEqual(128)
+    expect(mapToThinkingBudget('gemini-2.5-pro', 'high')).toBeLessThanOrEqual(32768)
+  })
+
+  it('maps named levels to a within-range budget for gemini-2.5-flash (0-24576)', () => {
+    expect(mapToThinkingBudget('gemini-2.5-flash', 'low')).toBeLessThanOrEqual(24576)
+    expect(mapToThinkingBudget('gemini-2.5-flash', 'high')).toBeLessThanOrEqual(24576)
+  })
+
+  it('maps named levels to a within-range budget for gemini-2.5-flash-lite (512-24576)', () => {
+    expect(mapToThinkingBudget('gemini-2.5-flash-lite', 'low')).toBeGreaterThanOrEqual(512)
+    expect(mapToThinkingBudget('gemini-2.5-flash-lite', 'high')).toBeLessThanOrEqual(24576)
+  })
+
+  it('strips the vertex/ prefix before looking up the model', () => {
+    expect(mapToThinkingBudget('vertex/gemini-2.5-flash', 'medium')).toBe(
+      mapToThinkingBudget('gemini-2.5-flash', 'medium')
+    )
+  })
+
+  it('falls back to dynamic budget (-1) for models with no explicit mapping', () => {
+    expect(mapToThinkingBudget('gemini-2.0-flash', 'medium')).toBe(-1)
+  })
+
+  it('falls back to the high budget for an unrecognized level on a mapped model', () => {
+    expect(mapToThinkingBudget('gemini-2.5-flash', 'unknown-level')).toBe(
+      mapToThinkingBudget('gemini-2.5-flash', 'high')
+    )
+  })
+})
 
 describe('ensureStructResponse', () => {
   describe('should return objects unchanged', () => {
