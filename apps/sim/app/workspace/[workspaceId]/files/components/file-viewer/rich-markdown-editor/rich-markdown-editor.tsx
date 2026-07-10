@@ -14,7 +14,7 @@ import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
-import { extractImageFiles, hasHostedImageHtml } from './image-paste'
+import { extractImageFiles, shouldSkipDropUpload, shouldSkipPasteUpload } from './image-paste'
 import {
   applyFrontmatter,
   normalizeLinkHref,
@@ -306,15 +306,17 @@ export function LoadedRichMarkdownEditor({
        * from a genuine external image paste by `clipboardData` files/items alone. When the HTML sibling
        * already names one of our own hosted files, bail out and let the editor's default HTML paste
        * clone that node (reusing its real `src` and every other attribute) instead of re-uploading the
-       * pasted bytes as a brand-new, distinct file.
+       * pasted bytes as a brand-new, distinct file. Only applied when exactly one image file is offered:
+       * a genuinely mixed paste (the hosted image plus a separate new one) must still upload the new
+       * file rather than have the whole paste swallowed by the single-image bypass below.
        */
       handlePaste: (view, event) => {
         if (!view.editable) return false
+        const images = extractImageFiles(event.clipboardData)
         const html = event.clipboardData?.getData('text/html') ?? ''
-        if (html && hasHostedImageHtml(html, (src) => extractEmbeddedFileRef(src) !== null)) {
+        if (shouldSkipPasteUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
           return false
         }
-        const images = extractImageFiles(event.clipboardData)
         if (images.length === 0) return false
         event.preventDefault()
         void insertImagesRef.current(images, view.state.selection.from)
@@ -330,12 +332,15 @@ export function LoadedRichMarkdownEditor({
        * (the same mechanism that lets a user drag a web image out to their desktop) — indistinguishable
        * from a real external drop by `dataTransfer` contents alone. `view.dragging` is ProseMirror's own
        * signal that this drop follows a `dragstart` within this same view, so bail out and let its
-       * default move logic run instead of re-uploading the dragged image as a duplicate.
+       * default move logic run instead of re-uploading the dragged image as a duplicate. Gated on
+       * `images.length > 0` (not checked unconditionally) so a stale `view.dragging` — it's cleared up
+       * to ~50ms late by ProseMirror's own `dragend` handler when a prior internal drag was dropped
+       * outside this view — can never suppress the plain-file swallow guard below for an unrelated drop.
        */
       handleDrop: (view, event) => {
         if (!view.editable) return false
-        if (view.dragging) return false
         const images = extractImageFiles(event.dataTransfer)
+        if (shouldSkipDropUpload(view.dragging, images)) return false
         if (images.length > 0) {
           event.preventDefault()
           const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
