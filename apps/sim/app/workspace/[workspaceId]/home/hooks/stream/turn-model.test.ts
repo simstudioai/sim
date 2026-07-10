@@ -522,3 +522,33 @@ describe('turn-terminal propagation', () => {
     expect(tool(m, 'tc-1').status).toBe('error')
   })
 })
+
+describe('reduceEvent — span-start owner reconciliation', () => {
+  it('corrects a nonempty mismatched provisional lane owner from the authoritative start', () => {
+    const model = createTurnModel()
+    // A content event races ahead of the span start; its scope names the
+    // FORWARDING caller (superagent), not the lane's real owner.
+    reduceEvent(
+      model,
+      envelope(
+        1,
+        'text',
+        { channel: 'assistant', text: 'early chunk' },
+        { lane: 'subagent', spanId: 'S1', agentId: 'superagent', parentToolCallId: 'd1' }
+      )
+    )
+    reduceEvent(
+      model,
+      envelope(
+        2,
+        'span',
+        { kind: 'subagent', event: 'start', agent: 'workflow', data: { tool_call_id: 'd1' } },
+        { lane: 'subagent', spanId: 'S1', parentToolCallId: 'd1' }
+      )
+    )
+    const laneId = model.agentBySpanId.get('S1')
+    const lane = laneId ? model.nodes.get(laneId) : undefined
+    if (!lane || lane.kind !== 'agent') throw new Error('expected agent lane for S1')
+    expect((lane as AgentNode).agentId).toBe('workflow')
+  })
+})

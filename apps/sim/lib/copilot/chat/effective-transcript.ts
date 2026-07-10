@@ -149,6 +149,17 @@ function buildLiveAssistantMessage(params: {
     return scopedParent
   }
 
+  // Tool ownership (calledBy / parent / span identity) is CALL-FRAME
+  // authoritative: once a call frame for a tool id has been reduced, later
+  // scoped results or replayed duplicates must not re-parent the tool. Before
+  // a call frame arrives, ownership stays provisional (result-first replay
+  // arrival is legal) and the call frame settles it — including CLEARING
+  // stale subagent attribution when the call is main-lane (unscoped). Without
+  // the clear, one mis-scoped replayed event pinned main tools under a
+  // subagent (observed: Sim's reads rendered under Superagent) with no later
+  // event able to correct it.
+  const toolOwnershipSettled = new Set<string>()
+
   const ensureToolBlock = (input: {
     toolCallId: string
     toolName: string
@@ -160,7 +171,10 @@ function buildLiveAssistantMessage(params: {
     params?: Record<string, unknown>
     result?: { success: boolean; output?: unknown; error?: string }
     state?: string
+    isCallFrame?: boolean
   }): RawPersistedBlock => {
+    const ownershipWritable = input.isCallFrame === true || !toolOwnershipSettled.has(input.toolCallId)
+    if (input.isCallFrame) toolOwnershipSettled.add(input.toolCallId)
     const existingIndex = toolIndexById.get(input.toolCallId)
     if (existingIndex !== undefined) {
       const existing = blocks[existingIndex]
@@ -172,7 +186,7 @@ function buildLiveAssistantMessage(params: {
         state:
           input.state ??
           (typeof existingToolCall?.state === 'string' ? existingToolCall.state : 'executing'),
-        ...(input.calledBy ? { calledBy: input.calledBy } : {}),
+        ...(ownershipWritable && input.calledBy ? { calledBy: input.calledBy } : {}),
         ...(input.params ? { params: input.params } : {}),
         ...(input.result ? { result: input.result } : {}),
         ...(input.displayTitle
@@ -185,9 +199,21 @@ function buildLiveAssistantMessage(params: {
             ? { display: existingToolCall.display }
             : {}),
       }
-      if (input.parentToolCallId) existing.parentToolCallId = input.parentToolCallId
-      if (input.spanId) existing.spanId = input.spanId
-      if (input.parentSpanId) existing.parentSpanId = input.parentSpanId
+      if (ownershipWritable) {
+        if (input.parentToolCallId) existing.parentToolCallId = input.parentToolCallId
+        if (input.spanId) existing.spanId = input.spanId
+        if (input.parentSpanId) existing.parentSpanId = input.parentSpanId
+        if (input.isCallFrame && !input.calledBy) {
+          // Authoritative main-lane call: clear any provisionally-seeded
+          // subagent attribution so the tool renders under Sim, not the
+          // forwarding caller.
+          const tc = asPayloadRecord(existing.toolCall)
+          if (tc) delete tc.calledBy
+          delete existing.parentToolCallId
+          delete existing.spanId
+          delete existing.parentSpanId
+        }
+      }
       return existing
     }
 
@@ -332,6 +358,7 @@ function buildLiveAssistantMessage(params: {
           ),
           params: isRecordLike(payload.arguments) ? payload.arguments : undefined,
           state: typeof payload.status === 'string' ? payload.status : 'executing',
+          isCallFrame: payload.phase === MothershipStreamV1ToolPhase.call,
         })
         continue
       }
