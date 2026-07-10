@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { webhook, workflowDeploymentVersion } from '@sim/db/schema'
+import { account, webhook, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -19,7 +19,11 @@ import {
   isCanonicalPair,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
-import { getSlackBotCredential, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import {
+  getSlackBotCredential,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -453,7 +457,20 @@ export async function saveTriggerWebhooksForDeploy({
             error: { message: 'Select a Slack account for the trigger.', status: 400 },
           }
         }
-        const botToken = await refreshAccessTokenIfNeeded(credentialId, userId, requestId)
+        // Resolve the credential OWNER's token (not the deploying actor's) —
+        // in a shared workspace a teammate can deploy a trigger wired to
+        // someone else's Slack credential. Mirrors the runtime formatInput path.
+        let tokenOwnerUserId = userId
+        const resolvedAccount = await resolveOAuthAccountId(credentialId)
+        if (resolvedAccount?.accountId) {
+          const [owner] = await db
+            .select({ userId: account.userId })
+            .from(account)
+            .where(eq(account.id, resolvedAccount.accountId))
+            .limit(1)
+          if (owner?.userId) tokenOwnerUserId = owner.userId
+        }
+        const botToken = await refreshAccessTokenIfNeeded(credentialId, tokenOwnerUserId, requestId)
         if (!botToken) {
           return {
             success: false,
