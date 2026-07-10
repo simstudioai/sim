@@ -69,7 +69,15 @@ const HANDWRITTEN_TRIGGER_DOCS = new Set([
 ])
 
 /** Providers whose docs are already covered by hand-written pages. */
-const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss', 'table', 'sim'])
+const SKIP_TRIGGER_PROVIDERS = new Set([
+  'generic',
+  'rss',
+  'table',
+  'sim',
+  // TikTok is temporarily hideFromToolbar; skip so cleanup does not leave an
+  // orphan triggers-only docs page after the actions page is removed.
+  'tiktok',
+])
 
 /**
  * Maps trigger provider names (from TriggerConfig.provider) to their
