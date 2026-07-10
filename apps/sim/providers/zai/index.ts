@@ -29,6 +29,35 @@ const logger = createLogger('ZaiProvider')
 
 const ZAI_BASE_URL = 'https://api.z.ai/api/paas/v4'
 
+function buildSchemaGuidance(responseFormat: ProviderRequest['responseFormat']): string {
+  if (!responseFormat) return ''
+  const schema = responseFormat.schema || responseFormat
+  return `\n\nYour response must be valid JSON matching this schema${
+    responseFormat.name ? ` ("${responseFormat.name}")` : ''
+  }:\n${JSON.stringify(schema, null, 2)}`
+}
+
+function withSchemaGuidance(messages: any[], guidance: string): any[] {
+  if (!guidance) return messages
+  if (messages[0]?.role === 'system') {
+    return [{ ...messages[0], content: `${messages[0].content}${guidance}` }, ...messages.slice(1)]
+  }
+  return [{ role: 'system', content: guidance.trimStart() }, ...messages]
+}
+
+/**
+ * Z.ai's GLM models via an OpenAI-compatible chat-completions API (`api.z.ai`), with these
+ * documented deviations from a standard OpenAI-compatible adapter:
+ * - Output length is capped via `max_tokens`, not OpenAI's `max_completion_tokens`.
+ * - `tool_choice` only supports `"auto"` — forcing a specific tool or disabling tool use via
+ *   the parameter is rejected, so any forced/none choice is downgraded to `"auto"` (logged as
+ *   a warning), and a "stop calling tools" pass drops `tools`/`tool_choice` entirely instead of
+ *   sending an unsupported `"none"`.
+ * - `response_format` only supports `"text"`/`"json_object"`, not `"json_schema"` — the
+ *   expected schema is also injected into the system prompt as best-effort guidance.
+ * - `thinking: { type }` and `reasoning_effort` map directly from `request.thinkingLevel` and
+ *   `request.reasoningEffort`.
+ */
 export const zaiProvider: ProviderConfig = {
   id: 'zai',
   name: 'Z.ai',
@@ -84,23 +113,16 @@ export const zaiProvider: ProviderConfig = {
       }
 
       if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+      if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
-      // GLM's `thinking` toggle (models where `capabilities.thinking.levels` is
-      // ['disabled', 'enabled']) maps directly to Z.ai's `thinking: { type }` request param.
       if (request.thinkingLevel === 'enabled' || request.thinkingLevel === 'disabled') {
         payload.thinking = { type: request.thinkingLevel }
       }
 
-      // GLM-5.2's `reasoningEffort` capability maps directly to Z.ai's `reasoning_effort`
-      // request param — the only model in this catalog that documents it.
       if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
         payload.reasoning_effort = request.reasoningEffort
       }
 
-      // Z.ai's chat-completions API supports `text` and `json_object` response formats but
-      // does not have confirmed `json_schema` support, unlike the shared OpenAI-compatible
-      // template — request a plain JSON-object hint instead of a strict schema.
       const responseFormatPayload = request.responseFormat
         ? ({ type: 'json_object' as const } as const)
         : undefined
@@ -114,9 +136,6 @@ export const zaiProvider: ProviderConfig = {
 
         if (filteredTools?.length && toolChoice) {
           payload.tools = filteredTools
-          // Z.ai's chat-completions API documents `tool_choice` support for `"auto"` only —
-          // forcing a specific function or disabling tool use via the parameter is rejected.
-          // Ignore any forced/none choice `prepareToolsWithUsageControl` may have produced.
           payload.tool_choice = 'auto'
           hasActiveTools = true
 
@@ -135,12 +154,13 @@ export const zaiProvider: ProviderConfig = {
         }
       }
 
-      // Structured output and tool calling cannot be sent together — OpenAI-compatible
-      // backends reject a request that carries both `response_format` and active
-      // `tools`/`tool_choice`. Defer the schema until after the tool loop completes.
       const deferResponseFormat = !!responseFormatPayload && hasActiveTools
       if (responseFormatPayload && !deferResponseFormat) {
         payload.response_format = responseFormatPayload
+        payload.messages = withSchemaGuidance(
+          payload.messages,
+          buildSchemaGuidance(request.responseFormat)
+        )
       }
 
       if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
@@ -270,9 +290,6 @@ export const zaiProvider: ProviderConfig = {
               const toolArgs = JSON.parse(toolCall.function.arguments)
               const tool = request.tools?.find((t) => t.id === toolName)
 
-              // Every tool_call in the assistant message must be answered by a matching
-              // `tool` message, or the next request violates the OpenAI message contract.
-              // Emit an error result for an unknown tool rather than dropping it.
               if (!tool) {
                 const toolCallEndTime = Date.now()
                 return {
@@ -476,10 +493,6 @@ export const zaiProvider: ProviderConfig = {
       if (request.stream) {
         logger.info('Using streaming for final Z.ai response after tool processing')
 
-        // The tool loop is complete: this final pass only produces the textual answer.
-        // Z.ai only documents `tool_choice: 'auto'` support, so drop `tools`/`tool_choice`
-        // entirely rather than sending an unsupported `'none'` — with no tools declared,
-        // the model has nothing to call and the text-only stream adapter stays safe.
         const streamingPayload: any = {
           ...payload,
           messages: currentMessages,
@@ -490,6 +503,10 @@ export const zaiProvider: ProviderConfig = {
         streamingPayload.tool_choice = undefined
         if (deferResponseFormat && responseFormatPayload) {
           streamingPayload.response_format = responseFormatPayload
+          streamingPayload.messages = withSchemaGuidance(
+            streamingPayload.messages,
+            buildSchemaGuidance(request.responseFormat)
+          )
         }
 
         const streamResponse = await zai.chat.completions.create(
@@ -557,18 +574,16 @@ export const zaiProvider: ProviderConfig = {
         return streamingResult
       }
 
-      // Tools were active, so `response_format` was withheld from the loop. Make one final
-      // tool-free call to obtain the structured response now that the tool work is done.
       if (deferResponseFormat && responseFormatPayload) {
         logger.info('Applying deferred response_format after tool processing')
 
         const finalFormatStartTime = Date.now()
-        // Z.ai only documents `tool_choice: 'auto'` support, so drop `tools`/`tool_choice`
-        // rather than sending an unsupported `'none'` — with no tools declared, the model
-        // has nothing left to call and simply returns the formatted answer.
         const finalPayload: any = {
           ...payload,
-          messages: currentMessages,
+          messages: withSchemaGuidance(
+            currentMessages,
+            buildSchemaGuidance(request.responseFormat)
+          ),
           response_format: responseFormatPayload,
         }
         finalPayload.tools = undefined
