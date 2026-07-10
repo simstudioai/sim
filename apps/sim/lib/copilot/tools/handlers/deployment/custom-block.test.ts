@@ -259,6 +259,26 @@ describe('executeDeployCustomBlock', () => {
     expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 
+  it('rejects oversized per-item fields', async () => {
+    const longPlaceholder = await executeDeployCustomBlock(
+      { name: 'Enrich Lead', inputs: [{ id: 'f1', placeholder: 'x'.repeat(201) }] },
+      context
+    )
+    expect(longPlaceholder.success).toBe(false)
+    expect(longPlaceholder.error).toContain('200')
+
+    const longOutputName = await executeDeployCustomBlock(
+      {
+        name: 'Enrich Lead',
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'x'.repeat(61) }],
+      },
+      context
+    )
+    expect(longOutputName.success).toBe(false)
+    expect(longOutputName.error).toContain('60')
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
+  })
+
   it('rejects exposedOutputs entries missing required fields', async () => {
     const result = await executeDeployCustomBlock(
       { name: 'Enrich Lead', exposedOutputs: [{ blockId: 'b1', path: '', name: 'out' }] },

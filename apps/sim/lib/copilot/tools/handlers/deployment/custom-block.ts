@@ -192,6 +192,9 @@ export async function executeDeployCustomBlock(
     if (params.inputs?.some((entry) => !entry?.id?.trim())) {
       return { success: false, error: 'each inputs entry requires the trigger field id' }
     }
+    if (params.inputs?.some((entry) => (entry.placeholder?.length ?? 0) > 200)) {
+      return { success: false, error: 'input placeholders must be 200 characters or fewer' }
+    }
     if (params.exposedOutputs && params.exposedOutputs.length > MAX_OUTPUT_ENTRIES) {
       return {
         success: false,
@@ -207,6 +210,9 @@ export async function executeDeployCustomBlock(
         success: false,
         error: 'each exposedOutputs entry requires blockId, path, and name',
       }
+    }
+    if (params.exposedOutputs?.some((entry) => entry.name.length > 60)) {
+      return { success: false, error: 'exposed output names must be 60 characters or fewer' }
     }
     const iconUrl = await resolveIconUrl(params.iconUrl, context.userId, workspaceId)
 
