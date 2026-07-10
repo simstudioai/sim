@@ -18,6 +18,7 @@ const CHANNEL_FILTER_EVENTS = slackEventsSupportingFilter('channels')
 const THREAD_FILTER_EVENTS = slackEventsSupportingFilter('threads')
 const EMOJI_FILTER_EVENTS = slackEventsSupportingFilter('emoji')
 const NAME_FILTER_EVENTS = slackEventsSupportingFilter('name')
+const INTERACTION_FILTER_EVENTS = slackEventsSupportingFilter('interaction')
 // Bot/own toggles gate UI visibility only (the route applies them unconditionally),
 // so they are not catalog `filters`.
 const BOT_FILTER_EVENTS = ['message', 'app_mention']
@@ -28,8 +29,10 @@ const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reactio
  * - `sim` (default): the official Sim Slack app the user OAuth-connects — events
  *   route to this workflow by Slack `team_id` (stored as the webhook `routingKey`,
  *   derived at deploy time). No signing secret, bot token, or app setup.
- * - `custom`: a bring-your-own Slack app — events arrive on a per-workflow webhook
- *   URL and are verified with the app's own signing secret.
+ * - `custom`: a bring-your-own Slack app, selected as a reusable bot credential
+ *   (set up once). Events route by that credential (`webhook.routingKey =
+ *   credentialId`) to one shared ingest URL, so many triggers on the same bot
+ *   share a single Request URL, verified with the bot's own signing secret.
  */
 export const slackOAuthTrigger: TriggerConfig = {
   id: 'slack_oauth',
@@ -60,11 +63,16 @@ export const slackOAuthTrigger: TriggerConfig = {
       id: 'appType',
       title: 'App Type',
       type: 'dropdown',
+      // Ship 1 exposes custom bots only; the native "Sim" app mode returns in a
+      // later ship (un-hide + default back to 'sim'). Hidden — not removed — so
+      // the seeded 'custom' value keeps every `appType==='custom'` condition, the
+      // event-catalog fetch, and the deploy routing branch resolving correctly.
+      hidden: true,
       options: [
         { label: 'Sim', id: 'sim' },
         { label: 'Custom', id: 'custom' },
       ],
-      value: () => 'sim',
+      value: () => 'custom',
       description: 'Use the official Sim Slack app, or your own custom Slack app.',
       mode: 'trigger',
     },
@@ -79,6 +87,32 @@ export const slackOAuthTrigger: TriggerConfig = {
       required: { field: 'appType', value: 'sim' },
       mode: 'trigger',
       condition: { field: 'appType', value: 'sim' },
+    },
+    {
+      id: 'customBotCredential',
+      title: 'Slack Bot',
+      type: 'oauth-input',
+      canonicalParamId: 'botCredential',
+      serviceId: 'slack',
+      credentialKind: 'custom-bot',
+      requiredScopes: getScopesForService('slack'),
+      placeholder: 'Select a connected bot',
+      description:
+        'Choose a custom Slack bot you set up once and reuse across triggers and actions.',
+      required: { field: 'appType', value: 'custom' },
+      mode: 'trigger',
+      condition: { field: 'appType', value: 'custom' },
+    },
+    {
+      id: 'manualBotCredential',
+      title: 'Bot Credential ID',
+      type: 'short-input',
+      canonicalParamId: 'botCredential',
+      placeholder: 'Enter bot credential ID',
+      description: 'Set the custom bot credential ID directly.',
+      required: { field: 'appType', value: 'custom' },
+      mode: 'trigger-advanced',
+      condition: { field: 'appType', value: 'custom' },
     },
     {
       id: 'source',
@@ -104,7 +138,7 @@ export const slackOAuthTrigger: TriggerConfig = {
       placeholder: 'Any channel the bot is in',
       description:
         'Restrict to specific channels. Leave empty to trigger on any channel the bot has been added to.',
-      dependsOn: ['triggerCredentials'],
+      dependsOn: { any: ['triggerCredentials', 'customBotCredential'] },
       required: false,
       mode: 'trigger',
       condition: { field: 'eventType', value: CHANNEL_FILTER_EVENTS },
@@ -153,38 +187,15 @@ export const slackOAuthTrigger: TriggerConfig = {
       condition: { field: 'eventType', value: NAME_FILTER_EVENTS },
     },
     {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
+      id: 'interactionFilter',
+      title: 'Action / Callback ID',
       type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: { field: 'appType', value: 'custom' },
-    },
-    {
-      id: 'signingSecret',
-      title: 'Signing Secret',
-      type: 'short-input',
-      placeholder: 'Enter your Slack app signing secret',
-      description: 'The signing secret from your Slack app to validate request authenticity.',
-      password: true,
-      required: { field: 'appType', value: 'custom' },
-      mode: 'trigger',
-      condition: { field: 'appType', value: 'custom' },
-    },
-    {
-      id: 'botToken',
-      title: 'Bot Token',
-      type: 'short-input',
-      placeholder: 'xoxb-...',
+      placeholder: 'approve_btn, deny_btn',
       description:
-        'The bot token from your Slack app. Required for downloading files attached to messages.',
-      password: true,
+        'Comma-separated action_ids (buttons/selects) or callback_ids (modals) to restrict to. Leave empty to fire on any interaction.',
       required: false,
       mode: 'trigger',
-      condition: { field: 'appType', value: 'custom' },
+      condition: { field: 'eventType', value: INTERACTION_FILTER_EVENTS },
     },
     {
       id: 'filterBotMessages',
@@ -216,16 +227,6 @@ export const slackOAuthTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
       condition: { field: 'eventType', value: 'message' },
-    },
-    {
-      id: 'setupWizard',
-      title: 'Slack App Setup',
-      type: 'modal',
-      modalId: 'slack-setup-wizard',
-      description: 'Walk through manifest creation, app install, and pasting credentials.',
-      hideFromPreview: true,
-      mode: 'trigger',
-      condition: { field: 'appType', value: 'custom' },
     },
   ],
 

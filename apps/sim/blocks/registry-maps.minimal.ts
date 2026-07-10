@@ -23,7 +23,7 @@ import { RssBlock } from '@/blocks/blocks/rss'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
 import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
-import { SlackBlock } from '@/blocks/blocks/slack'
+import { SlackBlock, SlackV2Block } from '@/blocks/blocks/slack'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { TableBlock } from '@/blocks/blocks/table'
 import { TranslateBlock } from '@/blocks/blocks/translate'
@@ -74,6 +74,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   search: SearchBlock,
   sim_workspace_event: SimWorkspaceEventBlock,
   slack: SlackBlock,
+  slack_v2: SlackV2Block,
   start_trigger: StartTriggerBlock,
   table: TableBlock,
   translate: TranslateBlock,

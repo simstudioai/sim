@@ -700,6 +700,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Slack',
         description: 'Use Slack messaging, files, reactions, views, and canvases.',
         providerId: 'slack',
+        serviceAccountProviderId: 'slack-custom-bot',
         icon: SlackIcon,
         baseProviderIcon: SlackIcon,
         scopes: [

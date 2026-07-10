@@ -4,18 +4,9 @@ import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  checkWebhookPreprocessing,
-  findWebhooksByRoutingKey,
-  parseWebhookBody,
-  queueWebhookExecution,
-} from '@/lib/webhooks/processor'
-import {
-  handleSlackChallenge,
-  shouldSkipSlackTriggerEvent,
-  verifySlackRequestSignature,
-} from '@/lib/webhooks/providers/slack'
-import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
+import { findWebhooksByRoutingKey, parseWebhookBody } from '@/lib/webhooks/processor'
+import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
+import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
 
 const logger = createLogger('SlackAppWebhookAPI')
 
@@ -87,6 +78,17 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
       teamIds.add(teamId)
     }
   }
+  // Interactivity payloads (block_actions / view_submission) carry no top-level
+  // `team_id` / `authorizations`; the install/context workspace is at
+  // `payload.team.id`. Route on that ONLY — never `payload.user.team_id`, which
+  // in Slack Connect can be a different (external) tenant. Slack-attested,
+  // post-signature, so not user-forgeable.
+  if (teamIds.size === 0) {
+    const interactionTeamId = (payload.team as Record<string, unknown> | undefined)?.id
+    if (typeof interactionTeamId === 'string' && interactionTeamId.length > 0) {
+      teamIds.add(interactionTeamId)
+    }
+  }
   if (teamIds.size === 0) {
     logger.warn(`[${requestId}] Slack event missing team_id`)
     return new NextResponse(null, { status: 200 })
@@ -104,46 +106,7 @@ async function handleSlackAppWebhook(request: NextRequest): Promise<NextResponse
     return new NextResponse(null, { status: 200 })
   }
 
-  const slackRequestTimestamp = request.headers.get('x-slack-request-timestamp')
-  const triggerTimestampMs = slackRequestTimestamp
-    ? Number(slackRequestTimestamp) * 1000
-    : undefined
-
-  for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooks) {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
-
-    // Apply the shared trigger filter (event, source, threads, emoji, name,
-    // channels, self-drop, bot). The custom-app path applies the same via
-    // slackHandler.shouldSkipEvent.
-    if (shouldSkipSlackTriggerEvent(payload, providerConfig)) {
-      continue
-    }
-
-    if (foundWebhook.blockId) {
-      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
-      if (!blockExists) {
-        logger.info(
-          `[${requestId}] Trigger block ${foundWebhook.blockId} not in deployment for ${foundWorkflow.id}`
-        )
-        continue
-      }
-    }
-
-    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
-    if (preprocessResult.error) {
-      logger.warn(`[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}`)
-      continue
-    }
-
-    await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
-      requestId,
-      actorUserId: preprocessResult.actorUserId,
-      executionId: preprocessResult.executionId,
-      correlation: preprocessResult.correlation,
-      receivedAt,
-      triggerTimestampMs: Number.isFinite(triggerTimestampMs) ? triggerTimestampMs : undefined,
-    })
-  }
+  await dispatchSlackWebhooks(webhooks, { body, request, requestId, receivedAt })
 
   return new NextResponse(null, { status: 200 })
 }

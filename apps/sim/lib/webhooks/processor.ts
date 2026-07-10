@@ -383,7 +383,8 @@ export async function findAllWebhooksForPath(
  */
 export async function findWebhooksByRoutingKey(
   routingKey: string,
-  requestId: string
+  requestId: string,
+  provider = 'slack_app'
 ): Promise<Array<{ webhook: any; workflow: any }>> {
   if (!routingKey) {
     return []
@@ -406,7 +407,7 @@ export async function findWebhooksByRoutingKey(
     .where(
       and(
         eq(webhook.routingKey, routingKey),
-        eq(webhook.provider, 'slack_app'),
+        eq(webhook.provider, provider),
         eq(webhook.isActive, true),
         isNull(webhook.archivedAt),
         isNull(workflow.archivedAt),
@@ -418,7 +419,7 @@ export async function findWebhooksByRoutingKey(
     )
 
   if (results.length === 0) {
-    logger.warn(`[${requestId}] No active slack_app webhooks for routing key`)
+    logger.warn(`[${requestId}] No active ${provider} webhooks for routing key`)
   }
 
   return results

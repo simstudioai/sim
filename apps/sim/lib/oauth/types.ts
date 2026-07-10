@@ -8,9 +8,28 @@ import type { ReactNode } from 'react'
 export const ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID = 'atlassian-service-account' as const
 
 /**
+ * Stable identifier for a Google service account credential (JSON key → JWT
+ * token exchange). Used as the `providerId` on credential rows and the
+ * `serviceAccountProviderId` on Google service configs.
+ */
+export const GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID = 'google-service-account' as const
+
+/**
  * Discriminator stored inside the encrypted Atlassian service account secret blob.
  */
 export const ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE = 'atlassian_service_account' as const
+
+/**
+ * Stable identifier for a reusable custom Slack bot credential — a
+ * `service_account`-type credential whose encrypted blob holds the bring-your-own
+ * app's signing secret + bot token + derived team_id/bot_user_id. Used as the
+ * `providerId` on credential rows and the `serviceAccountProviderId` on the Slack
+ * service config, so it folds into the same Slack credential dropdown.
+ */
+export const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot' as const
+
+/** Discriminator stored inside the encrypted Slack custom bot secret blob. */
+export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
 export type OAuthProvider =
   | 'google'

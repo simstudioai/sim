@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import {
   Modal,
@@ -17,8 +16,8 @@ import {
  * A multi-step modal wizard primitive.
  *
  * @remarks
- * Wraps the emcn Modal with a step progress bar, a shared Back / Next / Done
- * footer, and declarative `Wizard.Step` children. Step state is controlled
+ * Wraps the emcn Modal with a shared Back / Next / Done footer and declarative
+ * `Wizard.Step` children. Step state is controlled
  * from the outside so the consumer can hydrate from persisted state, reset
  * on close, or jump around imperatively.
  *
@@ -113,6 +112,13 @@ interface WizardProps {
    * If omitted, a generic sr-only description is rendered automatically.
    */
   description?: string
+  /**
+   * Optional persistent header title shown (with `icon`) instead of the active
+   * step's title, for a stable branded header across steps.
+   */
+  title?: string
+  /** Optional leading icon rendered in the header. */
+  icon?: React.ComponentType<{ className?: string }>
 }
 
 const WizardRoot: React.FC<WizardProps> = ({
@@ -128,6 +134,8 @@ const WizardRoot: React.FC<WizardProps> = ({
   nextLabel = 'Next',
   doneLabel = 'Done',
   description,
+  title,
+  icon: Icon,
 }) => {
   const steps = React.Children.toArray(children).filter(isStepElement)
   const total = steps.length
@@ -154,24 +162,16 @@ const WizardRoot: React.FC<WizardProps> = ({
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size={size} className={height}>
-        <ModalHeader>{activeStep?.props.title}</ModalHeader>
-
-        <div className='flex items-center justify-between px-4 pb-4'>
-          <div className='flex flex-1 gap-1.5'>
-            {steps.map((_step, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'h-1 flex-1 rounded-full transition-colors',
-                  i <= clamped ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'
-                )}
-              />
-            ))}
-          </div>
-          <span className='ml-3 shrink-0 font-normal text-[var(--text-muted)] text-xs'>
-            {clamped + 1}/{total}
-          </span>
-        </div>
+        <ModalHeader>
+          {title ? (
+            <span className='flex items-center gap-2'>
+              {Icon ? <Icon className='size-[18px]' /> : null}
+              {title}
+            </span>
+          ) : (
+            activeStep?.props.title
+          )}
+        </ModalHeader>
 
         <ModalBody>
           <ModalDescription className='sr-only'>

@@ -73,6 +73,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // event envelope (varies per event type) read via parseWebhookBody; there is
   // no client contract to bind — authenticity is enforced by signature.
   'apps/sim/app/api/webhooks/slack/route.ts',
+  'apps/sim/app/api/webhooks/slack/custom/[credentialId]/route.ts',
   'apps/sim/app/api/resume/poll/route.ts',
   // MCP routes that take only auth context (no client-supplied params/query/body).
   'apps/sim/app/api/mcp/discover/route.ts',

@@ -19,7 +19,7 @@ import {
   isCanonicalPair,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getSlackBotCredential, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -478,7 +478,34 @@ export async function saveTriggerWebhooksForDeploy({
         effectiveProvider = 'slack_app'
         effectivePath = null
       } else {
+        // Custom: a reusable bring-your-own bot credential. Route by the
+        // credential id (one shared ingest URL per bot) instead of a per-workflow
+        // path, so multiple triggers on the same bot share one Request URL.
+        const botCredentialId =
+          typeof providerConfig.botCredential === 'string'
+            ? providerConfig.botCredential
+            : undefined
+        if (!botCredentialId) {
+          return {
+            success: false,
+            error: { message: 'Select a Slack bot credential for the trigger.', status: 400 },
+          }
+        }
+        const botCredential = await getSlackBotCredential(botCredentialId)
+        if (!botCredential) {
+          return {
+            success: false,
+            error: {
+              message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
+              status: 400,
+            },
+          }
+        }
         effectiveProvider = 'slack'
+        effectivePath = null
+        routingKey = botCredentialId
+        providerConfig.credentialId = botCredentialId
+        if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
       }
     }
 

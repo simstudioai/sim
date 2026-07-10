@@ -12,6 +12,7 @@ import {
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
@@ -73,6 +74,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
   const hasServiceAccount = Boolean(oauthService?.serviceAccountProviderId)
+  const isSlackBot = oauthService?.serviceAccountProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID
   const hasHandledConnectQueryRef = useRef(false)
 
   useEffect(() => {
@@ -105,7 +107,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         },
         {
           value: CONNECT_MODE.serviceAccount,
-          label: 'Add service account',
+          label: isSlackBot ? 'Set up a custom bot' : 'Add service account',
           icon: oauthService.serviceIcon,
         },
       ]

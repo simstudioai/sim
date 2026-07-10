@@ -7,11 +7,16 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
 import {
   deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+import {
+  ServiceAccountSecretError,
+  verifyAndBuildServiceAccountSecret,
+} from '@/lib/credentials/service-account-secret'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
@@ -37,6 +42,12 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   displayName?: string
   description?: string | null
   serviceAccountJson?: string
+  /** Slack custom-bot secret rotation (reconnect). */
+  signingSecret?: string
+  botToken?: string
+  /** Atlassian service-account secret rotation (reconnect). */
+  apiToken?: string
+  domain?: string
 }
 
 export interface PerformCredentialResult {
@@ -101,6 +112,37 @@ export async function performUpdateCredential(
       }
       const { encrypted } = await encryptSecret(params.serviceAccountJson)
       updates.encryptedServiceAccountKey = encrypted
+    }
+
+    // Reconnect: rotate a Slack/Atlassian service-account secret in place. The
+    // secret is re-verified against the provider and re-encrypted; the display
+    // name is preserved (the user may have renamed it).
+    const hasRotationSecret =
+      params.signingSecret !== undefined ||
+      params.botToken !== undefined ||
+      params.apiToken !== undefined ||
+      params.domain !== undefined
+    if (hasRotationSecret && access.credential.type === 'service_account') {
+      try {
+        const secret = await verifyAndBuildServiceAccountSecret(
+          access.credential.providerId ?? '',
+          {
+            signingSecret: params.signingSecret,
+            botToken: params.botToken,
+            apiToken: params.apiToken,
+            domain: params.domain,
+          }
+        )
+        updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
+      } catch (error) {
+        if (error instanceof ServiceAccountSecretError) {
+          return { success: false, error: error.message, errorCode: 'validation' }
+        }
+        if (error instanceof AtlassianValidationError) {
+          return { success: false, error: error.code, errorCode: 'validation' }
+        }
+        throw error
+      }
     }
 
     if (Object.keys(updates).length === 0) {

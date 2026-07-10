@@ -82,6 +82,10 @@ export const PUT = withRouteHandler(
         displayName: body.displayName,
         description: body.description,
         serviceAccountJson: body.serviceAccountJson,
+        signingSecret: body.signingSecret,
+        botToken: body.botToken,
+        apiToken: body.apiToken,
+        domain: body.domain,
         request,
       })
       if (!result.success) {

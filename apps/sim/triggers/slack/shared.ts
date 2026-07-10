@@ -164,8 +164,10 @@ export const SLACK_TRIGGER_OUTPUTS: Record<string, TriggerOutput> = {
  * - `threads`: include / exclude / only thread replies.
  * - `emoji`: restrict a reaction event to specific emoji names.
  * - `name`: substring match on a created channel's name.
+ * - `interaction`: restrict an interactivity event to specific `action_id`s
+ *   (block_actions) or `callback_id`s (view_submission).
  */
-export type SlackEventFilter = 'source' | 'channels' | 'threads' | 'emoji' | 'name'
+export type SlackEventFilter = 'source' | 'channels' | 'threads' | 'emoji' | 'name' | 'interaction'
 
 export interface SlackEventCatalogEntry {
   /** Selected value stored under the `eventType` sub-block. */
@@ -249,6 +251,18 @@ export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
     label: 'Assistant context changed',
     simSubscribed: true,
     filters: [],
+  },
+  {
+    id: 'block_actions',
+    label: 'Button / select clicked',
+    simSubscribed: true,
+    filters: ['interaction'],
+  },
+  {
+    id: 'view_submission',
+    label: 'Modal submitted',
+    simSubscribed: true,
+    filters: ['interaction'],
   },
 ] as const
 

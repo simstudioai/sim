@@ -39,6 +39,7 @@ vi.mock('@/lib/webhooks/providers/slack', () => ({
   handleSlackChallenge: () => null,
   verifySlackRequestSignature: () => null,
   shouldSkipSlackTriggerEvent: mockShouldSkip,
+  resolveSlackEventKey: () => null,
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
@@ -111,6 +112,31 @@ describe('Slack app webhook route', () => {
   it('returns 200 with no team_id', async () => {
     mockShouldSkip.mockReturnValue(false)
     await run({ event: { type: 'message' } })
+    expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
+    expect(mockQueueWebhookExecution).not.toHaveBeenCalled()
+  })
+
+  it('routes an interaction payload by payload.team.id', async () => {
+    mockShouldSkip.mockReturnValue(false)
+    await run({
+      type: 'block_actions',
+      api_app_id: 'A1',
+      team: { id: 'T1' },
+      user: { id: 'U1' },
+      actions: [{ action_id: 'approve_btn' }],
+    })
+    expect(mockFindWebhooksByRoutingKey).toHaveBeenCalledWith('T1', expect.anything())
+    expect(mockQueueWebhookExecution).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed on an interaction missing payload.team.id (never routes on user.team_id)', async () => {
+    mockShouldSkip.mockReturnValue(false)
+    await run({
+      type: 'block_actions',
+      api_app_id: 'A1',
+      user: { id: 'U1', team_id: 'T_OTHER' },
+      actions: [{ action_id: 'approve_btn' }],
+    })
     expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
     expect(mockQueueWebhookExecution).not.toHaveBeenCalled()
   })

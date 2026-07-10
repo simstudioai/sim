@@ -515,7 +515,13 @@ export function getServiceConfigByServiceId(serviceId: string): OAuthServiceConf
 export function getServiceConfigByProviderId(providerId: string): OAuthServiceConfig | null {
   for (const provider of Object.values(OAUTH_PROVIDERS)) {
     for (const [key, service] of Object.entries(provider.services)) {
-      if (service.providerId === providerId || key === providerId) {
+      // Also resolve a service-account provider id (e.g. `slack-custom-bot`) back
+      // to its owning service so its credentials group under that integration.
+      if (
+        service.providerId === providerId ||
+        key === providerId ||
+        service.serviceAccountProviderId === providerId
+      ) {
         return service
       }
     }

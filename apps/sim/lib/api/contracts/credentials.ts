@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, type OAuthProvider } from '@/lib/oauth/types'
+import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  type OAuthProvider,
+  SLACK_CUSTOM_BOT_PROVIDER_ID,
+} from '@/lib/oauth/types'
 
 const ENV_VAR_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
@@ -121,6 +125,14 @@ export const createCredentialBodySchema = z
     serviceAccountJson: z.string().optional(),
     apiToken: z.string().trim().min(1).optional(),
     domain: z.string().trim().min(1).optional(),
+    /**
+     * Client-supplied credential id, honored only for `slack-custom-bot` creates:
+     * the setup modal shows the ingest URL `/api/webhooks/slack/custom/{id}`
+     * before secrets exist, so the id must be known up front.
+     */
+    id: z.string().uuid('id must be a valid UUID').optional(),
+    signingSecret: z.string().trim().min(1).optional(),
+    botToken: z.string().trim().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -166,6 +178,23 @@ export const createCredentialBodySchema = z
         }
         return
       }
+      if (data.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
+        if (!data.signingSecret) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'signingSecret is required for a custom Slack bot credential',
+            path: ['signingSecret'],
+          })
+        }
+        if (!data.botToken) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'botToken is required for a custom Slack bot credential',
+            path: ['botToken'],
+          })
+        }
+        return
+      }
       if (!data.serviceAccountJson) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -200,13 +229,23 @@ export const updateCredentialByIdBodySchema = z
     displayName: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(500).nullish(),
     serviceAccountJson: z.string().min(1).optional(),
+    /** Slack custom-bot secret rotation (reconnect). */
+    signingSecret: z.string().trim().min(1).optional(),
+    botToken: z.string().trim().min(1).optional(),
+    /** Atlassian service-account secret rotation (reconnect). */
+    apiToken: z.string().trim().min(1).optional(),
+    domain: z.string().trim().min(1).optional(),
   })
   .strict()
   .refine(
     (data) =>
       data.displayName !== undefined ||
       data.description !== undefined ||
-      data.serviceAccountJson !== undefined,
+      data.serviceAccountJson !== undefined ||
+      data.signingSecret !== undefined ||
+      data.botToken !== undefined ||
+      data.apiToken !== undefined ||
+      data.domain !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],

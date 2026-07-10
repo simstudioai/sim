@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { shouldSkipSlackTriggerEvent, slackHandler } from '@/lib/webhooks/providers/slack'
+import {
+  resolveSlackEventKey,
+  shouldSkipSlackTriggerEvent,
+  slackHandler,
+} from '@/lib/webhooks/providers/slack'
 
 const ctx = (body: unknown) => ({
   webhook: {},
@@ -421,6 +425,76 @@ describe('shouldSkipSlackTriggerEvent', () => {
     }
     expect(fires({ eventType: 'message' }, otherBot)).toBe(false)
     expect(fires({ eventType: 'message', filterBotMessages: false }, otherBot)).toBe(true)
+  })
+})
+
+describe('resolveSlackEventKey - interactions', () => {
+  it('maps a top-level block_actions / view_submission payload (no event envelope)', () => {
+    expect(resolveSlackEventKey({ type: 'block_actions', actions: [] })).toBe('block_actions')
+    expect(resolveSlackEventKey({ type: 'view_submission', view: {} })).toBe('view_submission')
+  })
+
+  it('does not surface unsupported interaction types or Events API without an event', () => {
+    expect(resolveSlackEventKey({ type: 'shortcut' })).toBeNull()
+    expect(resolveSlackEventKey({ type: 'view_closed' })).toBeNull()
+    expect(resolveSlackEventKey({})).toBeNull()
+  })
+})
+
+/** True when an interaction (top-level payload, no event envelope) fires. */
+function interactionFires(config: Record<string, unknown>, body: Record<string, unknown>): boolean {
+  return !shouldSkipSlackTriggerEvent(
+    { team: { id: 'T1' }, api_app_id: API_APP_ID, ...body },
+    config
+  )
+}
+
+describe('shouldSkipSlackTriggerEvent - interactions', () => {
+  const blockActions = {
+    type: 'block_actions',
+    user: { id: 'U1' },
+    actions: [{ action_id: 'approve_btn', value: 'v' }],
+  }
+  const viewSubmission = {
+    type: 'view_submission',
+    user: { id: 'U1' },
+    view: { callback_id: 'create_ticket' },
+  }
+
+  it('fires a block_actions event when eventType matches and no filter is set', () => {
+    expect(interactionFires({ eventType: 'block_actions' }, blockActions)).toBe(true)
+  })
+
+  it('drops an interaction when the configured eventType is a different event', () => {
+    expect(interactionFires({ eventType: 'message' }, blockActions)).toBe(false)
+    expect(interactionFires({ eventType: 'view_submission' }, blockActions)).toBe(false)
+  })
+
+  it('scopes block_actions to matching action_ids', () => {
+    expect(
+      interactionFires({ eventType: 'block_actions', interactionFilter: 'deny_btn' }, blockActions)
+    ).toBe(false)
+    expect(
+      interactionFires(
+        { eventType: 'block_actions', interactionFilter: 'approve_btn, deny_btn' },
+        blockActions
+      )
+    ).toBe(true)
+  })
+
+  it('scopes view_submission to matching callback_ids', () => {
+    expect(
+      interactionFires(
+        { eventType: 'view_submission', interactionFilter: 'other_modal' },
+        viewSubmission
+      )
+    ).toBe(false)
+    expect(
+      interactionFires(
+        { eventType: 'view_submission', interactionFilter: 'create_ticket' },
+        viewSubmission
+      )
+    ).toBe(true)
   })
 })
 

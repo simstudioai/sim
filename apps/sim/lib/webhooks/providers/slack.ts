@@ -17,7 +17,11 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import {
+  getSlackBotCredential,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 import { type SlackEventFilter, slackEventSupportsFilter } from '@/triggers/slack/shared'
 
 const logger = createLogger('WebhookProvider:Slack')
@@ -42,6 +46,13 @@ const SLACK_INTERACTIVE_TYPES = new Set([
   'view_closed',
   'block_suggestion',
 ])
+
+/**
+ * Interaction payload types surfaced as selectable trigger events. A subset of
+ * SLACK_INTERACTIVE_TYPES — these are the only interactions that map to an
+ * eventType a trigger can subscribe to (see SLACK_EVENT_CATALOG).
+ */
+const SLACK_INTERACTION_EVENT_KEYS = new Set(['block_actions', 'view_submission'])
 
 interface SlackDownloadedFile {
   name: string
@@ -419,9 +430,11 @@ const SLACK_TIMESTAMP_MAX_SKEW = 300
  * both are Slack-attested, never taken from user input. Throws on failure so
  * deploy fails fast rather than registering an unroutable trigger.
  */
-export async function fetchSlackTeamId(
-  botToken: string
-): Promise<{ teamId: string; userId: string | undefined }> {
+export async function fetchSlackTeamId(botToken: string): Promise<{
+  teamId: string
+  userId: string | undefined
+  teamName: string | undefined
+}> {
   const response = await fetch('https://slack.com/api/auth.test', {
     headers: { Authorization: `Bearer ${botToken}` },
   })
@@ -429,12 +442,13 @@ export async function fetchSlackTeamId(
     ok?: boolean
     team_id?: string
     user_id?: string
+    team?: string
     error?: string
   }
   if (!data.ok || !data.team_id) {
     throw new Error(`Slack auth.test failed: ${data.error || 'unknown error'}`)
   }
-  return { teamId: data.team_id, userId: data.user_id }
+  return { teamId: data.team_id, userId: data.user_id, teamName: data.team }
 }
 
 /**
@@ -552,7 +566,16 @@ const CONTENT_MESSAGE_SUBTYPES = new Set([
  */
 export function resolveSlackEventKey(body: Record<string, unknown>): string | null {
   const event = body.event as Record<string, unknown> | undefined
-  if (!event) return null
+  if (!event) {
+    // Interactivity payloads (button clicks, modal submits) have no `event`
+    // envelope — the family is the top-level `type`. Surface only the ones a
+    // trigger can subscribe to.
+    const interactionType = body.type as string | undefined
+    if (interactionType && SLACK_INTERACTION_EVENT_KEYS.has(interactionType)) {
+      return interactionType
+    }
+    return null
+  }
   const type = event.type as string | undefined
 
   switch (type) {
@@ -711,6 +734,24 @@ export function shouldSkipSlackTriggerEvent(
     }
   }
 
+  // Interaction — restrict a block_actions / view_submission event to specific
+  // action_id / callback_id values. Interaction fields live on the top-level
+  // body, not `rawEvent` (which is undefined for interactions). Empty = any.
+  if (supports('interaction')) {
+    const ids = normalizeSelection(providerConfig.interactionFilter)
+    if (ids.length > 0) {
+      const actions = Array.isArray(body.actions)
+        ? (body.actions as Array<Record<string, unknown>>)
+        : []
+      const view = body.view as Record<string, unknown> | undefined
+      const interactionId =
+        eventKey === 'view_submission'
+          ? ((view?.callback_id as string | undefined) ?? (body.callback_id as string | undefined))
+          : (actions[0]?.action_id as string | undefined)
+      if (!interactionId || !ids.includes(interactionId)) return true
+    }
+  }
+
   // Channels — picker or manual IDs, the basic/advanced sides of one canonical
   // field. DMs always skip it: a DM's channel can't be picked, so a DM allowed
   // by Source must not be dropped by a channel filter meant for real channels.
@@ -806,6 +847,11 @@ export const slackHandler: WebhookProviderHandler = {
     const b = body as Record<string, unknown>
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     let botToken = providerConfig.botToken as string | undefined
+    // Reusable custom Slack bot credential: use its stored bot token directly.
+    if (!botToken && typeof providerConfig.credentialId === 'string') {
+      const botCredential = await getSlackBotCredential(providerConfig.credentialId)
+      if (botCredential) botToken = botCredential.botToken
+    }
     // Native (slack_app) triggers carry an OAuth credential rather than a pasted
     // bot token; resolve it via the credential's OWNER (not the execution actor
     // in workflow.userId, who may not own the credential) so reaction-message

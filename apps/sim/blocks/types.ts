@@ -366,6 +366,12 @@ export interface SubBlockConfig {
   // OAuth specific properties - serviceId is the canonical identifier for OAuth services
   serviceId?: string
   requiredScopes?: string[]
+  /**
+   * Narrows an `oauth-input` selector to a specific credential kind. `'custom-bot'`
+   * lists only reusable custom Slack bot credentials (service-account type) and its
+   * connect row opens the custom-bot setup modal instead of the OAuth flow.
+   */
+  credentialKind?: 'custom-bot'
   // Selector properties — declarative mapping to a SelectorKey
   selectorKey?: SelectorKey
   selectorAllowSearch?: boolean
