@@ -68,16 +68,44 @@ describe('serializeKBMeta', () => {
       serializeKBMeta({
         ...baseKb,
         tagDefinitions: [
-          { displayName: 'Important', tagSlot: 'tag1', fieldType: 'text' },
-          { displayName: 'Department', tagSlot: 'tag2', fieldType: 'text' },
+          { tagName: 'Important', tagSlot: 'tag1', fieldType: 'text' },
+          { tagName: 'Department', tagSlot: 'tag2', fieldType: 'text' },
         ],
       })
     )
 
+    const textOperators = ['eq', 'neq', 'contains', 'not_contains', 'starts_with', 'ends_with']
     expect(json.tagDefinitions).toEqual([
-      { displayName: 'Important', tagSlot: 'tag1', fieldType: 'text' },
-      { displayName: 'Department', tagSlot: 'tag2', fieldType: 'text' },
+      { tagName: 'Important', tagSlot: 'tag1', fieldType: 'text', operators: textOperators },
+      { tagName: 'Department', tagSlot: 'tag2', fieldType: 'text', operators: textOperators },
     ])
+  })
+
+  // `between` is legal for number/date but not text/boolean -- the agent cannot infer this.
+  it.each([
+    ['number', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between']],
+    ['date', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between']],
+    ['boolean', ['eq', 'neq']],
+  ])('exposes the operators legal for a %s tag', (fieldType, expected) => {
+    const json = JSON.parse(
+      serializeKBMeta({
+        ...baseKb,
+        tagDefinitions: [{ tagName: 'Tag', tagSlot: 'tag1', fieldType }],
+      })
+    )
+
+    expect(json.tagDefinitions[0].operators).toEqual(expected)
+  })
+
+  it('emits an empty operator list for an unrecognized field type rather than throwing', () => {
+    const json = JSON.parse(
+      serializeKBMeta({
+        ...baseKb,
+        tagDefinitions: [{ tagName: 'Tag', tagSlot: 'tag1', fieldType: 'mystery' }],
+      })
+    )
+
+    expect(json.tagDefinitions[0].operators).toEqual([])
   })
 
   it('omits tag definitions when empty or undefined', () => {

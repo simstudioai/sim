@@ -1591,7 +1591,7 @@ export class WorkspaceVFS {
 
     for (const row of rows) {
       const entry = {
-        displayName: row.displayName,
+        tagName: row.displayName,
         tagSlot: row.tagSlot,
         fieldType: row.fieldType,
       }

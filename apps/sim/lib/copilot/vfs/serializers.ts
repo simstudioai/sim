@@ -1,6 +1,6 @@
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
-import type { TagDefinition } from '@/lib/knowledge/types'
+import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
@@ -84,15 +84,27 @@ export function serializeRecentExecutions(
   )
 }
 
-/** A knowledge base tag definition, reduced to the fields the agent needs to bind a tag filter. */
-export type KbTagDefinitionSummary = Pick<TagDefinition, 'displayName' | 'tagSlot' | 'fieldType'>
+/**
+ * A knowledge base tag definition, reduced to the fields the agent needs to bind a tag filter.
+ *
+ * @remarks
+ * `tagName` is the DB's `displayName`. It is renamed at this boundary because that is the key
+ * a `tagFilters` entry must carry -- an entry written with `displayName` validates and persists
+ * but never filters anything.
+ */
+export interface KbTagDefinitionSummary {
+  tagName: string
+  tagSlot: string
+  fieldType: string
+}
 
 /**
  * Serialize knowledge base metadata for VFS meta.json.
  *
- * `tagDefinitions` exposes the KB's defined tags (`displayName` → `tagSlot`) so the
- * agent can select and bind a knowledge-tag filter correctly instead of guessing a
- * tag name it cannot otherwise see.
+ * `tagDefinitions` exposes the KB's defined tags (`tagName` → `tagSlot`) plus the operators
+ * legal for each tag's `fieldType`, so the agent can bind a knowledge-tag filter without
+ * guessing a tag name it cannot otherwise see or an operator the field does not accept
+ * (`between` is valid for number/date but not text/boolean).
  */
 export function serializeKBMeta(kb: {
   id: string
@@ -119,7 +131,14 @@ export function serializeKBMeta(kb: {
       connectorTypes:
         kb.connectorTypes && kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
       tagDefinitions:
-        kb.tagDefinitions && kb.tagDefinitions.length > 0 ? kb.tagDefinitions : undefined,
+        kb.tagDefinitions && kb.tagDefinitions.length > 0
+          ? kb.tagDefinitions.map((tag) => ({
+              ...tag,
+              operators: getOperatorsForFieldType(tag.fieldType as FilterFieldType).map(
+                (op) => op.value
+              ),
+            }))
+          : undefined,
       createdAt: kb.createdAt.toISOString(),
       updatedAt: kb.updatedAt.toISOString(),
     },
