@@ -2309,6 +2309,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 32768,
         },
         contextWindow: 131072,
+        releaseDate: '2026-04-21',
       },
       {
         id: 'groq/llama-3.1-8b-instant',
