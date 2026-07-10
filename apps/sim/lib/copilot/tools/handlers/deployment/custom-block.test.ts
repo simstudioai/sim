@@ -215,6 +215,59 @@ describe('executeDeployCustomBlock', () => {
     })
   })
 
+  it('undeploys without requiring the enterprise plan', async () => {
+    isOrganizationOnEnterprisePlanMock.mockResolvedValue(false)
+    getCustomBlockWithInputsByWorkflowIdMock.mockResolvedValue(publishedBlock)
+
+    const result = await executeDeployCustomBlock({ action: 'undeploy' }, context)
+
+    expect(result.success).toBe(true)
+    expect(deleteCustomBlockMock).toHaveBeenCalledWith('cb-1')
+  })
+
+  it('does not clear the stored name when a republish sends whitespace', async () => {
+    getCustomBlockWithInputsByWorkflowIdMock
+      .mockResolvedValueOnce(publishedBlock)
+      .mockResolvedValueOnce(publishedBlock)
+
+    const result = await executeDeployCustomBlock({ name: '   ' }, context)
+
+    expect(updateCustomBlockMock).toHaveBeenCalledWith(
+      'cb-1',
+      expect.objectContaining({ name: undefined })
+    )
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects oversized exposedOutputs and inputs arrays', async () => {
+    const outputs = Array.from({ length: 51 }, (_, i) => ({
+      blockId: `b${i}`,
+      path: 'content',
+      name: `out${i}`,
+    }))
+    const tooManyOutputs = await executeDeployCustomBlock(
+      { name: 'Enrich Lead', exposedOutputs: outputs },
+      context
+    )
+    expect(tooManyOutputs.success).toBe(false)
+    expect(tooManyOutputs.error).toContain('50')
+
+    const inputs = Array.from({ length: 51 }, (_, i) => ({ id: `f${i}` }))
+    const tooManyInputs = await executeDeployCustomBlock({ name: 'Enrich Lead', inputs }, context)
+    expect(tooManyInputs.success).toBe(false)
+    expect(tooManyInputs.error).toContain('50')
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects exposedOutputs entries missing required fields', async () => {
+    const result = await executeDeployCustomBlock(
+      { name: 'Enrich Lead', exposedOutputs: [{ blockId: 'b1', path: '', name: 'out' }] },
+      context
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('blockId, path, and name')
+  })
+
   it('fails undeploy when the workflow is not published as a block', async () => {
     const result = await executeDeployCustomBlock({ action: 'undeploy' }, context)
 

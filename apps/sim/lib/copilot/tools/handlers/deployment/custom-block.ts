@@ -24,6 +24,8 @@ import { ensureWorkflowAccess } from '../access'
 import type { DeployCustomBlockParams } from '../param-types'
 
 const MAX_ICON_BYTES = 5 * 1024 * 1024
+const MAX_INPUT_ENTRIES = 50
+const MAX_OUTPUT_ENTRIES = 50
 
 /**
  * Resolve the agent-supplied icon reference to a publicly servable URL. A VFS
@@ -151,9 +153,6 @@ export async function executeDeployCustomBlock(
     ) {
       return { success: false, error: 'Custom blocks are not enabled for this organization' }
     }
-    if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
-      return { success: false, error: 'Custom blocks require an enterprise plan' }
-    }
 
     const existing = await getCustomBlockWithInputsByWorkflowId(workflowId)
 
@@ -175,6 +174,10 @@ export async function executeDeployCustomBlock(
       return { success: true, output: customBlockOutput(existing, 'undeploy') }
     }
 
+    if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
+      return { success: false, error: 'Custom blocks require an enterprise plan' }
+    }
+
     const name = params.name?.trim()
     const description = params.description?.trim()
     if (name && name.length > 60) {
@@ -183,11 +186,33 @@ export async function executeDeployCustomBlock(
     if (description && description.length > 280) {
       return { success: false, error: 'description must be 280 characters or fewer' }
     }
+    if (params.inputs && params.inputs.length > MAX_INPUT_ENTRIES) {
+      return { success: false, error: `inputs must be ${MAX_INPUT_ENTRIES} entries or fewer` }
+    }
+    if (params.inputs?.some((entry) => !entry?.id?.trim())) {
+      return { success: false, error: 'each inputs entry requires the trigger field id' }
+    }
+    if (params.exposedOutputs && params.exposedOutputs.length > MAX_OUTPUT_ENTRIES) {
+      return {
+        success: false,
+        error: `exposedOutputs must be ${MAX_OUTPUT_ENTRIES} entries or fewer`,
+      }
+    }
+    if (
+      params.exposedOutputs?.some(
+        (entry) => !entry?.blockId?.trim() || !entry?.path?.trim() || !entry?.name?.trim()
+      )
+    ) {
+      return {
+        success: false,
+        error: 'each exposedOutputs entry requires blockId, path, and name',
+      }
+    }
     const iconUrl = await resolveIconUrl(params.iconUrl, context.userId, workspaceId)
 
     if (existing) {
       await updateCustomBlock(existing.id, {
-        name,
+        name: name || undefined,
         description,
         iconUrl,
         inputs: params.inputs,
