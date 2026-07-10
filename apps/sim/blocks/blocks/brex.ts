@@ -28,7 +28,7 @@ function toOptionalFiniteNumber(value: unknown, fieldLabel: string): number | un
 
 /** Normalizes a boolean field that may arrive as a string (e.g. from a dynamic <Block.output> reference) instead of an actual boolean. */
 function toOptionalBoolean(value: unknown): boolean | undefined {
-  if (value === undefined) return undefined
+  if (value == null) return undefined
   if (typeof value === 'boolean') return value
   return String(value).toLowerCase() === 'true'
 }

@@ -55,6 +55,11 @@ export const brexUpdateVendorTool: ToolConfig<BrexUpdateVendorParams, BrexUpdate
       if (params.companyName) body.company_name = params.companyName
       if (params.email) body.email = params.email
       if (params.phone) body.phone = params.phone
+      if (Object.keys(body).length === 0) {
+        throw new Error(
+          'At least one of company name, email, or phone must be provided to update the vendor'
+        )
+      }
       return body
     },
   },
