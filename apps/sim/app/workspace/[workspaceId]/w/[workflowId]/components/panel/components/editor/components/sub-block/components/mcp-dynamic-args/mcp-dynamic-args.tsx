@@ -130,7 +130,12 @@ export function McpDynamicArgs({
   )
 
   const getInputType = (paramSchema: any) => {
-    if (isPrimitiveEnum(paramSchema.enum)) return 'dropdown'
+    if (Array.isArray(paramSchema.enum)) {
+      // A non-primitive enum member (object/array) can't be represented by the
+      // dropdown's string label/value model — fall back to the JSON editor so the
+      // user can enter (and round-trip) one of the allowed JSON values verbatim.
+      return isPrimitiveEnum(paramSchema.enum) ? 'dropdown' : 'long-input'
+    }
     if (paramSchema.type === 'boolean') return 'switch'
     if (paramSchema.type === 'number' || paramSchema.type === 'integer') {
       if (paramSchema.minimum !== undefined && paramSchema.maximum !== undefined) {
