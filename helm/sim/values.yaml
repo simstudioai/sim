@@ -1437,6 +1437,15 @@ telemetry:
     tls:
       enabled: false
 
+  # Pod security context (preserves the collector's original UID/GID/fsGroup)
+  podSecurityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+  # Container security context (sim.containerSecurityContext restricted defaults apply)
+  securityContext: {}
+
 # Copilot service configuration (optional microservice)
 copilot:
   # Enable/disable the copilot service
@@ -1478,11 +1487,12 @@ copilot:
       runAsNonRoot: true
       runAsUser: 1001
     
-    # Environment variables (required and optional)
+    # Environment variables that go through the chart-managed Secret (or ExternalSecret
+    # when externalSecrets.enabled=true). Every non-empty key here must have a matching
+    # externalSecrets.remoteRefs.copilot entry under ESO — reserve this block for values
+    # that are genuinely sensitive or user-provided; static operational config belongs in
+    # envDefaults below instead.
     env:
-      PORT: "8080"
-      SERVICE_NAME: "copilot"
-      ENVIRONMENT: "production"
       AGENT_API_DB_ENCRYPTION_KEY: ""
       INTERNAL_API_SECRET: ""
       LICENSE_KEY: ""
@@ -1491,17 +1501,31 @@ copilot:
       SIM_BASE_URL: ""
       SIM_AGENT_API_KEY: ""
       REDIS_URL: ""
-      # Optional configuration
-      LOG_LEVEL: "info"
       CORS_ALLOWED_ORIGINS: ""
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
-    
+
+    # Operational tunables shipped with the chart. Rendered as inline `env:` on the
+    # copilot container — NOT written into the chart-managed Secret and NOT required to
+    # be mapped when externalSecrets.enabled=true. Override any key by setting
+    # copilot.server.envDefaults.KEY in your values file. Move a key into
+    # copilot.server.env above only if it must be treated as secret.
+    envDefaults:
+      PORT: "8080"
+      SERVICE_NAME: "copilot"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
+
     # Optional: additional static environment variables
     extraEnv: []
-    
+
     # Optional: references to existing ConfigMaps/Secrets
     extraEnvFrom: []
-    
+
+    # Optional: additional volumes/mounts (e.g. to back an emptyDir /tmp when
+    # enabling securityContext.readOnlyRootFilesystem)
+    extraVolumes: []
+    extraVolumeMounts: []
+
     # Secret generation configuration (set create=false to use an existing secret)
     secret:
       create: true
@@ -1726,6 +1750,27 @@ externalSecrets:
     externalDatabase:
       # Path to external database password in external store
       password: ""
+
+    # Copilot server secrets (used when copilot.enabled=true and copilot.server.secret.create=true).
+    # Every non-empty copilot.server.env key must have a matching entry here, or template
+    # rendering fails with a clear "map it or remove it" error — same rule as remoteRefs.app.
+    copilot:
+      # Path to AGENT_API_DB_ENCRYPTION_KEY in external store
+      AGENT_API_DB_ENCRYPTION_KEY: ""
+      # Path to INTERNAL_API_SECRET in external store (shared with app/realtime)
+      INTERNAL_API_SECRET: ""
+      # Path to LICENSE_KEY in external store
+      LICENSE_KEY: ""
+      # Path to SIM_BASE_URL in external store
+      SIM_BASE_URL: ""
+      # Path to SIM_AGENT_API_KEY in external store
+      SIM_AGENT_API_KEY: ""
+      # Path to REDIS_URL in external store
+      REDIS_URL: ""
+      # Path to OPENAI_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      OPENAI_API_KEY_1: ""
+      # Path to ANTHROPIC_API_KEY_1 in external store (one of OPENAI_API_KEY_1/ANTHROPIC_API_KEY_1 required)
+      ANTHROPIC_API_KEY_1: ""
 
 # cert-manager configuration
 # Prerequisites: Install cert-manager in your cluster first

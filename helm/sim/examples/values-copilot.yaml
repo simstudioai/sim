@@ -60,9 +60,6 @@ copilot:
     
     # Required secrets (set via values or provide your own secret)
     env:
-      PORT: "8080"
-      SERVICE_NAME: "copilot"
-      ENVIRONMENT: "production"
       AGENT_API_DB_ENCRYPTION_KEY: ""          # openssl rand -hex 32
       INTERNAL_API_SECRET: ""                  # reuse Sim INTERNAL_API_SECRET
       LICENSE_KEY: ""                          # Provided by Sim team
@@ -72,9 +69,16 @@ copilot:
       SIM_AGENT_API_KEY: ""                    # Must match SIM-side COPILOT_API_KEY
       REDIS_URL: "redis://default:password@redis:6379"
       # Optional configuration
-      LOG_LEVEL: "info"
       CORS_ALLOWED_ORIGINS: "https://sim.example.com"
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
+
+    # Non-secret operational tunables — inlined as plain container env, never go through
+    # the Secret/ExternalSecret, so they don't need externalSecrets.remoteRefs.copilot entries
+    envDefaults:
+      PORT: "8080"
+      SERVICE_NAME: "copilot"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "info"
     
     # Create a Secret from the values above. Set create=false to reference an existing secret instead.
     secret:

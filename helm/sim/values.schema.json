@@ -108,11 +108,13 @@
           "properties": {
             "BETTER_AUTH_SECRET": {
               "type": "string",
-              "description": "Auth secret (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Auth secret (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "ENCRYPTION_KEY": {
               "type": "string",
-              "description": "Encryption key (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Encryption key (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
@@ -432,7 +434,8 @@
           "properties": {
             "BETTER_AUTH_SECRET": {
               "type": "string",
-              "description": "Auth secret (minimum 32 characters required when not using existingSecret)"
+              "anyOf": [{ "minLength": 32 }, { "const": "" }],
+              "description": "Auth secret (minimum 32 characters required when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
@@ -528,7 +531,8 @@
             },
             "password": {
               "type": "string",
-              "description": "PostgreSQL password (minimum 8 characters when not using existingSecret)"
+              "anyOf": [{ "minLength": 8 }, { "const": "" }],
+              "description": "PostgreSQL password (minimum 8 characters when not using existingSecret; leave empty when the value comes from existingSecret/ESO instead)"
             },
             "existingSecret": {
               "type": "object",

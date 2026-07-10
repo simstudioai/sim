@@ -3,12 +3,11 @@ release:
   name: t
   namespace: sim
 set:
-  app.env.BETTER_AUTH_SECRET: x
-  app.env.ENCRYPTION_KEY: x
+  app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   app.env.INTERNAL_API_SECRET: x
   app.env.CRON_SECRET: x
-  postgresql.auth.password: x
-
+  postgresql.auth.password: xxxxxxxx
 tests:
   - it: does not render the pii deployment when disabled
     template: deployment-pii.yaml
