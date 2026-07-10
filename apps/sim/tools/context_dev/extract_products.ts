@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevExtractProductsParams,
   ContextDevExtractProductsResponse,
@@ -20,6 +21,8 @@ export const contextDevExtractProductsTool: ToolConfig<
   name: 'Context.dev Extract Products',
   description: "Extract the product catalog from a brand's website by domain (beta).",
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevExtractProductsParams>(),
 
   params: {
     domain: {

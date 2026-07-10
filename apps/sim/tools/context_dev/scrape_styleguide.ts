@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevScrapeStyleguideParams,
   ContextDevScrapeStyleguideResponse,
@@ -21,6 +22,8 @@ export const contextDevScrapeStyleguideTool: ToolConfig<
   description:
     "Extract a domain's design system: colors, typography, spacing, shadows, and UI components.",
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevScrapeStyleguideParams>(),
 
   params: {
     domain: {
