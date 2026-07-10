@@ -521,8 +521,11 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           // that raced ahead of this start. That event's scope may omit agentId
           // (contract-optional) while only this start carries payload.agent —
           // an empty agentId makes the downstream parsers drop the whole lane.
-          // Reconcile instead of ignoring the start.
-          if (!existing.agentId && agentId) existing.agentId = agentId
+          // Reconcile instead of ignoring the start — and overwrite a NONEMPTY
+          // mismatched provisional owner too: a racing content event's
+          // scope.agentId can name the forwarding caller (e.g. superagent),
+          // while this start's payload.agent is the authoritative lane owner.
+          if (agentId && existing.agentId !== agentId) existing.agentId = agentId
           if (!existing.triggerToolCallId && triggerToolCallId) {
             existing.triggerToolCallId = triggerToolCallId
           }
