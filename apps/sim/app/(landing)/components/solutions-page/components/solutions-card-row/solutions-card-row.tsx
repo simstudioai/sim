@@ -99,7 +99,7 @@ export function SolutionsCardRow({
         className={cn(
           'grid',
           gridCols,
-          'max-sm:grid-cols-1 max-md:grid-cols-2',
+          'max-sm:grid-cols-1 max-lg:grid-cols-2',
           SOLUTIONS_SPACING.cardGridGap
         )}
       >

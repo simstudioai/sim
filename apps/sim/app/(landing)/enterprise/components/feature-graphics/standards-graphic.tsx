@@ -55,14 +55,17 @@ import styles from '@/app/(landing)/enterprise/components/feature-graphics/stand
  * bled slot's center. The canvas itself is centered with a transform
  * (`left-1/2` + `-translate-x-1/2`) rather than flex `justify-center`
  * because an overflowing fixed-size flex item start-aligns instead of
- * centering once the tile gets narrower than the canvas.
+ * centering once the tile gets narrower than the canvas. On the narrow
+ * grid bands where the tile drops below the canvas width (small
+ * two-column screens and the 3-up row just past `lg`) the canvas scales
+ * down via transform so the SOC 2 / Open source chips are never cropped.
  */
 export function StandardsGraphic() {
   return (
     <FeatureGraphicShell>
       <div aria-hidden='true' className='absolute inset-0 pr-8 max-lg:pr-6'>
         <div className='relative h-full'>
-          <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[250px] w-[320px]'>
+          <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[250px] w-[320px] max-sm:scale-100 max-md:scale-[0.8] lg:max-[1180px]:scale-[0.8]'>
             <div className='absolute top-0 left-[48px] size-[224px] rounded-full border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_22%,transparent)] [mask-image:linear-gradient(to_bottom,black_30%,transparent_92%)]' />
             <div className='absolute top-[36px] left-[84px] size-[152px] rounded-full border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_35%,transparent)]' />
 

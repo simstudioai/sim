@@ -199,14 +199,17 @@ function PortTag({ port }: { port: Port }) {
  * center. The fixed-size canvas is centered with a transform (`left-1/2`
  * + `-translate-x-1/2`, the standards tile's approach) so at narrow tile
  * widths it keeps its wiring geometry and overflows both edges equally
- * instead of drifting.
+ * instead of drifting. On the narrow grid bands where the tile drops
+ * below the canvas width (small two-column screens and the 3-up row just
+ * past `lg`) the canvas scales down via transform so the outer tool pills
+ * are never cropped.
  */
 export function OperationsTeamsGraphic() {
   return (
     <FeatureGraphicShell>
       <div aria-hidden='true' className='absolute inset-0 pr-8 pb-8 max-lg:pr-6 max-lg:pb-6'>
         <div className='relative h-full'>
-          <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[248px] w-[280px]'>
+          <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[248px] w-[280px] max-sm:scale-100 max-md:scale-[0.85] lg:max-[1180px]:scale-[0.85]'>
             <svg
               className='absolute inset-0'
               fill='none'

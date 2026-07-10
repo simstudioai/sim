@@ -88,8 +88,14 @@ export const SOLUTIONS_VISUAL = {
   heroAspect: 'aspect-[16/9]',
   /** Fixed height of a card's visual panel - uniform across every card. */
   cardHeight: 'h-[240px]',
-  /** Minimum height for framed feature tiles with copy and future UI in one surface. */
-  featureTileMinHeight: 'min-h-[440px] max-lg:min-h-[400px] max-sm:min-h-[380px]',
+  /**
+   * Minimum height for framed feature tiles with copy and future UI in one
+   * surface. One value at every breakpoint: the tallest tile vignettes (audit
+   * ledger, staging panel) need ~300px of visual slot below the copy block, so
+   * shrinking the tile on small screens crops their tops against the slot's
+   * `overflow-hidden`.
+   */
+  featureTileMinHeight: 'min-h-[440px]',
 } as const
 
 /**

@@ -103,7 +103,7 @@ export function AuditTrailGraphic() {
         aria-hidden='true'
         className='absolute inset-0 flex items-center justify-center pr-8 max-lg:pr-6'
       >
-        <div className='w-[312px]'>
+        <div className='w-full max-w-[312px]'>
           <div className='mb-4 flex items-center justify-between'>
             <span className='font-medium text-[var(--text-primary)] text-base'>Audit log</span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
