@@ -60,6 +60,12 @@ const STATIC_SCRIPT_SRC = [
         'https://www.googletagmanager.com',
         'https://www.google-analytics.com',
         'https://analytics.ahrefs.com',
+        // HubSpot tracking code (landing pages only) — the loader plus the
+        // analytics/form-tracking/banner scripts it injects as <script> tags
+        'https://*.hs-scripts.com',
+        'https://*.hs-analytics.net',
+        'https://*.hscollectedforms.net',
+        'https://*.hs-banner.com',
       ]
     : []),
 ] as const
@@ -96,6 +102,10 @@ const STATIC_CONNECT_SRC = [
         'https://www.google.com',
         'https://analytics.ahrefs.com',
         'https://*.g.doubleclick.net',
+        // HubSpot tracking code (landing pages only) — form-tracking API calls
+        // (hscollectedforms.js) and the visitor beacon (track.hubspot.com)
+        'https://*.hscollectedforms.net',
+        'https://*.hubspot.com',
       ]
     : []),
 ] as const
