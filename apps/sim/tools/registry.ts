@@ -345,6 +345,11 @@ import {
 } from '@/tools/box_sign'
 import { brandfetchGetBrandTool, brandfetchSearchTool } from '@/tools/brandfetch'
 import {
+  brexArchiveBudgetTool,
+  brexCreateBudgetTool,
+  brexCreateSpendLimitTool,
+  brexCreateTransferTool,
+  brexCreateVendorTool,
   brexGetBudgetTool,
   brexGetCashAccountTool,
   brexGetCompanyTool,
@@ -372,6 +377,7 @@ import {
   brexListVendorsTool,
   brexMatchReceiptTool,
   brexUpdateExpenseTool,
+  brexUpdateVendorTool,
   brexUploadReceiptTool,
 } from '@/tools/brex'
 import {
@@ -4632,6 +4638,11 @@ export const tools: Record<string, ToolConfig> = {
   athena_stop_query: athenaStopQueryTool,
   brandfetch_get_brand: brandfetchGetBrandTool,
   brandfetch_search: brandfetchSearchTool,
+  brex_archive_budget: brexArchiveBudgetTool,
+  brex_create_budget: brexCreateBudgetTool,
+  brex_create_spend_limit: brexCreateSpendLimitTool,
+  brex_create_transfer: brexCreateTransferTool,
+  brex_create_vendor: brexCreateVendorTool,
   brex_get_budget: brexGetBudgetTool,
   brex_get_cash_account: brexGetCashAccountTool,
   brex_get_company: brexGetCompanyTool,
@@ -4659,6 +4670,7 @@ export const tools: Record<string, ToolConfig> = {
   brex_list_vendors: brexListVendorsTool,
   brex_match_receipt: brexMatchReceiptTool,
   brex_update_expense: brexUpdateExpenseTool,
+  brex_update_vendor: brexUpdateVendorTool,
   brex_upload_receipt: brexUploadReceiptTool,
   brightdata_cancel_snapshot: brightDataCancelSnapshotTool,
   brightdata_discover: brightDataDiscoverTool,
