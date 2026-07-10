@@ -73,6 +73,10 @@ export function resolveCellRender({
     const inFlight =
       exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
     if (inFlight && blockRunning) return { kind: 'running' }
+    // Enrichment outputs share an empty blockId, so `runningBlockIds` can never
+    // match them — the group-level `running` status is the only "worker picked
+    // this up" signal an enrichment cell has.
+    if (isEnrichmentOutput && exec?.status === 'running') return { kind: 'running' }
 
     // Value wins over pending-upstream: a finished column stays finished even
     // while other blocks in the group are still running. An empty string is not
