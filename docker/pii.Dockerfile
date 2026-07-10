@@ -6,10 +6,10 @@
 # gliner package, and the baked GLiNER weights all ship in it, so flipping
 # engines never requires an image swap.
 #
-# GPU variant (EC2-GPU fleet follow-up): same Dockerfile, CUDA torch wheels —
-#   docker build --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128 ...
-# (torch CUDA wheels bundle their own CUDA libs; the host only needs the
-# nvidia container runtime.)
+# ONE image also serves both fleets: the amd64 build ships CUDA torch, which
+# falls back to CPU when no GPU is present, so the Fargate CPU tasks and the
+# EC2-GPU tasks pull the same tag. (torch CUDA wheels bundle their own CUDA
+# libs; the host only needs the nvidia driver + container runtime.)
 #
 # Source files are COPY'd last so code edits never re-download deps or models.
 # ========================================
@@ -47,10 +47,25 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # torch is pinned here (not requirements-gliner.txt) because the CPU and CUDA
 # builds install the same version from different wheel indexes. 2.11.0 is the
 # newest release published on both the cpu and cu128 indexes for py312.
+#
+# cu128's arch list keeps sm_75, the compute capability of the GPU fleet's T4s.
+# cu121 could not serve this pin anyway — that index stops at torch 2.5.1.
+# CUDA 12.8 needs an NVIDIA driver >=525 via minor-version compatibility, which
+# the ECS GPU AMI's nvidia-driver-latest-dkms satisfies.
+#
+# arm64 takes the cpu index: cu128 publishes no aarch64 wheel at 2.11.0, and no
+# arm64 target has a GPU.
 ARG TORCH_VERSION=2.11.0
-ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+ARG TORCH_CUDA_INDEX_URL=https://download.pytorch.org/whl/cu128
+ARG TORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
+ARG TARGETARCH
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install torch==${TORCH_VERSION} --index-url ${TORCH_INDEX_URL}
+    case "${TARGETARCH}" in \
+      amd64) torch_index="${TORCH_CUDA_INDEX_URL}" ;; \
+      arm64) torch_index="${TORCH_CPU_INDEX_URL}" ;; \
+      *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    pip install torch==${TORCH_VERSION} --index-url "${torch_index}"
 
 COPY apps/pii/requirements-gliner.txt ./requirements-gliner.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -83,6 +98,15 @@ ENV HF_HUB_OFFLINE=1
 COPY apps/pii/requirements-dev.txt ./requirements-dev.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements-dev.txt
+
+# Runs after every pip install, because the requirements above resolve against
+# PyPI and could swap the wheel torch_index chose. A cpu-only torch on amd64
+# otherwise surfaces only as "torch.cuda.is_available() is False" once GLiNER
+# loads on a GPU host.
+RUN python -c "import torch; \
+have = torch.version.cuda is not None; \
+want = '${TARGETARCH}' == 'amd64'; \
+assert have == want, f'{torch.__version__}: cuda build={have}, expected={want}'"
 
 RUN groupadd -g 1001 pii && \
     useradd -u 1001 -g pii pii && \
