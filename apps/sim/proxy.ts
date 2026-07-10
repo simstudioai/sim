@@ -117,6 +117,29 @@ function buildPreflightResponse(policy: CorsPolicy): NextResponse {
   return response
 }
 
+/**
+ * Top-level pages outside the (landing) route group that still reach the
+ * catch-all branch below (auth sub-pages, invite links, file shares, the
+ * playground). These get the tight app CSP rather than the landing-only
+ * HubSpot allowance. Keep in sync with apps/sim/app/(auth)/**,
+ * apps/sim/app/(interfaces)/**, and the other non-landing top-level routes.
+ */
+const NON_LANDING_PATH_PREFIXES = [
+  '/verify',
+  '/sso',
+  '/reset-password',
+  '/resume',
+  '/f',
+  '/invite',
+  '/playground',
+]
+
+function isNonLandingPath(pathname: string): boolean {
+  return NON_LANDING_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  )
+}
+
 const SUSPICIOUS_UA_PATTERNS = [
   /^\s*$/, // Empty user agents
   /\.\./, // Path traversal attempt
@@ -284,12 +307,16 @@ export async function proxy(request: NextRequest) {
   const securityBlock = handleSecurityFiltering(request)
   if (securityBlock) return track(request, securityBlock)
 
-  // Everything else is the public marketing/landing site — the only place
-  // the HubSpot tracking loader renders — so it gets the landing-scoped CSP.
+  // Everything else falling through here is the public marketing/landing
+  // site — except a handful of non-landing pages (auth sub-pages, invite
+  // links, file shares, the playground) that reach this branch too. Only
+  // the landing site renders the HubSpot loader, so only it gets the
+  // landing-scoped CSP.
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  response.headers.set('Content-Security-Policy', generateLandingRuntimeCSP())
+  const csp = isNonLandingPath(url.pathname) ? generateRuntimeCSP() : generateLandingRuntimeCSP()
+  response.headers.set('Content-Security-Policy', csp)
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 
