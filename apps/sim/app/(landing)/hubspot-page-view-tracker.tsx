@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 
 declare global {
   interface Window {
@@ -18,7 +18,6 @@ declare global {
  */
 export function HubspotPageViewTracker() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const isInitialRender = useRef(true)
 
   useEffect(() => {
@@ -27,13 +26,10 @@ export function HubspotPageViewTracker() {
       return
     }
 
-    const query = searchParams.toString()
-    const path = query ? `${pathname}?${query}` : pathname
-
     window._hsq = window._hsq || []
-    window._hsq.push(['setPath', path])
+    window._hsq.push(['setPath', pathname])
     window._hsq.push(['trackPageView'])
-  }, [pathname, searchParams])
+  }, [pathname])
 
   return null
 }

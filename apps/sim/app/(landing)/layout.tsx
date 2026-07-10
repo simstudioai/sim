@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Script from 'next/script'
 import { isHosted } from '@/lib/core/config/env-flags'
@@ -37,9 +36,7 @@ export default function LandingLayout({ children }: { children: ReactNode }) {
       {isHosted && (
         <>
           <Script id='hs-script-loader' src={HUBSPOT_SCRIPT_SRC} strategy='afterInteractive' />
-          <Suspense fallback={null}>
-            <HubspotPageViewTracker />
-          </Suspense>
+          <HubspotPageViewTracker />
         </>
       )}
     </LandingShell>
