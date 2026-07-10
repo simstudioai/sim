@@ -3,7 +3,7 @@ description: Gate a block's visibility — ship an unreleased block as a preview
 argument-hint: <block-type>
 ---
 
-# Gate Block Skill
+# Add Block Preview Skill
 
 You manage **block visibility gating** in Sim — hiding blocks from every discovery surface (toolbar, cmd+K search, copilot @-mentions, agent tool picker, mothership VFS/metadata/tools, Access Control list, public docs/catalog) while **never** gating execution of already-placed instances.
 
