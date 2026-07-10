@@ -1,12 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import {
-  checkWebhookPreprocessing,
+  dispatchResolvedWebhookTarget,
   type findWebhooksByRoutingKey,
-  queueWebhookExecution,
 } from '@/lib/webhooks/processor'
-import { resolveSlackEventKey, shouldSkipSlackTriggerEvent } from '@/lib/webhooks/providers/slack'
-import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
+import { resolveSlackEventKey } from '@/lib/webhooks/providers/slack'
 
 const logger = createLogger('SlackWebhookDispatch')
 
@@ -19,10 +17,10 @@ interface DispatchSlackWebhooksOptions {
 
 /**
  * Shared fan-out tail for the Slack ingest routes (native team-id route and the
- * custom-bot credential route): run each candidate webhook through the trigger
- * filter, verify its block is still deployed, preprocess, and enqueue. Keeping
- * this in one place stops the skip/preprocess/queue sequence drifting between
- * the two ingest paths.
+ * custom-bot credential route): run each candidate webhook through the common
+ * post-auth lifecycle (preprocess, deployment check, trigger filter, enqueue)
+ * via {@link dispatchResolvedWebhookTarget}, logging skip diagnostics for
+ * filtered events.
  */
 export async function dispatchSlackWebhooks(
   webhooks: Awaited<ReturnType<typeof findWebhooksByRoutingKey>>,
@@ -34,12 +32,15 @@ export async function dispatchSlackWebhooks(
   const triggerTimestampMs = Number.isFinite(parsedTimestampMs) ? parsedTimestampMs : undefined
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooks) {
-    const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+    const result = await dispatchResolvedWebhookTarget(foundWebhook, foundWorkflow, body, request, {
+      requestId,
+      receivedAt,
+      triggerTimestampMs,
+    })
 
-    // Shared trigger filter (event, source, threads, emoji, name, channels,
-    // interaction, self-drop, bot).
-    if (shouldSkipSlackTriggerEvent(payload, providerConfig)) {
+    if (result.outcome === 'ignored' && result.reason === 'filtered') {
       const rawEvent = payload.event as Record<string, unknown> | undefined
+      const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
       logger.info(`[${requestId}] Event skipped by trigger filter for webhook ${foundWebhook.id}`, {
         eventKey: resolveSlackEventKey(payload),
         configuredEvent: providerConfig.eventType,
@@ -50,32 +51,6 @@ export async function dispatchSlackWebhooks(
         threadsSetting: providerConfig.threads,
         botId: rawEvent?.bot_id,
       })
-      continue
     }
-
-    if (foundWebhook.blockId) {
-      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
-      if (!blockExists) {
-        logger.info(
-          `[${requestId}] Trigger block ${foundWebhook.blockId} not in deployment for ${foundWorkflow.id}`
-        )
-        continue
-      }
-    }
-
-    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
-    if (preprocessResult.error) {
-      logger.warn(`[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}`)
-      continue
-    }
-
-    await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
-      requestId,
-      actorUserId: preprocessResult.actorUserId,
-      executionId: preprocessResult.executionId,
-      correlation: preprocessResult.correlation,
-      receivedAt,
-      triggerTimestampMs,
-    })
   }
 }

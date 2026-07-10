@@ -3,21 +3,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockParseWebhookBody,
-  mockFindWebhooksByRoutingKey,
-  mockCheckWebhookPreprocessing,
-  mockQueueWebhookExecution,
-  mockBlockExistsInDeployment,
-  mockShouldSkip,
-} = vi.hoisted(() => ({
-  mockParseWebhookBody: vi.fn(),
-  mockFindWebhooksByRoutingKey: vi.fn(),
-  mockCheckWebhookPreprocessing: vi.fn(),
-  mockQueueWebhookExecution: vi.fn(),
-  mockBlockExistsInDeployment: vi.fn(),
-  mockShouldSkip: vi.fn(),
-}))
+const { mockParseWebhookBody, mockFindWebhooksByRoutingKey, mockDispatchResolvedWebhookTarget } =
+  vi.hoisted(() => ({
+    mockParseWebhookBody: vi.fn(),
+    mockFindWebhooksByRoutingKey: vi.fn(),
+    mockDispatchResolvedWebhookTarget: vi.fn(),
+  }))
 
 vi.mock('@/lib/core/admission/gate', () => ({
   tryAdmit: () => ({ release: vi.fn() }),
@@ -31,19 +22,13 @@ vi.mock('@/lib/core/config/env', () => ({
 vi.mock('@/lib/webhooks/processor', () => ({
   parseWebhookBody: mockParseWebhookBody,
   findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
-  checkWebhookPreprocessing: mockCheckWebhookPreprocessing,
-  queueWebhookExecution: mockQueueWebhookExecution,
+  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
 }))
 
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   handleSlackChallenge: () => null,
   verifySlackRequestSignature: () => null,
-  shouldSkipSlackTriggerEvent: mockShouldSkip,
   resolveSlackEventKey: () => null,
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  blockExistsInDeployment: mockBlockExistsInDeployment,
 }))
 
 import { POST } from '@/app/api/webhooks/slack/route'
@@ -61,12 +46,6 @@ function webhook(id: string) {
 
 async function run(body: Record<string, unknown>) {
   mockParseWebhookBody.mockResolvedValue({ body, rawBody: JSON.stringify(body) })
-  mockCheckWebhookPreprocessing.mockResolvedValue({
-    actorUserId: 'u1',
-    executionId: 'e1',
-    correlation: {},
-  })
-  mockBlockExistsInDeployment.mockResolvedValue(true)
   await POST(makeRequest())
 }
 
@@ -80,22 +59,29 @@ describe('Slack app webhook route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFindWebhooksByRoutingKey.mockResolvedValue([webhook('wh1')])
+    mockDispatchResolvedWebhookTarget.mockResolvedValue({
+      outcome: 'queued',
+      response: new Response(null, { status: 200 }),
+      reason: 'queued',
+    })
   })
 
-  it('queues execution when the shared filter does not skip', async () => {
-    mockShouldSkip.mockReturnValue(false)
+  it('dispatches each webhook resolved for the event team', async () => {
     await run(messageBody)
-    expect(mockQueueWebhookExecution).toHaveBeenCalledTimes(1)
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
   })
 
-  it('does not queue when the shared filter skips the event', async () => {
-    mockShouldSkip.mockReturnValue(true)
+  it('continues cleanly when the dispatcher filters the event', async () => {
+    mockDispatchResolvedWebhookTarget.mockResolvedValue({
+      outcome: 'ignored',
+      response: new Response(null, { status: 200 }),
+      reason: 'filtered',
+    })
     await run(messageBody)
-    expect(mockQueueWebhookExecution).not.toHaveBeenCalled()
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
   })
 
   it('routes via Slack Connect authorizations and dedups overlapping webhooks', async () => {
-    mockShouldSkip.mockReturnValue(false)
     // Two candidate teams (outer + authorization) that resolve to overlapping webhooks.
     mockFindWebhooksByRoutingKey.mockImplementation(async (teamId: string) =>
       teamId === 'T1' ? [webhook('wh1')] : [webhook('wh1'), webhook('wh2')]
@@ -105,19 +91,17 @@ describe('Slack app webhook route', () => {
       authorizations: [{ team_id: 'T2' }],
     })
     expect(mockFindWebhooksByRoutingKey).toHaveBeenCalledTimes(2)
-    // wh1 (in both) is queued once, wh2 once — dedup by webhook id.
-    expect(mockQueueWebhookExecution).toHaveBeenCalledTimes(2)
+    // wh1 (in both) is dispatched once, wh2 once — dedup by webhook id.
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(2)
   })
 
   it('returns 200 with no team_id', async () => {
-    mockShouldSkip.mockReturnValue(false)
     await run({ event: { type: 'message' } })
     expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
-    expect(mockQueueWebhookExecution).not.toHaveBeenCalled()
+    expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
   })
 
   it('routes an interaction payload by payload.team.id', async () => {
-    mockShouldSkip.mockReturnValue(false)
     await run({
       type: 'block_actions',
       api_app_id: 'A1',
@@ -126,11 +110,10 @@ describe('Slack app webhook route', () => {
       actions: [{ action_id: 'approve_btn' }],
     })
     expect(mockFindWebhooksByRoutingKey).toHaveBeenCalledWith('T1', expect.anything())
-    expect(mockQueueWebhookExecution).toHaveBeenCalledTimes(1)
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
   })
 
   it('fails closed on an interaction missing payload.team.id (never routes on user.team_id)', async () => {
-    mockShouldSkip.mockReturnValue(false)
     await run({
       type: 'block_actions',
       api_app_id: 'A1',
@@ -138,6 +121,6 @@ describe('Slack app webhook route', () => {
       actions: [{ action_id: 'approve_btn' }],
     })
     expect(mockFindWebhooksByRoutingKey).not.toHaveBeenCalled()
-    expect(mockQueueWebhookExecution).not.toHaveBeenCalled()
+    expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
   })
 })

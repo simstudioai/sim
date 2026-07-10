@@ -6,23 +6,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockParseWebhookBody,
   mockFindWebhooksByRoutingKey,
-  mockCheckWebhookPreprocessing,
-  mockQueueWebhookExecution,
-  mockBlockExistsInDeployment,
+  mockDispatchResolvedWebhookTarget,
   mockGetSlackBotCredential,
   mockHandleChallenge,
   mockVerifySignature,
-  mockShouldSkip,
 } = vi.hoisted(() => ({
   mockParseWebhookBody: vi.fn(),
   mockFindWebhooksByRoutingKey: vi.fn(),
-  mockCheckWebhookPreprocessing: vi.fn(),
-  mockQueueWebhookExecution: vi.fn(),
-  mockBlockExistsInDeployment: vi.fn(),
+  mockDispatchResolvedWebhookTarget: vi.fn(),
   mockGetSlackBotCredential: vi.fn(),
   mockHandleChallenge: vi.fn(),
   mockVerifySignature: vi.fn(),
-  mockShouldSkip: vi.fn(),
 }))
 
 vi.mock('@/lib/core/admission/gate', () => ({
@@ -37,19 +31,13 @@ vi.mock('@/app/api/auth/oauth/utils', () => ({
 vi.mock('@/lib/webhooks/processor', () => ({
   parseWebhookBody: mockParseWebhookBody,
   findWebhooksByRoutingKey: mockFindWebhooksByRoutingKey,
-  checkWebhookPreprocessing: mockCheckWebhookPreprocessing,
-  queueWebhookExecution: mockQueueWebhookExecution,
+  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
 }))
 
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   handleSlackChallenge: mockHandleChallenge,
   verifySlackRequestSignature: mockVerifySignature,
-  shouldSkipSlackTriggerEvent: mockShouldSkip,
   resolveSlackEventKey: () => null,
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  blockExistsInDeployment: mockBlockExistsInDeployment,
 }))
 
 import { POST } from '@/app/api/webhooks/slack/custom/[credentialId]/route'
@@ -80,7 +68,6 @@ describe('Slack custom-bot webhook route', () => {
     vi.clearAllMocks()
     mockHandleChallenge.mockReturnValue(null)
     mockVerifySignature.mockReturnValue(null)
-    mockShouldSkip.mockReturnValue(false)
     mockParseWebhookBody.mockResolvedValue({
       body: messageBody,
       rawBody: JSON.stringify(messageBody),
@@ -91,12 +78,11 @@ describe('Slack custom-bot webhook route', () => {
       teamId: 'T1',
     })
     mockFindWebhooksByRoutingKey.mockResolvedValue([webhook('wh1')])
-    mockCheckWebhookPreprocessing.mockResolvedValue({
-      actorUserId: 'u1',
-      executionId: 'e1',
-      correlation: {},
+    mockDispatchResolvedWebhookTarget.mockResolvedValue({
+      outcome: 'queued',
+      response: new Response(null, { status: 200 }),
+      reason: 'queued',
     })
-    mockBlockExistsInDeployment.mockResolvedValue(true)
   })
 
   it('echoes the url_verification challenge without loading the credential', async () => {
@@ -110,7 +96,7 @@ describe('Slack custom-bot webhook route', () => {
     mockGetSlackBotCredential.mockResolvedValue(null)
     const res = await POST(makeRequest(), context)
     expect(res.status).toBe(404)
-    expect(mockQueueWebhookExecution).not.toHaveBeenCalled()
+    expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
   })
 
   it('verifies with the credential signing secret and rejects a bad signature', async () => {
@@ -123,22 +109,28 @@ describe('Slack custom-bot webhook route', () => {
       expect.any(String)
     )
     expect(res.status).toBe(401)
-    expect(mockQueueWebhookExecution).not.toHaveBeenCalled()
+    expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
   })
 
-  it('fans out by credential id (provider slack) and queues when not skipped', async () => {
-    await POST(makeRequest(), context)
+  it('fans out by credential id (provider slack) and dispatches each webhook', async () => {
+    const res = await POST(makeRequest(), context)
     expect(mockFindWebhooksByRoutingKey).toHaveBeenCalledWith(
       CREDENTIAL_ID,
       expect.any(String),
       'slack'
     )
-    expect(mockQueueWebhookExecution).toHaveBeenCalledTimes(1)
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
+    expect(res.status).toBe(200)
   })
 
-  it('does not queue when the shared filter skips the event', async () => {
-    mockShouldSkip.mockReturnValue(true)
-    await POST(makeRequest(), context)
-    expect(mockQueueWebhookExecution).not.toHaveBeenCalled()
+  it('still returns 200 when the dispatcher filters the event', async () => {
+    mockDispatchResolvedWebhookTarget.mockResolvedValue({
+      outcome: 'ignored',
+      response: new Response(null, { status: 200 }),
+      reason: 'filtered',
+    })
+    const res = await POST(makeRequest(), context)
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
+    expect(res.status).toBe(200)
   })
 })

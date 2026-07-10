@@ -676,7 +676,8 @@ async function queueWebhookExecutionWithResult(
         source: 'webhook' as const,
         workflowId: foundWorkflow.id,
         webhookId: foundWebhook.id,
-        path: options.path || foundWebhook.path,
+        // Routing-key webhooks (e.g. Slack) have no path.
+        path: options.path || foundWebhook.path || undefined,
         provider: foundWebhook.provider,
         triggerType: 'webhook',
       } satisfies AsyncExecutionCorrelation)
@@ -692,7 +693,7 @@ async function queueWebhookExecutionWithResult(
       provider: foundWebhook.provider,
       body,
       headers,
-      path: options.path || foundWebhook.path,
+      path: options.path || foundWebhook.path || '',
       blockId: foundWebhook.blockId ?? undefined,
       workspaceId,
       ...(credentialId ? { credentialId } : {}),
