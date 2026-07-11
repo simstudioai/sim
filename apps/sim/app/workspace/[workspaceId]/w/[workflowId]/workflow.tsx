@@ -529,6 +529,18 @@ const WorkflowContent = React.memo(
     /** Tracks whether onConnect successfully handled the connection (ReactFlow pattern). */
     const connectionCompletedRef = useRef(false)
 
+    /**
+     * Holds the drag origin + drop point when a connection is released on empty
+     * canvas and the command palette is opened. The block chosen from the palette
+     * is placed at the drop point and wired from this source handle. Cleared when
+     * the palette closes without a selection.
+     */
+    const pendingConnectRef = useRef<{
+      source: { nodeId: string; handleId: string }
+      screenX: number
+      screenY: number
+    } | null>(null)
+
     /** Stores start positions for multi-node drag undo/redo recording. */
     const multiNodeDragStartRef = useRef<Map<string, { x: number; y: number; parentId?: string }>>(
       new Map()
@@ -1977,16 +1989,39 @@ const WorkflowContent = React.memo(
         if (typeof type !== 'string' || !type) return
         if (type === 'connectionBlock') return
 
-        const basePosition = getViewportCenter()
+        // Consume any pending drag-release: it dictates the drop position and a
+        // forced edge from the released source handle, overriding auto-connect.
+        const pending = pendingConnectRef.current
+        pendingConnectRef.current = null
+        const pendingSourceExists = pending ? Boolean(blocks[pending.source.nodeId]) : false
+
+        let basePosition = getViewportCenter()
+        if (pending) {
+          const canvasElement = document.querySelector('.workflow-container') as HTMLElement | null
+          if (canvasElement) {
+            const bounds = canvasElement.getBoundingClientRect()
+            basePosition = screenToFlowPosition({
+              x: pending.screenX - bounds.left,
+              y: pending.screenY - bounds.top,
+            })
+          }
+        }
+
+        /**
+         * Edge for the new block: forced from the drag source when the palette was
+         * opened by a connection release, otherwise the normal auto-connect edge.
+         */
+        const resolveAutoConnectEdge = (targetId: string): Edge | undefined =>
+          pending && pendingSourceExists
+            ? createEdgeObject(pending.source.nodeId, targetId, pending.source.handleId)
+            : tryCreateAutoConnectEdge(basePosition, targetId, { targetParentId: null })
 
         if (type === 'loop' || type === 'parallel') {
           const id = generateId()
           const baseName = type === 'loop' ? 'Loop' : 'Parallel'
           const name = getUniqueBlockName(baseName, blocks)
 
-          const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
-            targetParentId: null,
-          })
+          const autoConnectEdge = resolveAutoConnectEdge(id)
 
           addBlock(
             id,
@@ -2019,9 +2054,7 @@ const WorkflowContent = React.memo(
         const baseName = defaultTriggerName || blockConfig.name
         const name = getUniqueBlockName(baseName, blocks)
 
-        const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
-          targetParentId: null,
-        })
+        const autoConnectEdge = resolveAutoConnectEdge(id)
 
         addBlock(
           id,
@@ -2054,7 +2087,25 @@ const WorkflowContent = React.memo(
       effectivePermissions.canEdit,
       checkTriggerConstraints,
       tryCreateAutoConnectEdge,
+      screenToFlowPosition,
+      createEdgeObject,
     ])
+
+    /**
+     * Drops a pending drag-release connection if the command palette is dismissed
+     * without picking a block. A real selection consumes the ref synchronously (via
+     * the `add-block-from-toolbar` event) before the modal closes, so a ref still
+     * set on close means the user cancelled.
+     */
+    useEffect(
+      () =>
+        useSearchModalStore.subscribe((state, prev) => {
+          if (prev.isOpen && !state.isOpen) {
+            pendingConnectRef.current = null
+          }
+        }),
+      []
+    )
 
     /**
      * Listen for toolbar drops that occur on the empty-workflow overlay (command list).
@@ -3131,6 +3182,18 @@ const WorkflowContent = React.memo(
             sourceHandle: source.handleId,
             target: targetNode.id,
             targetHandle: 'target',
+          })
+        } else if (!targetNode) {
+          // Released on empty canvas: open the command palette and remember the
+          // drag origin + drop point so the chosen block lands here, wired from
+          // this source handle.
+          pendingConnectRef.current = {
+            source: { nodeId: source.nodeId, handleId: source.handleId },
+            screenX: clientPos.clientX,
+            screenY: clientPos.clientY,
+          }
+          useSearchModalStore.getState().open({
+            sections: ['blocks', 'tools', 'toolOperations'],
           })
         }
 

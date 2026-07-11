@@ -67,18 +67,19 @@ export const useSearchModalStore = create<SearchModalState>()(
   devtools(
     (set, _) => ({
       isOpen: false,
+      sections: null,
       data: initialData,
 
       setOpen: (open: boolean) => {
-        set({ isOpen: open })
+        set({ isOpen: open, sections: null })
       },
 
-      open: () => {
-        set({ isOpen: true })
+      open: (options) => {
+        set({ isOpen: true, sections: options?.sections ?? null })
       },
 
       close: () => {
-        set({ isOpen: false })
+        set({ isOpen: false, sections: null })
       },
 
       initializeData: (filterBlocks) => {

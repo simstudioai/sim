@@ -50,6 +50,32 @@ export interface SearchData {
 }
 
 /**
+ * Every result group the search modal can render, in render order. Used to
+ * restrict the palette to a subset of sections when opened for a specific
+ * intent (e.g. a drag-release that should only offer canvas-insertable items).
+ */
+export const SEARCH_SECTIONS = [
+  'actions',
+  'connectedAccounts',
+  'integrations',
+  'blocks',
+  'tools',
+  'triggers',
+  'chats',
+  'workflows',
+  'tables',
+  'files',
+  'knowledgeBases',
+  'toolOperations',
+  'workspaces',
+  'docs',
+  'pages',
+] as const
+
+/** A single search-modal result group. */
+export type SearchSection = (typeof SEARCH_SECTIONS)[number]
+
+/**
  * Global state for the universal search modal.
  *
  * Centralizing this state in a store allows any component (e.g. sidebar,
@@ -60,18 +86,25 @@ export interface SearchModalState {
   /** Whether the search modal is currently open. */
   isOpen: boolean
 
+  /**
+   * When set, the palette renders only these sections; `null` shows all of them.
+   */
+  sections: SearchSection[] | null
+
   /** Pre-computed search data. */
   data: SearchData
 
   /**
-   * Explicitly set the open state of the modal.
+   * Explicitly set the open state of the modal. Always resets to the full
+   * palette (no section restriction).
    */
   setOpen: (open: boolean) => void
 
   /**
-   * Convenience method to open the modal.
+   * Convenience method to open the modal. Pass `sections` to restrict the
+   * palette to a subset of result groups.
    */
-  open: () => void
+  open: (options?: { sections?: SearchSection[] }) => void
 
   /**
    * Convenience method to close the modal.
