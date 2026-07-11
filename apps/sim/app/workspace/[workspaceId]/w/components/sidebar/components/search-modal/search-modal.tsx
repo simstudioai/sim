@@ -70,7 +70,7 @@ import type {
   WorkflowItem,
   WorkspaceItem,
 } from './utils'
-import { filterAndSort } from './utils'
+import { filterAndCap, filterAndSort } from './utils'
 
 const logger = createLogger('SearchModal')
 
@@ -575,60 +575,69 @@ export function SearchModal({
   }, [actions, isOnWorkflowPage, isOnIntegrationsPage, deferredSearch])
 
   /**
-   * Ranking matches against clean, human-meaningful text only (names, types,
-   * aliases, folder paths) — never the structural `<type>-<id>`/uuid tokens used
-   * for cmdk row identity. Those tokens carry letters (e.g. "block", "tool") that
-   * would otherwise let short fuzzy queries scatter-match unrelated items.
+   * Blocks and tools rank by name first, with `searchValue` (type + option
+   * labels) as a lower-tier fallback, so an exact name match wins while a block
+   * stays findable by an option label.
    */
   const filteredBlocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(blocks, (b) => b.searchValue ?? b.name, deferredSearch)
+    return filterAndCap(
+      blocks,
+      (b) => b.name,
+      deferredSearch,
+      (b) => b.searchValue
+    )
   }, [isOnWorkflowPage, blocks, deferredSearch])
 
   const filteredTools = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(tools, (t) => t.searchValue ?? t.name, deferredSearch)
+    return filterAndCap(
+      tools,
+      (t) => t.name,
+      deferredSearch,
+      (t) => t.searchValue
+    )
   }, [isOnWorkflowPage, tools, deferredSearch])
 
   const filteredTriggers = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(triggers, (t) => `${t.name} ${t.id}`, deferredSearch)
+    return filterAndCap(triggers, (t) => `${t.name} ${t.id}`, deferredSearch)
   }, [isOnWorkflowPage, triggers, deferredSearch])
 
   const filteredToolOps = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(toolOperations, (op) => op.searchValue, deferredSearch)
+    return filterAndCap(toolOperations, (op) => op.searchValue, deferredSearch)
   }, [isOnWorkflowPage, toolOperations, deferredSearch])
 
   const filteredDocs = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndSort(docs, (d) => `${d.name} docs documentation`, deferredSearch)
+    return filterAndCap(docs, (d) => `${d.name} docs documentation`, deferredSearch)
   }, [isOnWorkflowPage, docs, deferredSearch])
 
   const filteredTables = useMemo(
-    () => filterAndSort(tables, (t) => t.name, deferredSearch),
+    () => filterAndCap(tables, (t) => t.name, deferredSearch),
     [tables, deferredSearch]
   )
   const filteredFiles = useMemo(
-    () => filterAndSort(files, (f) => `${f.name} ${f.folderPath?.join(' ') ?? ''}`, deferredSearch),
+    () => filterAndCap(files, (f) => `${f.name} ${f.folderPath?.join(' ') ?? ''}`, deferredSearch),
     [files, deferredSearch]
   )
   const filteredKnowledgeBases = useMemo(
-    () => filterAndSort(knowledgeBases, (kb) => kb.name, deferredSearch),
+    () => filterAndCap(knowledgeBases, (kb) => kb.name, deferredSearch),
     [knowledgeBases, deferredSearch]
   )
 
   const filteredWorkflows = useMemo(
     () =>
-      filterAndSort(workflows, (w) => `${w.name} ${w.folderPath?.join(' ') ?? ''}`, deferredSearch),
+      filterAndCap(workflows, (w) => `${w.name} ${w.folderPath?.join(' ') ?? ''}`, deferredSearch),
     [workflows, deferredSearch]
   )
   const filteredChats = useMemo(
-    () => filterAndSort(chats, (t) => t.name, deferredSearch),
+    () => filterAndCap(chats, (t) => t.name, deferredSearch),
     [chats, deferredSearch]
   )
   const filteredWorkspaces = useMemo(
-    () => filterAndSort(workspaces, (w) => w.name, deferredSearch),
+    () => filterAndCap(workspaces, (w) => w.name, deferredSearch),
     [workspaces, deferredSearch]
   )
   const filteredPages = useMemo(
@@ -639,13 +648,13 @@ export function SearchModal({
   /** Connected accounts: visible on the integrations page even with empty input. */
   const filteredConnectedAccounts = useMemo(() => {
     if (!isOnIntegrationsPage) return []
-    return filterAndSort(connectedAccounts, (a) => a.name, deferredSearch)
+    return filterAndCap(connectedAccounts, (a) => a.name, deferredSearch)
   }, [isOnIntegrationsPage, connectedAccounts, deferredSearch])
 
   /** Catalog integrations: only shown once the user has typed something. */
   const filteredIntegrations = useMemo(() => {
-    if (!isOnIntegrationsPage || !deferredSearch) return []
-    return filterAndSort(integrations, (i) => i.name, deferredSearch)
+    if (!isOnIntegrationsPage || !deferredSearch.trim()) return []
+    return filterAndCap(integrations, (i) => i.name, deferredSearch)
   }, [isOnIntegrationsPage, deferredSearch, integrations])
 
   if (!mounted) return null
