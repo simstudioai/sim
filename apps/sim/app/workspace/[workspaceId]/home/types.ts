@@ -136,6 +136,7 @@ export interface ChatMessageContext {
   chatId?: string
   blockType?: string
   skillId?: string
+  serverId?: string
 }
 
 export interface ChatMessage {

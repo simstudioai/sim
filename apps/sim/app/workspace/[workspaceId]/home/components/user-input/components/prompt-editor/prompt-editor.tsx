@@ -214,7 +214,9 @@ export function PromptEditor({
           <SkillsMenuDropdown
             ref={editor.skillsMenuRef}
             skills={editor.skills}
+            mcpServers={editor.mcpServers}
             onSkillSelect={editor.handleSkillSelect}
+            onMcpSelect={editor.handleMcpSelect}
             onClose={editor.handleSkillsMenuClose}
             textareaRef={editor.textareaRef}
             pendingCursorRef={editor.pendingCursorRef}

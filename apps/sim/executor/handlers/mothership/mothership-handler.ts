@@ -348,6 +348,28 @@ export class MothershipBlockHandler implements BlockHandler {
     const messageId = generateId()
     const requestId = generateId()
     const fileAttachments = await buildMothershipFileAttachments(inputs.files, ctx, requestId)
+    const mcpTools = Array.isArray(inputs.tools)
+      ? inputs.tools.filter(
+          (tool: Record<string, unknown>) =>
+            tool.type === 'mcp' &&
+            tool.usageControl !== 'none' &&
+            typeof (tool.params as Record<string, unknown> | undefined)?.serverId === 'string' &&
+            typeof (tool.params as Record<string, unknown> | undefined)?.toolName === 'string'
+        )
+      : []
+    const skillContexts = Array.isArray(inputs.skills)
+      ? inputs.skills.flatMap((skill: Record<string, unknown>) =>
+          typeof skill.skillId === 'string' && skill.skillId
+            ? [
+                {
+                  kind: 'skill',
+                  skillId: skill.skillId,
+                  label: typeof skill.name === 'string' ? skill.name : skill.skillId,
+                },
+              ]
+            : []
+        )
+      : []
 
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(ctx.userId)
@@ -368,6 +390,8 @@ export class MothershipBlockHandler implements BlockHandler {
       messageId,
       requestId,
       ...(fileAttachments && { fileAttachments }),
+      ...(mcpTools.length > 0 ? { mcpTools } : {}),
+      ...(skillContexts.length > 0 ? { contexts: skillContexts } : {}),
       ...(ctx.workflowId ? { workflowId: ctx.workflowId } : {}),
       ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
     }
@@ -380,6 +404,8 @@ export class MothershipBlockHandler implements BlockHandler {
       executionId: ctx.executionId,
       chatId,
       fileAttachmentCount: fileAttachments?.length ?? 0,
+      mcpToolCount: mcpTools.length,
+      skillCount: skillContexts.length,
     })
 
     const abortController = new AbortController()

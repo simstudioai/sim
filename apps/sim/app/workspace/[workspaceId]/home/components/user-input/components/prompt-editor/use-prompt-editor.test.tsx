@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
+vi.mock('@/hooks/queries/mcp', () => ({ useMcpServers: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/workflows', () => ({ useWorkflows: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/tables', () => ({ useTablesList: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/workspace-files', () => ({ useWorkspaceFiles: () => ({ data: [] }) }))

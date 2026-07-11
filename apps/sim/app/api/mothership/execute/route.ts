@@ -14,6 +14,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/copilot/request/types'
@@ -106,6 +107,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       requestId: providedRequestId,
       fileAttachments,
       contexts,
+      mcpTools,
       workflowId,
       executionId,
       userMetadata,
@@ -146,25 +148,42 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
-    const [workspaceContext, integrationTools, userPermission, entitlements, agentContexts] =
-      await Promise.all([
-        generateWorkspaceContext(workspaceId, userId),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-        computeWorkspaceEntitlements(workspaceId, userId),
-        processContextsServer(
-          agentMentions,
-          userId,
-          lastUserMessage,
-          workspaceId,
-          effectiveChatId
-        ).catch((error) => {
-          reqLogger.warn('Failed to resolve agent contexts for execution', {
-            error: toError(error).message,
-          })
-          return []
-        }),
-      ])
+    const taggedMcpServerIds = (agentMentions ?? []).flatMap((context) =>
+      context.kind === 'mcp' && context.serverId ? [context.serverId] : []
+    )
+    const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
+    const [
+      workspaceContext,
+      integrationTools,
+      mothershipTools,
+      userPermission,
+      entitlements,
+      agentContexts,
+    ] = await Promise.all([
+      generateWorkspaceContext(workspaceId, userId),
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+      Promise.all([
+        buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? []),
+        buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds),
+      ]).then((groups) => {
+        const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
+        return [...byName.values()]
+      }),
+      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+      computeWorkspaceEntitlements(workspaceId, userId),
+      processContextsServer(
+        nonMcpAgentMentions,
+        userId,
+        lastUserMessage,
+        workspaceId,
+        effectiveChatId
+      ).catch((error) => {
+        reqLogger.warn('Failed to resolve agent contexts for execution', {
+          error: toError(error).message,
+        })
+        return []
+      }),
+    ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -183,8 +202,30 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
       ...(userMetadata ? { userMetadata } : {}),
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
-      ...(agentContexts.length > 0 ? { contexts: agentContexts } : {}),
+      ...(agentContexts.length > 0 || mothershipTools.length > 0
+        ? {
+            contexts: [
+              ...agentContexts,
+              ...(mothershipTools.length > 0
+                ? [
+                    {
+                      type: 'mcp',
+                      content: [
+                        'The following MCP tools are explicitly enabled for this request.',
+                        'Load one with load_custom_tool({ type: "mcp", name: "<exact name>" }) before calling it.',
+                        'Do not narrate discovery, loading, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+                        ...mothershipTools.map(
+                          (tool) => `- ${tool.name}: ${tool.description || tool.name}`
+                        ),
+                      ].join('\n'),
+                    },
+                  ]
+                : []),
+            ],
+          }
+        : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
+      ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
       ...(userPermission ? { userPermission } : {}),
       ...(entitlements.length > 0 ? { entitlements } : {}),
     }

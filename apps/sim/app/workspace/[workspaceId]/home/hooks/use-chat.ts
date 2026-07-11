@@ -314,6 +314,8 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.blockType === 'string'
     case 'skill':
       return typeof value.skillId === 'string'
+    case 'mcp':
+      return typeof value.serverId === 'string'
     default:
       return false
   }
@@ -3078,6 +3080,7 @@ export function useChat(
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
         ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
+        ...(c.kind === 'mcp' && 'serverId' in c ? { serverId: c.serverId } : {}),
       }))
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,

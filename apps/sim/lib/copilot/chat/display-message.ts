@@ -126,6 +126,9 @@ function toDisplayContexts(
     ...(c.fileId ? { fileId: c.fileId } : {}),
     ...(c.folderId ? { folderId: c.folderId } : {}),
     ...(c.chatId ? { chatId: c.chatId } : {}),
+    ...(c.blockType ? { blockType: c.blockType } : {}),
+    ...(c.skillId ? { skillId: c.skillId } : {}),
+    ...(c.serverId ? { serverId: c.serverId } : {}),
   }))
 }
 

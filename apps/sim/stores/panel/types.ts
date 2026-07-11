@@ -36,3 +36,4 @@ export type ChatContext =
   | { kind: 'slash_command'; command: string; label: string }
   | { kind: 'integration'; blockType: string; label: string }
   | { kind: 'skill'; skillId: string; label: string }
+  | { kind: 'mcp'; serverId: string; label: string }

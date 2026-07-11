@@ -219,6 +219,11 @@ export function humanizeToolName(name: string): string {
  * returns an empty string.
  */
 export function getToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
+  const mcpToolMatch = name.match(/^mcp-[^-]+-(.+)$/)
+  if (mcpToolMatch?.[1]) {
+    return humanizeToolName(mcpToolMatch[1])
+  }
+
   switch (name) {
     case 'search_online': {
       const target = firstStringArg(args, 'toolTitle', 'title')
