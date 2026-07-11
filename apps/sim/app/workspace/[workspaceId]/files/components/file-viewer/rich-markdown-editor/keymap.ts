@@ -35,6 +35,14 @@ function isInsideWrapper($from: ResolvedPos): boolean {
  * container and strand an empty paragraph (a visible gap, and markdown that re-parses to a different
  * document). Walking up while `childCount === 1` deletes the whole now-empty wrapper (the emptied list
  * item, not just its paragraph) so no orphan `<li>` or empty continuation line is left behind.
+ *
+ * The selection left behind must be a CARET, never a NodeSelection: `Selection.near` can silently
+ * land a NodeSelection on an adjacent leaf (deleting the sole bullet at the top of a doc whose next
+ * block is an image selected that image), turning the user's next keystroke destructive — a second
+ * Backspace while "clearing the bullet" deleted the image, and typing would have replaced it. So:
+ * end of the previous textblock first; else a gap cursor at the deletion point when the neighbour is
+ * a leaf (typing there inserts a new block where the emptied one was, instead of replacing the leaf);
+ * else the next textblock.
  */
 function removeEmptyWrappedBlock(editor: Editor, $from: ResolvedPos): boolean {
   let depth = $from.depth
@@ -44,11 +52,29 @@ function removeEmptyWrappedBlock(editor: Editor, $from: ResolvedPos): boolean {
   return editor.commands.command(({ tr, dispatch }) => {
     if (dispatch) {
       tr.delete(start, end)
-      tr.setSelection(Selection.near(tr.doc.resolve(start), -1))
+      const $gap = tr.doc.resolve(start)
+      tr.setSelection(
+        Selection.findFrom($gap, -1, true) ??
+          (isLeafGap($gap) ? new GapCursor($gap) : null) ??
+          Selection.findFrom($gap, 1, true) ??
+          Selection.near($gap, -1)
+      )
       dispatch(tr.scrollIntoView())
     }
     return true
   })
+}
+
+/**
+ * True when `$pos` is a block boundary a gap cursor is valid at in this schema: the following node is
+ * a selectable leaf (divider/image) and there is nothing before it, or another leaf — i.e. no textblock
+ * on either side for a normal caret to land in.
+ */
+function isLeafGap($pos: ResolvedPos): boolean {
+  const after = $pos.nodeAfter
+  if (!after || !SELECTABLE_LEAVES.has(after.type.name)) return false
+  const before = $pos.nodeBefore
+  return !before || SELECTABLE_LEAVES.has(before.type.name)
 }
 
 /**
@@ -146,6 +172,11 @@ export const RichMarkdownKeymap = Extension.create({
         const { selection, doc } = editor.state
         if (!selection.empty || selection.$from.parentOffset !== 0) return false
         const { $from } = selection
+        // A gap cursor at the start of the doc resolves at the top level (`depth === 0`, offset 0):
+        // `$from.before(0)` below throws, and falling through instead is no better — TipTap's
+        // blockquote Backspace handler crashes on the same resolution (`$from.node(-1)` is
+        // undefined). There is nothing before the gap for Backspace to act on, so consume the key.
+        if ($from.depth === 0) return true
         if ($from.parent.type.name === 'heading') {
           return editor.commands.setParagraph()
         }
