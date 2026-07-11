@@ -737,15 +737,23 @@ export async function deleteTable(
   await assertResourceMutable('table', tableId)
 
   const now = new Date()
-  const result = await db
-    .update(userTableDefinitions)
-    .set({ archivedAt: now, updatedAt: now })
-    .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt)))
-    .returning({
-      createdBy: userTableDefinitions.createdBy,
-      workspaceId: userTableDefinitions.workspaceId,
-      name: userTableDefinitions.name,
-    })
+  const result = await db.transaction(async (tx) => {
+    // The pre-check above is a separate round-trip -- an admin could lock this
+    // table in the window between that check and this transaction. Re-check
+    // inside the transaction (joining `tx` so the read is part of the same
+    // atomic unit as the write below) before applying anything.
+    await assertResourceMutable('table', tableId, tx)
+
+    return tx
+      .update(userTableDefinitions)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt)))
+      .returning({
+        createdBy: userTableDefinitions.createdBy,
+        workspaceId: userTableDefinitions.workspaceId,
+        name: userTableDefinitions.name,
+      })
+  })
 
   const deleted = result[0]
   // Audit only genuine user deletes — rollback callers omit `actingUserId`. The

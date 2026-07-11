@@ -961,6 +961,13 @@ export async function archiveWorkspaceFileFolderRecursive(
 
     if (!folder) throw new Error('Folder not found')
 
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock this folder in the window
+    // between that check and this transaction. Re-check inside the transaction
+    // (joining `tx` so the read is part of the same atomic unit as the writes
+    // below) before applying anything.
+    await assertFolderMutable(folderId, 'file', tx)
+
     const activeFolders = await tx
       .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
       .from(workspaceFileFolder)
@@ -1172,6 +1179,17 @@ export async function bulkArchiveWorkspaceFileItems(params: {
 
   return db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock a file or folder in the window
+    // between that check and this transaction. Re-check inside the transaction
+    // (joining `tx`) before applying anything. Safe to check each id in turn
+    // without a closure-based ordered lock (unlike the reorder batch fix): the
+    // advisory lock above already fully serializes every file-folder mutation
+    // for this workspace, so no other transaction can be concurrently
+    // acquiring row locks here to race against.
+    await Promise.all(explicitFileIds.map((id) => assertResourceMutable('file', id, tx)))
+    await Promise.all(explicitFolderIds.map((id) => assertFolderMutable(id, 'file', tx)))
 
     const activeFolders =
       explicitFolderIds.length > 0

@@ -22,6 +22,9 @@ const logger = createLogger('FolderLifecycle')
 /** All queries against `folder` in this module are scoped to workflow folders. */
 const isWorkflowFolder = eq(folder.resourceType, 'workflow')
 
+/** Marks a concurrent-deletion race on a target parent, caught inside a folder-update transaction, as a 400 (validation), not a 500. */
+class WorkflowFolderParentNotFoundError extends Error {}
+
 export interface PerformCreateFolderParams {
   userId: string
   workspaceId: string
@@ -215,6 +218,22 @@ export async function performUpdateFolder(
       if (params.parentId) {
         // A folder in an unlocked location could otherwise be moved into a locked one.
         await assertFolderMutable(params.parentId, 'workflow', tx)
+
+        // assertFolderMutable's lock walker treats a deleted parent as unlocked (it
+        // stops the ancestor walk when the row is missing, rather than erroring), so
+        // it alone doesn't catch a parent deleted between the earlier
+        // assertFolderParentValid precheck and this transaction. FOR UPDATE here
+        // makes the recheck race-free: once held, the parent's deletedAt can't
+        // change until this transaction resolves.
+        const [targetParent] = await tx
+          .select({ id: folder.id })
+          .from(folder)
+          .where(and(eq(folder.id, params.parentId), isWorkflowFolder, isNull(folder.deletedAt)))
+          .for('update')
+          .limit(1)
+        if (!targetParent) {
+          throw new WorkflowFolderParentNotFoundError('Parent folder not found')
+        }
       }
 
       const [row] = await tx
@@ -243,6 +262,9 @@ export async function performUpdateFolder(
     // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
     if (error instanceof ResourceLockedError) {
       throw error
+    }
+    if (error instanceof WorkflowFolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
     }
     if (getPostgresErrorCode(error) === '23505') {
       return {
@@ -307,7 +329,19 @@ async function deleteFolderRecursively(
     stats.workflows += workflowsInFolder.length
   }
 
-  await db.update(folder).set({ deletedAt: timestamp }).where(eq(folder.id, folderId))
+  // The route checks lock state before calling this function, but that's a
+  // separate round-trip, and this recursive cascade makes several of its own
+  // round-trips per folder besides -- an admin could lock this specific folder
+  // in the window before this write. A single, tightly-scoped transaction
+  // around just the recheck and this folder's own write closes that race for
+  // this row (the cascade as a whole still isn't one atomic unit, since
+  // archiveWorkflowsByIdsInWorkspace above doesn't accept a `tx`, but each
+  // folder's own delete now can't land after a lock was set for that folder
+  // specifically).
+  await db.transaction(async (tx) => {
+    await assertFolderMutable(folderId, 'workflow', tx)
+    await tx.update(folder).set({ deletedAt: timestamp }).where(eq(folder.id, folderId))
+  })
   stats.folders += 1
 
   return stats

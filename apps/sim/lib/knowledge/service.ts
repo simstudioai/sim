@@ -593,6 +593,12 @@ export async function deleteKnowledgeBase(
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
+    // The pre-check above is a separate round-trip -- an admin could lock this KB
+    // in the window between that check and this transaction. Re-check inside the
+    // transaction, joining `tx` so the read is part of the same atomic unit as
+    // the FOR UPDATE lock and the writes below.
+    await assertResourceMutable('knowledge_base', knowledgeBaseId, tx)
+
     await tx
       .update(knowledgeBase)
       .set({

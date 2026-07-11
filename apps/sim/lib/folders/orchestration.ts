@@ -486,6 +486,13 @@ async function performDeleteResourceFolder<TCountKey extends 'knowledgeBases' | 
       .limit(1)
     if (!existing) return null
 
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock this folder in the window
+    // between that check and this transaction. Re-check inside the transaction
+    // (joining `tx` so the read is part of the same atomic unit as the writes
+    // below) before applying anything.
+    await assertFolderMutable(folderId, cascade.resourceType, tx)
+
     const folderIds = await collectFolderSubtreeIds(workspaceId, cascade.resourceType, folderId, tx)
 
     const archivedFolders = await tx
@@ -760,47 +767,80 @@ export async function performUpdateFolder(
   const isLockOnlyUpdate =
     params.name === undefined && params.parentId === undefined && params.sortOrder === undefined
 
-  const updated = await db.transaction(async (tx) => {
-    // The route checks lock state before calling this function, but that's a
-    // separate round-trip -- an admin could lock this folder (or its target
-    // parent) in the window between that check and this transaction. Re-check
-    // inside the transaction (joining `tx` so the read is part of the same
-    // atomic unit as the write below) before applying anything.
-    //
-    // `assertFolderMutableUnlessUnlocking` only treats this folder's own
-    // (about-to-be-cleared) lock as satisfied when this same request unlocks it --
-    // a lock inherited from an ancestor still blocks. Skipped entirely for a
-    // lock-only update, matching the file/kb/table lock-toggle precedent.
-    if (!isLockOnlyUpdate) {
-      await assertFolderMutableUnlessUnlocking(
-        params.folderId,
-        params.resourceType,
-        params.locked === false,
-        tx
-      )
-    }
-    if (params.parentId) {
-      // A folder in an unlocked location could otherwise be moved into a locked one.
-      await assertFolderMutable(params.parentId, params.resourceType, tx)
-    }
-
-    const [row] = await tx
-      .update(folderTable)
-      .set(updates)
-      .where(
-        and(
-          eq(folderTable.id, params.folderId),
-          eq(folderTable.workspaceId, params.workspaceId),
-          eq(folderTable.resourceType, params.resourceType),
-          isNull(folderTable.deletedAt)
+  try {
+    const updated = await db.transaction(async (tx) => {
+      // The route checks lock state before calling this function, but that's a
+      // separate round-trip -- an admin could lock this folder (or its target
+      // parent) in the window between that check and this transaction. Re-check
+      // inside the transaction (joining `tx` so the read is part of the same
+      // atomic unit as the write below) before applying anything.
+      //
+      // `assertFolderMutableUnlessUnlocking` only treats this folder's own
+      // (about-to-be-cleared) lock as satisfied when this same request unlocks it --
+      // a lock inherited from an ancestor still blocks. Skipped entirely for a
+      // lock-only update, matching the file/kb/table lock-toggle precedent.
+      if (!isLockOnlyUpdate) {
+        await assertFolderMutableUnlessUnlocking(
+          params.folderId,
+          params.resourceType,
+          params.locked === false,
+          tx
         )
-      )
-      .returning()
-    return row
-  })
+      }
+      if (params.parentId) {
+        // A folder in an unlocked location could otherwise be moved into a locked one.
+        await assertFolderMutable(params.parentId, params.resourceType, tx)
 
-  if (!updated) return { success: false, error: 'Folder not found', errorCode: 'not_found' }
-  return { success: true, folder: updated }
+        // assertFolderMutable's lock walker treats a deleted parent as unlocked (it
+        // stops the ancestor walk when the row is missing, rather than erroring), so
+        // it alone doesn't catch a parent deleted between the earlier
+        // assertFolderParentValid precheck and this transaction. FOR UPDATE here
+        // makes the recheck race-free: once held, the parent's deletedAt can't
+        // change until this transaction resolves.
+        const [targetParent] = await tx
+          .select({ id: folderTable.id })
+          .from(folderTable)
+          .where(
+            and(
+              eq(folderTable.id, params.parentId),
+              eq(folderTable.resourceType, params.resourceType),
+              isNull(folderTable.deletedAt)
+            )
+          )
+          .for('update')
+          .limit(1)
+        if (!targetParent) {
+          throw new FolderParentNotFoundError('Parent folder not found')
+        }
+      }
+
+      const [row] = await tx
+        .update(folderTable)
+        .set(updates)
+        .where(
+          and(
+            eq(folderTable.id, params.folderId),
+            eq(folderTable.workspaceId, params.workspaceId),
+            eq(folderTable.resourceType, params.resourceType),
+            isNull(folderTable.deletedAt)
+          )
+        )
+        .returning()
+      return row
+    })
+
+    if (!updated) return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+    return { success: true, folder: updated }
+  } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (error instanceof FolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    throw error
+  }
 }
 
 export async function performDeleteFolder(
@@ -838,6 +878,9 @@ export async function performRestoreFolder(
   }
   return performRestoreResourceFolder(params, TABLE_FOLDER_CASCADE)
 }
+
+/** Marks a concurrent-deletion race on a target parent, caught inside a folder-update transaction, as a 400 (validation), not a 500. */
+class FolderParentNotFoundError extends Error {}
 
 /** Marks a concurrent-deletion race caught inside the reorder transaction as a 404, not a 500. */
 class FolderReorderNotFoundError extends Error {}

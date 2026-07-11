@@ -7,6 +7,10 @@ import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertResourceMutableUnlessUnlocking,
+  ResourceLockedError,
+} from '@sim/platform-authz/resource-lock'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
@@ -989,23 +993,41 @@ export async function renameWorkspaceFile(
     }
   }
 
+  const isLockOnlyUpdate = fileRecord.name === normalizedName
+
   let updated: { id: string }[]
   try {
-    updated = await db
-      .update(workspaceFiles)
-      .set({
-        originalName: normalizedName,
-        updatedAt: new Date(),
-        ...(locked !== undefined ? { locked } : {}),
-      })
-      .where(
-        and(
-          eq(workspaceFiles.id, fileId),
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.context, 'workspace')
+    updated = await db.transaction(async (tx) => {
+      // The caller checks lock state before calling this function, but that's a
+      // separate round-trip -- an admin could lock this file in the window
+      // between that check and this transaction. Re-check inside the
+      // transaction (joining `tx`) before applying anything.
+      //
+      // `assertResourceMutableUnlessUnlocking` only treats this file's own
+      // (about-to-be-cleared) lock as satisfied when this same request unlocks
+      // it -- a lock inherited from an ancestor folder still blocks. Skipped
+      // entirely for a lock-only update, matching the file/kb/table
+      // lock-toggle precedent.
+      if (!isLockOnlyUpdate) {
+        await assertResourceMutableUnlessUnlocking('file', fileId, locked === false, tx)
+      }
+
+      return tx
+        .update(workspaceFiles)
+        .set({
+          originalName: normalizedName,
+          updatedAt: new Date(),
+          ...(locked !== undefined ? { locked } : {}),
+        })
+        .where(
+          and(
+            eq(workspaceFiles.id, fileId),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.context, 'workspace')
+          )
         )
-      )
-      .returning({ id: workspaceFiles.id })
+        .returning({ id: workspaceFiles.id })
+    })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505') {
       throw new FileConflictError(normalizedName)
@@ -1075,6 +1097,14 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
     throw new Error('Cannot restore file into an archived workspace')
+  }
+
+  // The soft-deleted file's own `locked` flag still gates restoring it -- the
+  // generic lock engine only reads active rows, so this direct check (rather
+  // than assertResourceMutable, which would find nothing) matches the pattern
+  // used by the other resource restore paths.
+  if (fileRecord.locked) {
+    throw new ResourceLockedError('file', false, 'File is locked')
   }
 
   /**
