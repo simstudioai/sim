@@ -426,6 +426,51 @@ describe('PUT /api/folders/reorder', () => {
     expect(mockTxUpdate).not.toHaveBeenCalled()
   })
 
+  it('rejects the write when a locked row points outside the discovered closure', async () => {
+    // Regression test: the ancestor-closure walk discovers members with PLAIN reads
+    // before the FOR UPDATE lock is acquired. If a concurrent request reparents one
+    // of those discovered members (target-1 here) to point at a folder outside the
+    // closure in that gap, the locked read reveals a parentId the cycle walk has no
+    // data for -- silently treating "not in closure" as root could let a real cycle
+    // through undetected. The fix fails the whole batch safely instead.
+    mockWhere
+      .mockReturnValueOnce([
+        { id: 'folder-1', workspaceId: 'workspace-123', resourceType: 'workflow' },
+      ])
+      .mockReturnValueOnce([{ id: 'folder-1', parentId: null }])
+      .mockReturnValueOnce([{ id: 'folder-1', workspaceId: 'workspace-123' }])
+      .mockReturnValueOnce({ limit: mockLimit })
+    mockLimit.mockReturnValueOnce([
+      { workspaceId: 'workspace-123', resourceType: 'workflow', deletedAt: null },
+    ])
+
+    queueTxSelectResults(
+      // closure walk, level 1: both starting ids resolve as roots (no further
+      // ancestors) at discovery time -- the walk correctly stops here.
+      [
+        { id: 'folder-1', parentId: null },
+        { id: 'target-1', parentId: null },
+      ],
+      [
+        { id: 'folder-1', locked: false, deletedAt: null },
+        // Concurrently reparented to a folder never discovered by the walk above.
+        { id: 'target-1', locked: false, deletedAt: null, parentId: 'outside-closure' },
+      ]
+    )
+
+    const req = createMockRequest('PUT', {
+      workspaceId: 'workspace-123',
+      updates: [{ id: 'folder-1', sortOrder: 0, parentId: 'target-1' }],
+    })
+
+    const response = await PUT(req)
+
+    expect(response.status).toBe(409)
+    const data = await response.json()
+    expect(data.error).toBe('Folder tree changed concurrently, please retry')
+    expect(mockTxUpdate).not.toHaveBeenCalled()
+  })
+
   it('rejects the write when a concurrent request created a cycle between the pre-check and the transaction', async () => {
     // Regression test: the route's own cycle check reads an unlocked snapshot of
     // the folder tree before this transaction opens. Two concurrent requests can

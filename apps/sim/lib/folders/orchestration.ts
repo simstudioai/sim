@@ -936,6 +936,8 @@ class FolderParentNotFoundError extends Error {}
 class FolderReorderNotFoundError extends Error {}
 /** Marks a cycle caught inside the reorder transaction as a 400, not a 500. */
 class FolderReorderCycleError extends Error {}
+/** Marks a closure that went stale between discovery and locking, caught inside the reorder transaction, as a 409, not a 500. */
+class FolderReorderStaleClosureError extends Error {}
 
 export async function performReorderFolders(params: PerformReorderFoldersParams): Promise<{
   success: boolean
@@ -1078,6 +1080,18 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
         throw new ResourceLockedError(resourceType, false, 'Folder is locked')
       }
 
+      // The ancestor-closure walk above discovers members with PLAIN reads before
+      // this FOR UPDATE lock is acquired -- a concurrent transaction could reparent
+      // one of those ancestors to point outside the discovered closure in that gap.
+      // If so, the locked read below reveals a parentId the cycle walk has no data
+      // for, and treating "not in closure" as "reached root" (as `?? null` would)
+      // could silently let a real cycle through undetected. Fail the whole batch
+      // safely -- the client can retry -- rather than risk that.
+      const closureIds = new Set(lockedRows.map((row) => row.id))
+      if (lockedRows.some((row) => row.parentId && !closureIds.has(row.parentId))) {
+        throw new FolderReorderStaleClosureError('Folder tree changed concurrently, please retry')
+      }
+
       // The route's own cycle check reads an unlocked snapshot of the folder tree
       // before this transaction opens -- two concurrent reorder requests can each
       // move one end of what becomes an A<->B cycle, both passing their own
@@ -1136,6 +1150,9 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
     }
     if (error instanceof FolderReorderCycleError) {
       return { success: false, updated: 0, error: error.message, errorCode: 'validation' }
+    }
+    if (error instanceof FolderReorderStaleClosureError) {
+      return { success: false, updated: 0, error: error.message, errorCode: 'conflict' }
     }
     // An unexpected DB/transaction failure, not a client-caused validation error --
     // log the real cause but don't leak internal error details to the response.
