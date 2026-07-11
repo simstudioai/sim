@@ -14,6 +14,7 @@ const {
   mockValidateSsrf,
   mockIsDomainAllowed,
   mockCacheAdapter,
+  mockUpdateSet,
 } = vi.hoisted(() => {
   const mockListTools = vi.fn()
   const mockConnect = vi.fn()
@@ -67,6 +68,7 @@ const {
     mockValidateDomain: vi.fn(),
     mockValidateSsrf: vi.fn(),
     mockIsDomainAllowed: vi.fn(() => true),
+    mockUpdateSet: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
   }
 })
 
@@ -80,13 +82,12 @@ vi.mock('@sim/db', () => {
     })
     return thenable
   }
-  const setter = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
   return {
     db: {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({ where }),
       }),
-      update: vi.fn().mockReturnValue({ set: setter }),
+      update: vi.fn().mockReturnValue({ set: mockUpdateSet }),
       insert: vi.fn(),
       delete: vi.fn(),
     },
@@ -365,5 +366,62 @@ describe('McpService.discoverTools per-server caching', () => {
     const after = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
     expect(after.map((t) => t.name)).toEqual(['a1'])
     expect(mockListTools).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists a per-server discovery failure before rethrowing it', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools.mockRejectedValueOnce(new Error('Request timed out'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'Request timed out'
+    )
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastError: 'Request timed out',
+        statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
+      })
+    )
+  })
+
+  it('promotes the persisted server status to error on the third consecutive failure', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 2, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools.mockRejectedValueOnce(new Error('Connection refused'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'Connection refused'
+    )
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'error',
+        statusConfig: { consecutiveFailures: 3, lastSuccessfulDiscovery: null },
+      })
+    )
+  })
+
+  it('persists OAuth-required discovery as disconnected without a failure error', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'OAuth authorization required'
+    )
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastError: null,
+      })
+    )
   })
 })

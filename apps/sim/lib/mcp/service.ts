@@ -5,7 +5,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, ne, or } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
@@ -65,6 +65,10 @@ type DiscoveryOutcome =
   // originalError preserves the type so markServerUnhealthy's instanceof
   // exemption survives the getErrorMessage call.
   | { kind: 'error'; message: string; originalError: unknown }
+
+function isOauthAuthorizationError(error: unknown): boolean {
+  return error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError
+}
 
 class McpService {
   private cacheAdapter: McpCacheStorageAdapter
@@ -316,6 +320,27 @@ class McpService {
     toolCount?: number
   ): Promise<void> {
     try {
+      const now = new Date()
+
+      if (success) {
+        await db
+          .update(mcpServers)
+          .set({
+            connectionStatus: 'connected',
+            lastConnected: now,
+            lastError: null,
+            toolCount: toolCount ?? 0,
+            lastToolsRefresh: now,
+            statusConfig: {
+              consecutiveFailures: 0,
+              lastSuccessfulDiscovery: now.toISOString(),
+            },
+            updatedAt: now,
+          })
+          .where(eq(mcpServers.id, serverId))
+        return
+      }
+
       const [currentServer] = await db
         .select({ statusConfig: mcpServers.statusConfig })
         .from(mcpServers)
@@ -337,46 +362,24 @@ class McpService {
         lastSuccessfulDiscovery: storedConfig?.lastSuccessfulDiscovery ?? null,
       }
 
-      const now = new Date()
+      const newFailures = currentConfig.consecutiveFailures + 1
+      const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
 
-      if (success) {
-        await db
-          .update(mcpServers)
-          .set({
-            connectionStatus: 'connected',
-            lastConnected: now,
-            lastError: null,
-            toolCount: toolCount ?? 0,
-            lastToolsRefresh: now,
-            statusConfig: {
-              consecutiveFailures: 0,
-              lastSuccessfulDiscovery: now.toISOString(),
-            },
-            updatedAt: now,
-          })
-          .where(eq(mcpServers.id, serverId))
-      } else {
-        const newFailures = currentConfig.consecutiveFailures + 1
-        const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
+      await db
+        .update(mcpServers)
+        .set({
+          connectionStatus: isErrorState ? 'error' : 'disconnected',
+          lastError: error || 'Unknown error',
+          statusConfig: {
+            consecutiveFailures: newFailures,
+            lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
+          },
+          updatedAt: now,
+        })
+        .where(eq(mcpServers.id, serverId))
 
-        await db
-          .update(mcpServers)
-          .set({
-            connectionStatus: isErrorState ? 'error' : 'disconnected',
-            lastError: error || 'Unknown error',
-            statusConfig: {
-              consecutiveFailures: newFailures,
-              lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
-            },
-            updatedAt: now,
-          })
-          .where(eq(mcpServers.id, serverId))
-
-        if (isErrorState) {
-          logger.warn(
-            `Server ${serverId} marked as error after ${newFailures} consecutive failures`
-          )
-        }
+      if (isErrorState) {
+        logger.warn(`Server ${serverId} marked as error after ${newFailures} consecutive failures`)
       }
     } catch (err) {
       logger.error(`Failed to update server status for ${serverId}:`, err)
@@ -392,7 +395,7 @@ class McpService {
     serverId: string,
     error: unknown
   ): Promise<void> {
-    if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
+    if (isOauthAuthorizationError(error)) {
       return
     }
     try {
@@ -403,6 +406,32 @@ class McpService {
       )
     } catch (err) {
       logger.warn(`Failed to write failure cache for server ${serverId}:`, err)
+    }
+  }
+
+  private async markServerOauthPending(serverId: string, workspaceId: string): Promise<void> {
+    try {
+      await db
+        .update(mcpServers)
+        .set({
+          connectionStatus: 'disconnected',
+          lastError: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(mcpServers.id, serverId),
+            eq(mcpServers.workspaceId, workspaceId),
+            isNull(mcpServers.deletedAt),
+            or(
+              isNull(mcpServers.connectionStatus),
+              ne(mcpServers.connectionStatus, 'disconnected'),
+              isNotNull(mcpServers.lastError)
+            )
+          )
+        )
+    } catch (error) {
+      logger.warn(`Failed to mark OAuth server ${serverId} disconnected:`, error)
     }
   }
 
@@ -479,10 +508,7 @@ class McpService {
               await client.disconnect()
             }
           } catch (error) {
-            if (
-              error instanceof McpOauthAuthorizationRequiredError ||
-              error instanceof UnauthorizedError
-            ) {
+            if (isOauthAuthorizationError(error)) {
               return { kind: 'oauth-pending' }
             }
             return {
@@ -535,20 +561,7 @@ class McpService {
         if (outcome.kind === 'oauth-pending') {
           // Mark disconnected so the UI surfaces the re-auth button.
           logger.info(`[${requestId}] Skipping server ${server.name}: OAuth authorization pending`)
-          deferredSideEffects.push(
-            db
-              .update(mcpServers)
-              .set({
-                connectionStatus: 'disconnected',
-                lastError: null,
-                updatedAt: new Date(),
-              })
-              .where(eq(mcpServers.id, server.id))
-              .then(() => undefined)
-              .catch((err) => {
-                logger.warn(`[${requestId}] Failed to mark server ${server.id} disconnected:`, err)
-              })
-          )
+          deferredSideEffects.push(this.markServerOauthPending(server.id, workspaceId))
           return
         }
         if (outcome.kind === 'unhealthy') {
@@ -701,6 +714,14 @@ class McpService {
           continue
         }
         // Drop positive cache so a follow-up doesn't return stale tools.
+        const statusUpdate = isOauthAuthorizationError(error)
+          ? this.markServerOauthPending(serverId, workspaceId)
+          : this.updateServerStatus(
+              serverId,
+              workspaceId,
+              false,
+              getErrorMessage(error, 'Connection failed')
+            )
         await Promise.allSettled([
           this.cacheAdapter
             .delete(serverCacheKey(workspaceId, serverId))
@@ -708,6 +729,7 @@ class McpService {
               logger.warn(`[${requestId}] Cache delete failed for ${serverId}:`, err)
             ),
           this.markServerUnhealthy(workspaceId, serverId, error),
+          statusUpdate,
         ])
         throw error
       }
@@ -747,10 +769,7 @@ class McpService {
             error: undefined,
           })
         } catch (error) {
-          if (
-            error instanceof McpOauthAuthorizationRequiredError ||
-            error instanceof UnauthorizedError
-          ) {
+          if (isOauthAuthorizationError(error)) {
             summaries.push({
               id: config.id,
               name: config.name,

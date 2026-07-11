@@ -21,6 +21,7 @@ const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : us
 /** The strict contract for a settings header action — rendered as a {@link Chip}, data only. */
 export interface SettingsAction {
   text: string
+  textTone?: 'error'
   icon?: ComponentType<{ className?: string }>
   variant?: 'primary' | 'destructive'
   active?: boolean
@@ -83,6 +84,7 @@ function computeSignature(c: SettingsHeaderConfig): string {
     b: c.back ? [c.back.text, c.back.icon ? 1 : 0] : null,
     a: c.actions?.map((x) => [
       x.text,
+      x.textTone ?? '',
       x.variant ?? '',
       x.active ?? false,
       x.disabled ?? false,
@@ -173,7 +175,11 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
                 }
                 disabled={action.disabled}
               >
-                {action.text}
+                {action.textTone === 'error' ? (
+                  <span className='text-[var(--text-error)]'>{action.text}</span>
+                ) : (
+                  action.text
+                )}
               </Chip>
             )
             return action.tooltip ? (

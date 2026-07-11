@@ -132,13 +132,19 @@ async function fetchMcpTools(
 export function useMcpToolsQuery(workspaceId: string) {
   const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
 
-  // Skip disabled rows (would 404 → negative-cache) and rows from a previous
-  // workspace (keepPreviousData on useMcpServers).
+  // Skip disabled rows (would 404 → negative-cache), rows from a previous
+  // workspace (keepPreviousData on useMcpServers), and OAuth rows that need an
+  // explicit authorization/reconnect before discovery can succeed.
   const serverIds = useMemo(
     () =>
       servers
         ? servers
-            .filter((s) => s.enabled && s.workspaceId === workspaceId)
+            .filter(
+              (s) =>
+                s.enabled &&
+                s.workspaceId === workspaceId &&
+                (s.authType !== 'oauth' || s.connectionStatus === 'connected')
+            )
             .map((s) => s.id)
             .sort()
         : [],
