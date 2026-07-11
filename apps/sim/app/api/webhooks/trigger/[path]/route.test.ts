@@ -74,7 +74,7 @@ vi.mock('@/serializer', () => ({
  */
 interface TestWebhook {
   id: string
-  provider: string
+  provider: string | null
   path: string
   isActive: boolean
   providerConfig?: Record<string, unknown>
@@ -540,6 +540,24 @@ describe('Webhook Trigger API Route', () => {
 
     const text = await response.text()
     expect(text).toMatch(/not found/i)
+  })
+
+  it('returns 500 without dispatching when a persisted webhook has no provider', async () => {
+    testData.webhooks.push({
+      id: 'missing-provider-webhook',
+      provider: null,
+      path: 'missing-provider-path',
+      isActive: true,
+      workflowId: 'test-workflow-id',
+    })
+
+    const response = await POST(createMockRequest('POST', { event: 'test' }), {
+      params: Promise.resolve({ path: 'missing-provider-path' }),
+    })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ error: 'Webhook provider is missing' })
+    expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
   })
 
   it('returns a stable retryable response when the webhook admission gate is full', async () => {

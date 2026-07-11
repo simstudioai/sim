@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const migration = readFileSync(
-  new URL('./migrations/0260_cooing_namor.sql', import.meta.url),
+  new URL('./migrations/0260_clean_agent_brand.sql', import.meta.url),
   'utf8'
 )
 

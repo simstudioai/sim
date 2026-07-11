@@ -398,6 +398,28 @@ describe('webhook processor execution identity', () => {
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
   })
 
+  it('normalizes nullable persisted metadata in preprocessing correlation', async () => {
+    const result = await checkWebhookPreprocessing(
+      makeWorkflowRecord({ workspaceId: null }),
+      makeWebhookRecord({ path: null, provider: null }),
+      'request-1'
+    )
+
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: undefined,
+        triggerData: {
+          correlation: expect.objectContaining({
+            path: undefined,
+            provider: undefined,
+          }),
+        },
+      })
+    )
+    expect(result.correlation?.path).toBeUndefined()
+    expect(result.correlation?.provider).toBeUndefined()
+  })
+
   it('reuses preprocessing execution identity when queueing a polling webhook', async () => {
     const expectedCorrelation = {
       executionId: 'generated-execution-id',

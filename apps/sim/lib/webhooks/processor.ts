@@ -560,7 +560,7 @@ export async function verifyProviderAuth(
     try {
       decryptedEnvVars = await getEffectiveDecryptedEnv(
         foundWorkflow.userId,
-        foundWorkflow.workspaceId
+        foundWorkflow.workspaceId ?? undefined
       )
     } catch (error) {
       logger.error(`[${requestId}] Failed to fetch environment variables`, {
@@ -602,8 +602,8 @@ export async function checkWebhookPreprocessing(
       source: 'webhook' as const,
       workflowId: foundWorkflow.id,
       webhookId: foundWebhook.id,
-      path: foundWebhook.path,
-      provider: foundWebhook.provider,
+      path: foundWebhook.path ?? undefined,
+      provider: foundWebhook.provider ?? undefined,
       triggerType: 'webhook',
     }
 
@@ -616,7 +616,7 @@ export async function checkWebhookPreprocessing(
       triggerData: { correlation },
       checkRateLimit: true,
       checkDeployment: true,
-      workspaceId: foundWorkflow.workspaceId,
+      workspaceId: foundWorkflow.workspaceId ?? undefined,
       workflowRecord: foundWorkflow,
     })
 
@@ -1045,7 +1045,7 @@ export async function processPolledWebhookEvent(
         source: 'webhook' as const,
         workflowId: foundWorkflow.id,
         webhookId: foundWebhook.id,
-        path: foundWebhook.path ?? '',
+        path: foundWebhook.path ?? undefined,
         provider,
         triggerType: 'webhook',
       } satisfies AsyncExecutionCorrelation)

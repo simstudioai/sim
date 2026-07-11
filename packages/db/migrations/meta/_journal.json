@@ -1814,6 +1814,13 @@
       "when": 1783722352108,
       "tag": "0259_slack_native_routing",
       "breakpoints": true
+    },
+    {
+      "idx": 260,
+      "version": "7",
+      "when": 1783737553018,
+      "tag": "0260_clean_agent_brand",
+      "breakpoints": true
     }
   ]
 }

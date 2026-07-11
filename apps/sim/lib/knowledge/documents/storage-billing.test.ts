@@ -11,6 +11,7 @@ const {
   mockDecrementStorageUsageInTx,
   mockIncrementStorageUsage,
   mockIncrementStorageUsageForBillingContextInTx,
+  mockMaybeNotifyStorageLimitForBillingContext,
   mockResolveStorageBillingContext,
 } = vi.hoisted(() => ({
   mockCheckStorageQuota: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockDecrementStorageUsageInTx: vi.fn(),
   mockIncrementStorageUsage: vi.fn(),
   mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
+  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
 }))
 
@@ -31,10 +33,11 @@ vi.mock('@/lib/billing/storage', () => ({
   decrementStorageUsageInTx: mockDecrementStorageUsageInTx,
   incrementStorageUsage: mockIncrementStorageUsage,
   incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
+  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext: mockResolveStorageBillingContext,
 }))
 
-import { createDocumentRecords } from '@/lib/knowledge/documents/service'
+import { createDocumentRecords, createSingleDocument } from '@/lib/knowledge/documents/service'
 
 const STORAGE_CONTEXT = {
   workspaceId: 'workspace-1',
@@ -57,7 +60,8 @@ describe('knowledge document storage attribution', () => {
     ])
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
     mockCheckStorageQuotaForBillingContext.mockResolvedValue({ allowed: true })
-    mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
+    mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(5)
+    mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
   })
 
   it.each(['external-collaborator', 'personal-api-key-user'])(
@@ -84,6 +88,7 @@ describe('knowledge document storage attribution', () => {
         STORAGE_CONTEXT,
         5
       )
+      expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 5)
       expect(mockCheckStorageQuota).not.toHaveBeenCalled()
       expect(mockIncrementStorageUsage).not.toHaveBeenCalled()
       expect(dbChainMockFns.values).toHaveBeenCalledWith([
@@ -91,4 +96,37 @@ describe('knowledge document storage attribution', () => {
       ])
     }
   )
+
+  it('notifies the workspace payer after a single document transaction commits', async () => {
+    let transactionCommitted = false
+    dbChainMockFns.transaction.mockImplementationOnce(
+      async (callback: (tx: typeof dbChainMock.db) => unknown) => {
+        const result = await callback(dbChainMock.db)
+        transactionCommitted = true
+        return result
+      }
+    )
+    mockMaybeNotifyStorageLimitForBillingContext.mockImplementationOnce(() => {
+      expect(transactionCommitted).toBe(true)
+    })
+
+    await createSingleDocument(
+      {
+        filename: 'note.txt',
+        fileUrl: 'data:text/plain;base64,SGVsbG8=',
+        fileSize: 5,
+        mimeType: 'text/plain',
+      },
+      'knowledge-base-1',
+      'request-1',
+      'external-collaborator'
+    )
+
+    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      STORAGE_CONTEXT,
+      5
+    )
+    expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 5)
+  })
 })

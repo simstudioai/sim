@@ -972,13 +972,17 @@ type DocumentStorageBilling =
   | {
       readonly context: StorageBillingContext
       readonly bytes: number
-      readonly updatedUsage?: number
     }
   | {
       readonly userId: string
       readonly bytes: number
       readonly sub: HighestPrioritySubscription | null
     }
+
+interface DocumentStorageNotification {
+  readonly context: StorageBillingContext
+  readonly updatedUsage: number
+}
 
 /**
  * Resolves and checks one document-write storage payer. Workspace documents
@@ -1043,12 +1047,12 @@ export async function createDocumentRecords(
   requestId: string,
   uploadedBy: string | null = null
 ): Promise<DocumentData[]> {
-  let storageBilling: DocumentStorageBilling | null = null
-
   const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
   const sub = totalBytes > 0 ? await resolveQuotaSubscription(knowledgeBaseId, uploadedBy) : null
 
-  const returnData = await db.transaction(async (tx) => {
+  const { returnData, storageNotification } = await db.transaction(async (tx) => {
+    let storageNotification: DocumentStorageNotification | null = null
+
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
     const kb = await tx
@@ -1083,13 +1087,13 @@ export async function createDocumentRecords(
         sub
       )
       if ('context' in preparedBilling) {
-        storageBilling = {
-          ...preparedBilling,
-          updatedUsage: await incrementStorageUsageForBillingContextInTx(
-            tx,
-            preparedBilling.context,
-            preparedBilling.bytes
-          ),
+        const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+          tx,
+          preparedBilling.context,
+          preparedBilling.bytes
+        )
+        if (updatedUsage !== undefined) {
+          storageNotification = { context: preparedBilling.context, updatedUsage }
         }
       } else {
         const quotaCheck = await checkAndIncrementStorageUsageInTx(
@@ -1101,7 +1105,6 @@ export async function createDocumentRecords(
         if (!quotaCheck.allowed) {
           throw new Error(quotaCheck.error || 'Storage limit exceeded')
         }
-        storageBilling = preparedBilling
       }
     }
 
@@ -1191,13 +1194,13 @@ export async function createDocumentRecords(
         .where(eq(knowledgeBase.id, knowledgeBaseId))
     }
 
-    return returnData
+    return { returnData, storageNotification }
   })
 
-  if (storageBilling && 'context' in storageBilling && storageBilling.updatedUsage !== undefined) {
+  if (storageNotification) {
     void maybeNotifyStorageLimitForBillingContext(
-      storageBilling.context,
-      storageBilling.updatedUsage
+      storageNotification.context,
+      storageNotification.updatedUsage
     )
   }
 
@@ -1520,12 +1523,12 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
-  let storageBilling: DocumentStorageBilling | null = null
-
   const sub =
     documentData.fileSize > 0 ? await resolveQuotaSubscription(knowledgeBaseId, uploadedBy) : null
 
-  await db.transaction(async (tx) => {
+  const storageNotification = await db.transaction(async (tx) => {
+    let storageNotification: DocumentStorageNotification | null = null
+
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
     const kb = await tx
@@ -1559,13 +1562,13 @@ export async function createSingleDocument(
         sub
       )
       if ('context' in preparedBilling) {
-        storageBilling = {
-          ...preparedBilling,
-          updatedUsage: await incrementStorageUsageForBillingContextInTx(
-            tx,
-            preparedBilling.context,
-            preparedBilling.bytes
-          ),
+        const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+          tx,
+          preparedBilling.context,
+          preparedBilling.bytes
+        )
+        if (updatedUsage !== undefined) {
+          storageNotification = { context: preparedBilling.context, updatedUsage }
         }
       } else {
         const quotaCheck = await checkAndIncrementStorageUsageInTx(
@@ -1577,7 +1580,6 @@ export async function createSingleDocument(
         if (!quotaCheck.allowed) {
           throw new Error(quotaCheck.error || 'Storage limit exceeded')
         }
-        storageBilling = preparedBilling
       }
     }
 
@@ -1587,12 +1589,14 @@ export async function createSingleDocument(
       .update(knowledgeBase)
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
+
+    return storageNotification
   })
 
-  if (storageBilling && 'context' in storageBilling && storageBilling.updatedUsage !== undefined) {
+  if (storageNotification) {
     void maybeNotifyStorageLimitForBillingContext(
-      storageBilling.context,
-      storageBilling.updatedUsage
+      storageNotification.context,
+      storageNotification.updatedUsage
     )
   }
 

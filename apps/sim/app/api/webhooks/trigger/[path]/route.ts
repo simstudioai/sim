@@ -137,12 +137,27 @@ async function handleWebhookPost(
   let billingBlocked = false
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
+    const provider = foundWebhook.provider
+    if (!provider) {
+      const missingProviderResponse = NextResponse.json(
+        { error: 'Webhook provider is missing' },
+        { status: 500 }
+      )
+      if (webhooksForPath.length > 1) {
+        logger.error(
+          `[${requestId}] Webhook ${foundWebhook.id} has no provider, continuing to next`
+        )
+        continue
+      }
+      return missingProviderResponse
+    }
+
     // Generic ("custom") webhooks are an unauthenticated programmatic execution
     // surface, so they fall under the same paid-plan gate as the API. Provider
     // webhooks (slack, github, ...) are unaffected.
     if (
-      foundWebhook.provider === 'generic' &&
-      !(await isWorkspaceApiExecutionEntitled(foundWorkflow.workspaceId))
+      provider === 'generic' &&
+      !(await isWorkspaceApiExecutionEntitled(foundWorkflow.workspaceId ?? undefined))
     ) {
       logger.warn(`[${requestId}] Generic webhook blocked: workspace on free plan`)
       billingBlocked = true
@@ -165,7 +180,7 @@ async function handleWebhookPost(
       return authError
     }
 
-    const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
+    const reachabilityResponse = handleProviderReachabilityTest({ provider }, body, requestId)
     if (reachabilityResponse) {
       return reachabilityResponse
     }
