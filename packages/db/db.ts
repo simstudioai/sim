@@ -88,8 +88,9 @@ const subPoolClients = new Map<SubProcessDbRole, typeof db>()
  * process — cleanup jobs in the trigger worker, inline execution log writes in
  * the web server — gets its own connection budget and PgBouncer pool.
  *
- * Resolves `DATABASE_URL_<ROLE>` with fallback to the base `DATABASE_URL`, so
- * behavior is identical to the shared client until the keyed URL is configured.
+ * Resolves `DATABASE_URL_<ROLE>` with fallback to the URL the process itself
+ * resolved (`DATABASE_URL_<PROCESSROLE>`, then base `DATABASE_URL`), so an
+ * unset sub-pool URL changes nothing about where this process's traffic lands.
  * Always uses the role profile's `appName` — the `DB_APP_NAME` override applies
  * only to the process-wide clients.
  */
@@ -97,7 +98,7 @@ export function dbFor(role: SubProcessDbRole): typeof db {
   const existing = subPoolClients.get(role)
   if (existing) return existing
 
-  const url = resolveDbUrl('DATABASE_URL', role)
+  const url = process.env[`DATABASE_URL_${role.toUpperCase()}`] ?? connectionString
   if (!url) {
     throw new Error('Missing DATABASE_URL environment variable')
   }
