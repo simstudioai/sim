@@ -1,7 +1,7 @@
 import path from 'node:path'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
-import { getDeploymentEnv, isDev } from './lib/core/config/env-flags'
+import { isDev } from './lib/core/config/env-flags'
 import {
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
@@ -25,19 +25,6 @@ const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
       '@/blocks/registry-maps': './blocks/registry-maps.minimal.ts',
     }
   : {}
-
-/**
- * Per-environment favicon for `/favicon.ico` requests (the legacy path browsers
- * probe automatically) — same wordmark mark as production, different background
- * color, so a dev/staging tab is never mistaken for prod at a glance. The
- * `<link rel="icon">` tags Next renders from `generateBrandedMetadata()`
- * (`ee/whitelabeling/metadata.ts`) use the same per-environment set.
- */
-const FAVICON_ICO_DESTINATIONS: Record<ReturnType<typeof getDeploymentEnv>, string> = {
-  development: '/icon-dev.svg',
-  staging: '/icon-staging.svg',
-  production: '/icon.svg',
-}
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -450,8 +437,11 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        // Resolved per-request in app/api/favicon/route.ts, not here — see
+        // that file's TSDoc for why: this config only runs once during the
+        // shared, environment-agnostic Docker build.
         source: '/favicon.ico',
-        destination: FAVICON_ICO_DESTINATIONS[getDeploymentEnv()],
+        destination: '/api/favicon',
       },
       {
         source: '/r/:shortCode',

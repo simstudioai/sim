@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 927,
-  zodRoutes: 927,
+  totalRoutes: 928,
+  zodRoutes: 928,
   nonZodRoutes: 0,
 } as const
 
@@ -55,6 +55,9 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // tokens and there are no params, query, or body to validate. Previously had
   // no-op `validateSchema(noInputSchema, {})` guards.
   'apps/sim/app/api/health/route.ts',
+  // Redirect target for the legacy /favicon.ico rewrite in next.config.ts —
+  // reads only the server's own deployment-tier env var, no params/query/body.
+  'apps/sim/app/api/favicon/route.ts',
   'apps/sim/app/api/settings/allowed-providers/route.ts',
   'apps/sim/app/api/settings/allowed-integrations/route.ts',
   'apps/sim/app/api/settings/allowed-mcp-domains/route.ts',
