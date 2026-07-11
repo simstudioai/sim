@@ -10,7 +10,10 @@ const TITLE_FONT_SIZE = {
   small: 85,
 } as const
 /** Average glyph width as a fraction of font size, for this weight/family — used to pack words into lines. */
-const AVG_CHAR_WIDTH_EM = 0.42
+const LATIN_CHAR_WIDTH_EM = 0.42
+/** CJK glyphs (docs ships `ja`/`zh` locales) render near-square, roughly 2.4x a Latin glyph at this weight. */
+const CJK_CHAR_WIDTH_EM = 1
+const CJK_RANGE = /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/
 const TITLE_BOX_WIDTH = 1020
 const FONT_CACHE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30
 /** Exact hex from a vector trace of the reference cover template, not an estimate off compressed JPEG pixels. */
@@ -55,6 +58,15 @@ function getTitleStyle(title: string): CSSProperties {
   }
 }
 
+/** Sums per-character em-widths rather than counting characters, so wide CJK glyphs (docs ships `ja`/`zh`) don't under-wrap. */
+function estimateWidthEm(text: string): number {
+  let width = 0
+  for (const char of text) {
+    width += CJK_RANGE.test(char) ? CJK_CHAR_WIDTH_EM : LATIN_CHAR_WIDTH_EM
+  }
+  return width
+}
+
 /**
  * Greedily packs words into lines that fit `TITLE_BOX_WIDTH` at `fontSize`,
  * then joins each line with U+00A0 instead of a plain space. Satori
@@ -65,14 +77,14 @@ function getTitleStyle(title: string): CSSProperties {
  * (which is also disabled here — lines are pre-split, not auto-wrapped).
  */
 function wrapTitleLines(title: string, fontSize: number): string[] {
-  const maxCharsPerLine = Math.floor(TITLE_BOX_WIDTH / (fontSize * AVG_CHAR_WIDTH_EM))
+  const maxWidthEm = TITLE_BOX_WIDTH / fontSize
   const words = title.split(' ')
   const lines: string[] = []
   let current = ''
 
   for (const word of words) {
     const candidate = current ? `${current} ${word}` : word
-    if (candidate.length > maxCharsPerLine && current) {
+    if (estimateWidthEm(candidate) > maxWidthEm && current) {
       lines.push(current)
       current = word
     } else {
