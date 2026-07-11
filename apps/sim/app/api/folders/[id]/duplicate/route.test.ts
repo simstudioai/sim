@@ -19,15 +19,17 @@ describe('assertTargetParentFolderMutable', () => {
    */
   function buildTx(chain: Array<Record<string, unknown> | undefined>) {
     let call = 0
+    const limit = vi.fn().mockImplementation(() => {
+      const row = chain[call]
+      call += 1
+      return row ? [row] : []
+    })
     return {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockImplementation(() => {
-              const row = chain[call]
-              call += 1
-              return row ? [row] : []
-            }),
+            for: vi.fn().mockReturnValue({ limit }),
+            limit,
           }),
         }),
       }),

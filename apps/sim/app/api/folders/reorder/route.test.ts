@@ -4,7 +4,6 @@
  * @vitest-environment node
  */
 
-import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import {
   authMockFns,
   createMockRequest,
@@ -49,6 +48,30 @@ describe('PUT /api/folders/reorder', () => {
   const mockTxUpdate = vi.fn()
   const mockTxSelect = vi.fn()
 
+  /**
+   * `performReorderFolders` issues several distinct `tx.select(...).from(...).where(...)`
+   * calls inside the transaction (the active-parents recheck, the ancestor-closure
+   * walk, and the final `ORDER BY id FOR UPDATE` lock read) -- this queue returns
+   * each call's result in order and makes the returned builder both directly
+   * awaitable and chainable via `.orderBy()`/`.for()` (both no-ops that return the
+   * same thenable), matching how drizzle's query builder supports either usage.
+   */
+  function queueTxSelectResults(...results: unknown[][]) {
+    let call = 0
+    mockTxSelect.mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockImplementation(() => {
+          const result = results[call] ?? []
+          call += 1
+          const thenable: any = Promise.resolve(result)
+          thenable.orderBy = vi.fn().mockReturnValue(thenable)
+          thenable.for = vi.fn().mockReturnValue(thenable)
+          return thenable
+        }),
+      }),
+    }))
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     resourceLockMockFns.mockAssertFolderMutable.mockReset()
@@ -67,9 +90,9 @@ describe('PUT /api/folders/reorder', () => {
         }),
       }),
     })
-    mockTxSelect.mockReturnValue({
-      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
-    })
+    // Default: closure walk finds no parent (chain ends immediately), lock read
+    // finds the folder unlocked.
+    queueTxSelectResults([{ id: 'folder-1', parentId: null }], [{ id: 'folder-1', locked: false }])
     mockDb.transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) =>
       cb({ update: mockTxUpdate, select: mockTxSelect })
     )
@@ -302,8 +325,8 @@ describe('PUT /api/folders/reorder', () => {
     // update.parentId, since parentId is `null` not `undefined` -- succeed below,
     // simulating the folder being unlocked at that moment), but that's a separate
     // round-trip -- an admin could lock the folder in the window between that
-    // check and the transaction. The third assertFolderMutable call is the new
-    // in-transaction recheck this test targets.
+    // check and the transaction. The in-transaction ORDER BY id FOR UPDATE lock
+    // read is the recheck this test targets.
     mockWhere
       .mockReturnValueOnce([
         { id: 'folder-1', workspaceId: 'workspace-123', resourceType: 'workflow' },
@@ -311,10 +334,7 @@ describe('PUT /api/folders/reorder', () => {
       .mockReturnValueOnce([{ id: 'folder-1', parentId: null }])
       .mockReturnValueOnce([{ id: 'folder-1', workspaceId: 'workspace-123' }])
 
-    resourceLockMockFns.mockAssertFolderMutable
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new ResourceLockedError('workflow', false, 'Folder is locked'))
+    queueTxSelectResults([{ id: 'folder-1', parentId: null }], [{ id: 'folder-1', locked: true }])
 
     const req = createMockRequest('PUT', {
       workspaceId: 'workspace-123',
@@ -324,8 +344,42 @@ describe('PUT /api/folders/reorder', () => {
     const response = await PUT(req)
 
     expect(response.status).toBe(423)
-    expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledTimes(3)
     expect(mockDb.transaction).toHaveBeenCalledTimes(1)
+    expect(mockTxUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects the write when an ancestor beyond the starting folder is locked', async () => {
+    // Regression test: the lock check must walk to ancestors not directly named in
+    // the batch (folder-1's own parent) and include them in the single ordered
+    // lock read -- not just the ids explicitly present in the batch. This also
+    // guards the closure-based fix for the deadlock finding: locking each
+    // starting id's ancestor chain separately can still deadlock a concurrent
+    // batch, so the whole closure must be computed first and locked in one
+    // ORDER BY id FOR UPDATE statement.
+    mockWhere
+      .mockReturnValueOnce([
+        { id: 'folder-1', workspaceId: 'workspace-123', resourceType: 'workflow' },
+      ])
+      .mockReturnValueOnce([{ id: 'folder-1', parentId: 'ancestor-1' }])
+      .mockReturnValueOnce([{ id: 'folder-1', workspaceId: 'workspace-123' }])
+
+    queueTxSelectResults(
+      [{ id: 'folder-1', parentId: 'ancestor-1' }], // closure walk, level 1
+      [{ id: 'ancestor-1', parentId: null }], // closure walk, level 2 (chain ends)
+      [
+        { id: 'ancestor-1', locked: true },
+        { id: 'folder-1', locked: false },
+      ] // single ordered lock read over the whole closure
+    )
+
+    const req = createMockRequest('PUT', {
+      workspaceId: 'workspace-123',
+      updates: [{ id: 'folder-1', sortOrder: 2, parentId: null }],
+    })
+
+    const response = await PUT(req)
+
+    expect(response.status).toBe(423)
     expect(mockTxUpdate).not.toHaveBeenCalled()
   })
 

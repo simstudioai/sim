@@ -872,18 +872,57 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
       // The route checks lock state before calling this function, but that's a
       // separate round-trip -- an admin could lock a source folder or a target
       // parent in the window between that check and this transaction. Re-check
-      // both inside the transaction (joining `tx` so the read is part of the
-      // same atomic unit as the writes below) before applying anything.
+      // inside the transaction (joining `tx` so the read is part of the same
+      // atomic unit as the writes below) before applying anything.
       //
-      // assertFolderMutable now row-locks (FOR UPDATE) every folder it walks, so two
-      // concurrent reorder batches touching an overlapping set of folders must acquire
-      // those locks in the same order or they can deadlock. Sorting both id lists into
-      // a single deterministic order before locking guarantees that.
-      const lockOrder = Array.from(
-        new Set([...validUpdates.map((u) => u.id), ...targetParentIds])
-      ).sort()
-      for (const id of lockOrder) {
-        await assertFolderMutable(id, resourceType, tx)
+      // A batch can touch several independent folders (not one linear ancestor
+      // chain), so locking each one's ancestor chain separately -- even in a
+      // consistently sorted order of the *starting* ids -- can still deadlock
+      // against a concurrent batch: each chain walk acquires its own rows one at a
+      // time, and two batches whose chains interleave differently can each end up
+      // holding a row the other needs. The only way to make batch-vs-batch lock
+      // acquisition safe is to compute the full set of rows that need locking
+      // up front and lock all of them in a single statement, ordered by id --
+      // concurrent transactions that do the same always converge on the same
+      // acquisition order and cannot form a cycle.
+      const startIds = Array.from(new Set([...validUpdates.map((u) => u.id), ...targetParentIds]))
+      const closure = new Set(startIds)
+      let frontier = new Set(startIds)
+      while (frontier.size > 0) {
+        const rows = await tx
+          .select({ id: folderTable.id, parentId: folderTable.parentId })
+          .from(folderTable)
+          .where(
+            and(
+              inArray(folderTable.id, Array.from(frontier)),
+              eq(folderTable.resourceType, resourceType),
+              isNull(folderTable.deletedAt)
+            )
+          )
+        const nextFrontier = new Set<string>()
+        for (const row of rows) {
+          if (row.parentId && !closure.has(row.parentId)) {
+            closure.add(row.parentId)
+            nextFrontier.add(row.parentId)
+          }
+        }
+        frontier = nextFrontier
+      }
+
+      const lockedRows = await tx
+        .select({ id: folderTable.id, locked: folderTable.locked })
+        .from(folderTable)
+        .where(
+          and(
+            inArray(folderTable.id, Array.from(closure).sort()),
+            eq(folderTable.resourceType, resourceType)
+          )
+        )
+        .orderBy(folderTable.id)
+        .for('update')
+
+      if (lockedRows.some((row) => row.locked)) {
+        throw new ResourceLockedError(resourceType, false, 'Folder is locked')
       }
 
       for (const update of validUpdates) {

@@ -269,6 +269,8 @@ export async function assertTargetParentFolderMutable(
 
   while (currentFolderId && !visited.has(currentFolderId)) {
     visited.add(currentFolderId)
+    // FOR UPDATE row-locks each ancestor for the rest of this transaction -- see the
+    // same comment on getFolderLockStatus in packages/platform-authz/src/resource-lock.ts.
     const [folder] = await tx
       .select({
         id: folderTable.id,
@@ -280,6 +282,7 @@ export async function assertTargetParentFolderMutable(
       })
       .from(folderTable)
       .where(eq(folderTable.id, currentFolderId))
+      .for('update')
       .limit(1)
 
     if (
