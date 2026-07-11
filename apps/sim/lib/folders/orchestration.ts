@@ -181,6 +181,10 @@ async function performCreateFileFolder(
 
     return { success: true, folder: toFileFolder(created) }
   } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
     if (
       error instanceof WorkspaceFileFolderConflictError ||
       getPostgresErrorCode(error) === '23505'
@@ -278,6 +282,10 @@ async function performDeleteFileFolder(
 
     return { success: true, deletedItems }
   } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
     if (toError(error).message === 'Folder not found') {
       return { success: false, error: 'Folder not found', errorCode: 'not_found' }
     }
@@ -712,20 +720,62 @@ export async function performCreateFolder(
   })
   if (parentError) return { success: false, ...parentError }
 
-  const [created] = await db
-    .insert(folderTable)
-    .values({
-      id: folderId,
-      resourceType: params.resourceType,
-      name: params.name.trim(),
-      userId: params.userId,
-      workspaceId: params.workspaceId,
-      parentId,
-      sortOrder: params.sortOrder ?? 0,
-    })
-    .returning()
+  try {
+    const created = await db.transaction(async (tx) => {
+      if (parentId) {
+        // assertFolderParentValid above only reads at validation time, using the
+        // default (non-tx) db client -- a parent locked or soft-deleted after that
+        // read but before this transaction must still be caught. Re-check inside
+        // the transaction (joining `tx`) before inserting.
+        await assertFolderMutable(parentId, params.resourceType, tx)
 
-  return { success: true, folder: created }
+        // assertFolderMutable's lock walker treats a deleted parent as unlocked
+        // (it stops the ancestor walk when the row is missing rather than
+        // erroring), so it alone doesn't catch a parent deleted in that same
+        // window. FOR UPDATE here makes the recheck race-free.
+        const [targetParent] = await tx
+          .select({ id: folderTable.id })
+          .from(folderTable)
+          .where(
+            and(
+              eq(folderTable.id, parentId),
+              eq(folderTable.resourceType, params.resourceType),
+              isNull(folderTable.deletedAt)
+            )
+          )
+          .for('update')
+          .limit(1)
+        if (!targetParent) {
+          throw new FolderParentNotFoundError('Parent folder not found')
+        }
+      }
+
+      const [row] = await tx
+        .insert(folderTable)
+        .values({
+          id: folderId,
+          resourceType: params.resourceType,
+          name: params.name.trim(),
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          parentId,
+          sortOrder: params.sortOrder ?? 0,
+        })
+        .returning()
+      return row
+    })
+
+    return { success: true, folder: created }
+  } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (error instanceof FolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    throw error
+  }
 }
 
 export async function performUpdateFolder(

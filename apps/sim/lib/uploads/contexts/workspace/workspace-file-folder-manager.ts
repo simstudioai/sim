@@ -414,6 +414,10 @@ export async function createWorkspaceFileFolder(params: {
       if (!target) {
         throw new Error('Target folder not found')
       }
+
+      // A folder in an unlocked location could otherwise gain a new child inside
+      // a locked one.
+      await assertFolderMutable(parentId, 'file', tx)
     }
 
     const existingFolders = await tx

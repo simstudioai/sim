@@ -62,11 +62,20 @@ function createMockTransaction(mockData: {
 }) {
   const { selectResults = [[], []], insertResult = [], onInsertValues } = mockData
   return async (callback: (tx: unknown) => Promise<unknown>) => {
+    // Chainable + directly awaitable: `where(...)` alone resolves to the queued
+    // result, and `.for('update').limit(1)` (the parent-lock recheck added
+    // alongside the insert) resolves to the same result without a separate call.
+    function chainable(result: unknown[]) {
+      const thenable: any = Promise.resolve(result)
+      thenable.for = vi.fn().mockReturnValue(thenable)
+      thenable.limit = vi.fn().mockReturnValue(thenable)
+      return thenable
+    }
     const where = vi.fn()
     for (const result of selectResults) {
-      where.mockReturnValueOnce(result)
+      where.mockReturnValueOnce(chainable(result))
     }
-    where.mockReturnValue([])
+    where.mockReturnValue(chainable([]))
 
     const tx = {
       select: vi.fn().mockReturnValue({
@@ -365,7 +374,10 @@ describe('Folders API Route', () => {
 
       mockTransaction.mockImplementationOnce(
         createMockTransaction({
-          selectResults: [[], []],
+          // First entry is the in-transaction FOR UPDATE recheck that the target
+          // parent is still active (a plain row match is enough for the mock;
+          // production only reads `id`).
+          selectResults: [[{ id: 'folder-1' }], []],
           insertResult: [{ ...mockFolders[1] }],
         })
       )

@@ -117,18 +117,43 @@ export async function performCreateFolder(
         ? params.sortOrder
         : await nextFolderSortOrder(params.workspaceId, parentId)
 
-    const [createdFolder] = await db
-      .insert(folder)
-      .values({
-        id: folderId,
-        resourceType: 'workflow',
-        name: params.name.trim(),
-        userId: params.userId,
-        workspaceId: params.workspaceId,
-        parentId,
-        sortOrder,
-      })
-      .returning()
+    const createdFolder = await db.transaction(async (tx) => {
+      if (parentId) {
+        // assertFolderParentValid above only reads at validation time, using the
+        // default (non-tx) db client -- a parent locked or soft-deleted after that
+        // read but before this transaction must still be caught. Re-check inside
+        // the transaction (joining `tx`) before inserting.
+        await assertFolderMutable(parentId, 'workflow', tx)
+
+        // assertFolderMutable's lock walker treats a deleted parent as unlocked
+        // (it stops the ancestor walk when the row is missing rather than
+        // erroring), so it alone doesn't catch a parent deleted in that same
+        // window. FOR UPDATE here makes the recheck race-free.
+        const [targetParent] = await tx
+          .select({ id: folder.id })
+          .from(folder)
+          .where(and(eq(folder.id, parentId), isWorkflowFolder, isNull(folder.deletedAt)))
+          .for('update')
+          .limit(1)
+        if (!targetParent) {
+          throw new WorkflowFolderParentNotFoundError('Parent folder not found')
+        }
+      }
+
+      const [row] = await tx
+        .insert(folder)
+        .values({
+          id: folderId,
+          resourceType: 'workflow',
+          name: params.name.trim(),
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          parentId,
+          sortOrder,
+        })
+        .returning()
+      return row
+    })
 
     logger.info('Created workflow folder', { folderId, workspaceId: params.workspaceId, parentId })
 
@@ -150,6 +175,13 @@ export async function performCreateFolder(
 
     return { success: true, folder: createdFolder }
   } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (error instanceof WorkflowFolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
     if (getPostgresErrorCode(error) === '23505') {
       return {
         success: false,
