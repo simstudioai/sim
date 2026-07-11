@@ -2893,13 +2893,14 @@ export const customBlock = pgTable(
     /** Uploaded icon image URL (workspace storage), or null for the default icon. */
     iconUrl: text('icon_url'),
     /**
-     * Per-input placeholder hints keyed by the source Start field's stable `id`:
-     * `Array<{ id, placeholder? }>`. Only the placeholder is authored — the input
-     * field set and its name/type/description are always derived live from the
-     * deployed Start (so they can never go stale). Absent/empty → no placeholder
-     * overrides; every deployed Start input is still exposed.
+     * Per-input authored overrides keyed by the source Start field's stable `id`:
+     * `Array<{ id, placeholder?, required? }>`. Only the placeholder and required
+     * flag are authored — the input field set and its name/type/description are
+     * always derived live from the deployed Start (so they can never go stale); an
+     * override whose field was removed is ignored. Absent/empty → no overrides;
+     * every deployed Start input is still exposed.
      */
-    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string }>>(),
+    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string; required?: boolean }>>(),
     /**
      * Curated outputs exposed to consumers: `Array<{ blockId, path, name }>`. Each
      * maps a child-workflow block output (blockId + dot-path) to a friendly output

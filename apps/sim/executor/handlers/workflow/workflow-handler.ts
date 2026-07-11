@@ -46,6 +46,41 @@ function getValueAtPath(source: unknown, path: string): unknown {
  * name. Legacy fields without an id are keyed by name and pass through unchanged.
  * Keys that match no current field are dropped.
  */
+/**
+ * A consumer left a publisher-required custom block input empty. The message is
+ * consumer-safe (it names only the block's own input labels), so the catch's
+ * custom-block sanitizer rethrows it verbatim instead of the generic failure.
+ */
+export class CustomBlockMissingInputsError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CustomBlockMissingInputsError'
+  }
+}
+
+/**
+ * Names of publisher-required custom block inputs the consumer left empty, checked
+ * against the child's LIVE deployed Start fields — a required override whose field
+ * was removed is inert, and a field added after publish has no override, so schema
+ * drift can never block a run. `childWorkflowInput` is the post-remap mapping
+ * (keyed by field name). Same empty semantics as the serializer's required check.
+ */
+export function findMissingRequiredCustomBlockInputs(
+  requiredInputIds: string[],
+  childBlocks: Record<string, unknown>,
+  childWorkflowInput: Record<string, unknown>
+): string[] {
+  if (requiredInputIds.length === 0) return []
+  const requiredIds = new Set(requiredInputIds)
+  return extractInputFieldsFromBlocks(childBlocks)
+    .filter((field) => requiredIds.has(field.id ?? field.name))
+    .filter((field) => {
+      const value = childWorkflowInput[field.name]
+      return value === undefined || value === null || value === ''
+    })
+    .map((field) => field.name)
+}
+
 export function remapCustomBlockInputKeys(
   mapping: Record<string, unknown>,
   childBlocks: Record<string, unknown>
@@ -162,6 +197,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     let workflowId = inputs.workflowId
     let loadUserId = ctx.userId
     let exposedOutputs: CustomBlockOutput[] = []
+    let requiredInputIds: string[] = []
     if (isCustomBlock) {
       const authority = await getCustomBlockAuthority(blockTypeId as string, ctx.workspaceId)
       if (!authority) {
@@ -170,6 +206,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       workflowId = authority.workflowId
       loadUserId = authority.ownerUserId
       exposedOutputs = authority.exposedOutputs
+      requiredInputIds = authority.requiredInputIds
     }
 
     if (!workflowId) {
@@ -268,6 +305,19 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
       } else if (inputs.input !== undefined) {
         childWorkflowInput = inputs.input
+      }
+
+      if (isCustomBlock) {
+        const missing = findMissingRequiredCustomBlockInputs(
+          requiredInputIds,
+          childWorkflow.rawBlocks || {},
+          childWorkflowInput
+        )
+        if (missing.length > 0) {
+          throw new CustomBlockMissingInputsError(
+            `${block.metadata?.name || 'Custom block'} is missing required fields: ${missing.join(', ')}`
+          )
+        }
       }
 
       const childSnapshotResult = await snapshotService.createSnapshotWithDeduplication(
@@ -406,6 +456,16 @@ export class WorkflowBlockHandler implements BlockHandler {
       // so capture the child's spans server-side, distill to the aggregate cost, and
       // carry only that (no internals) so `block-executor` still bills it.
       if (isCustomBlock) {
+        // Missing-required-inputs is the consumer's own mistake and its message
+        // names only the block's input labels — surface it instead of the generic
+        // failure so they can actually fix it. The child never ran: no spend.
+        if (error instanceof CustomBlockMissingInputsError) {
+          throw new ChildWorkflowError({
+            message: error.message,
+            childWorkflowName: block.metadata?.name || 'Custom block',
+            childWorkflowInstanceId: instanceId,
+          })
+        }
         let failedChildSpans: WorkflowTraceSpan[] = []
         if (hasExecutionResult(error) && error.executionResult.logs) {
           failedChildSpans = this.captureChildWorkflowLogs(
