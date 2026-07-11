@@ -9,6 +9,8 @@ import {
   performDeleteMcpServer,
   performUpdateMcpServer,
 } from '@/lib/mcp/orchestration'
+import { mcpService } from '@/lib/mcp/service'
+import type { McpServerVerificationResult } from '@/lib/mcp/types'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -27,6 +29,18 @@ interface ManageMcpToolParams {
   operation?: string
   serverId?: string
   config?: ManageMcpToolConfig
+}
+
+function skippedVerification(
+  reason: 'server_disabled' | 'connection_unchanged'
+): McpServerVerificationResult {
+  return {
+    verified: false,
+    toolCount: 0,
+    requiresAuthorization: false,
+    skipped: true,
+    reason,
+  }
 }
 
 export async function executeManageMcpTool(
@@ -109,6 +123,11 @@ export async function executeManageMcpTool(
         }
       }
 
+      const verification =
+        config.enabled === false
+          ? skippedVerification('server_disabled')
+          : await mcpService.verifyServerConnection(context.userId, result.serverId, workspaceId)
+
       return {
         success: true,
         output: {
@@ -119,6 +138,7 @@ export async function executeManageMcpTool(
           message: result.updated
             ? `Updated existing MCP server "${config.name}"`
             : `Added MCP server "${config.name}"`,
+          verification,
         },
       }
     }
@@ -147,6 +167,15 @@ export async function executeManageMcpTool(
         return { success: false, error: `MCP server not found: ${params.serverId}` }
       }
 
+      const changesConnection = ['url', 'transport', 'headers', 'timeout', 'enabled'].some(
+        (key) => config[key as keyof ManageMcpToolConfig] !== undefined
+      )
+      const verification = !result.server.enabled
+        ? skippedVerification('server_disabled')
+        : changesConnection
+          ? await mcpService.verifyServerConnection(context.userId, params.serverId, workspaceId)
+          : skippedVerification('connection_unchanged')
+
       return {
         success: true,
         output: {
@@ -155,6 +184,7 @@ export async function executeManageMcpTool(
           serverId: params.serverId,
           name: result.server.name,
           message: `Updated MCP server "${result.server.name}"`,
+          verification,
         },
       }
     }

@@ -10,6 +10,30 @@ export interface McpServerStatusConfig {
   lastSuccessfulDiscovery: string | null
 }
 
+export type McpServerVerificationResult =
+  | {
+      verified: true
+      toolCount: number
+      requiresAuthorization: false
+      error?: never
+      skipped?: false
+    }
+  | {
+      verified: false
+      toolCount: 0
+      requiresAuthorization: boolean
+      error: string
+      skipped?: false
+    }
+  | {
+      verified: false
+      toolCount: 0
+      requiresAuthorization: false
+      error?: never
+      skipped: true
+      reason: 'server_disabled' | 'connection_unchanged'
+    }
+
 export interface McpServerConfig {
   id: string
   name: string

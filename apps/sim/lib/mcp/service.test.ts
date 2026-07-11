@@ -366,4 +366,31 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(after.map((t) => t.name)).toEqual(['a1'])
     expect(mockListTools).toHaveBeenCalledTimes(1)
   })
+
+  it('verifies a server with a force-refreshed live tools handshake', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a'), tool('a2', 'mcp-a')])
+
+    await expect(
+      mcpService.verifyServerConnection(USER_ID, 'mcp-a', WORKSPACE_ID)
+    ).resolves.toEqual({
+      verified: true,
+      toolCount: 2,
+      requiresAuthorization: false,
+    })
+  })
+
+  it('returns a structured verification failure without throwing', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new Error('Request timed out\ninternal detail'))
+
+    await expect(
+      mcpService.verifyServerConnection(USER_ID, 'mcp-a', WORKSPACE_ID)
+    ).resolves.toEqual({
+      verified: false,
+      toolCount: 0,
+      requiresAuthorization: false,
+      error: 'Request timed out',
+    })
+  })
 })

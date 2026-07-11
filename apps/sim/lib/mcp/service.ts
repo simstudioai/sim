@@ -5,6 +5,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -33,6 +34,7 @@ import {
   type McpServerConfig,
   type McpServerStatusConfig,
   type McpServerSummary,
+  type McpServerVerificationResult,
   type McpTool,
   type McpToolCall,
   type McpToolResult,
@@ -41,6 +43,7 @@ import {
 import { MCP_CLIENT_CONSTANTS, MCP_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpService')
+const MAX_VERIFICATION_ERROR_LENGTH = 200
 
 function serverCacheKey(workspaceId: string, serverId: string): string {
   return `workspace:${workspaceId}:server:${serverId}`
@@ -420,6 +423,30 @@ class McpService {
       await this.cacheAdapter.delete(failureCacheKey(workspaceId, serverId))
     } catch (err) {
       logger.warn(`Failed to clear failure cache for server ${serverId}:`, err)
+    }
+  }
+
+  async verifyServerConnection(
+    userId: string,
+    serverId: string,
+    workspaceId: string
+  ): Promise<McpServerVerificationResult> {
+    try {
+      const tools = await this.discoverServerTools(userId, serverId, workspaceId, true)
+      return {
+        verified: true,
+        toolCount: tools.length,
+        requiresAuthorization: false,
+      }
+    } catch (error) {
+      const message = getErrorMessage(error, 'Connection failed').split('\n')[0]
+      return {
+        verified: false,
+        toolCount: 0,
+        requiresAuthorization:
+          error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError,
+        error: truncate(message, MAX_VERIFICATION_ERROR_LENGTH, ''),
+      }
     }
   }
 
