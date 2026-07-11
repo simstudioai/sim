@@ -7,7 +7,7 @@ import {
   createChunkBodySchema,
   listKnowledgeChunksQuerySchema,
 } from '@/lib/api/contracts/knowledge'
-import { isZodError, parseRequest } from '@/lib/api/server'
+import { isZodError, parseJsonBody, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -103,9 +103,6 @@ export const POST = withRouteHandler(
     const { id: knowledgeBaseId, documentId } = await params
 
     try {
-      const body = await req.json()
-      const { workflowId, ...searchParams } = body
-
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
         logger.warn(`[${requestId}] Authentication failed: ${auth.error || 'Unauthorized'}`)
@@ -113,7 +110,11 @@ export const POST = withRouteHandler(
       }
       const userId = auth.userId
 
-      if (workflowId) {
+      const parsedBody = await parseJsonBody(req)
+      if (!parsedBody.success) return parsedBody.response
+      const { workflowId, ...searchParams } = parsedBody.data as Record<string, unknown>
+
+      if (typeof workflowId === 'string' && workflowId) {
         const authorization = await authorizeWorkflowByWorkspacePermission({
           workflowId,
           userId,
