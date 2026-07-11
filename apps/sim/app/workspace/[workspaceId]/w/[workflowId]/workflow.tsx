@@ -1989,30 +1989,46 @@ const WorkflowContent = React.memo(
         if (typeof type !== 'string' || !type) return
         if (type === 'connectionBlock') return
 
-        // Consume any pending drag-release: it dictates the drop position and a
-        // forced edge from the released source handle, overriding auto-connect.
-        const pending = pendingConnectRef.current
+        // Consume a pending drag-release only while the restricted connect-palette
+        // it opened is still up — never let an unrelated add-block event (toolbar,
+        // sidebar, command list) inherit its position/source.
+        const searchModal = useSearchModalStore.getState()
+        const pending =
+          searchModal.isOpen && searchModal.sections ? pendingConnectRef.current : null
         pendingConnectRef.current = null
-        const pendingSourceExists = pending ? Boolean(blocks[pending.source.nodeId]) : false
 
         let basePosition = getViewportCenter()
         if (pending) {
-          const canvasElement = document.querySelector('.workflow-container') as HTMLElement | null
-          if (canvasElement) {
-            const bounds = canvasElement.getBoundingClientRect()
-            basePosition = screenToFlowPosition({
-              x: pending.screenX - bounds.left,
-              y: pending.screenY - bounds.top,
-            })
+          // screenToFlowPosition already subtracts the pane rect internally — pass
+          // raw client coords, do NOT pre-subtract container bounds.
+          basePosition = screenToFlowPosition({ x: pending.screenX, y: pending.screenY })
+
+          // Released inside a loop/parallel container: delegate to the container-aware
+          // drop path for correct parenting, clamping, and in-container auto-connect.
+          // A forced source→target edge would cross the container boundary, so it is
+          // intentionally not applied here.
+          if (isPointInLoopNode(basePosition)) {
+            handleToolbarDrop({ type, enableTriggerMode: enableTriggerMode === true }, basePosition)
+            return
           }
         }
+
+        // Force the source→new-block edge only when it stays root-to-root, matching
+        // the root-level placement — a source inside a container (or a container-start
+        // handle) would cross the boundary and is rejected, as in onConnect.
+        const sourceBlock = pending ? blocks[pending.source.nodeId] : undefined
+        const isContainerStartHandle =
+          pending?.source.handleId === 'loop-start-source' ||
+          pending?.source.handleId === 'parallel-start-source'
+        const canForceEdge =
+          Boolean(sourceBlock) && !sourceBlock?.data?.parentId && !isContainerStartHandle
 
         /**
          * Edge for the new block: forced from the drag source when the palette was
          * opened by a connection release, otherwise the normal auto-connect edge.
          */
         const resolveAutoConnectEdge = (targetId: string): Edge | undefined =>
-          pending && pendingSourceExists
+          pending && canForceEdge
             ? createEdgeObject(pending.source.nodeId, targetId, pending.source.handleId)
             : tryCreateAutoConnectEdge(basePosition, targetId, { targetParentId: null })
 
@@ -2089,6 +2105,8 @@ const WorkflowContent = React.memo(
       tryCreateAutoConnectEdge,
       screenToFlowPosition,
       createEdgeObject,
+      handleToolbarDrop,
+      isPointInLoopNode,
     ])
 
     /**
