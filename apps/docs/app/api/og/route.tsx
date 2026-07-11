@@ -68,6 +68,32 @@ function estimateWidthEm(text: string): number {
 }
 
 /**
+ * Splits a single word wider than `maxWidthEm` into character-level chunks
+ * that each fit. CJK titles (docs ships `ja`/`zh` locales) are often
+ * space-free, so a whole run can arrive as one "word" from `wrapTitleLines`'
+ * space-based split. Breaking mid-word is correct for CJK, where each glyph
+ * is independently readable; Latin words never reach this path since they
+ * stay under `maxWidthEm` in practice.
+ */
+function splitOversizedWord(word: string, maxWidthEm: number): string[] {
+  const chunks: string[] = []
+  let chunk = ''
+
+  for (const char of word) {
+    const candidate = chunk + char
+    if (estimateWidthEm(candidate) > maxWidthEm && chunk) {
+      chunks.push(chunk)
+      chunk = char
+    } else {
+      chunk = candidate
+    }
+  }
+  if (chunk) chunks.push(chunk)
+
+  return chunks
+}
+
+/**
  * Greedily packs words into lines that fit `TITLE_BOX_WIDTH` at `fontSize`,
  * then joins each line with U+00A0 instead of a plain space. Satori
  * (`next/og`'s renderer) has a text-measurement bug where the first plain
@@ -83,6 +109,17 @@ function wrapTitleLines(title: string, fontSize: number): string[] {
   let current = ''
 
   for (const word of words) {
+    if (estimateWidthEm(word) > maxWidthEm) {
+      if (current) {
+        lines.push(current)
+        current = ''
+      }
+      const chunks = splitOversizedWord(word, maxWidthEm)
+      lines.push(...chunks.slice(0, -1))
+      current = chunks[chunks.length - 1] ?? ''
+      continue
+    }
+
     const candidate = current ? `${current} ${word}` : word
     if (estimateWidthEm(candidate) > maxWidthEm && current) {
       lines.push(current)
