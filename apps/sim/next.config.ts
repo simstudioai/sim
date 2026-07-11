@@ -192,18 +192,6 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // `_next/static/*` filenames are content-hashed by the build - the
-        // same URL can never serve different bytes across deploys, so this
-        // is safe to cache for a full year without revalidation.
-        source: '/(_next/static/.*\\.(?:svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot))',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
-      {
         // `/public`-served assets keep their path across deploys (no content
         // hash), so a shorter TTL + revalidation window bounds how long a
         // changed asset can serve stale.

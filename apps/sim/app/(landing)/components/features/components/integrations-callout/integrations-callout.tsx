@@ -17,6 +17,12 @@ import { CalloutFrame } from '@/app/(landing)/components/features/components/cal
  * the right AND bottom edges bleed past the media stage's clip - a zoomed-in
  * peek at part of the product rather than a complete miniature, scaling
  * proportionally with the aspect-locked stage. Decorative.
+ *
+ * `sizes` mirrors the sibling backdrop image's own hint (`FeatureCard`'s
+ * `70vw`/`900px` stage width), scaled by this callout's 125% overhang, with an
+ * extra `max-width: 1023px` tier for `FeatureCard`'s `max-lg:grid-cols-1`
+ * stack (media becomes ~full card width there, not the desktop 2-column
+ * remainder) - verified against Lighthouse's measured mobile render width.
  */
 export function IntegrationsCallout() {
   return (
@@ -29,7 +35,7 @@ export function IntegrationsCallout() {
           src='/landing/feature-integrate-ui.png'
           alt=''
           fill
-          sizes='(max-width: 1460px) 87.5vw, 1125px'
+          sizes='(max-width: 1023px) 110vw, (max-width: 1460px) 87.5vw, 1125px'
           className='object-cover'
         />
       </CalloutFrame>
