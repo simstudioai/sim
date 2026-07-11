@@ -10,6 +10,7 @@ import {
   NAVBAR_GLASS_SURFACE,
   useNavbarFrost,
 } from '@/app/(landing)/components/navbar/components/navbar-shell'
+import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
 /**
  * Mobile navigation - the `< lg` counterpart to the desktop nav clusters.
@@ -70,7 +71,7 @@ export function MobileNav({ stars }: MobileNavProps) {
 
   return (
     <div className='ml-auto flex items-center gap-2 lg:hidden'>
-      <ChipLink variant='primary' href='/signup' prefetch={false}>
+      <ChipLink variant='primary' href={SIGNUP_HREF} prefetch={false}>
         Sign up
       </ChipLink>
       <button
@@ -166,7 +167,7 @@ export function MobileNav({ stars }: MobileNavProps) {
             </ChipLink>
             <ChipLink
               variant='primary'
-              href='/demo'
+              href={DEMO_HREF}
               fullWidth
               flush
               className='h-[40px] justify-center [&>span]:flex-none'
