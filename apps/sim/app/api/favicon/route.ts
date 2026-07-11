@@ -1,15 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getDeploymentEnv } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getBrandConfig } from '@/ee/whitelabeling/branding'
+import { getBrandConfig, ICON_SETS } from '@/ee/whitelabeling'
 
 export const dynamic = 'force-dynamic'
-
-const FAVICON_DESTINATIONS: Record<ReturnType<typeof getDeploymentEnv>, string> = {
-  development: '/icon-dev.svg',
-  staging: '/icon-staging.svg',
-  production: '/icon.svg',
-}
 
 /**
  * Redirect target for the legacy `/favicon.ico` path (rewritten here in
@@ -23,12 +17,14 @@ const FAVICON_DESTINATIONS: Record<ReturnType<typeof getDeploymentEnv>, string> 
  * that shared build and would freeze whichever tier happened to be active
  * then (never the tier the container actually ends up running as).
  *
- * A whitelabeled deployment's own favicon always wins here too, matching
- * `generateBrandedMetadata()` (`ee/whitelabeling/metadata.ts`) — a tenant on
- * a dev/staging environment should never see Sim's internal tinted mark.
+ * Reuses {@link ICON_SETS} from `ee/whitelabeling/metadata.ts` rather than
+ * maintaining a second env-to-path map here, so the two can't drift apart. A
+ * whitelabeled deployment's own favicon always wins here too, matching
+ * `generateBrandedMetadata()` — a tenant on a dev/staging environment should
+ * never see Sim's internal tinted mark.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const brand = getBrandConfig()
-  const destination = brand.faviconUrl || FAVICON_DESTINATIONS[getDeploymentEnv()]
+  const destination = brand.faviconUrl || ICON_SETS[getDeploymentEnv()].svg
   return NextResponse.redirect(new URL(destination, request.url))
 })

@@ -16,11 +16,12 @@ interface FaviconSet {
  * Same "sim" wordmark per {@link getDeploymentEnv}, background color only —
  * so a dev/staging tab is never mistaken for prod at a glance. Ignored
  * entirely when `brand.faviconUrl` is set (a whitelabeled deployment's own
- * favicon always wins, regardless of which tier it's running on). Kept in
- * sync with `FAVICON_ICO_DESTINATIONS` in `next.config.ts`, which handles
- * the legacy `/favicon.ico` path the same way.
+ * favicon always wins, regardless of which tier it's running on). Exported
+ * for `app/api/favicon/route.ts` (the legacy `/favicon.ico` redirect target)
+ * to reuse `.svg` from, so the two never drift out of sync the way two
+ * separately-maintained copies could.
  */
-const ICON_SETS: Record<ReturnType<typeof getDeploymentEnv>, FaviconSet> = {
+export const ICON_SETS: Record<ReturnType<typeof getDeploymentEnv>, FaviconSet> = {
   development: {
     svg: '/icon-dev.svg',
     favicon16: '/favicon-dev/favicon-16x16.png',
