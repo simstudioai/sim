@@ -264,8 +264,8 @@ function scoreItem(name: string, extra: string | undefined, search: string): Fuz
 
 /**
  * Filters and ranks items by fuzzy match, highest score first; returns the input
- * unchanged when the search is empty. Pass `toExtra` to rank the name first and
- * fall back to secondary text.
+ * unchanged when the search is empty or whitespace-only. Pass `toExtra` to rank
+ * the name first and fall back to secondary text.
  */
 export function filterAndSort<T>(
   items: T[],
@@ -273,10 +273,11 @@ export function filterAndSort<T>(
   search: string,
   toExtra?: (item: T) => string | undefined
 ): T[] {
-  if (!search) return items
+  const query = search.trim()
+  if (!query) return items
   const scored: Array<{ item: T; score: number }> = []
   for (const item of items) {
-    const { matched, score } = scoreItem(toValue(item), toExtra?.(item), search)
+    const { matched, score } = scoreItem(toValue(item), toExtra?.(item), query)
     if (matched) scored.push({ item, score })
   }
   scored.sort((a, b) => b.score - a.score)
@@ -302,5 +303,5 @@ export function filterAndCap<T>(
   toExtra?: (item: T) => string | undefined
 ): T[] {
   const results = filterAndSort(items, toValue, search, toExtra)
-  return search ? results.slice(0, MAX_RESULTS_PER_GROUP) : results
+  return search.trim() ? results.slice(0, MAX_RESULTS_PER_GROUP) : results
 }

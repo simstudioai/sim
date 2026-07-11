@@ -298,6 +298,12 @@ describe('filterAndCap', () => {
     expect(result).toBe(items)
   })
 
+  it('treats whitespace-only input as browse: unfiltered and uncapped', () => {
+    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
+    const result = filterAndCap(items, id, '   ')
+    expect(result).toBe(items)
+  })
+
   it('returns every match untrimmed when under the cap', () => {
     const items = ['Slack', 'Slate', 'Slalom']
     expect(filterAndCap(items, id, 'sl')).toHaveLength(3)
