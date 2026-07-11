@@ -40,6 +40,7 @@ import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
   SearchDocItem,
+  SearchSection,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
 import {
@@ -117,6 +118,9 @@ export function SearchModal({
   const { blocks, tools, triggers, toolOperations, docs } = useSearchModalStore(
     (state) => state.data
   )
+
+  const sections = useSearchModalStore((state) => state.sections)
+  const showSection = (key: SearchSection) => !sections || sections.includes(key)
 
   const openHelpModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-help-modal'))
@@ -347,6 +351,7 @@ export function SearchModal({
           detail: {
             type: block.type,
             enableTriggerMode,
+            pendingConnect: useSearchModalStore.getState().pendingConnect,
           },
         })
       )
@@ -364,7 +369,11 @@ export function SearchModal({
     (op: SearchToolOperationItem) => {
       window.dispatchEvent(
         new CustomEvent('add-block-from-toolbar', {
-          detail: { type: op.blockType, presetOperation: op.operationId },
+          detail: {
+            type: op.blockType,
+            presetOperation: op.operationId,
+            pendingConnect: useSearchModalStore.getState().pendingConnect,
+          },
         })
       )
       captureEvent(posthogRef.current, 'search_result_selected', {
@@ -690,77 +699,107 @@ export function SearchModal({
                 No results found.
               </Command.Empty>
 
-              <ActionsGroup
-                items={filteredActions}
-                onSelect={handleActionSelect}
-                query={deferredSearch}
-              />
-              <ConnectedAccountsGroup
-                items={filteredConnectedAccounts}
-                onSelect={handleConnectedAccountSelect}
-                query={deferredSearch}
-              />
-              <IntegrationsGroup
-                items={filteredIntegrations}
-                onSelect={handleIntegrationSelect}
-                query={deferredSearch}
-              />
-              <BlocksGroup
-                items={filteredBlocks}
-                onSelect={handleBlockSelectAsBlock}
-                query={deferredSearch}
-              />
-              <ToolsGroup
-                items={filteredTools}
-                onSelect={handleBlockSelectAsTool}
-                query={deferredSearch}
-              />
-              <TriggersGroup
-                items={filteredTriggers}
-                onSelect={handleBlockSelectAsTrigger}
-                query={deferredSearch}
-              />
-              <ChatsGroup
-                items={filteredChats}
-                onSelect={handleChatSelect}
-                query={deferredSearch}
-              />
-              <WorkflowsGroup
-                items={filteredWorkflows}
-                onSelect={handleWorkflowSelect}
-                query={deferredSearch}
-              />
-              <TablesGroup
-                items={filteredTables}
-                onSelect={handleTableSelect}
-                query={deferredSearch}
-              />
-              <FilesGroup
-                items={filteredFiles}
-                onSelect={handleFileSelect}
-                query={deferredSearch}
-              />
-              <KnowledgeBasesGroup
-                items={filteredKnowledgeBases}
-                onSelect={handleKbSelect}
-                query={deferredSearch}
-              />
-              <ToolOpsGroup
-                items={filteredToolOps}
-                onSelect={handleToolOperationSelect}
-                query={deferredSearch}
-              />
-              <WorkspacesGroup
-                items={filteredWorkspaces}
-                onSelect={handleWorkspaceSelect}
-                query={deferredSearch}
-              />
-              <DocsGroup items={filteredDocs} onSelect={handleDocSelect} query={deferredSearch} />
-              <PagesGroup
-                items={filteredPages}
-                onSelect={handlePageSelect}
-                query={deferredSearch}
-              />
+              {showSection('actions') && (
+                <ActionsGroup
+                  items={filteredActions}
+                  onSelect={handleActionSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('connectedAccounts') && (
+                <ConnectedAccountsGroup
+                  items={filteredConnectedAccounts}
+                  onSelect={handleConnectedAccountSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('integrations') && (
+                <IntegrationsGroup
+                  items={filteredIntegrations}
+                  onSelect={handleIntegrationSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('blocks') && (
+                <BlocksGroup
+                  items={filteredBlocks}
+                  onSelect={handleBlockSelectAsBlock}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('tools') && (
+                <ToolsGroup
+                  items={filteredTools}
+                  onSelect={handleBlockSelectAsTool}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('triggers') && (
+                <TriggersGroup
+                  items={filteredTriggers}
+                  onSelect={handleBlockSelectAsTrigger}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('chats') && (
+                <ChatsGroup
+                  items={filteredChats}
+                  onSelect={handleChatSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('workflows') && (
+                <WorkflowsGroup
+                  items={filteredWorkflows}
+                  onSelect={handleWorkflowSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('tables') && (
+                <TablesGroup
+                  items={filteredTables}
+                  onSelect={handleTableSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('files') && (
+                <FilesGroup
+                  items={filteredFiles}
+                  onSelect={handleFileSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('knowledgeBases') && (
+                <KnowledgeBasesGroup
+                  items={filteredKnowledgeBases}
+                  onSelect={handleKbSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('toolOperations') && (
+                <ToolOpsGroup
+                  items={filteredToolOps}
+                  onSelect={handleToolOperationSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('workspaces') && (
+                <WorkspacesGroup
+                  items={filteredWorkspaces}
+                  onSelect={handleWorkspaceSelect}
+                  query={deferredSearch}
+                />
+              )}
+              {showSection('docs') && (
+                <DocsGroup items={filteredDocs} onSelect={handleDocSelect} query={deferredSearch} />
+              )}
+              {showSection('pages') && (
+                <PagesGroup
+                  items={filteredPages}
+                  onSelect={handlePageSelect}
+                  query={deferredSearch}
+                />
+              )}
             </Command.List>
           </Command>
         </div>

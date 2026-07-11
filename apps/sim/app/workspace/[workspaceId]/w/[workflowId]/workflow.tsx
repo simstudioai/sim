@@ -95,6 +95,7 @@ import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
+import type { PendingConnect } from '@/stores/modals/search/types'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesModalStore } from '@/stores/variables/modal'
@@ -209,6 +210,7 @@ interface AddBlockFromToolbarDetail {
   type?: unknown
   enableTriggerMode?: unknown
   presetOperation?: unknown
+  pendingConnect?: PendingConnect
 }
 
 /**
@@ -1779,8 +1781,54 @@ const WorkflowContent = React.memo(
      * @param position - Drop position in ReactFlow coordinates.
      */
     const handleToolbarDrop = useCallback(
-      (data: { type: string; enableTriggerMode?: boolean }, position: { x: number; y: number }) => {
+      (
+        data: {
+          type: string
+          enableTriggerMode?: boolean
+          presetOperation?: string
+          forcedSource?: { nodeId: string; handleId: string }
+        },
+        position: { x: number; y: number }
+      ) => {
         if (!data.type || data.type === 'connectionBlock') return
+
+        const operationConfig = data.presetOperation
+          ? { operation: data.presetOperation }
+          : undefined
+
+        const { forcedSource } = data
+
+        /**
+         * Edge for the new block. With a `forcedSource` (a drag-release from a
+         * handle), wire from that exact handle — but only when it stays within the
+         * resolved container context, matching onConnect's boundary rules; a
+         * cross-boundary source yields no edge. Otherwise fall back to normal
+         * proximity auto-connect.
+         */
+        const resolveEdge = (
+          targetId: string,
+          targetParentId: string | null,
+          fallback: () => Edge | undefined
+        ): Edge | undefined => {
+          if (!forcedSource) return fallback()
+
+          const isContainerStartHandle =
+            forcedSource.handleId === 'loop-start-source' ||
+            forcedSource.handleId === 'parallel-start-source'
+          if (isContainerStartHandle) {
+            // A container-start handle may only wire to a child of that container.
+            return forcedSource.nodeId === targetParentId
+              ? createEdgeObject(forcedSource.nodeId, targetId, forcedSource.handleId)
+              : undefined
+          }
+
+          const sourceBlock = blocks[forcedSource.nodeId]
+          if (!sourceBlock) return undefined
+          const sourceParentId = sourceBlock.data?.parentId ?? null
+          return sourceParentId === targetParentId
+            ? createEdgeObject(forcedSource.nodeId, targetId, forcedSource.handleId)
+            : undefined
+        }
 
         try {
           const containerInfo = isPointInLoopNode(position)
@@ -1811,11 +1859,13 @@ const WorkflowContent = React.memo(
                 .filter((b) => b.data?.parentId === containerInfo.loopId)
                 .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-              const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
-                targetParentId: containerInfo.loopId,
-                existingChildBlocks,
-                containerId: containerInfo.loopId,
-              })
+              const autoConnectEdge = resolveEdge(id, containerInfo.loopId, () =>
+                tryCreateAutoConnectEdge(relativePosition, id, {
+                  targetParentId: containerInfo.loopId,
+                  existingChildBlocks,
+                  containerId: containerInfo.loopId,
+                })
+              )
 
               addBlock(
                 id,
@@ -1836,9 +1886,11 @@ const WorkflowContent = React.memo(
 
               resizeLoopNodesWrapper()
             } else {
-              const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-                targetParentId: null,
-              })
+              const autoConnectEdge = resolveEdge(id, null, () =>
+                tryCreateAutoConnectEdge(position, id, {
+                  targetParentId: null,
+                })
+              )
 
               addBlock(
                 id,
@@ -1903,11 +1955,13 @@ const WorkflowContent = React.memo(
               .filter((b) => b.data?.parentId === containerInfo.loopId)
               .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-            const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
-              targetParentId: containerInfo.loopId,
-              existingChildBlocks,
-              containerId: containerInfo.loopId,
-            })
+            const autoConnectEdge = resolveEdge(id, containerInfo.loopId, () =>
+              tryCreateAutoConnectEdge(relativePosition, id, {
+                targetParentId: containerInfo.loopId,
+                existingChildBlocks,
+                containerId: containerInfo.loopId,
+              })
+            )
 
             // Add block with parent info AND autoConnectEdge (atomic operation)
             addBlock(
@@ -1921,7 +1975,9 @@ const WorkflowContent = React.memo(
               },
               containerInfo.loopId,
               'parent',
-              autoConnectEdge
+              autoConnectEdge,
+              undefined,
+              operationConfig
             )
 
             // Resize the container node to fit the new block
@@ -1931,9 +1987,11 @@ const WorkflowContent = React.memo(
             // Centralized trigger constraints
             if (checkTriggerConstraints(data.type)) return
 
-            const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-              targetParentId: null,
-            })
+            const autoConnectEdge = resolveEdge(id, null, () =>
+              tryCreateAutoConnectEdge(position, id, {
+                targetParentId: null,
+              })
+            )
 
             // Regular canvas drop with auto-connect edge
             // Use enableTriggerMode from drag data if present (when dragging from Triggers tab)
@@ -1947,7 +2005,8 @@ const WorkflowContent = React.memo(
               undefined,
               undefined,
               autoConnectEdge,
-              enableTriggerMode
+              enableTriggerMode,
+              operationConfig
             )
           }
         } catch (err) {
@@ -1961,6 +2020,7 @@ const WorkflowContent = React.memo(
         addBlock,
         tryCreateAutoConnectEdge,
         checkTriggerConstraints,
+        createEdgeObject,
       ]
     )
 
@@ -1972,10 +2032,29 @@ const WorkflowContent = React.memo(
           return
         }
 
-        const { type, enableTriggerMode, presetOperation } = event.detail
+        const { type, enableTriggerMode, presetOperation, pendingConnect } = event.detail
 
         if (typeof type !== 'string' || !type) return
         if (type === 'connectionBlock') return
+
+        // Complete an edge drag-release: only a genuine palette selection carries
+        // `pendingConnect` (other add-block dispatchers — toolbar, sidebar, command
+        // list — don't), so its presence is the signal. Delegating to
+        // handleToolbarDrop with the drag source gives container-aware placement AND
+        // an edge from the released handle that respects container boundaries.
+        if (pendingConnect) {
+          // screenToFlowPosition subtracts the pane rect internally — pass raw client coords.
+          handleToolbarDrop(
+            {
+              type,
+              enableTriggerMode: enableTriggerMode === true,
+              presetOperation: typeof presetOperation === 'string' ? presetOperation : undefined,
+              forcedSource: pendingConnect.source,
+            },
+            screenToFlowPosition({ x: pendingConnect.screenX, y: pendingConnect.screenY })
+          )
+          return
+        }
 
         const basePosition = getViewportCenter()
 
@@ -2054,6 +2133,8 @@ const WorkflowContent = React.memo(
       effectivePermissions.canEdit,
       checkTriggerConstraints,
       tryCreateAutoConnectEdge,
+      screenToFlowPosition,
+      handleToolbarDrop,
     ])
 
     /**
@@ -3131,6 +3212,17 @@ const WorkflowContent = React.memo(
             sourceHandle: source.handleId,
             target: targetNode.id,
             targetHandle: 'target',
+          })
+        } else if (!targetNode) {
+          // Released on empty canvas: open the command palette with the drag origin
+          // + drop point, so the chosen block lands here wired from this handle.
+          useSearchModalStore.getState().open({
+            sections: ['blocks', 'tools', 'toolOperations'],
+            pendingConnect: {
+              source: { nodeId: source.nodeId, handleId: source.handleId },
+              screenX: clientPos.clientX,
+              screenY: clientPos.clientY,
+            },
           })
         }
 
