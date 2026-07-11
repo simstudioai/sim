@@ -16,6 +16,10 @@ import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
  * (edge-to-edge): the border lives on the full-width `<footer>` landmark while
  * an inner container caps and centers the content at the shared
  * `max-w-[1460px]` with the same `px-20` gutter as every section above.
+ *
+ * The wrapper's bottom padding matches {@link FooterPeel}'s own height and is
+ * the "reveal window" - the extra scroll room, past the footer's own opaque
+ * background, where the sticky-pinned peel image becomes visible.
  */
 
 const LINK_CLASS =
@@ -132,9 +136,6 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
 
 export function Footer() {
   return (
-    // The bottom padding here (matching FooterPeel's own height, `footer-peel.tsx`)
-    // is the "reveal window": the extra scroll room, past the footer's own opaque
-    // background, where the sticky-pinned peel image becomes visible.
     <div className='relative isolate mt-[120px] pb-[320px] max-sm:mt-16 max-sm:pb-[200px] max-lg:mt-[88px]'>
       <FooterPeel />
       <footer className='-mt-[320px] max-sm:-mt-[200px] relative z-30 w-full border-[var(--border)] border-t bg-[var(--bg)]'>

@@ -19,13 +19,15 @@ export function FooterPeel() {
       className='-z-10 sticky bottom-0 h-[320px] w-full overflow-hidden max-sm:h-[200px]'
       aria-hidden='true'
     >
-      <Image
-        src='/landing/footer-peel.jpg'
-        alt=''
-        fill
-        sizes='100vw'
-        className='object-cover object-[center_38%]'
-      />
+      <div className='relative h-full w-full'>
+        <Image
+          src='/landing/footer-peel.jpg'
+          alt=''
+          fill
+          sizes='100vw'
+          className='object-cover object-[center_38%]'
+        />
+      </div>
     </div>
   )
 }

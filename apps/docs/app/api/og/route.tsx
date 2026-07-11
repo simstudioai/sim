@@ -5,17 +5,15 @@ import type { NextRequest } from 'next/server'
 export const runtime = 'edge'
 
 const TITLE_FONT_SIZE = {
-  large: 88,
-  medium: 76,
-  small: 68,
+  large: 105,
+  medium: 91,
+  small: 81,
 } as const
 /** Average glyph width as a fraction of font size, for this weight/family — used to pack words into lines. */
-const AVG_CHAR_WIDTH_EM = 0.5
+const AVG_CHAR_WIDTH_EM = 0.46
 const TITLE_BOX_WIDTH = 1020
 const FONT_CACHE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30
-// Measured directly off the reference cover template
-// (apps/sim/public/library/best-zapier-alternatives/cover.jpg): #c3c3c3
-// background, median ink #525252, ~26px margin on every edge.
+/** Measured off the reference cover template (`apps/sim/public/library/best-zapier-alternatives/cover.jpg`). */
 const INK_COLOR = '#525252'
 const OG_CONTAINER_STYLE = {
   height: '100%',
@@ -133,9 +131,9 @@ function SimWordmark() {
 /** Diagonal "open" arrow, top-right — matches the library/blog cover template. */
 function CornerArrow() {
   return (
-    <svg width='56' height='56' viewBox='0 0 24 24' fill='none'>
+    <svg width='58' height='58' viewBox='0 0 24 24' fill='none'>
       <path
-        d='M7 17 17 7M17 7H9M17 7V15'
+        d='M2 22 22 2M22 2H12M22 2V12'
         stroke={INK_COLOR}
         strokeWidth={3.6}
         strokeLinecap='round'

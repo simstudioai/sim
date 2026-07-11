@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
-import { SimLogoIcon } from '@/components/ui/sim-logo'
+import { SimWordmark } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
 
@@ -45,7 +45,7 @@ export function Navbar() {
           }}
         >
           <Link href='/' className='flex items-center'>
-            <SimLogoIcon className='size-[22px]' />
+            <SimWordmark className='h-[18px]' />
           </Link>
 
           <div className='-translate-x-1/2 absolute left-1/2 flex items-center justify-center'>

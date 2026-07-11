@@ -130,7 +130,7 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
 
 export function Footer() {
   return (
-    <div className='relative isolate mt-[120px] pb-[320px] max-sm:mt-16 max-sm:pb-[200px] max-lg:mt-[88px]'>
+    <div className='relative isolate z-30 mt-[120px] pb-[320px] max-sm:mt-16 max-sm:pb-[200px] max-lg:mt-[88px]'>
       <FooterPeel />
       <footer className='-mt-[320px] max-sm:-mt-[200px] relative z-30 w-full border-[var(--border)] border-t bg-[var(--bg)]'>
         <div className='mx-auto w-full max-w-[1460px] px-20 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
