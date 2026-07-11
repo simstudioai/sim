@@ -47,6 +47,13 @@ export class TableConflictError extends Error {
   }
 }
 
+export class TableInvalidFolderError extends Error {
+  readonly code = 'INVALID_FOLDER_ID' as const
+  constructor(reason: string) {
+    super(`Invalid folderId: ${reason}`)
+  }
+}
+
 export type TableScope = 'active' | 'archived' | 'all'
 
 /**
@@ -320,7 +327,7 @@ export async function createTable(
   ])
 
   if (parentError) {
-    throw new Error(`Invalid folderId: ${parentError.error}`)
+    throw new TableInvalidFolderError(parentError.error)
   }
 
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
@@ -613,7 +620,7 @@ export async function renameTable(
           trx
         )
         if (parentError) {
-          throw new Error(`Invalid folderId: ${parentError.error}`)
+          throw new TableInvalidFolderError(parentError.error)
         }
         // assertResourceMutable above only checked the table's *current* folder chain —
         // without this, a table could be moved out of an unlocked folder into a locked one.

@@ -82,7 +82,7 @@ async function assertTargetFolderMutable(
         parentId: workflowFolder.parentId,
         workspaceId: workflowFolder.workspaceId,
         locked: workflowFolder.locked,
-        archivedAt: workflowFolder.deletedAt,
+        deletedAt: workflowFolder.deletedAt,
       })
       .from(workflowFolder)
       .where(
@@ -91,7 +91,7 @@ async function assertTargetFolderMutable(
       .for('update')
       .limit(1)
 
-    if (!folder || folder.workspaceId !== targetWorkspaceId || folder.archivedAt) {
+    if (!folder || folder.workspaceId !== targetWorkspaceId || folder.deletedAt) {
       throw new Error('Target folder not found')
     }
     if (folder.locked) {

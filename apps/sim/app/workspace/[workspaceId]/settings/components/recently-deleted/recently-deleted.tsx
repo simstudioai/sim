@@ -437,6 +437,7 @@ export function RecentlyDeleted() {
           await restoreFolder.mutateAsync({
             workspaceId: resource.workspaceId,
             folderId: resource.id,
+            resourceType: 'file',
           })
           break
         case 'table_folder':

@@ -145,11 +145,11 @@ export const folder = pgTable(
     parentId: text('parent_id').references((): AnyPgColumn => folder.id, {
       onDelete: 'set null',
     }),
-    // locked is meaningful for workflow folders only today (lock-cascade feature); kept
-    // as a reserved-but-unused column for file/knowledge_base/table folders rather than
-    // splitting into per-resource tables. `color` and `isExpanded` were dropped — color
-    // had no UI consumer and isExpanded's real state lives client-side in the folders
-    // Zustand store, never read from the DB.
+    // locked is used generically across all four resourceTypes (lock-cascade feature) —
+    // the ancestor-walk lock check and restore-time guard are resourceType-parameterized,
+    // not workflow-specific. `color` and `isExpanded` were dropped — color had no UI
+    // consumer and isExpanded's real state lives client-side in the folders Zustand
+    // store, never read from the DB.
     locked: boolean('locked').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),

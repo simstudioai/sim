@@ -79,13 +79,20 @@ interface UnpinItemVariables {
 }
 
 /**
+ * Position of the `resourceType` segment within `pinnedItemKeys.list(...)`,
+ * derived from the factory itself so this can't silently drift if the key
+ * shape changes.
+ */
+const RESOURCE_TYPE_KEY_INDEX = pinnedItemKeys.workspaceLists(undefined).length
+
+/**
  * Matches the unscoped `usePinnedItems(workspaceId)` list and the
  * `resourceType`-scoped list for `resourceType` — the two caches a single
  * pin/unpin can appear in — while leaving lists scoped to other resource
  * types untouched.
  */
 function isAffectedPinnedListKey(queryKey: QueryKey, resourceType: PinnedResourceType): boolean {
-  const scopedType = queryKey[3]
+  const scopedType = queryKey[RESOURCE_TYPE_KEY_INDEX]
   return scopedType === '' || scopedType === resourceType
 }
 

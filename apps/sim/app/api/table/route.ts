@@ -12,6 +12,7 @@ import {
   createTable,
   getWorkspaceTableLimits,
   listTables,
+  TableInvalidFolderError,
   type TableSchema,
   type TableScope,
 } from '@/lib/table'
@@ -148,6 +149,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
+    if (error instanceof TableInvalidFolderError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
     if (error instanceof Error) {
       if (error.message.includes('maximum table limit')) {
         return NextResponse.json({ error: error.message }, { status: 403 })
@@ -155,7 +160,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (
         error.message.includes('Invalid table name') ||
         error.message.includes('Invalid schema') ||
-        error.message.includes('Invalid folderId') ||
         error.message.includes('already exists')
       ) {
         return NextResponse.json({ error: error.message }, { status: 400 })

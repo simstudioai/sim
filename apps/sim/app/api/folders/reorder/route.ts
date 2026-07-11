@@ -59,17 +59,13 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     if (hasInvalidId) {
       return NextResponse.json({ error: 'One or more folders were not found' }, { status: 400 })
     }
-    const validUpdates = updates
-
     // A single reorder call operates on one resourceType at a time (the UI never mixes
     // folder types in one drag-drop tree). Reject a mixed-type batch explicitly instead
     // of silently reordering only the first-seen type and reporting success — a caller
     // bug that sends folders from two resource types should surface as an error, not a
     // partial `updated` count with no indication some entries were skipped.
-    const resourceType = resourceTypeById.get(validUpdates[0].id)!
-    const hasMixedResourceTypes = validUpdates.some(
-      (u) => resourceTypeById.get(u.id) !== resourceType
-    )
+    const resourceType = resourceTypeById.get(updates[0].id)!
+    const hasMixedResourceTypes = updates.some((u) => resourceTypeById.get(u.id) !== resourceType)
     if (hasMixedResourceTypes) {
       return NextResponse.json(
         { error: 'All folders in a reorder batch must share the same resourceType' },
@@ -81,7 +77,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     // `performReorderFolders` (via `assertFolderParentValid`) below — this route does
     // not duplicate that check, it only guards the self-parent case which is a
     // cheap synchronous comparison, not a DB round-trip.
-    for (const update of validUpdates) {
+    for (const update of updates) {
       if (update.parentId && update.parentId === update.id) {
         return NextResponse.json({ error: 'Folder cannot be its own parent' }, { status: 400 })
       }
@@ -102,13 +98,13 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     for (const folderRow of workspaceFolders) {
       parentById.set(folderRow.id, folderRow.parentId)
     }
-    for (const update of validUpdates) {
+    for (const update of updates) {
       if (update.parentId !== undefined) {
         parentById.set(update.id, update.parentId || null)
       }
     }
 
-    for (const update of validUpdates) {
+    for (const update of updates) {
       const visited = new Set<string>()
       let cursor: string | null = update.id
       while (cursor) {
@@ -124,7 +120,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     }
 
     const policy = FOLDER_RESOURCE_POLICIES[resourceType]
-    for (const update of validUpdates) {
+    for (const update of updates) {
       await policy.assertMutable(update.id)
       if (update.parentId !== undefined) {
         await policy.assertMutable(update.parentId)
@@ -134,7 +130,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     const result = await performReorderFolders({
       resourceType,
       workspaceId,
-      updates: validUpdates,
+      updates,
     })
 
     if (!result.success) {

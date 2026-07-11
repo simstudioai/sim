@@ -1,6 +1,7 @@
 import { db, folder, workflow, workspace } from '@sim/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
+  type LockStatus as GenericLockStatus,
   getFolderLockStatus as getGenericFolderLockStatus,
   ResourceLockedError,
 } from './resource-lock'
@@ -94,9 +95,13 @@ export interface LockStatus {
   lockedFolderId: string | null
 }
 
-function toWorkflowLockStatus(
-  status: Awaited<ReturnType<typeof getGenericFolderLockStatus>>
-): LockStatus {
+/**
+ * `status.lockedBy === 'resource'` is unreachable in practice -- `getGenericFolderLockStatus`
+ * only ever returns `'folder' | null` -- but the shared {@link GenericLockStatus} type is
+ * also used by `getResourceLockStatus` (which does return `'resource'`), so the branch is
+ * kept for type-level exhaustiveness.
+ */
+function toWorkflowLockStatus(status: GenericLockStatus): LockStatus {
   return {
     ...status,
     lockedBy: status.lockedBy === 'resource' ? 'workflow' : status.lockedBy,

@@ -98,15 +98,19 @@ export const PUT = withRouteHandler(
       const validatedData = parsed.data.body
 
       if (validatedData.locked !== undefined) {
-        const workspaceId = accessCheck.knowledgeBase.workspaceId
-        const workspacePermission = workspaceId
-          ? await getUserEntityPermissions(userId, 'workspace', workspaceId)
-          : null
-        if (workspacePermission !== 'admin') {
-          return NextResponse.json(
-            { error: 'Admin access required to lock knowledge bases' },
-            { status: 403 }
-          )
+        const currentWorkspaceId = accessCheck.knowledgeBase.workspaceId
+        const targetWorkspaceId = validatedData.workspaceId ?? currentWorkspaceId
+        const workspaceIdsToCheck = new Set(
+          [currentWorkspaceId, targetWorkspaceId].filter((wsId): wsId is string => Boolean(wsId))
+        )
+        for (const wsId of workspaceIdsToCheck) {
+          const workspacePermission = await getUserEntityPermissions(userId, 'workspace', wsId)
+          if (workspacePermission !== 'admin') {
+            return NextResponse.json(
+              { error: 'Admin access required to lock knowledge bases' },
+              { status: 403 }
+            )
+          }
         }
       }
 

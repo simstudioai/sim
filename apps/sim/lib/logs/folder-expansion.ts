@@ -25,7 +25,13 @@ export async function expandFolderIdsWithDescendants(
   const rows = await db
     .select({ id: folder.id, parentId: folder.parentId })
     .from(folder)
-    .where(and(eq(folder.workspaceId, workspaceId), isNull(folder.deletedAt)))
+    .where(
+      and(
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, 'workflow'),
+        isNull(folder.deletedAt)
+      )
+    )
 
   const childrenByParent = new Map<string, string[]>()
   for (const row of rows) {

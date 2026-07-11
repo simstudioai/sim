@@ -22,8 +22,10 @@ const logger = createLogger('FolderLifecycle')
 /** All queries against `folder` in this module are scoped to workflow folders. */
 const isWorkflowFolder = eq(folder.resourceType, 'workflow')
 
-/** Marks a concurrent-deletion race on a target parent, caught inside a folder-update transaction, as a 400 (validation), not a 500. */
+/** Marks a concurrent-deletion race on a target parent, caught inside a folder-create or folder-update transaction, as a 400 (validation), not a 500. */
 class WorkflowFolderParentNotFoundError extends Error {}
+/** Marks a cycle caught inside the folder-update transaction, as a 400 (validation), not a 500. */
+class WorkflowFolderCycleError extends Error {}
 
 export interface PerformCreateFolderParams {
   userId: string
@@ -31,7 +33,6 @@ export interface PerformCreateFolderParams {
   name: string
   id?: string
   parentId?: string | null
-  color?: string
   sortOrder?: number
 }
 
@@ -266,6 +267,21 @@ export async function performUpdateFolder(
         if (!targetParent) {
           throw new WorkflowFolderParentNotFoundError('Parent folder not found')
         }
+
+        // The cycle check above (`checkFolderCircularReference`) ran against an
+        // unlocked pre-transaction snapshot -- two concurrent moves (e.g. A under B
+        // and B under A) can each pass that stale check and then commit opposite
+        // parent updates, persisting a cycle. Re-run it here against `tx` so it
+        // observes the same FOR-UPDATE-locked parent chain this transaction is
+        // about to write.
+        const wouldCreateCycleInTx = await checkFolderCircularReference(
+          params.folderId,
+          params.parentId,
+          tx
+        )
+        if (wouldCreateCycleInTx) {
+          throw new WorkflowFolderCycleError('Cannot create circular folder reference')
+        }
       }
 
       const [row] = await tx
@@ -296,6 +312,9 @@ export async function performUpdateFolder(
       throw error
     }
     if (error instanceof WorkflowFolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (error instanceof WorkflowFolderCycleError) {
       return { success: false, error: error.message, errorCode: 'validation' }
     }
     if (getPostgresErrorCode(error) === '23505') {

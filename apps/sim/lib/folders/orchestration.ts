@@ -9,7 +9,7 @@ import {
 } from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, min } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -117,9 +117,9 @@ export interface PerformReorderFoldersParams {
  * Adapts the `uploads/contexts/workspace` VFS record (which carries a
  * server-computed `path` the generic contract doesn't expose) to the
  * physical `folder` table shape the generic routes/contracts expect.
- * `locked` is reserved-but-unused for `file` folders (see
- * `packages/db/schema.ts`), so we mirror the table's own default here
- * rather than round-tripping to re-select it.
+ * `locked` is a real, enforced field for `file` folders too -- the generic
+ * lock engine (`@sim/platform-authz/resource-lock`) reads it to cascade
+ * locks the same way it does for the other three resourceTypes.
  */
 function toFileFolder(record: WorkspaceFileFolderRecord): Folder {
   return {
@@ -235,6 +235,10 @@ async function performUpdateFileFolder(
 
     return { success: true, folder: toFileFolder(updated) }
   } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
     if (
       error instanceof WorkspaceFileFolderConflictError ||
       getPostgresErrorCode(error) === '23505'
@@ -503,6 +507,28 @@ async function performDeleteResourceFolder<TCountKey extends 'knowledgeBases' | 
 
     const folderIds = await collectFolderSubtreeIds(workspaceId, cascade.resourceType, folderId, tx)
 
+    // `assertFolderMutable` above only checks `folderId` and its ancestors -- it never
+    // inspects descendants. `collectFolderSubtreeIds`'s read is also unlocked. Without
+    // this, a subfolder directly locked (not merely inheriting a lock from `folderId`)
+    // would be silently swept into this delete, since the UPDATE below has no lock
+    // filter. `FOR UPDATE` here row-locks every subtree member for the rest of this
+    // transaction and matches the workflow cascade, which checks each folder's own
+    // lock as it recurses into every descendant.
+    const subtreeRows = await tx
+      .select({ id: folderTable.id, locked: folderTable.locked })
+      .from(folderTable)
+      .where(
+        and(inArray(folderTable.id, folderIds), eq(folderTable.resourceType, cascade.resourceType))
+      )
+      .for('update')
+    if (subtreeRows.some((row) => row.locked)) {
+      throw new ResourceLockedError(
+        cascade.resourceType,
+        false,
+        'A folder in this location is locked'
+      )
+    }
+
     const archivedFolders = await tx
       .update(folderTable)
       .set({ deletedAt: now, updatedAt: now })
@@ -699,6 +725,63 @@ async function performRestoreResourceFolder<TCountKey extends 'knowledgeBases' |
   return { success: true, restoredItems }
 }
 
+/**
+ * `knowledge_base`/`table` resource rows carry no `sortOrder` column of their own
+ * (unlike `workflow`, which blends workflow and folder sort order) -- so a new
+ * kb/table folder only needs to sort above its sibling *folders*. Mirrors
+ * `nextFolderSortOrder`/`nextWorkflowSortOrder` in
+ * `workflows/orchestration/{folder,workflow}-lifecycle.ts` for the one input
+ * these two resourceTypes actually have.
+ */
+async function nextResourceFolderSortOrder(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  parentId: string | null
+): Promise<number> {
+  const [result] = await db
+    .select({ minSortOrder: min(folderTable.sortOrder) })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, resourceType),
+        parentId ? eq(folderTable.parentId, parentId) : isNull(folderTable.parentId),
+        isNull(folderTable.deletedAt)
+      )
+    )
+  return result?.minSortOrder != null ? result.minSortOrder - 1 : 0
+}
+
+/**
+ * Re-validates that `parentId` is still an active (non-deleted) folder of
+ * `resourceType`, `FOR UPDATE`-locking the row for the rest of the caller's
+ * transaction. Shared by {@link performCreateFolder} and
+ * {@link performUpdateFolder}, which each need this exact recheck (their own
+ * `assertFolderMutable` call happens beforehand, at the call site, since the
+ * two callers precede it with different comments/context).
+ */
+async function assertTargetParentActive(
+  tx: DbOrTx,
+  parentId: string,
+  resourceType: FolderResourceType
+): Promise<void> {
+  const [targetParent] = await tx
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.id, parentId),
+        eq(folderTable.resourceType, resourceType),
+        isNull(folderTable.deletedAt)
+      )
+    )
+    .for('update')
+    .limit(1)
+  if (!targetParent) {
+    throw new FolderParentNotFoundError('Parent folder not found')
+  }
+}
+
 export async function performCreateFolder(
   params: PerformCreateFolderParams
 ): Promise<PerformFolderResult> {
@@ -720,6 +803,11 @@ export async function performCreateFolder(
   })
   if (parentError) return { success: false, ...parentError }
 
+  const sortOrder =
+    params.sortOrder !== undefined
+      ? params.sortOrder
+      : await nextResourceFolderSortOrder(params.workspaceId, params.resourceType, parentId)
+
   try {
     const created = await db.transaction(async (tx) => {
       if (parentId) {
@@ -733,21 +821,7 @@ export async function performCreateFolder(
         // (it stops the ancestor walk when the row is missing rather than
         // erroring), so it alone doesn't catch a parent deleted in that same
         // window. FOR UPDATE here makes the recheck race-free.
-        const [targetParent] = await tx
-          .select({ id: folderTable.id })
-          .from(folderTable)
-          .where(
-            and(
-              eq(folderTable.id, parentId),
-              eq(folderTable.resourceType, params.resourceType),
-              isNull(folderTable.deletedAt)
-            )
-          )
-          .for('update')
-          .limit(1)
-        if (!targetParent) {
-          throw new FolderParentNotFoundError('Parent folder not found')
-        }
+        await assertTargetParentActive(tx, parentId, params.resourceType)
       }
 
       const [row] = await tx
@@ -759,7 +833,7 @@ export async function performCreateFolder(
           userId: params.userId,
           workspaceId: params.workspaceId,
           parentId,
-          sortOrder: params.sortOrder ?? 0,
+          sortOrder,
         })
         .returning()
       return row
@@ -864,21 +938,7 @@ export async function performUpdateFolder(
         // assertFolderParentValid precheck and this transaction. FOR UPDATE here
         // makes the recheck race-free: once held, the parent's deletedAt can't
         // change until this transaction resolves.
-        const [targetParent] = await tx
-          .select({ id: folderTable.id })
-          .from(folderTable)
-          .where(
-            and(
-              eq(folderTable.id, params.parentId),
-              eq(folderTable.resourceType, params.resourceType),
-              isNull(folderTable.deletedAt)
-            )
-          )
-          .for('update')
-          .limit(1)
-        if (!targetParent) {
-          throw new FolderParentNotFoundError('Parent folder not found')
-        }
+        await assertTargetParentActive(tx, params.parentId, params.resourceType)
 
         // The cycle check above (`checkFolderCircularReference`) ran against an
         // unlocked pre-transaction snapshot -- a concurrent reparent could form a
@@ -1028,7 +1088,6 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
       errorCode: 'not_found',
     }
   }
-  const validUpdates = updates
 
   // Reparents also need `assertFolderParentValid` on the new parent (the
   // `validIds` check above only validates `id`). Any invalid parentId fails
@@ -1036,7 +1095,7 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
   // Distinct target parentIds are validated concurrently since a subtree
   // drag-drop can reparent many folders in one call.
   const targetParentIds = Array.from(
-    new Set(validUpdates.map((u) => u.parentId).filter((id): id is string => Boolean(id)))
+    new Set(updates.map((u) => u.parentId).filter((id): id is string => Boolean(id)))
   )
   const parentErrors = await Promise.all(
     targetParentIds.map((parentId) =>
@@ -1071,7 +1130,7 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
       // up front and lock all of them in a single statement, ordered by id --
       // concurrent transactions that do the same always converge on the same
       // acquisition order and cannot form a cycle.
-      const startIds = Array.from(new Set([...validUpdates.map((u) => u.id), ...targetParentIds]))
+      const startIds = Array.from(new Set([...updates.map((u) => u.id), ...targetParentIds]))
       const closure = new Set(startIds)
       let frontier = new Set(startIds)
       while (frontier.size > 0) {
@@ -1154,12 +1213,12 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
       // locked, tx-consistent `parentId` values (closure already contains every
       // node such a walk could reach) reliably catches it before the write below.
       const lockedParentById = new Map(lockedRows.map((row) => [row.id, row.parentId]))
-      for (const update of validUpdates) {
+      for (const update of updates) {
         if (update.parentId !== undefined) {
           lockedParentById.set(update.id, update.parentId || null)
         }
       }
-      for (const update of validUpdates) {
+      for (const update of updates) {
         const visited = new Set<string>()
         let cursor: string | null = update.id
         while (cursor) {
@@ -1171,7 +1230,7 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
         }
       }
 
-      for (const update of validUpdates) {
+      for (const update of updates) {
         const updateData: Record<string, unknown> = {
           sortOrder: update.sortOrder,
           updatedAt: new Date(),
@@ -1218,5 +1277,5 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
     }
   }
 
-  return { success: true, updated: validUpdates.length }
+  return { success: true, updated: updates.length }
 }

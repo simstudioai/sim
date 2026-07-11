@@ -8,7 +8,13 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { deleteTable, renameTable, TableConflictError, type TableSchema } from '@/lib/table'
+import {
+  deleteTable,
+  renameTable,
+  TableConflictError,
+  TableInvalidFolderError,
+  type TableSchema,
+} from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
@@ -168,7 +174,7 @@ export const PATCH = withRouteHandler(
       if (error instanceof TableConflictError) {
         return NextResponse.json({ error: error.message }, { status: 409 })
       }
-      if (error instanceof Error && error.message.includes('Invalid folderId')) {
+      if (error instanceof TableInvalidFolderError) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 

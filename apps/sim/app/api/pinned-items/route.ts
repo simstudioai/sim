@@ -10,7 +10,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { PinnedResourceType } from '@/lib/api/contracts'
@@ -82,7 +82,7 @@ async function resourceExistsInWorkspace(
 ): Promise<boolean> {
   const config = PINNED_RESOURCE_LOOKUP[resourceType]
   const [row] = await db
-    .select({ id: sql<string>`id` })
+    .select({ id: config.idColumn })
     .from(config.resourceTable)
     .where(
       and(

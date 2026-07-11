@@ -1,4 +1,4 @@
-export type FolderResourceType = 'workflow' | 'file' | 'knowledge_base' | 'table'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 
 export interface Folder {
   id: string

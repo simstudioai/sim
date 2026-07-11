@@ -863,8 +863,7 @@ export function Tables() {
     (folder: FolderType) => {
       listRename.startRename(folderRowId(folder.id), folder.name)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- listRename.startRename is stable
-    []
+    [listRename.startRename]
   )
 
   const handleCreateFolder = useFolderCreateWithDedup({

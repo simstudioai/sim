@@ -202,11 +202,6 @@ export async function createKnowledgeBase(
   if (parentError) {
     throw new KnowledgeBaseValidationError(parentError.error)
   }
-  // assertFolderParentValid above only checks workspace/type/deleted-state -- without
-  // this, a knowledge base could be created directly inside a locked folder.
-  if (data.folderId) {
-    await assertFolderMutable(data.folderId, 'knowledge_base')
-  }
   if (duplicate.length > 0) {
     throw new KnowledgeBaseConflictError(data.name)
   }
@@ -228,8 +223,19 @@ export async function createKnowledgeBase(
     deletedAt: null,
   }
 
+  // Wrap the lock check and insert in a transaction so a folder lock applied between
+  // the check and the insert can't slip a knowledge base into a now-locked folder
+  // (same TOCTOU class as createTable in lib/table/service.ts).
   try {
-    await db.insert(knowledgeBase).values(newKnowledgeBase)
+    await db.transaction(async (tx) => {
+      // assertFolderParentValid above only checks workspace/type/deleted-state -- without
+      // this, a knowledge base could be created directly inside a locked folder. Passing
+      // `tx` keeps this read inside the same transaction as the insert below.
+      if (data.folderId) {
+        await assertFolderMutable(data.folderId, 'knowledge_base', tx)
+      }
+      await tx.insert(knowledgeBase).values(newKnowledgeBase)
+    })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505') {
       throw new KnowledgeBaseConflictError(data.name)

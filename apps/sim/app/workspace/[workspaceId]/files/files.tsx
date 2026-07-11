@@ -599,7 +599,6 @@ export function Files() {
   const [prevVisibleRowIds, setPrevVisibleRowIds] = useState(visibleRowIds)
   if (prevVisibleRowIds !== visibleRowIds) {
     setPrevVisibleRowIds(visibleRowIds)
-    lastSelectedIndexRef.current = -1
     const visible = new Set(visibleRowIds)
     setSelectedRowIds((prev) => {
       if (prev.size === 0) return prev
@@ -607,6 +606,14 @@ export function Files() {
       return next.size === prev.size ? prev : next
     })
   }
+
+  // lastSelectedIndexRef is only read inside event handlers, never during
+  // render/JSX, so it stays a ref — but writing ref.current during render is
+  // forbidden (react.dev, useRef → "Do not write or read ref.current during
+  // rendering"), so the reset runs in an Effect keyed on the same transition.
+  useEffect(() => {
+    lastSelectedIndexRef.current = -1
+  }, [visibleRowIds])
 
   const isAllSelected =
     visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))

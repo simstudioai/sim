@@ -314,6 +314,7 @@ export function Knowledge() {
   )
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
+  const folderByIdRecord = useMemo(() => Object.fromEntries(folderById), [folderById])
 
   const activeFolder = activeFolderId ? (folderById.get(activeFolderId) ?? null) : null
 
@@ -605,7 +606,7 @@ export function Knowledge() {
 
   const knowledgeBaseInheritedLocked = isFolderOrAncestorLocked(
     activeKnowledgeBase?.folderId ?? null,
-    Object.fromEntries(folderById)
+    folderByIdRecord
   )
 
   const handleToggleKnowledgeBaseLock = useCallback(() => {
@@ -636,7 +637,7 @@ export function Knowledge() {
 
   const folderInheritedLocked = isFolderOrAncestorLocked(
     activeFolder?.parentId ?? null,
-    Object.fromEntries(folderById)
+    folderByIdRecord
   )
 
   const handleToggleFolderLock = useCallback(() => {

@@ -2,8 +2,9 @@ import { useCallback } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { useCreateFolder } from '@/hooks/queries/folders'
-import type { Folder, FolderResourceType } from '@/stores/folders/types'
+import type { Folder } from '@/stores/folders/types'
 
 const logger = createLogger('useFolderCreateWithDedup')
 
