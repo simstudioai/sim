@@ -110,7 +110,7 @@ async function deleteLargeValueKeys(keys: string[]): Promise<{ deleted: number; 
 
   if (deletedKeys.length > 0) {
     try {
-      await markLargeValuesDeleted(deletedKeys)
+      await markLargeValuesDeleted(deletedKeys, cleanupDb)
     } catch (error) {
       logger.error('Failed to mark large execution values as deleted:', { error })
       return { deleted: 0, failed: result.failed.length + deletedKeys.length }
@@ -356,7 +356,11 @@ async function cleanupLargeValueMetadata(workspaceIds: string[], label: string):
     const tombstonesDeletedBefore = new Date(
       Date.now() - LARGE_VALUE_TOMBSTONE_RETENTION_HOURS * 60 * 60 * 1000
     )
-    const result = await pruneLargeValueMetadata({ workspaceIds, tombstonesDeletedBefore })
+    const result = await pruneLargeValueMetadata({
+      workspaceIds,
+      tombstonesDeletedBefore,
+      dbClient: cleanupDb,
+    })
     logger.info(
       `[${label}/execution_large_value_metadata] Pruned ${result.referencesDeleted} stale references, ${result.dependenciesDeleted} dependencies, ${result.tombstonesDeleted} tombstones`
     )

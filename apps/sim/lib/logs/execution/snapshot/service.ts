@@ -1,4 +1,4 @@
-import { db, dbFor } from '@sim/db'
+import { dbFor } from '@sim/db'
 import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
@@ -81,7 +81,7 @@ export class SnapshotService implements ISnapshotService {
   }
 
   async getSnapshot(id: string): Promise<WorkflowExecutionSnapshot | null> {
-    const [snapshot] = await db
+    const [snapshot] = await dbFor('exec')
       .select()
       .from(workflowExecutionSnapshots)
       .where(eq(workflowExecutionSnapshots.id, id))

@@ -260,7 +260,7 @@ describe('cleanup logs worker', () => {
       workspaceIds: ['workspace-1'],
     })
 
-    expect(mockMarkLargeValuesDeleted).toHaveBeenCalledWith([largeValueKey])
+    expect(mockMarkLargeValuesDeleted).toHaveBeenCalledWith([largeValueKey], expect.anything())
     expect(mockDeleteFileMetadata).toHaveBeenCalledTimes(2)
   })
 
