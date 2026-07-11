@@ -744,6 +744,31 @@ describe('File Upload Security Tests', () => {
       expect(response.status).toBe(200)
       expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalled()
     })
+
+    it('checks quota once against the combined size of a multi-file batch', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      const formData = new FormData()
+      const fileA = new File(['a'.repeat(10)], 'a.pdf', { type: 'application/pdf' })
+      const fileB = new File(['b'.repeat(20)], 'b.pdf', { type: 'application/pdf' })
+      formData.append('file', fileA)
+      formData.append('file', fileB)
+      formData.append('context', 'mothership')
+      formData.append('workspaceId', 'test-workspace-id')
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      const response = await POST(req as unknown as NextRequest)
+
+      expect(response.status).toBe(200)
+      expect(mocks.mockCheckStorageQuota).toHaveBeenCalledTimes(1)
+      expect(mocks.mockCheckStorageQuota).toHaveBeenCalledWith('test-user-id', 30)
+      expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('Authentication Requirements', () => {
