@@ -19,6 +19,41 @@ export const isDev = env.NODE_ENV === 'development'
 export const isTest = env.NODE_ENV === 'test'
 
 /**
+ * Raw deployment-tier signal ('dev' | 'staging' | 'prod' | ...), read the same
+ * way `instrumentation-node.ts` and `lib/monitoring/metrics.ts` resolve it for
+ * OTel's `deployment.environment` attribute: every deployed Sim tier sets
+ * `OTEL_DEPLOYMENT_ENVIRONMENT` directly (dev/staging/prod, matching Go's
+ * value space); failing that, `APPCONFIG_ENVIRONMENT` (dev/staging/production
+ * — mapped production -> prod); local dev has neither and falls back to
+ * `NODE_ENV`. This app has no AWS_PROFILE/Vercel-style env var of its own —
+ * `OTEL_DEPLOYMENT_ENVIRONMENT` is the existing per-tier signal already set in
+ * AWS Secrets Manager for dev/staging/production, so this reuses it rather
+ * than inventing a second one.
+ */
+const rawDeploymentEnv =
+  process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
+  process.env.DEPLOYMENT_ENVIRONMENT ||
+  (process.env.APPCONFIG_ENVIRONMENT === 'production'
+    ? 'prod'
+    : process.env.APPCONFIG_ENVIRONMENT) ||
+  env.NODE_ENV ||
+  'development'
+
+/**
+ * The deployment tier this build is running in, bucketed from
+ * {@link rawDeploymentEnv} to a fixed three-way set for UI-facing branches —
+ * currently just per-environment favicons, so it's obvious at a glance which
+ * tab is prod vs. a staging/local build. See `ee/whitelabeling/metadata.ts`
+ * and `next.config.ts`.
+ */
+export const deploymentEnv: 'development' | 'staging' | 'production' =
+  rawDeploymentEnv === 'staging'
+    ? 'staging'
+    : rawDeploymentEnv === 'prod' || rawDeploymentEnv === 'production'
+      ? 'production'
+      : 'development'
+
+/**
  * Is this the hosted version of the application.
  * True for sim.ai and any subdomain of sim.ai (e.g. staging.sim.ai, dev.sim.ai).
  */
