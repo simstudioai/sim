@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { FooterPeel } from '@/app/(landing)/components/footer/components/footer-peel'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
@@ -16,10 +15,6 @@ import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
  * (edge-to-edge): the border lives on the full-width `<footer>` landmark while
  * an inner container caps and centers the content at the shared
  * `max-w-[1460px]` with the same `px-20` gutter as every section above.
- *
- * The wrapper's bottom padding matches {@link FooterPeel}'s own height and is
- * the "reveal window" - the extra scroll room, past the footer's own opaque
- * background, where the sticky-pinned peel image becomes visible.
  */
 
 const LINK_CLASS =
@@ -136,36 +131,33 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
 
 export function Footer() {
   return (
-    <div className='relative isolate mt-[120px] pb-[320px] max-sm:mt-16 max-sm:pb-[200px] max-lg:mt-[88px]'>
-      <FooterPeel />
-      <footer className='-mt-[320px] max-sm:-mt-[200px] relative z-30 w-full border-[var(--border)] border-t bg-[var(--bg)]'>
-        <div className='mx-auto w-full max-w-[1460px] px-20 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
-          <nav
-            aria-label='Footer navigation'
-            itemScope
-            itemType='https://schema.org/SiteNavigationElement'
-            className='grid grid-cols-8 gap-x-8 gap-y-10 max-sm:grid-cols-2 max-sm:gap-y-8 max-lg:grid-cols-3'
+    <footer className='mt-[120px] w-full border-[var(--border)] border-t max-sm:mt-16 max-lg:mt-[88px]'>
+      <div className='mx-auto w-full max-w-[1460px] px-20 pt-16 pb-16 max-sm:px-5 max-lg:px-8 max-lg:pt-12 max-lg:pb-12'>
+        <nav
+          aria-label='Footer navigation'
+          itemScope
+          itemType='https://schema.org/SiteNavigationElement'
+          className='grid grid-cols-8 gap-x-8 gap-y-10 max-sm:grid-cols-2 max-sm:gap-y-8 max-lg:grid-cols-3'
+        >
+          <Link
+            href='/'
+            aria-label='Sim home'
+            className='flex h-[18px] items-center max-lg:col-span-full max-lg:mb-2'
           >
-            <Link
-              href='/'
-              aria-label='Sim home'
-              className='flex h-[18px] items-center max-lg:col-span-full max-lg:mb-2'
-            >
-              <SimWordmark />
-            </Link>
+            <SimWordmark />
+          </Link>
 
-            <FooterColumn title='Product' items={PRODUCT_LINKS} />
-            <FooterColumn title='Resources' items={RESOURCES_LINKS} />
-            <FooterColumn title='Blocks' items={BLOCK_LINKS} />
-            <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
-            <FooterColumn title='Models' items={MODEL_LINKS} />
-            <FooterColumn title='Socials' items={SOCIAL_LINKS} />
-            <FooterColumn title='Legal' items={LEGAL_LINKS} />
-          </nav>
+          <FooterColumn title='Product' items={PRODUCT_LINKS} />
+          <FooterColumn title='Resources' items={RESOURCES_LINKS} />
+          <FooterColumn title='Blocks' items={BLOCK_LINKS} />
+          <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
+          <FooterColumn title='Models' items={MODEL_LINKS} />
+          <FooterColumn title='Socials' items={SOCIAL_LINKS} />
+          <FooterColumn title='Legal' items={LEGAL_LINKS} />
+        </nav>
 
-          <p className='mt-16 text-[var(--text-muted)] text-sm'>© 2026 Sim. All rights reserved.</p>
-        </div>
-      </footer>
-    </div>
+        <p className='mt-16 text-[var(--text-muted)] text-sm'>© 2026 Sim. All rights reserved.</p>
+      </div>
+    </footer>
   )
 }
