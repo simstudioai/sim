@@ -1800,27 +1800,6 @@
       "when": 1783531236677,
       "tag": "0257_majestic_chat",
       "breakpoints": true
-    },
-    {
-      "idx": 258,
-      "version": "7",
-      "when": 1783652272227,
-      "tag": "0258_admin_dashboard_support",
-      "breakpoints": true
-    },
-    {
-      "idx": 259,
-      "version": "7",
-      "when": 1783732320830,
-      "tag": "0259_silent_vulture",
-      "breakpoints": true
-    },
-    {
-      "idx": 260,
-      "version": "7",
-      "when": 1783734058145,
-      "tag": "0260_cooing_namor",
-      "breakpoints": true
     }
   ]
 }
