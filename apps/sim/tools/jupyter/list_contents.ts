@@ -1,5 +1,5 @@
 import type { JupyterListContentsParams, JupyterListContentsResponse } from '@/tools/jupyter/types'
-import { encodeJupyterPath } from '@/tools/jupyter/utils'
+import { encodeJupyterPath, parseJupyterContentModel } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterListContentsTool: ToolConfig<
@@ -54,24 +54,27 @@ export const jupyterListContentsTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = parseJupyterContentModel(await response.json()) ?? {}
     const items = Array.isArray(data.content) ? data.content : []
 
     return {
       success: true,
       output: {
-        items: items.map((item: Record<string, unknown>) => ({
-          name: item.name,
-          path: item.path,
-          type: item.type,
-          writable: Boolean(item.writable),
-          created: (item.created as string | undefined) ?? null,
-          lastModified: (item.last_modified as string | undefined) ?? null,
-          size: (item.size as number | undefined) ?? null,
-          mimetype: (item.mimetype as string | undefined) ?? null,
-          format: (item.format as string | undefined) ?? null,
-        })),
-        path: (data.path as string | undefined) ?? params?.path ?? '',
+        items: items.map((item) => {
+          const content = parseJupyterContentModel(item) ?? {}
+          return {
+            name: content.name ?? '',
+            path: content.path ?? '',
+            type: content.type ?? 'file',
+            writable: content.writable ?? false,
+            created: content.created ?? null,
+            lastModified: content.lastModified ?? null,
+            size: content.size ?? null,
+            mimetype: content.mimetype ?? null,
+            format: content.format ?? null,
+          }
+        }),
+        path: data.path ?? params?.path ?? '',
       },
     }
   },

@@ -122,6 +122,7 @@ export interface CatalogModel {
   providerSlug: string
   contextWindow: number | null
   releaseDate: string | null
+  deprecated: boolean
   pricing: PricingInfo
   capabilities: ModelCapabilities
   capabilityTags: string[]
@@ -482,6 +483,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       providerSlug,
       contextWindow: model.contextWindow ?? null,
       releaseDate: model.releaseDate ?? null,
+      deprecated: model.deprecated ?? false,
       pricing: model.pricing,
       capabilities: mergedCapabilities,
       capabilityTags,

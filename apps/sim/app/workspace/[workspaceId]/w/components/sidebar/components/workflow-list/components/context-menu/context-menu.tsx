@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,18 @@ interface ContextMenuProps {
   onMarkAsUnread?: () => void
   onTogglePin?: () => void
   onRename?: () => void
+  /**
+   * Ref to the rename input rendered by the "Rename" action, if any. Radix's
+   * FocusScope defers its close-time focus teardown to a `setTimeout(0)`, which
+   * can run after the rename input's own mount-time `focus()`/`select()` and
+   * clobber the selection (the "rename deselects the text" bug). Focusing from
+   * `onCloseAutoFocus` runs synchronously inside that same deferred teardown, so
+   * it always wins the race regardless of scheduler timing. Only applied when
+   * this specific close was caused by selecting "Rename" (see
+   * `justSelectedRenameRef`) — an unrelated action closing the menu while an
+   * earlier rename is still live must not steal focus back into it.
+   */
+  renameInputRef?: React.RefObject<HTMLInputElement | null>
   onCreate?: () => void
   onCreateFolder?: () => void
   onDuplicate?: () => void
@@ -84,6 +97,7 @@ export function ContextMenu({
   onMarkAsUnread,
   onTogglePin,
   onRename,
+  renameInputRef,
   onCreate,
   onCreateFolder,
   onDuplicate,
@@ -132,6 +146,13 @@ export function ContextMenu({
     (showUploadLogo && onUploadLogo)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
 
+  /**
+   * Only the "Rename" item should trigger the `onCloseAutoFocus` refocus below —
+   * an unrelated action (Delete, Duplicate, ...) closing this menu while a rename
+   * from an earlier interaction is still live must not steal focus back into it.
+   */
+  const justSelectedRenameRef = useRef(false)
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -152,7 +173,16 @@ export function ContextMenu({
         side='bottom'
         sideOffset={4}
         className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
-        onCloseAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault()
+          const shouldFocusRenameInput = justSelectedRenameRef.current
+          justSelectedRenameRef.current = false
+          const input = shouldFocusRenameInput ? renameInputRef?.current : null
+          if (input) {
+            input.focus()
+            input.select()
+          }
+        }}
       >
         {showOpenInNewTab && onOpenInNewTab && (
           <DropdownMenuItem
@@ -210,6 +240,7 @@ export function ContextMenu({
           <DropdownMenuItem
             disabled={disableRename}
             onSelect={() => {
+              justSelectedRenameRef.current = true
               onRename()
               onClose()
             }}

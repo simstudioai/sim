@@ -1,5 +1,6 @@
 import { cn } from '@sim/emcn'
 import { HeroCta } from '@/app/(landing)/components/hero-cta'
+import { LANDING_HERO_CTA_GAP } from '@/app/(landing)/components/landing-layout'
 import { PlatformVisualFrame } from '@/app/(landing)/components/platform-page/components/platform-visual-frame'
 import { PLATFORM_SPACING } from '@/app/(landing)/components/platform-page/constants'
 import type { PlatformHeroConfig } from '@/app/(landing)/components/platform-page/types'
@@ -49,7 +50,9 @@ export function PlatformHero({ hero }: PlatformHeroProps) {
           {hero.description}
         </p>
 
-        <HeroCta />
+        <div className={cn('max-sm:w-full', LANDING_HERO_CTA_GAP)}>
+          <HeroCta />
+        </div>
       </div>
 
       <PlatformVisualFrame size='hero'>{hero.visual}</PlatformVisualFrame>

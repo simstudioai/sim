@@ -36,7 +36,9 @@ export type AttachmentProvider =
   | 'deepseek'
   | 'cerebras'
   | 'sakana'
+  | 'nvidia'
   | 'meta'
+  | 'zai'
 
 export interface PreparedProviderAttachment {
   file: UserFile
@@ -124,7 +126,9 @@ const UNSUPPORTED_FILE_PROVIDERS = new Set<AttachmentProvider>([
   'deepseek',
   'cerebras',
   'sakana',
+  'nvidia',
   'meta',
+  'zai',
 ])
 
 const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
@@ -145,7 +149,9 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   deepseek: 'no file attachments in the current API adapter',
   cerebras: 'no file attachments in the current API adapter',
   sakana: 'no file attachments in the current API adapter',
+  nvidia: 'no file attachments in the current API adapter',
   meta: 'no file attachments in the current API adapter',
+  zai: 'no file attachments in the current API adapter',
 }
 
 export function getAttachmentProvider(providerId: ProviderId | string): AttachmentProvider | null {
@@ -166,7 +172,9 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   if (providerId === 'deepseek') return 'deepseek'
   if (providerId === 'cerebras') return 'cerebras'
   if (providerId === 'sakana') return 'sakana'
+  if (providerId === 'nvidia') return 'nvidia'
   if (providerId === 'meta') return 'meta'
+  if (providerId === 'zai') return 'zai'
   return null
 }
 
@@ -315,7 +323,9 @@ function isMimeTypeSupportedByProvider(
     case 'deepseek':
     case 'cerebras':
     case 'sakana':
+    case 'nvidia':
     case 'meta':
+    case 'zai':
       return false
     default: {
       const _exhaustive: never = provider

@@ -376,10 +376,20 @@ export function hasStandaloneAdvancedFields(
   canonicalIndex: CanonicalIndex
 ): boolean {
   for (const subBlock of subBlocks) {
-    if (subBlock.mode !== 'advanced') continue
+    if (!isStandaloneAdvancedMode(subBlock.mode)) continue
     if (!canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) return true
   }
   return false
+}
+
+/**
+ * True for the modes that make a field advanced-only when it is not part of a
+ * canonical basic/advanced pair: a standalone `advanced` field, or a standalone
+ * `trigger-advanced` field (an advanced option on a trigger block). Both are
+ * hidden until the block-level advanced toggle is on.
+ */
+export function isStandaloneAdvancedMode(mode: SubBlockConfig['mode']): boolean {
+  return mode === 'advanced' || mode === 'trigger-advanced'
 }
 
 /**
@@ -404,7 +414,7 @@ export function hasAdvancedValues(
       continue
     }
 
-    if (subBlock.mode === 'advanced' && isNonEmptyValue(values[subBlock.id])) {
+    if (isStandaloneAdvancedMode(subBlock.mode) && isNonEmptyValue(values[subBlock.id])) {
       return true
     }
   }
@@ -432,7 +442,9 @@ export function isSubBlockVisibleForMode(
   }
 
   if (subBlock.mode === 'basic' && displayAdvancedOptions) return false
-  if (subBlock.mode === 'advanced' && !displayAdvancedOptions) return false
+  // Standalone advanced-only fields (`advanced` or a trigger's `trigger-advanced`)
+  // hide until the block-level advanced toggle is on.
+  if (isStandaloneAdvancedMode(subBlock.mode) && !displayAdvancedOptions) return false
   return true
 }
 

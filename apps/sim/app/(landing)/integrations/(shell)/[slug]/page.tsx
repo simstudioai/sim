@@ -17,6 +17,7 @@ import {
 import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { ShareButton } from '@/app/(landing)/components/share-button'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-cta-button'
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
@@ -494,6 +495,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           >
             View docs
           </ChipLink>
+          <ShareButton url={`${baseUrl}/integrations/${slug}`} title={`${name} Integration`} />
         </div>
 
         <p className='mt-5 text-[var(--text-muted)] text-xs'>

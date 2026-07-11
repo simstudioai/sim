@@ -23,6 +23,7 @@ import {
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isCanonicalPair,
+  isStandaloneAdvancedMode,
   resolveCanonicalMode,
   shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
@@ -185,7 +186,7 @@ export function Editor() {
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
-      if (subBlock.mode !== 'advanced') continue
+      if (!isStandaloneAdvancedMode(subBlock.mode)) continue
       if (canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) continue
 
       if (
@@ -220,7 +221,8 @@ export function Editor() {
 
     for (const subBlock of subBlocks) {
       const isStandaloneAdvanced =
-        subBlock.mode === 'advanced' && !canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+        isStandaloneAdvancedMode(subBlock.mode) &&
+        !canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
 
       if (isStandaloneAdvanced) {
         advancedOnly.push(subBlock)

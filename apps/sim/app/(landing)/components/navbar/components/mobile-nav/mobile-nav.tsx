@@ -38,7 +38,10 @@ interface MobileNavProps {
  * {@link NAV_MENUS} automatically expands them here as grouped sections too - the
  * sheet mirrors the desktop nav's information architecture with no extra edit.
  */
-const STANDALONE_LINKS = [{ label: 'Pricing', href: '/pricing' }] as const
+const STANDALONE_LINKS = [
+  { label: 'Enterprise', href: '/enterprise' },
+  { label: 'Pricing', href: '/pricing' },
+] as const
 
 /** Shared row chrome for every tappable text link in the sheet. */
 const SHEET_ROW =
@@ -151,11 +154,12 @@ export function MobileNav({ stars }: MobileNavProps) {
 
           <div className='mt-3 flex flex-col gap-2'>
             <ChipLink
+              variant='border'
               href='/login'
               fullWidth
               flush
               prefetch={false}
-              className='h-[40px] justify-center border border-[var(--border-1)] [&>span]:flex-none'
+              className='h-[40px] justify-center [&>span]:flex-none'
               onClick={() => setOpen(false)}
             >
               Log in

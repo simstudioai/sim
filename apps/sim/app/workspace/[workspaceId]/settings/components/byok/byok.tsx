@@ -6,6 +6,7 @@ import {
   AnthropicIcon,
   BasetenIcon,
   BrandfetchIcon,
+  ContextDevIcon,
   DatagmaIcon,
   DropcontactIcon,
   EnrowIcon,
@@ -123,6 +124,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: ExaAIIcon,
     description: 'AI-powered search and research',
     placeholder: 'Enter your Exa API key',
+  },
+  {
+    id: 'context_dev',
+    name: 'Context.dev',
+    icon: ContextDevIcon,
+    description: 'Web scraping, crawling, search, and brand intelligence',
+    placeholder: 'Enter your Context.dev API key',
   },
   {
     id: 'serper',
@@ -291,6 +299,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
     ids: [
       'firecrawl',
       'exa',
+      'context_dev',
       'serper',
       'linkup',
       'parallel_ai',

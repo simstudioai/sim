@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type { ContextDevSearchParams, ContextDevSearchResponse } from '@/tools/context_dev/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/context_dev/types'
 import {
@@ -14,6 +15,8 @@ export const contextDevSearchTool: ToolConfig<ContextDevSearchParams, ContextDev
   name: 'Context.dev Search',
   description: 'Search the web with natural language and optionally scrape results to markdown.',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevSearchParams>(),
 
   params: {
     query: {

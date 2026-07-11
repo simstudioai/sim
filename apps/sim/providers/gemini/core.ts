@@ -24,7 +24,9 @@ import {
   ensureStructResponse,
   extractAllFunctionCallParts,
   extractTextContent,
+  mapToThinkingBudget,
   mapToThinkingLevel,
+  supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type {
@@ -952,13 +954,23 @@ export async function executeGeminiRequest(
       )
     }
 
-    // Configure thinking only when the user explicitly selects a thinking level
+    // Gemini 3.x takes thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
     if (request.thinkingLevel && request.thinkingLevel !== 'none') {
-      const thinkingConfig: ThinkingConfig = {
-        includeThoughts: false,
-        thinkingLevel: mapToThinkingLevel(request.thinkingLevel),
+      const thinkingConfig: ThinkingConfig = { includeThoughts: false }
+      if (isGemini3Model(model)) {
+        thinkingConfig.thinkingLevel = mapToThinkingLevel(request.thinkingLevel)
+      } else {
+        thinkingConfig.thinkingBudget = mapToThinkingBudget(model, request.thinkingLevel)
       }
       geminiConfig.thinkingConfig = thinkingConfig
+    } else if (
+      request.thinkingLevel === 'none' &&
+      !isGemini3Model(model) &&
+      supportsDisablingGemini25Thinking(model)
+    ) {
+      // Omitting thinkingConfig falls back to the API's dynamic default (ON for gemini-2.5-flash),
+      // so disabling requires an explicit budget of 0.
+      geminiConfig.thinkingConfig = { includeThoughts: false, thinkingBudget: 0 }
     }
 
     // Prepare tools

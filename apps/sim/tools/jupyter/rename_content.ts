@@ -2,7 +2,11 @@ import type {
   JupyterRenameContentParams,
   JupyterRenameContentResponse,
 } from '@/tools/jupyter/types'
-import { assertSafeJupyterPath, encodeJupyterPath } from '@/tools/jupyter/utils'
+import {
+  assertSafeJupyterPath,
+  encodeJupyterPath,
+  parseJupyterContentModel,
+} from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterRenameContentTool: ToolConfig<
@@ -64,14 +68,14 @@ export const jupyterRenameContentTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = parseJupyterContentModel(await response.json()) ?? {}
 
     return {
       success: true,
       output: {
-        name: (data.name as string | undefined) ?? '',
-        path: (data.path as string | undefined) ?? params?.newPath ?? '',
-        lastModified: (data.last_modified as string | undefined) ?? null,
+        name: data.name ?? '',
+        path: data.path ?? params?.newPath ?? '',
+        lastModified: data.lastModified ?? null,
       },
     }
   },

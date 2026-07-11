@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import {
   Cta,
   Features,
@@ -6,6 +7,7 @@ import {
   Mothership,
   ProductDemo,
 } from '@/app/(landing)/components'
+import { LANDING_SECTION_RHYTHM } from '@/app/(landing)/components/landing-layout'
 
 /**
  * Landing page root - owns the section order and the `<main>` content region.
@@ -23,7 +25,7 @@ import {
  */
 export default function Landing() {
   return (
-    <main id='main-content' className='flex flex-col gap-[120px] max-sm:gap-16 max-lg:gap-[88px]'>
+    <main id='main-content' className={cn('flex flex-col', LANDING_SECTION_RHYTHM)}>
       <HomeStructuredData />
       <Hero />
       <ProductDemo />
