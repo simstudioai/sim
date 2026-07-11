@@ -1,15 +1,23 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderMutable,
+  assertResourceMutable,
+  ResourceLockedError,
+} from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import {
+  performCreateFolder,
+  performRestoreFolder,
+  performUpdateFolder,
+} from '@/lib/folders/orchestration'
+import {
   bulkArchiveWorkspaceFileItems,
-  createWorkspaceFileFolder,
   FileConflictError,
+  getWorkspaceFileFolder,
   moveWorkspaceFileItems,
   renameWorkspaceFile,
   restoreWorkspaceFile,
-  restoreWorkspaceFileFolder,
-  updateWorkspaceFileFolder,
   type WorkspaceFileArchiveResult,
   WorkspaceFileFolderConflictError,
   type WorkspaceFileFolderRecord,
@@ -24,6 +32,7 @@ export type WorkspaceFilesOrchestrationErrorCode =
   | 'validation'
   | 'not_found'
   | 'conflict'
+  | 'locked'
   | 'internal'
 
 export function workspaceFilesOrchestrationStatus(
@@ -32,6 +41,7 @@ export function workspaceFilesOrchestrationStatus(
   if (errorCode === 'validation') return 400
   if (errorCode === 'conflict') return 409
   if (errorCode === 'not_found') return 404
+  if (errorCode === 'locked') return 423
   return 500
 }
 
@@ -69,6 +79,9 @@ export interface PerformRenameWorkspaceFileParams {
   fileId: string
   name: string
   userId: string
+  locked?: boolean
+  /** True when `name` is unchanged and only `locked` is being toggled. */
+  isLockOnlyUpdate?: boolean
 }
 
 export interface PerformRenameWorkspaceFileResult {
@@ -148,6 +161,9 @@ export async function performDeleteWorkspaceFileItems(
   }
 
   try {
+    await Promise.all(fileIds.map((id) => assertResourceMutable('file', id)))
+    await Promise.all(folderIds.map((id) => assertFolderMutable(id, 'file')))
+
     const deletedItems = await bulkArchiveWorkspaceFileItems({ workspaceId, fileIds, folderIds })
 
     if (fileIds.length === 1 && folderIds.length === 0 && deletedItems.files === 0) {
@@ -195,6 +211,9 @@ export async function performDeleteWorkspaceFileItems(
 
     return { success: true, deletedItems }
   } catch (error) {
+    if (error instanceof ResourceLockedError) {
+      return { success: false, error: error.message, errorCode: 'locked' }
+    }
     logger.error('Failed to delete workspace file items', { error })
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
@@ -214,6 +233,14 @@ export async function performMoveWorkspaceFileItems(
   }
 
   try {
+    await Promise.all(fileIds.map((id) => assertResourceMutable('file', id)))
+    await Promise.all(folderIds.map((id) => assertFolderMutable(id, 'file')))
+    // The checks above only cover each moved item's *current* folder chain —
+    // without this, an item could be moved out of an unlocked folder into a locked one.
+    if (targetFolderId) {
+      await assertFolderMutable(targetFolderId, 'file')
+    }
+
     const moved = await moveWorkspaceFileItems({
       workspaceId,
       fileIds,
@@ -255,6 +282,9 @@ export async function performMoveWorkspaceFileItems(
 
     return { success: true, movedItems }
   } catch (error) {
+    if (error instanceof ResourceLockedError) {
+      return { success: false, error: error.message, errorCode: 'locked' }
+    }
     logger.error('Failed to move workspace file items', { error })
     if (
       error instanceof WorkspaceFileMoveConflictError ||
@@ -280,10 +310,14 @@ export async function performMoveWorkspaceFileItems(
 export async function performRenameWorkspaceFile(
   params: PerformRenameWorkspaceFileParams
 ): Promise<PerformRenameWorkspaceFileResult> {
-  const { workspaceId, fileId, name, userId } = params
+  const { workspaceId, fileId, name, userId, locked, isLockOnlyUpdate } = params
 
   try {
-    const file = await renameWorkspaceFile(workspaceId, fileId, name)
+    if (!isLockOnlyUpdate) {
+      await assertResourceMutable('file', fileId)
+    }
+
+    const file = await renameWorkspaceFile(workspaceId, fileId, name, locked)
 
     logger.info('Renamed workspace file', { workspaceId, fileId, name: file.name })
 
@@ -299,6 +333,9 @@ export async function performRenameWorkspaceFile(
 
     return { success: true, file }
   } catch (error) {
+    if (error instanceof ResourceLockedError) {
+      return { success: false, error: error.message, errorCode: 'locked' }
+    }
     logger.error('Failed to rename workspace file', { error })
     if (error instanceof FileConflictError || getPostgresErrorCode(error) === '23505') {
       return { success: false, error: toError(error).message, errorCode: 'conflict' }
@@ -313,6 +350,7 @@ export async function performRestoreWorkspaceFile(
   const { workspaceId, fileId, userId } = params
 
   try {
+    await assertResourceMutable('file', fileId)
     await restoreWorkspaceFile(workspaceId, fileId)
 
     logger.info('Restored workspace file', { workspaceId, fileId })
@@ -329,6 +367,9 @@ export async function performRestoreWorkspaceFile(
 
     return { success: true }
   } catch (error) {
+    if (error instanceof ResourceLockedError) {
+      return { success: false, error: error.message, errorCode: 'locked' }
+    }
     logger.error('Failed to restore workspace file', { error })
     if (error instanceof FileConflictError || getPostgresErrorCode(error) === '23505') {
       return { success: false, error: toError(error).message, errorCode: 'conflict' }
@@ -337,121 +378,85 @@ export async function performRestoreWorkspaceFile(
   }
 }
 
+/**
+ * Delegates to the generic `resourceType: 'file'` folder CRUD in
+ * `@/lib/folders/orchestration` (single source of truth for folder audit
+ * recording) and re-fetches the VFS-flavored `WorkspaceFileFolderRecord`
+ * (adds the computed `path` the generic `Folder` shape doesn't carry).
+ */
 export async function performCreateWorkspaceFileFolder(
   params: PerformCreateWorkspaceFileFolderParams
 ): Promise<PerformCreateWorkspaceFileFolderResult> {
   const { workspaceId, userId, name, parentId } = params
 
-  try {
-    const folder = await createWorkspaceFileFolder({ workspaceId, userId, name, parentId })
-
-    logger.info('Created workspace file folder', { workspaceId, folderId: folder.id })
-
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      action: AuditAction.FOLDER_CREATED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folder.id,
-      resourceName: folder.name,
-      description: `Created file folder "${folder.name}"`,
-    })
-
-    return { success: true, folder }
-  } catch (error) {
-    logger.error('Failed to create workspace file folder', { error })
-    if (
-      error instanceof WorkspaceFileFolderConflictError ||
-      getPostgresErrorCode(error) === '23505'
-    ) {
-      return { success: false, error: toError(error).message, errorCode: 'conflict' }
-    }
-    return { success: false, error: toError(error).message, errorCode: 'internal' }
+  const result = await performCreateFolder({
+    resourceType: 'file',
+    workspaceId,
+    userId,
+    name,
+    parentId,
+  })
+  if (!result.success || !result.folder) {
+    return { success: false, error: result.error, errorCode: result.errorCode }
   }
+
+  const folder = await getWorkspaceFileFolder(workspaceId, result.folder.id)
+  if (!folder) {
+    return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+  }
+
+  logger.info('Created workspace file folder', { workspaceId, folderId: folder.id })
+  return { success: true, folder }
 }
 
+/** See `performCreateWorkspaceFileFolder` — delegates to the generic layer, re-fetches for `path`. */
 export async function performUpdateWorkspaceFileFolder(
   params: PerformUpdateWorkspaceFileFolderParams
 ): Promise<PerformUpdateWorkspaceFileFolderResult> {
   const { workspaceId, folderId, userId, name, parentId, sortOrder } = params
 
-  try {
-    const folder = await updateWorkspaceFileFolder({
-      workspaceId,
-      folderId,
-      name,
-      parentId,
-      sortOrder,
-    })
-
-    logger.info('Updated workspace file folder', { workspaceId, folderId })
-
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      action: AuditAction.FOLDER_UPDATED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folderId,
-      resourceName: folder.name,
-      description: `Updated file folder "${folder.name}"`,
-    })
-
-    return { success: true, folder }
-  } catch (error) {
-    logger.error('Failed to update workspace file folder', { error })
-    if (
-      error instanceof WorkspaceFileFolderConflictError ||
-      getPostgresErrorCode(error) === '23505'
-    ) {
-      return {
-        success: false,
-        error:
-          getPostgresErrorCode(error) === '23505'
-            ? 'A folder with this name already exists in this location'
-            : toError(error).message,
-        errorCode: 'conflict',
-      }
-    }
-    return { success: false, error: toError(error).message, errorCode: 'internal' }
+  const result = await performUpdateFolder({
+    resourceType: 'file',
+    workspaceId,
+    folderId,
+    userId,
+    name,
+    parentId,
+    sortOrder,
+  })
+  if (!result.success || !result.folder) {
+    return { success: false, error: result.error, errorCode: result.errorCode }
   }
+
+  const folder = await getWorkspaceFileFolder(workspaceId, folderId)
+  if (!folder) {
+    return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+  }
+
+  logger.info('Updated workspace file folder', { workspaceId, folderId })
+  return { success: true, folder }
 }
 
+/** See `performCreateWorkspaceFileFolder` — delegates to the generic layer, re-fetches for `path`. */
 export async function performRestoreWorkspaceFileFolder(
   params: PerformRestoreWorkspaceFileFolderParams
 ): Promise<PerformRestoreWorkspaceFileFolderResult> {
   const { workspaceId, folderId, userId } = params
 
-  try {
-    const { folder, restoredItems } = await restoreWorkspaceFileFolder(workspaceId, folderId)
-
-    logger.info('Restored workspace file folder', { workspaceId, folderId, restoredItems })
-
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      action: AuditAction.FOLDER_RESTORED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folderId,
-      resourceName: folder.name,
-      description: `Restored file folder "${folder.name}"`,
-      metadata: {
-        affected: {
-          files: restoredItems.files,
-          subfolders: Math.max(0, restoredItems.folders - 1),
-        },
-      },
-    })
-
-    return { success: true, folder, restoredItems }
-  } catch (error) {
-    logger.error('Failed to restore workspace file folder', { error })
-    if (getPostgresErrorCode(error) === '23505') {
-      return {
-        success: false,
-        error: 'A folder with this name already exists in this location',
-        errorCode: 'conflict',
-      }
-    }
-    return { success: false, error: toError(error).message, errorCode: 'internal' }
+  const result = await performRestoreFolder({ resourceType: 'file', workspaceId, folderId, userId })
+  if (!result.success || !result.restoredItems) {
+    return { success: false, error: result.error, errorCode: 'not_found' }
   }
+
+  const folder = await getWorkspaceFileFolder(workspaceId, folderId)
+  if (!folder) {
+    return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+  }
+
+  const restoredItems: WorkspaceFileArchiveResult = {
+    folders: result.restoredItems.folders,
+    files: result.restoredItems.files ?? 0,
+  }
+  logger.info('Restored workspace file folder', { workspaceId, folderId, restoredItems })
+  return { success: true, folder, restoredItems }
 }

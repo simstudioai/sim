@@ -24,7 +24,7 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { folder, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -151,8 +151,9 @@ export const POST = withRouteHandler(
       let rootFolderId: string | undefined
       if (rootFolderName && createFolders) {
         rootFolderId = generateId()
-        await db.insert(workflowFolder).values({
+        await db.insert(folder).values({
           id: rootFolderId,
+          resourceType: 'workflow',
           name: rootFolderName,
           userId: workspaceData.ownerId,
           workspaceId,
@@ -229,8 +230,9 @@ async function importSingleWorkflow(
 
         if (!folderMap.has(fullPath)) {
           const folderId = generateId()
-          await db.insert(workflowFolder).values({
+          await db.insert(folder).values({
             id: folderId,
+            resourceType: 'workflow',
             name: wf.folderPath[i],
             userId: ownerId,
             workspaceId,

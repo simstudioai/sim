@@ -1,13 +1,14 @@
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createFolderContract, listFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { performCreateFolder } from '@/lib/folders/orchestration'
+import { FOLDER_RESOURCE_POLICIES } from '@/lib/folders/policy'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performCreateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')
@@ -19,7 +20,6 @@ function folderMutationStatus(errorCode: string | undefined): number {
   return 500
 }
 
-// GET - Fetch folders for a workspace
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
@@ -29,9 +29,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const parsed = await parseRequest(listFoldersContract, request, {})
     if (!parsed.success) return parsed.response
-    const { workspaceId, scope } = parsed.data.query
+    const { workspaceId, resourceType, scope } = parsed.data.query
 
-    // Check if user has workspace permissions
     const workspacePermission = await getUserEntityPermissions(
       session.user.id,
       'workspace',
@@ -42,7 +41,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied to this workspace' }, { status: 403 })
     }
 
-    const folders = await listFoldersForWorkspace(workspaceId, scope)
+    const folders = await listFoldersForWorkspace(workspaceId, resourceType, scope)
 
     return NextResponse.json({ folders })
   } catch (error) {
@@ -51,7 +50,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 })
 
-// POST - Create a new folder
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
@@ -63,10 +61,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const {
       id: clientId,
+      resourceType,
       name,
       workspaceId,
       parentId,
-      color,
       sortOrder: providedSortOrder,
     } = parsed.data.body
 
@@ -83,15 +81,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    await assertFolderMutable(parentId ?? null)
+    await FOLDER_RESOURCE_POLICIES[resourceType].assertMutable(parentId ?? null)
 
     const result = await performCreateFolder({
       id: clientId,
+      resourceType,
       userId: session.user.id,
       workspaceId,
       name,
       parentId,
-      color,
       sortOrder: providedSortOrder,
     })
 
@@ -115,7 +113,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ folder: newFolder })
   } catch (error) {
-    if (error instanceof FolderLockedError) {
+    if (error instanceof ResourceLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
     logger.error('Error creating folder:', { error })

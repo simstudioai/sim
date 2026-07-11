@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
@@ -12,8 +13,10 @@ import {
   getKnowledgeBaseById,
   KnowledgeBaseConflictError,
   KnowledgeBasePermissionError,
+  KnowledgeBaseValidationError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseByIdAPI')
@@ -94,13 +97,28 @@ export const PUT = withRouteHandler(
 
       const validatedData = parsed.data.body
 
+      if (validatedData.locked !== undefined) {
+        const workspaceId = accessCheck.knowledgeBase.workspaceId
+        const workspacePermission = workspaceId
+          ? await getUserEntityPermissions(userId, 'workspace', workspaceId)
+          : null
+        if (workspacePermission !== 'admin') {
+          return NextResponse.json(
+            { error: 'Admin access required to lock knowledge bases' },
+            { status: 403 }
+          )
+        }
+      }
+
       const updatedKnowledgeBase = await updateKnowledgeBase(
         id,
         {
           name: validatedData.name,
           description: validatedData.description,
           workspaceId: validatedData.workspaceId,
+          folderId: validatedData.folderId,
           chunkingConfig: validatedData.chunkingConfig,
+          locked: validatedData.locked,
         },
         requestId,
         { actorUserId: userId }
@@ -140,12 +158,18 @@ export const PUT = withRouteHandler(
         data: updatedKnowledgeBase,
       })
     } catch (error) {
+      if (error instanceof ResourceLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
       if (error instanceof KnowledgeBaseConflictError) {
         return NextResponse.json({ error: error.message }, { status: 409 })
       }
       if (error instanceof KnowledgeBasePermissionError) {
         logger.warn(`[${requestId}] Forbidden knowledge base update on ${id}: ${error.message}`)
         return NextResponse.json({ error: error.message }, { status: 403 })
+      }
+      if (error instanceof KnowledgeBaseValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
       logger.error(`[${requestId}] Error updating knowledge base`, error)
@@ -213,6 +237,9 @@ export const DELETE = withRouteHandler(
         data: { message: 'Knowledge base deleted successfully' },
       })
     } catch (error) {
+      if (error instanceof ResourceLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
       logger.error(`[${requestId}] Error deleting knowledge base`, error)
       return NextResponse.json({ error: 'Failed to delete knowledge base' }, { status: 500 })
     }

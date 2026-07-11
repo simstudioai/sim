@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getTableQuerySchema, renameTableContract } from '@/lib/api/contracts/tables'
@@ -9,6 +10,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { deleteTable, renameTable, TableConflictError, type TableSchema } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDetailAPI')
@@ -65,6 +67,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
           metadata: table.metadata ?? null,
           rowCount: table.rowCount,
           maxRows: maxRowsPerTable,
+          locked: table.locked,
           createdAt:
             table.createdAt instanceof Date
               ? table.createdAt.toISOString()
@@ -125,15 +128,47 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      const updated = await renameTable(tableId, validated.name, requestId, authResult.userId)
+      if (validated.locked !== undefined && validated.locked !== table.locked) {
+        const workspacePermission = await getUserEntityPermissions(
+          authResult.userId,
+          'workspace',
+          table.workspaceId
+        )
+        if (workspacePermission !== 'admin') {
+          return NextResponse.json(
+            { error: 'Admin access required to lock tables' },
+            { status: 403 }
+          )
+        }
+      }
+
+      const isLockOnlyUpdate =
+        validated.name === table.name &&
+        (validated.folderId === undefined || validated.folderId === (table.folderId ?? null))
+
+      const updated = await renameTable(
+        tableId,
+        validated.name,
+        requestId,
+        authResult.userId,
+        validated.folderId,
+        validated.locked,
+        isLockOnlyUpdate
+      )
 
       return NextResponse.json({
         success: true,
         data: { table: updated },
       })
     } catch (error) {
+      if (error instanceof ResourceLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
       if (error instanceof TableConflictError) {
         return NextResponse.json({ error: error.message }, { status: 409 })
+      }
+      if (error instanceof Error && error.message.includes('Invalid folderId')) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
       logger.error(`[${requestId}] Error renaming table:`, error)
@@ -190,6 +225,9 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       if (isZodError(error)) {
         return validationErrorResponse(error)
+      }
+      if (error instanceof ResourceLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
       logger.error(`[${requestId}] Error deleting table:`, error)

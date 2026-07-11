@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { listIntegrations } from '@/blocks/integration-matcher'
+import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { mentionIcon } from './mention-icon'
 import type { MentionItem } from './types'
@@ -27,7 +27,7 @@ export function useMarkdownMentions(
   const wsStr = ws ?? ''
 
   const files = useWorkspaceFiles(wsStr, 'active', { enabled: active })
-  const folders = useWorkspaceFileFolders(wsStr, 'active')
+  const folders = useFolders(wsStr, { resourceType: 'file', scope: 'active' })
   const tables = useTablesList(ws, 'active')
   const knowledgeBases = useKnowledgeBasesQuery(ws, { enabled: active })
   const workflows = useWorkflows(ws)

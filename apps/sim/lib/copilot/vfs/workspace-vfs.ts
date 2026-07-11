@@ -1,15 +1,15 @@
 import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
-  chat as chatTable,
+  chat,
   copilotChats,
   document,
   jobExecutionLogs,
   knowledgeConnector,
-  mcpServers as mcpServersTable,
+  mcpServers,
   workflowDeploymentVersion,
   workflowExecutionLogs,
-  workflowFolder,
+  folder as workflowFolder,
   workflowMcpServer,
   workflowMcpTool,
   workflowSchedule,
@@ -1782,16 +1782,16 @@ export class WorkspaceVFS {
     const [chatRows, mcpRows, versionRows, allVersionRows] = await Promise.all([
       db
         .select({
-          id: chatTable.id,
-          identifier: chatTable.identifier,
-          title: chatTable.title,
-          description: chatTable.description,
-          authType: chatTable.authType,
-          customizations: chatTable.customizations,
-          isActive: chatTable.isActive,
+          id: chat.id,
+          identifier: chat.identifier,
+          title: chat.title,
+          description: chat.description,
+          authType: chat.authType,
+          customizations: chat.customizations,
+          isActive: chat.isActive,
         })
-        .from(chatTable)
-        .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
+        .from(chat)
+        .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt))),
       db
         .select({
           serverId: workflowMcpTool.serverId,
@@ -1966,8 +1966,8 @@ export class WorkspaceVFS {
     try {
       const servers = await db
         .select()
-        .from(mcpServersTable)
-        .where(and(eq(mcpServersTable.workspaceId, workspaceId), isNull(mcpServersTable.deletedAt)))
+        .from(mcpServers)
+        .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
 
       for (const server of servers) {
         const safeName = sanitizeName(server.name)
@@ -2241,11 +2241,15 @@ export class WorkspaceVFS {
           .select({
             id: workflowFolder.id,
             name: workflowFolder.name,
-            archivedAt: workflowFolder.archivedAt,
+            archivedAt: workflowFolder.deletedAt,
           })
           .from(workflowFolder)
           .where(
-            and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
+            and(
+              eq(workflowFolder.workspaceId, workspaceId),
+              eq(workflowFolder.resourceType, 'workflow'),
+              isNotNull(workflowFolder.deletedAt)
+            )
           ),
         listTables(workspaceId, { scope: 'archived' }),
         listWorkspaceFiles(workspaceId, { scope: 'archived' }),

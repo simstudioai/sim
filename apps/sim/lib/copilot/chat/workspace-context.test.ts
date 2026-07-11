@@ -12,7 +12,7 @@ vi.mock('@sim/db/schema', () => ({
   userTableDefinitions: {},
   userTableRows: {},
   workflow: {},
-  workflowFolder: {},
+  folder: {},
   workflowSchedule: {},
 }))
 

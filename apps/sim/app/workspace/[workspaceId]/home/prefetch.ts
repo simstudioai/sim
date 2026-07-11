@@ -28,10 +28,10 @@ export async function prefetchHomeLists(
 ): Promise<void> {
   await Promise.all([
     queryClient.prefetchQuery({
-      queryKey: folderKeys.list(workspaceId, 'active'),
+      queryKey: folderKeys.list(workspaceId, 'workflow', 'active'),
       queryFn: async () => {
         const { folders } = await prefetchInternalJson<{ folders?: FolderApi[] }>(
-          `/api/folders?workspaceId=${workspaceId}&scope=active`
+          `/api/folders?workspaceId=${workspaceId}&resourceType=workflow&scope=active`
         )
         return (folders ?? []).map(mapFolder)
       },

@@ -1,20 +1,20 @@
 import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
+import { folder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { eq } from 'drizzle-orm'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { performDeleteFolder, performUpdateFolder } from '@/lib/folders/orchestration'
+import { FOLDER_RESOURCE_POLICIES } from '@/lib/folders/policy'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteFolder, performUpdateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersIDAPI')
 
-// PUT - Update a folder
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
@@ -38,20 +38,18 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const { id } = parsed.data.params
-      const { name, color, isExpanded, locked, parentId, sortOrder } = parsed.data.body
+      const { name, locked, parentId, sortOrder } = parsed.data.body
 
-      // Verify the folder exists
       const existingFolder = await db
         .select()
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, id))
+        .from(folder)
+        .where(and(eq(folder.id, id), isNull(folder.deletedAt)))
         .then((rows) => rows[0])
 
       if (!existingFolder) {
         return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
       }
 
-      // Check if user has write permissions for the workspace
       const workspacePermission = await getUserEntityPermissions(
         session.user.id,
         'workspace',
@@ -65,6 +63,14 @@ export const PUT = withRouteHandler(
         )
       }
 
+      const policy = FOLDER_RESOURCE_POLICIES[existingFolder.resourceType]
+
+      if (locked !== undefined && !policy.supportsLocking) {
+        return NextResponse.json(
+          { error: `Folders of type "${existingFolder.resourceType}" do not support locking` },
+          { status: 400 }
+        )
+      }
       if (locked !== undefined && workspacePermission !== 'admin') {
         return NextResponse.json(
           { error: 'Admin access required to lock folders' },
@@ -74,19 +80,18 @@ export const PUT = withRouteHandler(
 
       const hasNonLockUpdate = Object.keys(parsed.data.body).some((key) => key !== 'locked')
       if (hasNonLockUpdate) {
-        await assertFolderMutable(id)
+        await policy.assertMutable(id)
       }
       if (parentId !== undefined) {
-        await assertFolderMutable(parentId)
+        await policy.assertMutable(parentId)
       }
 
       const result = await performUpdateFolder({
+        resourceType: existingFolder.resourceType,
         folderId: id,
         workspaceId: existingFolder.workspaceId,
         userId: session.user.id,
         name,
-        color,
-        isExpanded,
         locked,
         parentId,
         sortOrder,
@@ -102,7 +107,7 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ folder: result.folder })
     } catch (error) {
-      if (error instanceof FolderLockedError) {
+      if (error instanceof ResourceLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
@@ -112,7 +117,6 @@ export const PUT = withRouteHandler(
   }
 )
 
-// DELETE - Delete a folder and all its contents
 export const DELETE = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     try {
@@ -123,11 +127,10 @@ export const DELETE = withRouteHandler(
 
       const { id } = await params
 
-      // Verify the folder exists
       const existingFolder = await db
         .select()
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, id))
+        .from(folder)
+        .where(and(eq(folder.id, id), isNull(folder.deletedAt)))
         .then((rows) => rows[0])
 
       if (!existingFolder) {
@@ -147,9 +150,10 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      await assertFolderMutable(id)
+      await FOLDER_RESOURCE_POLICIES[existingFolder.resourceType].assertMutable(id)
 
       const result = await performDeleteFolder({
+        resourceType: existingFolder.resourceType,
         folderId: id,
         workspaceId: existingFolder.workspaceId,
         userId: session.user.id,
@@ -174,7 +178,7 @@ export const DELETE = withRouteHandler(
         deletedItems: result.deletedItems,
       })
     } catch (error) {
-      if (error instanceof FolderLockedError) {
+      if (error instanceof ResourceLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
 

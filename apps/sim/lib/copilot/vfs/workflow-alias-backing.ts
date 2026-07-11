@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
+import { folder as workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
   WORKFLOW_CHANGELOG_BACKING_FOLDER,
@@ -172,6 +172,7 @@ export async function cleanupWorkflowAliasBacking(args: {
       .where(
         and(
           eq(workspaceFileFolder.workspaceId, args.workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file'),
           inArray(workspaceFileFolder.id, ownedFolderIds),
           isNull(workspaceFileFolder.deletedAt)
         )

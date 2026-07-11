@@ -7,7 +7,7 @@ import {
   memory,
   userTableDefinitions,
   workflow,
-  workflowFolder,
+  folder as workflowFolder,
   workflowMcpServer,
   workspaceFile,
   workspaceFiles,
@@ -137,8 +137,11 @@ async function cleanupWorkspaceFileStorage(
 const CLEANUP_TARGETS = [
   {
     table: workflowFolder,
-    softDeleteCol: workflowFolder.archivedAt,
+    softDeleteCol: workflowFolder.deletedAt,
     wsCol: workflowFolder.workspaceId,
+    // `folder` is now a polymorphic table shared with file/knowledge_base/table
+    // folders — scope hard-delete to workflow folders only.
+    extraPredicate: eq(workflowFolder.resourceType, 'workflow'),
     name: 'workflowFolder',
   },
   {
@@ -339,6 +342,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
       retentionDate,
       tableName: `${label}/${target.name}`,
       requireTimestampNotNull: true,
+      extraPredicate: 'extraPredicate' in target ? target.extraPredicate : undefined,
     })
     totalDeleted += result.deleted
   }

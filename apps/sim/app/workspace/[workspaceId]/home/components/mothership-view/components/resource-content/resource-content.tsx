@@ -161,6 +161,7 @@ export const ResourceContent = memo(function ResourceContent({
       size: 0,
       type,
       uploadedBy: '',
+      locked: false,
       uploadedAt: STREAMING_EPOCH,
       updatedAt: STREAMING_EPOCH,
     }

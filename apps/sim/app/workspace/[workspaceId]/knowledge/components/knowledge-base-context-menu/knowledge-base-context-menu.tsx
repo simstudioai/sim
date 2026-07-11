@@ -8,7 +8,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Duplicate, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@sim/emcn/icons'
+import {
+  Duplicate,
+  Lock,
+  Pencil,
+  SquareArrowUpRight,
+  TagIcon,
+  Trash,
+  Unlock,
+} from '@sim/emcn/icons'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean
@@ -19,12 +27,16 @@ interface KnowledgeBaseContextMenuProps {
   onCopyId?: () => void
   onEdit?: () => void
   onDelete?: () => void
+  onToggleLock?: () => void
   showOpenInNewTab?: boolean
   showViewTags?: boolean
   showEdit?: boolean
   showDelete?: boolean
+  showLock?: boolean
   disableEdit?: boolean
   disableDelete?: boolean
+  disableLock?: boolean
+  isLocked?: boolean
 }
 
 /**
@@ -40,16 +52,20 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   onCopyId,
   onEdit,
   onDelete,
+  onToggleLock,
   showOpenInNewTab = true,
   showViewTags = true,
   showEdit = true,
   showDelete = true,
+  showLock = false,
   disableEdit = false,
   disableDelete = false,
+  disableLock = false,
+  isLocked = false,
 }: KnowledgeBaseContextMenuProps) {
   const hasNavigationSection = showOpenInNewTab && !!onOpenInNewTab
   const hasInfoSection = (showViewTags && !!onViewTags) || !!onCopyId
-  const hasEditSection = showEdit && !!onEdit
+  const hasEditSection = (showEdit && !!onEdit) || (showLock && !!onToggleLock)
   const hasDestructiveSection = showDelete && !!onDelete
 
   return (
@@ -102,6 +118,12 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
           <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
             <Pencil />
             Edit
+          </DropdownMenuItem>
+        )}
+        {showLock && onToggleLock && (
+          <DropdownMenuItem disabled={disableLock} onSelect={onToggleLock}>
+            {isLocked ? <Unlock /> : <Lock />}
+            {isLocked ? 'Unlock' : 'Lock'}
           </DropdownMenuItem>
         )}
 

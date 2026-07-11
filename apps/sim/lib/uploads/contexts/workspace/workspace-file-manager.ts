@@ -68,6 +68,7 @@ export interface WorkspaceFileRecord {
   uploadedBy: string
   folderId?: string | null
   folderPath?: string | null
+  locked: boolean
   deletedAt?: Date | null
   uploadedAt: Date
   updatedAt: Date
@@ -580,6 +581,7 @@ function mapWorkspaceFileRecord(
     uploadedBy: file.userId,
     folderId: file.folderId,
     folderPath: file.folderId ? (folderPaths.get(file.folderId) ?? null) : null,
+    locked: file.locked,
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
     updatedAt: file.updatedAt,
@@ -963,7 +965,8 @@ export async function updateWorkspaceFileContent(
 export async function renameWorkspaceFile(
   workspaceId: string,
   fileId: string,
-  newName: string
+  newName: string,
+  locked?: boolean
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Renaming workspace file: ${fileId} to "${newName}" in workspace ${workspaceId}`)
 
@@ -975,20 +978,26 @@ export async function renameWorkspaceFile(
     throw new Error('File not found')
   }
 
-  if (fileRecord.name === normalizedName) {
+  if (fileRecord.name === normalizedName && locked === undefined) {
     return fileRecord
   }
 
-  const exists = await fileExistsInWorkspace(workspaceId, normalizedName, fileRecord.folderId)
-  if (exists) {
-    throw new FileConflictError(normalizedName)
+  if (fileRecord.name !== normalizedName) {
+    const exists = await fileExistsInWorkspace(workspaceId, normalizedName, fileRecord.folderId)
+    if (exists) {
+      throw new FileConflictError(normalizedName)
+    }
   }
 
   let updated: { id: string }[]
   try {
     updated = await db
       .update(workspaceFiles)
-      .set({ originalName: normalizedName, updatedAt: new Date() })
+      .set({
+        originalName: normalizedName,
+        updatedAt: new Date(),
+        ...(locked !== undefined ? { locked } : {}),
+      })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -1013,6 +1022,7 @@ export async function renameWorkspaceFile(
   return {
     ...fileRecord,
     name: normalizedName,
+    locked: locked !== undefined ? locked : fileRecord.locked,
   }
 }
 

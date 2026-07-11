@@ -638,7 +638,7 @@ const DataRow = memo(function DataRow({
       data-resource-row
       data-row-id={row.id}
       className={cn(
-        'grid w-full transition-colors',
+        'group grid w-full transition-colors',
         isWindowed && 'absolute top-0 left-0',
         !isAnyDragActive && 'hover-hover:bg-[var(--surface-3)]',
         onRowClick && 'cursor-pointer',

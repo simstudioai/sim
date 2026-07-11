@@ -7,6 +7,10 @@ import {
   ChipConfirmModal,
   Columns2,
   type ComboboxOption,
+  cellIconNodeClass,
+  chipContentGap,
+  chipContentLabelClass,
+  cn,
   Eye,
   File as FilesIcon,
   Folder,
@@ -18,12 +22,13 @@ import {
   toast,
   Upload,
 } from '@sim/emcn'
-import { Download, Send } from '@sim/emcn/icons'
+import { Download, Lock, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { PinButton } from '@/components/folders/pin-button'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
@@ -57,6 +62,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   EMPTY_CELL_PLACEHOLDER,
+  FloatingOverflowText,
   ownerCell,
   Resource,
   timeCell,
@@ -78,14 +84,13 @@ import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-op
 import { filesParsers, filesUrlKeys } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useCreateFolder, useFolders, useUpdateFolder } from '@/hooks/queries/folders'
+import { usePinnedIds } from '@/hooks/queries/pinned-items'
+import { isFolderOrAncestorLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
   useBulkArchiveWorkspaceFileItems,
-  useCreateWorkspaceFileFolder,
   useMoveWorkspaceFileItems,
-  useUpdateWorkspaceFileFolder,
-  useWorkspaceFileFolders,
-  type WorkspaceFileFolderApi,
 } from '@/hooks/queries/workspace-file-folders'
 import {
   useDeleteWorkspaceFile,
@@ -94,13 +99,16 @@ import {
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useFolderBreadcrumbs } from '@/hooks/use-folder-breadcrumbs'
+import { useFolderCreateWithDedup } from '@/hooks/use-folder-create-with-dedup'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import type { Folder as FolderType } from '@/stores/folders/types'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type FileResourceItem =
   | { kind: 'file'; id: string; file: WorkspaceFileRecord }
-  | { kind: 'folder'; id: string; folder: WorkspaceFileFolderApi }
+  | { kind: 'folder'; id: string; folder: FolderType }
 
 const logger = createLogger('Files')
 
@@ -140,7 +148,7 @@ const MIME_TYPE_LABELS: Record<string, string> = {
 }
 
 const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
-const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
+const EMPTY_WORKSPACE_FILE_FOLDERS: FolderType[] = []
 
 const fileRowId = (id: string) => `file:${id}`
 const folderRowId = (id: string) => `folder:${id}`
@@ -178,6 +186,8 @@ export function Files() {
   const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
     useQueryStates(filesParsers, filesUrlKeys)
   const workspaceId = params?.workspaceId as string
+  const pinnedFolderIds = usePinnedIds(workspaceId, 'folder')
+  const pinnedFileIds = usePinnedIds(workspaceId, 'file')
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -196,7 +206,9 @@ export function Files() {
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
-  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
+  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useFolders(workspaceId, {
+    resourceType: 'file',
+  })
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const membersById = useMemo(() => {
     const map = new Map<string, WorkspaceMember>()
@@ -207,8 +219,8 @@ export function Files() {
   const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
-  const createFolder = useCreateWorkspaceFileFolder()
-  const updateFolder = useUpdateWorkspaceFileFolder()
+  const createFolder = useCreateFolder()
+  const updateFolder = useUpdateFolder()
   const moveItems = useMoveWorkspaceFileItems()
   const bulkArchiveItems = useBulkArchiveWorkspaceFileItems()
 
@@ -285,7 +297,12 @@ export function Files() {
     onSave: (rowId, name) => {
       const parsed = parseRowId(rowId)
       if (parsed.kind === 'folder') {
-        return updateFolder.mutateAsync({ workspaceId, folderId: parsed.id, updates: { name } })
+        return updateFolder.mutateAsync({
+          workspaceId,
+          resourceType: 'file',
+          id: parsed.id,
+          updates: { name },
+        })
       }
       return renameFile.mutateAsync({ workspaceId, fileId: parsed.id, name })
     },
@@ -297,7 +314,12 @@ export function Files() {
 
   const breadcrumbRename = useInlineRename({
     onSave: (folderId, name) =>
-      updateFolder.mutateAsync({ workspaceId, folderId, updates: { name } }),
+      updateFolder.mutateAsync({
+        workspaceId,
+        resourceType: 'file',
+        id: folderId,
+        updates: { name },
+      }),
   })
 
   const selectedFile = useMemo(
@@ -322,7 +344,6 @@ export function Files() {
   ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
-  const currentFolder = currentFolderId ? (folderById.get(currentFolderId) ?? null) : null
 
   const folderSizeMap = useMemo(() => {
     const directSize = new Map<string, number>()
@@ -343,7 +364,6 @@ export function Files() {
     for (const folder of folders) getTotal(folder.id)
     return totalSize
   }, [files, folders])
-  const currentFolderPath = currentFolder?.path ?? null
 
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
@@ -445,8 +465,32 @@ export function Files() {
       id: folderRowId(folder.id),
       cells: {
         name: {
-          icon: <Folder className='size-[14px]' />,
-          label: folder.name,
+          content: (
+            <div className='flex w-full items-center justify-between gap-1.5'>
+              <span className={cn('flex min-w-0 items-center', chipContentGap)}>
+                <span className={cellIconNodeClass}>
+                  <Folder className='size-[14px]' />
+                </span>
+                <FloatingOverflowText
+                  label={folder.name}
+                  className={cn('block', chipContentLabelClass)}
+                />
+              </span>
+              <span className='flex items-center gap-0.5'>
+                {folder.locked && (
+                  <span role='img' aria-label='Folder is locked'>
+                    <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+                  </span>
+                )}
+                <PinButton
+                  workspaceId={workspaceId}
+                  resourceType='folder'
+                  resourceId={folder.id}
+                  pinned={pinnedFolderIds.has(folder.id)}
+                />
+              </span>
+            </div>
+          ),
         },
         size: {
           label:
@@ -470,8 +514,32 @@ export function Files() {
         id: fileRowId(file.id),
         cells: {
           name: {
-            icon: <Icon className='size-[14px]' />,
-            label: file.name,
+            content: (
+              <div className='flex w-full items-center justify-between gap-1.5'>
+                <span className={cn('flex min-w-0 items-center', chipContentGap)}>
+                  <span className={cellIconNodeClass}>
+                    <Icon className='size-[14px]' />
+                  </span>
+                  <FloatingOverflowText
+                    label={file.name}
+                    className={cn('block', chipContentLabelClass)}
+                  />
+                </span>
+                <span className='flex items-center gap-0.5'>
+                  {file.locked && (
+                    <span role='img' aria-label='File is locked'>
+                      <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+                    </span>
+                  )}
+                  <PinButton
+                    workspaceId={workspaceId}
+                    resourceType='file'
+                    resourceId={file.id}
+                    pinned={pinnedFileIds.has(file.id)}
+                  />
+                </span>
+              </div>
+            ),
           },
           size: {
             label: formatFileSize(file.size, { includeBytes: true }),
@@ -489,7 +557,15 @@ export function Files() {
     })
 
     return [...folderRows, ...fileRows]
-  }, [visibleFolders, filteredFiles, membersById, folderSizeMap])
+  }, [
+    visibleFolders,
+    filteredFiles,
+    membersById,
+    folderSizeMap,
+    workspaceId,
+    pinnedFolderIds,
+    pinnedFileIds,
+  ])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
@@ -516,10 +592,13 @@ export function Files() {
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
-  const prevVisibleRowIdsRef = useRef(visibleRowIds)
-  useEffect(() => {
-    if (prevVisibleRowIdsRef.current === visibleRowIds) return
-    prevVisibleRowIdsRef.current = visibleRowIds
+  // Prunes stale selections when the visible row set changes (folder nav, search,
+  // filter). Adjusted during render — not an Effect — per the "adjust state during
+  // render" pattern in .claude/rules/sim-hooks.md: this is state derived from a
+  // render-time value, not a subscription to an external system.
+  const [prevVisibleRowIds, setPrevVisibleRowIds] = useState(visibleRowIds)
+  if (prevVisibleRowIds !== visibleRowIds) {
+    setPrevVisibleRowIds(visibleRowIds)
     lastSelectedIndexRef.current = -1
     const visible = new Set(visibleRowIds)
     setSelectedRowIds((prev) => {
@@ -527,7 +606,7 @@ export function Files() {
       const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
       return next.size === prev.size ? prev : next
     })
-  }, [visibleRowIds])
+  }
 
   const isAllSelected =
     visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
@@ -1172,32 +1251,21 @@ export function Files() {
     }
   }, [workspaceId, router, currentFolderId])
 
-  const handleCreateFolder = useCallback(async () => {
-    if (!workspaceId) return
-    const existingNames = new Set(
-      folders
-        .filter((folder) => (folder.parentId ?? null) === currentFolderId)
-        .map((folder) => folder.name)
-    )
-    let name = 'New folder'
-    let counter = 1
-    while (existingNames.has(name)) {
-      name = `New folder (${counter})`
-      counter++
-    }
-
-    try {
-      const folder = await createFolder.mutateAsync({
-        workspaceId,
-        name,
-        parentId: currentFolderId,
-      })
+  const handleFolderCreated = useCallback(
+    (folder: FolderType) => {
       listRename.startRename(folderRowId(folder.id), folder.name)
-    } catch (error) {
-      logger.error('Failed to create folder:', error)
-      toast.error(toError(error).message)
-    }
-  }, [workspaceId, folders, currentFolderId, listRename.startRename])
+    },
+    [listRename.startRename]
+  )
+
+  const handleCreateFolder = useFolderCreateWithDedup({
+    workspaceId,
+    resourceType: 'file',
+    folders,
+    currentFolderId,
+    createFolder,
+    onCreated: handleFolderCreated,
+  })
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
@@ -1209,7 +1277,7 @@ export function Files() {
       if (!item) return
       contextMenuItemRef.current =
         parsed.kind === 'folder'
-          ? { kind: 'folder', id: parsed.id, folder: item as WorkspaceFileFolderApi }
+          ? { kind: 'folder', id: parsed.id, folder: item as FolderType }
           : { kind: 'file', id: parsed.id, file: item as WorkspaceFileRecord }
       if (!selectedRowIds.has(rowId)) {
         lastSelectedIndexRef.current = visibleRowIds.indexOf(rowId)
@@ -1285,6 +1353,42 @@ export function Files() {
     setShowDeleteConfirm(true)
     closeContextMenu()
   }, [selectedRowIds, handleBulkDelete, closeContextMenu])
+
+  // Reads contextMenuItemRef.current directly at render time rather than through
+  // useMemo -- the ref updates on every right-click without necessarily toggling
+  // isContextMenuOpen (the menu can stay open across rows), so a memo keyed on
+  // isContextMenuOpen would return a stale value for the newly targeted row. The
+  // ancestor-chain walk is cheap enough to not need memoizing.
+  const contextMenuItem = contextMenuItemRef.current
+  const contextMenuInheritedLocked = contextMenuItem
+    ? isFolderOrAncestorLocked(
+        contextMenuItem.kind === 'file'
+          ? contextMenuItem.file.folderId
+          : contextMenuItem.folder.parentId,
+        Object.fromEntries(folderById)
+      )
+    : false
+
+  const handleContextMenuToggleLock = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (!item || contextMenuInheritedLocked) return
+    if (item.kind === 'file') {
+      renameFile.mutate({
+        workspaceId,
+        fileId: item.file.id,
+        name: item.file.name,
+        locked: !item.file.locked,
+      })
+    } else {
+      updateFolder.mutate({
+        workspaceId,
+        resourceType: 'file',
+        id: item.folder.id,
+        updates: { locked: !item.folder.locked },
+      })
+    }
+    closeContextMenu()
+  }, [contextMenuInheritedLocked, renameFile, updateFolder, workspaceId, closeContextMenu])
 
   const handleContextMenuMove = useCallback(
     async (optionValue: string) => {
@@ -1584,62 +1688,23 @@ export function Files() {
     [handleNavigateToFiles]
   )
 
-  const breadcrumbRenameRef = useRef(breadcrumbRename)
-  breadcrumbRenameRef.current = breadcrumbRename
+  const handleNavigateToFolder = useCallback(
+    (folderId: string) => {
+      void setFilesParams({ folderId, new: null })
+    },
+    [setFilesParams]
+  )
 
-  const listBreadcrumbs = useMemo(() => {
-    const breadcrumbs: BreadcrumbItem[] = [{ label: 'Files', onClick: handleNavigateToFiles }]
-    if (!currentFolderPath) return breadcrumbs
-
-    const segments = currentFolderPath.split('/')
-    let parentId: string | null = null
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i]
-      const folder = folders.find(
-        (item) => item.name === segment && (item.parentId ?? null) === parentId
-      )
-      if (!folder) continue
-      const isCurrentFolder = folder.id === currentFolderId
-      breadcrumbs.push({
-        label: folder.name,
-        onClick: isCurrentFolder
-          ? undefined
-          : () => void setFilesParams({ folderId: folder.id, new: null }),
-        editing:
-          isCurrentFolder && breadcrumbRenameRef.current.editingId === folder.id
-            ? {
-                isEditing: true,
-                value: breadcrumbRenameRef.current.editValue,
-                onChange: breadcrumbRenameRef.current.setEditValue,
-                onSubmit: breadcrumbRenameRef.current.submitRename,
-                onCancel: breadcrumbRenameRef.current.cancelRename,
-              }
-            : undefined,
-        dropdownItems:
-          isCurrentFolder && (canEdit || userPermissions.isLoading)
-            ? [
-                {
-                  label: 'Rename',
-                  disabled: !canEdit,
-                  onClick: () => breadcrumbRenameRef.current.startRename(folder.id, folder.name),
-                },
-              ]
-            : undefined,
-      })
-      parentId = folder.id
-    }
-    return breadcrumbs
-  }, [
-    currentFolderPath,
+  const listBreadcrumbs = useFolderBreadcrumbs({
+    folderById,
     currentFolderId,
-    folders,
-    handleNavigateToFiles,
-    setFilesParams,
+    rootLabel: 'Files',
+    onNavigateRoot: handleNavigateToFiles,
+    onNavigateFolder: handleNavigateToFolder,
+    breadcrumbRename,
     canEdit,
-    userPermissions.isLoading,
-    breadcrumbRename.editingId,
-    breadcrumbRename.editValue,
-  ])
+    canEditLoading: userPermissions.isLoading,
+  })
 
   const memberOptions: ComboboxOption[] = useMemo(
     () =>
@@ -1991,6 +2056,14 @@ export function Files() {
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}
+        onToggleLock={handleContextMenuToggleLock}
+        showLock={selectedRowIds.size <= 1}
+        disableLock={!userPermissions.canAdmin || contextMenuInheritedLocked}
+        isLocked={Boolean(
+          contextMenuItemRef.current?.kind === 'file'
+            ? contextMenuItemRef.current.file.locked
+            : contextMenuItemRef.current?.folder.locked
+        )}
       />
 
       <DeleteConfirmModal

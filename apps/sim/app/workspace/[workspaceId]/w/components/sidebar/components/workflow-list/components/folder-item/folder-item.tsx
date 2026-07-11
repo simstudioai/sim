@@ -8,6 +8,7 @@ import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { PinButton } from '@/components/folders/pin-button'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -51,9 +52,15 @@ const logger = createLogger('FolderItem')
 interface FolderItemProps {
   workspaceId: string
   folder: FolderTreeNode
+  /** Whether this folder is pinned — computed once by the list parent from a single query. */
+  pinned: boolean
 }
 
-export const FolderItem = memo(function FolderItem({ workspaceId, folder }: FolderItemProps) {
+export const FolderItem = memo(function FolderItem({
+  workspaceId,
+  folder,
+  pinned,
+}: FolderItemProps) {
   const {
     isAnyDragActive,
     dragDisabled,
@@ -537,33 +544,42 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
                 {folder.name}
               </span>
             </div>
-            <div className='relative size-[18px] flex-shrink-0'>
-              {folder.locked && (
-                <span
-                  role='img'
-                  aria-label='Folder is locked'
+            <div className='flex flex-shrink-0 items-center gap-0.5'>
+              <PinButton
+                workspaceId={workspaceId}
+                resourceType='folder'
+                resourceId={folder.id}
+                pinned={pinned}
+                className='size-[18px]'
+              />
+              <div className='relative size-[18px] flex-shrink-0'>
+                {folder.locked && (
+                  <span
+                    role='img'
+                    aria-label='Folder is locked'
+                    className={clsx(
+                      'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
+                      !isAnyDragActive && 'group-hover:opacity-0',
+                      isContextMenuOpen && 'opacity-0'
+                    )}
+                  >
+                    <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+                  </span>
+                )}
+                <button
+                  type='button'
+                  aria-label='Folder options'
+                  onPointerDown={handleMorePointerDown}
+                  onClick={handleMoreClick}
                   className={clsx(
-                    'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
-                    !isAnyDragActive && 'group-hover:opacity-0',
-                    isContextMenuOpen && 'opacity-0'
+                    'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
+                    !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
+                    isContextMenuOpen && 'pointer-events-auto opacity-100'
                   )}
                 >
-                  <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
-                </span>
-              )}
-              <button
-                type='button'
-                aria-label='Folder options'
-                onPointerDown={handleMorePointerDown}
-                onClick={handleMoreClick}
-                className={clsx(
-                  'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
-                  !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
-                  isContextMenuOpen && 'pointer-events-auto opacity-100'
-                )}
-              >
-                <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
-              </button>
+                  <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
+                </button>
+              </div>
             </div>
           </div>
         )}

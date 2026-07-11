@@ -10,9 +10,11 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
   performDeleteWorkspaceFileItems,
   performRenameWorkspaceFile,
+  workspaceFilesOrchestrationStatus,
 } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -37,7 +39,7 @@ export const PATCH = withRouteHandler(
       const parsed = await parseRequest(renameWorkspaceFileContract, request, context)
       if (!parsed.success) return parsed.response
       const { id: workspaceId, fileId } = parsed.data.params
-      const { name } = parsed.data.body
+      const { name, locked } = parsed.data.body
 
       const userPermission = await getUserEntityPermissions(
         session.user.id,
@@ -51,16 +53,32 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
+      const existingFile = await getWorkspaceFile(workspaceId, fileId)
+      if (!existingFile) {
+        return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+      }
+
+      if (locked !== undefined && locked !== existingFile.locked && userPermission !== 'admin') {
+        return NextResponse.json(
+          { success: false, error: 'Admin access required to lock files' },
+          { status: 403 }
+        )
+      }
+
+      const isLockOnlyUpdate = name === existingFile.name
+
       const result = await performRenameWorkspaceFile({
         workspaceId,
         fileId,
         name,
         userId: session.user.id,
+        locked,
+        isLockOnlyUpdate,
       })
       if (!result.success || !result.file) {
         return NextResponse.json(
           { success: false, error: result.error },
-          { status: result.errorCode === 'conflict' ? 409 : 500 }
+          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
         )
       }
 
@@ -132,14 +150,7 @@ export const DELETE = withRouteHandler(
       if (!result.success) {
         return NextResponse.json(
           { success: false, error: result.error },
-          {
-            status:
-              result.errorCode === 'validation'
-                ? 400
-                : result.errorCode === 'not_found'
-                  ? 404
-                  : 500,
-          }
+          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
         )
       }
 

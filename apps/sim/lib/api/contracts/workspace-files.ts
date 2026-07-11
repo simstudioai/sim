@@ -43,6 +43,7 @@ const workspaceFileNameSchema = z
 
 export const renameWorkspaceFileBodySchema = z.object({
   name: workspaceFileNameSchema,
+  locked: z.boolean().optional(),
 })
 
 export const updateWorkspaceFileContentBodySchema = z.object({
@@ -62,6 +63,7 @@ export const workspaceFileRecordSchema = z.object({
   uploadedBy: z.string(),
   folderId: z.string().nullable(),
   folderPath: z.string().nullable().optional(),
+  locked: z.boolean(),
   deletedAt: z.coerce.date().nullable().optional(),
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

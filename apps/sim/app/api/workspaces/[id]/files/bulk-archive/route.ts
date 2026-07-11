@@ -5,7 +5,10 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
+import {
+  performDeleteWorkspaceFileItems,
+  workspaceFilesOrchestrationStatus,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileBulkArchiveAPI')
@@ -37,14 +40,7 @@ export const POST = withRouteHandler(
       if (!result.success) {
         return NextResponse.json(
           { success: false, error: result.error },
-          {
-            status:
-              result.errorCode === 'validation'
-                ? 400
-                : result.errorCode === 'not_found'
-                  ? 404
-                  : 500,
-          }
+          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
         )
       }
       if (!result.deletedItems) {

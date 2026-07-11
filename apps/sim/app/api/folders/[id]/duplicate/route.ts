@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { FolderLockedError } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
@@ -17,7 +17,18 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderDuplicateAPI')
 
-// POST /api/folders/[id]/duplicate - Duplicate a folder with all its child folders and workflows
+/**
+ * POST /api/folders/[id]/duplicate — deep-copies a workflow folder (its child
+ * folder tree and every contained workflow).
+ *
+ * This endpoint is intentionally `workflow`-only: duplication means cloning
+ * workflow *definitions*, which has no generic equivalent for file/
+ * knowledge_base/table folders yet, so — unlike the other `/api/folders`
+ * routes — it does not read `resourceType` off the row and dispatch. Passing
+ * a non-workflow folder id resolves to no source row and returns 404. When a
+ * second resource type gains a real duplicate semantic, lift this into a
+ * `performDuplicateFolder` dispatcher alongside the other orchestration fns.
+ */
 export const POST = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const { id: sourceFolderId } = await context.params
@@ -33,14 +44,20 @@ export const POST = withRouteHandler(
     try {
       const parsed = await parseRequest(duplicateFolderContract, req, context)
       if (!parsed.success) return parsed.response
-      const { name, workspaceId, parentId, color, newId: clientNewId } = parsed.data.body
+      const { name, workspaceId, parentId, newId: clientNewId } = parsed.data.body
 
       logger.info(`[${requestId}] Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
 
       const sourceFolder = await db
         .select()
-        .from(workflowFolder)
-        .where(and(eq(workflowFolder.id, sourceFolderId), isNull(workflowFolder.archivedAt)))
+        .from(folderTable)
+        .where(
+          and(
+            eq(folderTable.id, sourceFolderId),
+            eq(folderTable.resourceType, 'workflow'),
+            isNull(folderTable.deletedAt)
+          )
+        )
         .then((rows) => rows[0])
 
       if (!sourceFolder) {
@@ -69,17 +86,23 @@ export const POST = withRouteHandler(
         await assertTargetParentFolderMutable(tx, targetParentId, targetWorkspaceId, sourceFolderId)
 
         const folderParentCondition = targetParentId
-          ? eq(workflowFolder.parentId, targetParentId)
-          : isNull(workflowFolder.parentId)
+          ? eq(folderTable.parentId, targetParentId)
+          : isNull(folderTable.parentId)
         const workflowParentCondition = targetParentId
           ? eq(workflow.folderId, targetParentId)
           : isNull(workflow.folderId)
 
         const [[folderResult], [workflowResult]] = await Promise.all([
           tx
-            .select({ minSortOrder: min(workflowFolder.sortOrder) })
-            .from(workflowFolder)
-            .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition)),
+            .select({ minSortOrder: min(folderTable.sortOrder) })
+            .from(folderTable)
+            .where(
+              and(
+                eq(folderTable.workspaceId, targetWorkspaceId),
+                eq(folderTable.resourceType, 'workflow'),
+                folderParentCondition
+              )
+            ),
           tx
             .select({ minSortOrder: min(workflow.sortOrder) })
             .from(workflow)
@@ -101,15 +124,14 @@ export const POST = withRouteHandler(
           name
         )
 
-        await tx.insert(workflowFolder).values({
+        await tx.insert(folderTable).values({
           id: newFolderId,
+          resourceType: 'workflow',
           userId: session.user.id,
           workspaceId: targetWorkspaceId,
           name: deduplicatedName,
-          color: color || sourceFolder.color,
           parentId: targetParentId,
           sortOrder,
-          isExpanded: false,
           locked: false,
           createdAt: now,
           updatedAt: now,
@@ -168,8 +190,8 @@ export const POST = withRouteHandler(
 
       const duplicatedFolder = await db
         .select()
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, newFolderId))
+        .from(folderTable)
+        .where(and(eq(folderTable.id, newFolderId), eq(folderTable.resourceType, 'workflow')))
         .then((rows) => rows[0])
 
       return NextResponse.json({ folder: duplicatedFolder }, { status: 201 })
@@ -216,30 +238,56 @@ export const POST = withRouteHandler(
   }
 )
 
-async function assertTargetParentFolderMutable(
+/**
+ * Verifies a prospective duplicate-target parent is usable: the same
+ * existence/workspace/resourceType/deleted invariant every other folder
+ * write path checks via `assertFolderParentValid` is applied inline to the
+ * immediate parent's row (the first loop iteration below), then the walk
+ * continues up the full ancestor chain applying the workflow-specific
+ * lock-cascade and self-descendant checks. `deletedAt` is re-checked on
+ * EVERY hop, not just the immediate parent — the `folder_parent_resource_type_match`
+ * trigger only fires when a `parent_id` edge is written, so it can't catch an
+ * ancestor further up the chain being soft-deleted independently afterwards
+ * (e.g. via a bulk admin import that writes `folder` rows directly). Only
+ * workspace/resourceType consistency is safe to check first-iteration-only,
+ * since the trigger enforces those on every write, including admin paths.
+ * Checking inline on the one row already being fetched for the walk avoids a
+ * redundant second SELECT of the same immediate-parent row that a separate
+ * `assertFolderParentValid` call would issue.
+ */
+export async function assertTargetParentFolderMutable(
   tx: DbOrTx,
   parentId: string | null,
   targetWorkspaceId: string,
   sourceFolderId: string
 ): Promise<void> {
-  let currentFolderId = parentId
+  if (!parentId) return
+
+  let currentFolderId: string | null = parentId
   const visited = new Set<string>()
+  let isFirstIteration = true
 
   while (currentFolderId && !visited.has(currentFolderId)) {
     visited.add(currentFolderId)
     const [folder] = await tx
       .select({
-        id: workflowFolder.id,
-        parentId: workflowFolder.parentId,
-        workspaceId: workflowFolder.workspaceId,
-        locked: workflowFolder.locked,
-        archivedAt: workflowFolder.archivedAt,
+        id: folderTable.id,
+        parentId: folderTable.parentId,
+        locked: folderTable.locked,
+        workspaceId: folderTable.workspaceId,
+        resourceType: folderTable.resourceType,
+        deletedAt: folderTable.deletedAt,
       })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.id, currentFolderId))
+      .from(folderTable)
+      .where(eq(folderTable.id, currentFolderId))
       .limit(1)
 
-    if (!folder || folder.workspaceId !== targetWorkspaceId || folder.archivedAt) {
+    if (
+      !folder ||
+      folder.deletedAt ||
+      (isFirstIteration &&
+        (folder.workspaceId !== targetWorkspaceId || folder.resourceType !== 'workflow'))
+    ) {
       throw new Error('Target parent folder not found')
     }
     if (folder.id === sourceFolderId) {
@@ -250,6 +298,7 @@ async function assertTargetParentFolderMutable(
     }
 
     currentFolderId = folder.parentId
+    isFirstIteration = false
   }
 }
 
@@ -260,16 +309,17 @@ async function deduplicateFolderName(
   requestedName: string
 ): Promise<string> {
   const parentCondition = parentId
-    ? eq(workflowFolder.parentId, parentId)
-    : isNull(workflowFolder.parentId)
+    ? eq(folderTable.parentId, parentId)
+    : isNull(folderTable.parentId)
   const siblingRows = await tx
-    .select({ name: workflowFolder.name })
-    .from(workflowFolder)
+    .select({ name: folderTable.name })
+    .from(folderTable)
     .where(
       and(
-        eq(workflowFolder.workspaceId, workspaceId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
         parentCondition,
-        isNull(workflowFolder.archivedAt)
+        isNull(folderTable.deletedAt)
       )
     )
   const siblingNames = new Set(siblingRows.map((row) => row.name))
@@ -296,12 +346,13 @@ async function duplicateFolderStructure(
 ): Promise<void> {
   const childFolders = await tx
     .select()
-    .from(workflowFolder)
+    .from(folderTable)
     .where(
       and(
-        eq(workflowFolder.parentId, sourceFolderId),
-        eq(workflowFolder.workspaceId, sourceWorkspaceId),
-        isNull(workflowFolder.archivedAt)
+        eq(folderTable.parentId, sourceFolderId),
+        eq(folderTable.workspaceId, sourceWorkspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
       )
     )
 
@@ -309,15 +360,14 @@ async function duplicateFolderStructure(
     const newChildFolderId = generateId()
     folderMapping.set(childFolder.id, newChildFolderId)
 
-    await tx.insert(workflowFolder).values({
+    await tx.insert(folderTable).values({
       id: newChildFolderId,
+      resourceType: 'workflow',
       userId,
       workspaceId: targetWorkspaceId,
       name: childFolder.name,
-      color: childFolder.color,
       parentId: newParentFolderId,
       sortOrder: childFolder.sortOrder,
-      isExpanded: false,
       locked: false,
       createdAt: timestamp,
       updatedAt: timestamp,

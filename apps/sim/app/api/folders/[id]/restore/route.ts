@@ -1,12 +1,16 @@
+import { db } from '@sim/db'
+import { folder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { getErrorMessage } from '@sim/utils/errors'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { restoreFolderContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { performRestoreFolder } from '@/lib/folders/orchestration'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performRestoreFolder } from '@/lib/workflows/orchestration/folder-lifecycle'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreFolderAPI')
@@ -30,14 +34,30 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
+    const [existingFolder] = await db
+      .select({ resourceType: folder.resourceType })
+      .from(folder)
+      .where(and(eq(folder.id, folderId), eq(folder.workspaceId, workspaceId)))
+      .limit(1)
+
+    if (!existingFolder) {
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
+    }
+
     const result = await performRestoreFolder({
+      resourceType: existingFolder.resourceType,
       folderId,
       workspaceId,
       userId: session.user.id,
     })
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
+      // Only 'not_found' gets its own status here -- the other restore-failure
+      // shapes (validation, and file-folder's name-conflict case which omits
+      // errorCode) all read naturally as 400, matching this route's prior
+      // behavior for everything except "not found".
+      const status = result.errorCode === 'not_found' ? 404 : 400
+      return NextResponse.json({ error: result.error }, { status })
     }
 
     logger.info(`Restored folder ${folderId}`, { restoredItems: result.restoredItems })
@@ -51,6 +71,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
 
     return NextResponse.json({ success: true, restoredItems: result.restoredItems })
   } catch (error) {
+    if (error instanceof ResourceLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     logger.error('Error restoring folder', error)
     return NextResponse.json(
       { error: getErrorMessage(error, 'Internal server error') },

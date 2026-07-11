@@ -40,7 +40,7 @@ import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
+import { isResourceEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
@@ -122,7 +122,7 @@ export function WorkflowSearchReplace() {
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const workflowMetadata = workflowId ? workflows[workflowId] : undefined
-  const workflowLocked = isWorkflowEffectivelyLocked(workflowMetadata, folders)
+  const workflowLocked = isResourceEffectivelyLocked(workflowMetadata, folders)
   const searchReadOnly = currentWorkflow.isSnapshotView || workflowLocked
   const readonlyReason = currentWorkflow.isSnapshotView
     ? 'Snapshot view is readonly'

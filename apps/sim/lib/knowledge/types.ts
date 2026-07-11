@@ -26,6 +26,8 @@ export interface KnowledgeBaseWithCounts {
   updatedAt: Date
   deletedAt: Date | null
   workspaceId: string | null
+  folderId: string | null
+  locked: boolean
   docCount: number
   connectorTypes: string[]
 }
@@ -38,6 +40,7 @@ export interface CreateKnowledgeBaseData {
   embeddingDimension: 1536
   chunkingConfig: ChunkingConfig
   userId: string
+  folderId?: string | null
 }
 
 export interface TagDefinition {
@@ -114,6 +117,8 @@ export interface KnowledgeBaseData {
   updatedAt: string
   deletedAt: string | null
   workspaceId: string | null
+  folderId: string | null
+  locked: boolean
   docCount?: number
   connectorTypes?: string[]
 }

@@ -53,12 +53,12 @@ vi.mock('@sim/db/schema', () => {
   return {
     copilotChats: table(['id', 'workflowId']),
     document: table(['id', 'storageKey', 'knowledgeBaseId']),
+    folder: table([...softCols, 'resourceType']),
     knowledgeBase: table(softCols),
     mcpServers: table(softCols),
     memory: table(softCols),
     userTableDefinitions: table(softCols),
     workflow: table(softCols),
-    workflowFolder: table(softCols),
     workflowMcpServer: table(softCols),
     workspaceFile: table(wsFileCols),
     workspaceFiles: table(wsFileCols),

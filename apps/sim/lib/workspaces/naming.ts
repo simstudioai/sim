@@ -95,7 +95,7 @@ export function generateWorkspaceName(): string {
 
 async function fetchWorkspaceFolders(workspaceId: string): Promise<FolderApi[]> {
   const { folders } = await requestJson(listFoldersContract, {
-    query: { workspaceId },
+    query: { workspaceId, resourceType: 'workflow' },
   })
   return folders
 }

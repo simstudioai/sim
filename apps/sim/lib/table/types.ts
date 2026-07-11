@@ -341,6 +341,8 @@ export interface TableDefinition {
   rowCount: number
   maxRows: number
   workspaceId: string
+  folderId?: string | null
+  locked: boolean
   createdBy: string
   archivedAt?: Date | string | null
   createdAt: Date | string
@@ -493,6 +495,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
+  /** Folder to create the table in. Omit or `null` for the workspace root. */
+  folderId?: string | null
   /** Optional stored row cap. Vestigial under plan-based enforcement (the column is no longer
    *  consulted on insert), but retained so callers that still set it type-check. */
   maxRows?: number

@@ -1,13 +1,14 @@
-import type { WorkflowFolder } from '@/stores/folders/types'
+import type { Folder } from '@/stores/folders/types'
 
 /**
  * Returns true when the folder or one of its ancestors is locked. Used to
  * mirror server-side cascading folder lock policy on the client without an
- * extra round-trip.
+ * extra round-trip. Generic over `Folder` (resourceType-agnostic) so it works
+ * for workflow, file, knowledge-base, and table folder maps alike.
  */
 export function isFolderOrAncestorLocked(
   folderId: string | null | undefined,
-  folders: Record<string, WorkflowFolder>
+  folders: Record<string, Folder>
 ): boolean {
   const visited = new Set<string>()
   let currentFolderId = folderId ?? null
@@ -33,7 +34,7 @@ export function isFolderOrAncestorLocked(
  */
 export function getFolderPath(
   folderId: string | null | undefined,
-  folders: Record<string, WorkflowFolder>,
+  folders: Record<string, Folder>,
   separator = ' / '
 ): string | null {
   if (!folderId) return null
@@ -45,7 +46,7 @@ export function getFolderPath(
   while (currentFolderId) {
     if (visited.has(currentFolderId)) break
     visited.add(currentFolderId)
-    const folder: WorkflowFolder | undefined = folders[currentFolderId]
+    const folder: Folder | undefined = folders[currentFolderId]
     if (!folder) break
     segments.unshift(folder.name)
     currentFolderId = folder.parentId
@@ -61,8 +62,8 @@ export function getFolderPath(
  */
 export function findLockedAncestorFolder(
   folderId: string | null | undefined,
-  folders: Record<string, WorkflowFolder>
-): WorkflowFolder | null {
+  folders: Record<string, Folder>
+): Folder | null {
   if (!folderId) return null
 
   const visited = new Set<string>()
@@ -71,7 +72,7 @@ export function findLockedAncestorFolder(
   while (currentFolderId) {
     if (visited.has(currentFolderId)) return null
     visited.add(currentFolderId)
-    const folder: WorkflowFolder | undefined = folders[currentFolderId]
+    const folder: Folder | undefined = folders[currentFolderId]
     if (!folder) return null
     if (folder.locked) return folder
     currentFolderId = folder.parentId
@@ -81,18 +82,20 @@ export function findLockedAncestorFolder(
 }
 
 /**
- * Effective lock state for a workflow as visible to the client. Mirrors
- * the server's `getWorkflowLockStatus(workflowId)` (in `@sim/platform-authz/workflow`)
- * but reads from cached folder data instead of issuing DB walks. Treats an
- * undefined workflow as unlocked so callers don't need to early-return.
+ * Effective lock state for a leaf resource (workflow, file, knowledge base, or
+ * table) as visible to the client. Mirrors the server's
+ * `getResourceLockStatus(resourceType, resourceId)` (in
+ * `@sim/platform-authz/resource-lock`) but reads from cached folder data
+ * instead of issuing DB walks. Treats an undefined resource as unlocked so
+ * callers don't need to early-return.
  */
-export function isWorkflowEffectivelyLocked(
-  workflow: { locked?: boolean | null; folderId?: string | null } | null | undefined,
-  folders: Record<string, WorkflowFolder>
+export function isResourceEffectivelyLocked(
+  resource: { locked?: boolean | null; folderId?: string | null } | null | undefined,
+  folders: Record<string, Folder>
 ): boolean {
-  if (!workflow) return false
-  if (workflow.locked) return true
-  return isFolderOrAncestorLocked(workflow.folderId, folders)
+  if (!resource) return false
+  if (resource.locked) return true
+  return isFolderOrAncestorLocked(resource.folderId, folders)
 }
 
 /**
@@ -103,7 +106,7 @@ export function isWorkflowEffectivelyLocked(
  */
 export function isFolderEffectivelyLocked(
   folder: { locked?: boolean | null; parentId?: string | null } | null | undefined,
-  folders: Record<string, WorkflowFolder>
+  folders: Record<string, Folder>
 ): boolean {
   if (!folder) return false
   if (folder.locked) return true

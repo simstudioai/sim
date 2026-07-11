@@ -13,7 +13,7 @@ import type {
   SelectorOption,
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
-import type { WorkflowFolder } from '@/stores/folders/types'
+import type { Folder } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 /**
@@ -24,7 +24,7 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 function buildDisambiguatedLabel(
   workflow: WorkflowMetadata,
   duplicateNames: Set<string>,
-  folders: Record<string, WorkflowFolder>
+  folders: Record<string, Folder>
 ): string {
   const baseLabel = workflow.name || `Workflow ${workflow.id.slice(0, 8)}`
   if (!duplicateNames.has(baseLabel)) return baseLabel

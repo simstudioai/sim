@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { folder, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
@@ -116,9 +116,7 @@ async function nextWorkflowSortOrder(
   const workflowParentCondition = folderId
     ? eq(workflow.folderId, folderId)
     : isNull(workflow.folderId)
-  const folderParentCondition = folderId
-    ? eq(workflowFolder.parentId, folderId)
-    : isNull(workflowFolder.parentId)
+  const folderParentCondition = folderId ? eq(folder.parentId, folderId) : isNull(folder.parentId)
 
   const [[workflowMinResult], [folderMinResult]] = await Promise.all([
     db
@@ -132,9 +130,15 @@ async function nextWorkflowSortOrder(
         )
       ),
     db
-      .select({ minOrder: min(workflowFolder.sortOrder) })
-      .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      .select({ minOrder: min(folder.sortOrder) })
+      .from(folder)
+      .where(
+        and(
+          eq(folder.workspaceId, workspaceId),
+          eq(folder.resourceType, 'workflow'),
+          folderParentCondition
+        )
+      ),
   ])
 
   const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<

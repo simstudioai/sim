@@ -1,37 +1,41 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
+/** Mirrors `folderResourceTypeEnum` in `packages/db/schema.ts`. */
+export const folderResourceTypeSchema = z.enum(['workflow', 'file', 'knowledge_base', 'table'])
+export type FolderResourceType = z.output<typeof folderResourceTypeSchema>
+
 export const folderScopeSchema = z.enum(['active', 'archived'])
 
 export const folderSchema = z.object({
   id: z.string(),
+  resourceType: folderResourceTypeSchema,
   name: z.string(),
   userId: z.string(),
   workspaceId: z.string(),
   parentId: z.string().nullable(),
-  color: z.string().nullable(),
-  isExpanded: z.boolean(),
   locked: z.boolean(),
   sortOrder: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  archivedAt: z.string().nullable(),
+  deletedAt: z.string().nullable(),
 })
 
 export type FolderApi = z.output<typeof folderSchema>
 
 export const listFoldersQuerySchema = z.object({
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
+  resourceType: folderResourceTypeSchema,
   scope: folderScopeSchema.default('active'),
 })
 
 export const createFolderBodySchema = z.object({
   id: z.string().uuid().optional(),
+  resourceType: folderResourceTypeSchema,
   name: z.string().min(1, 'Name is required'),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   /** Mirrors `updateFolderBodySchema.parentId` so explicit `null` (root folder) is accepted on create. */
   parentId: z.string().nullable().optional(),
-  color: z.string().optional(),
   sortOrder: z.number().int().optional(),
 })
 
@@ -41,8 +45,6 @@ export const folderIdParamsSchema = z.object({
 
 export const updateFolderBodySchema = z.object({
   name: z.string().optional(),
-  color: z.string().optional(),
-  isExpanded: z.boolean().optional(),
   locked: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
@@ -52,23 +54,34 @@ export const restoreFolderBodySchema = z.object({
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
 })
 
+/** Per-resourceType cascade counts from a folder delete/restore; only the relevant fields are populated. */
+export const folderCascadeCountsSchema = z.object({
+  folders: z.number(),
+  workflows: z.number().optional(),
+  files: z.number().optional(),
+  knowledgeBases: z.number().optional(),
+  tables: z.number().optional(),
+})
+
 export const duplicateFolderBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   workspaceId: z.string().optional(),
   parentId: z.string().nullable().optional(),
-  color: z.string().optional(),
   newId: z.string().uuid().optional(),
 })
 
 export const reorderFoldersBodySchema = z.object({
   workspaceId: z.string(),
-  updates: z.array(
-    z.object({
-      id: z.string(),
-      sortOrder: z.number().int().min(0),
-      parentId: z.string().nullable().optional(),
-    })
-  ),
+  updates: z
+    .array(
+      z.object({
+        id: z.string(),
+        sortOrder: z.number().int().min(0),
+        parentId: z.string().nullable().optional(),
+      })
+    )
+    .min(1, 'At least one folder must be provided')
+    .max(1000, 'At most 1000 folders can be reordered at once'),
 })
 
 export const listFoldersContract = defineRouteContract({
@@ -116,7 +129,7 @@ export const deleteFolderContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      deletedItems: z.unknown(),
+      deletedItems: folderCascadeCountsSchema.optional(),
     }),
   },
 })
@@ -130,7 +143,7 @@ export const restoreFolderContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      restoredItems: z.unknown(),
+      restoredItems: folderCascadeCountsSchema.optional(),
     }),
   },
 })

@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -9,7 +10,7 @@ import { KnowledgeBaseConflictError, restoreKnowledgeBase } from '@/lib/knowledg
 
 const logger = createLogger('KnowledgeBaseOrchestration')
 
-export type KnowledgeOrchestrationErrorCode = 'not_found' | 'conflict' | 'internal'
+export type KnowledgeOrchestrationErrorCode = 'not_found' | 'conflict' | 'locked' | 'internal'
 
 export interface RestorableKnowledgeBase {
   id: string
@@ -82,6 +83,9 @@ export async function performRestoreKnowledgeBase(
     logger.error(`[${requestId}] Failed to restore knowledge base ${knowledgeBaseId}`, { error })
     if (error instanceof KnowledgeBaseConflictError) {
       return { success: false, error: error.message, errorCode: 'conflict' }
+    }
+    if (error instanceof ResourceLockedError) {
+      return { success: false, error: error.message, errorCode: 'locked' }
     }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }

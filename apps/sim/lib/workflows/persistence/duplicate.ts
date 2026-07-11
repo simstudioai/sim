@@ -3,7 +3,7 @@ import {
   workflow,
   workflowBlocks,
   workflowEdges,
-  workflowFolder,
+  folder as workflowFolder,
   workflowSubflows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -77,7 +77,7 @@ async function assertTargetFolderMutable(
         parentId: workflowFolder.parentId,
         workspaceId: workflowFolder.workspaceId,
         locked: workflowFolder.locked,
-        archivedAt: workflowFolder.archivedAt,
+        archivedAt: workflowFolder.deletedAt,
       })
       .from(workflowFolder)
       .where(eq(workflowFolder.id, currentFolderId))
@@ -193,7 +193,13 @@ export async function duplicateWorkflow(
       tx
         .select({ minOrder: min(workflowFolder.sortOrder) })
         .from(workflowFolder)
-        .where(and(eq(workflowFolder.workspaceId, targetWorkspaceId), folderParentCondition)),
+        .where(
+          and(
+            eq(workflowFolder.workspaceId, targetWorkspaceId),
+            eq(workflowFolder.resourceType, 'workflow'),
+            folderParentCondition
+          )
+        ),
     ])
     const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
       number | null

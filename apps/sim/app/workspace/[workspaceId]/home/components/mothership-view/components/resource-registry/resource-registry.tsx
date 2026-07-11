@@ -28,7 +28,6 @@ import { scheduleKeys } from '@/hooks/queries/schedules'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface DropdownItemRenderProps {
@@ -247,7 +246,7 @@ const RESOURCE_INVALIDATORS: Record<
     qc.invalidateQueries({ queryKey: folderKeys.lists() })
   },
   filefolder: (qc, wId) => {
-    qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
+    qc.invalidateQueries({ queryKey: folderKeys.workspaceResourceLists(wId, 'file') })
   },
   task: (qc, wId) => {
     qc.invalidateQueries({ queryKey: mothershipChatKeys.list(wId) })

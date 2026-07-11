@@ -545,10 +545,20 @@ export function useRenameTable(workspaceId: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ tableId, name }: { tableId: string; name: string }) => {
+    mutationFn: async ({
+      tableId,
+      name,
+      folderId,
+      locked,
+    }: {
+      tableId: string
+      name: string
+      folderId?: string | null
+      locked?: boolean
+    }) => {
       return requestJson(renameTableContract, {
         params: { tableId },
-        body: { workspaceId, name },
+        body: { workspaceId, name, folderId, locked },
       })
     },
     // Inline rename reverts the field on failure with no message of its own, so

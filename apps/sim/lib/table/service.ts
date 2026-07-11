@@ -11,11 +11,13 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, assertResourceMutable } from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { assertFolderParentValid } from '@/lib/folders/parent-validation'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
@@ -128,6 +130,8 @@ export async function getTableById(
       metadata: userTableDefinitions.metadata,
       maxRows: userTableDefinitions.maxRows,
       workspaceId: userTableDefinitions.workspaceId,
+      folderId: userTableDefinitions.folderId,
+      locked: userTableDefinitions.locked,
       createdBy: userTableDefinitions.createdBy,
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
@@ -156,6 +160,8 @@ export async function getTableById(
     rowCount: Math.max(0, table.rowCount - pendingDeleteRemaining),
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
+    folderId: table.folderId,
+    locked: table.locked,
     createdBy: table.createdBy,
     archivedAt: table.archivedAt,
     createdAt: table.createdAt,
@@ -184,6 +190,8 @@ export async function listTables(
       metadata: userTableDefinitions.metadata,
       maxRows: userTableDefinitions.maxRows,
       workspaceId: userTableDefinitions.workspaceId,
+      folderId: userTableDefinitions.folderId,
+      locked: userTableDefinitions.locked,
       createdBy: userTableDefinitions.createdBy,
       archivedAt: userTableDefinitions.archivedAt,
       createdAt: userTableDefinitions.createdAt,
@@ -220,6 +228,8 @@ export async function listTables(
       rowCount: Math.max(0, t.rowCount - pendingDeleteRemaining),
       maxRows: t.maxRows,
       workspaceId: t.workspaceId,
+      folderId: t.folderId,
+      locked: t.locked,
       createdBy: t.createdBy,
       archivedAt: t.archivedAt,
       createdAt: t.createdAt,
@@ -270,6 +280,7 @@ export async function createTable(
     description: data.description ?? null,
     schema,
     workspaceId: data.workspaceId,
+    folderId: data.folderId ?? null,
     createdBy: data.userId,
     maxRows,
     archivedAt: null,
@@ -285,14 +296,27 @@ export async function createTable(
 
   // Starter rows count against the plan too. Checked before the tx (the lookup is a
   // separate pool read) — a new table starts empty, so the footprint is just these.
+  // Folder-parent validity and row-capacity are disjoint checks with no dependency
+  // on each other, so they run concurrently rather than as two sequential awaits.
   const initialRowCount = data.initialRowCount ?? 0
-  let rowLimit: number | undefined
-  if (initialRowCount > 0) {
-    rowLimit = await assertRowCapacity({
-      workspaceId: data.workspaceId,
-      currentRowCount: 0,
-      addedRows: initialRowCount,
-    })
+  const [parentError, rowLimit] = await Promise.all([
+    data.folderId
+      ? assertFolderParentValid(data.folderId, {
+          workspaceId: data.workspaceId,
+          resourceType: 'table',
+        })
+      : Promise.resolve(null),
+    initialRowCount > 0
+      ? assertRowCapacity({
+          workspaceId: data.workspaceId,
+          currentRowCount: 0,
+          addedRows: initialRowCount,
+        })
+      : Promise.resolve(undefined),
+  ])
+
+  if (parentError) {
+    throw new Error(`Invalid folderId: ${parentError.error}`)
   }
 
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
@@ -301,6 +325,13 @@ export async function createTable(
     await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx)
       await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
+
+      // assertFolderParentValid above only checks workspace/type/deleted-state -- without
+      // this, a table could be created directly inside a locked folder. Passing `trx`
+      // keeps this read inside the same transaction as the insert below.
+      if (data.folderId) {
+        await assertFolderMutable(data.folderId, 'table', trx)
+      }
 
       const [{ count: existingCount }] = await trx
         .select({ count: count() })
@@ -391,6 +422,8 @@ export async function createTable(
     rowCount: data.initialRowCount ?? 0,
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
+    folderId: newTable.folderId,
+    locked: false,
     createdBy: newTable.createdBy,
     archivedAt: newTable.archivedAt,
     createdAt: newTable.createdAt,
@@ -525,30 +558,72 @@ export async function renameTable(
   tableId: string,
   newName: string,
   requestId: string,
-  actingUserId?: string
-): Promise<{ id: string; name: string }> {
+  actingUserId?: string,
+  /** When provided (including `null`), also moves the table to this folder. */
+  folderId?: string | null,
+  locked?: boolean,
+  /**
+   * True when this call only toggles `locked` and neither the name nor the
+   * folder actually changes — the route computes this by diffing against the
+   * table's current row so an admin can still unlock a locked table (or
+   * lock/unlock without also being blocked by its own mutation).
+   */
+  isLockOnlyUpdate = false
+): Promise<{ id: string; name: string; folderId: string | null; locked: boolean }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
     throw new Error(nameValidation.errors.join(', '))
+  }
+
+  if (!isLockOnlyUpdate) {
+    await assertResourceMutable('table', tableId)
+  }
+
+  if (folderId) {
+    const [tableRow] = await db
+      .select({ workspaceId: userTableDefinitions.workspaceId })
+      .from(userTableDefinitions)
+      .where(eq(userTableDefinitions.id, tableId))
+      .limit(1)
+    if (!tableRow) {
+      throw new Error(`Table ${tableId} not found`)
+    }
+    const parentError = await assertFolderParentValid(folderId, {
+      workspaceId: tableRow.workspaceId,
+      resourceType: 'table',
+    })
+    if (parentError) {
+      throw new Error(`Invalid folderId: ${parentError.error}`)
+    }
+    // assertResourceMutable above only checked the table's *current* folder chain —
+    // without this, a table could be moved out of an unlocked folder into a locked one.
+    await assertFolderMutable(folderId, 'table')
   }
 
   const now = new Date()
   try {
     const result = await db
       .update(userTableDefinitions)
-      .set({ name: newName, updatedAt: now })
+      .set({
+        name: newName,
+        updatedAt: now,
+        ...(folderId !== undefined ? { folderId } : {}),
+        ...(locked !== undefined ? { locked } : {}),
+      })
       .where(eq(userTableDefinitions.id, tableId))
       .returning({
         id: userTableDefinitions.id,
         createdBy: userTableDefinitions.createdBy,
         workspaceId: userTableDefinitions.workspaceId,
+        folderId: userTableDefinitions.folderId,
+        locked: userTableDefinitions.locked,
       })
 
     if (result.length === 0) {
       throw new Error(`Table ${tableId} not found`)
     }
 
-    const { createdBy, workspaceId } = result[0]
+    const { createdBy, workspaceId, folderId: updatedFolderId, locked: updatedLocked } = result[0]
     const renameActorId = actingUserId ?? createdBy
     if (renameActorId) {
       recordAudit({
@@ -564,7 +639,7 @@ export async function renameTable(
     }
 
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
-    return { id: tableId, name: newName }
+    return { id: tableId, name: newName, folderId: updatedFolderId, locked: updatedLocked }
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505') {
       throw new TableConflictError(newName)
@@ -649,6 +724,8 @@ export async function deleteTable(
   requestId: string,
   actingUserId?: string
 ): Promise<void> {
+  await assertResourceMutable('table', tableId)
+
   const now = new Date()
   const result = await db
     .update(userTableDefinitions)
@@ -712,6 +789,12 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
       await db.transaction(async (tx) => {
         await setTableTxTimeouts(tx)
         await tx.execute(sql`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`)
+
+        // Restore doesn't change folderId, so this correctly evaluates both the table's own
+        // `locked` flag and its (unchanged) containing folder chain. Runs inside the same
+        // transaction as the FOR UPDATE lock above and the write below, closing the TOCTOU
+        // window where a concurrent request locks the table or its folder in between.
+        await assertResourceMutable('table', tableId, tx)
 
         attemptedRestoreName = await generateRestoreName(table.name, async (candidate) => {
           const [match] = await tx

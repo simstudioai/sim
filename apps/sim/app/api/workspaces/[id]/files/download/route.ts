@@ -6,6 +6,7 @@ import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspac
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildWorkspaceFileFolderPathMap,
@@ -42,19 +43,15 @@ function withZipPathSuffix(path: string, suffix: number): string {
     : `${directory}${filename} (${suffix})`
 }
 
-function collectDescendantFolderIds(
-  selectedFolderIds: string[],
+/** Unions each root folder id with every descendant reachable from it. */
+function collectSelectedFolderIds(
+  rootIds: string[],
   folders: Array<{ id: string; parentId: string | null }>
 ): Set<string> {
-  const folderIds = new Set(selectedFolderIds)
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const folder of folders) {
-      if (folder.parentId && folderIds.has(folder.parentId) && !folderIds.has(folder.id)) {
-        folderIds.add(folder.id)
-        changed = true
-      }
+  const folderIds = new Set(rootIds)
+  for (const rootId of rootIds) {
+    for (const descendantId of collectDescendantFolderIds(folders, rootId)) {
+      folderIds.add(descendantId)
     }
   }
   return folderIds
@@ -83,7 +80,7 @@ export const GET = withRouteHandler(
         listWorkspaceFileFolders(workspaceId),
       ])
       const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-      const selectedFolderIds = collectDescendantFolderIds(folderIds, folders)
+      const selectedFolderIds = collectSelectedFolderIds(folderIds, folders)
       const requestedFileIds = new Set(fileIds)
       const filesToZip = files.filter(
         (file) =>

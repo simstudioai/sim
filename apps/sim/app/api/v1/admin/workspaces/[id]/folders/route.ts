@@ -11,9 +11,9 @@
  */
 
 import { db } from '@sim/db'
-import { workflowFolder, workspace } from '@sim/db/schema'
+import { folder, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { adminV1ListWorkspaceFoldersContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -46,16 +46,18 @@ export const GET = withRouteHandler(
         return notFoundResponse('Workspace')
       }
 
+      const workspaceFolderCondition = and(
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, 'workflow')
+      )
+
       const [countResult, folders] = await Promise.all([
-        db
-          .select({ total: count() })
-          .from(workflowFolder)
-          .where(eq(workflowFolder.workspaceId, workspaceId)),
+        db.select({ total: count() }).from(folder).where(workspaceFolderCondition),
         db
           .select()
-          .from(workflowFolder)
-          .where(eq(workflowFolder.workspaceId, workspaceId))
-          .orderBy(workflowFolder.sortOrder, workflowFolder.name)
+          .from(folder)
+          .where(workspaceFolderCondition)
+          .orderBy(folder.sortOrder, folder.name)
           .limit(limit)
           .offset(offset),
       ])

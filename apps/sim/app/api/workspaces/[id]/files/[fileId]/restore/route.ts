@@ -6,7 +6,10 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performRestoreWorkspaceFile } from '@/lib/workspace-files/orchestration'
+import {
+  performRestoreWorkspaceFile,
+  workspaceFilesOrchestrationStatus,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreWorkspaceFileAPI')
@@ -46,7 +49,7 @@ export const POST = withRouteHandler(
       if (!result.success) {
         return NextResponse.json(
           { error: result.error },
-          { status: result.errorCode === 'conflict' ? 409 : 500 }
+          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
         )
       }
 

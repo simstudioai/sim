@@ -1,11 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { WorkspaceFileFolderApi } from '@/lib/api/contracts/workspace-file-folders'
+import type { FolderApi } from '@/lib/api/contracts/folders'
 import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-files'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import {
-  WORKSPACE_FILE_FOLDERS_STALE_TIME,
-  workspaceFileFolderKeys,
-} from '@/hooks/queries/workspace-file-folders'
+import { FOLDER_LIST_STALE_TIME, mapFolder } from '@/hooks/queries/folders'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   WORKSPACE_FILES_LIST_STALE_TIME,
   workspaceFilesKeys,
@@ -14,8 +12,8 @@ import {
 /**
  * Prefetches the Files browser's two lists — workspace files and file folders —
  * under the same query keys their client hooks (`useWorkspaceFiles`,
- * `useWorkspaceFileFolders`) use (scope `active`), so the browser paints
- * populated on first render.
+ * `useFolders(workspaceId, { resourceType: 'file' })`) use (scope `active`), so
+ * the browser paints populated on first render.
  *
  * Both payloads carry `Date` fields, so they go through their routes and cache
  * the serialized wire shape — see {@link prefetchInternalJson}.
@@ -36,14 +34,14 @@ export async function prefetchFilesBrowser(
       staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({
-      queryKey: workspaceFileFolderKeys.list(workspaceId, 'active'),
+      queryKey: folderKeys.list(workspaceId, 'file', 'active'),
       queryFn: async () => {
-        const data = await prefetchInternalJson<{ folders?: WorkspaceFileFolderApi[] }>(
-          `/api/workspaces/${workspaceId}/files/folders?scope=active`
+        const data = await prefetchInternalJson<{ folders?: FolderApi[] }>(
+          `/api/folders?workspaceId=${workspaceId}&resourceType=file&scope=active`
         )
-        return data.folders ?? []
+        return (data.folders ?? []).map(mapFolder)
       },
-      staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
+      staleTime: FOLDER_LIST_STALE_TIME,
     }),
   ])
 }

@@ -5,6 +5,7 @@ import {
   hybridAuthMock,
   loggerMock,
   requestUtilsMock,
+  resourceLockMock,
   schemaMock,
   setupGlobalFetchMock,
   setupGlobalStorageMocks,
@@ -22,6 +23,7 @@ vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@sim/platform-authz/workflow', () => workflowAuthzMock)
+vi.mock('@sim/platform-authz/resource-lock', () => resourceLockMock)
 vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
