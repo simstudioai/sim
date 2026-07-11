@@ -114,7 +114,10 @@ export const POST = withRouteHandler(
       if (!parsedBody.success) return parsedBody.response
       const { workflowId, ...searchParams } = parsedBody.data as Record<string, unknown>
 
-      if (typeof workflowId === 'string' && workflowId) {
+      if (workflowId) {
+        if (typeof workflowId !== 'string') {
+          return NextResponse.json({ error: 'workflowId must be a string' }, { status: 400 })
+        }
         const authorization = await authorizeWorkflowByWorkspacePermission({
           workflowId,
           userId,
