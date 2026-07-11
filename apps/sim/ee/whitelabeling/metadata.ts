@@ -53,11 +53,10 @@ export const ICON_SETS: Record<ReturnType<typeof getDeploymentEnv>, FaviconSet> 
  */
 export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metadata {
   const brand = getBrandConfig()
-  // A whitelabeled deployment's favicon slots should read as the tenant's own
-  // brand, never an internal Sim dev/staging color — fall back to production's
-  // neutral assets (matching pre-environment-favicon behavior) for the sizes
-  // `brand.faviconUrl` doesn't cover, instead of the environment-tinted set.
-  const icons = ICON_SETS[brand.faviconUrl ? 'production' : getDeploymentEnv()]
+  // Only read when brand.faviconUrl is unset — every icon/apple/shortcut slot
+  // below short-circuits on brand.faviconUrl first when it's set, so this
+  // never needs to reflect the whitelabel case.
+  const icons = ICON_SETS[getDeploymentEnv()]
 
   const defaultTitle = brand.name
   const summaryFull = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders — from startups to Fortune 500 companies. SOC2 compliant.`

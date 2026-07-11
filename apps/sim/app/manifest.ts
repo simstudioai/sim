@@ -20,23 +20,28 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: '#ffffff',
     theme_color: brand.theme?.primaryColor || '#33C482',
     orientation: 'portrait-primary',
-    icons: [
-      {
-        src: '/favicon/android-chrome-192x192.png',
-        sizes: '192x192',
-        type: 'image/png',
-      },
-      {
-        src: '/favicon/android-chrome-512x512.png',
-        sizes: '512x512',
-        type: 'image/png',
-      },
-      {
-        src: '/favicon/apple-touch-icon.png',
-        sizes: '180x180',
-        type: 'image/png',
-      },
-    ],
+    // A whitelabeled deployment's install/home-screen icon should be the
+    // tenant's own brand, not Sim's — same precedence as the HTML favicon
+    // slots in generateBrandedMetadata() (ee/whitelabeling/metadata.ts).
+    icons: brand.faviconUrl
+      ? [{ src: brand.faviconUrl, sizes: 'any', type: 'image/png' }]
+      : [
+          {
+            src: '/favicon/android-chrome-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: '/favicon/android-chrome-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: '/favicon/apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+          },
+        ],
     categories: ['productivity', 'developer', 'business'],
     shortcuts: [
       {

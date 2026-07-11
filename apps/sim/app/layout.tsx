@@ -25,6 +25,22 @@ export const viewport: Viewport = {
 }
 
 /**
+ * Forces every route under this layout to render dynamically. Every real page
+ * in this app already renders dynamically today (session/workspace state), so
+ * this changes nothing currently — but it's the difference between "happens
+ * to be true" and "guaranteed": {@link generateBrandedMetadata} reads
+ * `getDeploymentEnv()` for the favicon set, which depends on `process.env`
+ * being populated by `bootstrap.ts`'s runtime secrets load, and
+ * `generateMetadata()` alone does not force per-request evaluation — Next
+ * still prerenders it at build time for any route that's otherwise static or
+ * ISR-eligible. Without this, a future static/ISR page added under this
+ * layout would silently get build-time (production-tier) favicon metadata
+ * baked in, with no error. Matches the `force-dynamic` already declared on
+ * `app/manifest.ts` and `app/api/favicon/route.ts`.
+ */
+export const dynamic = 'force-dynamic'
+
+/**
  * Not a static `export const metadata` object: {@link generateBrandedMetadata}
  * reads `getDeploymentEnv()` for the favicon set, which depends on
  * `process.env` being populated by `bootstrap.ts`'s runtime secrets load. A
@@ -32,7 +48,9 @@ export const viewport: Viewport = {
  * it as truly constant (eligible for build-time resolution on any
  * statically-rendered route sharing this layout) — `generateMetadata()`
  * forces the same per-request resolution `app/api/favicon/route.ts` already
- * uses.
+ * uses. Paired with the `dynamic = 'force-dynamic'` export above, which
+ * guarantees that resolution actually happens per-request rather than only
+ * "happening to" because every current page is otherwise dynamic.
  */
 export function generateMetadata(): Metadata {
   return generateBrandedMetadata()
