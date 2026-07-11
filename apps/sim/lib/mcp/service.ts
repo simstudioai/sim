@@ -328,11 +328,14 @@ class McpService {
         )
         .limit(1)
 
-      const currentConfig: McpServerStatusConfig =
-        (currentServer?.statusConfig as McpServerStatusConfig | null) ?? {
-          consecutiveFailures: 0,
-          lastSuccessfulDiscovery: null,
-        }
+      const storedConfig = currentServer?.statusConfig as Partial<McpServerStatusConfig> | null
+      const currentConfig: McpServerStatusConfig = {
+        consecutiveFailures:
+          typeof storedConfig?.consecutiveFailures === 'number'
+            ? storedConfig.consecutiveFailures
+            : 0,
+        lastSuccessfulDiscovery: storedConfig?.lastSuccessfulDiscovery ?? null,
+      }
 
       const now = new Date()
 
