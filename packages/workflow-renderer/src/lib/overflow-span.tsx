@@ -1,4 +1,4 @@
-import { FloatingTooltip, isTextClipped, useFloatingTooltip, useIsOverflowing } from '@sim/emcn'
+import { FloatingTooltip, isTextClipped, useFloatingTooltip } from '@sim/emcn'
 
 interface OverflowSpanProps {
   value: string
@@ -12,15 +12,11 @@ interface OverflowSpanProps {
  * with the full untruncated value (including raw code/JSON) over the graph.
  */
 export function OverflowSpan({ value, className }: OverflowSpanProps) {
-  const { ref, node } = useIsOverflowing<HTMLSpanElement>()
-  const { state, handlers } = useFloatingTooltip(() => {
-    const element = node.current
-    return element !== null && isTextClipped(element)
-  })
+  const { state, handlers } = useFloatingTooltip(isTextClipped)
 
   return (
     <>
-      <span ref={ref} className={className} {...handlers}>
+      <span className={className} {...handlers}>
         {value}
       </span>
       <FloatingTooltip label={value} state={state} />
