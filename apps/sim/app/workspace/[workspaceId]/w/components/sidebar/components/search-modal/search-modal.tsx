@@ -653,7 +653,7 @@ export function SearchModal({
 
   /** Catalog integrations: only shown once the user has typed something. */
   const filteredIntegrations = useMemo(() => {
-    if (!isOnIntegrationsPage || !deferredSearch) return []
+    if (!isOnIntegrationsPage || !deferredSearch.trim()) return []
     return filterAndCap(integrations, (i) => i.name, deferredSearch)
   }, [isOnIntegrationsPage, deferredSearch, integrations])
 
