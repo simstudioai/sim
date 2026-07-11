@@ -1,0 +1,43 @@
+---
+title: WhatsApp Storefront Bot
+description: A shop that answers at any hour, a WhatsApp bot that replies from your FAQ with cited answers, remembers the conversation, and escalates refunds to you.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Use case" title="WhatsApp Storefront Bot" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Build a shop that answers at any hour. Each customer message on WhatsApp is checked against the shop's FAQ, answered in-thread with citations, and remembered, so the next message from the same customer picks up where the last one left off. Refunds and complaints skip the bot and land in your Slack.
+
+<WhatYouWillLearn
+  items={[
+    { title: 'Trigger on a customer message', body: 'Start a workflow from a WhatsApp message and reply in the same thread.' },
+    { title: 'Ground the answer', body: 'Search a knowledge base of the shop FAQ so replies are accurate and cited.' },
+    { title: 'Remember the customer', body: 'Use conversation memory keyed to the sender so follow-ups stay in context.' },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The problem', time: '0:00' },
+    { title: 'WhatsApp trigger', time: '0:30' },
+    { title: 'Escalate refunds', time: '1:10' },
+    { title: 'Answer from the FAQ', time: '1:50' },
+    { title: 'Remember the thread', time: '2:45' },
+  ]}
+/>
+
+</div>
+
+## What you'll build
+
+A **WhatsApp trigger** starts the workflow on each customer message. A **Condition** block checks it first: refunds and complaints route straight to the owner's **Slack**, everything else continues. A **knowledge-base search** pulls the relevant FAQ entries, and an **Agent** block with [conversation memory](/academy/agents/memory) keyed to the sender writes the reply, so each answer is cited and each thread remembers its history. The **WhatsApp reply** goes back in the same conversation.
+
+This pulls together [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [knowledge bases](/academy/knowledge-bases/intro) into one system: the foundations, composed.

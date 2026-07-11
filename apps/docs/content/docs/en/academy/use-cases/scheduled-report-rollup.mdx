@@ -1,0 +1,43 @@
+---
+title: Scheduled Report Rollup
+description: A weekly workflow that pulls Stripe and Sheets data, reconciles the numbers, records the result, and posts the digest to Slack before the meeting.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Use case" title="Scheduled Report Rollup" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Let the Monday number assemble itself. A schedule fires each week, pulls the charges from Stripe and the tracking tab from Sheets, reconciles the two, computes the delta against last week, and posts the digest to Slack before anyone sits down for the meeting.
+
+<WhatYouWillLearn
+  items={[
+    { title: 'Run on a schedule', body: 'Trigger the rollup every Monday morning so the report is never late.' },
+    { title: 'Reconcile two sources', body: 'Use a Function block to join Stripe and Sheets data and compute the delta.' },
+    { title: 'Record and deliver', body: 'Write the result as a table row and post the digest to Slack.' },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The problem', time: '0:00' },
+    { title: 'Schedule trigger', time: '0:35' },
+    { title: 'Pull both sources', time: '1:10' },
+    { title: 'Reconcile and compute', time: '2:00' },
+    { title: 'Record and post', time: '2:50' },
+  ]}
+/>
+
+</div>
+
+## What you'll build
+
+A **Schedule trigger** fires every Monday at 7:00. The workflow pulls charges from the **Stripe API** and reads the tracking tab with **Google Sheets**. A **Function** block reconciles the two sources and computes this week's number and the delta. A **Table** block inserts the row, so every week's result is queryable later, and a **Slack message** posts the digest to the channel. Every run is recorded in the [logs](/logs-debugging).
+
+This composes [workflows](/academy/workflows/intro) and [tables](/academy/tables/intro): the foundations, composed.

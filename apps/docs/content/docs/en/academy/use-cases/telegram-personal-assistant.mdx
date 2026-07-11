@@ -1,0 +1,43 @@
+---
+title: Telegram Personal Assistant
+description: An assistant you text like a friend, it reads your inbox, checks your calendar, researches on request, and sends a morning brief on its own.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
+
+<VideoPlaceholder eyebrow="Use case" title="Telegram Personal Assistant" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
+
+Build an assistant you message like a friend. Each Telegram text, a question about your inbox, a calendar check, a quick research request, is routed to the right tools and answered in the same thread. A second trigger sends an unprompted brief every morning at 7:00.
+
+<WhatYouWillLearn
+  items={[
+    { title: 'Trigger from a message', body: 'Start a workflow from a Telegram text and reply in the same thread.' },
+    { title: 'Route to the right tools', body: 'Use a Router so inbox, calendar, and research requests each take their own path.' },
+    { title: 'Act without being asked', body: 'Add a schedule that assembles and sends a morning brief on its own.' },
+  ]}
+/>
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The problem', time: '0:00' },
+    { title: 'Telegram trigger', time: '0:35' },
+    { title: 'Route the request', time: '1:15' },
+    { title: 'Three agent lanes', time: '2:00' },
+    { title: 'The morning brief', time: '3:00' },
+  ]}
+/>
+
+</div>
+
+## What you'll build
+
+A **Telegram trigger** starts the workflow on each incoming message. A **Router** block reads the request and picks a lane: an **Agent** that reads Gmail, an **Agent** that checks Google Calendar, or an **Agent** that researches the web with Exa. Whichever lane runs, the answer goes back as a reply in the same Telegram thread. A second **Schedule trigger** fires daily at 7:00, a brief agent gathers the day's context, and a **Telegram send** delivers it before you ask. Every run is recorded in the [logs](/logs-debugging).
+
+This pulls together [workflows](/academy/workflows/intro) and [agents](/academy/agents/intro) into one system: the foundations, composed.

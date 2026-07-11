@@ -34,6 +34,9 @@
     "use-cases/slack-it-triage",
     "use-cases/document-extraction",
     "use-cases/monitoring-research",
-    "use-cases/sales-data-enrichment"
+    "use-cases/sales-data-enrichment",
+    "use-cases/telegram-personal-assistant",
+    "use-cases/scheduled-report-rollup",
+    "use-cases/whatsapp-storefront-bot"
   ]
 }
