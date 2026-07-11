@@ -575,19 +575,28 @@ export function SearchModal({
   }, [actions, isOnWorkflowPage, isOnIntegrationsPage, deferredSearch])
 
   /**
-   * Ranking matches against clean, human-meaningful text only (names, types,
-   * aliases, folder paths) — never the structural `<type>-<id>`/uuid tokens used
-   * for cmdk row identity. Those tokens carry letters (e.g. "block", "tool") that
-   * would otherwise let short fuzzy queries scatter-match unrelated items.
+   * Blocks and tools rank by name first, with `searchValue` (type + option
+   * labels) as a lower-tier fallback, so an exact name match wins while a block
+   * stays findable by an option label.
    */
   const filteredBlocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndCap(blocks, (b) => b.searchValue ?? b.name, deferredSearch)
+    return filterAndCap(
+      blocks,
+      (b) => b.name,
+      deferredSearch,
+      (b) => b.searchValue
+    )
   }, [isOnWorkflowPage, blocks, deferredSearch])
 
   const filteredTools = useMemo(() => {
     if (!isOnWorkflowPage) return []
-    return filterAndCap(tools, (t) => t.searchValue ?? t.name, deferredSearch)
+    return filterAndCap(
+      tools,
+      (t) => t.name,
+      deferredSearch,
+      (t) => t.searchValue
+    )
   }, [isOnWorkflowPage, tools, deferredSearch])
 
   const filteredTriggers = useMemo(() => {

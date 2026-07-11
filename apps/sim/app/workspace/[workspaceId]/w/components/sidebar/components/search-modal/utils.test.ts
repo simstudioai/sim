@@ -242,6 +242,47 @@ describe('fuzzyMatch — positions for highlighting', () => {
   })
 })
 
+describe('filterAndSort — name ranked above secondary text', () => {
+  interface Item {
+    name: string
+    searchValue: string
+  }
+  const toName = (i: Item) => i.name
+  const toExtra = (i: Item) => i.searchValue
+
+  it('ranks an exact name match above a substring buried in another item’s option text', () => {
+    const items: Item[] = [
+      // Matches "agent" only inside a long secondary string (its model catalog).
+      { name: 'Pi Coding Agent', searchValue: `Pi Coding Agent pi ${'model-x '.repeat(60)}` },
+      // Exact name match, but an even longer secondary string.
+      { name: 'Agent', searchValue: `Agent agent ${'claude-sonnet gpt-4o '.repeat(60)}` },
+    ]
+    const sorted = filterAndSort(items, toName, 'agent', toExtra)
+    expect(sorted[0].name).toBe('Agent')
+  })
+
+  it('keeps every name match above every secondary-only match', () => {
+    const items: Item[] = [
+      { name: 'Zeta', searchValue: 'Zeta agent agent agent' }, // strong secondary hit, no name hit
+      { name: 'Agent', searchValue: 'Agent agent' }, // name hit
+    ]
+    const sorted = filterAndSort(items, toName, 'agent', toExtra)
+    expect(sorted[0].name).toBe('Agent')
+  })
+
+  it('still surfaces an item matched only by its secondary text', () => {
+    const items: Item[] = [{ name: 'Agent', searchValue: 'Agent agent claude-sonnet gpt-4o' }]
+    expect(filterAndSort(items, toName, 'gpt-4o', toExtra)).toHaveLength(1)
+  })
+
+  it('is byte-identical to single-field ranking when no secondary accessor is given', () => {
+    const items = ['Slack message', 'Send message to Slack']
+    expect(filterAndSort(items, (s) => s, 'slack')).toEqual(
+      filterAndSort(items, (s) => s, 'slack', undefined)
+    )
+  })
+})
+
 describe('filterAndCap', () => {
   const id = (s: string) => s
 
