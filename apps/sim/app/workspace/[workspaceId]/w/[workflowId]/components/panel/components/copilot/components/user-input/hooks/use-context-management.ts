@@ -81,7 +81,11 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
         // `(^|\s)` boundary still matches the (regular) space or start that
         // precedes it, then the literal sentinel.
         const prefix =
-          c.kind === 'skill' ? SKILL_CHIP_TRIGGER : c.kind === 'slash_command' ? '/' : '@'
+          c.kind === 'skill' || c.kind === 'mcp'
+            ? SKILL_CHIP_TRIGGER
+            : c.kind === 'slash_command'
+              ? '/'
+              : '@'
         const tokenPattern = new RegExp(
           `(^|\\s)${escapeRegex(prefix)}${escapeRegex(c.label)}(?![A-Za-z0-9_])`
         )

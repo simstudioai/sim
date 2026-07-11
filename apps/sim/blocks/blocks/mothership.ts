@@ -60,6 +60,18 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
       mode: 'advanced',
       required: false,
     },
+    {
+      id: 'tools',
+      title: 'Tools',
+      type: 'tool-input',
+      defaultValue: [],
+    },
+    {
+      id: 'skills',
+      title: 'Skills',
+      type: 'skill-input',
+      defaultValue: [],
+    },
   ],
   tools: {
     access: [],
@@ -77,6 +89,8 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
       type: 'file',
       description: 'Files to send to Sim as attachments',
     },
+    tools: { type: 'json', description: 'MCP tools available to Sim for this request' },
+    skills: { type: 'json', description: 'Skills activated for this request' },
   },
   outputs: {
     content: { type: 'string', description: 'Generated response content' },

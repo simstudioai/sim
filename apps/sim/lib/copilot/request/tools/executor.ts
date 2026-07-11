@@ -68,6 +68,7 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import { isMcpTool } from '@/executor/constants'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
 
@@ -224,7 +225,7 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
 ])
 
 export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
-  return toolName && LONG_RUNNING_TOOL_IDS.has(toolName)
+  return toolName && (LONG_RUNNING_TOOL_IDS.has(toolName) || isMcpTool(toolName))
     ? TOOL_WATCHDOG_LONG_RUNNING_MS
     : TOOL_WATCHDOG_DEFAULT_MS
 }

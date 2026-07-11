@@ -56,3 +56,9 @@ describe('getToolDisplayTitle for the vfs verbs', () => {
     expect(getToolDisplayTitle('mkdir', {})).toBe('Creating folder')
   })
 })
+
+describe('getToolDisplayTitle for request-scoped MCP tools', () => {
+  it('hides the internal server id and humanizes the tool name', () => {
+    expect(getToolDisplayTitle('mcp-363de040-web_search_exa')).toBe('Web Search Exa')
+  })
+})

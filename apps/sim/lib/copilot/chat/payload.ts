@@ -9,6 +9,7 @@ import {
   filterExposedIntegrationTools,
   getExposedIntegrationTools,
 } from '@/lib/copilot/integration-tools'
+import { buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
@@ -32,6 +33,8 @@ interface BuildPayloadParams {
   model: string
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
+  /** MCP servers explicitly tagged on this turn. Untagged servers stay unavailable. */
+  mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
   chatId?: string
@@ -351,6 +354,7 @@ export async function buildCopilotRequestPayload(
   const allContexts = [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
+  let mothershipTools: ToolSchema[] = []
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
   if (effectiveMode === 'build') {
@@ -359,6 +363,14 @@ export async function buildCopilotRequestPayload(
       userMessageId,
       { schemaSurface: 'copilot' },
       params.workspaceId
+    )
+  }
+
+  if (params.workspaceId && params.mcpServerIds?.length) {
+    mothershipTools = await buildTaggedMcpToolSchemas(
+      userId,
+      params.workspaceId,
+      params.mcpServerIds
     )
   }
 
@@ -377,6 +389,7 @@ export async function buildCopilotRequestPayload(
     ...(typeof prefetch === 'boolean' ? { prefetch } : {}),
     ...(implicitFeedback ? { implicitFeedback } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
+    ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.vfs ? { vfs: params.vfs } : {}),
