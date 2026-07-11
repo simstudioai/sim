@@ -326,41 +326,6 @@ export interface ContextDevIdentifyTransactionParams {
   timeoutMS?: number
 }
 
-export interface ContextDevGetBrandSimplifiedParams {
-  apiKey: string
-  domain: string
-  maxAgeMs?: number
-  timeoutMS?: number
-}
-
-export interface ContextDevGetBrandSimplifiedResponse extends ToolResponse {
-  output: CreditFields & {
-    status: string
-    brand: Record<string, unknown> | null
-  }
-}
-
-export interface ContextDevPrefetchByEmailParams {
-  apiKey: string
-  email: string
-  timeoutMS?: number
-}
-
-export interface ContextDevPrefetchDomainParams {
-  apiKey: string
-  domain: string
-  timeoutMS?: number
-}
-
-/** Shared response shape for the prefetch utility endpoints. */
-export interface ContextDevPrefetchResponse extends ToolResponse {
-  output: CreditFields & {
-    status: string
-    message: string
-    domain: string
-  }
-}
-
 /** Output schema for a single web search result. */
 export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'Result page URL' },
