@@ -262,9 +262,38 @@ describe('PUT /api/folders/reorder', () => {
 
     const response = await PUT(req)
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(404)
     const data = await response.json()
     expect(data.error).toBe('One or more folders were not found')
+  })
+
+  it('returns a 500 when the transaction fails for an unexpected reason', async () => {
+    // Regression test: performReorderFolders previously mapped every non-lock
+    // transaction failure -- including genuine unexpected DB errors, not just
+    // client-caused validation issues -- to a 400 in the route. An internal
+    // failure should surface as a 500 with a generic message, not leak the raw
+    // error or masquerade as a client error.
+    mockWhere
+      .mockReturnValueOnce([
+        { id: 'folder-1', workspaceId: 'workspace-123', resourceType: 'workflow' },
+      ])
+      .mockReturnValueOnce([{ id: 'folder-1', parentId: null }])
+      .mockReturnValueOnce([{ id: 'folder-1', workspaceId: 'workspace-123' }])
+
+    mockDb.transaction.mockImplementation(async () => {
+      throw new Error('connection terminated unexpectedly')
+    })
+
+    const req = createMockRequest('PUT', {
+      workspaceId: 'workspace-123',
+      updates: [{ id: 'folder-1', sortOrder: 2, parentId: null }],
+    })
+
+    const response = await PUT(req)
+
+    expect(response.status).toBe(500)
+    const data = await response.json()
+    expect(data.error).toBe('Failed to reorder folders')
   })
 
   it('returns a 423 when a folder is concurrently locked before the write', async () => {

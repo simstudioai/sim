@@ -11,6 +11,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performReorderFolders } from '@/lib/folders/orchestration'
 import { FOLDER_RESOURCE_POLICIES } from '@/lib/folders/policy'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -139,7 +140,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     if (!result.success) {
       return NextResponse.json(
         { error: result.error ?? 'No valid folders to update' },
-        { status: 400 }
+        { status: statusForOrchestrationError(result.errorCode) }
       )
     }
 

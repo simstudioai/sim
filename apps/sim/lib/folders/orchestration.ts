@@ -777,9 +777,15 @@ export async function performRestoreFolder(
   return performRestoreResourceFolder(params, TABLE_FOLDER_CASCADE)
 }
 
-export async function performReorderFolders(
-  params: PerformReorderFoldersParams
-): Promise<{ success: boolean; updated: number; error?: string }> {
+/** Marks a concurrent-deletion race caught inside the reorder transaction as a 404, not a 500. */
+class FolderReorderNotFoundError extends Error {}
+
+export async function performReorderFolders(params: PerformReorderFoldersParams): Promise<{
+  success: boolean
+  updated: number
+  error?: string
+  errorCode?: OrchestrationErrorCode
+}> {
   const { resourceType, workspaceId, updates } = params
 
   const folderIds = updates.map((u) => u.id)
@@ -803,7 +809,12 @@ export async function performReorderFolders(
   // reporting success with a smaller `updated` count.
   const invalidId = updates.find((u) => !validIds.has(u.id))
   if (invalidId) {
-    return { success: false, updated: 0, error: 'One or more folders were not found' }
+    return {
+      success: false,
+      updated: 0,
+      error: 'One or more folders were not found',
+      errorCode: 'not_found',
+    }
   }
   const validUpdates = updates
 
@@ -822,7 +833,12 @@ export async function performReorderFolders(
   )
   const firstParentError = parentErrors.find((error) => error !== null)
   if (firstParentError) {
-    return { success: false, updated: 0, error: firstParentError.error }
+    return {
+      success: false,
+      updated: 0,
+      error: firstParentError.error,
+      errorCode: firstParentError.errorCode,
+    }
   }
 
   try {
@@ -837,7 +853,7 @@ export async function performReorderFolders(
           .from(folderTable)
           .where(and(inArray(folderTable.id, targetParentIds), isNull(folderTable.deletedAt)))
         if (activeParents.length !== targetParentIds.length) {
-          throw new Error('Parent folder not found')
+          throw new FolderReorderNotFoundError('Parent folder not found')
         }
       }
 
@@ -871,7 +887,7 @@ export async function performReorderFolders(
           .where(and(eq(folderTable.id, update.id), isNull(folderTable.deletedAt)))
           .returning({ id: folderTable.id })
         if (!updated) {
-          throw new Error('One or more folders were not found')
+          throw new FolderReorderNotFoundError('One or more folders were not found')
         }
       }
     })
@@ -880,7 +896,18 @@ export async function performReorderFolders(
     if (error instanceof ResourceLockedError) {
       throw error
     }
-    return { success: false, updated: 0, error: toError(error).message }
+    if (error instanceof FolderReorderNotFoundError) {
+      return { success: false, updated: 0, error: error.message, errorCode: 'not_found' }
+    }
+    // An unexpected DB/transaction failure, not a client-caused validation error --
+    // log the real cause but don't leak internal error details to the response.
+    logger.error('Unexpected error reordering folders', { error })
+    return {
+      success: false,
+      updated: 0,
+      error: 'Failed to reorder folders',
+      errorCode: 'internal',
+    }
   }
 
   return { success: true, updated: validUpdates.length }
