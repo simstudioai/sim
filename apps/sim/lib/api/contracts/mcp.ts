@@ -50,10 +50,12 @@ export const mcpToolSchemaPropertySchema: z.ZodType<McpToolSchemaProperty> = z.l
     .object({
       type: z.union([z.string(), z.array(z.string())]).optional(),
       description: z.string().optional(),
-      items: mcpToolSchemaPropertySchema.optional(),
+      items: z
+        .union([mcpToolSchemaPropertySchema, z.array(mcpToolSchemaPropertySchema)])
+        .optional(),
       properties: z.record(z.string(), mcpToolSchemaPropertySchema).optional(),
       required: z.array(z.string()).optional(),
-      enum: z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+      enum: z.array(z.unknown()).optional(),
       default: z.unknown().optional(),
     })
     .passthrough()

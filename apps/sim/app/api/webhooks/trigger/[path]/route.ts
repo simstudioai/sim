@@ -10,19 +10,15 @@ import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  checkWebhookPreprocessing,
+  dispatchResolvedWebhookTarget,
   findAllWebhooksForPath,
-  handlePreDeploymentVerification,
   handlePreLookupWebhookVerification,
   handleProviderChallenges,
   handleProviderReachabilityTest,
-  handleWebhookEventFilter,
   parseWebhookBody,
-  queueWebhookExecution,
-  shouldSkipWebhookEvent,
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
-import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
+import { acceptsPathWebhookDelivery } from '@/lib/webhooks/providers'
 import { isInternalTriggerProvider } from '@/triggers/constants'
 
 const logger = createLogger('WebhookTriggerAPI')
@@ -108,15 +104,15 @@ async function handleWebhookPost(
   // Find all webhooks for this path (multiple webhooks in one workflow may share a path)
   const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
-  // Internal trigger providers (sim, table) are fired in-process, never over
-  // HTTP. Their rows still register a path, so reject deliveries here to keep
-  // forged events out.
+  /** Exclude in-process triggers and providers that own an app-level ingress route. */
   const webhooksForPath = allWebhooksForPath.filter(
-    ({ webhook: foundWebhook }) => !isInternalTriggerProvider(foundWebhook.provider)
+    ({ webhook: foundWebhook }) =>
+      !isInternalTriggerProvider(foundWebhook.provider) &&
+      acceptsPathWebhookDelivery(foundWebhook.provider)
   )
 
   if (allWebhooksForPath.length > 0 && webhooksForPath.length === 0) {
-    logger.warn(`[${requestId}] Rejected HTTP delivery to internal trigger path: ${path}`)
+    logger.warn(`[${requestId}] Rejected HTTP delivery to non-path trigger: ${path}`)
     return new NextResponse('Not Found', { status: 404 })
   }
 
@@ -137,6 +133,7 @@ async function handleWebhookPost(
 
   // Process each webhook matched on this path
   const responses: NextResponse[] = []
+  const failures: NextResponse[] = []
   let billingBlocked = false
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
@@ -173,67 +170,44 @@ async function handleWebhookPost(
       return reachabilityResponse
     }
 
-    if (shouldSkipWebhookEvent(foundWebhook, body, requestId)) {
-      continue
-    }
-
-    const eventFilterResponse = await handleWebhookEventFilter(
+    const dispatchResult = await dispatchResolvedWebhookTarget(
       foundWebhook,
       foundWorkflow,
       body,
       request,
-      requestId
+      {
+        requestId,
+        path,
+        receivedAt,
+        triggerTimestampMs: Number.isFinite(triggerTimestampMs) ? triggerTimestampMs : undefined,
+      }
     )
-    if (eventFilterResponse) {
-      responses.push(eventFilterResponse)
+
+    if (dispatchResult.reason === 'filtered') {
       continue
     }
 
-    if (foundWebhook.blockId) {
-      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
-      if (!blockExists) {
-        const preDeploymentResponse = handlePreDeploymentVerification(foundWebhook, requestId)
-        if (preDeploymentResponse) {
-          return preDeploymentResponse
-        }
-
-        logger.info(
-          `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
-        )
-        if (webhooksForPath.length > 1) {
-          continue
-        }
-        return new NextResponse('Trigger block not found in deployment', { status: 404 })
-      }
-    }
-
-    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
-    if (preprocessResult.error) {
+    if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
       if (webhooksForPath.length > 1) {
         logger.warn(
-          `[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}, continuing to next`
+          `[${requestId}] Webhook dispatch failed for ${foundWebhook.id}, continuing to next`,
+          { reason: dispatchResult.reason, status: dispatchResult.response.status }
         )
+        failures.push(dispatchResult.response)
         continue
       }
-      return preprocessResult.error
+      return dispatchResult.response
     }
 
-    const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
-      requestId,
-      path,
-      actorUserId: preprocessResult.actorUserId,
-      billingAttribution: preprocessResult.billingAttribution,
-      executionId: preprocessResult.executionId,
-      correlation: preprocessResult.correlation,
-      receivedAt,
-      triggerTimestampMs: Number.isFinite(triggerTimestampMs) ? triggerTimestampMs : undefined,
-    })
-    responses.push(response)
+    responses.push(dispatchResult.response)
   }
 
   if (responses.length === 0) {
     if (billingBlocked) {
       return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    }
+    if (failures.length > 0) {
+      return failures[0]
     }
     return new NextResponse('No webhooks processed successfully', { status: 500 })
   }

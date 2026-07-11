@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import type { webhook, workflow } from '@sim/db/schema'
 import {
   createMockRequest,
   envFlagsMock,
@@ -10,19 +11,27 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ADMISSION_ERROR_CODE,
   ADMISSION_RETRY_AFTER_SECONDS,
 } from '@/lib/core/admission/transient-failure'
 
+type WebhookRecord = typeof webhook.$inferSelect
+type WorkflowRecord = typeof workflow.$inferSelect
+type WebhookLookupRow = {
+  webhook: Pick<WebhookRecord, 'id' | 'workflowId' | 'path' | 'createdAt'>
+  workflow: Pick<WorkflowRecord, 'id'>
+}
+
 const {
   mockGenerateId,
   mockAdmissionRelease,
   mockEnqueue,
   mockGetJobQueue,
-  mockGetProviderHandler,
   mockReleaseExecutionSlot,
+  mockProviderHandler,
   mockShouldExecuteInline,
   mockWebhookLookupResult,
 } = vi.hoisted(() => ({
@@ -30,10 +39,10 @@ const {
   mockAdmissionRelease: vi.fn(),
   mockEnqueue: vi.fn(),
   mockGetJobQueue: vi.fn(),
-  mockGetProviderHandler: vi.fn().mockReturnValue({}),
   mockReleaseExecutionSlot: vi.fn(),
+  mockProviderHandler: { current: {} as Record<string, unknown> },
   mockShouldExecuteInline: vi.fn(),
-  mockWebhookLookupResult: { rows: [] as Array<{ webhook: any; workflow: any }> },
+  mockWebhookLookupResult: { rows: [] as WebhookLookupRow[] },
 }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
@@ -116,7 +125,7 @@ vi.mock('@/lib/webhooks/utils.server', () => ({
 }))
 
 vi.mock('@/lib/webhooks/providers', () => ({
-  getProviderHandler: mockGetProviderHandler,
+  getProviderHandler: vi.fn(() => mockProviderHandler.current),
 }))
 
 vi.mock('@/background/webhook-execution', () => ({
@@ -145,11 +154,56 @@ vi.mock('@/triggers/jira/utils', () => ({
 
 import {
   checkWebhookPreprocessing,
+  dispatchResolvedWebhookTarget,
   findAllWebhooksForPath,
   handleWebhookEventFilter,
   processPolledWebhookEvent,
-  queueWebhookExecution,
 } from '@/lib/webhooks/processor'
+
+function makeWebhookRecord(overrides: Partial<WebhookRecord>): WebhookRecord {
+  const now = new Date('2026-01-01T00:00:00.000Z')
+  return {
+    id: 'webhook-1',
+    workflowId: 'workflow-1',
+    deploymentVersionId: null,
+    blockId: null,
+    path: 'incoming/test',
+    provider: 'generic',
+    providerConfig: {},
+    isActive: true,
+    failedCount: 0,
+    lastFailedAt: null,
+    archivedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  }
+}
+
+function makeWorkflowRecord(overrides: Partial<WorkflowRecord>): WorkflowRecord {
+  const now = new Date('2026-01-01T00:00:00.000Z')
+  return {
+    id: 'workflow-1',
+    userId: 'owner-1',
+    workspaceId: 'workspace-1',
+    folderId: null,
+    sortOrder: 0,
+    name: 'Webhook workflow',
+    description: null,
+    lastSynced: now,
+    createdAt: now,
+    updatedAt: now,
+    isDeployed: true,
+    deployedAt: now,
+    isPublicApi: false,
+    locked: false,
+    runCount: 0,
+    lastRunAt: null,
+    variables: {},
+    archivedAt: null,
+    ...overrides,
+  }
+}
 
 const billingAttribution = {
   actorUserId: 'actor-user-1',
@@ -229,15 +283,15 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
 
 describe('handleWebhookEventFilter', () => {
   it('returns an ignore response when a provider event does not match', async () => {
-    mockGetProviderHandler.mockReturnValueOnce({
+    mockProviderHandler.current = {
       matchEvent: vi.fn().mockResolvedValue(false),
-    })
+    }
 
     const response = await handleWebhookEventFilter(
-      { id: 'webhook-1', provider: 'gmail', providerConfig: {} },
-      { id: 'workflow-1' },
+      makeWebhookRecord({ provider: 'gmail' }),
+      makeWorkflowRecord({}),
       { event: 'message.received' },
-      createMockRequest('POST', { event: 'message.received' }) as any,
+      createMockRequest('POST', { event: 'message.received' }),
       'request-1'
     )
 
@@ -280,8 +334,8 @@ describe('webhook admission failures', () => {
       })
 
       const result = await checkWebhookPreprocessing(
-        { id: 'workflow-1', userId: 'owner-1', workspaceId: 'workspace-1' },
-        { id: 'webhook-1', path: 'incoming', provider: 'generic' },
+        makeWorkflowRecord({}),
+        makeWebhookRecord({ path: 'incoming', provider: 'generic' }),
         'request-1'
       )
 
@@ -315,8 +369,8 @@ describe('webhook admission failures', () => {
       })
 
       const result = await checkWebhookPreprocessing(
-        { id: 'workflow-1', userId: 'owner-1', workspaceId: 'workspace-1' },
-        { id: 'webhook-1', path: 'incoming', provider: 'generic' },
+        makeWorkflowRecord({}),
+        makeWebhookRecord({ path: 'incoming', provider: 'generic' }),
         'request-1'
       )
 
@@ -338,65 +392,39 @@ describe('webhook processor execution identity', () => {
     })
     mockEnqueue.mockResolvedValue('job-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
+    mockProviderHandler.current = {}
     mockShouldExecuteInline.mockReturnValue(false)
     mockGenerateId.mockReturnValue('generated-execution-id')
+    workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
   })
 
   it('reuses preprocessing execution identity when queueing a polling webhook', async () => {
-    const preprocessingResult = await checkWebhookPreprocessing(
-      {
-        id: 'workflow-1',
-        userId: 'owner-1',
-        workspaceId: 'workspace-1',
-      },
-      {
-        id: 'webhook-1',
-        path: 'incoming/gmail',
-        provider: 'gmail',
-      },
-      'request-1'
-    )
-
-    expect(preprocessingResult).toMatchObject({
-      error: null,
-      actorUserId: 'actor-user-1',
+    const expectedCorrelation = {
       executionId: 'generated-execution-id',
-      correlation: {
-        executionId: 'generated-execution-id',
-        requestId: 'request-1',
-        source: 'webhook',
-        workflowId: 'workflow-1',
-        webhookId: 'webhook-1',
-        path: 'incoming/gmail',
-        provider: 'gmail',
-        triggerType: 'webhook',
-      },
-    })
+      requestId: 'request-1',
+      source: 'webhook',
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      path: 'incoming/gmail',
+      provider: 'gmail',
+      triggerType: 'webhook',
+    }
 
-    await queueWebhookExecution(
-      {
-        id: 'webhook-1',
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({
         path: 'incoming/gmail',
         provider: 'gmail',
-        providerConfig: {},
-        blockId: 'block-1',
-      },
-      {
-        id: 'workflow-1',
-        workspaceId: 'workspace-1',
-      },
+      }),
+      makeWorkflowRecord({}),
       { event: 'message.received' },
-      createMockRequest('POST', { event: 'message.received' }) as any,
+      createMockRequest('POST', { event: 'message.received' }) as NextRequest,
       {
         requestId: 'request-1',
         path: 'incoming/gmail',
-        actorUserId: preprocessingResult.actorUserId,
-        billingAttribution: preprocessingResult.billingAttribution,
-        executionId: preprocessingResult.executionId,
-        correlation: preprocessingResult.correlation,
       }
     )
 
+    expect(result.outcome).toBe('queued')
     expect(mockGenerateId).toHaveBeenCalledTimes(1)
     expect(mockEnqueue).toHaveBeenCalledWith(
       'webhook-execution',
@@ -409,7 +437,7 @@ describe('webhook processor execution identity', () => {
           workflowId: 'workflow-1',
           workspaceId: 'workspace-1',
           userId: 'actor-user-1',
-          correlation: preprocessingResult.correlation,
+          correlation: expectedCorrelation,
         }),
       })
     )
@@ -419,32 +447,24 @@ describe('webhook processor execution identity', () => {
   it('releases the reservation when enqueue fails before ownership transfer', async () => {
     mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
 
-    const response = await queueWebhookExecution(
-      {
-        id: 'webhook-1',
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({
         path: 'incoming/gmail',
         provider: 'gmail',
-        providerConfig: {},
         blockId: 'block-1',
-      },
-      {
-        id: 'workflow-1',
-        workspaceId: 'workspace-1',
-      },
+      }),
+      makeWorkflowRecord({}),
       { event: 'message.received' },
-      createMockRequest('POST', { event: 'message.received' }) as any,
+      createMockRequest('POST', { event: 'message.received' }),
       {
         requestId: 'request-1',
         path: 'incoming/gmail',
-        actorUserId: 'actor-user-1',
-        billingAttribution,
-        executionId: 'reserved-execution-id',
       }
     )
 
-    expect(response.status).toBe(500)
+    expect(result.response.status).toBe(500)
     expect(mockReleaseExecutionSlot).toHaveBeenCalledOnce()
-    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('reserved-execution-id')
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('generated-execution-id')
   })
 })
 
@@ -481,8 +501,8 @@ describe('polled webhook reservation ownership', () => {
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValueOnce(false)
 
     const result = await processPolledWebhookEvent(
-      foundWebhook as any,
-      foundWorkflow as any,
+      makeWebhookRecord(foundWebhook),
+      makeWorkflowRecord(foundWorkflow),
       { event: 'message.received' },
       'request-1'
     )
@@ -500,8 +520,8 @@ describe('polled webhook reservation ownership', () => {
     mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
 
     const result = await processPolledWebhookEvent(
-      foundWebhook as any,
-      foundWorkflow as any,
+      makeWebhookRecord(foundWebhook),
+      makeWorkflowRecord(foundWorkflow),
       { event: 'message.received' },
       'request-1'
     )
@@ -527,8 +547,8 @@ describe('polled webhook reservation ownership', () => {
     })
 
     const result = await processPolledWebhookEvent(
-      foundWebhook as any,
-      foundWorkflow as any,
+      makeWebhookRecord(foundWebhook),
+      makeWorkflowRecord(foundWorkflow),
       { event: 'message.received' },
       'request-1'
     )
@@ -543,5 +563,37 @@ describe('polled webhook reservation ownership', () => {
     })
     expect(mockPreprocessExecution).toHaveBeenCalledOnce()
     expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('routes queue-mode providers through the durable job backend', async () => {
+    mockProviderHandler.current = { executionMode: 'queue' }
+
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({
+        id: 'webhook-2',
+        path: 'tiktok',
+        provider: 'tiktok',
+      }),
+      makeWorkflowRecord({
+        id: 'workflow-2',
+        workspaceId: 'workspace-2',
+      }),
+      { event: 'post.publish.complete' },
+      createMockRequest('POST', { event: 'post.publish.complete' }) as NextRequest,
+      {
+        requestId: 'request-2',
+      }
+    )
+
+    expect(result.outcome).toBe('queued')
+    expect(result.response.status).toBe(200)
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'webhook-execution',
+      expect.objectContaining({
+        provider: 'tiktok',
+        workflowId: 'workflow-2',
+      }),
+      expect.any(Object)
+    )
   })
 })

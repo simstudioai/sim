@@ -1,8 +1,14 @@
 import { db } from '@sim/db'
-import { customBlock, workflow, workspace } from '@sim/db/schema'
+import {
+  customBlock,
+  workflow,
+  workflowBlocks,
+  workflowDeploymentVersion,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
@@ -62,15 +68,15 @@ async function deriveInputFields(workflowId: string): Promise<WorkflowInputField
   }
 }
 
-/** A stored per-input placeholder override, keyed by the Start field's stable id. */
-type InputPlaceholder = { id: string; placeholder?: string }
+/** A stored per-input override (placeholder + required), keyed by the Start field's stable id. */
+type InputPlaceholder = { id: string; placeholder?: string; required?: boolean }
 
 /**
  * The block's input fields: the LIVE deployed Start fields (authoritative for which
  * inputs exist and their name/type — so an input removed from the source and
- * redeployed simply disappears) with the stored per-id `placeholder` overrides
- * merged in. When the source is undeployed there are no live fields, so there are
- * no inputs — the block can't run undeployed anyway.
+ * redeployed simply disappears) with the stored per-id `placeholder`/`required`
+ * overrides merged in. When the source is undeployed there are no live fields, so
+ * there are no inputs — the block can't run undeployed anyway.
  */
 function applyInputPlaceholders(
   placeholders: InputPlaceholder[] | null,
@@ -78,12 +84,17 @@ function applyInputPlaceholders(
 ): WorkflowInputField[] {
   if (deployed.length === 0) return []
   if (!placeholders?.length) return deployed
-  const byId = new Map(placeholders.map((p) => [p.id, p.placeholder]))
-  // Placeholders are stored under `field.id ?? field.name` (the form's key), so a
+  const byId = new Map(placeholders.map((p) => [p.id, p]))
+  // Overrides are stored under `field.id ?? field.name` (the form's key), so a
   // legacy field with no stable id is keyed by name — look it up the same way.
   return deployed.map((field) => {
-    const placeholder = byId.get(field.id ?? field.name)
-    return placeholder ? { ...field, placeholder } : field
+    const override = byId.get(field.id ?? field.name)
+    if (!override) return field
+    return {
+      ...field,
+      ...(override.placeholder ? { placeholder: override.placeholder } : {}),
+      ...(override.required ? { required: true } : {}),
+    }
   })
 }
 
@@ -250,6 +261,8 @@ export async function getCustomBlockAuthority(
   organizationId: string
   ownerUserId: string
   exposedOutputs: CustomBlockOutput[]
+  /** Start-field ids (form keys) the publisher marked required. May reference removed fields. */
+  requiredInputIds: string[]
 } | null> {
   // Scope resolution to the consumer's org: `(organizationId, type)` is the unique
   // key, so without the org filter a `custom_block_*` type smuggled in from another
@@ -267,6 +280,7 @@ export async function getCustomBlockAuthority(
       organizationId: customBlock.organizationId,
       enabled: customBlock.enabled,
       outputs: customBlock.outputs,
+      inputs: customBlock.inputs,
       ownerUserId: workflow.userId,
     })
     .from(customBlock)
@@ -282,6 +296,7 @@ export async function getCustomBlockAuthority(
     organizationId: row.organizationId,
     ownerUserId: row.ownerUserId,
     exposedOutputs: row.outputs ?? [],
+    requiredInputIds: (row.inputs ?? []).filter((i) => i.required).map((i) => i.id),
   }
 }
 
@@ -431,4 +446,56 @@ export async function updateCustomBlock(
 /** Unpublish (hard-delete) a custom block. */
 export async function deleteCustomBlock(id: string): Promise<void> {
   await db.delete(customBlock).where(eq(customBlock.id, id))
+}
+
+/**
+ * How many non-archived workflows in the org place the block, in their live
+ * editor state and/or their ACTIVE deployment snapshot. The two are scanned
+ * independently — a block removed in the editor can still ship in the active
+ * deployment (and vice versa), and the deployed placement is the one that
+ * actually runs. The deployment scan pre-filters with a raw-text match on the
+ * unique type slug so only near-exact matches pay the jsonb parse.
+ */
+export async function getCustomBlockUsageCounts(
+  organizationId: string,
+  blockType: string
+): Promise<{ usageCount: number; deployedUsageCount: number }> {
+  const orgActiveWorkflow = and(
+    eq(workspace.organizationId, organizationId),
+    isNull(workflow.archivedAt)
+  )
+  // Escape LIKE wildcards — the `_`s in `custom_block_<id>` would otherwise match
+  // any character and let unrelated states through to the jsonb parse.
+  const likePattern = `%${blockType.replace(/[\\%_]/g, '\\$&')}%`
+
+  const [liveRows, deployedRows] = await Promise.all([
+    db
+      .selectDistinct({ workflowId: workflow.id })
+      .from(workflowBlocks)
+      .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))
+      .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
+      .where(and(eq(workflowBlocks.type, blockType), orgActiveWorkflow)),
+    db
+      .select({ workflowId: workflow.id })
+      .from(workflowDeploymentVersion)
+      .innerJoin(workflow, eq(workflow.id, workflowDeploymentVersion.workflowId))
+      .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
+      .where(
+        and(
+          eq(workflowDeploymentVersion.isActive, true),
+          eq(workflow.isDeployed, true),
+          orgActiveWorkflow,
+          sql`${workflowDeploymentVersion.state}::text LIKE ${likePattern} ESCAPE '\\'`,
+          sql`EXISTS (
+            SELECT 1 FROM jsonb_each((${workflowDeploymentVersion.state})::jsonb -> 'blocks') AS b
+            WHERE b.value ->> 'type' = ${blockType}
+          )`
+        )
+      ),
+  ])
+
+  const usingWorkflowIds = new Set(liveRows.map((r) => r.workflowId))
+  for (const row of deployedRows) usingWorkflowIds.add(row.workflowId)
+
+  return { usageCount: usingWorkflowIds.size, deployedUsageCount: deployedRows.length }
 }

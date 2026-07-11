@@ -21,6 +21,8 @@ import {
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
 const logger = createLogger('OAuthUtilsAPI')
@@ -222,6 +224,64 @@ export async function getServiceAccountToken(
   return tokenData.access_token
 }
 
+export interface SlackBotCredentialSecrets {
+  signingSecret: string
+  botToken: string
+  teamId: string
+  botUserId?: string
+  teamName?: string
+  /** Owning workspace — callers with a user/workflow context must verify it. */
+  workspaceId: string | null
+}
+
+/**
+ * Decrypt a reusable custom Slack bot credential — a `service_account` credential
+ * with `providerId='slack-custom-bot'` whose encrypted blob holds the bring-your-own
+ * app's signing secret + bot token + derived team_id/bot_user_id. Returns null if
+ * the id is not such a credential (or its blob is incomplete).
+ *
+ * @remarks Server-internal. The native custom ingest route authenticates each
+ * request via the app's signing secret (not a user session), so this reader does
+ * no per-user authorization; callers with a user context authorize separately.
+ */
+export async function getSlackBotCredential(
+  credentialId: string
+): Promise<SlackBotCredentialSecrets | null> {
+  const [row] = await db
+    .select({
+      type: credential.type,
+      providerId: credential.providerId,
+      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+      workspaceId: credential.workspaceId,
+    })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (
+    !row ||
+    row.type !== 'service_account' ||
+    row.providerId !== SLACK_CUSTOM_BOT_PROVIDER_ID ||
+    !row.encryptedServiceAccountKey
+  ) {
+    return null
+  }
+
+  const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
+  const blob = JSON.parse(decrypted) as Partial<SlackBotCredentialSecrets>
+  if (!blob.signingSecret || !blob.botToken || !blob.teamId) {
+    return null
+  }
+  return {
+    signingSecret: blob.signingSecret,
+    botToken: blob.botToken,
+    teamId: blob.teamId,
+    botUserId: blob.botUserId,
+    teamName: blob.teamName,
+    workspaceId: row.workspaceId ?? null,
+  }
+}
+
 interface AtlassianServiceAccountSecret {
   type: typeof ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE
   apiToken: string
@@ -264,9 +324,45 @@ export async function getAtlassianServiceAccountSecret(
  * blocks call api.atlassian.com/ex/jira/{cloudId}/... with `Authorization: Bearer {apiToken}`.
  * No exchange or refresh is needed; we just decrypt and return the raw token.
  */
-async function getAtlassianServiceAccountToken(credentialId: string): Promise<string> {
-  const secret = await getAtlassianServiceAccountSecret(credentialId)
-  return secret.apiToken
+export interface ServiceAccountTokenResult {
+  accessToken: string
+  /** Atlassian only — the resolved Jira/Confluence cloud id. */
+  cloudId?: string
+  /** Atlassian only — the site domain. */
+  domain?: string
+}
+
+/**
+ * Single dispatch point for turning a `service_account` credential into an
+ * access token, keyed on `providerId`. Both `refreshAccessTokenIfNeeded` and the
+ * `POST /api/auth/oauth/token` route go through here, so a new service-account
+ * provider is one edit and an unknown provider fails loudly instead of silently
+ * attempting a Google JWT.
+ */
+export async function resolveServiceAccountToken(
+  credentialId: string,
+  providerId: string | null | undefined,
+  scopes?: string[],
+  impersonateEmail?: string
+): Promise<ServiceAccountTokenResult> {
+  if (providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
+    const secret = await getAtlassianServiceAccountSecret(credentialId)
+    return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+  }
+  if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
+    const botCredential = await getSlackBotCredential(credentialId)
+    if (!botCredential) {
+      throw new Error('Slack bot credential not found')
+    }
+    return { accessToken: botCredential.botToken }
+  }
+  if (providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    if (!scopes?.length) {
+      throw new Error('Scopes are required for service account credentials')
+    }
+    return { accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail) }
+  }
+  throw new Error(`Unsupported service-account provider: ${providerId ?? 'unknown'}`)
 }
 
 /**
@@ -511,15 +607,14 @@ export async function refreshAccessTokenIfNeeded(
   }
 
   if (resolved.credentialType === 'service_account' && resolved.credentialId) {
-    if (resolved.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
-      logger.info(`[${requestId}] Using Atlassian service account token for credential`)
-      return getAtlassianServiceAccountToken(resolved.credentialId)
-    }
-    if (!scopes?.length) {
-      throw new Error('Scopes are required for service account credentials')
-    }
     logger.info(`[${requestId}] Using service account token for credential`)
-    return getServiceAccountToken(resolved.credentialId, scopes, impersonateEmail)
+    const { accessToken } = await resolveServiceAccountToken(
+      resolved.credentialId,
+      resolved.providerId,
+      scopes,
+      impersonateEmail
+    )
+    return accessToken
   }
 
   // Use the already-resolved account ID to avoid a redundant resolveOAuthAccountId query

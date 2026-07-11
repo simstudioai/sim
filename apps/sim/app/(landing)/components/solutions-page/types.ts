@@ -18,8 +18,10 @@ export interface SolutionsPillCta {
   href: string
 }
 
-/** The solutions hero - header copy, the shared CTA, and a full-width visual. */
+/** The solutions hero - optional tag, header copy, the shared CTA, and a full-width visual. */
 export interface SolutionsHeroConfig {
+  /** Optional mono chip shown above the page's single `<h1>`. */
+  eyebrow?: string
   /**
    * The page's single `<h1>`. Per the constitution it should name the module and
    * "Sim"/"AI workspace" (e.g. "Workflows - the visual builder in Sim, the AI workspace").
@@ -56,7 +58,21 @@ export interface SolutionsCardConfig {
    * owns the spacing around both the text and this frame.
    */
   visual: ReactNode
+  /**
+   * Feature-tile surface tone - only read when the row renders
+   * `cardVariant='featureTile'`. Defaults to `'light'` so tiles can mix light
+   * and dark backgrounds within the same row.
+   */
+  featureTileTone?: SolutionsFeatureTileTone
+  /**
+   * Optional description color on feature tiles. `'soft'` is for lighter body
+   * copy on dark surfaces without changing the row's default tone map.
+   */
+  featureTileDescriptionTone?: 'soft'
 }
+
+/** Controlled surface tones for {@link SolutionsCardConfig.featureTileTone}. */
+export type SolutionsFeatureTileTone = 'light' | 'dark'
 
 /**
  * A card row - the core repeating unit. A header (title + subtitle + CTA) above a

@@ -8,6 +8,7 @@ export {
   getUserStorageUsage,
 } from './limits'
 export {
+  checkAndIncrementStorageUsageInTx,
   decrementStorageUsage,
   decrementStorageUsageForBillingContext,
   decrementStorageUsageForBillingContextInTx,
@@ -15,4 +16,6 @@ export {
   incrementStorageUsage,
   incrementStorageUsageForBillingContext,
   incrementStorageUsageForBillingContextInTx,
+  maybeNotifyStorageLimit,
+  maybeNotifyStorageLimitForBillingContext,
 } from './tracking'

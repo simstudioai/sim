@@ -3,7 +3,7 @@ import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sendToProfound } from './lib/analytics/profound'
 import { getEnv } from './lib/core/config/env'
-import { isAuthDisabled, isHosted } from './lib/core/config/env-flags'
+import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 import { getClientIp } from './lib/core/utils/request'
 
@@ -138,8 +138,8 @@ function handleRootPathRedirects(
     return null
   }
 
-  if (!isHosted) {
-    // Self-hosted: Always redirect based on session
+  if (!isHosted && !isDev) {
+    // Self-hosted production: Always redirect based on session.
     if (hasActiveSession) {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
@@ -196,7 +196,10 @@ function handleInvitationRedirects(
 function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   const userAgent = request.headers.get('user-agent') || ''
   const { pathname } = request.nextUrl
-  const isWebhookEndpoint = pathname.startsWith('/api/webhooks/trigger/')
+  const isWebhookEndpoint =
+    pathname.startsWith('/api/webhooks/trigger/') ||
+    pathname.startsWith('/api/webhooks/tiktok') ||
+    pathname.startsWith('/api/webhooks/agentmail')
   const isMcpEndpoint = pathname.startsWith('/api/mcp/')
   const isMcpOauthDiscoveryEndpoint =
     pathname.startsWith('/.well-known/oauth-authorization-server') ||

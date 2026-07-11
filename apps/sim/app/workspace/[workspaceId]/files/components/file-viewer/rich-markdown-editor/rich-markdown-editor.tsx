@@ -7,13 +7,20 @@ import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
+import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
-import { extractImageFiles } from './image-paste'
+import {
+  extractImageFiles,
+  extractImgSrcs,
+  findHostedImageAttrs,
+  shouldSkipFileUpload,
+} from './image-paste'
 import {
   applyFrontmatter,
   normalizeLinkHref,
@@ -45,8 +52,9 @@ interface RichMarkdownEditorProps {
   canEdit: boolean
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
-  onSaveStatusChange?: (status: SaveStatus) => void
+  onSaveStatusChange?: (status: SaveStatus, retry?: () => Promise<void>) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
   /**
@@ -70,6 +78,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  discardRef,
   streamingContent,
   isAgentEditing,
   streamIsIncremental,
@@ -93,6 +102,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
+    discardRef,
     normalizeBaseline: normalizeMarkdownContent,
   })
 
@@ -205,6 +215,7 @@ export function LoadedRichMarkdownEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const uploadFile = useUploadWorkspaceFile()
   const editorInstanceRef = useRef<Editor | null>(null)
+  const source = useFileContentSource()
 
   /**
    * The `/Image` slash command opens this hidden picker; `pendingImagePosRef` holds the caret position
@@ -244,6 +255,31 @@ export function LoadedRichMarkdownEditor({
       } catch {
         position = editor.state.doc.content.size
       }
+    }
+  }
+
+  /**
+   * A same-page copy/drag of an already-hosted `<img>` carries the clipboard/dataTransfer `html`'s
+   * *display* src (`source.resolveImageSrc`'s rewrite), not the real persisted one — inserting a node
+   * built straight from that html would bake the display-only URL into the document, breaking public
+   * share/export/referenced-by-doc tracking for it (they only recognize the persisted shape).
+   * `findHostedImageAttrs` finds the real, already-present node with a matching resolved src instead,
+   * so the clone gets the exact real `src` (and every other attribute — width, href, title…) rather
+   * than a re-derived guess. Returns `false` (falls through to a normal upload) if no match is found,
+   * which is always correct, just occasionally a redundant upload — unlike blindly trusting the html.
+   */
+  const cloneHostedImageRef = useRef<(imgSrcs: string[], at: number) => boolean>(() => false)
+  cloneHostedImageRef.current = (imgSrcs, at) => {
+    const editor = editorInstanceRef.current
+    if (!editor) return false
+    const matchedAttrs = findHostedImageAttrs(editor.state.doc, imgSrcs, source.resolveImageSrc)
+    if (!matchedAttrs) return false
+    const safePosition = Math.min(at, editor.state.doc.content.size)
+    try {
+      editor.chain().insertContentAt(safePosition, { type: 'image', attrs: matchedAttrs }).run()
+      return true
+    } catch {
+      return false
     }
   }
 
@@ -295,9 +331,32 @@ export function LoadedRichMarkdownEditor({
         window.open(normalized, '_blank', 'noopener,noreferrer')
         return true
       },
+      /**
+       * Inserts pasted image files at the caret. A same-page copy of an already-hosted `<img>` (e.g.
+       * Cmd+C after clicking it to select it) makes the browser add BOTH `text/html` (the real node,
+       * with its real hosted `src`) AND a synthesized image `File` to the clipboard — indistinguishable
+       * from a genuine external image paste by `clipboardData` files/items alone. When the HTML sibling
+       * already names one of our own hosted files, look up the matching node already in this doc and
+       * clone ITS real attrs (see `cloneHostedImageRef`) instead of re-uploading the pasted bytes as a
+       * brand-new, distinct file — letting the editor's DEFAULT html-based paste do that clone instead
+       * would persist the html's display-layer src rather than the real one. Only applied when exactly
+       * one image file is offered: a genuinely mixed paste (the hosted image plus a separate new one)
+       * must still upload the new file rather than have the whole paste diverted by this bypass.
+       */
       handlePaste: (view, event) => {
         if (!view.editable) return false
         const images = extractImageFiles(event.clipboardData)
+        const html = event.clipboardData?.getData('text/html') ?? ''
+        if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
+          const cloned = cloneHostedImageRef.current(
+            extractImgSrcs(html),
+            view.state.selection.from
+          )
+          if (cloned) {
+            event.preventDefault()
+            return true
+          }
+        }
         if (images.length === 0) return false
         event.preventDefault()
         void insertImagesRef.current(images, view.state.selection.from)
@@ -307,10 +366,26 @@ export function LoadedRichMarkdownEditor({
        * Inserts dropped image files at the drop point. Any other file drop (e.g. a PDF) is swallowed so
        * the browser doesn't navigate away from the editor; internal text drags carry no files and fall
        * through to the default behavior.
+       *
+       * Dragging an existing image node to reorder it is also an internal drag, but the browser's
+       * native drag-and-drop synthesizes an image `File` into `event.dataTransfer` for a dragged `<img>`
+       * (the same mechanism that lets a user drag a web image out to their desktop) — indistinguishable
+       * from a real external drop by `dataTransfer` files/items alone. When the accompanying `text/html`
+       * shows it's a same-page drag of an already-hosted image, bail out and let ProseMirror's own
+       * default move logic run — it relocates the actual existing node object (`dragging.node`), never
+       * re-parsing html, so (unlike the paste case above) there's no display-vs-persisted src risk here.
+       * Checked from `html`, not `view.dragging`, so a stale `dragging` flag (ProseMirror clears it up
+       * to ~50ms late via `dragend` when a prior internal drag was dropped outside this view) can never
+       * suppress the plain-file swallow guard below for an unrelated drop that happens to land in that
+       * window — this only reacts to what THIS specific drop's `html` actually contains.
        */
       handleDrop: (view, event) => {
         if (!view.editable) return false
         const images = extractImageFiles(event.dataTransfer)
+        const html = event.dataTransfer?.getData('text/html') ?? ''
+        if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
+          return false
+        }
         if (images.length > 0) {
           event.preventDefault()
           const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
@@ -356,6 +431,14 @@ export function LoadedRichMarkdownEditor({
   const lastStreamParseAtRef = useRef(0)
   useEffect(() => {
     if (!editor) return
+    const syncEditorBody = (body: string) => {
+      if (body === lastSyncedBodyRef.current) return
+      lastSyncedBodyRef.current = body
+      editor.commands.setContent(parseMarkdownToDoc(body), {
+        contentType: 'json',
+        emitUpdate: false,
+      })
+    }
     if (isStreaming) {
       wasStreamingRef.current = true
       if (editor.isEditable) editor.setEditable(false)
@@ -407,14 +490,7 @@ export function LoadedRichMarkdownEditor({
     if (isInitialSettle || wasStreamingRef.current) {
       wasStreamingRef.current = false
       settledRef.current = lockSettled(content)
-      const body = splitFrontmatter(content).body
-      if (body !== lastSyncedBodyRef.current) {
-        lastSyncedBodyRef.current = body
-        editor.commands.setContent(parseMarkdownToDoc(body), {
-          contentType: 'json',
-          emitUpdate: false,
-        })
-      }
+      syncEditorBody(splitFrontmatter(content).body)
       // `setContent` maps any pre-existing selection onto the new doc rather than clearing it — a
       // select-all survives as "select everything," permanently painting every divider/image with the
       // `rich-leaf-in-selection` decoration (keymap.ts) until the user clicks elsewhere. This must run
@@ -428,6 +504,7 @@ export function LoadedRichMarkdownEditor({
       if (isInitialSettle && autoFocus) editor.commands.focus('end')
       return
     }
+    syncEditorBody(splitFrontmatter(content).body)
     if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict)
   }, [editor, content, isStreaming, canEdit, autoFocus, disableStreamingAutoScroll])
 

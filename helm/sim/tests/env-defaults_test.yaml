@@ -3,12 +3,11 @@ release:
   name: t
   namespace: sim
 defaults: &defaults
-  app.env.BETTER_AUTH_SECRET: x
-  app.env.ENCRYPTION_KEY: x
+  app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   app.env.INTERNAL_API_SECRET: x
   app.env.CRON_SECRET: x
-  postgresql.auth.password: x
-
+  postgresql.auth.password: xxxxxxxx
 tests:
   - it: inline mode renders localhost envDefaults on the app pod
     template: deployment-app.yaml
@@ -37,7 +36,7 @@ tests:
     set:
       app.secrets.existingSecret.enabled: true
       app.secrets.existingSecret.name: my-secret
-      postgresql.auth.password: x
+      postgresql.auth.password: xxxxxxxx
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].env
@@ -50,7 +49,7 @@ tests:
     set:
       app.secrets.existingSecret.enabled: true
       app.secrets.existingSecret.name: my-secret
-      postgresql.auth.password: x
+      postgresql.auth.password: xxxxxxxx
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].env
@@ -64,7 +63,7 @@ tests:
       app.secrets.existingSecret.enabled: true
       app.secrets.existingSecret.name: my-secret
       app.env.NEXT_PUBLIC_APP_URL: "https://prod.example.com"
-      postgresql.auth.password: x
+      postgresql.auth.password: xxxxxxxx
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -78,7 +77,7 @@ tests:
       app.secrets.existingSecret.enabled: true
       app.secrets.existingSecret.name: my-secret
       app.env.NEXT_PUBLIC_APP_URL: "https://prod.example.com"
-      postgresql.auth.password: x
+      postgresql.auth.password: xxxxxxxx
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -93,7 +92,7 @@ tests:
       app.secrets.existingSecret.name: my-secret
       app.env.NEXT_PUBLIC_APP_URL: "https://prod.example.com"
       realtime.env.NEXT_PUBLIC_APP_URL: "https://realtime.example.com"
-      postgresql.auth.password: x
+      postgresql.auth.password: xxxxxxxx
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env

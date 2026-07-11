@@ -882,6 +882,7 @@ Trigger workflow when an issue is opened, updated, or closed in GitLab
 |   ↳ `description` | string | Issue description |
 |   ↳ `confidential` | boolean | Whether the issue is confidential |
 |   ↳ `url` | string | Issue URL |
+|   ↳ `work_item_type` | string | Work item type \(e.g. Issue, Incident, Task\); GitLab 17.2+ only |
 
 
 ---
@@ -912,7 +913,8 @@ Trigger workflow when a merge request is opened, updated, or merged in GitLab
 |   ↳ `action` | string | Action \(open, close, reopen, update, merge, etc.\) |
 |   ↳ `source_branch` | string | Source branch |
 |   ↳ `target_branch` | string | Target branch |
-|   ↳ `merge_status` | string | Merge status |
+|   ↳ `merge_status` | string | Merge status \(deprecated by GitLab\) |
+|   ↳ `detailed_merge_status` | string | Detailed merge status |
 |   ↳ `draft` | boolean | Whether the merge request is a draft |
 |   ↳ `url` | string | Merge request URL |
 

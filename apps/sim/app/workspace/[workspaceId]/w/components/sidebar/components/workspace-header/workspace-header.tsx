@@ -117,6 +117,7 @@ function WorkspaceHeaderImpl({
   const isContextMenuOpeningRef = useRef(false)
   const contextMenuClosedRef = useRef(true)
   const hasInputFocusedRef = useRef(false)
+  const renameInputRef = useRef<HTMLInputElement | null>(null)
 
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
@@ -424,6 +425,7 @@ function WorkspaceHeaderImpl({
                             )}
                             <input
                               ref={(el) => {
+                                renameInputRef.current = el
                                 if (el && !hasInputFocusedRef.current) {
                                   hasInputFocusedRef.current = true
                                   el.focus()
@@ -659,6 +661,7 @@ function WorkspaceHeaderImpl({
             menuRef={contextMenuRef}
             onClose={closeContextMenu}
             onRename={handleRenameAction}
+            renameInputRef={renameInputRef}
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
             onUploadLogo={handleUploadLogoAction}

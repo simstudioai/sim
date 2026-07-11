@@ -47,6 +47,7 @@ import { slackHandler } from '@/lib/webhooks/providers/slack'
 import { stripeHandler } from '@/lib/webhooks/providers/stripe'
 import { tableProviderHandler } from '@/lib/webhooks/providers/table'
 import { telegramHandler } from '@/lib/webhooks/providers/telegram'
+import { tiktokHandler } from '@/lib/webhooks/providers/tiktok'
 import { twilioHandler } from '@/lib/webhooks/providers/twilio'
 import { twilioVoiceHandler } from '@/lib/webhooks/providers/twilio-voice'
 import { typeformHandler } from '@/lib/webhooks/providers/typeform'
@@ -105,9 +106,13 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   sendblue: sendblueHandler,
   servicenow: servicenowHandler,
   slack: slackHandler,
+  // Native OAuth Slack trigger — inbound events are verified in the shared
+  // /api/webhooks/slack route; the handler reuses Slack payload normalization.
+  slack_app: slackHandler,
   stripe: stripeHandler,
   table: tableProviderHandler,
   telegram: telegramHandler,
+  tiktok: tiktokHandler,
   twilio: twilioHandler,
   twilio_voice: twilioVoiceHandler,
   typeform: typeformHandler,

@@ -24,12 +24,12 @@ import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
-  checkStorageQuota,
+  checkAndIncrementStorageUsageInTx,
   checkStorageQuotaForBillingContext,
   decrementStorageUsageForBillingContextInTx,
   decrementStorageUsageInTx,
-  incrementStorageUsage,
   incrementStorageUsageForBillingContextInTx,
+  maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
   type StorageBillingContext,
 } from '@/lib/billing/storage'
@@ -969,8 +969,16 @@ export function isTriggerAvailable(): boolean {
 }
 
 type DocumentStorageBilling =
-  | { readonly context: StorageBillingContext; readonly bytes: number }
-  | { readonly userId: string; readonly bytes: number }
+  | {
+      readonly context: StorageBillingContext
+      readonly bytes: number
+      readonly updatedUsage?: number
+    }
+  | {
+      readonly userId: string
+      readonly bytes: number
+      readonly sub: HighestPrioritySubscription | null
+    }
 
 /**
  * Resolves and checks one document-write storage payer. Workspace documents
@@ -980,7 +988,8 @@ type DocumentStorageBilling =
 async function prepareDocumentStorageBilling(
   workspaceId: string | null,
   legacyUserId: string,
-  bytes: number
+  bytes: number,
+  legacySub: HighestPrioritySubscription | null
 ): Promise<DocumentStorageBilling> {
   if (workspaceId) {
     const context = await resolveStorageBillingContext(workspaceId)
@@ -991,18 +1000,28 @@ async function prepareDocumentStorageBilling(
     return { context, bytes }
   }
 
-  const quotaCheck = await checkStorageQuota(legacyUserId, bytes)
-  if (!quotaCheck.allowed) {
-    throw new Error(quotaCheck.error || 'Storage limit exceeded')
-  }
-  return { userId: legacyUserId, bytes }
+  return { userId: legacyUserId, bytes, sub: legacySub }
 }
 
-/** Applies a legacy workspace-less document increment after its insert commits. */
-async function incrementLegacyDocumentStorageUsage(
-  billing: Extract<DocumentStorageBilling, { readonly userId: string }>
-): Promise<void> {
-  await incrementStorageUsage(billing.userId, billing.bytes)
+/**
+ * Resolves the subscription to bill for a storage-metered upload before the
+ * document transaction opens.
+ */
+async function resolveQuotaSubscription(
+  knowledgeBaseId: string,
+  uploadedBy: string | null
+): Promise<HighestPrioritySubscription | null> {
+  const billedUserId =
+    uploadedBy ??
+    (
+      await db
+        .select({ userId: knowledgeBase.userId })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, knowledgeBaseId))
+        .limit(1)
+    )[0]?.userId
+
+  return billedUserId ? getHighestPrioritySubscription(billedUserId) : null
 }
 
 export async function createDocumentRecords(
@@ -1025,6 +1044,9 @@ export async function createDocumentRecords(
   uploadedBy: string | null = null
 ): Promise<DocumentData[]> {
   let storageBilling: DocumentStorageBilling | null = null
+
+  const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
+  const sub = totalBytes > 0 ? await resolveQuotaSubscription(knowledgeBaseId, uploadedBy) : null
 
   const returnData = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
@@ -1053,9 +1075,34 @@ export async function createDocumentRecords(
     )
 
     const billedUserId = uploadedBy ?? kb[0].userId
-    const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
     if (totalBytes > 0) {
-      storageBilling = await prepareDocumentStorageBilling(kbWorkspaceId, billedUserId, totalBytes)
+      const preparedBilling = await prepareDocumentStorageBilling(
+        kbWorkspaceId,
+        billedUserId,
+        totalBytes,
+        sub
+      )
+      if ('context' in preparedBilling) {
+        storageBilling = {
+          ...preparedBilling,
+          updatedUsage: await incrementStorageUsageForBillingContextInTx(
+            tx,
+            preparedBilling.context,
+            preparedBilling.bytes
+          ),
+        }
+      } else {
+        const quotaCheck = await checkAndIncrementStorageUsageInTx(
+          tx,
+          preparedBilling.sub,
+          preparedBilling.userId,
+          preparedBilling.bytes
+        )
+        if (!quotaCheck.allowed) {
+          throw new Error(quotaCheck.error || 'Storage limit exceeded')
+        }
+        storageBilling = preparedBilling
+      }
     }
 
     // One load per batch (was N+1); skip entirely if no doc carries tags.
@@ -1144,23 +1191,14 @@ export async function createDocumentRecords(
         .where(eq(knowledgeBase.id, knowledgeBaseId))
     }
 
-    if (storageBilling && 'context' in storageBilling) {
-      await incrementStorageUsageForBillingContextInTx(
-        tx,
-        storageBilling.context,
-        storageBilling.bytes
-      )
-    }
-
     return returnData
   })
 
-  if (storageBilling && 'userId' in storageBilling) {
-    try {
-      await incrementLegacyDocumentStorageUsage(storageBilling)
-    } catch (storageError) {
-      logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
-    }
+  if (storageBilling && 'context' in storageBilling && storageBilling.updatedUsage !== undefined) {
+    void maybeNotifyStorageLimitForBillingContext(
+      storageBilling.context,
+      storageBilling.updatedUsage
+    )
   }
 
   return returnData
@@ -1484,6 +1522,9 @@ export async function createSingleDocument(
 
   let storageBilling: DocumentStorageBilling | null = null
 
+  const sub =
+    documentData.fileSize > 0 ? await resolveQuotaSubscription(knowledgeBaseId, uploadedBy) : null
+
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
@@ -1511,11 +1552,33 @@ export async function createSingleDocument(
 
     const billedUserId = uploadedBy ?? kb[0].userId
     if (documentData.fileSize > 0) {
-      storageBilling = await prepareDocumentStorageBilling(
+      const preparedBilling = await prepareDocumentStorageBilling(
         kb[0].workspaceId,
         billedUserId,
-        documentData.fileSize
+        documentData.fileSize,
+        sub
       )
+      if ('context' in preparedBilling) {
+        storageBilling = {
+          ...preparedBilling,
+          updatedUsage: await incrementStorageUsageForBillingContextInTx(
+            tx,
+            preparedBilling.context,
+            preparedBilling.bytes
+          ),
+        }
+      } else {
+        const quotaCheck = await checkAndIncrementStorageUsageInTx(
+          tx,
+          preparedBilling.sub,
+          preparedBilling.userId,
+          preparedBilling.bytes
+        )
+        if (!quotaCheck.allowed) {
+          throw new Error(quotaCheck.error || 'Storage limit exceeded')
+        }
+        storageBilling = preparedBilling
+      }
     }
 
     await tx.insert(document).values(newDocument)
@@ -1524,22 +1587,13 @@ export async function createSingleDocument(
       .update(knowledgeBase)
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
-
-    if (storageBilling && 'context' in storageBilling) {
-      await incrementStorageUsageForBillingContextInTx(
-        tx,
-        storageBilling.context,
-        storageBilling.bytes
-      )
-    }
   })
 
-  if (storageBilling && 'userId' in storageBilling) {
-    try {
-      await incrementLegacyDocumentStorageUsage(storageBilling)
-    } catch (storageError) {
-      logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
-    }
+  if (storageBilling && 'context' in storageBilling && storageBilling.updatedUsage !== undefined) {
+    void maybeNotifyStorageLimitForBillingContext(
+      storageBilling.context,
+      storageBilling.updatedUsage
+    )
   }
 
   logger.info(`[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`)

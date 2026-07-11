@@ -379,6 +379,19 @@ describe('validateBlockType', () => {
       await validateBlockType(undefined, undefined, 'notion')
     })
 
+    it('does NOT treat preview blocks as exempt — preview is not legacy', async () => {
+      // A `preview: true` block has static hideFromToolbar unset, so it is a
+      // normal access-controlled block: visibility gating (discovery) and
+      // permission-group enforcement (execution) are deliberately independent.
+      mockGetBlock.mockImplementation((type) =>
+        type === 'gmail_v2' ? ({ preview: true } as { hideFromToolbar?: boolean }) : undefined
+      )
+
+      await expect(validateBlockType(undefined, undefined, 'gmail_v2')).rejects.toThrow(
+        IntegrationNotAllowedError
+      )
+    })
+
     it('matches case-insensitively', async () => {
       await validateBlockType(undefined, undefined, 'Slack')
       await validateBlockType(undefined, undefined, 'GOOGLE_DRIVE')

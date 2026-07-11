@@ -302,6 +302,19 @@ export function getAllowedIntegrationsFromEnv(): string[] | null {
 }
 
 /**
+ * Returns the preview block types revealed via the environment variable — the
+ * off-AppConfig reveal path for self-hosters and local dev. If not set or empty,
+ * returns an empty array (all `preview: true` blocks stay hidden). Block types
+ * are already lowercase snake_case, so entries are trimmed but not lowercased.
+ */
+export function getPreviewBlocksFromEnv(): string[] {
+  if (!env.PREVIEW_BLOCKS) return []
+  return env.PREVIEW_BLOCKS.split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+}
+
+/**
  * Returns the list of blacklisted provider IDs from the environment variable.
  * If not set or empty, returns an empty array (meaning no providers are blacklisted).
  */

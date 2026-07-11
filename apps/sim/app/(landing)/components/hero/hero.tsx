@@ -1,7 +1,12 @@
+import { cn } from '@sim/emcn'
 import Image from 'next/image'
+import { LandingHeroHeader } from '@/app/(landing)/components/hero/components/hero-header'
 import { HeroPlatformLoop } from '@/app/(landing)/components/hero/components/hero-platform-loop'
-import { HeroStat } from '@/app/(landing)/components/hero/components/hero-stat'
-import { HeroCta } from '@/app/(landing)/components/hero-cta'
+import {
+  LANDING_CONTENT_WIDTH,
+  LANDING_GUTTER,
+  LANDING_HERO_TOP_PADDING,
+} from '@/app/(landing)/components/landing-layout'
 import { TrustedBy } from '@/app/(landing)/components/trusted-by'
 
 /**
@@ -63,7 +68,12 @@ export function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='mx-auto flex w-full max-w-[1460px] flex-col items-start gap-[22px] px-20 pt-[112px] text-left max-sm:px-5 max-sm:pt-12 max-lg:px-8 max-xl:pt-20'
+      className={cn(
+        'flex flex-col items-start gap-[22px] text-left',
+        LANDING_CONTENT_WIDTH,
+        LANDING_GUTTER,
+        LANDING_HERO_TOP_PADDING
+      )}
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
@@ -72,25 +82,16 @@ export function Hero() {
         production-ready for teams of every size.
       </p>
 
-      <div className='flex w-full items-end justify-between gap-8'>
-        <div className='flex flex-col gap-[22px]'>
-          <h1
-            id='hero-heading'
-            className='text-balance text-[64px] text-[var(--text-primary)] leading-[1.05] tracking-[-0.01em] max-sm:text-[36px] max-xl:text-[52px] [&>br]:max-sm:hidden'
-          >
+      <LandingHeroHeader
+        headingId='hero-heading'
+        heading={
+          <>
             Sim is your AI workspace <br />
             for building agentic workflows.
-          </h1>
-
-          <p className='text-[var(--text-muted)] text-base leading-[1.5]'>
-            The open-source workspace where teams build, deploy, and manage AI agents.
-          </p>
-
-          <HeroCta />
-        </div>
-
-        <HeroStat />
-      </div>
+          </>
+        }
+        description='The open-source workspace where teams build, deploy, and manage AI agents.'
+      />
 
       <div
         aria-hidden='true'

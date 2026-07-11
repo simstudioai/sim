@@ -9,7 +9,7 @@ release:
   namespace: sim
 set:
   app.env.BETTER_AUTH_SECRET: test-better-auth-secret-32-bytes
-  app.env.ENCRYPTION_KEY: test-encryption-key-32-bytes
+  app.env.ENCRYPTION_KEY: test-encryption-key-32-bytes-long
   app.env.INTERNAL_API_SECRET: test-internal-api-secret-32-bytes
   app.env.CRON_SECRET: test-cron-secret-32-bytes
   postgresql.auth.password: testpassword

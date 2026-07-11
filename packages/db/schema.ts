@@ -732,6 +732,11 @@ export const jobExecutionLogs = pgTable(
   })
 )
 
+/** Extracts the canonical credential ID persisted in webhook provider configuration. */
+export function webhookCredentialIdExpression(column: AnyPgColumn): SQL<string> {
+  return sql<string>`((${column})::jsonb ->> 'credentialId')`
+}
+
 export const webhook = pgTable(
   'webhook',
   {
@@ -744,7 +749,19 @@ export const webhook = pgTable(
       { onDelete: 'cascade' }
     ),
     blockId: text('block_id'),
-    path: text('path').notNull(),
+    /**
+     * URL-addressable webhook path. NULL for shared-app providers (e.g. the
+     * native Slack OAuth trigger) whose events arrive on a single shared
+     * endpoint and route by `routingKey` instead of a per-workflow path.
+     */
+    path: text('path'),
+    /**
+     * Tenant routing key for shared-app providers. For `provider='slack_app'`
+     * this is the Slack `team_id`, derived server-side from the connected
+     * credential at deploy time — never user input. Inbound events match on
+     * this after HMAC verification.
+     */
+    routingKey: text('routing_key'),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
     providerConfig: json('provider_config'), // Store provider-specific configuration
     isActive: boolean('is_active').notNull().default(true),
@@ -764,12 +781,21 @@ export const webhook = pgTable(
         table.workflowId,
         table.deploymentVersionId
       ),
+      // Shared-app inbound routing (Slack native OAuth trigger). routingKey leads.
+      routingKeyActiveIdx: index('webhook_routing_key_active_idx')
+        .on(table.routingKey, table.provider)
+        .where(sql`${table.archivedAt} IS NULL AND ${table.routingKey} IS NOT NULL`),
       archivedAtPartialIdx: index('webhook_archived_at_partial_idx')
         .on(table.archivedAt)
         .where(sql`${table.archivedAt} IS NOT NULL`),
       providerActiveWorkflowDeploymentIdx: index(
         'idx_webhook_on_provider_is_active_workflow_id_deploym_bdeed5468'
       ).on(table.provider, table.isActive, table.workflowId, table.deploymentVersionId),
+      tiktokCredentialIdIdx: index('webhook_tiktok_credential_id_idx')
+        .on(webhookCredentialIdExpression(table.providerConfig))
+        .where(
+          sql`${table.provider} = 'tiktok' AND ${table.isActive} = true AND ${table.archivedAt} IS NULL`
+        ),
       workflowBlockUpdatedDescIdx: index('idx_webhook_on_workflow_id_block_id_updated_at_desc').on(
         table.workflowId,
         table.blockId,
@@ -2893,13 +2919,14 @@ export const customBlock = pgTable(
     /** Uploaded icon image URL (workspace storage), or null for the default icon. */
     iconUrl: text('icon_url'),
     /**
-     * Per-input placeholder hints keyed by the source Start field's stable `id`:
-     * `Array<{ id, placeholder? }>`. Only the placeholder is authored — the input
-     * field set and its name/type/description are always derived live from the
-     * deployed Start (so they can never go stale). Absent/empty → no placeholder
-     * overrides; every deployed Start input is still exposed.
+     * Per-input authored overrides keyed by the source Start field's stable `id`:
+     * `Array<{ id, placeholder?, required? }>`. Only the placeholder and required
+     * flag are authored — the input field set and its name/type/description are
+     * always derived live from the deployed Start (so they can never go stale); an
+     * override whose field was removed is ignored. Absent/empty → no overrides;
+     * every deployed Start input is still exposed.
      */
-    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string }>>(),
+    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string; required?: boolean }>>(),
     /**
      * Curated outputs exposed to consumers: `Array<{ blockId, path, name }>`. Each
      * maps a child-workflow block output (blockId + dot-path) to a friendly output

@@ -11,17 +11,20 @@ const inputFieldSchema = z.object({
   description: z.string().optional(),
   /** Consumer-facing placeholder hint (curated inputs only). */
   placeholder: z.string().optional(),
+  /** Consumers must fill this input (curated inputs only). */
+  required: z.boolean().optional(),
 })
 
 /**
- * The only authored per-input datum: a placeholder, keyed by the source Start
- * field's stable `id`. The field's name/type/description are NOT stored — they're
- * always derived from the live deployed Start (so they can't go stale), and this
- * map only supplies the consumer-facing placeholder hint.
+ * The authored per-input data: a placeholder and a required flag, keyed by the
+ * source Start field's stable `id`. The field's name/type/description are NOT
+ * stored — they're always derived from the live deployed Start (so they can't go
+ * stale); an override whose field was removed from the Start is silently ignored.
  */
 const inputPlaceholderSchema = z.object({
   id: z.string().min(1),
   placeholder: z.string().max(200).optional(),
+  required: z.boolean().optional(),
 })
 
 export type CustomBlockInputPlaceholder = z.input<typeof inputPlaceholderSchema>
@@ -93,6 +96,18 @@ export const updateCustomBlockBodySchema = z
 
 export type UpdateCustomBlockBody = z.input<typeof updateCustomBlockBodySchema>
 
+/**
+ * How many workflows in the org place this block. Live editor state and the
+ * active deployment snapshot can diverge, so a workflow counts when the block
+ * appears in either; `deployedUsageCount` counts active deployments only.
+ */
+export const customBlockUsageCountsSchema = z.object({
+  usageCount: z.number().int().min(0),
+  deployedUsageCount: z.number().int().min(0),
+})
+
+export type CustomBlockUsageCounts = z.output<typeof customBlockUsageCountsSchema>
+
 export const listCustomBlocksContract = defineRouteContract({
   method: 'GET',
   path: '/api/custom-blocks',
@@ -135,5 +150,15 @@ export const deleteCustomBlockContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({ success: z.literal(true) }),
+  },
+})
+
+export const getCustomBlockUsageCountsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/custom-blocks/[id]/usages',
+  params: customBlockIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: customBlockUsageCountsSchema,
   },
 })

@@ -1,4 +1,13 @@
-import { Bell, ClipboardList, Database, File, Search, Server, Trash, Wrench } from '@sim/emcn/icons'
+import {
+  Bell,
+  ClipboardList,
+  Database,
+  File,
+  Search,
+  Server,
+  TrashOutline,
+  Wrench,
+} from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ClickHouseIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -516,7 +525,7 @@ export const ClickHouseBlockMeta = {
       tags: ['data-warehouse', 'maintenance'],
     },
     {
-      icon: Trash,
+      icon: TrashOutline,
       title: 'Partition retention cleanup',
       prompt:
         'Build a scheduled workflow that enforces a retention policy on my ClickHouse events table: take an explicit cutoff date as input, list the table partitions, select only the partitions on that exact table whose range ends strictly before the cutoff, and drop just those. Never infer the cutoff and never drop a partition that is not clearly past it.',

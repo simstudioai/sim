@@ -11,6 +11,7 @@ import {
   prefetchWorkspaceHostContext,
   prefetchWorkspaceSidebar,
 } from '@/app/workspace/[workspaceId]/prefetch'
+import { BlockVisibilityLoader } from '@/app/workspace/[workspaceId]/providers/block-visibility-loader'
 import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/custom-blocks-loader'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
@@ -61,6 +62,7 @@ export default async function WorkspaceLayout({
             <SettingsLoader />
             <ProviderModelsLoader />
             <CustomBlocksLoader />
+            <BlockVisibilityLoader />
             <GlobalCommandsProvider>
               <div className='flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
                 <ImpersonationBanner />

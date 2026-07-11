@@ -1,7 +1,7 @@
 import { cn } from '@sim/emcn'
 import {
   SolutionsCard,
-  SolutionsPillCta,
+  SolutionsCardRowHeader,
 } from '@/app/(landing)/components/solutions-page/components/solutions-card-row/components'
 import { SOLUTIONS_SPACING } from '@/app/(landing)/components/solutions-page/constants'
 import type { SolutionsCardRowConfig } from '@/app/(landing)/components/solutions-page/types'
@@ -15,11 +15,18 @@ import type { SolutionsCardRowConfig } from '@/app/(landing)/components/solution
  * Rendered as a labelled `<section>` for a clean, crawlable landmark; each card
  * is an `<article>` with an `<h3>`, keeping the strict H2 → H3 hierarchy. Every
  * gap (header sub-stack, header-to-grid, and inter-card) is owned by named
- * spacing constants; this component exposes no layout prop.
+ * spacing constants. Only the row header stack can opt into centered text; card
+ * text remains left aligned.
  */
 
 interface SolutionsCardRowProps {
   row: SolutionsCardRowConfig
+  /** Header stack alignment. Defaults to the original left-aligned layout. */
+  align?: 'left' | 'center'
+  /** Card treatment. Defaults to the original split copy + visual layout. */
+  cardVariant?: 'split' | 'featureTile'
+  /** Header typography treatment. Defaults to the original larger solutions header. */
+  headerVariant?: 'standard' | 'feature'
 }
 
 /** Maps a supported card count to its grid column class; anything else falls back to three-up. */
@@ -28,7 +35,12 @@ const GRID_COLS: Record<number, string> = {
   4: 'grid-cols-4',
 }
 
-export function SolutionsCardRow({ row }: SolutionsCardRowProps) {
+export function SolutionsCardRow({
+  row,
+  align = 'left',
+  cardVariant = 'split',
+  headerVariant = 'standard',
+}: SolutionsCardRowProps) {
   const headingId = `solutions-row-${row.id}-heading`
   const gridCols = GRID_COLS[row.cards.length] ?? GRID_COLS[3]
 
@@ -38,24 +50,18 @@ export function SolutionsCardRow({ row }: SolutionsCardRowProps) {
       aria-labelledby={headingId}
       className={cn('flex flex-col', SOLUTIONS_SPACING.cardRowHeaderToGrid)}
     >
-      <div className={cn('flex flex-col items-start', SOLUTIONS_SPACING.cardRowHeaderStack)}>
-        <h2
-          id={headingId}
-          className='max-w-[760px] text-balance text-[32px] text-[var(--text-primary)] leading-[1.3] max-sm:text-[24px]'
-        >
-          {row.title}
-        </h2>
-        <p className='max-w-[640px] text-[20px] text-[var(--text-body)] leading-[1.5]'>
-          {row.subtitle}
-        </p>
-        <SolutionsPillCta cta={row.cta} />
-      </div>
+      <SolutionsCardRowHeader
+        row={row}
+        headingId={headingId}
+        align={align}
+        variant={headerVariant}
+      />
 
       <div
         className={cn(
           'grid',
           gridCols,
-          'max-sm:grid-cols-1 max-md:grid-cols-2',
+          'max-sm:grid-cols-1 max-lg:grid-cols-2',
           SOLUTIONS_SPACING.cardGridGap
         )}
       >
@@ -64,6 +70,7 @@ export function SolutionsCardRow({ row }: SolutionsCardRowProps) {
             key={`${row.id}-${card.title}`}
             card={card}
             headingId={`solutions-row-${row.id}-card-${index}-heading`}
+            variant={cardVariant}
           />
         ))}
       </div>

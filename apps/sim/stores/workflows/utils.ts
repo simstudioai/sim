@@ -1,5 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
+import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
@@ -32,16 +33,7 @@ export function filterValidEdges(edges: Edge[], blocks: Record<string, BlockStat
 }
 
 export function filterNewEdges(edgesToAdd: Edge[], currentEdges: Edge[]): Edge[] {
-  return edgesToAdd.filter((edge) => {
-    if (edge.source === edge.target) return false
-    return !currentEdges.some(
-      (e) =>
-        e.source === edge.source &&
-        e.sourceHandle === edge.sourceHandle &&
-        e.target === edge.target &&
-        e.targetHandle === edge.targetHandle
-    )
-  })
+  return filterUniqueWorkflowEdges(edgesToAdd, currentEdges)
 }
 
 export interface RegeneratedState {

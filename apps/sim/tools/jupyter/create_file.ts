@@ -1,5 +1,5 @@
 import type { JupyterCreateFileParams, JupyterCreateFileResponse } from '@/tools/jupyter/types'
-import { encodeJupyterPath } from '@/tools/jupyter/utils'
+import { encodeJupyterPath, parseJupyterContentModel } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const EMPTY_NOTEBOOK = { cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 }
@@ -95,16 +95,16 @@ export const jupyterCreateFileTool: ToolConfig<JupyterCreateFileParams, JupyterC
         }
       }
 
-      const data = await response.json()
+      const data = parseJupyterContentModel(await response.json()) ?? {}
 
       return {
         success: true,
         output: {
-          name: (data.name as string | undefined) ?? '',
-          path: (data.path as string | undefined) ?? params?.path ?? '',
-          type: (data.type as 'directory' | 'file' | 'notebook' | undefined) ?? 'file',
-          createdAt: (data.created as string | undefined) ?? null,
-          lastModified: (data.last_modified as string | undefined) ?? null,
+          name: data.name ?? '',
+          path: data.path ?? params?.path ?? '',
+          type: data.type ?? 'file',
+          createdAt: data.created ?? null,
+          lastModified: data.lastModified ?? null,
         },
       }
     },

@@ -91,11 +91,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
       accessToken = resolvedToken
-      logger.info('Using OAuth token for Slack API')
 
       // resolvedCredentialId is an account.id only for OAuth credentials
       // (the service_account path returns a credential.id).
       if (authz.credentialType === 'oauth' && authz.resolvedCredentialId) {
+        logger.info('Using OAuth token for Slack API')
         const [accountRow] = await db
           .select({ accountId: account.accountId })
           .from(account)
@@ -104,6 +104,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (accountRow) {
           scopedUserId = parseScopedSlackUserId(accountRow.accountId)
         }
+      } else {
+        // A custom-bot service_account credential resolves to a bot token with
+        // no scoped user; treat it like a direct bot token so the private ->
+        // public channel fallback applies.
+        isBotToken = true
+        logger.info('Using custom bot token for Slack API')
       }
     }
 

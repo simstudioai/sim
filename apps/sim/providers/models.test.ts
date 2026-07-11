@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getBaseModelProviders,
+  getHostedModels,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
 } from '@/providers/models'
@@ -132,5 +133,88 @@ describe('sakana provider definition', () => {
     const baseModels = getBaseModelProviders()
     expect(baseModels.fugu).toBe('sakana')
     expect(baseModels['fugu-ultra']).toBe('sakana')
+  })
+})
+
+describe('nvidia provider definition', () => {
+  const nvidia = PROVIDER_DEFINITIONS.nvidia
+
+  const expectedModels = [
+    { id: 'nvidia/llama-3.1-nemotron-70b-instruct', contextWindow: 128000 },
+    { id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1', contextWindow: 131072 },
+    { id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5', contextWindow: 131072 },
+    { id: 'nvidia/nemotron-3-nano-30b-a3b', contextWindow: 262144 },
+    { id: 'nvidia/nemotron-3-super-120b-a12b', contextWindow: 1048576 },
+    { id: 'nvidia/nemotron-3-ultra-550b-a55b', contextWindow: 1048576 },
+  ]
+
+  it('is registered with the current-gen Super model as the default', () => {
+    expect(nvidia).toBeDefined()
+    expect(nvidia.id).toBe('nvidia')
+    expect(nvidia.defaultModel).toBe('nvidia/nemotron-3-super-120b-a12b')
+    expect(nvidia.modelPatterns).toEqual([/^nvidia\//])
+  })
+
+  it('exposes all six Nemotron models with the documented context windows', () => {
+    expect(nvidia.models.map((m) => m.id)).toEqual(expectedModels.map((m) => m.id))
+    for (const expected of expectedModels) {
+      const model = nvidia.models.find((m) => m.id === expected.id)
+      expect(model?.contextWindow).toBe(expected.contextWindow)
+    }
+  })
+
+  it('routes every nvidia model ID to the nvidia provider', () => {
+    const baseModels = getBaseModelProviders()
+    for (const expected of expectedModels) {
+      expect(baseModels[expected.id]).toBe('nvidia')
+    }
+  })
+})
+
+describe('zai provider definition', () => {
+  const zai = PROVIDER_DEFINITIONS.zai
+
+  const expectedModels = [
+    { id: 'glm-5.2', contextWindow: 1000000 },
+    { id: 'glm-5.1', contextWindow: 200000 },
+    { id: 'glm-5', contextWindow: 200000 },
+    { id: 'glm-5-turbo', contextWindow: 200000 },
+    { id: 'glm-4.7', contextWindow: 200000 },
+    { id: 'glm-4.7-flashx', contextWindow: 200000 },
+    { id: 'glm-4.6', contextWindow: 200000 },
+    { id: 'glm-4.5', contextWindow: 128000 },
+    { id: 'glm-4.5-air', contextWindow: 128000 },
+    { id: 'glm-4.5-x', contextWindow: 128000 },
+    { id: 'glm-4.5-airx', contextWindow: 128000 },
+    { id: 'glm-4-32b-0414-128k', contextWindow: 128000 },
+  ]
+
+  it('is registered with a bare glm-4.6 as the default model', () => {
+    expect(zai).toBeDefined()
+    expect(zai.id).toBe('zai')
+    expect(zai.defaultModel).toBe('glm-4.6')
+    expect(zai.defaultModel.startsWith('zai/')).toBe(false)
+    // No fallback pattern — an unscoped `/^glm/` would overmatch unrelated self-hosted
+    // "glm-*" models and misroute them to Z.ai's hosted billing.
+    expect(zai.modelPatterns).toEqual([])
+  })
+
+  it('exposes every GLM model with the documented context window', () => {
+    expect(zai.models.map((m) => m.id)).toEqual(expectedModels.map((m) => m.id))
+    for (const expected of expectedModels) {
+      const model = zai.models.find((m) => m.id === expected.id)
+      expect(model?.contextWindow).toBe(expected.contextWindow)
+    }
+  })
+
+  it('routes every bare glm-* model ID to the zai provider', () => {
+    const baseModels = getBaseModelProviders()
+    for (const expected of expectedModels) {
+      expect(baseModels[expected.id]).toBe('zai')
+    }
+  })
+
+  it('is included in getHostedModels since Sim provides the Z.ai key server-side', () => {
+    expect(getHostedModels()).toContain('glm-4.6')
   })
 })

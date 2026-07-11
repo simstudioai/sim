@@ -37,13 +37,14 @@ interface NavbarShellProps {
  * Sticky navbar chrome that frosts to glass once the page scrolls (or, on mobile,
  * while the dropdown menu is open).
  *
- * At the very top the bar is transparent, seamless over the hero canvas. A 1px
- * sentinel at the top of the scroll content is watched by an
- * {@link IntersectionObserver} - no scroll listener (landing perf rules) and no
- * per-frame work; it fires once when the sentinel leaves the viewport. Past that
- * point the bar gains the shared {@link NAVBAR_GLASS_SURFACE} (`--bg` at 92% via
- * `color-mix` plus a strong 40px backdrop blur) - a white/glass surface built
- * entirely from the platform's light tokens, not invented colors.
+ * At the very top the bar uses the same solid canvas token as the hero, so it is
+ * visually seamless while still preventing route content from painting through
+ * the sticky header. A 1px sentinel at the top of the landing shell's internal
+ * scroll port is watched by an {@link IntersectionObserver} - no scroll listener
+ * and no per-frame work. Past that point the bar gains the shared
+ * {@link NAVBAR_GLASS_SURFACE} (`--bg` at 92% via `color-mix` plus a strong 40px
+ * backdrop blur) - a white/glass surface built entirely from the platform's
+ * light tokens, not invented colors.
  *
  * Only `background-color` is transitioned, NOT `backdrop-filter`: animating the
  * blur re-runs every time the threshold is re-crossed, which on mobile reads as a
@@ -78,7 +79,12 @@ export function NavbarShell({ children }: NavbarShellProps) {
   useEffect(() => {
     const sentinel = sentinelRef.current
     if (!sentinel) return
-    const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting))
+    const scrollPort = sentinel.parentElement
+    if (!scrollPort) return
+
+    const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting), {
+      root: scrollPort,
+    })
     observer.observe(sentinel)
     return () => observer.disconnect()
   }, [])
@@ -92,8 +98,8 @@ export function NavbarShell({ children }: NavbarShellProps) {
         <div
           aria-hidden='true'
           className={cn(
-            '-z-10 absolute inset-0 transition-[background-color] duration-200 motion-reduce:transition-none',
-            scrolled || menuOpen ? NAVBAR_GLASS_SURFACE : 'bg-transparent'
+            '-z-10 pointer-events-none absolute inset-0 transition-[background-color] duration-200 motion-reduce:transition-none',
+            scrolled || menuOpen ? NAVBAR_GLASS_SURFACE : 'bg-[var(--bg)]'
           )}
         />
         {children}

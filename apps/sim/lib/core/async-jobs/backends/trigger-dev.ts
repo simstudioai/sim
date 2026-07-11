@@ -39,6 +39,7 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'workflow-execution': 'workflow-execution',
   'schedule-execution': 'schedule-execution',
   'webhook-execution': 'webhook-execution',
+  'tiktok-webhook-ingress': 'tiktok-webhook-ingress',
   'resume-execution': 'resume-execution',
   'workflow-group-cell': 'workflow-group-cell',
   'cleanup-logs': 'cleanup-logs',

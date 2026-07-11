@@ -136,6 +136,10 @@ export function useUpdateWorkspaceCredential() {
           displayName: payload.displayName,
           description: payload.description,
           serviceAccountJson: payload.serviceAccountJson,
+          signingSecret: payload.signingSecret,
+          botToken: payload.botToken,
+          apiToken: payload.apiToken,
+          domain: payload.domain,
         },
       })
     },

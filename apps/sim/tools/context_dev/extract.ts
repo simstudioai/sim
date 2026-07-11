@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type { ContextDevExtractParams, ContextDevExtractResponse } from '@/tools/context_dev/types'
 import {
   CONTEXT_DEV_BASE_URL,
@@ -14,6 +15,8 @@ export const contextDevExtractTool: ToolConfig<ContextDevExtractParams, ContextD
     name: 'Context.dev Extract',
     description: 'Crawl a website and extract structured data matching a provided JSON schema.',
     version: '1.0.0',
+
+    hosting: contextDevHosting<ContextDevExtractParams>(),
 
     params: {
       url: {

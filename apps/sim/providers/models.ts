@@ -21,6 +21,7 @@ import {
   LitellmIcon,
   MetaIcon,
   MistralIcon,
+  NvidiaIcon,
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
@@ -29,6 +30,7 @@ import {
   VertexIcon,
   VllmIcon,
   xAIIcon,
+  ZaiIcon,
 } from '@/components/icons'
 import type { ModelPricing, ProviderId } from '@/providers/types'
 
@@ -315,7 +317,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -335,7 +337,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           reasoningEffort: {
-            values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
           },
           verbosity: {
             values: ['low', 'medium', 'high'],
@@ -841,7 +843,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: 64000,
+          maxOutputTokens: 128000,
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
@@ -1509,7 +1511,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2025-12-17',
-        deprecated: true,
       },
       {
         id: 'gemini-2.5-pro',
@@ -1521,6 +1522,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
@@ -1536,6 +1541,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
@@ -1551,6 +1560,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'low',
+          },
           maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
@@ -1725,6 +1738,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'high',
+          },
           maxOutputTokens: 65535,
         },
         contextWindow: 1048576,
@@ -1740,6 +1757,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
           maxOutputTokens: 65535,
         },
         contextWindow: 1048576,
@@ -1755,6 +1776,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['low', 'medium', 'high'],
+            default: 'low',
+          },
           maxOutputTokens: 65535,
         },
         contextWindow: 1048576,
@@ -2186,6 +2211,20 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 131072,
         releaseDate: '2025-12-22',
       },
+      {
+        id: 'cerebras/gemma-4-31b',
+        pricing: {
+          input: 0.99,
+          output: 1.49,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          maxOutputTokens: 40000,
+        },
+        contextWindow: 131072,
+        releaseDate: '2026-04-02',
+      },
     ],
   },
   groq: {
@@ -2257,6 +2296,20 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 131072,
         releaseDate: '2025-04-29',
+        deprecated: true,
+      },
+      {
+        id: 'groq/qwen/qwen3.6-27b',
+        pricing: {
+          input: 0.6,
+          output: 3.0,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          maxOutputTokens: 32768,
+        },
+        contextWindow: 131072,
+        releaseDate: '2026-04-21',
       },
       {
         id: 'groq/llama-3.1-8b-instant',
@@ -2297,6 +2350,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 131072,
         releaseDate: '2025-04-05',
+        deprecated: true,
       },
       {
         id: 'groq/moonshotai/kimi-k2-instruct-0905',
@@ -2353,6 +2407,115 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       },
     ],
   },
+  nvidia: {
+    id: 'nvidia',
+    name: 'NVIDIA NIM',
+    description: "NVIDIA's Nemotron models via NIM's OpenAI-compatible API",
+    defaultModel: 'nvidia/nemotron-3-super-120b-a12b',
+    modelPatterns: [/^nvidia\//],
+    icon: NvidiaIcon,
+    color: '#77B900',
+    isReseller: true,
+    contextInformationAvailable: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'nvidia/llama-3.1-nemotron-70b-instruct',
+        pricing: {
+          input: 1.2,
+          output: 1.2,
+          updatedAt: '2026-07-09',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+          maxOutputTokens: 4096,
+        },
+        contextWindow: 128000,
+        releaseDate: '2024-10-15',
+      },
+      {
+        id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+        pricing: {
+          input: 0.6,
+          output: 1.8,
+          updatedAt: '2026-07-09',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+          maxOutputTokens: 8192,
+        },
+        contextWindow: 131072,
+        releaseDate: '2025-04-07',
+      },
+      {
+        id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+        pricing: {
+          input: 0.4,
+          output: 0.4,
+          updatedAt: '2026-07-09',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+          maxOutputTokens: 8192,
+        },
+        contextWindow: 131072,
+        releaseDate: '2025-07-25',
+      },
+      {
+        id: 'nvidia/nemotron-3-nano-30b-a3b',
+        pricing: {
+          input: 0.05,
+          output: 0.2,
+          updatedAt: '2026-07-09',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+          maxOutputTokens: 8192,
+        },
+        contextWindow: 262144,
+        releaseDate: '2025-12-15',
+        speedOptimized: true,
+      },
+      {
+        id: 'nvidia/nemotron-3-super-120b-a12b',
+        pricing: {
+          input: 0.08,
+          output: 0.45,
+          updatedAt: '2026-07-09',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+          maxOutputTokens: 8192,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-03-11',
+        recommended: true,
+      },
+      {
+        id: 'nvidia/nemotron-3-ultra-550b-a55b',
+        pricing: {
+          input: 0.5,
+          output: 2.2,
+          updatedAt: '2026-07-09',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+          maxOutputTokens: 8192,
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-06-04',
+      },
+    ],
+  },
   meta: {
     id: 'meta',
     name: 'Meta',
@@ -2382,6 +2545,234 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 1048576,
         releaseDate: '2026-07-09',
         recommended: true,
+      },
+    ],
+  },
+  zai: {
+    id: 'zai',
+    name: 'Z.ai',
+    description: "Z.ai's GLM models via an OpenAI-compatible API",
+    defaultModel: 'glm-4.6',
+    modelPatterns: [],
+    icon: ZaiIcon,
+    color: '#2D2D2D',
+    contextInformationAvailable: true,
+    capabilities: {
+      temperature: { min: 0, max: 1 },
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'glm-5.2',
+        pricing: {
+          input: 1.4,
+          output: 4.4,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+          reasoningEffort: {
+            values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-06-13',
+        recommended: true,
+      },
+      {
+        id: 'glm-5.1',
+        pricing: {
+          input: 1.4,
+          output: 4.4,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+          thinking: {
+            levels: ['disabled', 'enabled'],
+            default: 'enabled',
+          },
+        },
+        contextWindow: 200000,
+        releaseDate: '2026-04-07',
+      },
+      {
+        id: 'glm-5',
+        pricing: {
+          input: 1.0,
+          output: 3.2,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+          thinking: {
+            levels: ['disabled', 'enabled'],
+            default: 'enabled',
+          },
+        },
+        contextWindow: 200000,
+        releaseDate: '2026-02-11',
+      },
+      {
+        id: 'glm-5-turbo',
+        pricing: {
+          input: 1.2,
+          output: 4.0,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+          thinking: {
+            levels: ['disabled', 'enabled'],
+            default: 'enabled',
+          },
+        },
+        contextWindow: 200000,
+        releaseDate: '2026-03-15',
+      },
+      {
+        id: 'glm-4.7',
+        pricing: {
+          input: 0.6,
+          output: 2.2,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+          thinking: {
+            levels: ['disabled', 'enabled'],
+            default: 'enabled',
+          },
+        },
+        contextWindow: 200000,
+        releaseDate: '2025-12-22',
+      },
+      {
+        id: 'glm-4.7-flashx',
+        pricing: {
+          input: 0.07,
+          output: 0.4,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+        },
+        contextWindow: 200000,
+        releaseDate: '2025-12-22',
+      },
+      {
+        id: 'glm-4.6',
+        pricing: {
+          input: 0.6,
+          output: 2.2,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 131072,
+          thinking: {
+            levels: ['disabled', 'enabled'],
+            default: 'enabled',
+          },
+        },
+        contextWindow: 200000,
+        releaseDate: '2025-09-30',
+      },
+      {
+        id: 'glm-4.5',
+        pricing: {
+          input: 0.6,
+          output: 2.2,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 98304,
+          thinking: {
+            levels: ['disabled', 'enabled'],
+            default: 'enabled',
+          },
+        },
+        contextWindow: 128000,
+        releaseDate: '2025-07-28',
+      },
+      {
+        id: 'glm-4.5-air',
+        pricing: {
+          input: 0.2,
+          output: 1.1,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 98304,
+          thinking: {
+            levels: ['disabled', 'enabled'],
+            default: 'enabled',
+          },
+        },
+        contextWindow: 128000,
+        releaseDate: '2025-07-28',
+      },
+      {
+        id: 'glm-4.5-x',
+        pricing: {
+          input: 2.2,
+          output: 8.9,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 98304,
+        },
+        contextWindow: 128000,
+        releaseDate: '2025-07-28',
+      },
+      {
+        id: 'glm-4.5-airx',
+        pricing: {
+          input: 1.1,
+          output: 4.5,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 98304,
+        },
+        contextWindow: 128000,
+        releaseDate: '2025-07-28',
+      },
+      {
+        id: 'glm-4-32b-0414-128k',
+        pricing: {
+          input: 0.1,
+          output: 0.1,
+          updatedAt: '2026-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+          maxOutputTokens: 16384,
+        },
+        contextWindow: 128000,
+        releaseDate: '2025-04-14',
       },
     ],
   },
@@ -2876,6 +3267,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-08-05',
+        deprecated: true,
       },
       {
         id: 'bedrock/amazon.nova-2-pro-v1:0',
@@ -3528,6 +3920,7 @@ export function getHostedModels(): string[] {
     ...getProviderModels('openai'),
     ...getProviderModels('anthropic'),
     ...getProviderModels('google'),
+    ...getProviderModels('zai'),
   ]
 }
 

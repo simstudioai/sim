@@ -487,6 +487,7 @@ export const WorkflowItem = memo(function WorkflowItem({
         onClose={closeMenu}
         onOpenInNewTab={handleOpenInNewTab}
         onRename={handleStartEdit}
+        renameInputRef={inputRef}
         onDuplicate={handleDuplicate}
         onExport={handleExport}
         onDelete={handleOpenDeleteModal}

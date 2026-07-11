@@ -1,5 +1,5 @@
 import type { JupyterGetContentParams, JupyterGetContentResponse } from '@/tools/jupyter/types'
-import { encodeJupyterPath } from '@/tools/jupyter/utils'
+import { encodeJupyterPath, parseJupyterContentModel } from '@/tools/jupyter/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jupyterGetContentTool: ToolConfig<JupyterGetContentParams, JupyterGetContentResponse> =
@@ -58,10 +58,10 @@ export const jupyterGetContentTool: ToolConfig<JupyterGetContentParams, JupyterG
         }
       }
 
-      const data = await response.json()
-      const format = data.format as string | undefined
-      const name = (data.name as string | undefined) ?? params?.path?.split('/').pop() ?? 'file'
-      const mimetype = (data.mimetype as string | undefined) ?? null
+      const data = parseJupyterContentModel(await response.json()) ?? {}
+      const format = data.format
+      const name = data.name ?? params?.path?.split('/').pop() ?? 'file'
+      const mimetype = data.mimetype ?? null
 
       if (format === 'base64' && typeof data.content === 'string') {
         const buffer = Buffer.from(data.content, 'base64')
@@ -69,7 +69,7 @@ export const jupyterGetContentTool: ToolConfig<JupyterGetContentParams, JupyterG
           success: true,
           output: {
             name,
-            path: (data.path as string | undefined) ?? params?.path ?? '',
+            path: data.path ?? params?.path ?? '',
             mimetype,
             text: null,
             file: {
@@ -85,13 +85,15 @@ export const jupyterGetContentTool: ToolConfig<JupyterGetContentParams, JupyterG
       const text =
         format === 'json' || typeof data.content === 'object'
           ? JSON.stringify(data.content)
-          : ((data.content as string | undefined) ?? null)
+          : typeof data.content === 'string'
+            ? data.content
+            : null
 
       return {
         success: true,
         output: {
           name,
-          path: (data.path as string | undefined) ?? params?.path ?? '',
+          path: data.path ?? params?.path ?? '',
           mimetype,
           text,
           file: null,

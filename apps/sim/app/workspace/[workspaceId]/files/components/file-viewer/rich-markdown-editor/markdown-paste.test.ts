@@ -240,4 +240,18 @@ describe('markdown paste', () => {
     expect(cleaned).toContain('<td>a</td>')
     expect(transformHtml(editor, 'a<script>alert(1)</script>b')).toBe('ab')
   })
+
+  it('strips nested/repeated <script> tags in a single pass, even deeply nested', () => {
+    editor = mount()
+    expect(transformHtml(editor, 'a<script>x<script>y</script></script>b')).toBe('ab')
+    const deeplyNested = `a${'<script>'.repeat(50)}x${'</script>'.repeat(50)}b`
+    expect(transformHtml(editor, deeplyNested)).toBe('ab')
+  })
+
+  it('drops an unterminated <script>/<style> and everything after it, without duplicating the prefix', () => {
+    editor = mount()
+    expect(transformHtml(editor, 'abc<script>never-closes')).toBe('abc')
+    expect(transformHtml(editor, 'abc<style>never-closes')).toBe('abc')
+    expect(transformHtml(editor, '<script>x<script>y</script>')).toBe('')
+  })
 })
