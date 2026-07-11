@@ -156,7 +156,11 @@ export function QuestionDisplay({
         {data.map((question, i) => (
           <div key={i} className='px-2 py-2'>
             <p className='text-[var(--text-primary)] text-sm'>{question.prompt}</p>
-            <p className='mt-1.5 text-[var(--text-muted)] text-sm'>{recapAnswers[i]}</p>
+            <div className='mt-1.5 flex flex-col gap-1 text-[var(--text-muted)] text-sm'>
+              {answerPartsForDisplay(question, recapAnswers[i] ?? '').map((answer, answerIndex) => (
+                <p key={answerIndex}>{answer}</p>
+              ))}
+            </div>
           </div>
         ))}
       </div>
@@ -480,4 +484,29 @@ function answerFor(question: QuestionItem, selected: string[], custom: string): 
     .filter((label) => selected.includes(label))
   const parts = custom.trim() ? [...ordered, custom.trim()] : ordered
   return parts.join(', ')
+}
+
+/** Separates known multi-select labels for the recap without changing the wire answer. */
+function answerPartsForDisplay(question: QuestionItem, answer: string): string[] {
+  if (question.type !== 'multi_select') return [answer]
+
+  const parts: string[] = []
+  let remaining = answer
+
+  for (const option of question.options) {
+    if (remaining === option.label) {
+      parts.push(option.label)
+      remaining = ''
+      break
+    }
+
+    const optionPrefix = `${option.label}, `
+    if (remaining.startsWith(optionPrefix)) {
+      parts.push(option.label)
+      remaining = remaining.slice(optionPrefix.length)
+    }
+  }
+
+  if (remaining) parts.push(remaining)
+  return parts.length > 0 ? parts : [answer]
 }
