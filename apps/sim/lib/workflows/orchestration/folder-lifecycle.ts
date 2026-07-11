@@ -477,14 +477,23 @@ export async function performRestoreFolder(
   const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
-    return { success: false, error: 'Cannot restore folder into an archived workspace' }
+    return {
+      success: false,
+      error: 'Cannot restore folder into an archived workspace',
+      errorCode: 'validation',
+    }
   }
 
   const outcome = await db.transaction(async (tx) => {
+    // `FOR UPDATE` row-locks this folder for the rest of the transaction -- a plain
+    // SELECT inside a transaction does not block a concurrent UPDATE, so without this
+    // a lock toggled on this row after this read but before the restore write below
+    // could still be silently bypassed.
     const [existingFolder] = await tx
       .select()
       .from(folder)
       .where(and(eq(folder.id, folderId), eq(folder.workspaceId, workspaceId), isWorkflowFolder))
+      .for('update')
 
     if (!existingFolder) return { kind: 'not_found' as const }
     if (!existingFolder.deletedAt) return { kind: 'not_archived' as const }

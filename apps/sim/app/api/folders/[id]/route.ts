@@ -11,6 +11,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performDeleteFolder, performUpdateFolder } from '@/lib/folders/orchestration'
 import { FOLDER_RESOURCE_POLICIES } from '@/lib/folders/policy'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersIDAPI')
@@ -98,9 +99,10 @@ export const PUT = withRouteHandler(
       })
 
       if (!result.success || !result.folder) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
-        return NextResponse.json({ error: result.error }, { status })
+        return NextResponse.json(
+          { error: result.error },
+          { status: statusForOrchestrationError(result.errorCode) }
+        )
       }
 
       logger.info('Updated folder:', { id, updates: parsed.data.body })
@@ -161,9 +163,10 @@ export const DELETE = withRouteHandler(
       })
 
       if (!result.success) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
-        return NextResponse.json({ error: result.error }, { status })
+        return NextResponse.json(
+          { error: result.error },
+          { status: statusForOrchestrationError(result.errorCode) }
+        )
       }
 
       captureServerEvent(

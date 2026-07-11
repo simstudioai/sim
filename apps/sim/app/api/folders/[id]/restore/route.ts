@@ -11,6 +11,7 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performRestoreFolder } from '@/lib/folders/orchestration'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreFolderAPI')
@@ -52,12 +53,10 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
     })
 
     if (!result.success) {
-      // Only 'not_found' gets its own status here -- the other restore-failure
-      // shapes (validation, and file-folder's name-conflict case which omits
-      // errorCode) all read naturally as 400, matching this route's prior
-      // behavior for everything except "not found".
-      const status = result.errorCode === 'not_found' ? 404 : 400
-      return NextResponse.json({ error: result.error }, { status })
+      return NextResponse.json(
+        { error: result.error },
+        { status: statusForOrchestrationError(result.errorCode) }
+      )
     }
 
     logger.info(`Restored folder ${folderId}`, { restoredItems: result.restoredItems })

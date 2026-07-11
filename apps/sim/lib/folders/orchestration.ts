@@ -321,6 +321,9 @@ async function performRestoreFileFolder(
     if (message === 'Folder is not archived') {
       return { success: false, error: message, errorCode: 'validation' }
     }
+    if (message === 'Cannot restore folder into an archived workspace') {
+      return { success: false, error: message, errorCode: 'validation' }
+    }
     logger.error('Failed to restore file folder', { error })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }
   }
@@ -529,6 +532,10 @@ async function performRestoreResourceFolder<TCountKey extends 'knowledgeBases' |
   const { folderId, workspaceId, userId, folderName } = params
 
   const outcome = await db.transaction(async (tx) => {
+    // `FOR UPDATE` row-locks this folder for the rest of the transaction -- a plain
+    // SELECT inside a transaction does not block a concurrent UPDATE, so without this
+    // a lock toggled on this row after this read but before the restore write below
+    // could still be silently bypassed.
     const [raw] = await tx
       .select()
       .from(folderTable)
@@ -539,6 +546,7 @@ async function performRestoreResourceFolder<TCountKey extends 'knowledgeBases' |
           eq(folderTable.resourceType, cascade.resourceType)
         )
       )
+      .for('update')
       .limit(1)
     if (!raw) return { kind: 'not_found' as const }
     if (!raw.deletedAt) return { kind: 'not_archived' as const }
