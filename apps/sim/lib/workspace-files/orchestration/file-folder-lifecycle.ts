@@ -313,7 +313,10 @@ export async function performRenameWorkspaceFile(
   const { workspaceId, fileId, name, userId, locked, isLockOnlyUpdate } = params
 
   try {
-    if (!isLockOnlyUpdate) {
+    // An admin combining `locked: false` with a rename in one request is unlocking
+    // the file as part of this same atomic write -- the mutable-check must not
+    // block that. Skip only when this request isn't also unlocking.
+    if (!isLockOnlyUpdate && locked !== false) {
       await assertResourceMutable('file', fileId)
     }
 

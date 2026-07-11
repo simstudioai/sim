@@ -79,8 +79,12 @@ export const PUT = withRouteHandler(
         )
       }
 
+      // An admin combining `locked: false` with other field changes (e.g. a move) in
+      // one request is unlocking the folder as part of this same atomic write -- the
+      // mutable-check must not block that. Skip only when this request isn't also
+      // unlocking.
       const hasNonLockUpdate = Object.keys(parsed.data.body).some((key) => key !== 'locked')
-      if (hasNonLockUpdate) {
+      if (hasNonLockUpdate && locked !== false) {
         await policy.assertMutable(id)
       }
       if (parentId !== undefined) {

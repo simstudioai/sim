@@ -575,7 +575,11 @@ export async function renameTable(
     throw new Error(nameValidation.errors.join(', '))
   }
 
-  if (!isLockOnlyUpdate) {
+  // `isLockOnlyUpdate` is false whenever name/folderId also change, but an admin
+  // combining `locked: false` with those changes in one request is unlocking the
+  // table as part of this same atomic write -- the mutable-check must not block
+  // that. Skip only when this request isn't also unlocking.
+  if (!isLockOnlyUpdate && locked !== false) {
     await assertResourceMutable('table', tableId)
   }
 

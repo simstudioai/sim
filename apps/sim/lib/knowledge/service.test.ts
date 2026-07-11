@@ -305,6 +305,29 @@ describe('updateKnowledgeBase — resource-lock enforcement', () => {
     expect(mockAssertResourceMutable).not.toHaveBeenCalled()
   })
 
+  it('skips the lock check when unlocking a locked knowledge base combined with a move in the same request', async () => {
+    // Regression test: hasNonLockUpdate is true whenever folderId also changes, so a
+    // combined "unlock + move" request previously still ran assertResourceMutable
+    // against the KB's current (still-locked) state and was incorrectly rejected,
+    // even though the request unlocks it as part of this same atomic write.
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }]) // currentKb (FOR UPDATE)
+      .mockResolvedValueOnce([
+        { workspaceId: 'ws-current', resourceType: 'knowledge_base', deletedAt: null },
+      ]) // assertFolderParentValid's parent lookup
+
+    await updateKnowledgeBase('kb-1', { folderId: 'folder-1', locked: false }, 'req-1').catch(
+      () => undefined
+    )
+
+    expect(mockAssertResourceMutable).not.toHaveBeenCalled()
+    expect(mockAssertFolderMutable).toHaveBeenCalledWith(
+      'folder-1',
+      'knowledge_base',
+      expect.anything()
+    )
+  })
+
   it('rejects moving the knowledge base into a locked destination folder with a 423', async () => {
     // Regression test: assertResourceMutable only checks the KB's *current* folder
     // chain -- without a separate assertFolderMutable(updates.folderId, ...) check,

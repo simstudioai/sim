@@ -93,6 +93,31 @@ describe('table service — resource-lock enforcement', () => {
       expect(resourceLockMockFns.mockAssertResourceMutable).not.toHaveBeenCalled()
     })
 
+    it('skips the lock check when unlocking a locked table combined with a move in the same request', async () => {
+      // Regression test: isLockOnlyUpdate is false whenever folderId also changes, so a
+      // combined "unlock + move" request previously still ran assertResourceMutable
+      // against the table's current (still-locked) state and was incorrectly rejected,
+      // even though the request unlocks it as part of this same atomic write.
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ workspaceId: 'ws-1' }]) // tableRow lookup
+        .mockResolvedValueOnce([{ workspaceId: 'ws-1', resourceType: 'table', deletedAt: null }]) // assertFolderParentValid's parent lookup
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        {
+          id: 'tbl-1',
+          createdBy: 'user-1',
+          workspaceId: 'ws-1',
+          folderId: 'folder-1',
+          locked: false,
+        },
+      ])
+
+      await renameTable('tbl-1', 'new_name', 'req-1', undefined, 'folder-1', false, false)
+
+      expect(resourceLockMockFns.mockAssertResourceMutable).not.toHaveBeenCalled()
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith('folder-1', 'table')
+      expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    })
+
     it('rejects moving the table into a locked destination folder with a 423', async () => {
       // Regression test: assertResourceMutable only checks the table's *current*
       // folder chain -- without a separate assertFolderMutable(folderId, ...) check,

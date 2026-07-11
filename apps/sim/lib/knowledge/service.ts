@@ -313,7 +313,11 @@ export async function updateKnowledgeBase(
     updates.workspaceId !== undefined ||
     updates.folderId !== undefined ||
     updates.chunkingConfig !== undefined
-  if (hasNonLockUpdate) {
+  // An admin combining `locked: false` with other field changes in one request is
+  // unlocking the knowledge base as part of this same atomic write -- the
+  // mutable-check must not block that. Skip only when this request isn't also
+  // unlocking.
+  if (hasNonLockUpdate && updates.locked !== false) {
     await assertResourceMutable('knowledge_base', knowledgeBaseId)
   }
 

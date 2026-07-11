@@ -117,6 +117,12 @@ export async function getFolderLockStatus(
 
   while (currentFolderId && !visited.has(currentFolderId)) {
     visited.add(currentFolderId)
+    // `FOR UPDATE` row-locks each ancestor for the rest of the caller's transaction --
+    // without it, a lock toggled on this folder after this read but before the
+    // caller's write commits could still be silently bypassed. Callers that pass the
+    // default `db` client (a pre-check outside any transaction) get a single-statement
+    // implicit transaction, so the lock is released immediately and this is a no-op;
+    // callers that pass `tx` hold it until their transaction resolves.
     const [folderRow] = await dbClient
       .select({
         id: folder.id,
@@ -131,6 +137,7 @@ export async function getFolderLockStatus(
           isNull(folder.deletedAt)
         )
       )
+      .for('update')
       .limit(1)
 
     if (!folderRow) break
@@ -162,6 +169,8 @@ export async function getResourceLockStatus(
 ): Promise<LockStatus> {
   const config = RESOURCE_LOCK_LOOKUP[resourceType]
 
+  // See the `FOR UPDATE` comment in `getFolderLockStatus` above -- same reasoning
+  // applies to the resource's own row.
   const [row] = await dbClient
     .select({
       locked: config.lockedColumn,
@@ -169,6 +178,7 @@ export async function getResourceLockStatus(
     })
     .from(config.table)
     .where(eq(config.idColumn, resourceId))
+    .for('update')
     .limit(1)
 
   if (!row) return UNLOCKED_STATUS

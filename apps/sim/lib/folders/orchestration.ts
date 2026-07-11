@@ -874,11 +874,16 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
       // parent in the window between that check and this transaction. Re-check
       // both inside the transaction (joining `tx` so the read is part of the
       // same atomic unit as the writes below) before applying anything.
-      for (const update of validUpdates) {
-        await assertFolderMutable(update.id, resourceType, tx)
-      }
-      for (const parentId of targetParentIds) {
-        await assertFolderMutable(parentId, resourceType, tx)
+      //
+      // assertFolderMutable now row-locks (FOR UPDATE) every folder it walks, so two
+      // concurrent reorder batches touching an overlapping set of folders must acquire
+      // those locks in the same order or they can deadlock. Sorting both id lists into
+      // a single deterministic order before locking guarantees that.
+      const lockOrder = Array.from(
+        new Set([...validUpdates.map((u) => u.id), ...targetParentIds])
+      ).sort()
+      for (const id of lockOrder) {
+        await assertFolderMutable(id, resourceType, tx)
       }
 
       for (const update of validUpdates) {

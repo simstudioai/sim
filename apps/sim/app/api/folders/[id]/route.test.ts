@@ -10,6 +10,7 @@ import {
   type MockUser,
   permissionsMock,
   permissionsMockFns,
+  resourceLockMockFns,
   workflowsOrchestrationMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -235,6 +236,29 @@ describe('Individual Folder API Route', () => {
       const data = await response.json()
       expect(data.error).toBe('Folder not found')
       expect(mockPerformUpdateFolder).not.toHaveBeenCalled()
+    })
+
+    it('skips the mutable check when unlocking a locked folder combined with a move in the same request', async () => {
+      // Regression test: hasNonLockUpdate is true whenever parentId also changes, so
+      // a combined "unlock + move" request previously still ran
+      // policy.assertMutable(id) against the folder's current (still-locked) state
+      // and was incorrectly rejected, even though the request unlocks it as part of
+      // this same atomic write.
+      mockAuthenticatedUser()
+      resourceLockMockFns.mockAssertFolderMutable.mockReset()
+      resourceLockMockFns.mockAssertFolderMutable.mockResolvedValue(undefined)
+
+      const req = createMockRequest('PUT', { locked: false, parentId: 'folder-2' })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(200)
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledTimes(1)
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith(
+        'folder-2',
+        'workflow'
+      )
     })
 
     it('should update parent folder successfully', async () => {

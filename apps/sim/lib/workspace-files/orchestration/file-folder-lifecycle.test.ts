@@ -127,6 +127,26 @@ describe('workspace-files orchestration — resource-lock enforcement', () => {
 
       expect(resourceLockMockFns.mockAssertResourceMutable).not.toHaveBeenCalled()
     })
+
+    it('skips the lock check when unlocking a locked file combined with a rename in the same request', async () => {
+      // Regression test: isLockOnlyUpdate is false whenever the name also changes, so
+      // a combined "unlock + rename" request previously still ran
+      // assertResourceMutable against the file's current (still-locked) state and was
+      // incorrectly rejected, even though the request unlocks it as part of this same
+      // atomic write.
+      mockRenameWorkspaceFile.mockResolvedValueOnce({ id: 'file-1', name: 'renamed.txt' })
+
+      await performRenameWorkspaceFile({
+        workspaceId: 'ws-1',
+        fileId: 'file-1',
+        name: 'renamed.txt',
+        userId: 'user-1',
+        locked: false,
+        isLockOnlyUpdate: false,
+      })
+
+      expect(resourceLockMockFns.mockAssertResourceMutable).not.toHaveBeenCalled()
+    })
   })
 
   describe('performDeleteWorkspaceFileItems', () => {
