@@ -102,6 +102,7 @@ export function Hero() {
           alt=''
           fill
           priority
+          fetchPriority='high'
           quality={90}
           sizes='(max-width: 1460px) 100vw, 1300px'
           className='object-cover'

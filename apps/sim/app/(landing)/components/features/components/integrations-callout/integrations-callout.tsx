@@ -29,7 +29,7 @@ export function IntegrationsCallout() {
           src='/landing/feature-integrate-ui.png'
           alt=''
           fill
-          sizes='1050px'
+          sizes='(max-width: 1460px) 87.5vw, 1125px'
           className='object-cover'
         />
       </CalloutFrame>
