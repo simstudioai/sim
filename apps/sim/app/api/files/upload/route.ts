@@ -266,6 +266,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           throw new InvalidRequestError('Chat context requires workspaceId parameter')
         }
 
+        const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+        if (permission !== 'write' && permission !== 'admin') {
+          return NextResponse.json(
+            { error: 'Write or Admin access required for mothership uploads' },
+            { status: 403 }
+          )
+        }
+
+        const { checkStorageQuota } = await import('@/lib/billing/storage')
+        const quotaCheck = await checkStorageQuota(session.user.id, buffer.length)
+        if (!quotaCheck.allowed) {
+          return NextResponse.json(
+            { error: quotaCheck.error || 'Storage limit exceeded' },
+            { status: 413 }
+          )
+        }
+
         logger.info(`Uploading mothership file: ${originalName}`)
 
         const storageKey = generateWorkspaceFileKey(workspaceId, originalName)
