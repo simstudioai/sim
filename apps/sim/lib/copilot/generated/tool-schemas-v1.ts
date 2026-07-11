@@ -635,13 +635,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         name: {
           type: 'string',
           description:
-            'Display name for the block, max 60 characters (required on first publish; defaults to the existing block name when republishing)',
+            'Display name for the block, max 60 characters. When republishing an existing block, pass the current name to keep it or a new name to rename.',
         },
         workflowId: {
           type: 'string',
           description: 'Workflow ID (defaults to active workflow)',
         },
       },
+      required: ['name'],
     },
     resultSchema: {
       type: 'object',
