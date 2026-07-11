@@ -21,14 +21,17 @@ vi.mock('@sim/db', () => {
     update: txUpdateMock,
     execute: dbExecuteMock,
   }
+  const db = {
+    select: dbSelectMock,
+    insert: vi.fn(),
+    update: vi.fn(),
+    execute: dbExecuteMock,
+    transaction: vi.fn(async (cb: (txArg: typeof tx) => Promise<unknown>) => cb(tx)),
+  }
   return {
-    db: {
-      select: dbSelectMock,
-      insert: vi.fn(),
-      update: vi.fn(),
-      execute: dbExecuteMock,
-      transaction: vi.fn(async (cb: (txArg: typeof tx) => Promise<unknown>) => cb(tx)),
-    },
+    db,
+    // Exec-pool client shares the instance so call-order seeding still applies.
+    dbFor: () => db,
   }
 })
 

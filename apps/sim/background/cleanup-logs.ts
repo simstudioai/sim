@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbFor } from '@sim/db'
 import {
   executionLargeValueDependencies,
   executionLargeValueReferences,
@@ -29,6 +29,9 @@ import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 
 const logger = createLogger('CleanupLogs')
+
+/** All cleanup queries run on the dedicated cleanup pool. */
+const cleanupDb = dbFor('cleanup')
 
 interface FileDeleteStats {
   filesTotal: number
@@ -153,7 +156,7 @@ async function cleanupLargeExecutionValues(
         LARGE_VALUE_CLEANUP_BATCH_SIZE,
         LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted
       )
-      const rows = await db
+      const rows = await cleanupDb
         .select({ key: executionLargeValues.key })
         .from(executionLargeValues)
         .where(
@@ -219,7 +222,7 @@ async function cleanupLegacyLargeExecutionValues(
         LARGE_VALUE_CLEANUP_BATCH_SIZE,
         LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted
       )
-      const rows = await db
+      const rows = await cleanupDb
         .select({ key: workspaceFiles.key })
         .from(workspaceFiles)
         .where(
@@ -377,8 +380,9 @@ async function cleanupWorkflowExecutionLogs(
     tableDef: workflowExecutionLogs,
     workspaceIds,
     tableName: `${label}/workflow_execution_logs`,
+    dbClient: cleanupDb,
     selectChunk: (chunkIds, limit) =>
-      db
+      cleanupDb
         .select({
           id: workflowExecutionLogs.id,
           files: workflowExecutionLogs.files,
@@ -465,6 +469,7 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
     workspaceIds,
     retentionDate,
     tableName: `${label}/job_execution_logs`,
+    dbClient: cleanupDb,
   })
 
   if (runGlobalHousekeeping && plan === 'free') {

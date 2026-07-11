@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbFor } from '@sim/db'
 import {
   copilotAsyncToolCalls,
   copilotChats,
@@ -21,6 +21,9 @@ import {
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 
 const logger = createLogger('CleanupTasks')
+
+/** All cleanup queries run on the dedicated cleanup pool. */
+const cleanupDb = dbFor('cleanup')
 
 /**
  * Delete copilot run checkpoints and async tool calls via join through copilotRuns.
@@ -47,7 +50,7 @@ async function cleanupRunChildren(
   if (workspaceIds.length === 0) return []
 
   const runIds = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
-    db
+    cleanupDb
       .select({ id: copilotRuns.id })
       .from(copilotRuns)
       .where(
@@ -63,7 +66,9 @@ async function cleanupRunChildren(
   const ids = runIds.map((r) => r.id)
 
   return Promise.all(
-    RUN_CHILD_TABLES.map((t) => deleteRowsById(t.table, t.runIdCol, ids, `${label}/${t.name}`))
+    RUN_CHILD_TABLES.map((t) =>
+      deleteRowsById(t.table, t.runIdCol, ids, `${label}/${t.name}`, cleanupDb)
+    )
   )
 }
 
@@ -82,7 +87,7 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
   )
 
   const doomedChats = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
-    db
+    cleanupDb
       .select({ id: copilotChats.id })
       .from(copilotChats)
       .where(
@@ -110,6 +115,7 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     workspaceIds,
     retentionDate,
     tableName: `${label}/copilotRuns`,
+    dbClient: cleanupDb,
   })
 
   // Delete copilot chats using the exact IDs collected above so the chat
@@ -122,7 +128,7 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
   const chatsResult = { deleted: 0, failed: 0 }
   for (const batch of chunkArray(doomedChatIds, DEFAULT_DELETE_CHUNK_SIZE)) {
     try {
-      const deleted = await db
+      const deleted = await cleanupDb
         .delete(copilotChats)
         .where(and(inArray(copilotChats.id, batch), lt(copilotChats.updatedAt, retentionDate)))
         .returning({ id: copilotChats.id })
@@ -141,6 +147,7 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     workspaceIds,
     retentionDate,
     tableName: `${label}/mothershipInboxTask`,
+    dbClient: cleanupDb,
   })
 
   const totalDeleted =
