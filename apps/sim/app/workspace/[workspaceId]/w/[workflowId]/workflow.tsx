@@ -1793,8 +1793,15 @@ const WorkflowContent = React.memo(
      * @param position - Drop position in ReactFlow coordinates.
      */
     const handleToolbarDrop = useCallback(
-      (data: { type: string; enableTriggerMode?: boolean }, position: { x: number; y: number }) => {
+      (
+        data: { type: string; enableTriggerMode?: boolean; presetOperation?: string },
+        position: { x: number; y: number }
+      ) => {
         if (!data.type || data.type === 'connectionBlock') return
+
+        const operationConfig = data.presetOperation
+          ? { operation: data.presetOperation }
+          : undefined
 
         try {
           const containerInfo = isPointInLoopNode(position)
@@ -1935,7 +1942,9 @@ const WorkflowContent = React.memo(
               },
               containerInfo.loopId,
               'parent',
-              autoConnectEdge
+              autoConnectEdge,
+              undefined,
+              operationConfig
             )
 
             // Resize the container node to fit the new block
@@ -1961,7 +1970,8 @@ const WorkflowContent = React.memo(
               undefined,
               undefined,
               autoConnectEdge,
-              enableTriggerMode
+              enableTriggerMode,
+              operationConfig
             )
           }
         } catch (err) {
@@ -2013,7 +2023,14 @@ const WorkflowContent = React.memo(
           // A forced source→target edge would cross the container boundary, so it is
           // intentionally not applied here.
           if (isPointInLoopNode(basePosition)) {
-            handleToolbarDrop({ type, enableTriggerMode: enableTriggerMode === true }, basePosition)
+            handleToolbarDrop(
+              {
+                type,
+                enableTriggerMode: enableTriggerMode === true,
+                presetOperation: typeof presetOperation === 'string' ? presetOperation : undefined,
+              },
+              basePosition
+            )
             return
           }
         }
