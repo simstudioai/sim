@@ -28,6 +28,25 @@ const GENERATED_SOURCE_FILE_TYPES = new Set([
   'text/x-python-xlsx',
 ])
 
+/**
+ * Poll cadence for the content query while the post-stream reconcile waits for a fetch showing the
+ * server content advanced past the pre-stream baseline. Only active during `reconciling` — a short
+ * window ending the moment a fetch advances — so the cost is a few small GETs after an agent edit.
+ */
+export const RECONCILING_REFETCH_INTERVAL_MS = 1500
+
+/**
+ * How long the reconcile polls at the fast cadence after a stream settles. A write that hasn't
+ * landed within this window has almost certainly failed or is badly delayed, so polling degrades
+ * to {@link RECONCILING_REFETCH_SLOW_INTERVAL_MS} — never stopping outright, so the editor can't
+ * end up locked read-only with no automatic recovery (react-query pauses interval refetches in
+ * background tabs by default, so a wedged doc left open does not poll unattended).
+ */
+export const RECONCILING_REFETCH_WINDOW_MS = 45_000
+
+/** Slow-poll cadence once the fast window has elapsed without the server content advancing. */
+export const RECONCILING_REFETCH_SLOW_INTERVAL_MS = 15_000
+
 interface UseEditableFileContentOptions {
   file: WorkspaceFileRecord
   workspaceId: string
@@ -99,6 +118,7 @@ function useFileContentState(options: SyncTextEditorContentStateOptions) {
     savedContent: state.savedContent,
     isInitialized: state.phase !== 'uninitialized',
     isStreamInteractionLocked: state.phase === 'streaming' || state.phase === 'reconciling',
+    isReconciling: state.phase === 'reconciling',
     setDraftContent,
     markSavedContent,
   }
@@ -127,6 +147,25 @@ export function useEditableFileContent({
   onDirtyChangeRef.current = onDirtyChange
   onSaveStatusChangeRef.current = onSaveStatusChange
 
+  /**
+   * Mirrors the reducer's `reconciling` phase (assigned below the reducer hook; read here through a
+   * stable function that react-query re-evaluates after every fetch and options pass, so polling
+   * starts and stops with the phase, no extra re-render required). While reconciling — the stream
+   * ended but no fetch has shown the server content advancing past the pre-stream baseline yet —
+   * the content query polls. The reconcile's exit is data-driven and this is its only retry: a
+   * single refetch that races the agent's write (or an invalidation that never reaches this
+   * surface) would otherwise leave the editor read-only until a window refocus or a full reload.
+   */
+  const isReconcilingRef = useRef(false)
+  const reconcilingSinceRef = useRef(0)
+  const reconcileRefetchInterval = useCallback(() => {
+    if (!isReconcilingRef.current) return false
+    if (Date.now() - reconcilingSinceRef.current >= RECONCILING_REFETCH_WINDOW_MS) {
+      return RECONCILING_REFETCH_SLOW_INTERVAL_MS
+    }
+    return RECONCILING_REFETCH_INTERVAL_MS
+  }, [])
+
   const {
     data: fetchedContent,
     isLoading,
@@ -135,7 +174,8 @@ export function useEditableFileContent({
     workspaceId,
     file.id,
     file.key,
-    GENERATED_SOURCE_FILE_TYPES.has(file.type)
+    GENERATED_SOURCE_FILE_TYPES.has(file.type),
+    { refetchInterval: reconcileRefetchInterval }
   )
 
   /**
@@ -165,6 +205,7 @@ export function useEditableFileContent({
     savedContent,
     isInitialized,
     isStreamInteractionLocked: isStreamPhaseLocked,
+    isReconciling,
     setDraftContent,
     markSavedContent,
   } = useFileContentState({
@@ -172,6 +213,8 @@ export function useEditableFileContent({
     fetchedContent: baselineContent,
     streamingContent,
   })
+  if (isReconciling && !isReconcilingRef.current) reconcilingSinceRef.current = Date.now()
+  isReconcilingRef.current = isReconciling
 
   const isStreamInteractionLocked = isStreamPhaseLocked || Boolean(isAgentEditing)
 
