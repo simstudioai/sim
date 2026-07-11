@@ -45,3 +45,20 @@ export const tablesUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const
+
+/**
+ * `folderId` scopes the list to a folder and is a navigation destination, not a
+ * filter — it lands in browser history so back/forward moves between folders.
+ * Kept as a standalone `useQueryState` (via {@link tableFolderIdParam}) rather
+ * than folded into {@link tablesParsers}, since that group's shared options are
+ * `history: 'replace'`.
+ */
+export const tableFolderIdParam = {
+  key: 'folderId',
+  parser: parseAsString,
+} as const
+
+export const tableFolderIdUrlKeys = {
+  history: 'push',
+  clearOnDefault: true,
+} as const

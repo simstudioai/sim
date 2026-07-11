@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { registerWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
@@ -89,6 +90,10 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ success: true, file: userFile })
     } catch (error) {
+      if (error instanceof ResourceLockedError) {
+        return NextResponse.json({ success: false, error: error.message }, { status: error.status })
+      }
+
       logger.error('Failed to register workspace file:', error)
 
       const errorMessage = getErrorMessage(error, 'Failed to register file')

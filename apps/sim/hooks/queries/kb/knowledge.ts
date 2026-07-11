@@ -607,6 +607,7 @@ interface CreateKnowledgeBaseParams {
   name: string
   description?: string
   workspaceId: string
+  folderId?: string | null
   chunkingConfig: {
     maxSize: number
     minSize: number
@@ -643,6 +644,8 @@ interface UpdateKnowledgeBaseParams {
     name?: string
     description?: string
     workspaceId?: string | null
+    folderId?: string | null
+    locked?: boolean
   }
 }
 

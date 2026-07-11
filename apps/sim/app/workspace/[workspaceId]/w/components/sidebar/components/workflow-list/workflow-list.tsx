@@ -20,6 +20,7 @@ import {
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
+import { usePinnedItems } from '@/hooks/queries/pinned-items'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -116,6 +117,19 @@ export const WorkflowList = memo(function WorkflowList({
     () => (workspaceId ? buildFolderTree(folderMap, workspaceId) : []),
     [workspaceId, folderMap]
   )
+
+  /** Flat `id -> FolderTreeNode` lookup, used to resolve pinned folder ids against the tree. */
+  const folderTreeById = useMemo(() => {
+    const map = new Map<string, FolderTreeNode>()
+    const walk = (nodes: FolderTreeNode[]) => {
+      for (const node of nodes) {
+        map.set(node.id, node)
+        walk(node.children)
+      }
+    }
+    walk(folderTree)
+    return map
+  }, [folderTree])
 
   const activeWorkflowFolderId = useMemo(() => {
     if (!workflowId || isLoading || foldersLoading) return null
@@ -357,6 +371,55 @@ export const WorkflowList = memo(function WorkflowList({
 
   const isWorkflowActive = useCallback((wfId: string) => wfId === workflowId, [workflowId])
 
+  /**
+   * Pinned items visible in the sidebar. Only `workflow`/`folder` pins can be
+   * resolved here — this surface has no file/knowledge-base/table data loaded,
+   * so pins from other resource types simply don't render in this section.
+   */
+  const { data: pinnedItems } = usePinnedItems(workspaceId)
+
+  const workflowById = useMemo(() => {
+    const map = new Map<string, WorkflowMetadata>()
+    for (const wf of regularWorkflows) map.set(wf.id, wf)
+    return map
+  }, [regularWorkflows])
+
+  /**
+   * Pinned resourceIds by type, derived once from the single `pinnedItems`
+   * fetch above. Passed down as a `pinned` boolean prop rather than letting
+   * every `WorkflowItem`/`FolderItem` row subscribe to its own filtered
+   * query — that would both triple the network fetches (one per resource
+   * type) and re-render every row whenever any pin changes, defeating their
+   * `React.memo` wrapper.
+   */
+  const { pinnedWorkflowIds, pinnedFolderIds } = useMemo(() => {
+    const workflows = new Set<string>()
+    const folders = new Set<string>()
+    for (const item of pinnedItems ?? []) {
+      if (item.resourceType === 'workflow') workflows.add(item.resourceId)
+      else if (item.resourceType === 'folder') folders.add(item.resourceId)
+    }
+    return { pinnedWorkflowIds: workflows, pinnedFolderIds: folders }
+  }, [pinnedItems])
+
+  const pinnedEntries = useMemo(() => {
+    if (!pinnedItems || pinnedItems.length === 0) return []
+    const entries: Array<
+      | { type: 'workflow'; id: string; data: WorkflowMetadata }
+      | { type: 'folder'; id: string; data: FolderTreeNode }
+    > = []
+    for (const item of pinnedItems) {
+      if (item.resourceType === 'workflow') {
+        const workflow = workflowById.get(item.resourceId)
+        if (workflow) entries.push({ type: 'workflow', id: workflow.id, data: workflow })
+      } else if (item.resourceType === 'folder') {
+        const folder = folderTreeById.get(item.resourceId)
+        if (folder) entries.push({ type: 'folder', id: folder.id, data: folder })
+      }
+    }
+    return entries
+  }, [pinnedItems, workflowById, folderTreeById])
+
   useEffect(() => {
     if (!workflowId || isLoading || foldersLoading) return
 
@@ -389,13 +452,14 @@ export const WorkflowList = memo(function WorkflowList({
               workspaceId={workspaceId}
               workflow={workflow}
               active={isWorkflowActive(workflow.id)}
+              pinned={pinnedWorkflowIds.has(workflow.id)}
             />
           </div>
           <DropIndicatorLine show={showAfter} level={level} position='after' />
         </div>
       )
     },
-    [workspaceId, dropIndicator, isWorkflowActive, createWorkflowDragHandlers]
+    [workspaceId, dropIndicator, isWorkflowActive, createWorkflowDragHandlers, pinnedWorkflowIds]
   )
 
   const renderFolderSection = useCallback(
@@ -454,7 +518,11 @@ export const WorkflowList = memo(function WorkflowList({
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createFolderDragHandlers(folder.id, parentFolderId)}
           >
-            <FolderItem workspaceId={workspaceId} folder={folder} />
+            <FolderItem
+              workspaceId={workspaceId}
+              folder={folder}
+              pinned={pinnedFolderIds.has(folder.id)}
+            />
           </div>
           <DropIndicatorLine show={showAfter} level={level} position='after' />
 
@@ -489,6 +557,7 @@ export const WorkflowList = memo(function WorkflowList({
       createEmptyFolderDropZone,
       createFolderContentDropZone,
       renderWorkflowItem,
+      pinnedFolderIds,
     ]
   )
 
@@ -569,6 +638,33 @@ export const WorkflowList = memo(function WorkflowList({
         }}
         data-empty-area
       >
+        {pinnedEntries.length > 0 && (
+          <div className='mb-2 flex flex-col'>
+            <div className='mb-1 flex h-[18px] flex-shrink-0 items-center text-[var(--text-muted)] text-small'>
+              Pinned
+            </div>
+            <div className='space-y-0.5'>
+              {pinnedEntries.map((entry) =>
+                entry.type === 'workflow' ? (
+                  <WorkflowItem
+                    key={`pinned-workflow-${entry.id}`}
+                    workspaceId={workspaceId}
+                    workflow={entry.data}
+                    active={isWorkflowActive(entry.id)}
+                    pinned
+                  />
+                ) : (
+                  <FolderItem
+                    key={`pinned-folder-${entry.id}`}
+                    workspaceId={workspaceId}
+                    folder={entry.data}
+                    pinned
+                  />
+                )
+              )}
+            </div>
+          </div>
+        )}
         <div
           className={clsx('relative flex-1 rounded-sm', !hasRootItems && 'min-h-[26px]')}
           {...rootDropZoneHandlers}

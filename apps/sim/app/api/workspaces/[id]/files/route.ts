@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -211,6 +212,10 @@ export const POST = withRouteHandler(
         file: userFile,
       })
     } catch (error) {
+      if (error instanceof ResourceLockedError) {
+        return NextResponse.json({ success: false, error: error.message }, { status: error.status })
+      }
+
       logger.error(`[${requestId}] Error uploading workspace file:`, error)
 
       const errorMessage = getErrorMessage(error, 'Failed to upload file')

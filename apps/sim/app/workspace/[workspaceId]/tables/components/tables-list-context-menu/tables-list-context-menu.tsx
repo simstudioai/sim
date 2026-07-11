@@ -1,21 +1,17 @@
 'use client'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Upload,
-} from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@sim/emcn'
+import { FolderPlus, Plus, Upload } from '@sim/emcn/icons'
 
 interface TablesListContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
   onCreateTable?: () => void
+  onCreateFolder?: () => void
   onUploadCsv?: () => void
   disableCreate?: boolean
+  disableCreateFolder?: boolean
   disableUpload?: boolean
 }
 
@@ -24,22 +20,18 @@ export function TablesListContextMenu({
   position,
   onClose,
   onCreateTable,
+  onCreateFolder,
   onUploadCsv,
   disableCreate = false,
+  disableCreateFolder = false,
   disableUpload = false,
 }: TablesListContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
         <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
+          className='pointer-events-none fixed size-px'
+          style={{ left: position.x, top: position.y }}
           tabIndex={-1}
           aria-hidden
         />
@@ -54,6 +46,12 @@ export function TablesListContextMenu({
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateTable}>
             <Plus />
             Create table
+          </DropdownMenuItem>
+        )}
+        {onCreateFolder && (
+          <DropdownMenuItem disabled={disableCreateFolder} onSelect={onCreateFolder}>
+            <FolderPlus />
+            New folder
           </DropdownMenuItem>
         )}
         {onUploadCsv && (

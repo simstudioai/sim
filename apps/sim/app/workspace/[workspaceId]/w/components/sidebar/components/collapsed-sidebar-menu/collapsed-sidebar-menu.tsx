@@ -18,11 +18,10 @@ import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
-import type { FolderTreeNode } from '@/stores/folders/types'
+import type { FolderTreeNode, Folder as FolderType } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
-interface FileFolderFlyoutNode extends WorkspaceFileFolderApi {
+interface FileFolderFlyoutNode extends FolderType {
   children: FileFolderFlyoutNode[]
   files: WorkspaceFileRecord[]
 }

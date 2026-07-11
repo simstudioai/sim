@@ -10,8 +10,56 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** Minimal stand-in for `@sim/platform-authz/resource-lock`'s `ResourceLockedError`
+ *  (423, carries `resourceType`/`inherited`) — avoids `vi.importActual`. */
+const {
+  mockAssertResourceMutable,
+  mockAssertFolderMutable,
+  mockAssertResourceMutableUnlessUnlocking,
+  MockResourceLockedError,
+} = vi.hoisted(() => {
+  class ResourceLockedErrorStub extends Error {
+    readonly status = 423
+    readonly resourceType: string
+    readonly inherited: boolean
+    constructor(resourceType: string, inherited: boolean, message?: string) {
+      super(message ?? `${resourceType} is locked`)
+      this.name = 'ResourceLockedError'
+      this.resourceType = resourceType
+      this.inherited = inherited
+    }
+  }
+  const assertResourceMutable = vi.fn()
+  // Real wrapper logic (not a bare passthrough) so tests that configure
+  // assertResourceMutable to reject with a direct vs. inherited error see the
+  // same "unless unlocking" behavior the production wrapper implements.
+  const assertResourceMutableUnlessUnlocking = vi.fn(
+    async (resourceType: string, resourceId: string, unlocking: boolean, tx?: unknown) => {
+      try {
+        const args = [resourceType, resourceId, tx].filter((a) => a !== undefined)
+        await assertResourceMutable(...args)
+      } catch (error) {
+        if (unlocking && error instanceof ResourceLockedErrorStub && !error.inherited) return
+        throw error
+      }
+    }
+  )
+  return {
+    mockAssertResourceMutable: assertResourceMutable,
+    mockAssertFolderMutable: vi.fn(),
+    mockAssertResourceMutableUnlessUnlocking: assertResourceMutableUnlessUnlocking,
+    MockResourceLockedError: ResourceLockedErrorStub,
+  }
+})
+
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@sim/platform-authz/resource-lock', () => ({
+  assertResourceMutable: mockAssertResourceMutable,
+  assertFolderMutable: mockAssertFolderMutable,
+  assertResourceMutableUnlessUnlocking: mockAssertResourceMutableUnlessUnlocking,
+  ResourceLockedError: MockResourceLockedError,
+}))
 
 import { KnowledgeBasePermissionError, updateKnowledgeBase } from '@/lib/knowledge/service'
 
@@ -198,5 +246,153 @@ describe('updateKnowledgeBase — file ownership binding re-point on workspace c
     await runIgnoringReadBack(updateKnowledgeBase('kb-1', { name: 'Renamed' }, 'req-1'))
 
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('updateKnowledgeBase — resource-lock enforcement', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
+    mockAssertResourceMutable.mockReset()
+    mockAssertFolderMutable.mockReset()
+  })
+
+  it('rejects a non-lock update on a directly-locked knowledge base with a 423', async () => {
+    mockAssertResourceMutable.mockRejectedValueOnce(
+      new MockResourceLockedError('knowledge_base', false, 'Knowledge base is locked')
+    )
+
+    await expect(updateKnowledgeBase('kb-1', { name: 'Renamed' }, 'req-1')).rejects.toMatchObject({
+      status: 423,
+      inherited: false,
+    })
+
+    expect(mockAssertResourceMutable).toHaveBeenCalledWith('knowledge_base', 'kb-1')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-lock update when the knowledge base is inside a locked folder with a 423', async () => {
+    mockAssertResourceMutable.mockRejectedValueOnce(
+      new MockResourceLockedError(
+        'knowledge_base',
+        true,
+        'Knowledge base is locked by its containing folder'
+      )
+    )
+
+    await expect(
+      updateKnowledgeBase('kb-1', { description: 'updated' }, 'req-1')
+    ).rejects.toMatchObject({
+      status: 423,
+      inherited: true,
+    })
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('skips the lock check for a lock-only update (unlocking a directly-locked KB)', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }])
+
+    await updateKnowledgeBase('kb-1', { locked: false }, 'req-1').catch(() => undefined)
+
+    expect(mockAssertResourceMutable).not.toHaveBeenCalled()
+  })
+
+  it('skips the lock check when unlocking via the route-shaped object (all keys present, unset ones undefined)', async () => {
+    // Regression test: apps/sim/app/api/knowledge/[id]/route.ts always builds a full
+    // literal object (`{ name: validatedData.name, ..., locked: validatedData.locked }`)
+    // rather than spreading only the fields the client actually sent. `Object.keys()`
+    // includes keys whose value is `undefined`, so a naive `Object.keys(updates).some(...)`
+    // check always sees every field as "provided" and can never detect a lock-only
+    // update — permanently blocking unlock, since the mutability check reads the
+    // still-locked current row. This calls updateKnowledgeBase with that exact shape.
+    dbChainMockFns.limit.mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }])
+
+    await updateKnowledgeBase(
+      'kb-1',
+      {
+        name: undefined,
+        description: undefined,
+        workspaceId: undefined,
+        folderId: undefined,
+        chunkingConfig: undefined,
+        locked: false,
+      },
+      'req-1'
+    ).catch(() => undefined)
+
+    expect(mockAssertResourceMutable).not.toHaveBeenCalled()
+  })
+
+  it('allows unlocking a directly-locked knowledge base combined with a move in the same request', async () => {
+    // Regression test: hasNonLockUpdate is true whenever folderId also changes, so a
+    // combined "unlock + move" request previously still ran assertResourceMutable
+    // against the KB's current (still-locked) state and was incorrectly rejected,
+    // even though the request unlocks it as part of this same atomic write. The
+    // fixed behavior still runs the check (so an inherited lock is caught below),
+    // but treats a DIRECT lock as satisfied since this request clears it.
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }]) // currentKb (FOR UPDATE)
+      .mockResolvedValueOnce([
+        { workspaceId: 'ws-current', resourceType: 'knowledge_base', deletedAt: null },
+      ]) // assertFolderParentValid's parent lookup
+    mockAssertResourceMutable.mockRejectedValueOnce(
+      new MockResourceLockedError('knowledge_base', false, 'Knowledge base is locked')
+    )
+
+    await updateKnowledgeBase('kb-1', { folderId: 'folder-1', locked: false }, 'req-1').catch(
+      () => undefined
+    )
+
+    expect(mockAssertResourceMutable).toHaveBeenCalledWith('knowledge_base', 'kb-1')
+    expect(mockAssertFolderMutable).toHaveBeenCalledWith(
+      'folder-1',
+      'knowledge_base',
+      expect.anything()
+    )
+  })
+
+  it('still rejects unlocking a knowledge base combined with a move when the lock is inherited from its folder', async () => {
+    // Clearing the KB's own `locked` flag doesn't affect a lock inherited from its
+    // containing folder -- that must still block the combined request.
+    mockAssertResourceMutable.mockRejectedValueOnce(
+      new MockResourceLockedError(
+        'knowledge_base',
+        true,
+        'Knowledge base is locked by its containing folder'
+      )
+    )
+
+    await expect(
+      updateKnowledgeBase('kb-1', { folderId: 'folder-1', locked: false }, 'req-1')
+    ).rejects.toMatchObject({ status: 423, inherited: true })
+  })
+
+  it('rejects moving the knowledge base into a locked destination folder with a 423', async () => {
+    // Regression test: assertResourceMutable only checks the KB's *current* folder
+    // chain -- without a separate assertFolderMutable(updates.folderId, ...) check,
+    // a KB in an unlocked folder could be moved into a locked one.
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }]) // currentKb (FOR UPDATE)
+      .mockResolvedValueOnce([
+        { workspaceId: 'ws-current', resourceType: 'knowledge_base', deletedAt: null },
+      ]) // assertFolderParentValid's parent lookup
+    mockAssertFolderMutable.mockRejectedValueOnce(
+      new MockResourceLockedError('knowledge_base', false, 'Folder is locked')
+    )
+
+    await expect(
+      updateKnowledgeBase('kb-1', { folderId: 'folder-locked' }, 'req-1')
+    ).rejects.toMatchObject({ status: 423, inherited: false })
+
+    // Called with a 3rd arg (the `tx` client) so the recheck runs inside the same
+    // transaction as the write, closing the TOCTOU window between the check and write.
+    expect(mockAssertFolderMutable).toHaveBeenCalledWith(
+      'folder-locked',
+      'knowledge_base',
+      expect.anything()
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

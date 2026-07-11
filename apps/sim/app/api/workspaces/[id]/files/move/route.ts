@@ -5,7 +5,10 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
+import {
+  performMoveWorkspaceFileItems,
+  workspaceFilesOrchestrationStatus,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileMoveAPI')
@@ -38,16 +41,7 @@ export const POST = withRouteHandler(
       if (!result.success || !result.movedItems) {
         return NextResponse.json(
           { success: false, error: result.error },
-          {
-            status:
-              result.errorCode === 'conflict'
-                ? 409
-                : result.errorCode === 'not_found'
-                  ? 404
-                  : result.errorCode === 'validation'
-                    ? 400
-                    : 500,
-          }
+          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
         )
       }
       if (fileIds.length > 0) {

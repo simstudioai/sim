@@ -6,6 +6,7 @@ import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspac
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { FolderSubtreeRow } from '@/lib/folders/subtree'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildWorkspaceFileFolderPathMap,
@@ -42,20 +43,31 @@ function withZipPathSuffix(path: string, suffix: number): string {
     : `${directory}${filename} (${suffix})`
 }
 
-function collectDescendantFolderIds(
-  selectedFolderIds: string[],
-  folders: Array<{ id: string; parentId: string | null }>
-): Set<string> {
-  const folderIds = new Set(selectedFolderIds)
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const folder of folders) {
-      if (folder.parentId && folderIds.has(folder.parentId) && !folderIds.has(folder.id)) {
-        folderIds.add(folder.id)
-        changed = true
-      }
+/**
+ * Unions each root folder id with every descendant reachable from it.
+ * Builds the parent→children index once and reuses it across all roots,
+ * instead of rebuilding it per root as a per-root `collectDescendantFolderIds`
+ * call would.
+ */
+function collectSelectedFolderIds(rootIds: string[], folders: FolderSubtreeRow[]): Set<string> {
+  const childrenByParent = new Map<string, string[]>()
+  for (const folder of folders) {
+    if (!folder.parentId) continue
+    const children = childrenByParent.get(folder.parentId) ?? []
+    children.push(folder.id)
+    childrenByParent.set(folder.parentId, children)
+  }
+
+  const folderIds = new Set(rootIds)
+  const visit = (id: string) => {
+    for (const childId of childrenByParent.get(id) ?? []) {
+      if (folderIds.has(childId)) continue
+      folderIds.add(childId)
+      visit(childId)
     }
+  }
+  for (const rootId of rootIds) {
+    visit(rootId)
   }
   return folderIds
 }
@@ -83,7 +95,7 @@ export const GET = withRouteHandler(
         listWorkspaceFileFolders(workspaceId),
       ])
       const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-      const selectedFolderIds = collectDescendantFolderIds(folderIds, folders)
+      const selectedFolderIds = collectSelectedFolderIds(folderIds, folders)
       const requestedFileIds = new Set(fileIds)
       const filesToZip = files.filter(
         (file) =>

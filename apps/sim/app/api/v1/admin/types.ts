@@ -7,13 +7,13 @@
 
 import type {
   auditLog,
+  folder,
   member,
   organization,
   subscription,
   user,
   userStats,
   workflow,
-  workflowFolder,
   workspace,
 } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
@@ -27,7 +27,7 @@ import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/typ
 export type DbUser = InferSelectModel<typeof user>
 export type DbWorkspace = InferSelectModel<typeof workspace>
 export type DbWorkflow = InferSelectModel<typeof workflow>
-export type DbWorkflowFolder = InferSelectModel<typeof workflowFolder>
+export type DbWorkflowFolder = InferSelectModel<typeof folder>
 export type DbOrganization = InferSelectModel<typeof organization>
 export type DbSubscription = InferSelectModel<typeof subscription>
 export type DbMember = InferSelectModel<typeof member>
@@ -156,7 +156,6 @@ export interface AdminFolder {
   id: string
   name: string
   parentId: string | null
-  color: string | null
   sortOrder: number
   createdAt: string
   updatedAt: string
@@ -167,7 +166,6 @@ export function toAdminFolder(dbFolder: DbWorkflowFolder): AdminFolder {
     id: dbFolder.id,
     name: dbFolder.name,
     parentId: dbFolder.parentId,
-    color: dbFolder.color,
     sortOrder: dbFolder.sortOrder,
     createdAt: dbFolder.createdAt.toISOString(),
     updatedAt: dbFolder.updatedAt.toISOString(),

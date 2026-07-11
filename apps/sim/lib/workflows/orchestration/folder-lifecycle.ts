@@ -1,21 +1,31 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import {
-  chat,
-  webhook,
-  workflow,
-  workflowFolder,
-  workflowMcpTool,
-  workflowSchedule,
-} from '@sim/db/schema'
+import { chat, folder, webhook, workflow, workflowMcpTool, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderMutable,
+  assertFolderMutableUnlessUnlocking,
+  ResourceLockedError,
+} from '@sim/platform-authz/resource-lock'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min } from 'drizzle-orm'
+import {
+  assertFolderParentValid,
+  checkFolderCircularReference,
+} from '@/lib/folders/parent-validation'
 import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
-import { checkForCircularReference } from '@/lib/workflows/utils'
 
 const logger = createLogger('FolderLifecycle')
+
+/** All queries against `folder` in this module are scoped to workflow folders. */
+const isWorkflowFolder = eq(folder.resourceType, 'workflow')
+
+/** Marks a concurrent-deletion race on a target parent, caught inside a folder-create or folder-update transaction, as a 400 (validation), not a 500. */
+class WorkflowFolderParentNotFoundError extends Error {}
+/** Marks a cycle caught inside the folder-update transaction, as a 400 (validation), not a 500. */
+class WorkflowFolderCycleError extends Error {}
 
 export interface PerformCreateFolderParams {
   userId: string
@@ -23,7 +33,6 @@ export interface PerformCreateFolderParams {
   name: string
   id?: string
   parentId?: string | null
-  color?: string
   sortOrder?: number
 }
 
@@ -31,7 +40,7 @@ export interface PerformCreateFolderResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
-  folder?: typeof workflowFolder.$inferSelect
+  folder?: typeof folder.$inferSelect
 }
 
 export interface PerformUpdateFolderParams {
@@ -39,8 +48,6 @@ export interface PerformUpdateFolderParams {
   workspaceId: string
   userId: string
   name?: string
-  color?: string
-  isExpanded?: boolean
   locked?: boolean
   parentId?: string | null
   sortOrder?: number
@@ -50,52 +57,23 @@ export interface PerformUpdateFolderResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
-  folder?: typeof workflowFolder.$inferSelect
-}
-
-/**
- * Verifies that a prospective parent folder exists, belongs to the target
- * workspace, and is not archived. Mirrors the validation in the duplicate
- * route's `assertTargetParentFolderMutable` so a caller cannot reparent a
- * folder to a non-existent id or to a folder in another workspace. Returns
- * an error result when invalid, or `null` when the parent is acceptable.
- */
-async function assertParentFolderInWorkspace(
-  parentId: string,
-  workspaceId: string
-): Promise<{ error: string; errorCode: OrchestrationErrorCode } | null> {
-  const [parent] = await db
-    .select({
-      workspaceId: workflowFolder.workspaceId,
-      archivedAt: workflowFolder.archivedAt,
-    })
-    .from(workflowFolder)
-    .where(eq(workflowFolder.id, parentId))
-    .limit(1)
-
-  if (!parent || parent.workspaceId !== workspaceId || parent.archivedAt) {
-    return { error: 'Parent folder not found', errorCode: 'validation' }
-  }
-
-  return null
+  folder?: typeof folder.$inferSelect
 }
 
 async function nextFolderSortOrder(
   workspaceId: string,
   parentId: string | null | undefined
 ): Promise<number> {
-  const folderParentCondition = parentId
-    ? eq(workflowFolder.parentId, parentId)
-    : isNull(workflowFolder.parentId)
+  const folderParentCondition = parentId ? eq(folder.parentId, parentId) : isNull(folder.parentId)
   const workflowParentCondition = parentId
     ? eq(workflow.folderId, parentId)
     : isNull(workflow.folderId)
 
   const [[folderResult], [workflowResult]] = await Promise.all([
     db
-      .select({ minSortOrder: min(workflowFolder.sortOrder) })
-      .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      .select({ minSortOrder: min(folder.sortOrder) })
+      .from(folder)
+      .where(and(eq(folder.workspaceId, workspaceId), isWorkflowFolder, folderParentCondition)),
     db
       .select({ minSortOrder: min(workflow.sortOrder) })
       .from(workflow)
@@ -128,7 +106,10 @@ export async function performCreateFolder(
           errorCode: 'validation',
         }
       }
-      const parentError = await assertParentFolderInWorkspace(parentId, params.workspaceId)
+      const parentError = await assertFolderParentValid(parentId, {
+        workspaceId: params.workspaceId,
+        resourceType: 'workflow',
+      })
       if (parentError) return { success: false, ...parentError }
     }
 
@@ -137,18 +118,43 @@ export async function performCreateFolder(
         ? params.sortOrder
         : await nextFolderSortOrder(params.workspaceId, parentId)
 
-    const [folder] = await db
-      .insert(workflowFolder)
-      .values({
-        id: folderId,
-        name: params.name.trim(),
-        userId: params.userId,
-        workspaceId: params.workspaceId,
-        parentId,
-        color: params.color || '#6B7280',
-        sortOrder,
-      })
-      .returning()
+    const createdFolder = await db.transaction(async (tx) => {
+      if (parentId) {
+        // assertFolderParentValid above only reads at validation time, using the
+        // default (non-tx) db client -- a parent locked or soft-deleted after that
+        // read but before this transaction must still be caught. Re-check inside
+        // the transaction (joining `tx`) before inserting.
+        await assertFolderMutable(parentId, 'workflow', tx)
+
+        // assertFolderMutable's lock walker treats a deleted parent as unlocked
+        // (it stops the ancestor walk when the row is missing rather than
+        // erroring), so it alone doesn't catch a parent deleted in that same
+        // window. FOR UPDATE here makes the recheck race-free.
+        const [targetParent] = await tx
+          .select({ id: folder.id })
+          .from(folder)
+          .where(and(eq(folder.id, parentId), isWorkflowFolder, isNull(folder.deletedAt)))
+          .for('update')
+          .limit(1)
+        if (!targetParent) {
+          throw new WorkflowFolderParentNotFoundError('Parent folder not found')
+        }
+      }
+
+      const [row] = await tx
+        .insert(folder)
+        .values({
+          id: folderId,
+          resourceType: 'workflow',
+          name: params.name.trim(),
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          parentId,
+          sortOrder,
+        })
+        .returning()
+      return row
+    })
 
     logger.info('Created workflow folder', { folderId, workspaceId: params.workspaceId, parentId })
 
@@ -158,19 +164,32 @@ export async function performCreateFolder(
       action: AuditAction.FOLDER_CREATED,
       resourceType: AuditResourceType.FOLDER,
       resourceId: folderId,
-      resourceName: folder.name,
-      description: `Created folder "${folder.name}"`,
+      resourceName: createdFolder.name,
+      description: `Created folder "${createdFolder.name}"`,
       metadata: {
-        name: folder.name,
+        name: createdFolder.name,
         workspaceId: params.workspaceId,
         parentId: parentId || undefined,
-        color: folder.color,
-        sortOrder: folder.sortOrder,
+        sortOrder: createdFolder.sortOrder,
       },
     })
 
-    return { success: true, folder }
+    return { success: true, folder: createdFolder }
   } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (error instanceof WorkflowFolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
+    }
     logger.error('Failed to create workflow folder', { error })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }
   }
@@ -185,10 +204,13 @@ export async function performUpdateFolder(
     }
 
     if (params.parentId) {
-      const parentError = await assertParentFolderInWorkspace(params.parentId, params.workspaceId)
+      const parentError = await assertFolderParentValid(params.parentId, {
+        workspaceId: params.workspaceId,
+        resourceType: 'workflow',
+      })
       if (parentError) return { success: false, ...parentError }
 
-      const wouldCreateCycle = await checkForCircularReference(params.folderId, params.parentId)
+      const wouldCreateCycle = await checkFolderCircularReference(params.folderId, params.parentId)
       if (wouldCreateCycle) {
         return {
           success: false,
@@ -200,31 +222,108 @@ export async function performUpdateFolder(
 
     const updates: Record<string, unknown> = { updatedAt: new Date() }
     if (params.name !== undefined) updates.name = params.name.trim()
-    if (params.color !== undefined) updates.color = params.color
-    if (params.isExpanded !== undefined) updates.isExpanded = params.isExpanded
     if (params.locked !== undefined) updates.locked = params.locked
     if (params.parentId !== undefined) updates.parentId = params.parentId || null
     if (params.sortOrder !== undefined) updates.sortOrder = params.sortOrder
 
-    const [folder] = await db
-      .update(workflowFolder)
-      .set(updates)
-      .where(
-        and(
-          eq(workflowFolder.id, params.folderId),
-          eq(workflowFolder.workspaceId, params.workspaceId)
-        )
-      )
-      .returning()
+    const isLockOnlyUpdate =
+      params.name === undefined && params.parentId === undefined && params.sortOrder === undefined
 
-    if (!folder) {
+    const updatedFolder = await db.transaction(async (tx) => {
+      // The route checks lock state before calling this function, but that's a
+      // separate round-trip -- an admin could lock this folder (or its target
+      // parent) in the window between that check and this transaction. Re-check
+      // inside the transaction (joining `tx` so the read is part of the same
+      // atomic unit as the write below) before applying anything.
+      //
+      // `assertFolderMutableUnlessUnlocking` only treats this folder's own
+      // (about-to-be-cleared) lock as satisfied when this same request unlocks it --
+      // a lock inherited from an ancestor still blocks. Skipped entirely for a
+      // lock-only update, matching the file/kb/table lock-toggle precedent.
+      if (!isLockOnlyUpdate) {
+        await assertFolderMutableUnlessUnlocking(
+          params.folderId,
+          'workflow',
+          params.locked === false,
+          tx
+        )
+      }
+      if (params.parentId) {
+        // A folder in an unlocked location could otherwise be moved into a locked one.
+        await assertFolderMutable(params.parentId, 'workflow', tx)
+
+        // assertFolderMutable's lock walker treats a deleted parent as unlocked (it
+        // stops the ancestor walk when the row is missing, rather than erroring), so
+        // it alone doesn't catch a parent deleted between the earlier
+        // assertFolderParentValid precheck and this transaction. FOR UPDATE here
+        // makes the recheck race-free: once held, the parent's deletedAt can't
+        // change until this transaction resolves.
+        const [targetParent] = await tx
+          .select({ id: folder.id })
+          .from(folder)
+          .where(and(eq(folder.id, params.parentId), isWorkflowFolder, isNull(folder.deletedAt)))
+          .for('update')
+          .limit(1)
+        if (!targetParent) {
+          throw new WorkflowFolderParentNotFoundError('Parent folder not found')
+        }
+
+        // The cycle check above (`checkFolderCircularReference`) ran against an
+        // unlocked pre-transaction snapshot -- two concurrent moves (e.g. A under B
+        // and B under A) can each pass that stale check and then commit opposite
+        // parent updates, persisting a cycle. Re-run it here against `tx` so it
+        // observes the same FOR-UPDATE-locked parent chain this transaction is
+        // about to write.
+        const wouldCreateCycleInTx = await checkFolderCircularReference(
+          params.folderId,
+          params.parentId,
+          tx
+        )
+        if (wouldCreateCycleInTx) {
+          throw new WorkflowFolderCycleError('Cannot create circular folder reference')
+        }
+      }
+
+      const [row] = await tx
+        .update(folder)
+        .set(updates)
+        .where(
+          and(
+            eq(folder.id, params.folderId),
+            eq(folder.workspaceId, params.workspaceId),
+            isWorkflowFolder,
+            isNull(folder.deletedAt)
+          )
+        )
+        .returning()
+      return row
+    })
+
+    if (!updatedFolder) {
       return { success: false, error: 'Folder not found', errorCode: 'not_found' }
     }
 
     logger.info('Updated workflow folder', { folderId: params.folderId, updates })
 
-    return { success: true, folder }
+    return { success: true, folder: updatedFolder }
   } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (error instanceof WorkflowFolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (error instanceof WorkflowFolderCycleError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
+    }
     logger.error('Failed to update workflow folder', { error })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }
   }
@@ -232,25 +331,33 @@ export async function performUpdateFolder(
 
 /**
  * Recursively deletes a folder: removes child folders first, archives non-archived
- * workflows in each folder via {@link archiveWorkflowsByIdsInWorkspace}, then deletes
+ * workflows in each folder via {@link archiveWorkflowsByIdsInWorkspace}, then soft-deletes
  * the folder row.
  */
 async function deleteFolderRecursively(
   folderId: string,
   workspaceId: string,
-  archivedAt?: Date
+  deletedAt?: Date
 ): Promise<{ folders: number; workflows: number }> {
-  const timestamp = archivedAt ?? new Date()
+  const timestamp = deletedAt ?? new Date()
   const stats = { folders: 0, workflows: 0 }
 
+  // Checked before recursing into children or archiving anything in this folder --
+  // without this, a lock placed on `folderId` itself right as the cascade begins
+  // would only be caught by the tx-wrapped recheck at the end of this function,
+  // after descendants have already been soft-deleted/archived, leaving them
+  // deleted while this (locked) folder itself survives.
+  await assertFolderMutable(folderId, 'workflow')
+
   const childFolders = await db
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
+    .select({ id: folder.id })
+    .from(folder)
     .where(
       and(
-        eq(workflowFolder.parentId, folderId),
-        eq(workflowFolder.workspaceId, workspaceId),
-        isNull(workflowFolder.archivedAt)
+        eq(folder.parentId, folderId),
+        eq(folder.workspaceId, workspaceId),
+        isWorkflowFolder,
+        isNull(folder.deletedAt)
       )
     )
 
@@ -280,10 +387,19 @@ async function deleteFolderRecursively(
     stats.workflows += workflowsInFolder.length
   }
 
-  await db
-    .update(workflowFolder)
-    .set({ archivedAt: timestamp })
-    .where(eq(workflowFolder.id, folderId))
+  // The route checks lock state before calling this function, but that's a
+  // separate round-trip, and this recursive cascade makes several of its own
+  // round-trips per folder besides -- an admin could lock this specific folder
+  // in the window before this write. A single, tightly-scoped transaction
+  // around just the recheck and this folder's own write closes that race for
+  // this row (the cascade as a whole still isn't one atomic unit, since
+  // archiveWorkflowsByIdsInWorkspace above doesn't accept a `tx`, but each
+  // folder's own delete now can't land after a lock was set for that folder
+  // specifically).
+  await db.transaction(async (tx) => {
+    await assertFolderMutable(folderId, 'workflow', tx)
+    await tx.update(folder).set({ deletedAt: timestamp }).where(eq(folder.id, folderId))
+  })
   stats.folders += 1
 
   return stats
@@ -312,13 +428,14 @@ async function countWorkflowsInFolderRecursively(
   count += workflowsInFolder.length
 
   const childFolders = await db
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
+    .select({ id: folder.id })
+    .from(folder)
     .where(
       and(
-        eq(workflowFolder.parentId, folderId),
-        eq(workflowFolder.workspaceId, workspaceId),
-        isNull(workflowFolder.archivedAt)
+        eq(folder.parentId, folderId),
+        eq(folder.workspaceId, workspaceId),
+        isWorkflowFolder,
+        isNull(folder.deletedAt)
       )
     )
 
@@ -395,18 +512,18 @@ export async function performDeleteFolder(
 
 /**
  * Recursively restores a folder and its children/workflows within a transaction.
- * Only restores workflows whose `archivedAt` matches the folder's — workflows
- * individually deleted before the folder are left archived.
+ * Only restores workflows whose `archivedAt` matches the folder's `deletedAt` —
+ * workflows individually deleted before the folder are left archived.
  */
 async function restoreFolderRecursively(
   folderId: string,
   workspaceId: string,
-  folderArchivedAt: Date,
+  folderDeletedAt: Date,
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0]
 ): Promise<{ folders: number; workflows: number }> {
   const stats = { folders: 0, workflows: 0 }
 
-  await tx.update(workflowFolder).set({ archivedAt: null }).where(eq(workflowFolder.id, folderId))
+  await tx.update(folder).set({ deletedAt: null }).where(eq(folder.id, folderId))
   stats.folders += 1
 
   const archivedWorkflows = await tx
@@ -416,7 +533,7 @@ async function restoreFolderRecursively(
       and(
         eq(workflow.folderId, folderId),
         eq(workflow.workspaceId, workspaceId),
-        eq(workflow.archivedAt, folderArchivedAt)
+        eq(workflow.archivedAt, folderDeletedAt)
       )
     )
 
@@ -441,18 +558,19 @@ async function restoreFolderRecursively(
   }
 
   const archivedChildren = await tx
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
+    .select({ id: folder.id })
+    .from(folder)
     .where(
       and(
-        eq(workflowFolder.parentId, folderId),
-        eq(workflowFolder.workspaceId, workspaceId),
-        eq(workflowFolder.archivedAt, folderArchivedAt)
+        eq(folder.parentId, folderId),
+        eq(folder.workspaceId, workspaceId),
+        isWorkflowFolder,
+        eq(folder.deletedAt, folderDeletedAt)
       )
     )
 
   for (const child of archivedChildren) {
-    const childStats = await restoreFolderRecursively(child.id, workspaceId, folderArchivedAt, tx)
+    const childStats = await restoreFolderRecursively(child.id, workspaceId, folderDeletedAt, tx)
     stats.folders += childStats.folders
     stats.workflows += childStats.workflows
   }
@@ -472,56 +590,97 @@ export interface PerformRestoreFolderParams {
 export interface PerformRestoreFolderResult {
   success: boolean
   error?: string
+  errorCode?: OrchestrationErrorCode
   restoredItems?: { folders: number; workflows: number }
 }
 
 /**
- * Restores an archived folder and all its archived children and workflows.
- * If the folder's parent is still archived, moves it to the root level.
+ * Restores a soft-deleted folder and all its soft-deleted children and workflows.
+ * If the folder's parent is still soft-deleted, moves it to the root level.
  */
 export async function performRestoreFolder(
   params: PerformRestoreFolderParams
 ): Promise<PerformRestoreFolderResult> {
   const { folderId, workspaceId, userId, folderName } = params
 
-  const [folder] = await db
-    .select()
-    .from(workflowFolder)
-    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
-
-  if (!folder) {
-    return { success: false, error: 'Folder not found' }
-  }
-
-  if (!folder.archivedAt) {
-    return { success: true, restoredItems: { folders: 0, workflows: 0 } }
-  }
-
   const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
-    return { success: false, error: 'Cannot restore folder into an archived workspace' }
+    return {
+      success: false,
+      error: 'Cannot restore folder into an archived workspace',
+      errorCode: 'validation',
+    }
   }
 
-  const restoredStats = await db.transaction(async (tx) => {
-    if (folder.parentId) {
-      const [parentFolder] = await tx
-        .select({ archivedAt: workflowFolder.archivedAt })
-        .from(workflowFolder)
-        .where(eq(workflowFolder.id, folder.parentId))
+  const outcome = await db.transaction(async (tx) => {
+    // `FOR UPDATE` row-locks this folder for the rest of the transaction -- a plain
+    // SELECT inside a transaction does not block a concurrent UPDATE, so without this
+    // a lock toggled on this row after this read but before the restore write below
+    // could still be silently bypassed.
+    const [existingFolder] = await tx
+      .select()
+      .from(folder)
+      .where(and(eq(folder.id, folderId), eq(folder.workspaceId, workspaceId), isWorkflowFolder))
+      .for('update')
 
-      if (!parentFolder || parentFolder.archivedAt) {
-        await tx
-          .update(workflowFolder)
-          .set({ parentId: null })
-          .where(eq(workflowFolder.id, folderId))
+    if (!existingFolder) return { kind: 'not_found' as const }
+    if (!existingFolder.deletedAt) return { kind: 'not_archived' as const }
+
+    // The folder row is soft-deleted, so the generic lock engine (which only reads
+    // active rows) can't see it -- check its own `locked` flag directly. This read
+    // must happen inside the same transaction as the restore write below (not before
+    // it opens): otherwise a concurrent lock landing between the read and the write
+    // could still resurrect and mutate a folder that is now locked.
+    if (existingFolder.locked) {
+      throw new ResourceLockedError('workflow', false, 'Folder is locked')
+    }
+
+    let resolvedParentId = existingFolder.parentId
+    if (resolvedParentId) {
+      // FOR UPDATE closes the window where a concurrent transaction soft-deletes
+      // this parent between this read and the write below -- without it, this
+      // plain read isn't locked, so the parent could be deleted out from under us
+      // after we've already decided it's active, restoring this folder under a
+      // parent that no longer exists.
+      const [parentFolder] = await tx
+        .select({ deletedAt: folder.deletedAt })
+        .from(folder)
+        .where(eq(folder.id, resolvedParentId))
+        .for('update')
+
+      if (!parentFolder || parentFolder.deletedAt) {
+        resolvedParentId = null
+        await tx.update(folder).set({ parentId: null }).where(eq(folder.id, folderId))
       }
     }
 
-    return restoreFolderRecursively(folderId, workspaceId, folder.archivedAt!, tx)
+    // resolvedParentId is either null (root, always safe) or a confirmed-active
+    // folder -- without this, the folder could resurface under a folder that was
+    // locked after this one was deleted. Passing `tx` (not the default db client)
+    // keeps this read inside the same transaction as the write below, closing the
+    // TOCTOU window where a concurrent request locks resolvedParentId in between.
+    await assertFolderMutable(resolvedParentId, 'workflow', tx)
+
+    const stats = await restoreFolderRecursively(
+      folderId,
+      workspaceId,
+      existingFolder.deletedAt,
+      tx
+    )
+    return { kind: 'ok' as const, stats, name: existingFolder.name }
   })
 
-  logger.info('Restored folder and all contents:', { folderId, restoredStats })
+  if (outcome.kind === 'not_found') {
+    return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+  }
+  if (outcome.kind === 'not_archived') {
+    return { success: false, error: 'Folder is not archived', errorCode: 'validation' }
+  }
+
+  const { stats, name } = outcome
+
+  logger.info('Restored folder and all contents:', { folderId, restoredStats: stats })
 
   recordAudit({
     workspaceId,
@@ -529,15 +688,15 @@ export async function performRestoreFolder(
     action: AuditAction.FOLDER_RESTORED,
     resourceType: AuditResourceType.FOLDER,
     resourceId: folderId,
-    resourceName: folderName ?? folder.name,
-    description: `Restored folder "${folderName ?? folder.name}"`,
+    resourceName: folderName ?? name,
+    description: `Restored folder "${folderName ?? name}"`,
     metadata: {
       affected: {
-        workflows: restoredStats.workflows,
-        subfolders: restoredStats.folders - 1,
+        workflows: stats.workflows,
+        subfolders: stats.folders - 1,
       },
     },
   })
 
-  return { success: true, restoredItems: restoredStats }
+  return { success: true, restoredItems: stats }
 }

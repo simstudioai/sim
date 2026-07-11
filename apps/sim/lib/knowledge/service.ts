@@ -8,10 +8,16 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderMutable,
+  assertResourceMutable,
+  assertResourceMutableUnlessUnlocking,
+} from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { assertFolderParentValid } from '@/lib/folders/parent-validation'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -30,6 +36,10 @@ export class KnowledgeBaseConflictError extends Error {
 
 export class KnowledgeBasePermissionError extends Error {
   readonly code = 'KNOWLEDGE_BASE_FORBIDDEN' as const
+}
+
+export class KnowledgeBaseValidationError extends Error {
+  readonly code = 'KNOWLEDGE_BASE_VALIDATION' as const
 }
 
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
@@ -63,6 +73,8 @@ export async function getKnowledgeBases(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
+      locked: knowledgeBase.locked,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -164,39 +176,66 @@ export async function createKnowledgeBase(
     )
   }
 
+  // Folder-parent validity (folder table) and duplicate-name (knowledgeBase
+  // table) checks are disjoint queries with no dependency on each other, so
+  // they run concurrently rather than as two sequential round-trips.
+  const [parentError, duplicate] = await Promise.all([
+    data.folderId
+      ? assertFolderParentValid(data.folderId, {
+          workspaceId: data.workspaceId,
+          resourceType: 'knowledge_base',
+        })
+      : Promise.resolve(null),
+    db
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(
+        and(
+          eq(knowledgeBase.workspaceId, data.workspaceId),
+          eq(knowledgeBase.name, data.name),
+          isNull(knowledgeBase.deletedAt)
+        )
+      )
+      .limit(1),
+  ])
+
+  if (parentError) {
+    throw new KnowledgeBaseValidationError(parentError.error)
+  }
+  if (duplicate.length > 0) {
+    throw new KnowledgeBaseConflictError(data.name)
+  }
+
   const newKnowledgeBase = {
     id: kbId,
     name: data.name,
     description: data.description ?? null,
     workspaceId: data.workspaceId,
+    folderId: data.folderId ?? null,
     userId: data.userId,
     tokenCount: 0,
     embeddingModel: data.embeddingModel,
     embeddingDimension: data.embeddingDimension,
     chunkingConfig: data.chunkingConfig,
+    locked: false,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
   }
 
-  const duplicate = await db
-    .select({ id: knowledgeBase.id })
-    .from(knowledgeBase)
-    .where(
-      and(
-        eq(knowledgeBase.workspaceId, data.workspaceId),
-        eq(knowledgeBase.name, data.name),
-        isNull(knowledgeBase.deletedAt)
-      )
-    )
-    .limit(1)
-
-  if (duplicate.length > 0) {
-    throw new KnowledgeBaseConflictError(data.name)
-  }
-
+  // Wrap the lock check and insert in a transaction so a folder lock applied between
+  // the check and the insert can't slip a knowledge base into a now-locked folder
+  // (same TOCTOU class as createTable in lib/table/service.ts).
   try {
-    await db.insert(knowledgeBase).values(newKnowledgeBase)
+    await db.transaction(async (tx) => {
+      // assertFolderParentValid above only checks workspace/type/deleted-state -- without
+      // this, a knowledge base could be created directly inside a locked folder. Passing
+      // `tx` keeps this read inside the same transaction as the insert below.
+      if (data.folderId) {
+        await assertFolderMutable(data.folderId, 'knowledge_base', tx)
+      }
+      await tx.insert(knowledgeBase).values(newKnowledgeBase)
+    })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505') {
       throw new KnowledgeBaseConflictError(data.name)
@@ -219,6 +258,8 @@ export async function createKnowledgeBase(
     updatedAt: now,
     deletedAt: null,
     workspaceId: data.workspaceId,
+    folderId: data.folderId ?? null,
+    locked: false,
     docCount: 0,
     connectorTypes: [],
   }
@@ -233,6 +274,8 @@ export async function updateKnowledgeBase(
     name?: string
     description?: string
     workspaceId?: string | null
+    folderId?: string | null
+    locked?: boolean
     chunkingConfig?: {
       maxSize: number
       minSize: number
@@ -248,6 +291,8 @@ export async function updateKnowledgeBase(
     name?: string
     description?: string | null
     workspaceId?: string | null
+    folderId?: string | null
+    locked?: boolean
     chunkingConfig?: {
       maxSize: number
       minSize: number
@@ -262,8 +307,34 @@ export async function updateKnowledgeBase(
   if (updates.name !== undefined) updateData.name = updates.name
   if (updates.description !== undefined) updateData.description = updates.description
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
+  if (updates.folderId !== undefined) updateData.folderId = updates.folderId
+  if (updates.locked !== undefined) updateData.locked = updates.locked
   if (updates.chunkingConfig !== undefined) {
     updateData.chunkingConfig = updates.chunkingConfig
+  }
+
+  // `Object.keys(updates)` can't distinguish "field genuinely provided" from "field
+  // present as undefined" (the route always builds a full literal object) — reuse the
+  // same `!== undefined` checks that already gate `updateData` above, matching the
+  // isLockOnlyUpdate pattern used by renameTable()/performRenameWorkspaceFile().
+  const hasNonLockUpdate =
+    updates.name !== undefined ||
+    updates.description !== undefined ||
+    updates.workspaceId !== undefined ||
+    updates.folderId !== undefined ||
+    updates.chunkingConfig !== undefined
+  // An admin combining `locked: false` with other field changes in one request is
+  // unlocking the knowledge base as part of this same atomic write -- the
+  // mutable-check must not treat that request's own current (about-to-be-cleared)
+  // lock as blocking. It must still enforce a lock inherited from the KB's
+  // containing folder, since clearing the KB's own `locked` flag doesn't affect
+  // that.
+  if (hasNonLockUpdate) {
+    await assertResourceMutableUnlessUnlocking(
+      'knowledge_base',
+      knowledgeBaseId,
+      updates.locked === false
+    )
   }
 
   if (updates.workspaceId !== undefined && !options?.actorUserId) {
@@ -296,6 +367,21 @@ export async function updateKnowledgeBase(
         throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
       }
 
+      // The `hasNonLockUpdate` check above is a separate round-trip against the
+      // default `db` client -- an admin could lock this KB in the window between
+      // that check and this transaction. Re-check inside the transaction (joining
+      // `tx` so the read is part of the same atomic unit as the FOR UPDATE lock
+      // just acquired and the write below), matching deleteKnowledgeBase/
+      // restoreKnowledgeBase in this file.
+      if (hasNonLockUpdate) {
+        await assertResourceMutableUnlessUnlocking(
+          'knowledge_base',
+          knowledgeBaseId,
+          updates.locked === false,
+          tx
+        )
+      }
+
       if (updates.workspaceId !== undefined) {
         const actorUserId = options?.actorUserId as string
         const currentWorkspaceId = currentKb.workspaceId ?? null
@@ -319,28 +405,53 @@ export async function updateKnowledgeBase(
         }
       }
 
-      if (updates.name !== undefined) {
-        const effectiveWorkspaceId =
-          updates.workspaceId !== undefined ? updates.workspaceId : currentKb.workspaceId
+      const effectiveWorkspaceId =
+        updates.workspaceId !== undefined ? updates.workspaceId : currentKb.workspaceId
 
-        if (effectiveWorkspaceId) {
-          const duplicate = await tx
-            .select({ id: knowledgeBase.id })
-            .from(knowledgeBase)
-            .where(
-              and(
-                eq(knowledgeBase.workspaceId, effectiveWorkspaceId),
-                eq(knowledgeBase.name, updates.name),
-                isNull(knowledgeBase.deletedAt),
-                ne(knowledgeBase.id, knowledgeBaseId)
-              )
+      if (updates.folderId && !effectiveWorkspaceId) {
+        throw new KnowledgeBaseValidationError(
+          'Cannot assign a folder to a knowledge base with no workspace'
+        )
+      }
+
+      // Folder-parent validity and duplicate-name are disjoint queries with
+      // no dependency on each other; run them concurrently on the `tx`
+      // client to minimize the window the FOR UPDATE row lock is held.
+      const [parentError, duplicate] = await Promise.all([
+        updates.folderId
+          ? assertFolderParentValid(
+              updates.folderId,
+              { workspaceId: effectiveWorkspaceId as string, resourceType: 'knowledge_base' },
+              tx
             )
-            .limit(1)
+          : Promise.resolve(null),
+        updates.name !== undefined && effectiveWorkspaceId
+          ? tx
+              .select({ id: knowledgeBase.id })
+              .from(knowledgeBase)
+              .where(
+                and(
+                  eq(knowledgeBase.workspaceId, effectiveWorkspaceId),
+                  eq(knowledgeBase.name, updates.name),
+                  isNull(knowledgeBase.deletedAt),
+                  ne(knowledgeBase.id, knowledgeBaseId)
+                )
+              )
+              .limit(1)
+          : Promise.resolve([]),
+      ])
 
-          if (duplicate.length > 0) {
-            throw new KnowledgeBaseConflictError(updates.name)
-          }
-        }
+      if (parentError) {
+        throw new KnowledgeBaseValidationError(parentError.error)
+      }
+      // assertResourceMutable above only checked the KB's *current* folder chain —
+      // without this, a KB could be moved out of an unlocked folder into a locked one.
+      // Passing `tx` keeps this read inside the same transaction as the write below.
+      if (updates.folderId) {
+        await assertFolderMutable(updates.folderId, 'knowledge_base', tx)
+      }
+      if (updates.name !== undefined && effectiveWorkspaceId && duplicate.length > 0) {
+        throw new KnowledgeBaseConflictError(updates.name)
       }
 
       await tx
@@ -407,6 +518,8 @@ export async function updateKnowledgeBase(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
+      locked: knowledgeBase.locked,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -457,6 +570,8 @@ export async function getKnowledgeBaseById(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
+      locked: knowledgeBase.locked,
       docCount: count(document.id),
     })
     .from(knowledgeBase)
@@ -492,10 +607,18 @@ export async function deleteKnowledgeBase(
   knowledgeBaseId: string,
   requestId: string
 ): Promise<void> {
+  await assertResourceMutable('knowledge_base', knowledgeBaseId)
+
   const now = new Date()
 
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    // The pre-check above is a separate round-trip -- an admin could lock this KB
+    // in the window between that check and this transaction. Re-check inside the
+    // transaction, joining `tx` so the read is part of the same atomic unit as
+    // the FOR UPDATE lock and the writes below.
+    await assertResourceMutable('knowledge_base', knowledgeBaseId, tx)
 
     await tx
       .update(knowledgeBase)
@@ -586,6 +709,12 @@ export async function restoreKnowledgeBase(
     try {
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+        // Restore doesn't change folderId, so this correctly evaluates both the KB's own
+        // `locked` flag and its (unchanged) containing folder chain. Runs inside the same
+        // transaction as the FOR UPDATE lock above and the write below, closing the TOCTOU
+        // window where a concurrent request locks the KB or its folder in between.
+        await assertResourceMutable('knowledge_base', knowledgeBaseId, tx)
 
         attemptedRestoreName = await generateRestoreName(kb.name, async (candidate) => {
           if (!kb.workspaceId) return false

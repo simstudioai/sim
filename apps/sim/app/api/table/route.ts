@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createTableContract, listTablesQuerySchema } from '@/lib/api/contracts/tables'
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
@@ -11,6 +12,7 @@ import {
   createTable,
   getWorkspaceTableLimits,
   listTables,
+  TableInvalidFolderError,
   type TableSchema,
   type TableScope,
 } from '@/lib/table'
@@ -84,6 +86,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         userId: authResult.userId,
         maxTables: planLimits.maxTables,
         initialRowCount: params.initialRowCount,
+        folderId: params.folderId,
       },
       requestId
     )
@@ -127,6 +130,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
+          folderId: table.folderId,
+          locked: table.locked,
           createdAt:
             table.createdAt instanceof Date
               ? table.createdAt.toISOString()
@@ -140,6 +145,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
+    if (error instanceof ResourceLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
+    if (error instanceof TableInvalidFolderError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
     if (error instanceof Error) {
       if (error.message.includes('maximum table limit')) {
         return NextResponse.json({ error: error.message }, { status: 403 })
@@ -207,6 +220,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         rowCount: t.rowCount,
         maxRows: t.maxRows,
         workspaceId: t.workspaceId,
+        folderId: t.folderId ?? null,
+        locked: t.locked,
         createdBy: t.createdBy,
         createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
         updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),

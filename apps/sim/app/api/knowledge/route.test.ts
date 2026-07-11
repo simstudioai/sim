@@ -13,7 +13,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDbChain } = vi.hoisted(() => {
-  const mockDbChain = {
+  const mockDbChain: Record<string, any> = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),
@@ -24,6 +24,7 @@ const { mockDbChain } = vi.hoisted(() => {
     insert: vi.fn().mockReturnThis(),
     values: vi.fn().mockResolvedValue(undefined),
   }
+  mockDbChain.transaction = vi.fn((cb: (tx: typeof mockDbChain) => unknown) => cb(mockDbChain))
   return { mockDbChain }
 })
 
@@ -44,11 +45,19 @@ describe('Knowledge Base API Route', () => {
     Object.values(mockDbChain).forEach((fn) => {
       if (typeof fn === 'function') {
         fn.mockClear()
-        if (fn !== mockDbChain.orderBy && fn !== mockDbChain.values && fn !== mockDbChain.limit) {
+        if (
+          fn !== mockDbChain.orderBy &&
+          fn !== mockDbChain.values &&
+          fn !== mockDbChain.limit &&
+          fn !== mockDbChain.transaction
+        ) {
           fn.mockReturnThis()
         }
       }
     })
+    mockDbChain.transaction.mockImplementation((cb: (tx: typeof mockDbChain) => unknown) =>
+      cb(mockDbChain)
+    )
 
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
 

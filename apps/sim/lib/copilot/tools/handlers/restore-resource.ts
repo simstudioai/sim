@@ -1,7 +1,16 @@
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { performRestoreResource, type RestorableResourceType } from '@/lib/resources/orchestration'
 
-const VALID_TYPES = new Set(['workflow', 'table', 'file', 'knowledgebase', 'folder', 'file_folder'])
+const VALID_TYPES = new Set([
+  'workflow',
+  'table',
+  'file',
+  'knowledgebase',
+  'folder',
+  'file_folder',
+  'table_folder',
+  'knowledge_base_folder',
+])
 
 export async function executeRestoreResource(
   rawParams: Record<string, unknown>,

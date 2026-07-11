@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
   Upload,
 } from '@sim/emcn'
-import { Database, Download, Duplicate, Pencil, Trash } from '@sim/emcn/icons'
+import { Database, Download, Duplicate, Lock, Pencil, Trash, Unlock } from '@sim/emcn/icons'
 
 interface TableContextMenuProps {
   isOpen: boolean
@@ -20,10 +20,14 @@ interface TableContextMenuProps {
   onRename?: () => void
   onImportCsv?: () => void
   onExportCsv?: () => void
+  onToggleLock?: () => void
   disableDelete?: boolean
   disableRename?: boolean
   disableImport?: boolean
   disableExport?: boolean
+  showLock?: boolean
+  disableLock?: boolean
+  isLocked?: boolean
   menuRef?: React.RefObject<HTMLDivElement | null>
 }
 
@@ -37,10 +41,14 @@ export function TableContextMenu({
   onRename,
   onImportCsv,
   onExportCsv,
+  onToggleLock,
   disableDelete = false,
   disableRename = false,
   disableImport = false,
   disableExport = false,
+  showLock = false,
+  disableLock = false,
+  isLocked = false,
 }: TableContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -88,9 +96,14 @@ export function TableContextMenu({
             Export CSV
           </DropdownMenuItem>
         )}
-        {(onViewSchema || onRename || onImportCsv || onExportCsv) && (onCopyId || onDelete) && (
-          <DropdownMenuSeparator />
+        {showLock && onToggleLock && (
+          <DropdownMenuItem disabled={disableLock} onSelect={onToggleLock}>
+            {isLocked ? <Unlock /> : <Lock />}
+            {isLocked ? 'Unlock' : 'Lock'}
+          </DropdownMenuItem>
         )}
+        {(onViewSchema || onRename || onImportCsv || onExportCsv || (showLock && onToggleLock)) &&
+          (onCopyId || onDelete) && <DropdownMenuSeparator />}
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
             <Duplicate />

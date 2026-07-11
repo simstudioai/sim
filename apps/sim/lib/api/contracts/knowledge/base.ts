@@ -60,6 +60,8 @@ export const createKnowledgeBaseBodySchema = z.object({
     )
     .optional(),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
+  /** Folder to create the knowledge base in. Omit or `null` for the workspace root. */
+  folderId: z.string().min(1).nullable().optional(),
   embeddingModel: z.literal('text-embedding-3-small').default('text-embedding-3-small'),
   embeddingDimension: z.literal(1536).default(1536),
   chunkingConfig: chunkingConfigSchema.default({
@@ -73,6 +75,7 @@ export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
   .pick({
     name: true,
     description: true,
+    folderId: true,
   })
   .partial()
   .extend({
@@ -80,6 +83,7 @@ export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
     workspaceId: z.string().nullable().optional(),
     embeddingModel: z.literal('text-embedding-3-small').optional(),
     embeddingDimension: z.literal(1536).optional(),
+    locked: z.boolean().optional(),
   })
 
 const knowledgeChunkingConfigSchema = z
@@ -106,6 +110,8 @@ export const knowledgeBaseDataSchema = z
     updatedAt: wireDateSchema,
     deletedAt: nullableWireDateSchema,
     workspaceId: z.string().nullable(),
+    folderId: z.string().nullable(),
+    locked: z.boolean(),
     docCount: z.number().optional(),
     connectorTypes: z.array(z.string()).optional(),
   })

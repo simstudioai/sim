@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import { performRestoreFolder as performRestoreGenericFolder } from '@/lib/folders/orchestration'
 import {
   getRestorableKnowledgeBase,
   performRestoreKnowledgeBase,
@@ -27,6 +28,8 @@ export type RestorableResourceType =
   | 'knowledgebase'
   | 'folder'
   | 'file_folder'
+  | 'table_folder'
+  | 'knowledge_base_folder'
 
 export interface PerformRestoreResourceParams {
   type: RestorableResourceType
@@ -170,6 +173,29 @@ export async function performRestoreResource(
           name: result.folder.name,
           restoredItems: result.restoredItems,
         })
+      }
+
+      case 'table_folder':
+      case 'knowledge_base_folder': {
+        if (!(await hasWriteAccess(userId, workspaceId, workspaceId))) {
+          return { success: false, error: 'Folder not found' }
+        }
+
+        const result = await performRestoreGenericFolder({
+          resourceType: type === 'table_folder' ? 'table' : 'knowledge_base',
+          folderId: id,
+          workspaceId,
+          userId,
+        })
+        if (!result.success) {
+          return { success: false, error: result.error || 'Failed to restore folder' }
+        }
+
+        logger.info(`${type} restored via restore_resource`, {
+          folderId: id,
+          restoredItems: result.restoredItems,
+        })
+        return success({ type, id, restoredItems: result.restoredItems })
       }
     }
   } catch (error) {

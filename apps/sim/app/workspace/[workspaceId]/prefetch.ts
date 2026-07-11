@@ -62,9 +62,9 @@ export async function prefetchWorkspaceSidebar(
       staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({
-      queryKey: folderKeys.list(workspaceId, 'active'),
+      queryKey: folderKeys.list(workspaceId, 'workflow', 'active'),
       queryFn: async () => {
-        const rows = await listFoldersForWorkspace(workspaceId, 'active')
+        const rows = await listFoldersForWorkspace(workspaceId, 'workflow', 'active')
         return rows.map(mapFolder)
       },
       staleTime: FOLDER_LIST_STALE_TIME,

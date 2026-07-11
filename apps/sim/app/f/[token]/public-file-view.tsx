@@ -58,6 +58,7 @@ export function PublicFileView({
       type,
       uploadedBy: '',
       folderId: null,
+      locked: false,
       uploadedAt: new Date(version),
       updatedAt: new Date(version),
     }),

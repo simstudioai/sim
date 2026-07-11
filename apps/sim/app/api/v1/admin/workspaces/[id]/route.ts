@@ -7,9 +7,9 @@
  */
 
 import { db } from '@sim/db'
-import { workflow, workflowFolder, workspace } from '@sim/db/schema'
+import { folder, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { adminV1GetWorkspaceContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -49,8 +49,8 @@ export const GET = withRouteHandler(
         db.select({ count: count() }).from(workflow).where(eq(workflow.workspaceId, workspaceId)),
         db
           .select({ count: count() })
-          .from(workflowFolder)
-          .where(eq(workflowFolder.workspaceId, workspaceId)),
+          .from(folder)
+          .where(and(eq(folder.workspaceId, workspaceId), eq(folder.resourceType, 'workflow'))),
       ])
 
       const data: AdminWorkspaceDetail = {

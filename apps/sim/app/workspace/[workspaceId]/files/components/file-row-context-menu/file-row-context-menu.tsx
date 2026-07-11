@@ -15,7 +15,7 @@ import {
   FolderInput,
   Pencil,
 } from '@sim/emcn'
-import { Download, Link, Trash } from '@sim/emcn/icons'
+import { Download, Link, Lock, Trash, Unlock } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 
@@ -29,9 +29,13 @@ interface FileRowContextMenuProps {
   onDelete: () => void
   onMove?: (optionValue: string) => void
   onShare?: () => void
+  onToggleLock?: () => void
   moveOptions?: MoveOptionNode[]
   canEdit: boolean
   selectedCount: number
+  showLock?: boolean
+  disableLock?: boolean
+  isLocked?: boolean
 }
 
 export const FileRowContextMenu = memo(function FileRowContextMenu({
@@ -44,9 +48,13 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   onDelete,
   onMove,
   onShare,
+  onToggleLock,
   moveOptions,
   canEdit,
   selectedCount,
+  showLock = false,
+  disableLock = false,
+  isLocked = false,
 }: FileRowContextMenuProps) {
   const isMultiSelect = selectedCount > 1
 
@@ -108,6 +116,12 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
                   {moveOptions.slice(1).map((option) => renderMoveOption(option, onMove))}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
+            )}
+            {showLock && onToggleLock && (
+              <DropdownMenuItem disabled={disableLock} onSelect={onToggleLock}>
+                {isLocked ? <Unlock /> : <Lock />}
+                {isLocked ? 'Unlock' : 'Lock'}
+              </DropdownMenuItem>
             )}
             <DropdownMenuItem onSelect={onDelete}>
               <Trash />

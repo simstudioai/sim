@@ -81,8 +81,6 @@ interface FolderRow {
   userId: string
   workspaceId: string
   parentId: string | null
-  color: string | null
-  isExpanded: boolean
   locked: boolean
   sortOrder: number
   createdAt: Date
@@ -97,8 +95,6 @@ function folderRow(id: string, name: string, parentId: string | null = null): Fo
     userId: 'source-user',
     workspaceId: 'ws-source',
     parentId,
-    color: '#6B7280',
-    isExpanded: true,
     locked: false,
     sortOrder: 0,
     createdAt: new Date('2026-01-01'),

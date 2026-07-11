@@ -35,7 +35,13 @@ export const POST = withRouteHandler(
       const result = await performRestoreTable({ tableId, userId: auth.userId, requestId })
       if (!result.success) {
         const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'conflict' ? 409 : 500
+          result.errorCode === 'not_found'
+            ? 404
+            : result.errorCode === 'conflict'
+              ? 409
+              : result.errorCode === 'locked'
+                ? 423
+                : 500
         return NextResponse.json({ error: result.error }, { status })
       }
 

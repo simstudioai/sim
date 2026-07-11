@@ -26,13 +26,9 @@ import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
-import {
-  useRestoreWorkspaceFileFolder,
-  useWorkspaceFileFolders,
-} from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useFolderStore } from '@/stores/folders/store'
-import type { WorkflowFolder } from '@/stores/folders/types'
+import type { Folder as FolderType } from '@/stores/folders/types'
 
 type ResourceType =
   | 'all'
@@ -42,6 +38,8 @@ type ResourceType =
   | 'file'
   | 'folder'
   | 'workspace_folder'
+  | 'table_folder'
+  | 'knowledge_base_folder'
 
 function getResourceHref(
   workspaceId: string,
@@ -62,6 +60,10 @@ function getResourceHref(
       return `${base}/w`
     case 'workspace_folder':
       return `${base}/files?folderId=${id}`
+    case 'table_folder':
+      return `${base}/tables?folderId=${id}`
+    case 'knowledge_base_folder':
+      return `${base}/knowledge?folderId=${id}`
   }
 }
 
@@ -100,7 +102,6 @@ interface DeletedResource {
   type: Exclude<ResourceType, 'all'>
   deletedAt: Date
   workspaceId: string
-  color?: string
 }
 
 interface RestoredResourceEntry {
@@ -122,7 +123,9 @@ const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
   folder: 'Folder',
   workspace_folder: 'File Folder',
   table: 'Table',
+  table_folder: 'Table Folder',
   knowledge: 'Knowledge Base',
+  knowledge_base_folder: 'Knowledge Base Folder',
   file: 'File',
 }
 
@@ -131,9 +134,13 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
     return <Workflow className={`${ICON_CLASS} shrink-0 text-[var(--text-icon)]`} />
   }
 
-  if (resource.type === 'folder' || resource.type === 'workspace_folder') {
-    const color = resource.color ?? '#6B7280'
-    return <Folder className={ICON_CLASS} style={{ color }} />
+  if (
+    resource.type === 'folder' ||
+    resource.type === 'workspace_folder' ||
+    resource.type === 'table_folder' ||
+    resource.type === 'knowledge_base_folder'
+  ) {
+    return <Folder className={`${ICON_CLASS} text-[var(--text-icon)]`} />
   }
 
   const mothershipType = RESOURCE_TYPE_TO_MOTHERSHIP[resource.type]
@@ -148,6 +155,9 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
 function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): boolean {
   if (activeTab === 'all') return true
   if (activeTab === 'file') return resource.type === 'file' || resource.type === 'workspace_folder'
+  if (activeTab === 'table') return resource.type === 'table' || resource.type === 'table_folder'
+  if (activeTab === 'knowledge')
+    return resource.type === 'knowledge' || resource.type === 'knowledge_base_folder'
   return resource.type === activeTab
 }
 
@@ -195,14 +205,24 @@ export function RecentlyDeleted() {
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
-  const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
+  const workspaceFoldersQuery = useFolders(workspaceId, {
+    resourceType: 'file',
+    scope: 'archived',
+  })
+  const tableFoldersQuery = useFolders(workspaceId, {
+    resourceType: 'table',
+    scope: 'archived',
+  })
+  const knowledgeFoldersQuery = useFolders(workspaceId, {
+    resourceType: 'knowledge_base',
+    scope: 'archived',
+  })
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()
   const restoreTable = useRestoreTable()
   const restoreKnowledgeBase = useRestoreKnowledgeBase()
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
-  const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
 
   const isLoading =
     workflowsQuery.isLoading ||
@@ -210,7 +230,9 @@ export function RecentlyDeleted() {
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
     filesQuery.isLoading ||
-    workspaceFoldersQuery.isLoading
+    workspaceFoldersQuery.isLoading ||
+    tableFoldersQuery.isLoading ||
+    knowledgeFoldersQuery.isLoading
 
   const error =
     workflowsQuery.error ||
@@ -218,7 +240,9 @@ export function RecentlyDeleted() {
     tablesQuery.error ||
     knowledgeQuery.error ||
     filesQuery.error ||
-    workspaceFoldersQuery.error
+    workspaceFoldersQuery.error ||
+    tableFoldersQuery.error ||
+    knowledgeFoldersQuery.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -238,9 +262,8 @@ export function RecentlyDeleted() {
         id: folder.id,
         name: folder.name,
         type: 'folder',
-        deletedAt: folder.archivedAt ? new Date(folder.archivedAt) : new Date(folder.updatedAt),
+        deletedAt: folder.deletedAt ? new Date(folder.deletedAt) : new Date(folder.updatedAt),
         workspaceId: folder.workspaceId,
-        color: folder.color,
       })
     }
 
@@ -284,6 +307,26 @@ export function RecentlyDeleted() {
       })
     }
 
+    for (const tf of tableFoldersQuery.data ?? []) {
+      items.push({
+        id: tf.id,
+        name: tf.name,
+        type: 'table_folder',
+        deletedAt: tf.deletedAt ? new Date(tf.deletedAt) : new Date(tf.updatedAt),
+        workspaceId: tf.workspaceId,
+      })
+    }
+
+    for (const kf of knowledgeFoldersQuery.data ?? []) {
+      items.push({
+        id: kf.id,
+        name: kf.name,
+        type: 'knowledge_base_folder',
+        deletedAt: kf.deletedAt ? new Date(kf.deletedAt) : new Date(kf.updatedAt),
+        workspaceId: kf.workspaceId,
+      })
+    }
+
     return items
   }, [
     workflowsQuery.data,
@@ -292,6 +335,8 @@ export function RecentlyDeleted() {
     knowledgeQuery.data,
     filesQuery.data,
     workspaceFoldersQuery.data,
+    tableFoldersQuery.data,
+    knowledgeFoldersQuery.data,
     workspaceId,
   ])
 
@@ -340,10 +385,10 @@ export function RecentlyDeleted() {
   function handleView(resource: DeletedResource) {
     if (resource.type === 'folder') {
       const setExpanded = useFolderStore.getState().setExpanded
-      const byId = new Map<string, WorkflowFolder>()
+      const byId = new Map<string, FolderType>()
       for (const folder of foldersQuery.data ?? []) byId.set(folder.id, folder)
       for (const folder of activeFoldersQuery.data ?? []) byId.set(folder.id, folder)
-      let current: WorkflowFolder | undefined = byId.get(resource.id)
+      let current: FolderType | undefined = byId.get(resource.id)
       const seen = new Set<string>()
       while (current && !seen.has(current.id)) {
         seen.add(current.id)
@@ -389,9 +434,24 @@ export function RecentlyDeleted() {
           })
           break
         case 'workspace_folder':
-          await restoreWorkspaceFileFolder.mutateAsync({
+          await restoreFolder.mutateAsync({
             workspaceId: resource.workspaceId,
             folderId: resource.id,
+            resourceType: 'file',
+          })
+          break
+        case 'table_folder':
+          await restoreFolder.mutateAsync({
+            workspaceId: resource.workspaceId,
+            folderId: resource.id,
+            resourceType: 'table',
+          })
+          break
+        case 'knowledge_base_folder':
+          await restoreFolder.mutateAsync({
+            workspaceId: resource.workspaceId,
+            folderId: resource.id,
+            resourceType: 'knowledge_base',
           })
           break
       }

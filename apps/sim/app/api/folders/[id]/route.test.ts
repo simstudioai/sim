@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import {
   auditMock,
   authMockFns,
@@ -10,14 +11,12 @@ import {
   type MockUser,
   permissionsMock,
   permissionsMockFns,
-  workflowsOrchestrationMock,
+  resourceLockMockFns,
   workflowsOrchestrationMockFns,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockDbRef } = vi.hoisted(() => {
+const { mockLogger, mockDbRef, mockCheckFolderCircularReference } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -30,6 +29,10 @@ const { mockLogger, mockDbRef } = vi.hoisted(() => {
   return {
     mockLogger: logger,
     mockDbRef: { current: null as any },
+    // Stands in for the real cycle-check the mocked performUpdateFolder below
+    // hand-simulates -- not tied to a real module export, just an internal
+    // test-double control lever for exercising the route's error handling.
+    mockCheckFolderCircularReference: vi.fn(),
   }
 })
 
@@ -50,8 +53,10 @@ vi.mock('@sim/db', () => ({
     return mockDbRef.current
   },
 }))
-vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
-vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
+vi.mock('@/lib/folders/orchestration', () => ({
+  performDeleteFolder: workflowsOrchestrationMockFns.mockPerformDeleteFolder,
+  performUpdateFolder: workflowsOrchestrationMockFns.mockPerformUpdateFolder,
+}))
 
 import { DELETE, PUT } from '@/app/api/folders/[id]/route'
 
@@ -70,11 +75,11 @@ const TEST_USER: MockUser = {
 
 const mockFolder = {
   id: 'folder-1',
+  resourceType: 'workflow',
   name: 'Test Folder',
   userId: TEST_USER.id,
   workspaceId: 'workspace-123',
   parentId: null,
-  color: '#6B7280',
   sortOrder: 1,
   createdAt: new Date('2024-01-01T00:00:00Z'),
   updatedAt: new Date('2024-01-01T00:00:00Z'),
@@ -161,10 +166,7 @@ describe('Individual Folder API Route', () => {
       }
       if (
         params.parentId &&
-        (await workflowsUtilsMockFns.mockCheckForCircularReference(
-          params.folderId,
-          params.parentId
-        ))
+        (await mockCheckFolderCircularReference(params.folderId, params.parentId))
       ) {
         return {
           success: false,
@@ -178,15 +180,13 @@ describe('Individual Folder API Route', () => {
           ...mockFolder,
           id: params.folderId,
           name: params.name !== undefined ? params.name.trim() : 'Updated Folder',
-          color: params.color ?? mockFolder.color,
           parentId: params.parentId ?? mockFolder.parentId,
-          isExpanded: params.isExpanded,
           sortOrder: params.sortOrder ?? mockFolder.sortOrder,
           updatedAt: new Date(),
         },
       }
     })
-    workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(false)
+    mockCheckFolderCircularReference.mockResolvedValue(false)
   })
 
   describe('PUT /api/folders/[id]', () => {
@@ -195,7 +195,6 @@ describe('Individual Folder API Route', () => {
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder Name',
-        color: '#FF0000',
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
@@ -208,6 +207,85 @@ describe('Individual Folder API Route', () => {
       expect(data.folder).toMatchObject({
         name: 'Updated Folder Name',
       })
+    })
+
+    it('returns 404 for an archived (soft-deleted) folder rather than updating it', async () => {
+      // Regression test: the existingFolder lookup previously had no deletedAt
+      // filter, so a soft-deleted folder could still be renamed/reparented/
+      // relocked via this route even though it no longer appears anywhere in
+      // the UI. Simulates the lookup finding nothing (as it now would for an
+      // archived row, since the route filters isNull(deletedAt)).
+      mockAuthenticatedUser()
+      mockDbRef.current = {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              then: vi.fn().mockImplementation((callback) => Promise.resolve(callback([]))),
+            }),
+          }),
+        }),
+        update: vi.fn(),
+        delete: vi.fn(),
+      }
+
+      const req = createMockRequest('PUT', { name: 'Should not apply' })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(404)
+      const data = await response.json()
+      expect(data.error).toBe('Folder not found')
+      expect(mockPerformUpdateFolder).not.toHaveBeenCalled()
+    })
+
+    it('allows unlocking a directly-locked folder combined with a move in the same request', async () => {
+      // Regression test: hasNonLockUpdate is true whenever parentId also changes, so
+      // a combined "unlock + move" request previously still ran
+      // policy.assertMutable(id) against the folder's current (still-locked) state
+      // and was incorrectly rejected, even though the request unlocks it as part of
+      // this same atomic write. The fixed behavior still runs the check (so an
+      // inherited lock is caught below), but treats a DIRECT lock as satisfied
+      // since this request clears it.
+      mockAuthenticatedUser()
+      resourceLockMockFns.mockAssertFolderMutable.mockReset()
+      resourceLockMockFns.mockAssertFolderMutable.mockResolvedValue(undefined)
+      resourceLockMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+        new ResourceLockedError('workflow', false, 'Folder is locked')
+      )
+
+      const req = createMockRequest('PUT', { locked: false, parentId: 'folder-2' })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(200)
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledTimes(2)
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith(
+        'folder-1',
+        'workflow'
+      )
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith(
+        'folder-2',
+        'workflow'
+      )
+    })
+
+    it('still rejects unlocking a folder combined with a move when the lock is inherited from an ancestor', async () => {
+      // Clearing the folder's own `locked` flag doesn't affect a lock inherited from
+      // an ancestor -- that must still block the combined request.
+      mockAuthenticatedUser()
+      resourceLockMockFns.mockAssertFolderMutable.mockReset()
+      resourceLockMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+        new ResourceLockedError('workflow', true, 'Folder is locked by an ancestor folder')
+      )
+
+      const req = createMockRequest('PUT', { locked: false, parentId: 'folder-2' })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(423)
     })
 
     it('should update parent folder successfully', async () => {
@@ -386,13 +464,14 @@ describe('Individual Folder API Route', () => {
       mockDbRef.current = createFolderDbMock({
         folderLookupResult: {
           id: 'folder-3',
+          resourceType: 'workflow',
           parentId: null,
           name: 'Folder 3',
           workspaceId: 'workspace-123',
         },
       })
 
-      workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(true)
+      mockCheckFolderCircularReference.mockResolvedValue(true)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder 3',
@@ -406,10 +485,7 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Cannot create circular folder reference')
-      expect(workflowsUtilsMockFns.mockCheckForCircularReference).toHaveBeenCalledWith(
-        'folder-3',
-        'folder-1'
-      )
+      expect(mockCheckFolderCircularReference).toHaveBeenCalledWith('folder-3', 'folder-1')
     })
   })
 
@@ -432,6 +508,7 @@ describe('Individual Folder API Route', () => {
       expect(data).toHaveProperty('success', true)
       expect(data).toHaveProperty('deletedItems')
       expect(mockPerformDeleteFolder).toHaveBeenCalledWith({
+        resourceType: 'workflow',
         folderId: 'folder-1',
         workspaceId: 'workspace-123',
         userId: TEST_USER.id,

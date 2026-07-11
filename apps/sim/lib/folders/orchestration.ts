@@ -1,0 +1,1281 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { db } from '@sim/db'
+import { folder as folderTable, knowledgeBase, userTableDefinitions } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import {
+  assertFolderMutable,
+  assertFolderMutableUnlessUnlocking,
+  ResourceLockedError,
+} from '@sim/platform-authz/resource-lock'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { and, eq, inArray, isNull, min } from 'drizzle-orm'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import type { DbOrTx } from '@/lib/db/types'
+import {
+  assertFolderParentValid,
+  checkFolderCircularReference,
+} from '@/lib/folders/parent-validation'
+import { collectDescendantFolderIds } from '@/lib/folders/subtree'
+import {
+  archiveWorkspaceFileFolderRecursive,
+  createWorkspaceFileFolder,
+  restoreWorkspaceFileFolder,
+  updateWorkspaceFileFolder,
+  WorkspaceFileFolderConflictError,
+  type WorkspaceFileFolderRecord,
+} from '@/lib/uploads/contexts/workspace'
+import {
+  performCreateFolder as performCreateWorkflowFolder,
+  performDeleteFolder as performDeleteWorkflowFolder,
+  performRestoreFolder as performRestoreWorkflowFolder,
+  performUpdateFolder as performUpdateWorkflowFolder,
+} from '@/lib/workflows/orchestration/folder-lifecycle'
+import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
+
+const logger = createLogger('FolderOrchestration')
+
+export type Folder = typeof folderTable.$inferSelect
+
+export interface PerformCreateFolderParams {
+  resourceType: FolderResourceType
+  userId: string
+  workspaceId: string
+  name: string
+  id?: string
+  parentId?: string | null
+  sortOrder?: number
+}
+
+export interface PerformFolderResult {
+  success: boolean
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  folder?: Folder
+}
+
+export interface PerformUpdateFolderParams {
+  resourceType: FolderResourceType
+  folderId: string
+  workspaceId: string
+  userId: string
+  name?: string
+  locked?: boolean
+  parentId?: string | null
+  sortOrder?: number
+}
+
+export interface PerformDeleteFolderParams {
+  resourceType: FolderResourceType
+  folderId: string
+  workspaceId: string
+  userId: string
+  folderName?: string
+}
+
+export interface PerformDeleteFolderResult {
+  success: boolean
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  deletedItems?: {
+    folders: number
+    workflows?: number
+    files?: number
+    knowledgeBases?: number
+    tables?: number
+  }
+}
+
+export interface PerformRestoreFolderParams {
+  resourceType: FolderResourceType
+  folderId: string
+  workspaceId: string
+  userId: string
+  folderName?: string
+}
+
+export interface PerformRestoreFolderResult {
+  success: boolean
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  restoredItems?: {
+    folders: number
+    workflows?: number
+    files?: number
+    knowledgeBases?: number
+    tables?: number
+  }
+}
+
+export interface PerformReorderFoldersParams {
+  resourceType: FolderResourceType
+  workspaceId: string
+  updates: Array<{ id: string; sortOrder: number; parentId?: string | null }>
+}
+
+/**
+ * Adapts the `uploads/contexts/workspace` VFS record (which carries a
+ * server-computed `path` the generic contract doesn't expose) to the
+ * physical `folder` table shape the generic routes/contracts expect.
+ * `locked` is a real, enforced field for `file` folders too -- the generic
+ * lock engine (`@sim/platform-authz/resource-lock`) reads it to cascade
+ * locks the same way it does for the other three resourceTypes.
+ */
+function toFileFolder(record: WorkspaceFileFolderRecord): Folder {
+  return {
+    id: record.id,
+    resourceType: 'file',
+    name: record.name,
+    userId: record.userId,
+    workspaceId: record.workspaceId,
+    parentId: record.parentId,
+    locked: record.locked,
+    sortOrder: record.sortOrder,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    deletedAt: record.deletedAt,
+  }
+}
+
+/**
+ * `file`-resourceType folder CRUD delegates to `uploads/contexts/workspace`
+ * (`createWorkspaceFileFolder`/`updateWorkspaceFileFolder`/
+ * `archiveWorkspaceFileFolderRecursive`/`restoreWorkspaceFileFolder`) — the
+ * single source of truth for file-folder writes (advisory locking, name
+ * conflict detection, recursive archive/restore) — rather than
+ * reimplementing that logic against the raw `folder` table here.
+ */
+async function performCreateFileFolder(
+  params: PerformCreateFolderParams
+): Promise<PerformFolderResult> {
+  const parentId = params.parentId || null
+  const folderId = params.id || generateId()
+  if (parentId === folderId) {
+    return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
+  }
+  const parentError = await assertFolderParentValid(parentId, {
+    workspaceId: params.workspaceId,
+    resourceType: 'file',
+  })
+  if (parentError) return { success: false, ...parentError }
+
+  try {
+    const created = await createWorkspaceFileFolder({
+      id: folderId,
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      name: params.name,
+      parentId,
+      sortOrder: params.sortOrder,
+    })
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: created.id,
+      resourceName: created.name,
+      description: `Created file folder "${created.name}"`,
+    })
+
+    return { success: true, folder: toFileFolder(created) }
+  } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (
+      error instanceof WorkspaceFileFolderConflictError ||
+      getPostgresErrorCode(error) === '23505'
+    ) {
+      return { success: false, error: toError(error).message, errorCode: 'conflict' }
+    }
+    if (toError(error).message === 'Target folder not found') {
+      return { success: false, error: 'Target folder not found', errorCode: 'validation' }
+    }
+    logger.error('Failed to create file folder', { error })
+    return { success: false, error: 'Internal server error', errorCode: 'internal' }
+  }
+}
+
+async function performUpdateFileFolder(
+  params: PerformUpdateFolderParams
+): Promise<PerformFolderResult> {
+  if (params.parentId && params.parentId === params.folderId) {
+    return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
+  }
+  if (params.parentId) {
+    const parentError = await assertFolderParentValid(params.parentId, {
+      workspaceId: params.workspaceId,
+      resourceType: 'file',
+    })
+    if (parentError) return { success: false, ...parentError }
+  }
+
+  try {
+    const updated = await updateWorkspaceFileFolder({
+      workspaceId: params.workspaceId,
+      folderId: params.folderId,
+      name: params.name,
+      parentId: params.parentId,
+      sortOrder: params.sortOrder,
+      locked: params.locked,
+    })
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_UPDATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: params.folderId,
+      resourceName: updated.name,
+      description: `Updated file folder "${updated.name}"`,
+    })
+
+    return { success: true, folder: toFileFolder(updated) }
+  } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (
+      error instanceof WorkspaceFileFolderConflictError ||
+      getPostgresErrorCode(error) === '23505'
+    ) {
+      return { success: false, error: toError(error).message, errorCode: 'conflict' }
+    }
+    const message = toError(error).message
+    if (message === 'Folder not found') {
+      return { success: false, error: message, errorCode: 'not_found' }
+    }
+    if (
+      message === 'Folder cannot be its own parent' ||
+      message === 'Target folder not found' ||
+      message === 'Cannot move a folder into one of its descendants'
+    ) {
+      return { success: false, error: message, errorCode: 'validation' }
+    }
+    logger.error('Failed to update file folder', { error })
+    return { success: false, error: 'Internal server error', errorCode: 'internal' }
+  }
+}
+
+async function performDeleteFileFolder(
+  params: PerformDeleteFolderParams
+): Promise<PerformDeleteFolderResult> {
+  const { folderId, workspaceId, userId, folderName } = params
+
+  try {
+    const deletedItems = await archiveWorkspaceFileFolderRecursive(workspaceId, folderId)
+
+    logger.info('Deleted file folder and contents', { folderId, ...deletedItems })
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FOLDER_DELETED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folderId,
+      resourceName: folderName,
+      description: `Deleted file folder "${folderName || folderId}"`,
+      metadata: {
+        affected: { files: deletedItems.files, subfolders: deletedItems.folders - 1 },
+      },
+    })
+
+    return { success: true, deletedItems }
+  } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (toError(error).message === 'Folder not found') {
+      return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+    }
+    logger.error('Failed to delete file folder', { error })
+    return { success: false, error: 'Internal server error', errorCode: 'internal' }
+  }
+}
+
+async function performRestoreFileFolder(
+  params: PerformRestoreFolderParams
+): Promise<PerformRestoreFolderResult> {
+  const { folderId, workspaceId, userId, folderName } = params
+
+  try {
+    const { folder, restoredItems } = await restoreWorkspaceFileFolder(workspaceId, folderId)
+
+    logger.info('Restored file folder and contents', { folderId, restoredItems })
+
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FOLDER_RESTORED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folderId,
+      resourceName: folderName ?? folder.name,
+      description: `Restored file folder "${folderName ?? folder.name}"`,
+      metadata: {
+        affected: {
+          files: restoredItems.files,
+          subfolders: Math.max(0, restoredItems.folders - 1),
+        },
+      },
+    })
+
+    return { success: true, restoredItems }
+  } catch (error) {
+    // Propagate uncaught -- matches performRestoreWorkflowFolder/performRestoreResourceFolder,
+    // which never catch it, so the route's ResourceLockedError -> 423 handling applies uniformly.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (
+      error instanceof WorkspaceFileFolderConflictError ||
+      getPostgresErrorCode(error) === '23505'
+    ) {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
+    }
+    const message = toError(error).message
+    if (message === 'Folder not found') {
+      return { success: false, error: message, errorCode: 'not_found' }
+    }
+    if (message === 'Folder is not archived') {
+      return { success: false, error: message, errorCode: 'validation' }
+    }
+    if (message === 'Cannot restore folder into an archived workspace') {
+      return { success: false, error: message, errorCode: 'validation' }
+    }
+    logger.error('Failed to restore file folder', { error })
+    return { success: false, error: 'Internal server error', errorCode: 'internal' }
+  }
+}
+
+/**
+ * Walks `parentId` chains within a single resourceType to collect a folder's
+ * full subtree (itself + all descendants), scoped to currently-active
+ * (non-deleted) folders. Delegates the pure walk to the shared
+ * `collectDescendantFolderIds` helper also used by the file-folder cascade in
+ * `uploads/contexts/workspace/workspace-file-folder-manager.ts`.
+ */
+async function collectFolderSubtreeIds(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  folderId: string,
+  dbClient: DbOrTx = db
+): Promise<string[]> {
+  const activeFolders = await dbClient
+    .select({ id: folderTable.id, parentId: folderTable.parentId })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, resourceType),
+        isNull(folderTable.deletedAt)
+      )
+    )
+
+  return [folderId, ...collectDescendantFolderIds(activeFolders, folderId)]
+}
+
+/**
+ * `knowledge_base` and `table` folder cascades are identical except for the
+ * target table and its soft-delete column (`knowledgeBase.deletedAt` vs
+ * `userTableDefinitions.archivedAt`). This config captures that one delta so
+ * {@link performDeleteResourceFolder}/{@link performRestoreResourceFolder}
+ * implement the cascade logic exactly once.
+ */
+interface FolderCascadeConfig<TCountKey extends 'knowledgeBases' | 'tables'> {
+  resourceType: 'knowledge_base' | 'table'
+  countKey: TCountKey
+  /** Soft-deletes every contained resource row whose folderId is in `folderIds`. */
+  archiveChildren: (
+    tx: DbOrTx,
+    folderIds: string[],
+    workspaceId: string,
+    now: Date
+  ) => Promise<{ id: string }[]>
+  /** Restores contained resource rows directly under `folderId` whose soft-delete timestamp matches. */
+  restoreChildren: (
+    tx: DbOrTx,
+    folderId: string,
+    workspaceId: string,
+    matchTimestamp: Date
+  ) => Promise<{ id: string }[]>
+}
+
+const KNOWLEDGE_BASE_FOLDER_CASCADE: FolderCascadeConfig<'knowledgeBases'> = {
+  resourceType: 'knowledge_base',
+  countKey: 'knowledgeBases',
+  archiveChildren: (tx, folderIds, workspaceId, now) =>
+    tx
+      .update(knowledgeBase)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(
+        and(
+          inArray(knowledgeBase.folderId, folderIds),
+          eq(knowledgeBase.workspaceId, workspaceId),
+          isNull(knowledgeBase.deletedAt)
+        )
+      )
+      .returning({ id: knowledgeBase.id }),
+  restoreChildren: (tx, folderId, workspaceId, matchTimestamp) =>
+    tx
+      .update(knowledgeBase)
+      .set({ deletedAt: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(knowledgeBase.folderId, folderId),
+          eq(knowledgeBase.workspaceId, workspaceId),
+          eq(knowledgeBase.deletedAt, matchTimestamp)
+        )
+      )
+      .returning({ id: knowledgeBase.id }),
+}
+
+const TABLE_FOLDER_CASCADE: FolderCascadeConfig<'tables'> = {
+  resourceType: 'table',
+  countKey: 'tables',
+  archiveChildren: (tx, folderIds, workspaceId, now) =>
+    tx
+      .update(userTableDefinitions)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(
+        and(
+          inArray(userTableDefinitions.folderId, folderIds),
+          eq(userTableDefinitions.workspaceId, workspaceId),
+          isNull(userTableDefinitions.archivedAt)
+        )
+      )
+      .returning({ id: userTableDefinitions.id }),
+  restoreChildren: (tx, folderId, workspaceId, matchTimestamp) =>
+    tx
+      .update(userTableDefinitions)
+      .set({ archivedAt: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(userTableDefinitions.folderId, folderId),
+          eq(userTableDefinitions.workspaceId, workspaceId),
+          eq(userTableDefinitions.archivedAt, matchTimestamp)
+        )
+      )
+      .returning({ id: userTableDefinitions.id }),
+}
+
+function cascadeResourceLabel(resourceType: 'knowledge_base' | 'table'): string {
+  return resourceType === 'table' ? 'table' : 'knowledge base'
+}
+
+/**
+ * Deletes a `knowledge_base`/`table` folder and cascades to its subtree and
+ * contained resources, all inside a single transaction so a crash mid-cascade
+ * can't leave folders archived without their contents (or vice versa).
+ */
+async function performDeleteResourceFolder<TCountKey extends 'knowledgeBases' | 'tables'>(
+  params: PerformDeleteFolderParams,
+  cascade: FolderCascadeConfig<TCountKey>
+): Promise<PerformDeleteFolderResult> {
+  const { folderId, workspaceId, userId, folderName } = params
+  const now = new Date()
+
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.id, folderId),
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, cascade.resourceType),
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .limit(1)
+    if (!existing) return null
+
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock this folder in the window
+    // between that check and this transaction. Re-check inside the transaction
+    // (joining `tx` so the read is part of the same atomic unit as the writes
+    // below) before applying anything.
+    await assertFolderMutable(folderId, cascade.resourceType, tx)
+
+    const folderIds = await collectFolderSubtreeIds(workspaceId, cascade.resourceType, folderId, tx)
+
+    // `assertFolderMutable` above only checks `folderId` and its ancestors -- it never
+    // inspects descendants. `collectFolderSubtreeIds`'s read is also unlocked. Without
+    // this, a subfolder directly locked (not merely inheriting a lock from `folderId`)
+    // would be silently swept into this delete, since the UPDATE below has no lock
+    // filter. `FOR UPDATE` here row-locks every subtree member for the rest of this
+    // transaction and matches the workflow cascade, which checks each folder's own
+    // lock as it recurses into every descendant.
+    const subtreeRows = await tx
+      .select({ id: folderTable.id, locked: folderTable.locked })
+      .from(folderTable)
+      .where(
+        and(inArray(folderTable.id, folderIds), eq(folderTable.resourceType, cascade.resourceType))
+      )
+      .for('update')
+    if (subtreeRows.some((row) => row.locked)) {
+      throw new ResourceLockedError(
+        cascade.resourceType,
+        false,
+        'A folder in this location is locked'
+      )
+    }
+
+    const archivedFolders = await tx
+      .update(folderTable)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(
+        and(
+          inArray(folderTable.id, folderIds),
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, cascade.resourceType),
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .returning({ id: folderTable.id })
+
+    const archivedChildren = await cascade.archiveChildren(tx, folderIds, workspaceId, now)
+
+    return { folders: archivedFolders.length, children: archivedChildren.length }
+  })
+
+  if (!result) return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+
+  logger.info(`Deleted ${cascade.resourceType} folder and contents`, {
+    folderId,
+    folders: result.folders,
+    [cascade.countKey]: result.children,
+  })
+
+  recordAudit({
+    workspaceId,
+    actorId: userId,
+    action: AuditAction.FOLDER_DELETED,
+    resourceType: AuditResourceType.FOLDER,
+    resourceId: folderId,
+    resourceName: folderName,
+    description: `Deleted ${cascadeResourceLabel(cascade.resourceType)} folder "${folderName || folderId}"`,
+    metadata: {
+      affected: { [cascade.countKey]: result.children, subfolders: result.folders - 1 },
+    },
+  })
+
+  const deletedItems: NonNullable<PerformDeleteFolderResult['deletedItems']> =
+    cascade.countKey === 'knowledgeBases'
+      ? { folders: result.folders, knowledgeBases: result.children }
+      : { folders: result.folders, tables: result.children }
+
+  return { success: true, deletedItems }
+}
+
+/**
+ * Restores a soft-deleted `knowledge_base`/`table` folder and its subtree,
+ * only resurrecting folders/resources archived at the same instant (matched
+ * by timestamp) as the folder itself. All writes run in a single transaction.
+ */
+async function performRestoreResourceFolder<TCountKey extends 'knowledgeBases' | 'tables'>(
+  params: PerformRestoreFolderParams,
+  cascade: FolderCascadeConfig<TCountKey>
+): Promise<PerformRestoreFolderResult> {
+  const { folderId, workspaceId, userId, folderName } = params
+
+  const outcome = await db.transaction(async (tx) => {
+    // `FOR UPDATE` row-locks this folder for the rest of the transaction -- a plain
+    // SELECT inside a transaction does not block a concurrent UPDATE, so without this
+    // a lock toggled on this row after this read but before the restore write below
+    // could still be silently bypassed.
+    const [raw] = await tx
+      .select()
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.id, folderId),
+          eq(folderTable.workspaceId, workspaceId),
+          eq(folderTable.resourceType, cascade.resourceType)
+        )
+      )
+      .for('update')
+      .limit(1)
+    if (!raw) return { kind: 'not_found' as const }
+    if (!raw.deletedAt) return { kind: 'not_archived' as const }
+
+    // The folder row is soft-deleted, so the generic lock engine (which only reads
+    // active rows) can't see it -- check its own `locked` flag directly.
+    if (raw.locked) {
+      throw new ResourceLockedError(cascade.resourceType, false, 'Folder is locked')
+    }
+
+    const folderDeletedAt = raw.deletedAt
+
+    // Only restore the same subtree that was archived together (matched by
+    // deletedAt timestamp) — sibling folders/resources soft-deleted
+    // independently before or after this folder's delete must not resurrect.
+    const stats = { folders: 0, children: 0 }
+    const seen = new Set<string>()
+    const restoreSubtree = async (currentFolderId: string): Promise<void> => {
+      if (seen.has(currentFolderId)) return
+      seen.add(currentFolderId)
+
+      const restoredChildren = await cascade.restoreChildren(
+        tx,
+        currentFolderId,
+        workspaceId,
+        folderDeletedAt
+      )
+      stats.children += restoredChildren.length
+
+      const archivedChildFolders = await tx
+        .select({ id: folderTable.id })
+        .from(folderTable)
+        .where(
+          and(
+            eq(folderTable.parentId, currentFolderId),
+            eq(folderTable.workspaceId, workspaceId),
+            eq(folderTable.resourceType, cascade.resourceType),
+            eq(folderTable.deletedAt, folderDeletedAt)
+          )
+        )
+      for (const child of archivedChildFolders) {
+        const [restoredChild] = await tx
+          .update(folderTable)
+          .set({ deletedAt: null, updatedAt: new Date() })
+          .where(and(eq(folderTable.id, child.id), eq(folderTable.deletedAt, folderDeletedAt)))
+          .returning({ id: folderTable.id })
+        if (!restoredChild) continue
+        stats.folders += 1
+        await restoreSubtree(child.id)
+      }
+    }
+
+    // If the parent folder is still archived, restore to root rather than
+    // leaving the folder orphaned under an archived parent.
+    let resolvedParentId = raw.parentId
+    if (resolvedParentId) {
+      // FOR UPDATE closes the window where a concurrent transaction soft-deletes
+      // this parent between this read and the write below -- without it, this
+      // plain read isn't locked, so the parent could be deleted out from under us
+      // after we've already decided it's active, restoring this folder under a
+      // parent that no longer exists.
+      const [parent] = await tx
+        .select({ deletedAt: folderTable.deletedAt })
+        .from(folderTable)
+        .where(eq(folderTable.id, resolvedParentId))
+        .for('update')
+        .limit(1)
+      if (!parent || parent.deletedAt) resolvedParentId = null
+    }
+
+    // resolvedParentId is either null (root, always safe) or a confirmed-active
+    // folder -- without this, the folder could resurface under a folder that was
+    // locked after this one was deleted. Passing `tx` (not the default db client)
+    // keeps this read inside the same transaction as the write below, closing the
+    // TOCTOU window where a concurrent request locks resolvedParentId in between.
+    await assertFolderMutable(resolvedParentId, cascade.resourceType, tx)
+
+    await tx
+      .update(folderTable)
+      .set({ deletedAt: null, parentId: resolvedParentId, updatedAt: new Date() })
+      .where(eq(folderTable.id, folderId))
+    stats.folders += 1
+    await restoreSubtree(folderId)
+
+    return { kind: 'ok' as const, stats, name: raw.name }
+  })
+
+  if (outcome.kind === 'not_found') {
+    return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+  }
+  if (outcome.kind === 'not_archived') {
+    return { success: false, error: 'Folder is not archived', errorCode: 'validation' }
+  }
+
+  const { stats, name } = outcome
+
+  logger.info(`Restored ${cascade.resourceType} folder and contents`, { folderId, ...stats })
+
+  recordAudit({
+    workspaceId,
+    actorId: userId,
+    action: AuditAction.FOLDER_RESTORED,
+    resourceType: AuditResourceType.FOLDER,
+    resourceId: folderId,
+    resourceName: folderName ?? name,
+    description: `Restored ${cascadeResourceLabel(cascade.resourceType)} folder "${folderName ?? name}"`,
+    metadata: {
+      affected: {
+        [cascade.countKey]: stats.children,
+        subfolders: Math.max(0, stats.folders - 1),
+      },
+    },
+  })
+
+  const restoredItems: NonNullable<PerformRestoreFolderResult['restoredItems']> =
+    cascade.countKey === 'knowledgeBases'
+      ? { folders: stats.folders, knowledgeBases: stats.children }
+      : { folders: stats.folders, tables: stats.children }
+
+  return { success: true, restoredItems }
+}
+
+/**
+ * `knowledge_base`/`table` resource rows carry no `sortOrder` column of their own
+ * (unlike `workflow`, which blends workflow and folder sort order) -- so a new
+ * kb/table folder only needs to sort above its sibling *folders*. Mirrors
+ * `nextFolderSortOrder`/`nextWorkflowSortOrder` in
+ * `workflows/orchestration/{folder,workflow}-lifecycle.ts` for the one input
+ * these two resourceTypes actually have.
+ */
+async function nextResourceFolderSortOrder(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  parentId: string | null
+): Promise<number> {
+  const [result] = await db
+    .select({ minSortOrder: min(folderTable.sortOrder) })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, resourceType),
+        parentId ? eq(folderTable.parentId, parentId) : isNull(folderTable.parentId),
+        isNull(folderTable.deletedAt)
+      )
+    )
+  return result?.minSortOrder != null ? result.minSortOrder - 1 : 0
+}
+
+/**
+ * Re-validates that `parentId` is still an active (non-deleted) folder of
+ * `resourceType`, `FOR UPDATE`-locking the row for the rest of the caller's
+ * transaction. Shared by {@link performCreateFolder} and
+ * {@link performUpdateFolder}, which each need this exact recheck (their own
+ * `assertFolderMutable` call happens beforehand, at the call site, since the
+ * two callers precede it with different comments/context).
+ */
+async function assertTargetParentActive(
+  tx: DbOrTx,
+  parentId: string,
+  resourceType: FolderResourceType
+): Promise<void> {
+  const [targetParent] = await tx
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.id, parentId),
+        eq(folderTable.resourceType, resourceType),
+        isNull(folderTable.deletedAt)
+      )
+    )
+    .for('update')
+    .limit(1)
+  if (!targetParent) {
+    throw new FolderParentNotFoundError('Parent folder not found')
+  }
+}
+
+export async function performCreateFolder(
+  params: PerformCreateFolderParams
+): Promise<PerformFolderResult> {
+  if (params.resourceType === 'workflow') {
+    return performCreateWorkflowFolder(params)
+  }
+  if (params.resourceType === 'file') {
+    return performCreateFileFolder(params)
+  }
+  // knowledge_base / table: plain create, no cascade concerns yet.
+  const folderId = params.id || generateId()
+  const parentId = params.parentId || null
+  if (parentId === folderId) {
+    return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
+  }
+  const parentError = await assertFolderParentValid(parentId, {
+    workspaceId: params.workspaceId,
+    resourceType: params.resourceType,
+  })
+  if (parentError) return { success: false, ...parentError }
+
+  const sortOrder =
+    params.sortOrder !== undefined
+      ? params.sortOrder
+      : await nextResourceFolderSortOrder(params.workspaceId, params.resourceType, parentId)
+
+  try {
+    const created = await db.transaction(async (tx) => {
+      if (parentId) {
+        // assertFolderParentValid above only reads at validation time, using the
+        // default (non-tx) db client -- a parent locked or soft-deleted after that
+        // read but before this transaction must still be caught. Re-check inside
+        // the transaction (joining `tx`) before inserting.
+        await assertFolderMutable(parentId, params.resourceType, tx)
+
+        // assertFolderMutable's lock walker treats a deleted parent as unlocked
+        // (it stops the ancestor walk when the row is missing rather than
+        // erroring), so it alone doesn't catch a parent deleted in that same
+        // window. FOR UPDATE here makes the recheck race-free.
+        await assertTargetParentActive(tx, parentId, params.resourceType)
+      }
+
+      const [row] = await tx
+        .insert(folderTable)
+        .values({
+          id: folderId,
+          resourceType: params.resourceType,
+          name: params.name.trim(),
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          parentId,
+          sortOrder,
+        })
+        .returning()
+      return row
+    })
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: created.id,
+      resourceName: created.name,
+      description: `Created ${cascadeResourceLabel(params.resourceType)} folder "${created.name}"`,
+    })
+
+    return { success: true, folder: created }
+  } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (error instanceof FolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
+    }
+    throw error
+  }
+}
+
+export async function performUpdateFolder(
+  params: PerformUpdateFolderParams
+): Promise<PerformFolderResult> {
+  if (params.resourceType === 'workflow') {
+    return performUpdateWorkflowFolder(params)
+  }
+  if (params.resourceType === 'file') {
+    return performUpdateFileFolder(params)
+  }
+
+  if (params.parentId && params.parentId === params.folderId) {
+    return { success: false, error: 'Folder cannot be its own parent', errorCode: 'validation' }
+  }
+  if (params.parentId) {
+    const parentError = await assertFolderParentValid(params.parentId, {
+      workspaceId: params.workspaceId,
+      resourceType: params.resourceType,
+    })
+    if (parentError) return { success: false, ...parentError }
+
+    const wouldCreateCycle = await checkFolderCircularReference(params.folderId, params.parentId)
+    if (wouldCreateCycle) {
+      return {
+        success: false,
+        error: 'Cannot create circular folder reference',
+        errorCode: 'validation',
+      }
+    }
+  }
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() }
+  if (params.name !== undefined) updates.name = params.name.trim()
+  if (params.parentId !== undefined) updates.parentId = params.parentId || null
+  if (params.sortOrder !== undefined) updates.sortOrder = params.sortOrder
+  if (params.locked !== undefined) updates.locked = params.locked
+
+  const isLockOnlyUpdate =
+    params.name === undefined && params.parentId === undefined && params.sortOrder === undefined
+
+  try {
+    const updated = await db.transaction(async (tx) => {
+      // The route checks lock state before calling this function, but that's a
+      // separate round-trip -- an admin could lock this folder (or its target
+      // parent) in the window between that check and this transaction. Re-check
+      // inside the transaction (joining `tx` so the read is part of the same
+      // atomic unit as the write below) before applying anything.
+      //
+      // `assertFolderMutableUnlessUnlocking` only treats this folder's own
+      // (about-to-be-cleared) lock as satisfied when this same request unlocks it --
+      // a lock inherited from an ancestor still blocks. Skipped entirely for a
+      // lock-only update, matching the file/kb/table lock-toggle precedent.
+      if (!isLockOnlyUpdate) {
+        await assertFolderMutableUnlessUnlocking(
+          params.folderId,
+          params.resourceType,
+          params.locked === false,
+          tx
+        )
+      }
+      if (params.parentId) {
+        // A folder in an unlocked location could otherwise be moved into a locked one.
+        await assertFolderMutable(params.parentId, params.resourceType, tx)
+
+        // assertFolderMutable's lock walker treats a deleted parent as unlocked (it
+        // stops the ancestor walk when the row is missing, rather than erroring), so
+        // it alone doesn't catch a parent deleted between the earlier
+        // assertFolderParentValid precheck and this transaction. FOR UPDATE here
+        // makes the recheck race-free: once held, the parent's deletedAt can't
+        // change until this transaction resolves.
+        await assertTargetParentActive(tx, params.parentId, params.resourceType)
+
+        // The cycle check above (`checkFolderCircularReference`) ran against an
+        // unlocked pre-transaction snapshot -- a concurrent reparent could form a
+        // cycle in the window between that read and this transaction (the batch
+        // reorder path was hardened against exactly this race). Re-run it here
+        // against `tx` so it observes the same FOR-UPDATE-locked parent chain this
+        // transaction is about to write.
+        const wouldCreateCycleInTx = await checkFolderCircularReference(
+          params.folderId,
+          params.parentId,
+          tx
+        )
+        if (wouldCreateCycleInTx) {
+          throw new FolderCycleError('Cannot create circular folder reference')
+        }
+      }
+
+      const [row] = await tx
+        .update(folderTable)
+        .set(updates)
+        .where(
+          and(
+            eq(folderTable.id, params.folderId),
+            eq(folderTable.workspaceId, params.workspaceId),
+            eq(folderTable.resourceType, params.resourceType),
+            isNull(folderTable.deletedAt)
+          )
+        )
+        .returning()
+      return row
+    })
+
+    if (!updated) return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_UPDATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: updated.id,
+      resourceName: updated.name,
+      description: `Updated ${cascadeResourceLabel(params.resourceType)} folder "${updated.name}"`,
+    })
+
+    return { success: true, folder: updated }
+  } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (error instanceof FolderParentNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (error instanceof FolderCycleError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
+    }
+    throw error
+  }
+}
+
+export async function performDeleteFolder(
+  params: PerformDeleteFolderParams
+): Promise<PerformDeleteFolderResult> {
+  if (params.resourceType === 'workflow') {
+    const result = await performDeleteWorkflowFolder(params)
+    return {
+      ...result,
+      deletedItems: result.deletedItems
+        ? { folders: result.deletedItems.folders, workflows: result.deletedItems.workflows }
+        : undefined,
+    }
+  }
+  if (params.resourceType === 'file') {
+    return performDeleteFileFolder(params)
+  }
+  if (params.resourceType === 'knowledge_base') {
+    return performDeleteResourceFolder(params, KNOWLEDGE_BASE_FOLDER_CASCADE)
+  }
+  return performDeleteResourceFolder(params, TABLE_FOLDER_CASCADE)
+}
+
+export async function performRestoreFolder(
+  params: PerformRestoreFolderParams
+): Promise<PerformRestoreFolderResult> {
+  if (params.resourceType === 'workflow') {
+    return performRestoreWorkflowFolder(params)
+  }
+  if (params.resourceType === 'file') {
+    return performRestoreFileFolder(params)
+  }
+  if (params.resourceType === 'knowledge_base') {
+    return performRestoreResourceFolder(params, KNOWLEDGE_BASE_FOLDER_CASCADE)
+  }
+  return performRestoreResourceFolder(params, TABLE_FOLDER_CASCADE)
+}
+
+/** Marks a concurrent-deletion race on a target parent, caught inside a folder-update transaction, as a 400 (validation), not a 500. */
+class FolderParentNotFoundError extends Error {}
+
+/** Marks a concurrent-deletion race caught inside the reorder transaction as a 404, not a 500. */
+class FolderReorderNotFoundError extends Error {}
+/** Marks a cycle caught inside the reorder transaction as a 400, not a 500. */
+class FolderCycleError extends Error {}
+/** Marks a closure that went stale between discovery and locking, caught inside the reorder transaction, as a 409, not a 500. */
+class FolderReorderStaleClosureError extends Error {}
+
+export async function performReorderFolders(params: PerformReorderFoldersParams): Promise<{
+  success: boolean
+  updated: number
+  error?: string
+  errorCode?: OrchestrationErrorCode
+}> {
+  const { resourceType, workspaceId, updates } = params
+
+  const folderIds = updates.map((u) => u.id)
+  const existingFolders = await db
+    .select({ id: folderTable.id, workspaceId: folderTable.workspaceId })
+    .from(folderTable)
+    .where(
+      and(
+        inArray(folderTable.id, folderIds),
+        eq(folderTable.resourceType, resourceType),
+        isNull(folderTable.deletedAt)
+      )
+    )
+
+  const validIds = new Set(
+    existingFolders.filter((f) => f.workspaceId === workspaceId).map((f) => f.id)
+  )
+  // Any id that doesn't resolve to an existing, active, same-workspace folder (wrong
+  // workspace, wrong resourceType, or soft-deleted) fails the whole batch up front --
+  // matching the parentId check below -- rather than silently reordering a subset and
+  // reporting success with a smaller `updated` count.
+  const invalidId = updates.find((u) => !validIds.has(u.id))
+  if (invalidId) {
+    return {
+      success: false,
+      updated: 0,
+      error: 'One or more folders were not found',
+      errorCode: 'not_found',
+    }
+  }
+
+  // Reparents also need `assertFolderParentValid` on the new parent (the
+  // `validIds` check above only validates `id`). Any invalid parentId fails
+  // the whole batch up front rather than silently skipping that entry.
+  // Distinct target parentIds are validated concurrently since a subtree
+  // drag-drop can reparent many folders in one call.
+  const targetParentIds = Array.from(
+    new Set(updates.map((u) => u.parentId).filter((id): id is string => Boolean(id)))
+  )
+  const parentErrors = await Promise.all(
+    targetParentIds.map((parentId) =>
+      assertFolderParentValid(parentId, { workspaceId, resourceType })
+    )
+  )
+  const firstParentError = parentErrors.find((error) => error !== null)
+  if (firstParentError) {
+    return {
+      success: false,
+      updated: 0,
+      error: firstParentError.error,
+      errorCode: firstParentError.errorCode,
+    }
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      // The route checks lock state before calling this function, but that's a
+      // separate round-trip -- an admin could lock a source folder or a target
+      // parent in the window between that check and this transaction. Re-check
+      // inside the transaction (joining `tx` so the read is part of the same
+      // atomic unit as the writes below) before applying anything.
+      //
+      // A batch can touch several independent folders (not one linear ancestor
+      // chain), so locking each one's ancestor chain separately -- even in a
+      // consistently sorted order of the *starting* ids -- can still deadlock
+      // against a concurrent batch: each chain walk acquires its own rows one at a
+      // time, and two batches whose chains interleave differently can each end up
+      // holding a row the other needs. The only way to make batch-vs-batch lock
+      // acquisition safe is to compute the full set of rows that need locking
+      // up front and lock all of them in a single statement, ordered by id --
+      // concurrent transactions that do the same always converge on the same
+      // acquisition order and cannot form a cycle.
+      const startIds = Array.from(new Set([...updates.map((u) => u.id), ...targetParentIds]))
+      const closure = new Set(startIds)
+      let frontier = new Set(startIds)
+      while (frontier.size > 0) {
+        const rows = await tx
+          .select({ id: folderTable.id, parentId: folderTable.parentId })
+          .from(folderTable)
+          .where(
+            and(
+              inArray(folderTable.id, Array.from(frontier)),
+              eq(folderTable.resourceType, resourceType),
+              isNull(folderTable.deletedAt)
+            )
+          )
+        const nextFrontier = new Set<string>()
+        for (const row of rows) {
+          if (row.parentId && !closure.has(row.parentId)) {
+            closure.add(row.parentId)
+            nextFrontier.add(row.parentId)
+          }
+        }
+        frontier = nextFrontier
+      }
+
+      // Selecting without an isNull(deletedAt) filter and re-checking it here (rather
+      // than trusting the closure walk above, which reads before this lock is held)
+      // is what makes this race-free: a row can still be soft-deleted by another
+      // transaction right up until this statement acquires FOR UPDATE, but not after
+      // -- so `deletedAt` on a just-locked row is guaranteed accurate for the rest of
+      // this transaction.
+      const lockedRows = await tx
+        .select({
+          id: folderTable.id,
+          parentId: folderTable.parentId,
+          locked: folderTable.locked,
+          deletedAt: folderTable.deletedAt,
+        })
+        .from(folderTable)
+        .where(
+          and(
+            inArray(folderTable.id, Array.from(closure).sort()),
+            eq(folderTable.resourceType, resourceType)
+          )
+        )
+        .orderBy(folderTable.id)
+        .for('update')
+
+      const activeLockedIds = new Set(
+        lockedRows.filter((row) => !row.deletedAt).map((row) => row.id)
+      )
+      // Re-check every target parent resolved to an active row under this lock --
+      // assertFolderParentValid only reads at validation time, so a parent
+      // concurrently soft-deleted before (or racing) this transaction could
+      // otherwise leave an active folder pointing at a deleted one.
+      if (targetParentIds.some((id) => !activeLockedIds.has(id))) {
+        throw new FolderReorderNotFoundError('Parent folder not found')
+      }
+
+      if (lockedRows.some((row) => !row.deletedAt && row.locked)) {
+        throw new ResourceLockedError(resourceType, false, 'Folder is locked')
+      }
+
+      // The ancestor-closure walk above discovers members with PLAIN reads before
+      // this FOR UPDATE lock is acquired -- a concurrent transaction could reparent
+      // one of those ancestors to point outside the discovered closure in that gap.
+      // If so, the locked read below reveals a parentId the cycle walk has no data
+      // for, and treating "not in closure" as "reached root" (as `?? null` would)
+      // could silently let a real cycle through undetected. Fail the whole batch
+      // safely -- the client can retry -- rather than risk that.
+      const closureIds = new Set(lockedRows.map((row) => row.id))
+      if (lockedRows.some((row) => row.parentId && !closureIds.has(row.parentId))) {
+        throw new FolderReorderStaleClosureError('Folder tree changed concurrently, please retry')
+      }
+
+      // The route's own cycle check reads an unlocked snapshot of the folder tree
+      // before this transaction opens -- two concurrent reorder requests can each
+      // move one end of what becomes an A<->B cycle, both passing their own
+      // (mutually stale) check. A cycle can only newly appear through an edge this
+      // batch is writing, and every folder whose parentId this batch changes is a
+      // `startId`, so re-walking from every `startId` using this transaction's own
+      // locked, tx-consistent `parentId` values (closure already contains every
+      // node such a walk could reach) reliably catches it before the write below.
+      const lockedParentById = new Map(lockedRows.map((row) => [row.id, row.parentId]))
+      for (const update of updates) {
+        if (update.parentId !== undefined) {
+          lockedParentById.set(update.id, update.parentId || null)
+        }
+      }
+      for (const update of updates) {
+        const visited = new Set<string>()
+        let cursor: string | null = update.id
+        while (cursor) {
+          if (visited.has(cursor)) {
+            throw new FolderCycleError('Cannot create circular folder reference')
+          }
+          visited.add(cursor)
+          cursor = lockedParentById.get(cursor) ?? null
+        }
+      }
+
+      for (const update of updates) {
+        const updateData: Record<string, unknown> = {
+          sortOrder: update.sortOrder,
+          updatedAt: new Date(),
+        }
+        if (update.parentId !== undefined) updateData.parentId = update.parentId || null
+
+        // Re-check deletedAt at write time (not just the validation read above) --
+        // without this, a folder concurrently soft-deleted between validation and
+        // this transaction could still have its sortOrder/parentId mutated. Throwing
+        // rolls back the whole transaction rather than silently applying a partial
+        // batch, matching this function's fail-whole-batch behavior on other errors.
+        const [updated] = await tx
+          .update(folderTable)
+          .set(updateData)
+          .where(and(eq(folderTable.id, update.id), isNull(folderTable.deletedAt)))
+          .returning({ id: folderTable.id })
+        if (!updated) {
+          throw new FolderReorderNotFoundError('One or more folders were not found')
+        }
+      }
+    })
+  } catch (error) {
+    // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
+    if (error instanceof FolderReorderNotFoundError) {
+      return { success: false, updated: 0, error: error.message, errorCode: 'not_found' }
+    }
+    if (error instanceof FolderCycleError) {
+      return { success: false, updated: 0, error: error.message, errorCode: 'validation' }
+    }
+    if (error instanceof FolderReorderStaleClosureError) {
+      return { success: false, updated: 0, error: error.message, errorCode: 'conflict' }
+    }
+    // An unexpected DB/transaction failure, not a client-caused validation error --
+    // log the real cause but don't leak internal error details to the response.
+    logger.error('Unexpected error reordering folders', { error })
+    return {
+      success: false,
+      updated: 0,
+      error: 'Failed to reorder folders',
+      errorCode: 'internal',
+    }
+  }
+
+  return { success: true, updated: updates.length }
+}

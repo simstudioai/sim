@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getTableById, restoreTable, TableConflictError } from '@/lib/table/service'
@@ -7,7 +8,12 @@ import type { TableDefinition } from '@/lib/table/types'
 
 const logger = createLogger('TableOrchestration')
 
-export type TableOrchestrationErrorCode = 'not_found' | 'validation' | 'conflict' | 'internal'
+export type TableOrchestrationErrorCode =
+  | 'not_found'
+  | 'validation'
+  | 'conflict'
+  | 'locked'
+  | 'internal'
 
 export interface PerformRestoreTableParams {
   tableId: string
@@ -58,6 +64,9 @@ export async function performRestoreTable(
     logger.error(`[${requestId}] Failed to restore table ${tableId}`, { error })
     if (error instanceof TableConflictError) {
       return { success: false, error: error.message, errorCode: 'conflict' }
+    }
+    if (error instanceof ResourceLockedError) {
+      return { success: false, error: error.message, errorCode: 'locked' }
     }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }

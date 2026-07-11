@@ -481,18 +481,19 @@ interface RenameFileParams {
   workspaceId: string
   fileId: string
   name: string
+  locked?: boolean
 }
 
 export function useRenameWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId, name }: RenameFileParams) =>
+    mutationFn: async ({ workspaceId, fileId, name, locked }: RenameFileParams) =>
       requestJson(renameWorkspaceFileContract, {
         params: { id: workspaceId, fileId },
-        body: { name },
+        body: { name, locked },
       }),
-    onMutate: async ({ workspaceId, fileId, name }) => {
+    onMutate: async ({ workspaceId, fileId, name, locked }) => {
       await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
       const previous = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId, 'active')
@@ -500,7 +501,9 @@ export function useRenameWorkspaceFile() {
       if (previous) {
         queryClient.setQueryData<WorkspaceFileRecord[]>(
           workspaceFilesKeys.list(workspaceId, 'active'),
-          previous.map((f) => (f.id === fileId ? { ...f, name } : f))
+          previous.map((f) =>
+            f.id === fileId ? { ...f, name, ...(locked !== undefined ? { locked } : {}) } : f
+          )
         )
       }
       return { previous }

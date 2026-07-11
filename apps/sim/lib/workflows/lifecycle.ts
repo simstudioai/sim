@@ -5,7 +5,7 @@ import {
   webhook,
   workflow,
   workflowDeploymentVersion,
-  workflowFolder,
+  folder as workflowFolder,
   workflowMcpTool,
   workflowSchedule,
   workspace,
@@ -235,7 +235,7 @@ export async function restoreWorkflow(
   let clearFolderId = false
   if (existingWorkflow.folderId) {
     const [folder] = await db
-      .select({ archivedAt: workflowFolder.archivedAt })
+      .select({ archivedAt: workflowFolder.deletedAt })
       .from(workflowFolder)
       .where(eq(workflowFolder.id, existingWorkflow.folderId))
 

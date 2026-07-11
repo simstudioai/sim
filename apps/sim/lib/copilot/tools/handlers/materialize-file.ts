@@ -28,6 +28,7 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
     size: row.size,
     type: row.contentType,
     uploadedBy: row.userId,
+    locked: row.locked,
     deletedAt: row.deletedAt,
     uploadedAt: row.uploadedAt,
     updatedAt: row.updatedAt,

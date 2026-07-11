@@ -1,14 +1,17 @@
 import { db } from '@sim/db'
-import { workflowFolder } from '@sim/db/schema'
+import { folder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
-import { eq, inArray } from 'drizzle-orm'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { reorderFoldersContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { performReorderFolders } from '@/lib/folders/orchestration'
+import { FOLDER_RESOURCE_POLICIES } from '@/lib/folders/policy'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -37,65 +40,71 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
     const folderIds = updates.map((u) => u.id)
     const existingFolders = await db
-      .select({ id: workflowFolder.id, workspaceId: workflowFolder.workspaceId })
-      .from(workflowFolder)
-      .where(inArray(workflowFolder.id, folderIds))
+      .select({
+        id: folder.id,
+        workspaceId: folder.workspaceId,
+        resourceType: folder.resourceType,
+      })
+      .from(folder)
+      .where(and(inArray(folder.id, folderIds), isNull(folder.deletedAt)))
 
-    const validIds = new Set(
-      existingFolders.filter((f) => f.workspaceId === workspaceId).map((f) => f.id)
-    )
+    const validRows = existingFolders.filter((f) => f.workspaceId === workspaceId)
+    const validIds = new Set(validRows.map((f) => f.id))
+    const resourceTypeById = new Map(validRows.map((f) => [f.id, f.resourceType]))
 
-    const validUpdates = updates.filter((u) => validIds.has(u.id))
-
-    if (validUpdates.length === 0) {
-      return NextResponse.json({ error: 'No valid folders to update' }, { status: 400 })
+    // Any id that doesn't resolve to an existing, active, same-workspace folder fails
+    // the whole batch up front rather than silently reordering a subset and reporting
+    // success with a smaller `updated` count.
+    const hasInvalidId = updates.some((u) => !validIds.has(u.id))
+    if (hasInvalidId) {
+      return NextResponse.json({ error: 'One or more folders were not found' }, { status: 400 })
+    }
+    // A single reorder call operates on one resourceType at a time (the UI never mixes
+    // folder types in one drag-drop tree). Reject a mixed-type batch explicitly instead
+    // of silently reordering only the first-seen type and reporting success — a caller
+    // bug that sends folders from two resource types should surface as an error, not a
+    // partial `updated` count with no indication some entries were skipped.
+    const resourceType = resourceTypeById.get(updates[0].id)!
+    const hasMixedResourceTypes = updates.some((u) => resourceTypeById.get(u.id) !== resourceType)
+    if (hasMixedResourceTypes) {
+      return NextResponse.json(
+        { error: 'All folders in a reorder batch must share the same resourceType' },
+        { status: 400 }
+      )
     }
 
-    const targetParentIds = Array.from(
-      new Set(validUpdates.map((u) => u.parentId).filter((id): id is string => Boolean(id)))
-    )
-
-    if (targetParentIds.length > 0) {
-      const parentFolders = await db
-        .select({
-          id: workflowFolder.id,
-          workspaceId: workflowFolder.workspaceId,
-          archivedAt: workflowFolder.archivedAt,
-        })
-        .from(workflowFolder)
-        .where(inArray(workflowFolder.id, targetParentIds))
-
-      const validParentIds = new Set(
-        parentFolders.filter((f) => f.workspaceId === workspaceId && !f.archivedAt).map((f) => f.id)
-      )
-
-      for (const update of validUpdates) {
-        if (!update.parentId) continue
-        if (update.parentId === update.id) {
-          return NextResponse.json({ error: 'Folder cannot be its own parent' }, { status: 400 })
-        }
-        if (!validParentIds.has(update.parentId)) {
-          return NextResponse.json({ error: 'Parent folder not found' }, { status: 400 })
-        }
+    // Parent-id existence/workspace/resourceType/deleted validity is re-checked by
+    // `performReorderFolders` (via `assertFolderParentValid`) below — this route does
+    // not duplicate that check, it only guards the self-parent case which is a
+    // cheap synchronous comparison, not a DB round-trip.
+    for (const update of updates) {
+      if (update.parentId && update.parentId === update.id) {
+        return NextResponse.json({ error: 'Folder cannot be its own parent' }, { status: 400 })
       }
     }
 
     const workspaceFolders = await db
-      .select({ id: workflowFolder.id, parentId: workflowFolder.parentId })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.workspaceId, workspaceId))
+      .select({ id: folder.id, parentId: folder.parentId })
+      .from(folder)
+      .where(
+        and(
+          eq(folder.workspaceId, workspaceId),
+          eq(folder.resourceType, resourceType),
+          isNull(folder.deletedAt)
+        )
+      )
 
     const parentById = new Map<string, string | null>()
-    for (const folder of workspaceFolders) {
-      parentById.set(folder.id, folder.parentId)
+    for (const folderRow of workspaceFolders) {
+      parentById.set(folderRow.id, folderRow.parentId)
     }
-    for (const update of validUpdates) {
+    for (const update of updates) {
       if (update.parentId !== undefined) {
         parentById.set(update.id, update.parentId || null)
       }
     }
 
-    for (const update of validUpdates) {
+    for (const update of updates) {
       const visited = new Set<string>()
       let cursor: string | null = update.id
       while (cursor) {
@@ -110,33 +119,32 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       }
     }
 
-    for (const update of validUpdates) {
-      await assertFolderMutable(update.id)
+    const policy = FOLDER_RESOURCE_POLICIES[resourceType]
+    for (const update of updates) {
+      await policy.assertMutable(update.id)
       if (update.parentId !== undefined) {
-        await assertFolderMutable(update.parentId)
+        await policy.assertMutable(update.parentId)
       }
     }
 
-    await db.transaction(async (tx) => {
-      for (const update of validUpdates) {
-        const updateData: Record<string, unknown> = {
-          sortOrder: update.sortOrder,
-          updatedAt: new Date(),
-        }
-        if (update.parentId !== undefined) {
-          updateData.parentId = update.parentId || null
-        }
-        await tx.update(workflowFolder).set(updateData).where(eq(workflowFolder.id, update.id))
-      }
+    const result = await performReorderFolders({
+      resourceType,
+      workspaceId,
+      updates,
     })
 
-    logger.info(
-      `[${requestId}] Reordered ${validUpdates.length} folders in workspace ${workspaceId}`
-    )
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error ?? 'No valid folders to update' },
+        { status: statusForOrchestrationError(result.errorCode) }
+      )
+    }
 
-    return NextResponse.json({ success: true, updated: validUpdates.length })
+    logger.info(`[${requestId}] Reordered ${result.updated} folders in workspace ${workspaceId}`)
+
+    return NextResponse.json({ success: true, updated: result.updated })
   } catch (error) {
-    if (error instanceof FolderLockedError) {
+    if (error instanceof ResourceLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 

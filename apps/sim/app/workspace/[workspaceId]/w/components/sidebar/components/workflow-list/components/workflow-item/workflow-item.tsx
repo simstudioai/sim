@@ -6,6 +6,7 @@ import { Lock } from '@sim/emcn/icons'
 import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
+import { PinButton } from '@/components/folders/pin-button'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -34,7 +35,7 @@ import { useFolderMap } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import {
   isFolderOrAncestorLocked,
-  isWorkflowEffectivelyLocked,
+  isResourceEffectivelyLocked,
 } from '@/hooks/queries/utils/folder-tree'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
@@ -45,6 +46,8 @@ interface WorkflowItemProps {
   workspaceId: string
   workflow: WorkflowMetadata
   active: boolean
+  /** Whether this workflow is pinned — computed once by the list parent from a single query. */
+  pinned: boolean
 }
 
 /**
@@ -59,6 +62,7 @@ export const WorkflowItem = memo(function WorkflowItem({
   workspaceId,
   workflow,
   active,
+  pinned,
 }: WorkflowItemProps) {
   const {
     isAnyDragActive,
@@ -75,7 +79,7 @@ export const WorkflowItem = memo(function WorkflowItem({
 
   const { data: foldersById = {} } = useFolderMap(workspaceId)
   const inheritedFolderLocked = isFolderOrAncestorLocked(workflow.folderId, foldersById)
-  const effectiveLocked = isWorkflowEffectivelyLocked(workflow, foldersById)
+  const effectiveLocked = isResourceEffectivelyLocked(workflow, foldersById)
 
   const { canDeleteWorkflows, canDeleteFolder } = useCanDelete({ workspaceId })
 
@@ -449,33 +453,42 @@ export const WorkflowItem = memo(function WorkflowItem({
           </div>
         </div>
         {!isEditing && (
-          <div className='relative size-[18px] flex-shrink-0'>
-            {workflow.locked && (
-              <span
-                role='img'
-                aria-label='Workflow is locked'
+          <div className='flex flex-shrink-0 items-center gap-0.5'>
+            <PinButton
+              workspaceId={workspaceId}
+              resourceType='workflow'
+              resourceId={workflow.id}
+              pinned={pinned}
+              className='size-[18px]'
+            />
+            <div className='relative size-[18px] flex-shrink-0'>
+              {workflow.locked && (
+                <span
+                  role='img'
+                  aria-label='Workflow is locked'
+                  className={clsx(
+                    'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
+                    !isAnyDragActive && 'group-hover:opacity-0',
+                    isContextMenuOpen && 'opacity-0'
+                  )}
+                >
+                  <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+                </span>
+              )}
+              <button
+                type='button'
+                aria-label='Workflow options'
+                onPointerDown={handleMorePointerDown}
+                onClick={handleMoreClick}
                 className={clsx(
-                  'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
-                  !isAnyDragActive && 'group-hover:opacity-0',
-                  isContextMenuOpen && 'opacity-0'
+                  'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
+                  !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
+                  isContextMenuOpen && 'pointer-events-auto opacity-100'
                 )}
               >
-                <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
-              </span>
-            )}
-            <button
-              type='button'
-              aria-label='Workflow options'
-              onPointerDown={handleMorePointerDown}
-              onClick={handleMoreClick}
-              className={clsx(
-                'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
-                !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
-                isContextMenuOpen && 'pointer-events-auto opacity-100'
-              )}
-            >
-              <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
-            </button>
+                <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
+              </button>
+            </div>
           </div>
         )}
       </Link>

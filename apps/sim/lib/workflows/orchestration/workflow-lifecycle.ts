@@ -1,8 +1,17 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { folder, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
+import {
+  getFolderLockStatus,
+  getResourceLockStatus,
+  ResourceLockedError,
+} from '@sim/platform-authz/resource-lock'
+import {
+  FolderLockedError,
+  isFolderInWorkspace,
+  WorkflowLockedError,
+} from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
@@ -116,9 +125,7 @@ async function nextWorkflowSortOrder(
   const workflowParentCondition = folderId
     ? eq(workflow.folderId, folderId)
     : isNull(workflow.folderId)
-  const folderParentCondition = folderId
-    ? eq(workflowFolder.parentId, folderId)
-    : isNull(workflowFolder.parentId)
+  const folderParentCondition = folderId ? eq(folder.parentId, folderId) : isNull(folder.parentId)
 
   const [[workflowMinResult], [folderMinResult]] = await Promise.all([
     db
@@ -132,9 +139,15 @@ async function nextWorkflowSortOrder(
         )
       ),
     db
-      .select({ minOrder: min(workflowFolder.sortOrder) })
-      .from(workflowFolder)
-      .where(and(eq(workflowFolder.workspaceId, workspaceId), folderParentCondition)),
+      .select({ minOrder: min(folder.sortOrder) })
+      .from(folder)
+      .where(
+        and(
+          eq(folder.workspaceId, workspaceId),
+          eq(folder.resourceType, 'workflow'),
+          folderParentCondition
+        )
+      ),
   ])
 
   const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
@@ -316,22 +329,62 @@ export async function performUpdateWorkflow(
     if (params.sortOrder !== undefined) updateData.sortOrder = params.sortOrder
     if (params.locked !== undefined) updateData.locked = params.locked
 
-    const [updatedWorkflow] = await db
-      .update(workflow)
-      .set(updateData)
-      .where(eq(workflow.id, params.workflowId))
-      .returning({
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description,
-        workspaceId: workflow.workspaceId,
-        folderId: workflow.folderId,
-        sortOrder: workflow.sortOrder,
-        locked: workflow.locked,
-        createdAt: workflow.createdAt,
-        updatedAt: workflow.updatedAt,
-        archivedAt: workflow.archivedAt,
-      })
+    // A lock-only update (`{ locked }` and nothing else) never touches the workflow's
+    // own lock gate -- mirrors the route's `hasNonLockUpdate` gate exactly, so this
+    // in-transaction recheck doesn't change observable behavior, only closes the race.
+    const hasNonLockUpdate =
+      params.name !== undefined ||
+      params.description !== undefined ||
+      params.folderId !== undefined ||
+      params.sortOrder !== undefined
+
+    const updatedWorkflow = await db.transaction(async (trx) => {
+      // The route checks lock state (`assertWorkflowMutable`/`assertFolderMutable`)
+      // before calling this function, but that's a separate round-trip against the
+      // default `db` client -- an admin could lock this workflow (or its target
+      // folder) in the window between that check and this write. Re-check inside the
+      // transaction (joining `trx`) before applying anything.
+      if (hasNonLockUpdate) {
+        const status = await getResourceLockStatus('workflow', params.workflowId, trx)
+        if (status.locked) {
+          throw new WorkflowLockedError(
+            status.lockedBy === 'folder'
+              ? 'Workflow is locked by its containing folder'
+              : 'Workflow is locked',
+            status.lockedBy === 'folder'
+          )
+        }
+      }
+      if (params.folderId !== undefined) {
+        const targetStatus = await getFolderLockStatus(targetFolderId, 'workflow', trx)
+        if (targetStatus.locked) {
+          throw new FolderLockedError(
+            targetStatus.inheritedLocked
+              ? 'Folder is locked by an ancestor folder'
+              : 'Folder is locked',
+            targetStatus.inheritedLocked
+          )
+        }
+      }
+
+      const [row] = await trx
+        .update(workflow)
+        .set(updateData)
+        .where(eq(workflow.id, params.workflowId))
+        .returning({
+          id: workflow.id,
+          name: workflow.name,
+          description: workflow.description,
+          workspaceId: workflow.workspaceId,
+          folderId: workflow.folderId,
+          sortOrder: workflow.sortOrder,
+          locked: workflow.locked,
+          createdAt: workflow.createdAt,
+          updatedAt: workflow.updatedAt,
+          archivedAt: workflow.archivedAt,
+        })
+      return row
+    })
 
     if (!updatedWorkflow) {
       return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
@@ -368,6 +421,11 @@ export async function performUpdateWorkflow(
 
     return { success: true, workflow: updatedWorkflow }
   } catch (error) {
+    // Propagate uncaught so the route's WorkflowLockedError/FolderLockedError -> 423
+    // handling applies, instead of being swallowed into a generic 500 below.
+    if (error instanceof ResourceLockedError) {
+      throw error
+    }
     logger.error(`[${requestId}] Failed to update workflow ${params.workflowId}`, { error })
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }

@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, inArray, isNotNull, lt, sql } from 'drizzle-orm'
+import { and, inArray, isNotNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 const logger = createLogger('BatchDelete')
@@ -186,6 +186,13 @@ export interface BatchDeleteOptions {
   tableName: string
   /** When true, also requires `timestampCol IS NOT NULL` (soft-delete semantics). */
   requireTimestampNotNull?: boolean
+  /**
+   * Extra predicate ANDed into the SELECT — e.g. a discriminator column on a
+   * polymorphic table (`folder.resourceType = 'workflow'`) so cleanup only
+   * targets rows belonging to this logical table, not sibling resource types
+   * sharing the same physical table.
+   */
+  extraPredicate?: SQL
   batchSize?: number
   maxBatches?: number
   workspaceChunkSize?: number
@@ -204,6 +211,7 @@ export async function batchDeleteByWorkspaceAndTimestamp({
   retentionDate,
   tableName,
   requireTimestampNotNull = false,
+  extraPredicate,
   ...rest
 }: BatchDeleteOptions): Promise<TableCleanupResult> {
   return chunkedBatchDelete({
@@ -213,6 +221,7 @@ export async function batchDeleteByWorkspaceAndTimestamp({
     selectChunk: (chunkIds, limit) => {
       const predicates = [inArray(workspaceIdCol, chunkIds), lt(timestampCol, retentionDate)]
       if (requireTimestampNotNull) predicates.push(isNotNull(timestampCol))
+      if (extraPredicate) predicates.push(extraPredicate)
       return db
         .select({ id: sql<string>`id` })
         .from(tableDef)

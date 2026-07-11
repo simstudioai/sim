@@ -10,7 +10,7 @@ import {
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useFolderStore } from '@/stores/folders/store'
-import type { WorkflowFolder } from '@/stores/folders/types'
+import type { Folder } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const logger = createLogger('useExportSelection')
@@ -37,7 +37,7 @@ interface CollectedWorkflow {
 function collectWorkflowsInFolder(
   folderId: string,
   workflows: Record<string, WorkflowMetadata>,
-  folders: Record<string, WorkflowFolder>
+  folders: Record<string, Folder>
 ): CollectedWorkflow[] {
   const collectedWorkflows: CollectedWorkflow[] = []
 
@@ -62,7 +62,7 @@ function collectWorkflowsInFolder(
  */
 function collectSubfoldersForMultipleFolders(
   rootFolderIds: string[],
-  folders: Record<string, WorkflowFolder>
+  folders: Record<string, Folder>
 ): FolderExportData[] {
   const subfolders: FolderExportData[] = []
 

@@ -34,7 +34,6 @@ import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 export interface AddResourceDropdownProps {
@@ -77,7 +76,7 @@ export function useAvailableResources(
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
-  const { data: fileFolders = [] } = useWorkspaceFileFolders(workspaceId)
+  const { data: fileFolders = [] } = useFolders(workspaceId, { resourceType: 'file' })
   const { data: tasks = [] } = useMothershipChats(workspaceId)
   const { data: schedules = [] } = useWorkspaceSchedules(workspaceId)
   const { data: logsData } = useLogsList(workspaceId, LOG_DROPDOWN_FILTERS)

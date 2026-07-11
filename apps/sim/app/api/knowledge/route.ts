@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createKnowledgeBaseContract,
@@ -17,6 +18,7 @@ import {
   KnowledgeBaseConflictError,
   KnowledgeBasePermissionError,
   type KnowledgeBaseScope,
+  KnowledgeBaseValidationError,
 } from '@/lib/knowledge/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -163,6 +165,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       if (createError instanceof KnowledgeBasePermissionError) {
         logger.warn(`[${requestId}] Forbidden knowledge base creation: ${createError.message}`)
         return NextResponse.json({ error: createError.message }, { status: 403 })
+      }
+      if (createError instanceof KnowledgeBaseValidationError) {
+        return NextResponse.json({ error: createError.message }, { status: 400 })
+      }
+      if (createError instanceof ResourceLockedError) {
+        return NextResponse.json({ error: createError.message }, { status: createError.status })
       }
       throw createError
     }

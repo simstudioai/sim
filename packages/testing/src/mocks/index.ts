@@ -106,6 +106,8 @@ export {
   requestUtilsMock,
   requestUtilsMockFns,
 } from './request.mock'
+// Resource-lock authz package mocks (for @sim/platform-authz/resource-lock)
+export { resourceLockMock, resourceLockMockFns } from './resource-lock.mock'
 // Schema mocks
 export { schemaMock } from './schema.mock'
 // Socket mocks

@@ -1,10 +1,17 @@
 import { db } from '@sim/db'
-import { workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
+import { folder as workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertFolderMutable,
+  assertFolderMutableUnlessUnlocking,
+  assertResourceMutable,
+  ResourceLockedError,
+} from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
 import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
+import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
@@ -54,6 +61,7 @@ export interface WorkspaceFileFolderRecord {
   parentId: string | null
   path: string
   sortOrder: number
+  locked: boolean
   deletedAt: Date | null
   createdAt: Date
   updatedAt: Date
@@ -66,6 +74,7 @@ interface RawWorkspaceFileFolder {
   name: string
   parentId: string | null
   sortOrder: number
+  locked: boolean
   deletedAt: Date | null
   createdAt: Date
   updatedAt: Date
@@ -164,6 +173,7 @@ function mapFolder(
     parentId: folder.parentId,
     path: paths.get(folder.id) ?? folder.name,
     sortOrder: folder.sortOrder,
+    locked: folder.locked,
     deletedAt: folder.deletedAt,
     createdAt: folder.createdAt,
     updatedAt: folder.updatedAt,
@@ -183,11 +193,13 @@ async function getRawWorkspaceFileFolder(
       includeDeleted
         ? and(
             eq(workspaceFileFolder.id, folderId),
-            eq(workspaceFileFolder.workspaceId, workspaceId)
+            eq(workspaceFileFolder.workspaceId, workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file')
           )
         : and(
             eq(workspaceFileFolder.id, folderId),
             eq(workspaceFileFolder.workspaceId, workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             isNull(workspaceFileFolder.deletedAt)
           )
     )
@@ -207,6 +219,7 @@ async function findRawWorkspaceFileFolderByName(
     .where(
       and(
         eq(workspaceFileFolder.workspaceId, workspaceId),
+        eq(workspaceFileFolder.resourceType, 'file'),
         eq(workspaceFileFolder.name, name),
         folderParentCondition(parentId),
         isNull(workspaceFileFolder.deletedAt)
@@ -295,14 +308,19 @@ export async function listWorkspaceFileFolders(
     .from(workspaceFileFolder)
     .where(
       scope === 'all'
-        ? eq(workspaceFileFolder.workspaceId, workspaceId)
+        ? and(
+            eq(workspaceFileFolder.workspaceId, workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file')
+          )
         : scope === 'archived'
           ? and(
               eq(workspaceFileFolder.workspaceId, workspaceId),
+              eq(workspaceFileFolder.resourceType, 'file'),
               sql`${workspaceFileFolder.deletedAt} IS NOT NULL`
             )
           : and(
               eq(workspaceFileFolder.workspaceId, workspaceId),
+              eq(workspaceFileFolder.resourceType, 'file'),
               isNull(workspaceFileFolder.deletedAt)
             )
     )
@@ -333,9 +351,13 @@ export async function getWorkspaceFileFolder(
     .from(workspaceFileFolder)
     .where(
       includeDeleted
-        ? eq(workspaceFileFolder.workspaceId, workspaceId)
+        ? and(
+            eq(workspaceFileFolder.workspaceId, workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file')
+          )
         : and(
             eq(workspaceFileFolder.workspaceId, workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             isNull(workspaceFileFolder.deletedAt)
           )
     )
@@ -355,6 +377,9 @@ export async function assertWorkspaceFileFolderTarget(
   if (!folder) {
     throw new Error('Target folder not found')
   }
+  // Both callers (upload, register-after-upload) create a new file inside this
+  // folder -- without this, a file could be created directly in a locked folder.
+  await assertFolderMutable(normalized, 'file')
 
   return normalized
 }
@@ -365,6 +390,7 @@ export async function createWorkspaceFileFolder(params: {
   name: string
   parentId?: string | null
   sortOrder?: number
+  id?: string
 }): Promise<WorkspaceFileFolderRecord> {
   const name = normalizeWorkspaceFileItemName(params.name, 'Folder')
 
@@ -380,6 +406,7 @@ export async function createWorkspaceFileFolder(params: {
           and(
             eq(workspaceFileFolder.id, parentId),
             eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             isNull(workspaceFileFolder.deletedAt)
           )
         )
@@ -388,6 +415,10 @@ export async function createWorkspaceFileFolder(params: {
       if (!target) {
         throw new Error('Target folder not found')
       }
+
+      // A folder in an unlocked location could otherwise gain a new child inside
+      // a locked one.
+      await assertFolderMutable(parentId, 'file', tx)
     }
 
     const existingFolders = await tx
@@ -396,6 +427,7 @@ export async function createWorkspaceFileFolder(params: {
       .where(
         and(
           eq(workspaceFileFolder.workspaceId, params.workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file'),
           eq(workspaceFileFolder.name, name),
           folderParentCondition(parentId),
           isNull(workspaceFileFolder.deletedAt)
@@ -413,17 +445,19 @@ export async function createWorkspaceFileFolder(params: {
       .where(
         and(
           eq(workspaceFileFolder.workspaceId, params.workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file'),
           folderParentCondition(parentId),
           isNull(workspaceFileFolder.deletedAt)
         )
       )
 
-    const id = generateId()
+    const id = params.id || generateId()
     try {
       const [inserted] = await tx
         .insert(workspaceFileFolder)
         .values({
           id,
+          resourceType: 'file',
           name,
           userId: params.userId,
           workspaceId: params.workspaceId,
@@ -460,6 +494,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
     .where(
       and(
         eq(workspaceFileFolder.workspaceId, params.workspaceId),
+        eq(workspaceFileFolder.resourceType, 'file'),
         isNull(workspaceFileFolder.deletedAt)
       )
     )
@@ -498,6 +533,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
         name: created.name,
         parentId: created.parentId,
         sortOrder: created.sortOrder,
+        locked: created.locked,
         deletedAt: created.deletedAt,
         createdAt: created.createdAt,
         updatedAt: created.updatedAt,
@@ -531,40 +567,13 @@ export async function ensureWorkspaceFileFolderPath(params: {
   return parentId
 }
 
-function collectDescendantFolderIds(
-  folders: Array<Pick<WorkspaceFileFolderRecord, 'id' | 'parentId'>>,
-  folderId: string
-): string[] {
-  const childrenByParent = new Map<string, string[]>()
-
-  for (const folder of folders) {
-    if (!folder.parentId) continue
-    const children = childrenByParent.get(folder.parentId) ?? []
-    children.push(folder.id)
-    childrenByParent.set(folder.parentId, children)
-  }
-
-  const descendants: string[] = []
-  const seen = new Set([folderId])
-  const visit = (id: string) => {
-    for (const childId of childrenByParent.get(id) ?? []) {
-      if (seen.has(childId)) continue
-      seen.add(childId)
-      descendants.push(childId)
-      visit(childId)
-    }
-  }
-  visit(folderId)
-
-  return descendants
-}
-
 export async function updateWorkspaceFileFolder(params: {
   workspaceId: string
   folderId: string
   name?: string
   parentId?: string | null
   sortOrder?: number
+  locked?: boolean
 }): Promise<WorkspaceFileFolderRecord> {
   const folder = await db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
@@ -576,12 +585,28 @@ export async function updateWorkspaceFileFolder(params: {
         and(
           eq(workspaceFileFolder.id, params.folderId),
           eq(workspaceFileFolder.workspaceId, params.workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file'),
           isNull(workspaceFileFolder.deletedAt)
         )
       )
       .limit(1)
 
     if (!existing) throw new Error('Folder not found')
+
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock this folder in the window
+    // between that check and this transaction. Re-check inside the transaction
+    // (joining `tx` so the read is part of the same atomic unit as the write
+    // below) before applying anything. Unlike a full skip for a lock-only
+    // update, `assertFolderMutableUnlessUnlocking` only treats this folder's own
+    // (about-to-be-cleared) lock as satisfied -- a lock inherited from an
+    // ancestor still blocks, since clearing this folder's own flag doesn't
+    // affect that.
+    const isLockOnlyUpdate =
+      params.name === undefined && params.parentId === undefined && params.sortOrder === undefined
+    if (!isLockOnlyUpdate) {
+      await assertFolderMutableUnlessUnlocking(params.folderId, 'file', params.locked === false, tx)
+    }
 
     const updates: Partial<typeof workspaceFileFolder.$inferInsert> = { updatedAt: new Date() }
     const finalName =
@@ -601,6 +626,7 @@ export async function updateWorkspaceFileFolder(params: {
           and(
             eq(workspaceFileFolder.id, finalParentId),
             eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             isNull(workspaceFileFolder.deletedAt)
           )
         )
@@ -608,6 +634,13 @@ export async function updateWorkspaceFileFolder(params: {
 
       if (!target) {
         throw new Error('Target folder not found')
+      }
+
+      // A folder in an unlocked location could otherwise be moved into a locked
+      // one -- this check is independent of the isLockOnlyUpdate skip above,
+      // since moving into a locked folder is never a lock-only operation.
+      if (finalParentId !== existing.parentId) {
+        await assertFolderMutable(finalParentId, 'file', tx)
       }
     }
 
@@ -618,6 +651,7 @@ export async function updateWorkspaceFileFolder(params: {
         .where(
           and(
             eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             isNull(workspaceFileFolder.deletedAt)
           )
         )
@@ -635,6 +669,7 @@ export async function updateWorkspaceFileFolder(params: {
         .where(
           and(
             eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             eq(workspaceFileFolder.name, finalName),
             folderParentCondition(finalParentId),
             isNull(workspaceFileFolder.deletedAt)
@@ -659,6 +694,10 @@ export async function updateWorkspaceFileFolder(params: {
       updates.sortOrder = params.sortOrder
     }
 
+    if (params.locked !== undefined) {
+      updates.locked = params.locked
+    }
+
     try {
       const [updatedFolder] = await tx
         .update(workspaceFileFolder)
@@ -667,6 +706,7 @@ export async function updateWorkspaceFileFolder(params: {
           and(
             eq(workspaceFileFolder.id, params.folderId),
             eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             isNull(workspaceFileFolder.deletedAt)
           )
         )
@@ -729,6 +769,7 @@ export async function moveWorkspaceFileItems(params: {
           and(
             eq(workspaceFileFolder.id, targetFolderId),
             eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             isNull(workspaceFileFolder.deletedAt)
           )
         )
@@ -750,6 +791,7 @@ export async function moveWorkspaceFileItems(params: {
         .where(
           and(
             eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             isNull(workspaceFileFolder.deletedAt)
           )
         )
@@ -786,6 +828,7 @@ export async function moveWorkspaceFileItems(params: {
               and(
                 inArray(workspaceFileFolder.id, folderIds),
                 eq(workspaceFileFolder.workspaceId, params.workspaceId),
+                eq(workspaceFileFolder.resourceType, 'file'),
                 isNull(workspaceFileFolder.deletedAt)
               )
             )
@@ -799,6 +842,20 @@ export async function moveWorkspaceFileItems(params: {
     )
     if (missingFileIds.length > 0 || missingFolderIds.length > 0) {
       throw new WorkspaceFileItemsNotFoundError(missingFileIds, missingFolderIds)
+    }
+
+    // The caller's own lock checks (before this transaction opened) only cover each
+    // moved item's *and* the target folder's state at that earlier point in time --
+    // re-checking here, inside the same transaction as the writes below, closes the
+    // window where a concurrent request locks an item or the destination in between.
+    for (const fileId of movingFileIds) {
+      await assertResourceMutable('file', fileId, tx)
+    }
+    for (const folderId of movingFolderIds) {
+      await assertFolderMutable(folderId, 'file', tx)
+    }
+    if (targetFolderId) {
+      await assertFolderMutable(targetFolderId, 'file', tx)
     }
 
     for (const file of movingFiles) {
@@ -830,6 +887,7 @@ export async function moveWorkspaceFileItems(params: {
         .where(
           and(
             eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             eq(workspaceFileFolder.name, folder.name),
             folderParentCondition(targetFolderId),
             isNull(workspaceFileFolder.deletedAt)
@@ -873,6 +931,7 @@ export async function moveWorkspaceFileItems(params: {
               and(
                 inArray(workspaceFileFolder.id, folderIds),
                 eq(workspaceFileFolder.workspaceId, params.workspaceId),
+                eq(workspaceFileFolder.resourceType, 'file'),
                 isNull(workspaceFileFolder.deletedAt)
               )
             )
@@ -899,6 +958,7 @@ export async function archiveWorkspaceFileFolderRecursive(
         and(
           eq(workspaceFileFolder.id, folderId),
           eq(workspaceFileFolder.workspaceId, workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file'),
           isNull(workspaceFileFolder.deletedAt)
         )
       )
@@ -906,11 +966,22 @@ export async function archiveWorkspaceFileFolderRecursive(
 
     if (!folder) throw new Error('Folder not found')
 
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock this folder in the window
+    // between that check and this transaction. Re-check inside the transaction
+    // (joining `tx` so the read is part of the same atomic unit as the writes
+    // below) before applying anything.
+    await assertFolderMutable(folderId, 'file', tx)
+
     const activeFolders = await tx
       .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
       .from(workspaceFileFolder)
       .where(
-        and(eq(workspaceFileFolder.workspaceId, workspaceId), isNull(workspaceFileFolder.deletedAt))
+        and(
+          eq(workspaceFileFolder.workspaceId, workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file'),
+          isNull(workspaceFileFolder.deletedAt)
+        )
       )
     const folderIds = [folderId, ...collectDescendantFolderIds(activeFolders, folderId)]
 
@@ -934,6 +1005,7 @@ export async function archiveWorkspaceFileFolderRecursive(
         and(
           inArray(workspaceFileFolder.id, folderIds),
           eq(workspaceFileFolder.workspaceId, workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file'),
           isNull(workspaceFileFolder.deletedAt)
         )
       )
@@ -966,13 +1038,23 @@ export async function restoreWorkspaceFileFolder(
       .select()
       .from(workspaceFileFolder)
       .where(
-        and(eq(workspaceFileFolder.id, folderId), eq(workspaceFileFolder.workspaceId, workspaceId))
+        and(
+          eq(workspaceFileFolder.id, folderId),
+          eq(workspaceFileFolder.workspaceId, workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file')
+        )
       )
       .limit(1)
       .then((rows) => rows[0] ?? null)
 
     if (!raw) throw new Error('Folder not found')
     if (!raw.deletedAt) throw new Error('Folder is not archived')
+
+    // The folder row is soft-deleted, so the generic lock engine (which only reads
+    // active rows) can't see it -- check its own `locked` flag directly.
+    if (raw.locked) {
+      throw new ResourceLockedError('file', false, 'Folder is locked')
+    }
 
     const folderDeletedAt = raw.deletedAt
 
@@ -986,13 +1068,21 @@ export async function restoreWorkspaceFileFolder(
         .where(
           and(
             eq(workspaceFileFolder.id, resolvedParentId),
-            eq(workspaceFileFolder.workspaceId, workspaceId)
+            eq(workspaceFileFolder.workspaceId, workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file')
           )
         )
         .limit(1)
         .then((rows) => rows[0] ?? null)
       if (!parent || parent.deletedAt) resolvedParentId = null
     }
+
+    // resolvedParentId is either null (root, always safe) or a confirmed-active
+    // folder -- without this, the folder could resurface under a folder that was
+    // locked after this one was deleted. Passing `tx` (not the default db client)
+    // keeps this read inside the same transaction as the write below, closing the
+    // TOCTOU window where a concurrent request locks resolvedParentId in between.
+    await assertFolderMutable(resolvedParentId, 'file', tx)
 
     const stats: WorkspaceFileArchiveResult = { folders: 0, files: 0 }
     const seen = new Set<string>()
@@ -1021,6 +1111,7 @@ export async function restoreWorkspaceFileFolder(
           and(
             eq(workspaceFileFolder.parentId, currentFolderId),
             eq(workspaceFileFolder.workspaceId, workspaceId),
+            eq(workspaceFileFolder.resourceType, 'file'),
             eq(workspaceFileFolder.deletedAt, folderDeletedAt)
           )
         )
@@ -1033,6 +1124,7 @@ export async function restoreWorkspaceFileFolder(
             and(
               eq(workspaceFileFolder.id, child.id),
               eq(workspaceFileFolder.workspaceId, workspaceId),
+              eq(workspaceFileFolder.resourceType, 'file'),
               eq(workspaceFileFolder.deletedAt, folderDeletedAt)
             )
           )
@@ -1048,7 +1140,11 @@ export async function restoreWorkspaceFileFolder(
       .update(workspaceFileFolder)
       .set({ deletedAt: null, parentId: resolvedParentId, updatedAt: new Date() })
       .where(
-        and(eq(workspaceFileFolder.id, folderId), eq(workspaceFileFolder.workspaceId, workspaceId))
+        and(
+          eq(workspaceFileFolder.id, folderId),
+          eq(workspaceFileFolder.workspaceId, workspaceId),
+          eq(workspaceFileFolder.resourceType, 'file')
+        )
       )
       .returning()
 
@@ -1064,7 +1160,11 @@ export async function restoreWorkspaceFileFolder(
     .select()
     .from(workspaceFileFolder)
     .where(
-      and(eq(workspaceFileFolder.workspaceId, workspaceId), isNull(workspaceFileFolder.deletedAt))
+      and(
+        eq(workspaceFileFolder.workspaceId, workspaceId),
+        eq(workspaceFileFolder.resourceType, 'file'),
+        isNull(workspaceFileFolder.deletedAt)
+      )
     )
   const paths = buildWorkspaceFileFolderPathMap(allFolders)
   return {
@@ -1085,6 +1185,17 @@ export async function bulkArchiveWorkspaceFileItems(params: {
   return db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
 
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock a file or folder in the window
+    // between that check and this transaction. Re-check inside the transaction
+    // (joining `tx`) before applying anything. Safe to check each id in turn
+    // without a closure-based ordered lock (unlike the reorder batch fix): the
+    // advisory lock above already fully serializes every file-folder mutation
+    // for this workspace, so no other transaction can be concurrently
+    // acquiring row locks here to race against.
+    await Promise.all(explicitFileIds.map((id) => assertResourceMutable('file', id, tx)))
+    await Promise.all(explicitFolderIds.map((id) => assertFolderMutable(id, 'file', tx)))
+
     const activeFolders =
       explicitFolderIds.length > 0
         ? await tx
@@ -1093,6 +1204,7 @@ export async function bulkArchiveWorkspaceFileItems(params: {
             .where(
               and(
                 eq(workspaceFileFolder.workspaceId, params.workspaceId),
+                eq(workspaceFileFolder.resourceType, 'file'),
                 isNull(workspaceFileFolder.deletedAt)
               )
             )
@@ -1143,6 +1255,7 @@ export async function bulkArchiveWorkspaceFileItems(params: {
               and(
                 inArray(workspaceFileFolder.id, allFolderIds),
                 eq(workspaceFileFolder.workspaceId, params.workspaceId),
+                eq(workspaceFileFolder.resourceType, 'file'),
                 isNull(workspaceFileFolder.deletedAt)
               )
             )

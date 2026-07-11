@@ -5,7 +5,7 @@ import {
   mcpServers,
   userTableDefinitions,
   workflow,
-  workflowFolder,
+  folder as workflowFolder,
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -377,7 +377,13 @@ async function buildWorkspaceMdData(
           parentId: workflowFolder.parentId,
         })
         .from(workflowFolder)
-        .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt))),
+        .where(
+          and(
+            eq(workflowFolder.workspaceId, workspaceId),
+            eq(workflowFolder.resourceType, 'workflow'),
+            isNull(workflowFolder.deletedAt)
+          )
+        ),
 
       db
         .select({

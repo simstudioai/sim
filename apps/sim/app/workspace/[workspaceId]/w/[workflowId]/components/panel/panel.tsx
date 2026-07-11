@@ -74,7 +74,7 @@ import {
   useCopilotChats,
 } from '@/hooks/queries/copilot-chats'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
+import { isResourceEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -232,7 +232,7 @@ export const Panel = memo(function Panel() {
   )
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
-  const workflowLocked = isWorkflowEffectivelyLocked(currentWorkflow, folders)
+  const workflowLocked = isResourceEffectivelyLocked(currentWorkflow, folders)
   const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
   const { isSnapshotView } = useCurrentWorkflow()
 

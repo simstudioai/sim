@@ -9,7 +9,7 @@ import {
   createMockRequest,
   permissionsMock,
   permissionsMockFns,
-  workflowAuthzMockFns,
+  resourceLockMockFns,
 } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,9 +50,7 @@ const mockDb = db as any
 
 interface CapturedFolderValues {
   name?: string
-  color?: string
   parentId?: string | null
-  isExpanded?: boolean
   sortOrder?: number
   updatedAt?: Date
 }
@@ -64,11 +62,20 @@ function createMockTransaction(mockData: {
 }) {
   const { selectResults = [[], []], insertResult = [], onInsertValues } = mockData
   return async (callback: (tx: unknown) => Promise<unknown>) => {
+    // Chainable + directly awaitable: `where(...)` alone resolves to the queued
+    // result, and `.for('update').limit(1)` (the parent-lock recheck added
+    // alongside the insert) resolves to the same result without a separate call.
+    function chainable(result: unknown[]) {
+      const thenable: any = Promise.resolve(result)
+      thenable.for = vi.fn().mockReturnValue(thenable)
+      thenable.limit = vi.fn().mockReturnValue(thenable)
+      return thenable
+    }
     const where = vi.fn()
     for (const result of selectResults) {
-      where.mockReturnValueOnce(result)
+      where.mockReturnValueOnce(chainable(result))
     }
-    where.mockReturnValue([])
+    where.mockReturnValue(chainable([]))
 
     const tx = {
       select: vi.fn().mockReturnValue({
@@ -99,24 +106,22 @@ describe('Folders API Route', () => {
   const mockFolders = [
     {
       id: 'folder-1',
+      resourceType: 'workflow',
       name: 'Test Folder 1',
       userId: 'user-123',
       workspaceId: 'workspace-123',
       parentId: null,
-      color: '#6B7280',
-      isExpanded: true,
       sortOrder: 0,
       createdAt: new Date('2023-01-01T00:00:00.000Z'),
       updatedAt: new Date('2023-01-01T00:00:00.000Z'),
     },
     {
       id: 'folder-2',
+      resourceType: 'workflow',
       name: 'Test Folder 2',
       userId: 'user-123',
       workspaceId: 'workspace-123',
       parentId: 'folder-1',
-      color: '#EF4444',
-      isExpanded: false,
       sortOrder: 1,
       createdAt: new Date('2023-01-02T00:00:00.000Z'),
       updatedAt: new Date('2023-01-02T00:00:00.000Z'),
@@ -177,7 +182,7 @@ describe('Folders API Route', () => {
         'GET',
         undefined,
         {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+        'http://localhost:3000/api/folders?workspaceId=workspace-123&resourceType=workflow'
       )
 
       const response = await GET(mockRequest)
@@ -201,7 +206,7 @@ describe('Folders API Route', () => {
         'GET',
         undefined,
         {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+        'http://localhost:3000/api/folders?workspaceId=workspace-123&resourceType=workflow'
       )
 
       const response = await GET(mockRequest)
@@ -239,7 +244,7 @@ describe('Folders API Route', () => {
         'GET',
         undefined,
         {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+        'http://localhost:3000/api/folders?workspaceId=workspace-123&resourceType=workflow'
       )
 
       const response = await GET(mockRequest)
@@ -258,7 +263,7 @@ describe('Folders API Route', () => {
         'GET',
         undefined,
         {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+        'http://localhost:3000/api/folders?workspaceId=workspace-123&resourceType=workflow'
       )
 
       const response = await GET(mockRequest)
@@ -280,7 +285,7 @@ describe('Folders API Route', () => {
         'GET',
         undefined,
         {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+        'http://localhost:3000/api/folders?workspaceId=workspace-123&resourceType=workflow'
       )
 
       const response = await GET(mockRequest)
@@ -307,9 +312,9 @@ describe('Folders API Route', () => {
       )
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'New Test Folder',
         workspaceId: 'workspace-123',
-        color: '#6B7280',
       })
 
       const response = await POST(req)
@@ -347,6 +352,7 @@ describe('Folders API Route', () => {
       mockReturning.mockReturnValueOnce([{ ...mockFolders[0], sortOrder: 1 }])
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'New Test Folder',
         workspaceId: 'workspace-123',
       })
@@ -368,7 +374,10 @@ describe('Folders API Route', () => {
 
       mockTransaction.mockImplementationOnce(
         createMockTransaction({
-          selectResults: [[], []],
+          // First entry is the in-transaction FOR UPDATE recheck that the target
+          // parent is still active (a plain row match is enough for the mock;
+          // production only reads `id`).
+          selectResults: [[{ id: 'folder-1' }], []],
           insertResult: [{ ...mockFolders[1] }],
         })
       )
@@ -376,6 +385,7 @@ describe('Folders API Route', () => {
       mockReturning.mockReturnValueOnce([{ ...mockFolders[1] }])
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'Subfolder',
         workspaceId: 'workspace-123',
         parentId: 'folder-1',
@@ -394,12 +404,13 @@ describe('Folders API Route', () => {
     it('should reject creating a subfolder inside a locked parent folder', async () => {
       mockAuthenticatedUser()
 
-      const { FolderLockedError } = await import('@sim/platform-authz/workflow')
-      workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
-        new FolderLockedError('Folder is locked')
+      const { ResourceLockedError } = await import('@sim/platform-authz/resource-lock')
+      resourceLockMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+        new ResourceLockedError('workflow', false, 'Folder is locked')
       )
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'Subfolder',
         workspaceId: 'workspace-123',
         parentId: 'locked-folder',
@@ -417,6 +428,7 @@ describe('Folders API Route', () => {
       mockLimit.mockReturnValueOnce([])
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'Subfolder',
         workspaceId: 'workspace-123',
         parentId: 'folder-in-other-workspace',
@@ -433,6 +445,7 @@ describe('Folders API Route', () => {
       mockUnauthenticated()
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'Test Folder',
         workspaceId: 'workspace-123',
       })
@@ -450,6 +463,7 @@ describe('Folders API Route', () => {
       mockGetUserEntityPermissions.mockResolvedValue('read')
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'Test Folder',
         workspaceId: 'workspace-123',
       })
@@ -474,6 +488,7 @@ describe('Folders API Route', () => {
       )
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'Test Folder',
         workspaceId: 'workspace-123',
       })
@@ -498,6 +513,7 @@ describe('Folders API Route', () => {
       )
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'Test Folder',
         workspaceId: 'workspace-123',
       })
@@ -512,10 +528,10 @@ describe('Folders API Route', () => {
 
     it('should return 400 when required fields are missing', async () => {
       const testCases = [
-        { name: '', workspaceId: 'workspace-123' },
-        { name: 'Test Folder', workspaceId: '' },
-        { workspaceId: 'workspace-123' },
-        { name: 'Test Folder' },
+        { resourceType: 'workflow', name: '', workspaceId: 'workspace-123' },
+        { resourceType: 'workflow', name: 'Test Folder', workspaceId: '' },
+        { resourceType: 'workflow', workspaceId: 'workspace-123' },
+        { resourceType: 'workflow', name: 'Test Folder' },
       ]
 
       for (const body of testCases) {
@@ -540,6 +556,7 @@ describe('Folders API Route', () => {
       })
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: 'Test Folder',
         workspaceId: 'workspace-123',
       })
@@ -575,6 +592,7 @@ describe('Folders API Route', () => {
       })
 
       const req = createMockRequest('POST', {
+        resourceType: 'workflow',
         name: '  Test Folder With Spaces  ',
         workspaceId: 'workspace-123',
       })
@@ -583,36 +601,6 @@ describe('Folders API Route', () => {
 
       expect(capturedValues).not.toBeNull()
       expect(capturedValues!.name).toBe('Test Folder With Spaces')
-    })
-
-    it('should use default color when not provided', async () => {
-      mockAuthenticatedUser()
-
-      let capturedValues: CapturedFolderValues | null = null
-
-      mockTransaction.mockImplementationOnce(
-        createMockTransaction({
-          selectResults: [[], []],
-          insertResult: [mockFolders[0]],
-          onInsertValues: (values) => {
-            capturedValues = values
-          },
-        })
-      )
-      mockValues.mockImplementationOnce((values: CapturedFolderValues) => {
-        capturedValues = values
-        return { returning: mockReturning }
-      })
-
-      const req = createMockRequest('POST', {
-        name: 'Test Folder',
-        workspaceId: 'workspace-123',
-      })
-
-      await POST(req)
-
-      expect(capturedValues).not.toBeNull()
-      expect(capturedValues!.color).toBe('#6B7280')
     })
   })
 })

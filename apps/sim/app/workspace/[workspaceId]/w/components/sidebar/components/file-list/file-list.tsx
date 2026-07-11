@@ -5,15 +5,15 @@ import { cn } from '@sim/emcn'
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
+import type { Folder } from '@/stores/folders/types'
 
-interface FileFolderNode extends WorkspaceFileFolderApi {
+interface FileFolderNode extends Folder {
   children: FileFolderNode[]
   files: WorkspaceFileRecord[]
 }
 
 function buildFileFolderTree(
-  folders: WorkspaceFileFolderApi[],
+  folders: Folder[],
   files: WorkspaceFileRecord[],
   parentId: string | null = null
 ): FileFolderNode[] {
@@ -144,7 +144,7 @@ interface FileListProps {
   workspaceId: string
   currentFileId?: string
   pathname: string | null
-  folders: WorkspaceFileFolderApi[]
+  folders: Folder[]
   files: WorkspaceFileRecord[]
 }
 

@@ -11,9 +11,6 @@ vi.mock('@/hooks/queries/tables', () => ({ useTablesList: () => ({ data: [] }) }
 vi.mock('@/hooks/queries/workspace-files', () => ({ useWorkspaceFiles: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/kb/knowledge', () => ({ useKnowledgeBasesQuery: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/folders', () => ({ useFolders: () => ({ data: [] }) }))
-vi.mock('@/hooks/queries/workspace-file-folders', () => ({
-  useWorkspaceFileFolders: () => ({ data: [] }),
-}))
 vi.mock('@/hooks/queries/mothership-chats', () => ({ useMothershipChats: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/schedules', () => ({ useWorkspaceSchedules: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/logs', () => ({ useLogsList: () => ({ data: undefined }) }))

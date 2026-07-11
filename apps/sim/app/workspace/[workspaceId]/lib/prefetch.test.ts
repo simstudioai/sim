@@ -23,7 +23,6 @@ import { prefetchTables } from '@/app/workspace/[workspaceId]/tables/prefetch'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 const WORKSPACE_ID = 'ws-123'
@@ -70,9 +69,20 @@ describe('workspace list prefetches', () => {
   describe('prefetchFilesBrowser', () => {
     it('primes both file + folder keys the client hooks read', async () => {
       const files = [{ id: 'f-1' }]
-      const folders = [{ id: 'folder-1' }]
+      const folderRow = {
+        id: 'folder-1',
+        name: 'Docs',
+        userId: 'u-1',
+        workspaceId: WORKSPACE_ID,
+        parentId: null,
+        locked: false,
+        sortOrder: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+        deletedAt: null,
+      }
       mockPrefetchInternalJson.mockImplementation(async (path: string) =>
-        path.includes('/folders') ? { folders } : { success: true, files }
+        path.startsWith('/api/folders') ? { folders: [folderRow] } : { success: true, files }
       )
       const client = makeClient()
 
@@ -82,17 +92,19 @@ describe('workspace list prefetches', () => {
         `/api/workspaces/${WORKSPACE_ID}/files?scope=active`
       )
       expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/workspaces/${WORKSPACE_ID}/files/folders?scope=active`
+        `/api/folders?workspaceId=${WORKSPACE_ID}&resourceType=file&scope=active`
       )
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
-      expect(client.getQueryData(workspaceFileFolderKeys.list(WORKSPACE_ID, 'active'))).toEqual(
-        folders
-      )
+      const cachedFolders = client.getQueryData(
+        folderKeys.list(WORKSPACE_ID, 'file', 'active')
+      ) as Array<{ id: string; createdAt: Date }>
+      expect(cachedFolders).toHaveLength(1)
+      expect(cachedFolders[0].createdAt).toBeInstanceOf(Date)
     })
 
     it('caches an empty file list when the route reports failure', async () => {
       mockPrefetchInternalJson.mockImplementation(async (path: string) =>
-        path.includes('/folders') ? { folders: [] } : { success: false, files: [] }
+        path.startsWith('/api/folders') ? { folders: [] } : { success: false, files: [] }
       )
       const client = makeClient()
 
@@ -110,8 +122,6 @@ describe('workspace list prefetches', () => {
         userId: 'u-1',
         workspaceId: WORKSPACE_ID,
         parentId: null,
-        color: null,
-        isExpanded: true,
         locked: false,
         sortOrder: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -127,15 +137,15 @@ describe('workspace list prefetches', () => {
       await prefetchHomeLists(client, WORKSPACE_ID)
 
       expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/folders?workspaceId=${WORKSPACE_ID}&scope=active`
+        `/api/folders?workspaceId=${WORKSPACE_ID}&resourceType=workflow&scope=active`
       )
-      const cachedFolders = client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active')) as Array<{
+      const cachedFolders = client.getQueryData(
+        folderKeys.list(WORKSPACE_ID, 'workflow', 'active')
+      ) as Array<{
         id: string
-        color: string
         createdAt: Date
       }>
       expect(cachedFolders).toHaveLength(1)
-      expect(cachedFolders[0].color).toBe('#6B7280')
       expect(cachedFolders[0].createdAt).toBeInstanceOf(Date)
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
     })
@@ -149,7 +159,7 @@ describe('workspace list prefetches', () => {
         knowledgeKeys.list(WORKSPACE_ID, 'active'),
       ],
       ['prefetchTables', prefetchTables, tableKeys.list(WORKSPACE_ID, 'active')],
-      ['prefetchHomeLists', prefetchHomeLists, folderKeys.list(WORKSPACE_ID, 'active')],
+      ['prefetchHomeLists', prefetchHomeLists, folderKeys.list(WORKSPACE_ID, 'workflow', 'active')],
       [
         'prefetchFilesBrowser',
         prefetchFilesBrowser,

@@ -103,11 +103,16 @@ export const createTableBodySchema = z.object({
   }),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   initialRowCount: z.number().int().min(0).max(100).optional(),
+  /** Folder to create the table in. Omit or `null` for the workspace root. */
+  folderId: z.string().min(1).nullable().optional(),
 })
 
 export const renameTableBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   name: tableNameSchema,
+  /** Move the table to this folder. Omit to leave unchanged; `null` moves it to the workspace root. */
+  folderId: z.string().min(1).nullable().optional(),
+  locked: z.boolean().optional(),
 })
 
 export const createTableColumnBodySchema = z.object({
