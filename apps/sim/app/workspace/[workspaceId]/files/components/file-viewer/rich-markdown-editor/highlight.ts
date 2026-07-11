@@ -13,7 +13,7 @@ import { Plugin } from '@tiptap/pm/state'
  * (`=(?!=)`) but never `==`, so a highlight over text containing `=` (e.g. `==a=b==`) round-trips while
  * the closing `==` still terminates the run.
  */
-const HIGHLIGHT_BODY = String.raw`(?:[^=]|=(?!=))+?`
+const HIGHLIGHT_BODY = `(?:[^=]|=(?!=))+?`
 const HIGHLIGHT_TOKEN = new RegExp(String.raw`^==(?!\s)(${HIGHLIGHT_BODY})(?<!\s)==`)
 /** Input/paste rule form (anchored on a preceding boundary) so typing `==x==` toggles the mark. */
 const HIGHLIGHT_INPUT = new RegExp(String.raw`(?:^|\s)(==(?!\s)(${HIGHLIGHT_BODY})(?<!\s)==)$`)

@@ -8,6 +8,33 @@ const BOM = '\uFEFF'
 const FRONTMATTER_REGEX = /^---\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(?:\r?\n)*/
 const ESCAPED_CALLOUT_REGEX = /^(\s*>(?:\s*>)*\s*)\\\[!([A-Za-z]+)\\\]/gm
 
+/**
+ * Alternates a code region (fenced block or inline span \u2014 never rewritten) with an inline link whose
+ * destination has no title and isn't angle-bracketed. The code branch is listed first so a link inside
+ * code is consumed as code and left untouched. The destination stops at `)` / whitespace, so a link
+ * carrying a title (`[x](url "t")`) never matches and is preserved verbatim.
+ */
+const CODE_OR_PLAIN_LINK_REGEX =
+  /(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)|\[([^\]]+)]\(([^)\s<>]+)\)/g
+const HTTP_URL_REGEX = /^https?:\/\/\S+$/i
+
+/**
+ * Collapses an autolinked destination back to its bare form: our normalizing serializer rewrites a bare
+ * URL or `<url>` autolink to `[url](url)` and a bare email to `[a@b.com](mailto:a@b.com)`, which churns
+ * every README's links into explicit-link syntax on the first save. When the visible text already equals
+ * the destination (a plain `http(s)` URL, or an email behind `mailto:`), GFM re-autolinks the bare form,
+ * so emitting it round-trips identically with a far quieter diff. Links inside code and titled links are
+ * left untouched (see {@link CODE_OR_PLAIN_LINK_REGEX}).
+ */
+function collapseAutolinkedUrls(markdown: string): string {
+  return markdown.replace(CODE_OR_PLAIN_LINK_REGEX, (match, code, text, href) => {
+    if (code) return code
+    if (text === href && HTTP_URL_REGEX.test(href)) return href
+    if (href === `mailto:${text}`) return text
+    return match
+  })
+}
+
 export interface SplitMarkdown {
   /** Out-of-band leading prefix (a BOM and/or the frontmatter block), byte-exact, or `''`. */
   frontmatter: string
@@ -87,5 +114,8 @@ export function normalizeLinkHref(href: string): string {
  * begins with whitespace.
  */
 export function postProcessSerializedMarkdown(markdown: string): string {
-  return markdown.replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]').replace(/\n+$/, '\n')
+  return collapseAutolinkedUrls(markdown.replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')).replace(
+    /\n+$/,
+    '\n'
+  )
 }
