@@ -8,6 +8,7 @@ import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { assertNoCompetingEnterpriseIssuance } from '@/lib/billing/enterprise-outbox'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
@@ -361,6 +362,7 @@ export async function ensureOrganizationForTeamSubscriptionTx(
     }
     organizationId = existingMembership.organizationId
     await acquireOrganizationMutationLock(tx, organizationId)
+    await acquireUserBillingIdentityLock(tx, userId)
     await assertNoCompetingEnterpriseIssuance(
       tx,
       organizationId,
@@ -400,6 +402,7 @@ export async function ensureOrganizationForTeamSubscriptionTx(
       throw new Error('Organization already has an active subscription')
     }
   } else {
+    await acquireUserBillingIdentityLock(tx, userId)
     const [userData] = await tx
       .select({ name: user.name, email: user.email })
       .from(user)

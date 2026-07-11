@@ -5,7 +5,6 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, gte, isNull, lt, or, sql } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
-import { getOrgWorkspaceUsageCostForUser } from '@/lib/billing/core/usage-log'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -131,32 +130,30 @@ export async function getOrgMemberUsageForBillingPeriod(
 }
 
 /**
- * Compute a member's current-period usage (dollars) inside the organization's
- * own workspaces.
+ * Compute a member's current-period usage (dollars) against the organization
+ * using the same reader enforcement uses, so admin/display surfaces can never
+ * disagree with the cap check in {@link getOrgMemberUsageForBillingPeriod}.
  *
- * Sums `usage_log` by `created_at` within the org subscription window across the
- * org's workspaces, scoped to the given user (a single indexed aggregation — see
- * {@link getOrgWorkspaceUsageCostForUser}). Filtering by workspace (not billing
- * entity) is what captures external members and mothership/copilot cost. Raw
- * usage — daily-refresh credits are a pooled concept and intentionally not
- * deducted here.
+ * The current period is the org subscription window, falling back to the open
+ * (all-time) window when the org has no resolvable period — matching how the
+ * rest of the billing layer resolves a missing period.
  *
- * When the org has no resolvable subscription window, falls back to the open
- * (all-time) window, matching how the rest of the billing layer resolves a
- * missing period (e.g. {@link deriveBillingContext}, the pooled-org and user
- * usage paths). A hosted org with a per-member cap normally has a period, so
- * this fallback is an edge case; using the shared convention keeps this path
- * consistent with every other usage read rather than special-casing it.
+ * @param prefetchedSubscription - Pass an already-resolved org subscription
+ *   (may be `null`) to skip the lookup. Omit to fetch it here.
  */
-export async function getOrgMemberWorkspaceUsage(
+export async function getOrgMemberUsageForCurrentPeriod(
   organizationId: string,
-  userId: string
+  userId: string,
+  prefetchedSubscription?: Awaited<ReturnType<typeof getOrganizationSubscription>>
 ): Promise<number> {
-  const subscription = await getOrganizationSubscription(organizationId)
+  const subscription =
+    prefetchedSubscription === undefined
+      ? await getOrganizationSubscription(organizationId)
+      : prefetchedSubscription
   const billingPeriod =
     subscription?.periodStart && subscription.periodEnd
       ? { start: subscription.periodStart, end: subscription.periodEnd }
       : defaultBillingPeriod()
 
-  return getOrgWorkspaceUsageCostForUser(organizationId, userId, billingPeriod)
+  return getOrgMemberUsageForBillingPeriod(organizationId, userId, billingPeriod)
 }

@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, permissions, workspace } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
-import { creditsToDollars } from '@/lib/billing/credits/conversion'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 
@@ -15,7 +14,7 @@ interface AdminActor {
 export async function updateDashboardExternalCollaboratorUsageLimit(
   organizationId: string,
   userId: string,
-  usageLimitCredits: number | null,
+  usageLimitDollars: number | null,
   actor: AdminActor
 ): Promise<void> {
   await db.transaction(async (tx) => {
@@ -52,7 +51,7 @@ export async function updateDashboardExternalCollaboratorUsageLimit(
     await setOrgMemberUsageLimit(
       organizationId,
       userId,
-      usageLimitCredits === null ? null : creditsToDollars(usageLimitCredits),
+      usageLimitDollars,
       actor.id ?? undefined,
       tx
     )
@@ -66,9 +65,9 @@ export async function updateDashboardExternalCollaboratorUsageLimit(
     resourceType: AuditResourceType.ORGANIZATION,
     resourceId: organizationId,
     description:
-      usageLimitCredits === null
+      usageLimitDollars === null
         ? 'Admin cleared external collaborator usage cap'
         : 'Admin updated external collaborator usage cap',
-    metadata: { targetUserId: userId, usageLimitCredits },
+    metadata: { targetUserId: userId, usageLimitDollars },
   })
 }

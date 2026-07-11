@@ -18,6 +18,8 @@ const {
   mockReapplyPaidOrgJoinBillingForExistingMemberTx,
   mockAcquireOrganizationMutationLock,
   mockAcquireInvitationMutationLocks,
+  mockChangeWorkspaceStoragePayersInTx,
+  mockSelectForUpdate,
 } = vi.hoisted(() => {
   const mockDbResults: { value: any[] } = { value: [] }
   const mockUpdateReturning = vi.fn()
@@ -37,6 +39,8 @@ const {
   })
   const mockAcquireOrganizationMutationLock = vi.fn()
   const mockAcquireInvitationMutationLocks = vi.fn()
+  const mockChangeWorkspaceStoragePayersInTx = vi.fn()
+  const mockSelectForUpdate = vi.fn()
 
   return {
     mockDbResults,
@@ -52,6 +56,8 @@ const {
     mockReapplyPaidOrgJoinBillingForExistingMemberTx,
     mockAcquireOrganizationMutationLock,
     mockAcquireInvitationMutationLocks,
+    mockChangeWorkspaceStoragePayersInTx,
+    mockSelectForUpdate,
   }
 })
 
@@ -60,7 +66,11 @@ vi.mock('@sim/db', () => {
     const chain: any = {}
     chain.from = vi.fn().mockReturnValue(chain)
     chain.where = vi.fn().mockReturnValue(chain)
-    chain.for = vi.fn().mockReturnValue(chain)
+    chain.orderBy = vi.fn().mockReturnValue(chain)
+    chain.for = vi.fn().mockImplementation(() => {
+      mockSelectForUpdate()
+      return chain
+    })
     chain.limit = vi
       .fn()
       .mockImplementation(() => Promise.resolve(mockDbResults.value.shift() || []))
@@ -93,6 +103,10 @@ vi.mock('@/lib/billing/organizations/membership', () => ({
   reapplyPaidOrgJoinBillingForExistingMemberTx: mockReapplyPaidOrgJoinBillingForExistingMemberTx,
 }))
 
+vi.mock('@/lib/billing/storage/payer-transfer', () => ({
+  changeWorkspaceStoragePayersInTx: mockChangeWorkspaceStoragePayersInTx,
+}))
+
 vi.mock('@/lib/invitations/locks', () => ({
   acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
 }))
@@ -118,6 +132,7 @@ describe('organization workspace helpers', () => {
     mockDbResults.value = []
     mockEnsureUserInOrganizationTx.mockReset()
     mockUpdateReturning.mockReset()
+    mockChangeWorkspaceStoragePayersInTx.mockReset()
     mockSyncUsageLimitsFromSubscription.mockResolvedValue(undefined)
   })
 
@@ -125,13 +140,15 @@ describe('organization workspace helpers', () => {
     mockDbResults.value = [
       [{ id: 'ws-1' }, { id: 'ws-2' }],
       [{ id: 'ws-1' }, { id: 'ws-2' }],
+      [
+        { id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null },
+        { id: 'ws-2', billedAccountUserId: 'user-1', organizationId: null },
+      ],
       [{ userId: 'owner-1' }],
       [{ userId: 'owner-1' }, { userId: 'member-1' }],
       [{ userId: 'owner-1', organizationId: 'org-1' }],
     ]
-    mockUpdateReturning
-      .mockResolvedValueOnce([{ id: 'ws-1' }])
-      .mockResolvedValueOnce([{ id: 'ws-2' }])
+    mockUpdateReturning.mockResolvedValueOnce([{ id: 'ws-2' }, { id: 'ws-1' }])
     mockEnsureUserInOrganizationTx
       .mockResolvedValueOnce({
         success: true,
@@ -180,12 +197,43 @@ describe('organization workspace helpers', () => {
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({ organizationAssignedAt: expect.any(Date) })
     )
+    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
+    expect(mockSelectForUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+      mockEnsureUserInOrganizationTx.mock.invocationCallOrder[0]
+    )
+    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
+      {
+        workspaceId: 'ws-1',
+        organizationId: 'org-1',
+        billedAccountUserId: 'owner-1',
+        expectedCurrentPayer: {
+          organizationId: null,
+          billedAccountUserId: 'user-1',
+        },
+      },
+      {
+        workspaceId: 'ws-2',
+        organizationId: 'org-1',
+        billedAccountUserId: 'owner-1',
+        expectedCurrentPayer: {
+          organizationId: null,
+          billedAccountUserId: 'user-1',
+        },
+      },
+    ])
+    expect(mockDbUpdate).toHaveBeenCalledTimes(1)
+    expect(mockDbInsert).toHaveBeenCalledTimes(1)
+    expect(mockInsertValues).toHaveBeenCalledWith([
+      expect.objectContaining({ entityId: 'ws-1', userId: 'owner-1' }),
+      expect.objectContaining({ entityId: 'ws-2', userId: 'owner-1' }),
+    ])
   })
 
   it('fails before attaching workspaces when an existing member belongs to another organization', async () => {
     mockDbResults.value = [
       [{ id: 'ws-1' }],
       [{ id: 'ws-1' }],
+      [{ id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null }],
       [{ userId: 'owner-1' }],
       [{ userId: 'owner-1' }, { userId: 'member-2' }],
       [{ userId: 'member-2', organizationId: 'org-2' }],
@@ -206,6 +254,7 @@ describe('organization workspace helpers', () => {
     mockDbResults.value = [
       [{ id: 'ws-1' }],
       [{ id: 'ws-1' }],
+      [{ id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null }],
       [{ userId: 'owner-1' }],
       [{ userId: 'owner-1' }, { userId: 'member-2' }],
       [{ userId: 'member-2', organizationId: 'org-2' }],
@@ -242,7 +291,7 @@ describe('organization workspace helpers', () => {
   })
 
   it('rolls back membership work when a concurrent move wins before the locked re-read', async () => {
-    mockDbResults.value = [[{ id: 'ws-1' }], []]
+    mockDbResults.value = [[{ id: 'ws-1' }], [{ id: 'ws-1' }], []]
 
     const result = await attachOwnedWorkspacesToOrganization({
       ownerUserId: 'user-1',
@@ -268,6 +317,7 @@ describe('organization workspace helpers', () => {
     mockDbResults.value = [
       [{ id: 'ws-1' }],
       [{ id: 'ws-1' }],
+      [{ id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null }],
       [{ userId: 'owner-1' }],
       [{ userId: 'member-1' }],
       [],
@@ -293,20 +343,42 @@ describe('organization workspace helpers', () => {
   })
 
   it('detaches organization workspaces into grandfathered shared mode', async () => {
-    mockDbResults.value = [[{ userId: 'owner-1' }], [{ id: 'ws-1', ownerId: 'creator-1' }]]
+    mockDbResults.value = [
+      [{ userId: 'owner-1' }],
+      [{ id: 'ws-1', ownerId: 'creator-1', billedAccountUserId: 'old-owner' }],
+      [{ id: 'ws-1' }],
+    ]
 
     const result = await detachOrganizationWorkspaces('org-1')
 
     expect(result.detachedWorkspaceIds).toEqual(['ws-1'])
     expect(result.billedAccountUserId).toBe('owner-1')
+    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
+    expect(mockSelectForUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+      mockChangeWorkspaceStoragePayersInTx.mock.invocationCallOrder[0]
+    )
+    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
+      {
+        workspaceId: 'ws-1',
+        organizationId: null,
+        billedAccountUserId: 'owner-1',
+        expectedCurrentPayer: {
+          organizationId: 'org-1',
+          billedAccountUserId: 'old-owner',
+        },
+      },
+    ])
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationId: null,
         workspaceMode: 'grandfathered_shared',
-        billedAccountUserId: 'owner-1',
         organizationAssignedAt: null,
       })
     )
+    expect(mockDbUpdate).toHaveBeenCalledTimes(1)
+    expect(mockDbInsert).toHaveBeenCalledTimes(1)
+    expect(mockInsertValues).toHaveBeenCalledWith([
+      expect.objectContaining({ entityId: 'ws-1', userId: 'owner-1' }),
+    ])
     expect(mockOnConflictDoUpdate).toHaveBeenCalled()
   })
 })

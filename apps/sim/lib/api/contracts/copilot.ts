@@ -287,7 +287,8 @@ export const validateCopilotApiKeyBodySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
   /**
    * Originating execution workspace. Hosted attribution-v1 binds it to Sim's
-   * immutable payer snapshot, and legacy hosted calls retain their member gate.
+   * immutable payer snapshot. Markerless legacy-v0 resolves a locally known
+   * workspace's current payer for aligned payer-pool and member admission.
    * For direct-v1 Chat/Copilot API keys it may be a self-hosted local ID and is
    * never used to select or authorize a hosted payer, so direct-v1 callers may
    * omit it entirely.

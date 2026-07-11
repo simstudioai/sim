@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { enterpriseIssuanceOutboxHandlers } from '@/lib/billing/enterprise-provisioning'
+import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -19,6 +20,7 @@ export const maxDuration = 120
 
 const handlers = {
   ...billingOutboxHandlers,
+  ...membershipBillingOutboxHandlers,
   ...enterpriseIssuanceOutboxHandlers,
   ...invitationMigrationOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,

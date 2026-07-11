@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toDashboardProvisioning } from '@/lib/admin/dashboard'
 import { adminDashboardIssueEnterpriseContract } from '@/lib/api/contracts/v1/admin/dashboard'
 import { parseRequest } from '@/lib/api/server'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   EnterpriseProvisioningError,
   issueEnterpriseProvisioning,
@@ -33,12 +35,18 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     try {
       const actor = await getAdminAuditActor(request)
+      const { includedMonthlyDollars, usageLimitDollars, ...body } = parsed.data.body
       return singleResponse(
-        await issueEnterpriseProvisioning({
-          ...parsed.data.body,
-          requestedByEmail: actor.email ?? 'admin-api',
-          requestedByUserId: actor.id,
-        })
+        toDashboardProvisioning(
+          await issueEnterpriseProvisioning({
+            ...body,
+            includedMonthlyCredits: dollarsToCredits(includedMonthlyDollars),
+            usageLimitCredits:
+              usageLimitDollars === undefined ? undefined : dollarsToCredits(usageLimitDollars),
+            requestedByEmail: actor.email ?? 'admin-api',
+            requestedByUserId: actor.id,
+          })
+        )
       )
     } catch (error) {
       if (error instanceof EnterpriseProvisioningError) return badRequestResponse(error.message)

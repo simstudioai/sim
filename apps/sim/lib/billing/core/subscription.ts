@@ -121,7 +121,15 @@ export async function syncSubscriptionPlan(
  * when you need the billing-side entitlement row that includes
  * past-due subscriptions. Returns `null` when there is no usable sub.
  */
-export async function getOrganizationSubscriptionUsable(organizationId: string) {
+interface GetOrganizationSubscriptionUsableOptions {
+  onError?: 'return-null' | 'throw'
+}
+
+export async function getOrganizationSubscriptionUsable(
+  organizationId: string,
+  options: GetOrganizationSubscriptionUsableOptions = {}
+) {
+  const { onError = 'return-null' } = options
   try {
     const [orgSub] = await db
       .select()
@@ -137,6 +145,9 @@ export async function getOrganizationSubscriptionUsable(organizationId: string) 
     return orgSub ?? null
   } catch (error) {
     logger.error('Error getting usable organization subscription', { error, organizationId })
+    if (onError === 'throw') {
+      throw error
+    }
     return null
   }
 }

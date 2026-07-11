@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SETTINGS_SECTION_REGISTRY,
+  WORKSPACE_SETTINGS_ITEMS,
+} from '@/components/settings/navigation'
+import {
   allNavigationItems,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -42,5 +46,23 @@ describe('unified settings navigation', () => {
       { id: 'admin', label: 'Admin', section: 'superuser' },
       { id: 'mothership', label: 'Mothership', section: 'superuser' },
     ])
+  })
+
+  it('derives every unified item from exactly one registry entry', () => {
+    expect(allNavigationItems).toHaveLength(SETTINGS_SECTION_REGISTRY.length)
+    for (const item of allNavigationItems) {
+      expect(
+        SETTINGS_SECTION_REGISTRY.filter(({ unified }) => unified.id === item.id)
+      ).toHaveLength(1)
+    }
+  })
+
+  it('shares labels, icons, and docs links with plane projections', () => {
+    const unifiedForks = allNavigationItems.find(({ id }) => id === 'forks')
+    const workspaceForks = WORKSPACE_SETTINGS_ITEMS.find(({ id }) => id === 'forks')
+
+    expect(workspaceForks?.label).toBe(unifiedForks?.label)
+    expect(workspaceForks?.icon).toBe(unifiedForks?.icon)
+    expect(workspaceForks?.docsLink).toBe(unifiedForks?.docsLink)
   })
 })

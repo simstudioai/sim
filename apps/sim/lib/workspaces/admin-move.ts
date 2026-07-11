@@ -16,6 +16,7 @@ import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, asc, count, eq, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
+import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById } from '@/lib/invitations/core'
@@ -249,6 +250,13 @@ export async function moveWorkspaceToOrganization(params: {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       result = await db.transaction(async (tx) => {
+        await tx
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(eq(workspace.id, params.workspaceId))
+          .orderBy(asc(workspace.id))
+          .for('update')
+
         // Acceptance takes invitation/workspace locks before the organization
         // lock. Use the identical order here so a concurrent accept and move
         // cannot wait on one another in opposite directions.
@@ -317,12 +325,20 @@ export async function moveWorkspaceToOrganization(params: {
           await enqueueOutboxEvent(tx, MIGRATED_INVITATION_EMAIL_EVENT_TYPE, { invitationId })
         }
 
+        await changeWorkspaceStoragePayerInTx(tx, {
+          workspaceId: params.workspaceId,
+          organizationId: params.destinationOrganizationId,
+          billedAccountUserId: destination.ownerId,
+          expectedCurrentPayer: {
+            organizationId: workspaceRow.organizationId,
+            billedAccountUserId: workspaceRow.billedAccountUserId,
+          },
+        })
+
         await tx
           .update(workspace)
           .set({
-            organizationId: params.destinationOrganizationId,
             workspaceMode: WORKSPACE_MODE.ORGANIZATION,
-            billedAccountUserId: destination.ownerId,
             organizationAssignedAt: now,
             updatedAt: now,
           })
@@ -615,7 +631,6 @@ async function migratePendingInvitations(
     const existingDestination = await findPendingInvitationForScope(tx, {
       email: source.email,
       organizationId: params.destinationOrganizationId,
-      membershipIntent: source.membershipIntent,
       excludeInvitationId: source.id,
     })
     const partition = partitionInvitationGrantsForWorkspaceMove({
@@ -655,7 +670,6 @@ async function migratePendingInvitations(
         const sibling = await findPendingInvitationForScope(tx, {
           email: source.email,
           organizationId,
-          membershipIntent: source.membershipIntent,
           excludeInvitationId: source.id,
         })
         const siblingId =
@@ -712,13 +726,12 @@ async function findPendingInvitationForScope(
   params: {
     email: string
     organizationId: string | null
-    membershipIntent: 'internal' | 'external'
     excludeInvitationId: string
   }
 ) {
-  const scope = params.organizationId
-    ? eq(invitation.organizationId, params.organizationId)
-    : isNull(invitation.organizationId)
+  // Membership intent is deliberately not part of destination identity. A
+  // same-email invite for the same organization is one pending claim; merging
+  // promotes internal intent and the strongest role via mergeInvitationIntent.
   const [row] = await tx
     .select({
       id: invitation.id,
@@ -726,18 +739,26 @@ async function findPendingInvitationForScope(
       role: invitation.role,
     })
     .from(invitation)
-    .where(
-      and(
-        sql`lower(${invitation.email}) = ${normalizeEmail(params.email)}`,
-        eq(invitation.status, 'pending'),
-        eq(invitation.membershipIntent, params.membershipIntent),
-        ne(invitation.id, params.excludeInvitationId),
-        scope
-      )
-    )
+    .where(buildPendingInvitationMergeScopeCondition(params))
     .orderBy(invitation.createdAt)
     .limit(1)
   return row ?? null
+}
+
+export function buildPendingInvitationMergeScopeCondition(params: {
+  email: string
+  organizationId: string | null
+  excludeInvitationId: string
+}) {
+  const scope = params.organizationId
+    ? eq(invitation.organizationId, params.organizationId)
+    : isNull(invitation.organizationId)
+  return and(
+    sql`lower(${invitation.email}) = ${normalizeEmail(params.email)}`,
+    eq(invitation.status, 'pending'),
+    ne(invitation.id, params.excludeInvitationId),
+    scope
+  )
 }
 
 async function mergeInvitationIntent(

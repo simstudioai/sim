@@ -1,9 +1,6 @@
 import type { Span } from '@opentelemetry/api'
-import { db } from '@sim/db'
-import { workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
@@ -18,9 +15,9 @@ import {
   type CopilotBillingProtocol,
   requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
+  resolveLegacyV0BillingAttribution,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
-import { getCachedBillingAttribution } from '@/lib/billing/core/billing-attribution-cache'
 import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
@@ -30,6 +27,7 @@ import {
 import {
   checkAndBillOverageThreshold,
   checkAndBillPayerOverageThreshold,
+  ThresholdSettlementError,
 } from '@/lib/billing/threshold-billing'
 import { BILLING_CALLBACK_OUTCOME } from '@/lib/copilot/generated/billing-protocol-v1'
 import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -37,11 +35,15 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isBillingEnabled, isCopilotBillingAttributionV1Enabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isCopilotBillingProtocolRequired } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingUpdateCostAPI')
+const RETRYABLE_SETTLEMENT_RESPONSE = {
+  code: 'BILLING_SETTLEMENT_RETRYABLE',
+  error: 'Billing settlement temporarily unavailable',
+} as const
 
 function invalidBillingProtocolResponse(requestId: string, span: Span): NextResponse {
   span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
@@ -56,35 +58,13 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
   )
 }
 
-/**
- * Resolves the request-supplied workspace to one that exists in this
- * deployment. Workspace attribution on the usage ledger is best-effort:
- * self-hosted and headless clients bill through this endpoint with workspace
- * IDs from their own databases, and `usage_log.workspace_id` carries an FK to
- * `workspace`, so stamping a foreign ID would fail the entire flush with an
- * FK violation and strand real cost in the caller's dead-letter queue.
- * Unknown workspaces are recorded without local workspace attribution because
- * this deployment cannot resolve their payer. Direct-v1 account callbacks do
- * not call this helper at all: their self-hosted workspace is not hosted payer
- * identity.
- */
-async function resolveAttributableWorkspaceId(
-  requestId: string,
-  workspaceId: string | undefined
-): Promise<string | undefined> {
-  if (!workspaceId) return undefined
-
-  const [row] = await db
-    .select({ id: workspace.id })
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .limit(1)
-  if (row) return row.id
-
-  logger.warn(`[${requestId}] Workspace not found in this deployment; recording unattributed`, {
-    workspaceId,
-  })
-  return undefined
+function getBillingResolution(
+  isMarkerlessLegacy: boolean,
+  billingAttribution: BillingAttributionSnapshot | undefined
+): 'callback-time-mutable-workspace' | 'callback-time-mutable-account' | 'immutable-envelope' {
+  if (!isMarkerlessLegacy) return 'immutable-envelope'
+  if (billingAttribution) return 'callback-time-mutable-workspace'
+  return 'callback-time-mutable-account'
 }
 
 /**
@@ -183,12 +163,11 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     const billingRequestId = parsed.data.headers?.[BILLING_REQUEST_ID_HEADER]
     const suppliedAttributionHeader = parsed.data.headers?.[BILLING_ATTRIBUTION_HEADER]
     const suppliedAccountDecisionHeader = parsed.data.headers?.[BILLING_ACCOUNT_DECISION_HEADER]
-    const protocol: CopilotBillingProtocol | undefined =
-      requestedProtocol ??
-      (isCopilotBillingAttributionV1Enabled ? undefined : COPILOT_BILLING_PROTOCOL.legacy)
-    if (!protocol) {
+    const isMarkerlessLegacy = requestedProtocol === undefined
+    if (isMarkerlessLegacy && isCopilotBillingProtocolRequired) {
       return invalidBillingProtocolResponse(requestId, span)
     }
+    const protocol: CopilotBillingProtocol = requestedProtocol ?? COPILOT_BILLING_PROTOCOL.legacy
 
     const isModernProtocol =
       protocol === COPILOT_BILLING_PROTOCOL.attributed ||
@@ -199,6 +178,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       (isModernProtocol &&
         (!billingRequestId || !idempotencyKey || billingRequestId !== idempotencyKey)) ||
       (protocol === COPILOT_BILLING_PROTOCOL.legacy && billingRequestId) ||
+      (isMarkerlessLegacy &&
+        Boolean(billingRequestId || suppliedAttributionHeader || suppliedAccountDecisionHeader)) ||
       (isAttributedProtocol && !suppliedAttributionHeader) ||
       (isDirectProtocol && !suppliedAccountDecisionHeader) ||
       (isDirectProtocol && Boolean(suppliedAttributionHeader)) ||
@@ -245,12 +226,21 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       return invalidBillingProtocolResponse(requestId, span)
     }
 
-    const attributionCacheKey =
-      protocol === COPILOT_BILLING_PROTOCOL.legacy ? idempotencyKey : undefined
-    const cachedBillingAttribution = attributionCacheKey
-      ? await getCachedBillingAttribution(attributionCacheKey)
-      : undefined
-    const billingAttribution = suppliedBillingAttribution ?? cachedBillingAttribution
+    let billingAttribution = suppliedBillingAttribution
+    /**
+     * Old Go creates its random idempotency key after admission and returns no
+     * protocol or payer envelope. The markerless legacy-v0 path therefore
+     * re-resolves a locally known workspace at callback time. This mutable
+     * compatibility semantic is intentionally unreachable from modern
+     * attributed-v1/direct-v1 callbacks.
+     */
+    if (isMarkerlessLegacy && workspaceId) {
+      billingAttribution =
+        (await resolveLegacyV0BillingAttribution({
+          actorUserId: userId,
+          workspaceId,
+        })) ?? undefined
+    }
     const accountDecision = suppliedAccountDecision
     if (isAttributedProtocol && !billingAttribution) {
       throw new Error(`Immutable ${protocol} billing attribution is missing`)
@@ -280,12 +270,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       }
     }
 
-    const resolvedWorkspaceId = isDirectProtocol
-      ? undefined
-      : await resolveAttributableWorkspaceId(
-          requestId,
-          workspaceId ?? billingAttribution?.workspaceId
-        )
+    const resolvedWorkspaceId = isDirectProtocol ? undefined : billingAttribution?.workspaceId
     const billingContext = billingAttribution
       ? toBillingContext(billingAttribution)
       : accountDecision
@@ -297,6 +282,14 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
             },
           }
         : undefined
+
+    logger.info(`[${requestId}] Billing payer resolved`, {
+      userId,
+      billingProtocol: protocol,
+      billingResolution: getBillingResolution(isMarkerlessLegacy, billingAttribution),
+      billingPayer: billingContext?.billingEntity ?? { type: 'user', id: userId },
+      workspaceId: resolvedWorkspaceId,
+    })
 
     // Go sends the request's CUMULATIVE cost, possibly more than once (a
     // mid-loop provider-error flush, then the recovered terminal flush, plus
@@ -356,6 +349,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     if (billingContext) {
       await checkAndBillPayerOverageThreshold(billingContext.billingEntity, {
         onError: 'throw',
+        expectedBillingPeriod: billingContext.billingPeriod,
       })
     } else {
       await checkAndBillOverageThreshold(userId, undefined, { onError: 'throw' })
@@ -427,6 +421,31 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       )
     }
 
+    if (error instanceof ThresholdSettlementError) {
+      logger.error(`[${requestId}] Retryable threshold settlement failure`, {
+        settlementErrorCode: error.code,
+        retryable: error.retryable,
+        duration,
+        billingProtocol:
+          req.headers.get(COPILOT_BILLING_PROTOCOL_HEADER) ?? COPILOT_BILLING_PROTOCOL.legacy,
+      })
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InternalError)
+      span.setAttribute(TraceAttr.HttpStatusCode, 503)
+      span.setAttribute(TraceAttr.BillingDurationMs, duration)
+      return NextResponse.json(
+        {
+          success: false,
+          ...RETRYABLE_SETTLEMENT_RESPONSE,
+          retryable: true,
+          requestId,
+        },
+        {
+          status: 503,
+          headers: { 'Retry-After': '1' },
+        }
+      )
+    }
+
     // Surface the underlying Postgres failure (e.g. 23503 FK violation vs a
     // lock timeout) — Drizzle's "Failed query" wrapper alone cannot
     // distinguish them, which made the dead-workspace incident undiagnosable
@@ -439,6 +458,9 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       ...(pgConstraint && { pgConstraint }),
       stack: error instanceof Error ? error.stack : undefined,
       duration,
+      billingProtocol:
+        req.headers.get(COPILOT_BILLING_PROTOCOL_HEADER) ?? COPILOT_BILLING_PROTOCOL.legacy,
+      billingResolution: isMarkerlessLegacy ? 'callback-time-mutable' : 'immutable-envelope',
     })
 
     // The cumulative top-up runs in a single transaction (and a plain append is

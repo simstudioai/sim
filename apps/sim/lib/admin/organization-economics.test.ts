@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  creditGrantDollars,
   getOrganizationUsageLimitFallbackDollars,
   getTeamOrganizationEconomics,
 } from '@/lib/admin/organization-economics'
@@ -9,7 +8,7 @@ describe('getTeamOrganizationEconomics', () => {
   it('derives the pooled Pro allowance and invoice from internal seats', () => {
     expect(getTeamOrganizationEconomics('team_6000', 3)).toEqual({
       seats: 3,
-      includedMonthlyCredits: 18_000,
+      includedMonthlyDollars: 90,
       monthlyInvoiceAmountUsd: 75,
     })
   })
@@ -17,7 +16,7 @@ describe('getTeamOrganizationEconomics', () => {
   it('derives the pooled Max allowance and invoice from internal seats', () => {
     expect(getTeamOrganizationEconomics('team_25000', 2)).toEqual({
       seats: 2,
-      includedMonthlyCredits: 50_000,
+      includedMonthlyDollars: 250,
       monthlyInvoiceAmountUsd: 200,
     })
   })
@@ -32,8 +31,8 @@ describe('getOrganizationUsageLimitFallbackDollars', () => {
     expect(
       getOrganizationUsageLimitFallbackDollars({
         creditBalanceDollarsBeforeGrant: '0.001',
-        includedCredits: 0,
-        configuredUsageLimitCredits: 0,
+        includedDollars: 0,
+        configuredUsageLimitDollars: 0,
       })
     ).toBe('0.001')
   })
@@ -42,13 +41,9 @@ describe('getOrganizationUsageLimitFallbackDollars', () => {
     expect(
       getOrganizationUsageLimitFallbackDollars({
         creditBalanceDollarsBeforeGrant: '1.259567',
-        includedCredits: 1000,
-        configuredUsageLimitCredits: 20_000,
+        includedDollars: 5,
+        configuredUsageLimitDollars: 100,
       })
     ).toBe('101.259567')
-  })
-
-  it('derives the exact stored dollar delta for integer credits', () => {
-    expect(creditGrantDollars(1)).toBe('0.005')
   })
 })

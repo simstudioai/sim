@@ -96,7 +96,7 @@ const SOURCE = { id: 'src-ws', name: 'Parent' } as never
 const POLICY = {
   organizationId: null,
   workspaceMode: 'personal',
-  billedAccountUserId: null,
+  billedAccountUserId: 'user-1',
 } as never
 
 function forkParams(selection?: {
@@ -173,7 +173,11 @@ describe('createFork storage headroom gate', () => {
       createFork(forkParams({ files: ['wf-1'], knowledgeBases: ['kb-1'] }))
     ).rejects.toThrow('Not enough storage to copy the selected resources')
 
-    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({ userId: 'user-1', bytes: 999_999 })
+    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({
+      plannedWorkspaceId: expect.any(String),
+      creationPolicy: POLICY,
+      bytes: 999_999,
+    })
     // Nothing was read, created, or recorded: the fork failed before all of it.
     expect(mockLoadSourceDeployedStates).not.toHaveBeenCalled()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
@@ -191,7 +195,11 @@ describe('createFork storage headroom gate', () => {
       fileIds: ['wf-1'],
       knowledgeBaseIds: ['kb-1'],
     })
-    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({ userId: 'user-1', bytes: 500 })
+    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({
+      plannedWorkspaceId: expect.any(String),
+      creationPolicy: POLICY,
+      bytes: 500,
+    })
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
   })
 

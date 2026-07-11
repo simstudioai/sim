@@ -24,10 +24,10 @@ import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
+  applyStorageUsageDeltasInTx,
   checkAndIncrementStorageUsageInTx,
+  checkStorageQuota,
   checkStorageQuotaForBillingContext,
-  decrementStorageUsageForBillingContextInTx,
-  decrementStorageUsageInTx,
   incrementStorageUsageForBillingContextInTx,
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
@@ -69,7 +69,11 @@ import {
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { deleteFileMetadata, getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
+import {
+  deleteFileMetadata,
+  type FileMetadataRecord,
+  getFileMetadataByKeys,
+} from '@/lib/uploads/server/metadata'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { processDocument as processDocumentTask } from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
@@ -111,7 +115,7 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   kbUserId: string,
   requestId: string,
   executor: DbExecutor = db
-): Promise<void> {
+): Promise<Map<string, FileMetadataRecord>> {
   const keys = [
     ...new Set(
       fileUrls
@@ -120,7 +124,7 @@ async function assertKnowledgeBaseFileUrlsOwnership(
     ),
   ]
   if (keys.length === 0) {
-    return
+    return new Map()
   }
 
   // Read bindings on the caller's transaction so the security check shares the
@@ -158,6 +162,8 @@ async function assertKnowledgeBaseFileUrlsOwnership(
       throw new KnowledgeBaseFileOwnershipError(key)
     }
   }
+
+  return bindingByKey
 }
 
 const TIMEOUTS = {
@@ -170,6 +176,8 @@ const LARGE_DOC_CONFIG = {
   MAX_FILE_SIZE: 100 * 1024 * 1024,
   MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
+
+const HARD_DELETE_DOCUMENT_BATCH_SIZE = 250
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -984,48 +992,99 @@ interface DocumentStorageNotification {
   readonly updatedUsage: number
 }
 
+interface DocumentStorageAdmission {
+  readonly workspaceId: string | null
+  readonly knowledgeBaseUserId: string
+  readonly billing?: DocumentStorageBilling
+}
+
 /**
- * Resolves and checks one document-write storage payer. Workspace documents
- * use only the workspace-selected payer; workspace-less legacy documents retain
- * their account-scoped behavior.
+ * Uses trusted file metadata for a KB object size when that metadata already
+ * exists. External/data URLs and legacy unbound objects retain the caller's
+ * size; this path deliberately does not add provider HEAD requests.
  */
-async function prepareDocumentStorageBilling(
-  workspaceId: string | null,
-  legacyUserId: string,
-  bytes: number,
-  legacySub: HighestPrioritySubscription | null
-): Promise<DocumentStorageBilling> {
-  if (workspaceId) {
-    const context = await resolveStorageBillingContext(workspaceId)
+function getServerKnownDocumentSize(
+  fileUrl: string,
+  fallbackSize: number,
+  bindingByKey: ReadonlyMap<string, FileMetadataRecord>
+): number {
+  const storageKey = getKnowledgeBaseStorageKey(fileUrl)
+  return storageKey ? (bindingByKey.get(storageKey)?.size ?? fallbackSize) : fallbackSize
+}
+
+/**
+ * Resolves server-known KB object sizes outside the insertion transaction.
+ */
+async function resolveServerKnownDocumentSizes<
+  T extends { readonly fileUrl: string; readonly fileSize: number },
+>(documents: readonly T[]): Promise<Array<T & { fileSize: number }>> {
+  const keys = [
+    ...new Set(
+      documents
+        .map((docData) => getKnowledgeBaseStorageKey(docData.fileUrl))
+        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
+    ),
+  ]
+  const bindings = keys.length > 0 ? await getFileMetadataByKeys(keys, 'knowledge-base') : []
+  const bindingByKey = new Map(bindings.map((binding) => [binding.key, binding]))
+  return documents.map((docData) => ({
+    ...docData,
+    fileSize: getServerKnownDocumentSize(docData.fileUrl, docData.fileSize, bindingByKey),
+  }))
+}
+
+/**
+ * Resolves storage admission before opening the short document transaction.
+ * The transaction revalidates the locked KB ownership snapshot and the
+ * workspace helper atomically rechecks quota while applying both ledgers.
+ */
+async function resolveDocumentStorageAdmission(
+  knowledgeBaseId: string,
+  uploadedBy: string | null,
+  bytes: number
+): Promise<DocumentStorageAdmission> {
+  const [kb] = await db
+    .select({
+      workspaceId: knowledgeBase.workspaceId,
+      userId: knowledgeBase.userId,
+    })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+  if (!kb) {
+    throw new Error('Knowledge base not found')
+  }
+
+  if (bytes <= 0) {
+    return { workspaceId: kb.workspaceId, knowledgeBaseUserId: kb.userId }
+  }
+
+  const billedUserId = uploadedBy ?? kb.userId
+  if (kb.workspaceId) {
+    const context = await resolveStorageBillingContext(kb.workspaceId)
     const quotaCheck = await checkStorageQuotaForBillingContext(context, bytes)
     if (!quotaCheck.allowed) {
       throw new Error(quotaCheck.error || 'Storage limit exceeded')
     }
-    return { context, bytes }
+    return {
+      workspaceId: kb.workspaceId,
+      knowledgeBaseUserId: kb.userId,
+      billing: { context, bytes },
+    }
   }
 
-  return { userId: legacyUserId, bytes, sub: legacySub }
-}
-
-/**
- * Resolves the subscription to bill for a storage-metered upload before the
- * document transaction opens.
- */
-async function resolveQuotaSubscription(
-  knowledgeBaseId: string,
-  uploadedBy: string | null
-): Promise<HighestPrioritySubscription | null> {
-  const billedUserId =
-    uploadedBy ??
-    (
-      await db
-        .select({ userId: knowledgeBase.userId })
-        .from(knowledgeBase)
-        .where(eq(knowledgeBase.id, knowledgeBaseId))
-        .limit(1)
-    )[0]?.userId
-
-  return billedUserId ? getHighestPrioritySubscription(billedUserId) : null
+  const [quotaCheck, sub] = await Promise.all([
+    checkStorageQuota(billedUserId, bytes),
+    getHighestPrioritySubscription(billedUserId),
+  ])
+  if (!quotaCheck.allowed) {
+    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+  }
+  return {
+    workspaceId: null,
+    knowledgeBaseUserId: kb.userId,
+    billing: { userId: billedUserId, bytes, sub },
+  }
 }
 
 export async function createDocumentRecords(
@@ -1047,8 +1106,9 @@ export async function createDocumentRecords(
   requestId: string,
   uploadedBy: string | null = null
 ): Promise<DocumentData[]> {
-  const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
-  const sub = totalBytes > 0 ? await resolveQuotaSubscription(knowledgeBaseId, uploadedBy) : null
+  const resolvedDocuments = await resolveServerKnownDocumentSizes(documents)
+  const totalBytes = resolvedDocuments.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
+  const admission = await resolveDocumentStorageAdmission(knowledgeBaseId, uploadedBy, totalBytes)
 
   const { returnData, storageNotification } = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
@@ -1069,23 +1129,36 @@ export async function createDocumentRecords(
       throw new Error('Knowledge base not found')
     }
 
+    if (
+      kb[0].workspaceId !== admission.workspaceId ||
+      kb[0].userId !== admission.knowledgeBaseUserId
+    ) {
+      throw new Error(
+        'Knowledge base storage ownership changed; retry with fresh storage admission'
+      )
+    }
+
     const kbWorkspaceId = kb[0].workspaceId
-    await assertKnowledgeBaseFileUrlsOwnership(
-      documents.map((docData) => docData.fileUrl),
+    const bindingByKey = await assertKnowledgeBaseFileUrlsOwnership(
+      resolvedDocuments.map((docData) => docData.fileUrl),
       kbWorkspaceId,
       kb[0].userId,
       requestId,
       tx
     )
-
-    const billedUserId = uploadedBy ?? kb[0].userId
-    if (totalBytes > 0) {
-      const preparedBilling = await prepareDocumentStorageBilling(
-        kbWorkspaceId,
-        billedUserId,
-        totalBytes,
-        sub
+    for (const docData of resolvedDocuments) {
+      const currentSize = getServerKnownDocumentSize(
+        docData.fileUrl,
+        docData.fileSize,
+        bindingByKey
       )
+      if (currentSize !== docData.fileSize) {
+        throw new Error('Knowledge base file metadata changed; retry document insertion')
+      }
+    }
+
+    if (admission.billing) {
+      const preparedBilling = admission.billing
       if ('context' in preparedBilling) {
         const updatedUsage = await incrementStorageUsageForBillingContextInTx(
           tx,
@@ -1109,7 +1182,7 @@ export async function createDocumentRecords(
     }
 
     // One load per batch (was N+1); skip entirely if no doc carries tags.
-    const hasTaggedDocs = documents.some((d) => d.documentTagsData)
+    const hasTaggedDocs = resolvedDocuments.some((d) => d.documentTagsData)
     const tagDefinitions = hasTaggedDocs
       ? await loadTagDefinitions(knowledgeBaseId, tx)
       : (new Map() as TagDefinitionsByName)
@@ -1118,7 +1191,7 @@ export async function createDocumentRecords(
     const documentRecords = []
     const returnData: DocumentData[] = []
 
-    for (const docData of documents) {
+    for (const docData of resolvedDocuments) {
       const documentId = generateId()
 
       let processedTags: Partial<ProcessedDocumentTags> = {}
@@ -1469,6 +1542,12 @@ export async function createSingleDocument(
 }> {
   const documentId = generateId()
   const now = new Date()
+  const [resolvedDocumentData] = await resolveServerKnownDocumentSizes([documentData])
+  const admission = await resolveDocumentStorageAdmission(
+    knowledgeBaseId,
+    uploadedBy,
+    resolvedDocumentData.fileSize
+  )
 
   let processedTags: ProcessedDocumentTags = {
     tag1: documentData.tag1 ?? null,
@@ -1509,11 +1588,11 @@ export async function createSingleDocument(
   const newDocument = {
     id: documentId,
     knowledgeBaseId,
-    filename: documentData.filename,
-    fileUrl: documentData.fileUrl,
-    storageKey: getKnowledgeBaseStorageKey(documentData.fileUrl),
-    fileSize: documentData.fileSize,
-    mimeType: documentData.mimeType,
+    filename: resolvedDocumentData.filename,
+    fileUrl: resolvedDocumentData.fileUrl,
+    storageKey: getKnowledgeBaseStorageKey(resolvedDocumentData.fileUrl),
+    fileSize: resolvedDocumentData.fileSize,
+    mimeType: resolvedDocumentData.mimeType,
     chunkCount: 0,
     tokenCount: 0,
     characterCount: 0,
@@ -1522,9 +1601,6 @@ export async function createSingleDocument(
     uploadedBy,
     ...processedTags,
   }
-
-  const sub =
-    documentData.fileSize > 0 ? await resolveQuotaSubscription(knowledgeBaseId, uploadedBy) : null
 
   const storageNotification = await db.transaction(async (tx) => {
     let storageNotification: DocumentStorageNotification | null = null
@@ -1545,22 +1621,33 @@ export async function createSingleDocument(
       throw new Error('Knowledge base not found')
     }
 
-    await assertKnowledgeBaseFileUrlsOwnership(
-      [documentData.fileUrl],
+    if (
+      kb[0].workspaceId !== admission.workspaceId ||
+      kb[0].userId !== admission.knowledgeBaseUserId
+    ) {
+      throw new Error(
+        'Knowledge base storage ownership changed; retry with fresh storage admission'
+      )
+    }
+
+    const bindingByKey = await assertKnowledgeBaseFileUrlsOwnership(
+      [resolvedDocumentData.fileUrl],
       kb[0].workspaceId,
       kb[0].userId,
       requestId,
       tx
     )
+    const currentSize = getServerKnownDocumentSize(
+      resolvedDocumentData.fileUrl,
+      resolvedDocumentData.fileSize,
+      bindingByKey
+    )
+    if (currentSize !== resolvedDocumentData.fileSize) {
+      throw new Error('Knowledge base file metadata changed; retry document insertion')
+    }
 
-    const billedUserId = uploadedBy ?? kb[0].userId
-    if (documentData.fileSize > 0) {
-      const preparedBilling = await prepareDocumentStorageBilling(
-        kb[0].workspaceId,
-        billedUserId,
-        documentData.fileSize,
-        sub
-      )
+    if (admission.billing) {
+      const preparedBilling = admission.billing
       if ('context' in preparedBilling) {
         const updatedUsage = await incrementStorageUsageForBillingContextInTx(
           tx,
@@ -2245,9 +2332,26 @@ export async function hardDeleteDocuments(
     return 0
   }
 
+  let deletedCount = 0
+  for (let offset = 0; offset < ids.length; offset += HARD_DELETE_DOCUMENT_BATCH_SIZE) {
+    deletedCount += await hardDeleteDocumentBatch(
+      ids.slice(offset, offset + HARD_DELETE_DOCUMENT_BATCH_SIZE),
+      requestId
+    )
+  }
+  return deletedCount
+}
+
+/**
+ * Hard-deletes one bounded metadata batch and applies every associated ledger
+ * delta atomically.
+ */
+async function hardDeleteDocumentBatch(documentIds: string[], requestId: string): Promise<number> {
+  const ids = [...new Set(documentIds)]
   const documentsToDelete = await db
     .select({
       id: document.id,
+      knowledgeBaseId: document.knowledgeBaseId,
       fileUrl: document.fileUrl,
       fileSize: document.fileSize,
       uploadedBy: document.uploadedBy,
@@ -2296,6 +2400,38 @@ export async function hardDeleteDocuments(
    */
   let deletedDocs: typeof documentsToDelete = []
   await db.transaction(async (tx) => {
+    /**
+     * Lock every parent KB in stable ID order before deleting document rows.
+     * Normal inserts and KB moves take the same parent lock first, so the
+     * workspace snapshots used for accounting cannot change mid-delete.
+     */
+    const knowledgeBaseIds = [
+      ...new Set(documentsToDelete.map((doc) => doc.knowledgeBaseId)),
+    ].sort()
+    const lockedKnowledgeBases = await tx
+      .select({
+        id: knowledgeBase.id,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
+      .from(knowledgeBase)
+      .where(inArray(knowledgeBase.id, knowledgeBaseIds))
+      .orderBy(asc(knowledgeBase.id))
+      .for('update')
+    const lockedKnowledgeBaseById = new Map(lockedKnowledgeBases.map((kb) => [kb.id, kb]))
+    for (const doc of documentsToDelete) {
+      const lockedKb = lockedKnowledgeBaseById.get(doc.knowledgeBaseId)
+      if (
+        !lockedKb ||
+        lockedKb.workspaceId !== doc.workspaceId ||
+        lockedKb.userId !== doc.kbUserId
+      ) {
+        throw new Error(
+          `Knowledge base ${doc.knowledgeBaseId} storage ownership changed; retry document deletion`
+        )
+      }
+    }
+
     await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
     const deletedRows = await tx
       .delete(document)
@@ -2320,16 +2456,24 @@ export async function hardDeleteDocuments(
       if (!billedUserId) continue
       legacyBytesByUser.set(billedUserId, (legacyBytesByUser.get(billedUserId) ?? 0) + doc.fileSize)
     }
-    for (const [workspaceId, bytes] of bytesByWorkspace) {
-      const context = storageContextByWorkspace.get(workspaceId)
-      if (!context) {
-        throw new Error(`Missing storage billing context for workspace ${workspaceId}`)
-      }
-      await decrementStorageUsageForBillingContextInTx(tx, context, bytes)
-    }
-    for (const [billedUserId, bytes] of legacyBytesByUser) {
-      await decrementStorageUsageInTx(tx, subByUser.get(billedUserId) ?? null, billedUserId, bytes)
-    }
+    await applyStorageUsageDeltasInTx(tx, {
+      workspaceDeltas: [...bytesByWorkspace.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([workspaceId, bytes]) => {
+          const context = storageContextByWorkspace.get(workspaceId)
+          if (!context) {
+            throw new Error(`Missing storage billing context for workspace ${workspaceId}`)
+          }
+          return { context, deltaBytes: -bytes }
+        }),
+      legacyDeltas: [...legacyBytesByUser.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([userId, bytes]) => ({
+          userId,
+          subscription: subByUser.get(userId) ?? null,
+          deltaBytes: -bytes,
+        })),
+    })
   })
 
   await deleteDocumentStorageFiles(deletedDocs, requestId)

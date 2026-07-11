@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { userStats, workspace } from '@sim/db/schema'
+import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
@@ -20,7 +20,6 @@ import {
 import {
   getOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageLimit,
-  getOrgMemberWorkspaceUsage,
 } from '@/lib/billing/organizations/member-limits'
 import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
@@ -503,49 +502,6 @@ async function evaluateOrganizationMemberUsageLimit(
     message: isExceeded
       ? `Member credit limit exceeded: ${dollarsToCredits(usage).toLocaleString()} of ${dollarsToCredits(limit).toLocaleString()} credits used for this organization's workspaces. Ask an organization admin to raise your credit limit to continue.`
       : undefined,
-  }
-}
-
-/**
- * Resolves a workspace's organization and delegates to the exact organization
- * member-cap check. Retained for account-only callers that do not already hold
- * a billing attribution snapshot.
- */
-export async function checkOrgMemberUsageLimit(
-  userId: string,
-  workspaceId: string
-): Promise<{
-  isExceeded: boolean
-  currentUsage: number
-  limit: number | null
-  message?: string
-}> {
-  try {
-    if (!isHosted || !isBillingEnabled || !workspaceId) {
-      return { isExceeded: false, currentUsage: 0, limit: null }
-    }
-
-    const [workspaceRow] = await db
-      .select({ organizationId: workspace.organizationId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
-
-    const organizationId = workspaceRow?.organizationId
-    if (!organizationId) {
-      return { isExceeded: false, currentUsage: 0, limit: null }
-    }
-
-    return await evaluateOrganizationMemberUsageLimit(organizationId, userId, () =>
-      getOrgMemberWorkspaceUsage(organizationId, userId)
-    )
-  } catch (error) {
-    logger.error('Error resolving workspace organization for member usage limit', {
-      error: toError(error).message,
-      userId,
-      workspaceId,
-    })
-    return { isExceeded: false, currentUsage: 0, limit: null }
   }
 }
 

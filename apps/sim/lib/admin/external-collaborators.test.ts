@@ -53,7 +53,7 @@ describe('updateDashboardExternalCollaboratorUsageLimit', () => {
   it('sets a cap through the canonical organization usage-limit service', async () => {
     mocks.rows = [[], [{ userId: 'external-1' }]]
 
-    await updateDashboardExternalCollaboratorUsageLimit('org-1', 'external-1', 6000, actor)
+    await updateDashboardExternalCollaboratorUsageLimit('org-1', 'external-1', 30, actor)
 
     expect(mocks.acquireLock).toHaveBeenCalledWith(expect.anything(), 'org-1')
     expect(mocks.setLimit).toHaveBeenCalledWith(
@@ -67,7 +67,7 @@ describe('updateDashboardExternalCollaboratorUsageLimit', () => {
       expect.objectContaining({
         actorId: 'admin-1',
         resourceId: 'org-1',
-        metadata: { targetUserId: 'external-1', usageLimitCredits: 6000 },
+        metadata: { targetUserId: 'external-1', usageLimitDollars: 30 },
       })
     )
   })

@@ -23,7 +23,7 @@ import {
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 
 export type SettingsPlane = 'account' | 'organization' | 'workspace'
 
@@ -73,6 +73,106 @@ export interface SettingsNavigationItem<Section extends string = string> {
   group: string
   docsLink?: string
 }
+
+export type UnifiedSettingsSection =
+  | 'general'
+  | 'secrets'
+  | 'access-control'
+  | 'custom-blocks'
+  | 'audit-logs'
+  | 'apikeys'
+  | 'byok'
+  | 'billing'
+  | 'teammates'
+  | 'organization'
+  | 'sso'
+  | 'whitelabeling'
+  | 'copilot'
+  | 'forks'
+  | 'mcp'
+  | 'custom-tools'
+  | 'workflow-mcp-servers'
+  | 'inbox'
+  | 'admin'
+  | 'data-retention'
+  | 'data-drains'
+  | 'mothership'
+  | 'recently-deleted'
+
+export type UnifiedNavigationSection =
+  | 'account'
+  | 'subscription'
+  | 'tools'
+  | 'system'
+  | 'enterprise'
+  | 'superuser'
+
+export interface UnifiedSettingsNavigationItem {
+  id: UnifiedSettingsSection
+  label: string
+  description: string
+  icon: ComponentType<{ className?: string }>
+  section: UnifiedNavigationSection
+  hideWhenBillingDisabled?: boolean
+  requiresTeam?: boolean
+  requiresEnterprise?: boolean
+  requiresMax?: boolean
+  requiresHosted?: boolean
+  selfHostedOverride?: boolean
+  requiresSuperUser?: boolean
+  requiresAdminRole?: boolean
+  allowNonOrgAdmin?: boolean
+  showWhenLocked?: boolean
+  hideForEnterprise?: boolean
+  externalUrl?: string
+  docsLink?: string
+}
+
+interface UnifiedSettingsProjection
+  extends Omit<UnifiedSettingsNavigationItem, 'label' | 'icon' | 'section' | 'docsLink'> {
+  group: UnifiedNavigationSection
+}
+
+interface SettingsPlaneSectionMap {
+  account: AccountSettingsSection
+  organization: OrganizationSettingsSection
+  workspace: WorkspaceSettingsSection
+}
+
+interface SettingsPlaneProjection<Section extends string> {
+  id: Section
+  group: string
+  order: number
+  /** Plane-specific label, only when the surface's scope genuinely differs. */
+  label?: string
+  /** Plane-specific description, only when the surface's scope genuinely differs. */
+  description?: string
+}
+
+type SettingsPlaneProjections = {
+  readonly [Plane in SettingsPlane]?: SettingsPlaneProjection<SettingsPlaneSectionMap[Plane]>
+}
+
+export interface SettingsSectionRegistryEntry {
+  label: string
+  icon: ComponentType<{ className?: string }>
+  docsLink?: string
+  unified: UnifiedSettingsProjection
+  planes?: SettingsPlaneProjections
+}
+
+const SETTINGS_SELF_HOSTED_OVERRIDES = {
+  accessControl: isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED')),
+  auditLogs: isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED')),
+  customBlocks: isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED')),
+  dataDrains: isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED')),
+  dataRetention: isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED')),
+  inbox: isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED')),
+  sso: isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')),
+  whitelabeling: isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED')),
+} as const
+
+export const SETTINGS_NAVIGATION_BILLING_ENABLED = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 type SettingsHrefSearchParams = Pick<URLSearchParams, 'toString'>
 
@@ -181,290 +281,395 @@ export const WORKSPACE_SETTINGS_GROUPS = [
   { key: 'enterprise', title: 'Enterprise' },
 ] as const
 
-export const ACCOUNT_SETTINGS_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] = [
+export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] = [
   {
-    id: 'general',
     label: 'General',
-    description: 'Manage your profile, appearance, and preferences.',
     icon: Settings,
-    group: 'account',
+    unified: {
+      id: 'general',
+      description: 'Manage your profile, appearance, and preferences.',
+      group: 'account',
+    },
+    planes: {
+      account: { id: 'general', group: 'account', order: 0 },
+    },
   },
   {
-    id: 'billing',
-    label: 'Billing',
-    description: 'Manage your personal plan, usage, and invoices.',
-    icon: ClipboardList,
-    group: 'account',
-  },
-  {
-    id: 'api-keys',
-    label: 'Sim API keys',
-    description: 'Create and manage your personal Sim API keys.',
-    icon: TerminalWindow,
-    group: 'developer',
-  },
-  {
-    id: 'copilot',
-    label: 'Chat keys',
-    description: 'Manage the model-provider keys that power Chat.',
-    icon: HexSimple,
-    group: 'developer',
-  },
-  {
-    id: 'admin',
-    label: 'Admin',
-    description: 'Manage platform users and superuser preferences.',
-    icon: Lock,
-    group: 'platform',
-  },
-  {
-    id: 'mothership',
-    label: 'Mothership',
-    description: 'Manage internal operations and license settings.',
-    icon: Server,
-    group: 'platform',
-  },
-]
-
-export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSettingsSection>[] = [
-  {
-    id: 'members',
-    label: 'Members',
-    description: 'Manage organization members, roles, and seats.',
-    icon: Users,
-    group: 'organization',
-  },
-  {
-    id: 'billing',
-    label: 'Billing',
-    description: 'Manage the organization plan, usage, and invoices.',
-    icon: ClipboardList,
-    group: 'organization',
-  },
-  {
-    id: 'access-control',
     label: 'Access control',
-    description: 'Manage permission groups across the organization.',
     icon: ShieldCheck,
-    group: 'security',
     docsLink: 'https://docs.sim.ai/platform/enterprise/access-control',
+    unified: {
+      id: 'access-control',
+      description: 'Manage permission groups across your organization.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.accessControl,
+    },
+    planes: {
+      organization: { id: 'access-control', group: 'security', order: 2 },
+    },
   },
   {
-    id: 'audit-logs',
     label: 'Audit logs',
-    description: 'Review activity and changes across the organization.',
     icon: ClipboardList,
-    group: 'security',
     docsLink: 'https://docs.sim.ai/platform/enterprise/audit-logs',
+    unified: {
+      id: 'audit-logs',
+      description: 'Review activity and changes across your organization.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.auditLogs,
+    },
+    planes: {
+      organization: { id: 'audit-logs', group: 'security', order: 3 },
+    },
   },
   {
-    id: 'sso',
-    label: 'Single sign-on',
-    description: 'Configure single sign-on for the organization.',
-    icon: LogIn,
-    group: 'security',
-    docsLink: 'https://docs.sim.ai/platform/enterprise/sso',
-  },
-  {
-    id: 'data-retention',
-    label: 'Data retention',
-    description: 'Control retention windows and PII redaction.',
-    icon: Database,
-    group: 'enterprise',
-    docsLink: 'https://docs.sim.ai/platform/enterprise/data-retention',
-  },
-  {
-    id: 'data-drains',
-    label: 'Data drains',
-    description: 'Stream organization logs to external destinations.',
-    icon: Upload,
-    group: 'enterprise',
-    docsLink: 'https://docs.sim.ai/platform/enterprise/data-drains',
-  },
-  {
-    id: 'whitelabeling',
-    label: 'Whitelabeling',
-    description: 'Customize organization branding and appearance.',
-    icon: Palette,
-    group: 'enterprise',
-    docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
-  },
-]
-
-export const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsSection>[] = [
-  {
-    id: 'teammates',
-    label: 'Teammates',
-    description: 'View and manage teammates in this workspace.',
-    icon: User,
-    group: 'workspace',
-  },
-  {
-    id: 'secrets',
-    label: 'Secrets',
-    description: 'Store environment variables for your workflows.',
-    icon: Key,
-    group: 'workspace',
-  },
-  {
-    id: 'byok',
-    label: 'BYOK',
-    description: 'Manage workspace model-provider API keys.',
-    icon: KeySquare,
-    group: 'workspace',
-  },
-  {
-    id: 'custom-tools',
-    label: 'Custom tools',
-    description: 'Create and manage custom tools for your agents.',
-    icon: Wrench,
-    group: 'tools',
-  },
-  {
-    id: 'mcp',
-    label: 'MCP tools',
-    description: 'Connect MCP servers and use tools in workflows.',
-    icon: McpIcon,
-    group: 'tools',
-  },
-  {
-    id: 'workflow-mcp-servers',
-    label: 'MCP servers',
-    description: 'Expose workflows as tools on an MCP server.',
-    icon: Server,
-    group: 'tools',
-  },
-  {
-    id: 'api-keys',
-    label: 'Sim API keys',
-    description: 'Manage workspace API keys and personal-key policy.',
-    icon: TerminalWindow,
-    group: 'system',
-  },
-  {
-    id: 'inbox',
-    label: 'Sim mailer',
-    description: 'Configure incoming email for this workspace.',
-    icon: Send,
-    group: 'system',
-  },
-  {
-    id: 'recently-deleted',
-    label: 'Recently deleted',
-    description: 'Restore workspace items deleted in the last 30 days.',
-    icon: TrashOutline,
-    group: 'system',
-  },
-  {
-    id: 'forks',
-    label: 'Workspace forks',
-    description: 'Fork this workspace and synchronize changes.',
+    label: 'Workspace Forks',
     icon: Shuffle,
-    group: 'enterprise',
     docsLink: 'https://docs.sim.ai/platform/enterprise/forks',
+    unified: {
+      id: 'forks',
+      description: 'Fork this workspace and sync changes with its parent.',
+      group: 'enterprise',
+    },
+    planes: {
+      workspace: { id: 'forks', group: 'enterprise', order: 9 },
+    },
   },
   {
-    id: 'custom-blocks',
-    label: 'Custom blocks',
-    description: 'Publish workspace workflows as reusable blocks.',
+    label: 'Billing',
+    icon: ClipboardList,
+    unified: {
+      id: 'billing',
+      description: 'Manage your plan, pricing, and invoices.',
+      group: 'subscription',
+      hideWhenBillingDisabled: true,
+    },
+    planes: {
+      account: {
+        id: 'billing',
+        description: 'Manage your personal plan, usage, and invoices.',
+        group: 'account',
+        order: 1,
+      },
+      organization: {
+        id: 'billing',
+        description: 'Manage the organization plan, usage, and invoices.',
+        group: 'organization',
+        order: 1,
+      },
+    },
+  },
+  {
+    label: 'Teammates',
+    icon: User,
+    unified: {
+      id: 'teammates',
+      description: 'Manage your teammates in this workspace.',
+      group: 'subscription',
+    },
+    planes: {
+      workspace: { id: 'teammates', group: 'workspace', order: 0 },
+    },
+  },
+  {
+    label: 'Organization',
+    icon: Users,
+    unified: {
+      id: 'organization',
+      description: "Manage your organization's members and seats.",
+      group: 'subscription',
+      hideWhenBillingDisabled: true,
+      requiresHosted: true,
+      requiresTeam: true,
+    },
+    planes: {
+      organization: {
+        id: 'members',
+        label: 'Members',
+        description: 'Manage organization members, roles, and seats.',
+        group: 'organization',
+        order: 0,
+      },
+    },
+  },
+  {
+    label: 'Secrets',
+    icon: Key,
+    unified: {
+      id: 'secrets',
+      description: 'Store environment variables for your workflows.',
+      group: 'account',
+    },
+    planes: {
+      workspace: { id: 'secrets', group: 'workspace', order: 1 },
+    },
+  },
+  {
+    label: 'Custom tools',
+    icon: Wrench,
+    unified: {
+      id: 'custom-tools',
+      description: 'Create and manage custom tools for your agents.',
+      group: 'tools',
+    },
+    planes: {
+      workspace: { id: 'custom-tools', group: 'tools', order: 3 },
+    },
+  },
+  {
+    label: 'MCP tools',
+    icon: McpIcon,
+    unified: {
+      id: 'mcp',
+      description: 'Connect MCP servers and use their tools in workflows.',
+      group: 'tools',
+    },
+    planes: {
+      workspace: { id: 'mcp', group: 'tools', order: 4 },
+    },
+  },
+  {
+    label: 'Sim API keys',
+    icon: TerminalWindow,
+    unified: {
+      id: 'apikeys',
+      description: 'Create and manage API keys for the Sim API.',
+      group: 'system',
+    },
+    planes: {
+      account: {
+        id: 'api-keys',
+        description: 'Create and manage your personal Sim API keys.',
+        group: 'developer',
+        order: 2,
+      },
+      workspace: {
+        id: 'api-keys',
+        description: 'Manage workspace API keys and personal-key policy.',
+        group: 'system',
+        order: 6,
+      },
+    },
+  },
+  {
+    label: 'MCP servers',
+    icon: Server,
+    unified: {
+      id: 'workflow-mcp-servers',
+      description: 'Expose your workflows as tools on an MCP server.',
+      group: 'system',
+    },
+    planes: {
+      workspace: { id: 'workflow-mcp-servers', group: 'tools', order: 5 },
+    },
+  },
+  {
+    label: 'BYOK',
+    icon: KeySquare,
+    unified: {
+      id: 'byok',
+      description: 'Bring your own model-provider API keys.',
+      group: 'system',
+      requiresHosted: true,
+    },
+    planes: {
+      workspace: { id: 'byok', group: 'workspace', order: 2 },
+    },
+  },
+  {
+    label: 'Chat keys',
     icon: HexSimple,
-    group: 'enterprise',
-    docsLink: 'https://docs.sim.ai/platform/enterprise/custom-blocks',
+    unified: {
+      id: 'copilot',
+      description: 'Manage the model-provider keys that power Chat.',
+      group: 'system',
+      requiresHosted: true,
+    },
+    planes: {
+      account: { id: 'copilot', group: 'developer', order: 3 },
+    },
   },
-]
-
-interface LegacyAccountSettingsSection {
-  legacySection: string
-  plane: 'account'
-  section: AccountSettingsSection
-}
-
-interface LegacyOrganizationSettingsSection {
-  legacySection: string
-  plane: 'organization'
-  section: OrganizationSettingsSection
-}
-
-interface LegacyWorkspaceSettingsSection {
-  legacySection: string
-  plane: 'workspace'
-  section: WorkspaceSettingsSection
-}
-
-export type LegacySettingsSection =
-  | LegacyAccountSettingsSection
-  | LegacyOrganizationSettingsSection
-  | LegacyWorkspaceSettingsSection
-
-const LEGACY_TOP_LEVEL_WORKSPACE_SECTIONS = ['integrations', 'skills'] as const
-
-export function getLegacyTopLevelWorkspaceHref(
-  workspaceId: string,
-  legacySection: string
-): string | null {
-  const section = LEGACY_TOP_LEVEL_WORKSPACE_SECTIONS.find(
-    (candidate) => candidate === legacySection
-  )
-  return section ? `/workspace/${workspaceId}/${section}` : null
-}
-
-export const LEGACY_SETTINGS_SECTIONS: LegacySettingsSection[] = [
-  { legacySection: 'general', plane: 'account', section: 'general' },
-  { legacySection: 'billing', plane: 'organization', section: 'billing' },
-  { legacySection: 'subscription', plane: 'organization', section: 'billing' },
-  { legacySection: 'copilot', plane: 'account', section: 'copilot' },
-  { legacySection: 'admin', plane: 'account', section: 'admin' },
-  { legacySection: 'mothership', plane: 'account', section: 'mothership' },
-  { legacySection: 'organization', plane: 'organization', section: 'members' },
-  { legacySection: 'team', plane: 'organization', section: 'members' },
-  { legacySection: 'access-control', plane: 'organization', section: 'access-control' },
-  { legacySection: 'audit-logs', plane: 'organization', section: 'audit-logs' },
-  { legacySection: 'sso', plane: 'organization', section: 'sso' },
-  { legacySection: 'data-retention', plane: 'organization', section: 'data-retention' },
-  { legacySection: 'data-drains', plane: 'organization', section: 'data-drains' },
-  { legacySection: 'whitelabeling', plane: 'organization', section: 'whitelabeling' },
-  { legacySection: 'teammates', plane: 'workspace', section: 'teammates' },
-  { legacySection: 'secrets', plane: 'workspace', section: 'secrets' },
-  { legacySection: 'byok', plane: 'workspace', section: 'byok' },
-  { legacySection: 'custom-tools', plane: 'workspace', section: 'custom-tools' },
-  { legacySection: 'mcp', plane: 'workspace', section: 'mcp' },
   {
-    legacySection: 'workflow-mcp-servers',
-    plane: 'workspace',
-    section: 'workflow-mcp-servers',
+    label: 'Sim mailer',
+    icon: Send,
+    unified: {
+      id: 'inbox',
+      description: 'Trigger and process workflows from incoming email.',
+      group: 'system',
+      requiresMax: true,
+      requiresHosted: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.inbox,
+      showWhenLocked: true,
+    },
+    planes: {
+      workspace: { id: 'inbox', group: 'system', order: 7 },
+    },
   },
-  { legacySection: 'apikeys', plane: 'workspace', section: 'api-keys' },
-  { legacySection: 'inbox', plane: 'workspace', section: 'inbox' },
-  { legacySection: 'recently-deleted', plane: 'workspace', section: 'recently-deleted' },
-  { legacySection: 'forks', plane: 'workspace', section: 'forks' },
-  { legacySection: 'custom-blocks', plane: 'workspace', section: 'custom-blocks' },
+  {
+    label: 'Recently deleted',
+    icon: TrashOutline,
+    unified: {
+      id: 'recently-deleted',
+      description: 'Restore items deleted in the last 30 days.',
+      group: 'system',
+    },
+    planes: {
+      workspace: { id: 'recently-deleted', group: 'system', order: 8 },
+    },
+  },
+  {
+    label: 'Single sign-on',
+    icon: LogIn,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/sso',
+    unified: {
+      id: 'sso',
+      description: 'Configure single sign-on for your organization.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
+    },
+    planes: {
+      organization: { id: 'sso', group: 'security', order: 4 },
+    },
+  },
+  {
+    label: 'Data retention',
+    icon: Database,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/data-retention',
+    unified: {
+      id: 'data-retention',
+      description:
+        'Control data retention windows and PII redaction. Workspaces without an override inherit the organization defaults.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
+    },
+    planes: {
+      organization: { id: 'data-retention', group: 'enterprise', order: 5 },
+    },
+  },
+  {
+    label: 'Data drains',
+    icon: Upload,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/data-drains',
+    unified: {
+      id: 'data-drains',
+      description: 'Stream your logs and events to external destinations.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
+    },
+    planes: {
+      organization: { id: 'data-drains', group: 'enterprise', order: 6 },
+    },
+  },
+  {
+    label: 'Whitelabeling',
+    icon: Palette,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
+    unified: {
+      id: 'whitelabeling',
+      description: 'Customize your workspace branding and appearance.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,
+    },
+    planes: {
+      organization: { id: 'whitelabeling', group: 'enterprise', order: 7 },
+    },
+  },
+  {
+    label: 'Custom blocks',
+    icon: HexSimple,
+    docsLink: 'https://docs.sim.ai/platform/enterprise/custom-blocks',
+    unified: {
+      id: 'custom-blocks',
+      description: 'Publish workflows as reusable blocks for your organization.',
+      group: 'enterprise',
+      requiresHosted: true,
+      requiresEnterprise: true,
+      allowNonOrgAdmin: true,
+      selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.customBlocks,
+    },
+    planes: {
+      workspace: { id: 'custom-blocks', group: 'enterprise', order: 10 },
+    },
+  },
+  {
+    label: 'Admin',
+    icon: Lock,
+    unified: {
+      id: 'admin',
+      description: 'Superuser administration and workspace tools.',
+      group: 'superuser',
+      requiresAdminRole: true,
+    },
+    planes: {
+      account: { id: 'admin', group: 'platform', order: 4 },
+    },
+  },
+  {
+    label: 'Mothership',
+    icon: Server,
+    unified: {
+      id: 'mothership',
+      description: 'Internal Sim operations and license management.',
+      group: 'superuser',
+      requiresAdminRole: true,
+    },
+    planes: {
+      account: { id: 'mothership', group: 'platform', order: 5 },
+    },
+  },
 ]
 
-interface ResolveLegacySettingsHrefOptions {
-  legacySection: string
-  workspaceId: string
-  hostOrganizationId: string | null
-  isTargetOrganizationMember: boolean
+export function buildUnifiedSettingsNavigation(): UnifiedSettingsNavigationItem[] {
+  return SETTINGS_SECTION_REGISTRY.map(({ label, icon, docsLink, unified }) => {
+    const { group, ...item } = unified
+    return {
+      ...item,
+      label,
+      icon,
+      section: group,
+      ...(docsLink ? { docsLink } : {}),
+    }
+  })
 }
 
-export function resolveLegacySettingsHref({
-  legacySection,
-  workspaceId,
-}: ResolveLegacySettingsHrefOptions): string {
-  const topLevelHref = getLegacyTopLevelWorkspaceHref(workspaceId, legacySection)
-  if (topLevelHref) return topLevelHref
-
-  const match = LEGACY_SETTINGS_SECTIONS.find((item) => item.legacySection === legacySection)
-  if (!match) return `/workspace/${workspaceId}/settings/general`
-
-  const section =
-    legacySection === 'subscription'
-      ? 'billing'
-      : legacySection === 'team'
-        ? 'organization'
-        : legacySection
-  return `/workspace/${workspaceId}/settings/${section}`
+function buildPlaneSettingsItems<Plane extends SettingsPlane>(
+  plane: Plane
+): SettingsNavigationItem<SettingsPlaneSectionMap[Plane]>[] {
+  return SETTINGS_SECTION_REGISTRY.flatMap((entry) => {
+    const projection = entry.planes?.[plane]
+    return projection ? [{ entry, projection }] : []
+  })
+    .sort((left, right) => left.projection.order - right.projection.order)
+    .map(({ entry, projection }) => ({
+      id: projection.id,
+      label: projection.label ?? entry.label,
+      description: projection.description ?? entry.unified.description,
+      icon: entry.icon,
+      group: projection.group,
+      ...(entry.docsLink ? { docsLink: entry.docsLink } : {}),
+    }))
 }
+
+export const ACCOUNT_SETTINGS_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
+  buildPlaneSettingsItems('account')
+
+export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSettingsSection>[] =
+  buildPlaneSettingsItems('organization')
+
+export const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsSection>[] =
+  buildPlaneSettingsItems('workspace')
 
 export type OrganizationSectionAccess = 'unavailable' | 'view' | 'manage'
 
@@ -495,16 +700,16 @@ export function getOrganizationSettingsFeatures(
   hasEnterprisePlan: boolean
 ): OrganizationSettingsFeatures {
   return {
-    billingEnabled: isBillingEnabled,
+    billingEnabled: SETTINGS_NAVIGATION_BILLING_ENABLED,
     hasEnterprisePlan,
     hosted: isHosted,
     selfHosted: {
-      'access-control': isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED')),
-      'audit-logs': isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED')),
-      sso: isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')),
-      'data-retention': isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED')),
-      'data-drains': isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED')),
-      whitelabeling: isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED')),
+      'access-control': SETTINGS_SELF_HOSTED_OVERRIDES.accessControl,
+      'audit-logs': SETTINGS_SELF_HOSTED_OVERRIDES.auditLogs,
+      sso: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
+      'data-retention': SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
+      'data-drains': SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
+      whitelabeling: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,
     },
   }
 }

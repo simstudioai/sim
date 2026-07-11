@@ -5,17 +5,14 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateCopilotApiKeyContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import {
-  checkOrgMemberUsageLimit,
-  checkServerSideUsageLimits,
-} from '@/lib/billing/calculations/usage-monitor'
+import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   type AccountBillingDecision,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   requireBillingAttributionHeader,
   requireBillingRequestIdHeader,
-  resolveBillingAttribution,
+  resolveLegacyV0BillingAttribution,
   serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
@@ -34,7 +31,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isCopilotBillingAttributionV1Enabled, isHosted } from '@/lib/core/config/env-flags'
+import { isCopilotBillingProtocolRequired } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
@@ -53,20 +50,24 @@ type AdmissionBillingDecision =
       userId: string
     }
   | {
+      kind: 'legacy-workspace'
+      attribution: BillingAttributionSnapshot
+      includeAttribution: boolean
+    }
+  | {
       kind: 'legacy-account'
       userId: string
-      workspaceId?: string
-      includeAttribution: boolean
     }
 
 /**
  * Resolves admission against the versioned Go callback protocol.
  *
- * Markerless callbacks are accepted only for the Sim-first deployment window
- * while old Go instances drain. Direct-v1 is scoped only to the authenticated
- * Chat/Copilot key owner's hosted account; its self-hosted workspace is opaque.
- * Attributed-v1 never falls back if its frozen hosted workspace decision is
- * absent or inconsistent.
+ * Markerless old-Go admission is explicitly legacy-v0. A locally resolvable
+ * workspace selects its current payer; an absent or opaque workspace preserves
+ * account billing. Because old Go cannot return admission material, this
+ * mutable resolution is repeated at callback time. Direct-v1 remains scoped
+ * only to the authenticated Chat/Copilot key owner's hosted account, and
+ * attributed-v1 never falls back from its immutable envelope.
  */
 async function resolveAdmissionBillingDecision(
   req: NextRequest,
@@ -76,9 +77,10 @@ async function resolveAdmissionBillingDecision(
 ): Promise<AdmissionBillingDecision | NextResponse> {
   const hasBillingRequestId = Boolean(req.headers.get(BILLING_REQUEST_ID_HEADER))
   const hasBillingAttribution = Boolean(req.headers.get(BILLING_ATTRIBUTION_HEADER))
+  const hasBillingAccountDecision = Boolean(req.headers.get(BILLING_ACCOUNT_DECISION_HEADER))
 
   if (protocol === COPILOT_BILLING_PROTOCOL.attributed) {
-    if (!workspaceId) {
+    if (!workspaceId || hasBillingAccountDecision) {
       return invalidBillingProtocolResponse()
     }
     try {
@@ -94,7 +96,7 @@ async function resolveAdmissionBillingDecision(
   }
 
   if (protocol === COPILOT_BILLING_PROTOCOL.direct) {
-    if (hasBillingAttribution) {
+    if (hasBillingAttribution || hasBillingAccountDecision) {
       return invalidBillingProtocolResponse()
     }
 
@@ -114,23 +116,32 @@ async function resolveAdmissionBillingDecision(
     return invalidBillingProtocolResponse()
   }
 
-  if (protocol === undefined && isCopilotBillingAttributionV1Enabled) {
+  if (protocol === undefined && isCopilotBillingProtocolRequired) {
     return invalidBillingProtocolResponse()
   }
 
-  if (hasBillingRequestId || hasBillingAttribution) {
+  if (hasBillingRequestId || hasBillingAttribution || hasBillingAccountDecision) {
     return invalidBillingProtocolResponse()
   }
   if (protocol === COPILOT_BILLING_PROTOCOL.legacy && !workspaceId) {
     return invalidBillingProtocolResponse()
   }
 
-  return {
-    kind: 'legacy-account',
-    userId: actorUserId,
-    workspaceId,
-    includeAttribution: protocol === COPILOT_BILLING_PROTOCOL.legacy,
+  if (workspaceId) {
+    const attribution = await resolveLegacyV0BillingAttribution({
+      actorUserId,
+      workspaceId,
+    })
+    if (attribution) {
+      return {
+        kind: 'legacy-workspace',
+        attribution,
+        includeAttribution: protocol === COPILOT_BILLING_PROTOCOL.legacy,
+      }
+    }
   }
+
+  return { kind: 'legacy-account', userId: actorUserId }
 }
 
 async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise<{
@@ -140,12 +151,14 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
   scope: string
   accountBillingDecision?: AccountBillingDecision
 }> {
-  if (admission.kind === 'attributed') {
+  if (admission.kind === 'attributed' || admission.kind === 'legacy-workspace') {
     const usage = await checkAttributedUsageLimits(admission.attribution)
+    const enforcedUsage =
+      usage.scope === 'member' && usage.memberUsage ? usage.memberUsage : usage.payerUsage
     return {
       isExceeded: usage.isExceeded,
-      currentUsage: usage.payerUsage?.currentUsage ?? 0,
-      limit: usage.payerUsage?.limit ?? 0,
+      currentUsage: enforcedUsage?.currentUsage ?? 0,
+      limit: enforcedUsage?.limit ?? 0,
       scope: usage.scope ?? 'payer',
     }
   }
@@ -270,6 +283,13 @@ export const POST = withRouteHandler((req: NextRequest) =>
           limit,
           isExceeded: usage.isExceeded,
           scope: usage.scope,
+          billingProtocol: protocol ?? COPILOT_BILLING_PROTOCOL.legacy,
+          billingResolution:
+            admission.kind === 'legacy-workspace' ? 'mutable-request-time' : 'immutable-or-account',
+          billingPayer:
+            admission.kind === 'attributed' || admission.kind === 'legacy-workspace'
+              ? admission.attribution.billingEntity
+              : (usage.accountBillingDecision?.billingEntity ?? { type: 'account', id: userId }),
         })
 
         if (usage.isExceeded) {
@@ -282,24 +302,6 @@ export const POST = withRouteHandler((req: NextRequest) =>
           span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.UsageExceeded)
           span.setAttribute(TraceAttr.HttpStatusCode, 402)
           return new NextResponse(null, { status: 402 })
-        }
-
-        if (admission.kind === 'legacy-account' && admission.workspaceId && isHosted) {
-          const memberCheck = await checkOrgMemberUsageLimit(userId, admission.workspaceId)
-          if (memberCheck.isExceeded) {
-            logger.info('[API VALIDATION] Per-member org usage limit exceeded', {
-              userId,
-              workspaceId: admission.workspaceId,
-              currentUsage: memberCheck.currentUsage,
-              limit: memberCheck.limit,
-            })
-            span.setAttribute(
-              TraceAttr.CopilotValidateOutcome,
-              CopilotValidateOutcome.UsageExceeded
-            )
-            span.setAttribute(TraceAttr.HttpStatusCode, 402)
-            return new NextResponse(null, { status: 402 })
-          }
         }
 
         const responseHeaders: Record<string, string> = {}
@@ -316,16 +318,10 @@ export const POST = withRouteHandler((req: NextRequest) =>
           responseHeaders[BILLING_ACCOUNT_DECISION_HEADER] = serializeAccountBillingDecisionHeader(
             usage.accountBillingDecision
           )
-        } else if (admission.includeAttribution) {
-          if (!admission.workspaceId) {
-            throw new Error('Legacy billing attribution requires a workspace')
-          }
-          const attribution = await resolveBillingAttribution({
-            actorUserId: admission.userId,
-            workspaceId: admission.workspaceId,
-          })
-          responseHeaders[BILLING_ATTRIBUTION_HEADER] =
-            serializeBillingAttributionHeader(attribution)
+        } else if (admission.kind === 'legacy-workspace' && admission.includeAttribution) {
+          responseHeaders[BILLING_ATTRIBUTION_HEADER] = serializeBillingAttributionHeader(
+            admission.attribution
+          )
         }
 
         span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.Ok)

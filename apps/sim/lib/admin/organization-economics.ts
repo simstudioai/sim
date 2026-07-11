@@ -4,7 +4,7 @@ import { Decimal, toDecimal } from '@/lib/billing/utils/decimal'
 
 export interface TeamOrganizationEconomics {
   seats: number
-  includedMonthlyCredits: number
+  includedMonthlyDollars: number
   monthlyInvoiceAmountUsd: number
 }
 
@@ -17,14 +17,9 @@ export function getTeamOrganizationEconomics(
   const seats = Math.max(0, Math.trunc(internalMemberCount))
   return {
     seats,
-    includedMonthlyCredits: getPlanTierCredits(plan) * seats,
+    includedMonthlyDollars: (getPlanTierCredits(plan) * seats) / CREDIT_MULTIPLIER,
     monthlyInvoiceAmountUsd: getPlanTierDollars(plan) * seats,
   }
-}
-
-/** Exact numeric dollar delta for an integer credit grant. */
-export function creditGrantDollars(grantedCredits: number): string {
-  return toDecimal(grantedCredits).div(CREDIT_MULTIPLIER).toString()
 }
 
 /**
@@ -34,14 +29,14 @@ export function creditGrantDollars(grantedCredits: number): string {
  */
 export function getOrganizationUsageLimitFallbackDollars(params: {
   creditBalanceDollarsBeforeGrant: string | number
-  includedCredits: number
-  configuredUsageLimitCredits: number | null
+  includedDollars: number
+  configuredUsageLimitDollars: number | null
 }): string {
   const configuredUsageLimitDollars =
-    params.configuredUsageLimitCredits === null
+    params.configuredUsageLimitDollars === null
       ? toDecimal(0)
-      : toDecimal(params.configuredUsageLimitCredits).div(CREDIT_MULTIPLIER)
-  const includedUsageLimitDollars = toDecimal(params.includedCredits).div(CREDIT_MULTIPLIER)
+      : toDecimal(params.configuredUsageLimitDollars)
+  const includedUsageLimitDollars = toDecimal(params.includedDollars)
   return Decimal.max(configuredUsageLimitDollars, includedUsageLimitDollars)
     .plus(toDecimal(params.creditBalanceDollarsBeforeGrant))
     .toString()

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toDashboardProvisioning } from '@/lib/admin/dashboard'
 import { adminDashboardRetryEnterpriseContract } from '@/lib/api/contracts/v1/admin/dashboard'
 import { parseRequest } from '@/lib/api/server'
 import {
@@ -25,7 +26,12 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     try {
       return singleResponse(
-        await retryEnterpriseProvisioning(parsed.data.params.id, await getAdminAuditActor(request))
+        toDashboardProvisioning(
+          await retryEnterpriseProvisioning(
+            parsed.data.params.id,
+            await getAdminAuditActor(request)
+          )
+        )
       )
     } catch (error) {
       if (error instanceof EnterpriseProvisioningError) return badRequestResponse(error.message)

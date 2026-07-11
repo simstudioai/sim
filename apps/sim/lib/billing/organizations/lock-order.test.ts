@@ -10,7 +10,9 @@
 import {
   invitation,
   member,
+  organization,
   outboxEvent,
+  permissions,
   subscription as subscriptionTable,
   user,
   userStats,
@@ -18,12 +20,27 @@ import {
 } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockChangeOrganizationWorkspaceBilledAccountsInTx, mockChangeWorkspaceStoragePayersInTx } =
+  vi.hoisted(() => ({
+    mockChangeOrganizationWorkspaceBilledAccountsInTx: vi.fn(),
+    mockChangeWorkspaceStoragePayersInTx: vi.fn(),
+  }))
+
+vi.mock('@/lib/billing/storage/payer-transfer', () => ({
+  changeOrganizationWorkspaceBilledAccountsInTx: mockChangeOrganizationWorkspaceBilledAccountsInTx,
+  changeWorkspaceStoragePayerInTx: vi.fn(),
+  changeWorkspaceStoragePayersInTx: mockChangeWorkspaceStoragePayersInTx,
+}))
+
 import {
   reapplyPaidOrgJoinBillingForExistingMember,
   restoreUserProSubscription,
   transferOrganizationOwnership,
   withInvitationSafeOrganizationAccessMutation,
 } from '@/lib/billing/organizations/membership'
+import type { DbOrTx } from '@/lib/db/types'
+import { attachOwnedWorkspacesToOrganizationTx } from '@/lib/workspaces/organization-workspaces'
 
 vi.mock('@sim/db', () => dbChainMock)
 
@@ -92,6 +109,8 @@ describe('paid-org join billing lock ordering', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockChangeOrganizationWorkspaceBilledAccountsInTx.mockReset()
+    mockChangeWorkspaceStoragePayersInTx.mockReset()
   })
 
   it('locks the personal subscription before mutating userStats', async () => {
@@ -170,6 +189,102 @@ describe('paid-org join billing lock ordering', () => {
   })
 })
 
+describe('workspace payer-change transaction lock ordering', () => {
+  it('locks nonzero workspaces before join billing or aggregate payer changes', async () => {
+    const ops: Array<{ op: 'lock' | 'payer-transfer' | 'update'; table: unknown }> = []
+    let memberSelectCount = 0
+    const rowsForTable = (table: unknown): unknown[] => {
+      if (table === workspace) {
+        return [
+          {
+            id: 'workspace-1',
+            billedAccountUserId: 'user-1',
+            organizationId: null,
+            storageUsedBytes: 128,
+          },
+        ]
+      }
+      if (table === permissions) return [{ userId: 'user-1' }]
+      if (table === member) {
+        memberSelectCount += 1
+        return memberSelectCount === 1 ? [{ userId: 'org-owner' }] : []
+      }
+      if (table === user) return [{ id: 'user-1' }]
+      if (table === organization) return [{ id: 'org-1' }]
+      if (table === subscriptionTable) return [GENERIC_ROW]
+      if (table === userStats) return [{ currentPeriodCost: '5' }]
+      return []
+    }
+    const select = () => {
+      let table: unknown
+      const chain = {
+        from(source: unknown) {
+          table = source
+          return chain
+        },
+        where() {
+          return chain
+        },
+        orderBy() {
+          return chain
+        },
+        for() {
+          ops.push({ op: 'lock', table })
+          return chain
+        },
+        limit: async () => rowsForTable(table),
+        then(resolve: (rows: unknown[]) => unknown, reject: (error: unknown) => unknown) {
+          return Promise.resolve(rowsForTable(table)).then(resolve, reject)
+        },
+      }
+      return chain
+    }
+    const tx = {
+      execute: async () => [],
+      select,
+      insert: () => ({
+        values: () => ({
+          onConflictDoUpdate: async () => undefined,
+          then: (resolve: (value: undefined) => unknown) =>
+            Promise.resolve(undefined).then(resolve),
+        }),
+      }),
+      update: (table: unknown) => ({
+        set: () => ({
+          where: () => {
+            ops.push({ op: 'update', table })
+            return {
+              returning: async () =>
+                table === workspace ? [{ id: 'workspace-1' }] : [{ id: 'updated' }],
+              then: (resolve: (value: undefined) => unknown, reject: (error: unknown) => unknown) =>
+                Promise.resolve(undefined).then(resolve, reject),
+            }
+          },
+        }),
+      }),
+    }
+    mockChangeWorkspaceStoragePayersInTx.mockImplementationOnce(async () => {
+      ops.push({ op: 'payer-transfer', table: workspace })
+      return []
+    })
+
+    await attachOwnedWorkspacesToOrganizationTx(tx as unknown as DbOrTx, {
+      ownerUserId: 'user-1',
+      organizationId: 'org-1',
+      workspaceIds: ['workspace-1'],
+    })
+
+    const workspaceLock = ops.findIndex((entry) => entry.op === 'lock' && entry.table === workspace)
+    const userStatsUpdate = ops.findIndex(
+      (entry) => entry.op === 'update' && entry.table === userStats
+    )
+    const payerTransfer = ops.findIndex((entry) => entry.op === 'payer-transfer')
+    expect(workspaceLock).toBeGreaterThanOrEqual(0)
+    expect(userStatsUpdate).toBeGreaterThan(workspaceLock)
+    expect(payerTransfer).toBeGreaterThan(userStatsUpdate)
+  })
+})
+
 describe('organization ownership transfer reservation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -229,6 +344,49 @@ describe('organization ownership transfer reservation', () => {
     const executedSql = execute.mock.calls.map(([query]) => JSON.stringify(query))
     expect(executedSql.some((query) => query.includes('organization-mutation:org-1'))).toBe(true)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('reassigns billed accounts through one same-payer update and preserves owner semantics', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'member-current', role: 'owner' }])
+      .mockResolvedValueOnce([{ id: 'member-new', role: 'admin' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'workspace-billed-b' },
+      { id: 'workspace-owner-only' },
+    ])
+    mockChangeOrganizationWorkspaceBilledAccountsInTx.mockResolvedValueOnce([
+      'workspace-billed-a',
+      'workspace-billed-b',
+    ])
+
+    const result = await transferOrganizationOwnership({
+      organizationId: 'org-1',
+      currentOwnerUserId: 'owner-1',
+      newOwnerUserId: 'owner-2',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      billedAccountReassigned: 2,
+      workspacesReassigned: 2,
+    })
+    expect(mockChangeOrganizationWorkspaceBilledAccountsInTx).toHaveBeenCalledTimes(1)
+    expect(mockChangeOrganizationWorkspaceBilledAccountsInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        organizationId: 'org-1',
+        expectedCurrentBilledAccountUserId: 'owner-1',
+        billedAccountUserId: 'owner-2',
+      }
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      expect.objectContaining({ entityId: 'workspace-billed-a', userId: 'owner-2' }),
+      expect.objectContaining({ entityId: 'workspace-billed-b', userId: 'owner-2' }),
+      expect.objectContaining({ entityId: 'workspace-owner-only', userId: 'owner-2' }),
+    ])
   })
 })
 
@@ -303,6 +461,40 @@ describe.each([
     expect(workspaceLock).toBeGreaterThan(invitationLock)
     expect(organizationLock).toBeGreaterThan(workspaceLock)
     expect(permissionExists).toBe(false)
+  })
+})
+
+describe('cross-organization access mutation lock ordering', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('locks both organizations in deterministic ID order', async () => {
+    mockRemovalSnapshots([
+      { email: 'member@example.com', invitationIds: [], workspaceIds: [] },
+      { email: 'member@example.com', invitationIds: [], workspaceIds: [] },
+    ])
+
+    await withInvitationSafeOrganizationAccessMutation(
+      {
+        userId: 'user-1',
+        organizationId: 'org-z',
+        additionalOrganizationIds: ['org-a'],
+        scope: 'all',
+      },
+      async () => undefined
+    )
+
+    const executedSql = dbChainMockFns.execute.mock.calls.map(([query]) => JSON.stringify(query))
+    const firstOrganizationLock = executedSql.findIndex((query) =>
+      query.includes('organization-mutation:org-a')
+    )
+    const secondOrganizationLock = executedSql.findIndex((query) =>
+      query.includes('organization-mutation:org-z')
+    )
+    expect(firstOrganizationLock).toBeGreaterThanOrEqual(0)
+    expect(secondOrganizationLock).toBeGreaterThan(firstOrganizationLock)
   })
 })
 

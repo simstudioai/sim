@@ -60,6 +60,7 @@ describe('partitionInvitationGrantsForWorkspaceMove', () => {
 describe('merged invitation semantics', () => {
   it('preserves internal membership intent and the strongest role', () => {
     expect(mergeInvitationMembershipIntent('external', 'internal')).toBe('internal')
+    expect(mergeInvitationMembershipIntent('internal', 'external')).toBe('internal')
     expect(mergeInvitationMembershipIntent('external', 'external')).toBe('external')
     expect(mergeInvitationRole('member', 'admin')).toBe('admin')
     expect(mergeInvitationRole('member', 'member')).toBe('member')

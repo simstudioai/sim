@@ -27,53 +27,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveWorkspaceBillingPayer: mockResolveWorkspaceBillingPayer,
 }))
 
-import {
-  isApiExecutionEntitled,
-  isWorkspaceApiExecutionEntitled,
-} from '@/lib/billing/core/api-access'
-
-describe('isApiExecutionEntitled', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    billingState.isBillingEnabled = true
-    billingState.isFreeApiDeploymentGateEnabled = true
-  })
-
-  it('is false for a free plan', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'free' })
-    expect(await isApiExecutionEntitled('user-1')).toBe(false)
-  })
-
-  it('is false when there is no subscription', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
-    expect(await isApiExecutionEntitled('user-1')).toBe(false)
-  })
-
-  it.each(['pro', 'pro_6000', 'team', 'team_25000', 'enterprise'])(
-    'is true for paid plan %s',
-    async (plan) => {
-      mockGetHighestPrioritySubscription.mockResolvedValue({ plan })
-      expect(await isApiExecutionEntitled('user-1')).toBe(true)
-    }
-  )
-
-  it('is true on self-hosted regardless of plan, without a subscription lookup', async () => {
-    billingState.isBillingEnabled = false
-    expect(await isApiExecutionEntitled('user-1')).toBe(true)
-    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
-  })
-
-  it('is true (gate off) when the feature flag is disabled, even with billing on', async () => {
-    billingState.isFreeApiDeploymentGateEnabled = false
-    expect(await isApiExecutionEntitled('user-1')).toBe(true)
-    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
-  })
-
-  it('is true when userId is missing', async () => {
-    expect(await isApiExecutionEntitled(undefined)).toBe(true)
-    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
-  })
-})
+import { isWorkspaceApiExecutionEntitled } from '@/lib/billing/core/api-access'
 
 describe('isWorkspaceApiExecutionEntitled', () => {
   beforeEach(() => {

@@ -2,13 +2,14 @@ import { db } from '@sim/db'
 import { member, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   acquireOrganizationMutationLock,
   ensureUserInOrganizationTx,
   reapplyPaidOrgJoinBillingForExistingMemberTx,
 } from '@/lib/billing/organizations/membership'
+import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
@@ -54,6 +55,20 @@ export class WorkspaceOrganizationMembershipConflictError extends Error {
  */
 type ExternalMemberPolicy = 'reject' | 'keep-external'
 
+/**
+ * Locks workspace rows before any membership billing path can lock user or
+ * organization payer rows.
+ */
+async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string[]): Promise<void> {
+  if (workspaceIds.length === 0) return
+  await tx
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(inArray(workspace.id, [...workspaceIds].sort()))
+    .orderBy(asc(workspace.id))
+    .for('update')
+}
+
 interface AttachOwnedWorkspacesToOrganizationParams {
   ownerUserId: string
   organizationId: string
@@ -82,6 +97,7 @@ export async function attachOwnedWorkspacesToOrganization({
   }
 
   const attached = await db.transaction(async (tx) => {
+    await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
     // Match admin move and invitation acceptance: workspace/invitation scope
     // first, then organization. Membership and assignment now commit or roll
     // back together, so a concurrent move cannot leave stray org members.
@@ -169,7 +185,11 @@ export async function attachOwnedWorkspacesToOrganizationTx(
   // acceptance was waiting for its advisory locks. Never turn that into an
   // inter-organization transfer: attach only rows that are still non-org.
   const ownedWorkspaces = await tx
-    .select({ id: workspace.id })
+    .select({
+      id: workspace.id,
+      billedAccountUserId: workspace.billedAccountUserId,
+      organizationId: workspace.organizationId,
+    })
     .from(workspace)
     .where(
       and(
@@ -182,6 +202,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
         isNull(workspace.archivedAt)
       )
     )
+    .orderBy(asc(workspace.id))
     .for('update')
 
   if (ownedWorkspaces.length === 0) {
@@ -259,45 +280,48 @@ export async function attachOwnedWorkspacesToOrganizationTx(
   }
 
   const now = new Date()
-  const attachedWorkspaceIds: string[] = []
-  for (const ownedWorkspace of ownedWorkspaces) {
-    const [updatedWorkspace] = await tx
-      .update(workspace)
-      .set({
-        organizationId,
-        workspaceMode: WORKSPACE_MODE.ORGANIZATION,
-        billedAccountUserId: ownerMembership.userId,
-        organizationAssignedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(workspace.id, ownedWorkspace.id),
-          isNull(workspace.organizationId),
-          ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
-          isNull(workspace.archivedAt)
-        )
-      )
-      .returning({ id: workspace.id })
+  await changeWorkspaceStoragePayersInTx(
+    tx,
+    ownedWorkspaces.map((ownedWorkspace) => ({
+      workspaceId: ownedWorkspace.id,
+      organizationId,
+      billedAccountUserId: ownerMembership.userId,
+      expectedCurrentPayer: {
+        organizationId: ownedWorkspace.organizationId,
+        billedAccountUserId: ownedWorkspace.billedAccountUserId,
+      },
+    }))
+  )
 
-    if (!updatedWorkspace) continue
+  const attachedWorkspaceRows = await tx
+    .update(workspace)
+    .set({
+      workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+      organizationAssignedAt: now,
+      updatedAt: now,
+    })
+    .where(inArray(workspace.id, ownedWorkspaceIds))
+    .returning({ id: workspace.id })
+  const attachedWorkspaceIds = attachedWorkspaceRows.map((row) => row.id).sort()
 
+  if (attachedWorkspaceIds.length > 0) {
     await tx
       .insert(permissions)
-      .values({
-        id: generateId(),
-        userId: ownerMembership.userId,
-        entityType: 'workspace',
-        entityId: ownedWorkspace.id,
-        permissionType: 'admin',
-        createdAt: now,
-        updatedAt: now,
-      })
+      .values(
+        attachedWorkspaceIds.map((workspaceId) => ({
+          id: generateId(),
+          userId: ownerMembership.userId,
+          entityType: 'workspace' as const,
+          entityId: workspaceId,
+          permissionType: 'admin' as const,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      )
       .onConflictDoUpdate({
         target: [permissions.userId, permissions.entityType, permissions.entityId],
         set: { permissionType: 'admin', updatedAt: now },
       })
-    attachedWorkspaceIds.push(updatedWorkspace.id)
   }
 
   return {
@@ -320,7 +344,11 @@ export async function detachOrganizationWorkspaces(
   }
 
   const organizationWorkspaces = await db
-    .select({ id: workspace.id, ownerId: workspace.ownerId })
+    .select({
+      id: workspace.id,
+      ownerId: workspace.ownerId,
+      billedAccountUserId: workspace.billedAccountUserId,
+    })
     .from(workspace)
     .where(
       and(
@@ -330,46 +358,56 @@ export async function detachOrganizationWorkspaces(
     )
 
   const detachedWorkspaceIds = await db.transaction(async (tx) => {
-    const touched: string[] = []
     const now = new Date()
+    const workspaceIds = organizationWorkspaces
+      .map((organizationWorkspace) => organizationWorkspace.id)
+      .sort()
+    await lockWorkspaceRowsForPayerChanges(tx, workspaceIds)
+    const payerChanges = organizationWorkspaces.map((organizationWorkspace) => ({
+      workspaceId: organizationWorkspace.id,
+      organizationId: null,
+      billedAccountUserId: organizationOwnerId ?? organizationWorkspace.ownerId,
+      expectedCurrentPayer: {
+        organizationId,
+        billedAccountUserId: organizationWorkspace.billedAccountUserId,
+      },
+    }))
 
-    for (const organizationWorkspace of organizationWorkspaces) {
-      const billedAccountUserId = organizationOwnerId ?? organizationWorkspace.ownerId
+    await changeWorkspaceStoragePayersInTx(tx, payerChanges)
 
-      await tx
-        .update(workspace)
-        .set({
-          organizationId: null,
-          workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
-          billedAccountUserId,
-          organizationAssignedAt: null,
-          updatedAt: now,
-        })
-        .where(eq(workspace.id, organizationWorkspace.id))
+    if (workspaceIds.length === 0) return []
 
-      await tx
-        .insert(permissions)
-        .values({
+    await tx
+      .update(workspace)
+      .set({
+        workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
+        organizationAssignedAt: null,
+        updatedAt: now,
+      })
+      .where(inArray(workspace.id, workspaceIds))
+
+    await tx
+      .insert(permissions)
+      .values(
+        payerChanges.map(({ billedAccountUserId, workspaceId }) => ({
           id: generateId(),
           userId: billedAccountUserId,
-          entityType: 'workspace',
-          entityId: organizationWorkspace.id,
-          permissionType: 'admin',
+          entityType: 'workspace' as const,
+          entityId: workspaceId,
+          permissionType: 'admin' as const,
           createdAt: now,
           updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [permissions.userId, permissions.entityType, permissions.entityId],
-          set: {
-            permissionType: 'admin',
-            updatedAt: now,
-          },
-        })
+        }))
+      )
+      .onConflictDoUpdate({
+        target: [permissions.userId, permissions.entityType, permissions.entityId],
+        set: {
+          permissionType: 'admin',
+          updatedAt: now,
+        },
+      })
 
-      touched.push(organizationWorkspace.id)
-    }
-
-    return touched
+    return [...workspaceIds].sort()
   })
 
   logger.info('Detached organization workspaces', {

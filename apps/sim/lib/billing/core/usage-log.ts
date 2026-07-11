@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { db, dbReplica } from '@sim/db'
-import { usageLog, workflow, workspace } from '@sim/db/schema'
+import { usageLog, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
@@ -235,45 +235,6 @@ export async function getBillingPeriodUsageCostByUser(
     .groupBy(usageLog.userId)
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
-}
-
-/**
- * A single user's usage_log cost inside an organization's own workspaces within
- * a wall-clock window (by `created_at`).
- *
- * Unlike {@link getBillingPeriodUsageCostByUser} (which filters by the attributed
- * billing entity and the stored billing-period columns), this joins `workspace`
- * on `organization_id` and filters by `user_id` + a `created_at` range. That
- * captures the member's consumption inside org-owned workspaces and remains
- * compatible with legacy rows whose billing entity may differ. New hosted rows,
- * including external-member and mothership/copilot usage, use the workspace
- * organization as payer while retaining the actor in `user_id`.
- * Scoped to one user so it uses the `(user_id, created_at)` index rather than
- * scanning the whole org's period on the execution hot path.
- */
-export async function getOrgWorkspaceUsageCostForUser(
-  organizationId: string,
-  userId: string,
-  window: { start: Date; end: Date }
-): Promise<number> {
-  const [row] = await db
-    .select({ cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)` })
-    .from(usageLog)
-    .innerJoin(workspace, eq(workspace.id, usageLog.workspaceId))
-    .where(
-      and(
-        eq(usageLog.userId, userId),
-        eq(workspace.organizationId, organizationId),
-        or(
-          isNull(workspace.organizationAssignedAt),
-          gte(usageLog.createdAt, workspace.organizationAssignedAt)
-        ),
-        gte(usageLog.createdAt, window.start),
-        lt(usageLog.createdAt, window.end)
-      )
-    )
-
-  return Number.parseFloat(row?.cost ?? '0')
 }
 
 /**

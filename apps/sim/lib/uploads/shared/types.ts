@@ -67,6 +67,11 @@ export interface UploadFileOptions {
   preserveKey?: boolean
   customKey?: string
   metadata?: Record<string, string>
+  /**
+   * Whether the storage service should also persist its generic metadata row.
+   * Disable when a caller finalizes metadata in its own database transaction.
+   */
+  persistMetadata?: boolean
 }
 
 export interface DownloadFileOptions {

@@ -6,7 +6,7 @@ import {
 } from '../script-migrations/0003_backfill_workspace_storage_usage'
 
 const logger = createLogger('WorkspaceStorageReconciliation')
-const REQUIRED_ACK = 'old-apps-drained-and-storage-writes-quiesced'
+const REQUIRED_ACK = 'old-apps-drained'
 const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
 
 if (!url) {
@@ -14,7 +14,7 @@ if (!url) {
 }
 if (process.env.WORKSPACE_STORAGE_RECONCILE_ACK !== REQUIRED_ACK) {
   throw new Error(
-    `Set WORKSPACE_STORAGE_RECONCILE_ACK=${REQUIRED_ACK} only after old app instances are drained and storage writes are quiesced`
+    `Set WORKSPACE_STORAGE_RECONCILE_ACK=${REQUIRED_ACK} only after old app instances are drained`
   )
 }
 

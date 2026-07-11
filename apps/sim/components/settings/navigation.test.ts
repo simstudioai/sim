@@ -5,23 +5,130 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_SETTINGS_ITEMS,
   ACCOUNT_SETTINGS_PATH_ALIASES,
+  buildUnifiedSettingsNavigation,
   canMutateWorkspaceSettingsSection,
   getAccountSettingsHref,
   getOrganizationSettingsHref,
   getWorkspaceSettingsHref,
   isOrganizationSettingsSectionAvailable,
-  LEGACY_SETTINGS_SECTIONS,
   ORGANIZATION_SETTINGS_ITEMS,
   ORGANIZATION_SETTINGS_PATH_ALIASES,
   parseSettingsPathSection,
-  resolveLegacySettingsHref,
   resolveOrganizationSectionAccess,
   resolveWorkspaceNavigation,
+  SETTINGS_SECTION_REGISTRY,
   WORKSPACE_SETTINGS_ITEMS,
   WORKSPACE_SETTINGS_PATH_ALIASES,
 } from '@/components/settings/navigation'
 
 describe('settings navigation boundaries', () => {
+  it('preserves the order of all four settings catalogs', () => {
+    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toEqual([
+      'general',
+      'access-control',
+      'audit-logs',
+      'forks',
+      'billing',
+      'teammates',
+      'organization',
+      'secrets',
+      'custom-tools',
+      'mcp',
+      'apikeys',
+      'workflow-mcp-servers',
+      'byok',
+      'copilot',
+      'inbox',
+      'recently-deleted',
+      'sso',
+      'data-retention',
+      'data-drains',
+      'whitelabeling',
+      'custom-blocks',
+      'admin',
+      'mothership',
+    ])
+    expect(ACCOUNT_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
+      'general',
+      'billing',
+      'api-keys',
+      'copilot',
+      'admin',
+      'mothership',
+    ])
+    expect(ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
+      'members',
+      'billing',
+      'access-control',
+      'audit-logs',
+      'sso',
+      'data-retention',
+      'data-drains',
+      'whitelabeling',
+    ])
+    expect(WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
+      'teammates',
+      'secrets',
+      'byok',
+      'custom-tools',
+      'mcp',
+      'workflow-mcp-servers',
+      'api-keys',
+      'inbox',
+      'recently-deleted',
+      'forks',
+      'custom-blocks',
+    ])
+  })
+
+  it('has one registry source for every unified and plane item', () => {
+    const unifiedIds = SETTINGS_SECTION_REGISTRY.map(({ unified }) => unified.id)
+    const accountIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
+      planes?.account ? [planes.account.id] : []
+    )
+    const organizationIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
+      planes?.organization ? [planes.organization.id] : []
+    )
+    const workspaceIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
+      planes?.workspace ? [planes.workspace.id] : []
+    )
+
+    expect(new Set(unifiedIds).size).toBe(unifiedIds.length)
+    expect(new Set(accountIds).size).toBe(accountIds.length)
+    expect(new Set(organizationIds).size).toBe(organizationIds.length)
+    expect(new Set(workspaceIds).size).toBe(workspaceIds.length)
+    expect([...unifiedIds].sort()).toEqual(
+      buildUnifiedSettingsNavigation()
+        .map(({ id }) => id)
+        .sort()
+    )
+    expect([...accountIds].sort()).toEqual(ACCOUNT_SETTINGS_ITEMS.map(({ id }) => id).sort())
+    expect([...organizationIds].sort()).toEqual(
+      ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id).sort()
+    )
+    expect([...workspaceIds].sort()).toEqual(WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id).sort())
+  })
+
+  it('shares labels, icons, and docs links across projections', () => {
+    const unifiedSso = buildUnifiedSettingsNavigation().find(({ id }) => id === 'sso')
+    const organizationSso = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'sso')
+
+    expect(organizationSso?.label).toBe(unifiedSso?.label)
+    expect(organizationSso?.icon).toBe(unifiedSso?.icon)
+    expect(organizationSso?.docsLink).toBe(unifiedSso?.docsLink)
+  })
+
+  it('keeps scope-specific labels only where the surface genuinely differs', () => {
+    const organizationMembers = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'members')
+    const unifiedOrganization = buildUnifiedSettingsNavigation().find(
+      ({ id }) => id === 'organization'
+    )
+
+    expect(organizationMembers?.label).toBe('Members')
+    expect(organizationMembers?.description).toBe('Manage organization members, roles, and seats.')
+    expect(unifiedOrganization?.label).toBe('Organization')
+  })
+
   it('builds canonical settings hrefs across all three planes', () => {
     expect(getAccountSettingsHref('general')).toBe('/account/settings/general')
     expect(getOrganizationSettingsHref('organization-a', 'members')).toBe(
@@ -87,114 +194,10 @@ describe('settings navigation boundaries', () => {
     expect(parseWorkspacePath('/workspace/workspace-a/settings/not-a-section')).toBeNull()
   })
 
-  it('classifies every legacy section into exactly one settings plane', () => {
-    const classified = LEGACY_SETTINGS_SECTIONS.map(({ legacySection, plane }) => ({
-      legacySection,
-      plane,
-    }))
-
-    expect(new Set(classified.map(({ legacySection }) => legacySection)).size).toBe(
-      classified.length
-    )
-    expect(classified.map(({ legacySection }) => legacySection).sort()).toEqual(
-      [
-        'access-control',
-        'admin',
-        'apikeys',
-        'audit-logs',
-        'billing',
-        'byok',
-        'copilot',
-        'custom-blocks',
-        'custom-tools',
-        'data-drains',
-        'data-retention',
-        'forks',
-        'general',
-        'inbox',
-        'mcp',
-        'mothership',
-        'organization',
-        'recently-deleted',
-        'secrets',
-        'sso',
-        'subscription',
-        'team',
-        'teammates',
-        'whitelabeling',
-        'workflow-mcp-servers',
-      ].sort()
-    )
-    expect(
-      classified.every(({ plane }) => ['account', 'organization', 'workspace'].includes(plane))
-    ).toBe(true)
-  })
-
   it('keeps API keys split between account and workspace settings', () => {
     expect(ACCOUNT_SETTINGS_ITEMS.some(({ id }) => id === 'api-keys')).toBe(true)
     expect(WORKSPACE_SETTINGS_ITEMS.some(({ id }) => id === 'api-keys')).toBe(true)
     expect(ORGANIZATION_SETTINGS_ITEMS.some(({ id }) => String(id) === 'api-keys')).toBe(false)
-  })
-
-  it('keeps organization legacy links in the unified workspace settings shell', () => {
-    expect(
-      resolveLegacySettingsHref({
-        legacySection: 'sso',
-        workspaceId: 'workspace-b',
-        hostOrganizationId: 'org-b',
-        isTargetOrganizationMember: true,
-      })
-    ).toBe('/workspace/workspace-b/settings/sso')
-
-    expect(
-      resolveLegacySettingsHref({
-        legacySection: 'sso',
-        workspaceId: 'workspace-b',
-        hostOrganizationId: 'org-b',
-        isTargetOrganizationMember: false,
-      })
-    ).toBe('/workspace/workspace-b/settings/sso')
-  })
-
-  it('normalizes legacy aliases without splitting the settings UI', () => {
-    expect(
-      resolveLegacySettingsHref({
-        legacySection: 'general',
-        workspaceId: 'workspace-b',
-        hostOrganizationId: 'org-b',
-        isTargetOrganizationMember: true,
-      })
-    ).toBe('/workspace/workspace-b/settings/general')
-    expect(
-      resolveLegacySettingsHref({
-        legacySection: 'team',
-        workspaceId: 'workspace-b',
-        hostOrganizationId: 'org-b',
-        isTargetOrganizationMember: true,
-      })
-    ).toBe('/workspace/workspace-b/settings/organization')
-    expect(
-      resolveLegacySettingsHref({
-        legacySection: 'apikeys',
-        workspaceId: 'workspace-b',
-        hostOrganizationId: 'org-b',
-        isTargetOrganizationMember: true,
-      })
-    ).toBe('/workspace/workspace-b/settings/apikeys')
-  })
-
-  it.each([
-    ['integrations', '/workspace/workspace-b/integrations'],
-    ['skills', '/workspace/workspace-b/skills'],
-  ])('preserves the top-level destination for legacy %s links', (legacySection, destination) => {
-    expect(
-      resolveLegacySettingsHref({
-        legacySection,
-        workspaceId: 'workspace-b',
-        hostOrganizationId: 'org-b',
-        isTargetOrganizationMember: true,
-      })
-    ).toBe(destination)
   })
 
   it('requires target-organization membership and admin authority', () => {

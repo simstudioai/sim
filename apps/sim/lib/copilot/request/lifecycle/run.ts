@@ -9,7 +9,6 @@ import {
   type BillingAttributionSnapshot,
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/billing-attribution'
-import { cacheBillingAttribution } from '@/lib/billing/core/billing-attribution-cache'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_VERSION, TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/copilot/constants'
@@ -169,17 +168,6 @@ export async function runCopilotLifecycle(
     execContext.billingAttribution = billingAttribution
     if (shouldUseHostedBillingProtocol) {
       hostedBillingRequest = createAttributedBillingRequestEnvelope(billingAttribution)
-    } else if (isHosted) {
-      const legacyAliases = [
-        payloadMsgId,
-        resolvedExecutionId,
-        resolvedRunId,
-        options.simRequestId,
-      ].filter((value): value is string => typeof value === 'string' && value.length > 0)
-      const cached = await cacheBillingAttribution(legacyAliases, billingAttribution)
-      if (!cached) {
-        throw new Error('Unable to preserve legacy billing attribution')
-      }
     }
   }
 

@@ -20,12 +20,12 @@ export const POST = withRouteHandler(
     })
     if (!parsed.success) return parsed.response
     try {
-      const memberId = await addDashboardOrganizationMember(
+      const result = await addDashboardOrganizationMember(
         parsed.data.params.id,
         parsed.data.body,
         await getAdminAuditActor(request)
       )
-      return singleResponse({ success: true as const, memberId })
+      return singleResponse({ success: true as const, ...result })
     } catch (error) {
       return badRequestResponse(getErrorMessage(error, 'Failed to add member'))
     }

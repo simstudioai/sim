@@ -7,7 +7,6 @@ import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/t
 
 const {
   mockCreateRunSegment,
-  mockCacheBillingAttribution,
   mockForceFailHungToolCall,
   mockGetEffectiveDecryptedEnv,
   mockGetMothershipBaseURL,
@@ -20,7 +19,6 @@ const {
   mockFlags,
 } = vi.hoisted(() => ({
   mockCreateRunSegment: vi.fn(),
-  mockCacheBillingAttribution: vi.fn(),
   mockForceFailHungToolCall: vi.fn(),
   mockGetEffectiveDecryptedEnv: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
@@ -41,10 +39,6 @@ const {
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
   createRunSegment: mockCreateRunSegment,
   updateRunStatus: mockUpdateRunStatus,
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution-cache', () => ({
-  cacheBillingAttribution: mockCacheBillingAttribution,
 }))
 
 vi.mock('@/lib/copilot/request/go/stream', () => {
@@ -126,7 +120,6 @@ describe('runCopilotLifecycle', () => {
     mockFlags.isCopilotBillingAttributionV1Enabled = false
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
-    mockCacheBillingAttribution.mockResolvedValue(true)
   })
 
   it('runs cancelled completion persistence when a stream throws after abort', async () => {
@@ -435,7 +428,6 @@ describe('runCopilotLifecycle', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     )
     expect(billingRequestId).not.toBe('caller-controlled')
-    expect(mockCacheBillingAttribution).not.toHaveBeenCalled()
 
     expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
     for (const call of mockRunStreamLoop.mock.calls) {
@@ -451,7 +443,7 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
-  it('keeps the producer dormant during the Sim-first deployment stage', async () => {
+  it('runs legacy-v0 during Sim-first deployment without guessed billing aliases', async () => {
     mockFlags.isHosted = true
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
     mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
@@ -480,53 +472,15 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(mockCacheBillingAttribution).toHaveBeenCalledWith(
-      ['message-1', 'execution-1', 'run-1', 'request-1'],
-      expect.objectContaining({ actorUserId: 'user-1', workspaceId: 'ws-1' })
-    )
     const headers = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
     expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
     expect(headers['x-sim-billing-request-id']).toBeUndefined()
     expect(headers['x-sim-billing-attribution']).toBeUndefined()
   })
 
-  it('fails legacy hosted work when its required attribution aliases cannot be cached', async () => {
-    mockFlags.isHosted = true
-    mockEnv.COPILOT_API_KEY = 'sim-agent-key'
-    mockCacheBillingAttribution.mockResolvedValueOnce(false)
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
-
-    await expect(
-      runCopilotLifecycle(
-        { message: 'hello', messageId: 'message-1' },
-        {
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          chatId: 'chat-1',
-          executionId: 'execution-1',
-          billingAttribution: {
-            actorUserId: 'user-1',
-            workspaceId: 'ws-1',
-            billedAccountUserId: 'owner-1',
-            organizationId: null,
-            billingEntity: { type: 'user', id: 'owner-1' },
-            billingPeriod: {
-              start: '2026-07-01T00:00:00.000Z',
-              end: '2026-08-01T00:00:00.000Z',
-            },
-            payerSubscription: null,
-          },
-        }
-      )
-    ).rejects.toThrow('Unable to preserve legacy billing attribution')
-
-    expect(mockRunStreamLoop).not.toHaveBeenCalled()
-  })
-
-  it('runs modern hosted work when the legacy Redis cache is unavailable', async () => {
+  it('runs modern hosted work without legacy compatibility storage', async () => {
     mockFlags.isHosted = true
     mockFlags.isCopilotBillingAttributionV1Enabled = true
-    mockCacheBillingAttribution.mockRejectedValueOnce(new Error('Redis unavailable'))
     mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
     await runCopilotLifecycle(
@@ -550,7 +504,6 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(mockCacheBillingAttribution).not.toHaveBeenCalled()
     expect(mockRunStreamLoop).toHaveBeenCalledTimes(1)
   })
 
@@ -579,7 +532,6 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(mockCacheBillingAttribution).not.toHaveBeenCalled()
     const headers = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
     expect(headers['x-sim-billing-protocol']).toBeUndefined()
     expect(headers['x-sim-billing-request-id']).toBeUndefined()

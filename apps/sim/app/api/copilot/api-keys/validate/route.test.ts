@@ -8,12 +8,12 @@ const {
   mockDbLimit,
   mockCheckInternalApiKey,
   mockCheckAttributedUsageLimits,
-  mockCheckOrgMemberUsageLimit,
   mockCheckServerSideUsageLimits,
   mockDeriveBillingContext,
   mockGetHighestPrioritySubscription,
   mockRequireBillingAttributionHeader,
   mockRequireBillingRequestIdHeader,
+  mockResolveLegacyV0BillingAttribution,
   mockResolveBillingAttribution,
   mockSerializeAccountBillingDecisionHeader,
   mockSerializeBillingAttributionHeader,
@@ -24,20 +24,19 @@ const {
   mockDbLimit: vi.fn(),
   mockCheckInternalApiKey: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
-  mockCheckOrgMemberUsageLimit: vi.fn(),
   mockCheckServerSideUsageLimits: vi.fn(),
   mockDeriveBillingContext: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockRequireBillingRequestIdHeader: vi.fn(),
+  mockResolveLegacyV0BillingAttribution: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
   mockSerializeAccountBillingDecisionHeader: vi.fn(),
   mockSerializeBillingAttributionHeader: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceBillingSettings: vi.fn(),
   mockFlags: {
-    isCopilotBillingAttributionV1Enabled: false,
-    isHosted: true,
+    isCopilotBillingProtocolRequired: false,
   },
 }))
 
@@ -64,6 +63,20 @@ const ACCOUNT_BILLING_DECISION = {
   },
 }
 
+const OLD_GO_HOSTED_VALIDATE_BODY = {
+  userId: 'user-1',
+  workspaceId: 'ws-1',
+} as const
+
+const OLD_GO_WORKSPACELESS_VALIDATE_BODY = {
+  userId: 'user-1',
+} as const
+
+const OLD_GO_OPAQUE_WORKSPACE_VALIDATE_BODY = {
+  userId: 'user-1',
+  workspaceId: 'local-self-hosted-workspace',
+} as const
+
 vi.mock('@sim/db', () => ({
   db: {
     select: () => ({ from: () => ({ where: () => ({ limit: mockDbLimit }) }) }),
@@ -83,13 +96,13 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   COPILOT_BILLING_PROTOCOL_HEADER: 'x-sim-billing-protocol',
   requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
   requireBillingRequestIdHeader: mockRequireBillingRequestIdHeader,
+  resolveLegacyV0BillingAttribution: mockResolveLegacyV0BillingAttribution,
   resolveBillingAttribution: mockResolveBillingAttribution,
   serializeAccountBillingDecisionHeader: mockSerializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
 }))
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkOrgMemberUsageLimit: mockCheckOrgMemberUsageLimit,
   checkServerSideUsageLimits: mockCheckServerSideUsageLimits,
 }))
 
@@ -115,11 +128,8 @@ vi.mock('@/lib/copilot/request/otel', () => ({
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
-  get isCopilotBillingAttributionV1Enabled() {
-    return mockFlags.isCopilotBillingAttributionV1Enabled
-  },
-  get isHosted() {
-    return mockFlags.isHosted
+  get isCopilotBillingProtocolRequired() {
+    return mockFlags.isCopilotBillingProtocolRequired
   },
 }))
 
@@ -131,6 +141,7 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
 }))
 
+import { validateCopilotApiKeyBodySchema } from '@/lib/api/contracts/copilot'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
 
 function request(body: Record<string, unknown>, headers: Record<string, string> = {}) {
@@ -140,11 +151,11 @@ function request(body: Record<string, unknown>, headers: Record<string, string> 
 describe('POST /api/copilot/api-keys/validate billing protocols', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFlags.isCopilotBillingAttributionV1Enabled = false
-    mockFlags.isHosted = true
+    mockFlags.isCopilotBillingProtocolRequired = false
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockDbLimit.mockResolvedValue([{ id: 'user-1' }])
     mockResolveBillingAttribution.mockResolvedValue(ATTRIBUTION)
+    mockResolveLegacyV0BillingAttribution.mockResolvedValue(ATTRIBUTION)
     mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
     mockSerializeAccountBillingDecisionHeader.mockReturnValue('serialized-account-decision')
     mockRequireBillingRequestIdHeader.mockImplementation((headers: Headers) => {
@@ -180,90 +191,94 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
       currentUsage: 0,
       limit: 100,
     })
-    mockCheckOrgMemberUsageLimit.mockResolvedValue({
-      isExceeded: false,
-      currentUsage: 0,
-      limit: null,
-    })
   })
 
-  it('preserves legacy account admission when the hosted account is exceeded', async () => {
-    mockCheckServerSideUsageLimits.mockResolvedValue({
-      isExceeded: true,
-      currentUsage: 200,
-      limit: 100,
-    })
-    const res = await POST(request({ userId: 'user-1', workspaceId: 'ws-1' }))
-    expect(res.status).toBe(402)
-  })
-
-  it('preserves the legacy hosted per-member gate', async () => {
-    mockCheckOrgMemberUsageLimit.mockResolvedValue({
-      isExceeded: true,
-      currentUsage: 5,
-      limit: 4,
-    })
-    const res = await POST(request({ userId: 'user-1', workspaceId: 'ws-1' }))
-    expect(res.status).toBe(402)
-  })
-
-  it('returns 200 when under both limits', async () => {
-    const res = await POST(request({ userId: 'user-1', workspaceId: 'ws-1' }))
-    expect(res.status).toBe(200)
-  })
-
-  it('keeps old markerless Go admission working when workspaceId is omitted', async () => {
-    const res = await POST(request({ userId: 'user-1' }))
-    expect(res.status).toBe(200)
-    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
-    expect(mockCheckOrgMemberUsageLimit).not.toHaveBeenCalled()
-    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
-  })
-
-  it('preserves markerless legacy account and member admission', async () => {
-    const res = await POST(request({ userId: 'user-1', workspaceId: 'ws-1' }))
-    expect(res.status).toBe(200)
-    expect(res.headers.get('x-sim-billing-attribution')).toBeNull()
-    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
-    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
-    expect(mockCheckOrgMemberUsageLimit).toHaveBeenCalledWith('user-1', 'ws-1')
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
-  })
-
-  it('keeps old markerless Go admission compatible with a foreign workspace ID', async () => {
-    const res = await POST(
-      request({ userId: 'user-1', workspaceId: 'local-self-hosted-workspace' })
+  it('keeps the exact old-Go validate bodies contract-compatible', () => {
+    expect(validateCopilotApiKeyBodySchema.safeParse(OLD_GO_HOSTED_VALIDATE_BODY).success).toBe(
+      true
     )
-
-    expect(res.status).toBe(200)
-    expect(mockCheckOrgMemberUsageLimit).toHaveBeenCalledWith(
-      'user-1',
-      'local-self-hosted-workspace'
-    )
-    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+    expect(
+      validateCopilotApiKeyBodySchema.safeParse(OLD_GO_WORKSPACELESS_VALIDATE_BODY).success
+    ).toBe(true)
+    expect(
+      validateCopilotApiKeyBodySchema.safeParse(OLD_GO_OPAQUE_WORKSPACE_VALIDATE_BODY).success
+    ).toBe(true)
   })
 
-  it('rejects markerless callbacks after the attributed-v1 cutover', async () => {
-    mockFlags.isCopilotBillingAttributionV1Enabled = true
+  it('checks the routed workspace payer pool for exact markerless hosted admission', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      payerUsage: { currentUsage: 200, limit: 100 },
+      scope: 'payer',
+    })
+    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
 
-    const res = await POST(request({ userId: 'user-1', workspaceId: 'ws-1' }))
-
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(402)
+    expect(mockResolveLegacyV0BillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+    })
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })
 
-  it('allows explicitly labeled legacy requests to drain after cutover', async () => {
-    mockFlags.isCopilotBillingAttributionV1Enabled = true
+  it('preserves the exact actor member cap for markerless hosted admission', async () => {
+    mockCheckAttributedUsageLimits.mockResolvedValue({
+      isExceeded: true,
+      payerUsage: { currentUsage: 20, limit: 100 },
+      memberUsage: { currentUsage: 5, limit: 4 },
+      scope: 'member',
+    })
+    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
 
-    const res = await POST(
-      request({ userId: 'user-1', workspaceId: 'ws-1' }, { 'x-sim-billing-protocol': 'legacy-v0' })
-    )
+    expect(res.status).toBe(402)
+  })
+
+  it('accepts the exact markerless hosted body under its routed workspace limits', async () => {
+    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('x-sim-billing-attribution')).toBeNull()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
+  })
+
+  it('preserves account admission for the exact workspace-less old-Go body', async () => {
+    const res = await POST(request(OLD_GO_WORKSPACELESS_VALIDATE_BODY))
 
     expect(res.status).toBe(200)
     expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
-    expect(mockCheckOrgMemberUsageLimit).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('preserves account admission for an opaque direct legacy workspace', async () => {
+    mockResolveLegacyV0BillingAttribution.mockResolvedValueOnce(null)
+    const res = await POST(request(OLD_GO_OPAQUE_WORKSPACE_VALIDATE_BODY))
+
+    expect(res.status).toBe(200)
+    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('rejects markerless admission only when protocol-required is explicitly enabled', async () => {
+    mockFlags.isCopilotBillingProtocolRequired = true
+    const res = await POST(request(OLD_GO_HOSTED_VALIDATE_BODY))
+
+    expect(res.status).toBe(400)
+    expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('allows explicitly labeled legacy requests when markerless traffic is disabled', async () => {
+    mockFlags.isCopilotBillingProtocolRequired = true
+    const res = await POST(
+      request(OLD_GO_HOSTED_VALIDATE_BODY, { 'x-sim-billing-protocol': 'legacy-v0' })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
     expect(res.headers.get('x-sim-billing-attribution')).toBe('serialized-attribution')
-    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+    expect(mockResolveLegacyV0BillingAttribution).toHaveBeenCalledWith({
       actorUserId: 'user-1',
       workspaceId: 'ws-1',
     })
@@ -296,7 +311,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     })
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(ATTRIBUTION)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
-    expect(mockCheckOrgMemberUsageLimit).not.toHaveBeenCalled()
   })
 
   it('fails attributed-v1 closed when attribution is missing', async () => {
@@ -354,7 +368,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
 
     expect(res.status).toBe(200)
     expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1', ACCOUNT_SUBSCRIPTION)
-    expect(mockCheckOrgMemberUsageLimit).not.toHaveBeenCalled()
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
@@ -375,7 +388,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
 
     expect(res.status).toBe(200)
     expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1', ACCOUNT_SUBSCRIPTION)
-    expect(mockCheckOrgMemberUsageLimit).not.toHaveBeenCalled()
   })
 
   it('fails direct-v1 admission closed when its payer cannot be resolved', async () => {

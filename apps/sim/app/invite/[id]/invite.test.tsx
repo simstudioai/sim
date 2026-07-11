@@ -9,6 +9,7 @@ const {
   mockCancelQueries,
   mockGetSession,
   mockInvalidateQueries,
+  mockLogger,
   mockPush,
   mockRequestJson,
   mockSearchParams,
@@ -20,6 +21,10 @@ const {
   mockCancelQueries: vi.fn(),
   mockGetSession: vi.fn(),
   mockInvalidateQueries: vi.fn(),
+  mockLogger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+  },
   mockPush: vi.fn(),
   mockRequestJson: vi.fn(),
   mockSearchParams: {
@@ -29,6 +34,10 @@ const {
   mockSetQueryData: vi.fn(),
   mockSignOut: vi.fn(),
   mockUseSession: vi.fn(),
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: vi.fn().mockReturnValue(mockLogger),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -210,8 +219,16 @@ describe('Invite', () => {
     expect(mockSetQueryData).toHaveBeenCalledWith(sessionKeys.detail(), INTERNAL_REFRESHED_SESSION)
   })
 
-  it('keeps a successful acceptance committed when the session refresh fails', async () => {
-    mockGetSession.mockRejectedValueOnce(new Error('Session refresh failed'))
+  it('keeps acceptance committed and navigation scheduled when all cache refreshes fail', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      data: null,
+      error: {
+        message: 'Session refresh denied',
+        status: 401,
+        statusText: 'Unauthorized',
+      },
+    })
+    mockInvalidateQueries.mockRejectedValue(new Error('Cache invalidation failed'))
 
     await acceptCurrentInvitation()
     await flush()
@@ -224,5 +241,11 @@ describe('Invite', () => {
     })
 
     expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1')
+    expect(mockSetQueryData).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith('Post-acceptance cache refresh failed', {
+      cache: 'session',
+      error: 'Session refresh denied',
+    })
+    expect(mockLogger.warn).toHaveBeenCalledTimes(3)
   })
 })

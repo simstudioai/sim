@@ -18,7 +18,6 @@ const {
   mockLt,
   mockOr,
   mockGetOrganizationSubscription,
-  mockGetOrgWorkspaceUsageCostForUser,
 } = vi.hoisted(() => ({
   mockDbState: { selectResults: [] as unknown[] },
   mockInsert: vi.fn(),
@@ -34,7 +33,6 @@ const {
   mockLt: vi.fn((field: unknown, value: unknown) => ({ operator: 'lt', field, value })),
   mockOr: vi.fn((...conditions: unknown[]) => ({ operator: 'or', conditions })),
   mockGetOrganizationSubscription: vi.fn(),
-  mockGetOrgWorkspaceUsageCostForUser: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -94,15 +92,11 @@ vi.mock('@/lib/billing/core/billing', () => ({
   getOrganizationSubscription: mockGetOrganizationSubscription,
 }))
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getOrgWorkspaceUsageCostForUser: mockGetOrgWorkspaceUsageCostForUser,
-}))
-
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
   getOrgMemberUsageForBillingPeriod,
+  getOrgMemberUsageForCurrentPeriod,
   getOrgMemberUsageLimit,
-  getOrgMemberWorkspaceUsage,
   setOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
 
@@ -174,7 +168,6 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
     )
     expect(mixedHistoryCall).toBeDefined()
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
-    expect(mockGetOrgWorkspaceUsageCostForUser).not.toHaveBeenCalled()
   })
 })
 
@@ -201,50 +194,45 @@ describe('setOrgMemberUsageLimit', () => {
   })
 })
 
-describe('getOrgMemberWorkspaceUsage', () => {
-  it("returns the member's usage within the org subscription window", async () => {
+describe('getOrgMemberUsageForCurrentPeriod', () => {
+  it('reads the enforcement usage definition over the org subscription window', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')
     mockGetOrganizationSubscription.mockResolvedValue({ periodStart, periodEnd })
-    mockGetOrgWorkspaceUsageCostForUser.mockResolvedValue(5)
+    mockDbState.selectResults = [[{ cost: '5' }]]
 
-    const result = await getOrgMemberWorkspaceUsage('org-1', 'user-2')
+    const result = await getOrgMemberUsageForCurrentPeriod('org-1', 'user-2')
 
     expect(result).toBe(5)
-    expect(mockGetOrgWorkspaceUsageCostForUser).toHaveBeenCalledWith('org-1', 'user-2', {
-      start: periodStart,
-      end: periodEnd,
-    })
+    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('org-1')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityId', 'org-1')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', periodStart)
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodEnd', periodEnd)
   })
 
-  it('falls back to the all-time window when the org has no subscription', async () => {
-    mockGetOrganizationSubscription.mockResolvedValue(null)
-    mockGetOrgWorkspaceUsageCostForUser.mockResolvedValue(7)
+  it('uses a prefetched subscription without a second lookup', async () => {
+    const periodStart = new Date('2026-06-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
+    mockDbState.selectResults = [[{ cost: '5' }]]
 
-    const result = await getOrgMemberWorkspaceUsage('org-1', 'user-2')
+    const result = await getOrgMemberUsageForCurrentPeriod('org-1', 'user-2', {
+      periodStart,
+      periodEnd,
+    } as never)
+
+    expect(result).toBe(5)
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', periodStart)
+  })
+
+  it('falls back to the all-time window when the org has no subscription period', async () => {
+    mockDbState.selectResults = [[{ cost: '7' }]]
+
+    const result = await getOrgMemberUsageForCurrentPeriod('org-1', 'user-2', null)
 
     expect(result).toBe(7)
-    expect(mockGetOrgWorkspaceUsageCostForUser).toHaveBeenCalledWith(
-      'org-1',
-      'user-2',
-      defaultBillingPeriod()
-    )
-  })
-
-  it('falls back to the all-time window when the subscription is missing periodEnd', async () => {
-    mockGetOrganizationSubscription.mockResolvedValue({
-      periodStart: new Date('2026-06-01T00:00:00.000Z'),
-      periodEnd: null,
-    })
-    mockGetOrgWorkspaceUsageCostForUser.mockResolvedValue(3)
-
-    const result = await getOrgMemberWorkspaceUsage('org-1', 'user-2')
-
-    expect(result).toBe(3)
-    expect(mockGetOrgWorkspaceUsageCostForUser).toHaveBeenCalledWith(
-      'org-1',
-      'user-2',
-      defaultBillingPeriod()
-    )
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', defaultBillingPeriod().start)
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodEnd', defaultBillingPeriod().end)
   })
 })

@@ -61,7 +61,6 @@ import {
   checkStorageQuota,
   checkStorageQuotaForBillingContext,
   getStorageLimitForBillingContext,
-  getStorageLimitForPlan,
   getStorageUsageForBillingContext,
   getUserStorageLimit,
   getUserStorageUsage,
@@ -120,10 +119,6 @@ describe('storage limits and quota', () => {
   })
 
   it('normalizes legacy and workspace custom limit inputs without changing their keys', async () => {
-    expect(getStorageLimitForPlan('enterprise', { storageLimitGB: '42' })).toBe(42 * GIB)
-    expect(getStorageLimitForPlan('enterprise', { customStorageLimitGB: 42 })).toBe(
-      getStorageLimitForPlan('enterprise')
-    )
     expect(getStorageLimitForBillingContext(ORG_CONTEXT)).toBe(GIB)
     expect(getStorageLimitForBillingContext({ ...ORG_CONTEXT, customStorageLimitGB: 0 })).toBe(
       getStorageLimitForBillingContext({ ...ORG_CONTEXT, customStorageLimitGB: null })

@@ -549,6 +549,30 @@ export async function resolveBillingAttribution({
 }
 
 /**
+ * Resolves markerless old-Go (`legacy-v0`) traffic from the workspace visible
+ * at this request boundary, falling back to account billing when the workspace
+ * is absent from this Sim deployment.
+ *
+ * Unlike modern attributed-v1/direct-v1 envelopes, this decision is mutable:
+ * old Go allocates its callback billing ID after admission and returns no payer
+ * material, so admission and callback must independently resolve current state.
+ * Keep this compatibility semantic confined to markerless legacy-v0 paths.
+ */
+export async function resolveLegacyV0BillingAttribution({
+  actorUserId,
+  workspaceId,
+}: ResolveBillingAttributionParams): Promise<BillingAttributionSnapshot | null> {
+  const payer = await resolveWorkspaceBillingPayer(workspaceId, { onMissing: 'return-null' })
+  if (!payer) return null
+
+  return buildBillingAttributionSnapshot({
+    actorUserId,
+    workspaceId,
+    ...payer,
+  })
+}
+
+/**
  * Resolves an explicit system actor and payer from one workspace payer result.
  *
  * The billed account from that row is both `usage_log.userId` and the personal

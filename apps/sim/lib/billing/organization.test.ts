@@ -50,6 +50,9 @@ vi.mock('@/lib/billing/organizations/create-organization', () => ({
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
 }))
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
+  acquireUserBillingIdentityLock: vi.fn(),
+}))
 
 vi.mock('@/lib/billing/enterprise-outbox', () => ({
   assertNoCompetingEnterpriseIssuance: mockAssertNoCompetingEnterpriseIssuance,

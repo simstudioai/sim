@@ -33,10 +33,10 @@ export const billingUpdateCostBodySchema = z.object({
   /**
    * Originating workspace, used for org-workspace cost attribution on hosted
    * Sim. The value remains optional because self-hosted/headless callers may
-   * supply an ID from another deployment or omit it. A locally known workspace
-   * is billed only with the immutable snapshot cached before work began; it is
-   * never re-resolved during this callback. Unknown workspaces remain
-   * account-only so a foreign key cannot strand otherwise valid cost.
+   * supply an ID from another deployment or omit it. Modern protocols bind a
+   * locally known workspace to their immutable envelope. Markerless legacy-v0
+   * callbacks re-resolve current workspace payer state because old Go cannot
+   * return admission material; unknown workspaces remain account-only.
    */
   workspaceId: z.string().min(1).optional(),
 })

@@ -11,25 +11,43 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, count, countDistinct, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import {
-  creditGrantDollars,
+  and,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
+import {
   getOrganizationUsageLimitFallbackDollars,
   getTeamOrganizationEconomics,
 } from '@/lib/admin/organization-economics'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   resolveEnterpriseMetadataIntent,
 } from '@/lib/billing/enterprise-outbox'
-import { getLatestEnterpriseProvisionings } from '@/lib/billing/enterprise-provisioning'
+import {
+  type EnterpriseProvisioningView,
+  getLatestEnterpriseProvisionings,
+} from '@/lib/billing/enterprise-provisioning'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
   acquireOrganizationMutationLock,
   ensureUserInOrganizationTx,
+  getOrganizationTransferCredentialDependencies,
   removeUserFromOrganization,
   transferOrganizationOwnership,
+  transferUserBetweenOrganizations,
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import {
@@ -42,6 +60,7 @@ import { toDecimal } from '@/lib/billing/utils/decimal'
 import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transaction'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
+import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 
 interface PaginationInput {
   search: string
@@ -122,6 +141,81 @@ async function getLatestSubscription(organizationId: string) {
   return row ?? null
 }
 
+interface DashboardOrganizationSummaryInput {
+  org: Pick<typeof organization.$inferSelect, 'id' | 'name' | 'orgUsageLimit' | 'creditBalance'>
+  memberCount: number
+  externalCollaboratorCount: number
+  latestSubscription: typeof subscription.$inferSelect | null
+  provisioning: EnterpriseProvisioningView | null
+  owner: { id: string; name: string; email: string } | null
+}
+
+export function toDashboardProvisioning(view: EnterpriseProvisioningView) {
+  const { includedMonthlyCredits, usageLimitCredits, ...rest } = view
+  return {
+    ...rest,
+    includedMonthlyDollars: creditsToDollars(includedMonthlyCredits),
+    usageLimitDollars: creditsToDollars(usageLimitCredits),
+  }
+}
+
+function buildDashboardOrganizationSummary({
+  org,
+  memberCount,
+  externalCollaboratorCount,
+  latestSubscription,
+  provisioning,
+  owner,
+}: DashboardOrganizationSummaryInput) {
+  const metadata = metadataRecord(latestSubscription?.metadata)
+  const teamEconomics = getTeamOrganizationEconomics(latestSubscription?.plan, memberCount)
+  const includedMonthlyDollars =
+    teamEconomics?.includedMonthlyDollars ??
+    creditsToDollars(
+      Math.max(0, Math.round(metadataNumber(metadata, 'includedMonthlyCredits') ?? 0))
+    )
+  const invoiceAmountCents = metadataNumber(metadata, 'invoiceAmountCents')
+  const monthlyPrice = metadataNumber(metadata, 'monthlyPrice')
+  const effectiveUsageLimitDollars = Number(org.orgUsageLimit ?? 0)
+  const metadataUsageLimitDollars =
+    metadataNumber(metadata, 'usageLimitCredits') === null
+      ? null
+      : creditsToDollars(metadataNumber(metadata, 'usageLimitCredits') ?? 0)
+  const usageLimitDollars = Math.max(
+    0,
+    metadataUsageLimitDollars === null ? effectiveUsageLimitDollars : metadataUsageLimitDollars
+  )
+  const seats =
+    latestSubscription?.plan === 'enterprise'
+      ? Math.max(0, Math.round(metadataNumber(metadata, 'seats') ?? 0))
+      : memberCount
+
+  return {
+    id: org.id,
+    name: org.name,
+    owner,
+    isActive: hasPaidSubscriptionStatus(latestSubscription?.status),
+    subscriptionStatus: latestSubscription?.status ?? null,
+    plan: latestSubscription?.plan ?? null,
+    planLabel: planLabel(latestSubscription?.plan ?? null),
+    memberCount,
+    externalCollaboratorCount,
+    seats,
+    includedMonthlyDollars,
+    usageLimitDollars,
+    effectiveUsageLimitDollars,
+    prepaidBalanceDollars: Number(org.creditBalance ?? 0),
+    monthlyInvoiceAmountUsd:
+      latestSubscription?.plan === 'enterprise'
+        ? invoiceAmountCents !== null
+          ? invoiceAmountCents / 100
+          : (monthlyPrice ?? null)
+        : (teamEconomics?.monthlyInvoiceAmountUsd ?? null),
+    provisioning: provisioning ? toDashboardProvisioning(provisioning) : null,
+    subscription: latestSubscription,
+  }
+}
+
 export async function listDashboardUsers({ search, limit, offset }: PaginationInput) {
   const trimmed = search.trim()
   const where = trimmed
@@ -196,51 +290,15 @@ async function getDashboardOrganizationSummary(organizationId: string) {
     .innerJoin(user, eq(user.id, member.userId))
     .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
     .limit(1)
-  const metadata = metadataRecord(latestSubscription?.metadata)
   const memberCount = memberCountRow?.value ?? 0
-  const teamEconomics = getTeamOrganizationEconomics(latestSubscription?.plan, memberCount)
-  const includedMonthlyCredits =
-    teamEconomics?.includedMonthlyCredits ??
-    Math.max(0, Math.round(metadataNumber(metadata, 'includedMonthlyCredits') ?? 0))
-  const invoiceAmountCents = metadataNumber(metadata, 'invoiceAmountCents')
-  const monthlyPrice = metadataNumber(metadata, 'monthlyPrice')
-  const effectiveUsageLimitCredits = dollarsToCredits(Number(org.orgUsageLimit ?? 0))
-  const metadataUsageLimitCredits = metadataNumber(metadata, 'usageLimitCredits')
-  const usageLimitCredits = Math.max(
-    0,
-    metadataUsageLimitCredits === null
-      ? effectiveUsageLimitCredits
-      : Math.round(metadataUsageLimitCredits)
-  )
-  const seats =
-    latestSubscription?.plan === 'enterprise'
-      ? Math.max(0, Math.round(metadataNumber(metadata, 'seats') ?? 0))
-      : memberCount
-
-  return {
-    id: org.id,
-    name: org.name,
-    owner: owner ?? null,
-    isActive: hasPaidSubscriptionStatus(latestSubscription?.status),
-    subscriptionStatus: latestSubscription?.status ?? null,
-    plan: latestSubscription?.plan ?? null,
-    planLabel: planLabel(latestSubscription?.plan ?? null),
+  return buildDashboardOrganizationSummary({
+    org,
     memberCount,
     externalCollaboratorCount: externalCountRow?.value ?? 0,
-    seats,
-    includedMonthlyCredits,
-    usageLimitCredits,
-    effectiveUsageLimitCredits,
-    prepaidCredits: dollarsToCredits(Number(org.creditBalance ?? 0)),
-    monthlyInvoiceAmountUsd:
-      latestSubscription?.plan === 'enterprise'
-        ? invoiceAmountCents !== null
-          ? invoiceAmountCents / 100
-          : (monthlyPrice ?? null)
-        : (teamEconomics?.monthlyInvoiceAmountUsd ?? null),
+    latestSubscription,
     provisioning: provisionings.get(organizationId) ?? null,
-    subscription: latestSubscription,
-  }
+    owner: owner ?? null,
+  })
 }
 
 export async function listDashboardOrganizations({ search, limit, offset }: PaginationInput) {
@@ -248,20 +306,109 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
   const where = trimmed
     ? or(ilike(organization.name, `%${trimmed}%`), eq(organization.id, trimmed))
     : undefined
-  const [totalRow, rows] = await Promise.all([
+  const [totalRow, orgRows] = await Promise.all([
     db.select({ total: count() }).from(organization).where(where),
     db
-      .select({ id: organization.id })
+      .select({
+        id: organization.id,
+        name: organization.name,
+        orgUsageLimit: organization.orgUsageLimit,
+        creditBalance: organization.creditBalance,
+      })
       .from(organization)
       .where(where)
       .orderBy(organization.name, organization.id)
       .limit(limit)
       .offset(offset),
   ])
-  const summaries = await Promise.all(rows.map((row) => getDashboardOrganizationSummary(row.id)))
-  const data = summaries.filter((row): row is NonNullable<typeof row> => row !== null)
+  const organizationIds = orgRows.map((row) => row.id)
+  if (organizationIds.length === 0) {
+    return {
+      data: [],
+      pagination: { total: totalRow[0]?.total ?? 0, limit, offset, hasMore: false },
+    }
+  }
+
+  const [membershipRows, externalRows, subscriptionRows, provisionings] = await Promise.all([
+    db
+      .select({
+        organizationId: member.organizationId,
+        memberCount: count(),
+        ownerId: sql<string | null>`max(${user.id}) filter (where ${member.role} = 'owner')`,
+        ownerName: sql<string | null>`max(${user.name}) filter (where ${member.role} = 'owner')`,
+        ownerEmail: sql<string | null>`max(${user.email}) filter (where ${member.role} = 'owner')`,
+      })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .where(inArray(member.organizationId, organizationIds))
+      .groupBy(member.organizationId),
+    db
+      .select({
+        organizationId: workspace.organizationId,
+        externalCollaboratorCount: countDistinct(permissions.userId),
+      })
+      .from(permissions)
+      .innerJoin(
+        workspace,
+        and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspace.id))
+      )
+      .leftJoin(
+        member,
+        and(
+          eq(member.userId, permissions.userId),
+          eq(member.organizationId, workspace.organizationId)
+        )
+      )
+      .where(
+        and(
+          inArray(workspace.organizationId, organizationIds),
+          isNull(member.id),
+          isNull(workspace.archivedAt)
+        )
+      )
+      .groupBy(workspace.organizationId),
+    db
+      .selectDistinctOn([subscription.referenceId])
+      .from(subscription)
+      .where(inArray(subscription.referenceId, organizationIds))
+      .orderBy(
+        subscription.referenceId,
+        sql`case when ${subscription.status} in ('active', 'past_due') then 0 else 1 end`,
+        sql`coalesce(${subscription.endedAt}, ${subscription.canceledAt}, ${subscription.periodEnd}, ${subscription.periodStart}) desc nulls last`,
+        desc(subscription.id)
+      ),
+    getLatestEnterpriseProvisionings(organizationIds),
+  ])
+
+  const membershipsByOrganization = new Map(membershipRows.map((row) => [row.organizationId, row]))
+  const externalCountByOrganization = new Map(
+    externalRows.flatMap((row) =>
+      row.organizationId ? [[row.organizationId, row.externalCollaboratorCount] as const] : []
+    )
+  )
+  const subscriptionByOrganization = new Map(subscriptionRows.map((row) => [row.referenceId, row]))
+  const data = orgRows.map((org) => {
+    const membership = membershipsByOrganization.get(org.id)
+    const owner =
+      membership?.ownerId && membership.ownerName && membership.ownerEmail
+        ? {
+            id: membership.ownerId,
+            name: membership.ownerName,
+            email: membership.ownerEmail,
+          }
+        : null
+    const { subscription: _subscription, ...summary } = buildDashboardOrganizationSummary({
+      org,
+      memberCount: membership?.memberCount ?? 0,
+      externalCollaboratorCount: externalCountByOrganization.get(org.id) ?? 0,
+      latestSubscription: subscriptionByOrganization.get(org.id) ?? null,
+      provisioning: provisionings.get(org.id) ?? null,
+      owner,
+    })
+    return summary
+  })
   return {
-    data: data.map(({ subscription: _subscription, ...summary }) => summary),
+    data,
     pagination: {
       total: totalRow[0]?.total ?? 0,
       limit,
@@ -324,18 +471,18 @@ export async function getDashboardOrganization(organizationId: string) {
       .from(organizationMemberUsageLimit)
       .where(eq(organizationMemberUsageLimit.organizationId, organizationId)),
   ])
-  const limits = new Map(limitRows.map((row) => [row.userId, dollarsToCredits(Number(row.limit))]))
+  const limits = new Map(limitRows.map((row) => [row.userId, Number(row.limit)]))
   const { subscription: subscriptionRow, ...base } = summary
   return {
     ...base,
     members: memberRows.map((row) => ({
       ...row,
-      usageLimitCredits: limits.get(row.userId) ?? null,
+      usageLimitDollars: limits.get(row.userId) ?? null,
     })),
     externalCollaborators: externalRows.map((row) => ({
       ...row,
       workspaceCount: row.workspaceCount,
-      usageLimitCredits: limits.get(row.userId) ?? null,
+      usageLimitDollars: limits.get(row.userId) ?? null,
     })),
     workspaces: workspaceRows,
     subscription: subscriptionRow
@@ -399,7 +546,7 @@ export async function updateDashboardEnterpriseSeats(
 
 export async function updateDashboardOrganizationLimits(
   organizationId: string,
-  values: { includedMonthlyCredits?: number; usageLimitCredits?: number },
+  values: { includedMonthlyDollars?: number; usageLimitDollars?: number },
   actor: AdminMutationActor
 ) {
   await db.transaction(async (tx) => {
@@ -423,7 +570,7 @@ export async function updateDashboardOrganizationLimits(
       .for('update')
       .limit(1)
     const metadata = metadataRecord(subscriptionRow?.metadata)
-    if (values.includedMonthlyCredits !== undefined && subscriptionRow?.plan !== 'enterprise') {
+    if (values.includedMonthlyDollars !== undefined && subscriptionRow?.plan !== 'enterprise') {
       throw new Error('Included allowance is editable only for Enterprise organizations')
     }
 
@@ -436,14 +583,16 @@ export async function updateDashboardOrganizationLimits(
         appliedMetadata: subscriptionRow.metadata,
         buildDesiredMetadata: (current) => {
           const included =
-            values.includedMonthlyCredits ??
-            Math.round(metadataNumber(current, 'includedMonthlyCredits') ?? 0)
+            values.includedMonthlyDollars === undefined
+              ? Math.round(metadataNumber(current, 'includedMonthlyCredits') ?? 0)
+              : dollarsToCredits(values.includedMonthlyDollars)
           const configuredUsageLimit =
-            values.usageLimitCredits ??
-            Math.round(
-              metadataNumber(current, 'usageLimitCredits') ??
-                dollarsToCredits(Number(org.orgUsageLimit ?? 0))
-            )
+            values.usageLimitDollars === undefined
+              ? Math.round(
+                  metadataNumber(current, 'usageLimitCredits') ??
+                    dollarsToCredits(Number(org.orgUsageLimit ?? 0))
+                )
+              : dollarsToCredits(values.usageLimitDollars)
           return {
             ...current,
             includedMonthlyCredits: included,
@@ -463,21 +612,20 @@ export async function updateDashboardOrganizationLimits(
       memberCountRow?.value ?? 0
     )
     const included =
-      values.includedMonthlyCredits ??
+      values.includedMonthlyDollars ??
       (teamEconomics
-        ? teamEconomics.includedMonthlyCredits
-        : Math.round(metadataNumber(metadata, 'includedMonthlyCredits') ?? 0))
-    const prepaid = dollarsToCredits(Number(org.creditBalance))
+        ? teamEconomics.includedMonthlyDollars
+        : creditsToDollars(Math.round(metadataNumber(metadata, 'includedMonthlyCredits') ?? 0)))
+    const prepaid = Number(org.creditBalance)
     const configuredUsageLimit =
-      values.usageLimitCredits ??
-      Math.round(
-        metadataNumber(metadata, 'usageLimitCredits') ??
-          dollarsToCredits(Number(org.orgUsageLimit ?? 0))
-      )
+      values.usageLimitDollars ??
+      (metadataNumber(metadata, 'usageLimitCredits') === null
+        ? Number(org.orgUsageLimit ?? 0)
+        : creditsToDollars(metadataNumber(metadata, 'usageLimitCredits') ?? 0))
     const effective = Math.max(configuredUsageLimit, included + prepaid)
     await tx
       .update(organization)
-      .set({ orgUsageLimit: creditsToDollars(effective).toString(), updatedAt: new Date() })
+      .set({ orgUsageLimit: effective.toString(), updatedAt: new Date() })
       .where(eq(organization.id, organizationId))
     if (subscriptionRow) {
       await tx
@@ -485,8 +633,10 @@ export async function updateDashboardOrganizationLimits(
         .set({
           metadata: {
             ...metadata,
-            ...(subscriptionRow.plan === 'enterprise' ? { includedMonthlyCredits: included } : {}),
-            usageLimitCredits: configuredUsageLimit,
+            ...(subscriptionRow.plan === 'enterprise'
+              ? { includedMonthlyCredits: dollarsToCredits(included) }
+              : {}),
+            usageLimitCredits: dollarsToCredits(configuredUsageLimit),
           },
         })
         .where(eq(subscription.id, subscriptionRow.id))
@@ -504,9 +654,9 @@ export async function updateDashboardOrganizationLimits(
   })
 }
 
-export async function grantDashboardOrganizationCredits(
+export async function grantDashboardOrganizationBalance(
   organizationId: string,
-  credits: number,
+  amountDollars: number,
   reason: string | undefined,
   operationId: string,
   actor: AdminMutationActor
@@ -519,7 +669,7 @@ export async function grantDashboardOrganizationCredits(
       operationId,
       requestFingerprint: JSON.stringify({
         organizationId,
-        credits,
+        amountDollars,
         reason: normalizedReason,
       }),
       operation: async () => {
@@ -548,19 +698,30 @@ export async function grantDashboardOrganizationCredits(
           subscriptionRow?.plan,
           memberCountRow?.value ?? 0
         )
-        const included = teamEconomics
-          ? teamEconomics.includedMonthlyCredits
-          : Math.round(
-              metadataNumber(metadataRecord(subscriptionRow?.metadata), 'includedMonthlyCredits') ??
-                0
+        const includedDollars = teamEconomics
+          ? teamEconomics.includedMonthlyDollars
+          : creditsToDollars(
+              Math.round(
+                metadataNumber(
+                  metadataRecord(subscriptionRow?.metadata),
+                  'includedMonthlyCredits'
+                ) ?? 0
+              )
             )
         const subscriptionMetadata = metadataRecord(subscriptionRow?.metadata)
-        const configuredUsageLimit = metadataNumber(subscriptionMetadata, 'usageLimitCredits')
-        const grantDollarDelta = creditGrantDollars(credits)
+        const configuredUsageLimitCredits = metadataNumber(
+          subscriptionMetadata,
+          'usageLimitCredits'
+        )
+        const configuredUsageLimitDollars =
+          configuredUsageLimitCredits === null
+            ? null
+            : creditsToDollars(configuredUsageLimitCredits)
+        const grantDollarDelta = toDecimal(amountDollars).toString()
         const usageLimitFallback = getOrganizationUsageLimitFallbackDollars({
           creditBalanceDollarsBeforeGrant: org.creditBalance,
-          includedCredits: included,
-          configuredUsageLimitCredits: configuredUsageLimit,
+          includedDollars,
+          configuredUsageLimitDollars,
         })
         const [updated] = await tx
           .update(organization)
@@ -578,8 +739,8 @@ export async function grantDashboardOrganizationCredits(
           throw new Error('Organization disappeared during credit grant')
         }
         return {
-          prepaidCredits: dollarsToCredits(Number(updated.creditBalance)),
-          usageLimitCredits: dollarsToCredits(Number(updated.orgUsageLimit)),
+          prepaidBalanceDollars: Number(updated.creditBalance),
+          usageLimitDollars: Number(updated.orgUsageLimit),
         }
       },
     })
@@ -592,22 +753,23 @@ export async function grantDashboardOrganizationCredits(
       action: AuditAction.CREDIT_ISSUED,
       resourceType: AuditResourceType.BILLING,
       resourceId: organizationId,
-      description: `Admin granted ${credits} credits to organization`,
-      metadata: { credits, reason: normalizedReason, operationId },
+      description: `Admin granted $${amountDollars} in prepaid balance to organization`,
+      metadata: { amountDollars, reason: normalizedReason, operationId },
     })
   }
   return outcome.result
 }
 
-export async function grantDashboardUserCredits(
+export async function grantDashboardUserBalance(
   userId: string,
-  credits: number,
+  amountDollars: number,
   reason: string | undefined,
   operationId: string,
   actor: AdminMutationActor
 ) {
   const normalizedReason = reason?.trim() || null
   const outcome = await db.transaction(async (tx) => {
+    await acquireUserBillingIdentityLock(tx, userId)
     const [account] = await tx
       .select({ id: user.id })
       .from(user)
@@ -652,7 +814,7 @@ export async function grantDashboardUserCredits(
     return executeTransactionallyIdempotent(tx, {
       namespace: 'admin-credit-grant',
       operationId,
-      requestFingerprint: JSON.stringify({ userId, credits, reason: normalizedReason }),
+      requestFingerprint: JSON.stringify({ userId, amountDollars, reason: normalizedReason }),
       operation: async () => {
         const [currentMembership] = await tx
           .select({ organizationId: member.organizationId })
@@ -661,7 +823,7 @@ export async function grantDashboardUserCredits(
           .limit(1)
         if (currentMembership) {
           throw new Error(
-            `User belongs to organization ${currentMembership.organizationId}; grant credits from Organizations instead`
+            `User belongs to organization ${currentMembership.organizationId}; grant prepaid balance from Organizations instead`
           )
         }
         const billingSubscription = await getHighestPrioritySubscription(userId, {
@@ -670,11 +832,11 @@ export async function grantDashboardUserCredits(
         })
         if (isOrgScopedSubscription(billingSubscription, userId)) {
           throw new Error(
-            'User is billed through an organization; grant credits from Organizations instead'
+            'User is billed through an organization; grant prepaid balance from Organizations instead'
           )
         }
 
-        const grantDollarDelta = creditGrantDollars(credits)
+        const grantDollarDelta = toDecimal(amountDollars).toString()
         const usageLimitFallback = toDecimal(getPerUserMinimumLimit(billingSubscription))
           .plus(toDecimal(stats.creditBalance))
           .toString()
@@ -698,8 +860,8 @@ export async function grantDashboardUserCredits(
           throw new Error('User disappeared during credit grant')
         }
         return {
-          prepaidCredits: dollarsToCredits(Number(updated.creditBalance)),
-          usageLimitCredits: dollarsToCredits(Number(updated.currentUsageLimit)),
+          prepaidBalanceDollars: Number(updated.creditBalance),
+          usageLimitDollars: Number(updated.currentUsageLimit),
         }
       },
     })
@@ -713,62 +875,222 @@ export async function grantDashboardUserCredits(
       action: AuditAction.CREDIT_ISSUED,
       resourceType: AuditResourceType.BILLING,
       resourceId: userId,
-      description: `Admin granted ${credits} credits to user`,
-      metadata: { credits, reason: normalizedReason, operationId },
+      description: `Admin granted $${amountDollars} in prepaid balance to user`,
+      metadata: { amountDollars, reason: normalizedReason, operationId },
     })
   }
   return outcome.result
 }
 
-export async function addDashboardOrganizationMember(
-  organizationId: string,
-  values: { userId: string; role: 'admin' | 'member'; usageLimitCredits?: number | null },
-  actor: AdminMutationActor
+export async function getDashboardMemberTransferPreflight(
+  destinationOrganizationId: string,
+  userId: string
 ) {
-  const result = await db.transaction(async (tx) => {
-    await acquireOrganizationMutationLock(tx, organizationId)
-    const [organizationSubscription] = await tx
-      .select({ plan: subscription.plan })
-      .from(subscription)
+  const [[destination], [target], personalWorkspaces] = await Promise.all([
+    db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, destinationOrganizationId))
+      .limit(1),
+    db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        memberId: member.id,
+        role: member.role,
+        organizationId: member.organizationId,
+        organizationName: organization.name,
+      })
+      .from(user)
+      .leftJoin(member, eq(member.userId, user.id))
+      .leftJoin(organization, eq(organization.id, member.organizationId))
+      .where(eq(user.id, userId))
+      .limit(1),
+    db
+      .select({ id: workspace.id, name: workspace.name })
+      .from(workspace)
       .where(
         and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          eq(workspace.ownerId, userId),
+          isNull(workspace.archivedAt),
+          ne(workspace.workspaceMode, 'organization')
         )
       )
-      .orderBy(desc(subscription.periodStart))
-      .limit(1)
-    const membershipResult = await ensureUserInOrganizationTx(tx, {
-      userId: values.userId,
-      organizationId,
-      role: values.role,
-      skipSeatValidation: organizationSubscription?.plan.startsWith('team') ?? false,
-    })
-    if (membershipResult.success && values.usageLimitCredits !== undefined) {
-      await setOrgMemberUsageLimit(
-        organizationId,
-        values.userId,
-        values.usageLimitCredits === null ? null : creditsToDollars(values.usageLimitCredits),
-        actor.id ?? undefined,
-        tx
+      .orderBy(workspace.name, workspace.id),
+  ])
+  if (!destination) throw new Error('Destination organization not found')
+  if (!target) throw new Error('User not found')
+
+  const credentialDependencies = target.organizationId
+    ? await getOrganizationTransferCredentialDependencies(userId, target.organizationId)
+    : []
+  const alreadyInDestination = target.organizationId === destinationOrganizationId
+  const reason = alreadyInDestination
+    ? 'User is already a member of this organization'
+    : target.role === 'owner'
+      ? 'Transfer organization ownership before moving this user'
+      : credentialDependencies.length > 0
+        ? 'Reconnect or remove source-organization credentials owned by this user before transfer'
+        : null
+
+  return {
+    user: { id: target.id, name: target.name, email: target.email },
+    currentOrganization:
+      target.organizationId && target.organizationName
+        ? { id: target.organizationId, name: target.organizationName, role: target.role }
+        : null,
+    personalWorkspaces,
+    credentialDependencies,
+    canAdd: reason === null,
+    reason,
+  }
+}
+
+export async function addDashboardOrganizationMember(
+  organizationId: string,
+  values: {
+    userId: string
+    role: 'admin' | 'member'
+    usageLimitDollars?: number | null
+    personalWorkspaceIds?: string[]
+  },
+  actor: AdminMutationActor
+) {
+  const selectedWorkspaceIds = [...new Set(values.personalWorkspaceIds ?? [])]
+  if (selectedWorkspaceIds.length > 0) {
+    const selectable = await db
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(
+        and(
+          inArray(workspace.id, selectedWorkspaceIds),
+          eq(workspace.ownerId, values.userId),
+          isNull(workspace.archivedAt),
+          ne(workspace.workspaceMode, 'organization')
+        )
       )
+    if (selectable.length !== selectedWorkspaceIds.length) {
+      throw new Error('One or more selected personal workspaces can no longer be moved')
     }
-    return membershipResult
-  })
-  if (!result.success || !result.memberId || result.alreadyMember) {
-    throw new Error(
-      result.alreadyMember ? 'User is already a member' : (result.error ?? 'Failed to add member')
-    )
+  }
+
+  const [existingMembership] = await db
+    .select({ id: member.id, organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, values.userId))
+    .limit(1)
+
+  let memberId: string
+  let transferredFromOrganizationId: string | null = null
+  if (existingMembership && existingMembership.organizationId !== organizationId) {
+    const transferred = await transferUserBetweenOrganizations({
+      userId: values.userId,
+      sourceOrganizationId: existingMembership.organizationId,
+      destinationOrganizationId: organizationId,
+      role: values.role,
+      usageLimitDollars: values.usageLimitDollars,
+      setBy: actor.id ?? undefined,
+    })
+    if (!transferred.success || !transferred.memberId) {
+      throw new Error(transferred.error ?? 'Failed to transfer organization member')
+    }
+    memberId = transferred.memberId
+    transferredFromOrganizationId = existingMembership.organizationId
+  } else {
+    memberId = await db.transaction(async (tx) => {
+      await acquireOrganizationMutationLock(tx, organizationId)
+      const [organizationSubscription] = await tx
+        .select({ plan: subscription.plan })
+        .from(subscription)
+        .where(
+          and(
+            eq(subscription.referenceId, organizationId),
+            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
+        .orderBy(desc(subscription.periodStart))
+        .limit(1)
+      const membershipResult = await ensureUserInOrganizationTx(tx, {
+        userId: values.userId,
+        organizationId,
+        role: values.role,
+        skipSeatValidation: organizationSubscription?.plan.startsWith('team') ?? false,
+      })
+      if (
+        !membershipResult.success ||
+        !membershipResult.memberId ||
+        membershipResult.alreadyMember
+      ) {
+        throw new Error(
+          membershipResult.alreadyMember
+            ? 'User is already a member'
+            : (membershipResult.error ?? 'Failed to add member')
+        )
+      }
+      if (values.usageLimitDollars !== undefined) {
+        await setOrgMemberUsageLimit(
+          organizationId,
+          values.userId,
+          values.usageLimitDollars,
+          actor.id ?? undefined,
+          tx
+        )
+      }
+      return membershipResult.memberId
+    })
+  }
+
+  for (const targetOrganizationId of [transferredFromOrganizationId, organizationId]) {
+    if (!targetOrganizationId) continue
+    try {
+      await reconcileOrganizationSeats({
+        organizationId: targetOrganizationId,
+        reason:
+          targetOrganizationId === organizationId
+            ? 'admin-member-added'
+            : 'admin-member-transferred-out',
+        actorId: actor.id ?? undefined,
+      })
+    } catch {
+      // Membership is canonical; Team seat reconciliation is retry-safe.
+    }
   }
   try {
-    await reconcileOrganizationSeats({
-      organizationId,
-      reason: 'admin-member-added',
-      actorId: actor.id ?? undefined,
-    })
+    await syncUsageLimitsFromSubscription(values.userId)
   } catch {
-    // Membership is canonical; Team seat reconciliation is idempotent and the
-    // next membership mutation retries it. Do not report the committed add as failed.
+    // Membership remains canonical; the next billing reconciliation self-heals the derived limit.
+  }
+
+  const workspaceMoves: Array<{ workspaceId: string; success: boolean; error?: string }> = []
+  for (const workspaceId of selectedWorkspaceIds) {
+    try {
+      await moveWorkspaceToOrganization({
+        workspaceId,
+        destinationOrganizationId: organizationId,
+        adminEmail: actor.email ?? 'admin-api',
+      })
+      workspaceMoves.push({ workspaceId, success: true })
+    } catch (error) {
+      workspaceMoves.push({
+        workspaceId,
+        success: false,
+        error: error instanceof Error ? error.message : 'Workspace move failed',
+      })
+    }
+  }
+
+  if (transferredFromOrganizationId) {
+    recordAudit({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: AuditAction.ORG_MEMBER_REMOVED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: transferredFromOrganizationId,
+      description: 'Admin transferred organization member out',
+      metadata: { targetUserId: values.userId, destinationOrganizationId: organizationId },
+    })
   }
   recordAudit({
     actorId: actor.id,
@@ -777,16 +1099,23 @@ export async function addDashboardOrganizationMember(
     action: AuditAction.ORG_MEMBER_ADDED,
     resourceType: AuditResourceType.ORGANIZATION,
     resourceId: organizationId,
-    description: `Admin added organization member as ${values.role}`,
-    metadata: { targetUserId: values.userId, memberId: result.memberId },
+    description: transferredFromOrganizationId
+      ? `Admin transferred organization member as ${values.role}`
+      : `Admin added organization member as ${values.role}`,
+    metadata: {
+      targetUserId: values.userId,
+      memberId,
+      transferredFromOrganizationId,
+      workspaceMoves,
+    },
   })
-  return result.memberId
+  return { memberId, transferredFromOrganizationId, workspaceMoves }
 }
 
 export async function updateDashboardOrganizationMember(
   organizationId: string,
   memberId: string,
-  values: { role?: 'admin' | 'member'; usageLimitCredits?: number | null },
+  values: { role?: 'admin' | 'member'; usageLimitDollars?: number | null },
   actor: AdminMutationActor
 ) {
   const existing = await db.transaction(async (tx) => {
@@ -804,11 +1133,11 @@ export async function updateDashboardOrganizationMember(
     if (values.role) {
       await tx.update(member).set({ role: values.role }).where(eq(member.id, memberId))
     }
-    if (values.usageLimitCredits !== undefined) {
+    if (values.usageLimitDollars !== undefined) {
       await setOrgMemberUsageLimit(
         organizationId,
         memberRow.userId,
-        values.usageLimitCredits === null ? null : creditsToDollars(values.usageLimitCredits),
+        values.usageLimitDollars,
         actor.id ?? undefined,
         tx
       )

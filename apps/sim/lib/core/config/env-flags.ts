@@ -40,6 +40,12 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
 )
 
 /**
+ * Rejects markerless old-Go billing traffic after an operator explicitly
+ * confirms the compatibility window has closed. Off by default.
+ */
+export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
+
+/**
  * Is billing enforcement enabled
  */
 export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)

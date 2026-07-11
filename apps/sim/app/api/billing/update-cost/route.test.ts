@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -10,11 +10,12 @@ const {
   mockRecordCumulativeUsage,
   mockCheckAndBillOverageThreshold,
   mockCheckAndBillPayerOverageThreshold,
-  mockGetCachedBillingAttribution,
   mockRequireAccountBillingDecisionHeader,
   mockRequireBillingAttributionHeader,
+  mockResolveLegacyV0BillingAttribution,
   mockToBillingContext,
   MockCumulativeUsageContextMismatchError,
+  MockThresholdSettlementError,
   billingState,
 } = vi.hoisted(() => ({
   mockCheckInternalApiKey: vi.fn(),
@@ -22,18 +23,26 @@ const {
   mockRecordCumulativeUsage: vi.fn(),
   mockCheckAndBillOverageThreshold: vi.fn(),
   mockCheckAndBillPayerOverageThreshold: vi.fn(),
-  mockGetCachedBillingAttribution: vi.fn(),
   mockRequireAccountBillingDecisionHeader: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
+  mockResolveLegacyV0BillingAttribution: vi.fn(),
   mockToBillingContext: vi.fn(),
   MockCumulativeUsageContextMismatchError: class extends Error {},
+  MockThresholdSettlementError: class extends Error {
+    readonly code: string
+    readonly retryable = true
+
+    constructor(code: string) {
+      super('Billing settlement temporarily unavailable')
+      this.name = 'ThresholdSettlementError'
+      this.code = code
+    }
+  },
   billingState: {
     isBillingEnabled: true,
-    isCopilotBillingAttributionV1Enabled: false,
+    isCopilotBillingProtocolRequired: false,
   },
 }))
-
-vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/request/http', () => ({
   checkInternalApiKey: mockCheckInternalApiKey,
@@ -66,27 +75,26 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   COPILOT_BILLING_PROTOCOL_HEADER: 'x-sim-billing-protocol',
   requireAccountBillingDecisionHeader: mockRequireAccountBillingDecisionHeader,
   requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
+  resolveLegacyV0BillingAttribution: mockResolveLegacyV0BillingAttribution,
   toBillingContext: mockToBillingContext,
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution-cache', () => ({
-  getCachedBillingAttribution: mockGetCachedBillingAttribution,
 }))
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: mockCheckAndBillOverageThreshold,
   checkAndBillPayerOverageThreshold: mockCheckAndBillPayerOverageThreshold,
+  ThresholdSettlementError: MockThresholdSettlementError,
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   get isBillingEnabled() {
     return billingState.isBillingEnabled
   },
-  get isCopilotBillingAttributionV1Enabled() {
-    return billingState.isCopilotBillingAttributionV1Enabled
+  get isCopilotBillingProtocolRequired() {
+    return billingState.isCopilotBillingProtocolRequired
   },
 }))
 
+import { billingUpdateCostBodySchema } from '@/lib/api/contracts/subscription'
 import { POST } from '@/app/api/billing/update-cost/route'
 
 const ACCOUNT_BILLING_DECISION = {
@@ -111,20 +119,45 @@ const ATTRIBUTION = {
   payerSubscription: null,
 }
 
+const OLD_GO_HOSTED_UPDATE_COST_BODY = {
+  userId: 'user-1',
+  cost: 0.4662453,
+  model: 'claude-opus-4.8',
+  inputTokens: 461371,
+  outputTokens: 1686,
+  source: 'workspace-chat',
+  idempotencyKey: 'random-old-go-billing-id',
+  workspaceId: 'ws-1',
+} as const
+
+const OLD_GO_WORKSPACELESS_UPDATE_COST_BODY = {
+  userId: 'user-1',
+  cost: 0.5,
+  model: 'gpt',
+  inputTokens: 1,
+  outputTokens: 2,
+  source: 'copilot',
+  idempotencyKey: 'random-old-go-direct-billing-id',
+} as const
+
+const OLD_GO_OPAQUE_WORKSPACE_UPDATE_COST_BODY = {
+  ...OLD_GO_WORKSPACELESS_UPDATE_COST_BODY,
+  workspaceId: 'local-self-hosted-workspace',
+} as const
+
 describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetDbChainMock()
     billingState.isBillingEnabled = true
-    billingState.isCopilotBillingAttributionV1Enabled = false
+    billingState.isCopilotBillingProtocolRequired = false
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockRecordUsage.mockResolvedValue(undefined)
     mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
     mockCheckAndBillOverageThreshold.mockResolvedValue(undefined)
     mockCheckAndBillPayerOverageThreshold.mockResolvedValue(undefined)
-    mockGetCachedBillingAttribution.mockResolvedValue(ATTRIBUTION)
     mockRequireBillingAttributionHeader.mockReturnValue(ATTRIBUTION)
     mockRequireAccountBillingDecisionHeader.mockReturnValue(ACCOUNT_BILLING_DECISION)
+    mockResolveLegacyV0BillingAttribution.mockResolvedValue(ATTRIBUTION)
     mockToBillingContext.mockReturnValue({
       billingEntity: { type: 'organization', id: 'org-1' },
       billingPeriod: {
@@ -132,7 +165,6 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         end: new Date('2026-08-01T00:00:00.000Z'),
       },
     })
-    dbChainMockFns.limit.mockResolvedValue([{ id: 'ws-1' }])
   })
 
   it('returns 401 for a billing-disabled request without valid internal auth', async () => {
@@ -185,61 +217,99 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('accepts markerless legacy callbacks only during the Sim-first rollout stage', async () => {
-    mockGetCachedBillingAttribution.mockResolvedValueOnce(undefined)
+  it('keeps the exact old-Go callback bodies contract-compatible', () => {
+    expect(billingUpdateCostBodySchema.safeParse(OLD_GO_HOSTED_UPDATE_COST_BODY).success).toBe(true)
+    expect(
+      billingUpdateCostBodySchema.safeParse(OLD_GO_WORKSPACELESS_UPDATE_COST_BODY).success
+    ).toBe(true)
+    expect(
+      billingUpdateCostBodySchema.safeParse(OLD_GO_OPAQUE_WORKSPACE_UPDATE_COST_BODY).success
+    ).toBe(true)
+  })
 
+  it('bills the routed workspace payer for the exact markerless hosted callback', async () => {
     const res = await POST(
-      createMockRequest(
-        'POST',
-        {
-          userId: 'user-1',
-          cost: 0.5,
-          model: 'gpt',
-          source: 'workspace-chat',
-          workspaceId: 'ws-1',
-          idempotencyKey: 'legacy-message-billing',
-        },
-        { 'x-api-key': 'internal' }
-      )
+      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
 
     expect(res.status).toBe(200)
-    expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-      })
+    expect(mockResolveLegacyV0BillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+    })
+    expect(mockRecordCumulativeUsage).toHaveBeenCalledWith({
+      userId: 'user-1',
+      workspaceId: 'ws-1',
+      billingEntity: { type: 'organization', id: 'org-1' },
+      billingPeriod: {
+        start: new Date('2026-07-01T00:00:00.000Z'),
+        end: new Date('2026-08-01T00:00:00.000Z'),
+      },
+      source: 'workspace-chat',
+      model: 'claude-opus-4.8',
+      cost: 0.4662453,
+      eventKey: 'update-cost:random-old-go-billing-id',
+      metadata: { inputTokens: 461371, outputTokens: 1686 },
+    })
+    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith(
+      { type: 'organization', id: 'org-1' },
+      {
+        onError: 'throw',
+        expectedBillingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      }
     )
-    expect(mockRecordCumulativeUsage.mock.calls[0][0]).not.toHaveProperty('billingEntity')
+    expect(mockCheckAndBillOverageThreshold).not.toHaveBeenCalled()
   })
 
-  it('rejects markerless callbacks after the attribution rollout flag is enabled', async () => {
-    billingState.isCopilotBillingAttributionV1Enabled = true
+  it('returns a retryable 503 when markerless legacy workspace settlement fails', async () => {
+    mockCheckAndBillPayerOverageThreshold.mockRejectedValueOnce(
+      new MockThresholdSettlementError('required_state_missing')
+    )
 
     const res = await POST(
-      createMockRequest(
-        'POST',
-        {
-          userId: 'user-1',
-          cost: 0.5,
-          model: 'gpt',
-          source: 'workspace-chat',
-          workspaceId: 'ws-1',
-          idempotencyKey: 'markerless-modern',
-        },
-        { 'x-api-key': 'internal' }
-      )
+      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+    )
+
+    expect(res.status).toBe(503)
+    expect(res.headers.get('retry-after')).toBe('1')
+    await expect(res.json()).resolves.toMatchObject({
+      success: false,
+      code: 'BILLING_SETTLEMENT_RETRYABLE',
+      error: 'Billing settlement temporarily unavailable',
+      retryable: true,
+    })
+  })
+
+  it('rejects markerless callbacks only when protocol-required is explicitly enabled', async () => {
+    billingState.isCopilotBillingProtocolRequired = true
+    const res = await POST(
+      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
 
     expect(res.status).toBe(400)
-    expect(mockGetCachedBillingAttribution).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('allows explicitly labeled legacy callbacks to drain after strict attribution rollout', async () => {
-    billingState.isCopilotBillingAttributionV1Enabled = true
-    mockGetCachedBillingAttribution.mockResolvedValueOnce(undefined)
+  it('does not let markerless legacy traffic fall through to a modern attribution envelope', async () => {
+    const res = await POST(
+      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, {
+        'x-api-key': 'internal',
+        'x-sim-billing-attribution': 'serialized-attribution',
+      })
+    )
 
+    expect(res.status).toBe(400)
+    expect(mockRequireBillingAttributionHeader).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
+    expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
+  })
+
+  it('allows explicitly labeled legacy callbacks when markerless traffic is disabled', async () => {
+    billingState.isCopilotBillingProtocolRequired = true
     const res = await POST(
       createMockRequest(
         'POST',
@@ -291,46 +361,6 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('bills old markerless Go from its legacy Redis attribution alias', async () => {
-    const res = await POST(
-      createMockRequest(
-        'POST',
-        {
-          userId: 'user-1',
-          cost: 0.4662453,
-          model: 'claude-opus-4.8',
-          source: 'workspace-chat',
-          workspaceId: 'ws-1',
-          idempotencyKey: 'msg-1-billing',
-          inputTokens: 461371,
-          outputTokens: 1686,
-        },
-        { 'x-api-key': 'internal' }
-      )
-    )
-    expect(res.status).toBe(200)
-    expect(mockGetCachedBillingAttribution).toHaveBeenCalledWith('msg-1-billing')
-    expect(mockRecordUsage).not.toHaveBeenCalled()
-    expect(mockRecordCumulativeUsage).toHaveBeenCalledTimes(1)
-    expect(mockRecordCumulativeUsage.mock.calls[0][0]).toMatchObject({
-      userId: 'user-1',
-      workspaceId: 'ws-1',
-      source: 'workspace-chat',
-      model: 'claude-opus-4.8',
-      cost: 0.4662453,
-      eventKey: 'update-cost:msg-1-billing',
-      billingEntity: { type: 'organization', id: 'org-1' },
-    })
-    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith(
-      {
-        type: 'organization',
-        id: 'org-1',
-      },
-      { onError: 'throw' }
-    )
-    expect(mockCheckAndBillOverageThreshold).not.toHaveBeenCalled()
-  })
-
   it('bills direct-v1 from its envelope and ignores the local workspace', async () => {
     const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
 
@@ -355,8 +385,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mockGetCachedBillingAttribution).not.toHaveBeenCalled()
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-1',
@@ -373,14 +402,19 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         type: 'organization',
         id: 'account-org',
       },
-      { onError: 'throw' }
+      {
+        onError: 'throw',
+        expectedBillingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      }
     )
     expect(mockCheckAndBillOverageThreshold).not.toHaveBeenCalled()
   })
 
-  it('bills direct-v1 when Redis is unavailable', async () => {
+  it('keeps direct-v1 isolated from legacy callback-time resolution', async () => {
     const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
-    mockGetCachedBillingAttribution.mockRejectedValue(new Error('Redis unavailable'))
 
     const res = await POST(
       createMockRequest(
@@ -403,7 +437,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
 
     expect(res.status).toBe(200)
     expect(mockRequireAccountBillingDecisionHeader).toHaveBeenCalled()
-    expect(mockGetCachedBillingAttribution).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-1',
@@ -446,112 +480,13 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('reuses the pre-hosted-work snapshot for cumulative cost flushes', async () => {
-    mockGetCachedBillingAttribution.mockResolvedValue({
-      actorUserId: 'user-1',
-      workspaceId: 'ws-1',
-      billedAccountUserId: 'owner-1',
-      organizationId: 'org-original',
-      billingEntity: { type: 'organization', id: 'org-original' },
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: '2026-08-01T00:00:00.000Z',
-      },
-      payerSubscription: null,
-    })
-    mockToBillingContext.mockReturnValue({
-      billingEntity: { type: 'organization', id: 'org-original' },
-      billingPeriod: {
-        start: new Date('2026-07-01T00:00:00.000Z'),
-        end: new Date('2026-08-01T00:00:00.000Z'),
-      },
-    })
-
-    const res = await POST(
-      createMockRequest(
-        'POST',
-        {
-          userId: 'user-1',
-          cost: 0.5,
-          model: 'claude-opus-4.8',
-          source: 'workspace-chat',
-          idempotencyKey: 'msg-1-billing',
-        },
-        { 'x-api-key': 'internal' }
-      )
-    )
-
-    expect(res.status).toBe(200)
-    expect(mockGetCachedBillingAttribution).toHaveBeenCalledWith('msg-1-billing')
-    expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billingEntity: { type: 'organization', id: 'org-original' },
-      })
-    )
-  })
-
-  it.each([
-    ['actor', { actorUserId: 'different-user' }, 'ws-1'],
-    ['workspace', {}, 'different-workspace'],
-  ])(
-    'returns a retryable failure for a markerless cached %s mismatch',
-    async (_, override, requestWorkspaceId) => {
-      mockGetCachedBillingAttribution.mockResolvedValue({
-        actorUserId: 'user-1',
-        workspaceId: 'ws-1',
-        billedAccountUserId: 'owner-1',
-        organizationId: 'org-1',
-        billingEntity: { type: 'organization', id: 'org-1' },
-        billingPeriod: {
-          start: '2026-07-01T00:00:00.000Z',
-          end: '2026-08-01T00:00:00.000Z',
-        },
-        payerSubscription: null,
-        ...override,
-      })
-
-      const res = await POST(
-        createMockRequest(
-          'POST',
-          {
-            userId: 'user-1',
-            cost: 0.5,
-            model: 'claude-opus-4.8',
-            source: 'workspace-chat',
-            workspaceId: requestWorkspaceId,
-            idempotencyKey: 'msg-1-billing',
-          },
-          { 'x-api-key': 'internal' }
-        )
-      )
-
-      expect(res.status).toBe(500)
-      await expect(res.json()).resolves.toMatchObject({
-        success: false,
-        error: 'Internal server error',
-      })
-      expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
-    }
-  )
-
   it('does not expose context-mismatch 409 to markerless old Go', async () => {
     mockRecordCumulativeUsage.mockRejectedValue(
       new MockCumulativeUsageContextMismatchError('different billing context')
     )
 
     const res = await POST(
-      createMockRequest(
-        'POST',
-        {
-          userId: 'user-1',
-          cost: 0.5,
-          model: 'claude-opus-4.8',
-          source: 'workspace-chat',
-          workspaceId: 'ws-1',
-          idempotencyKey: 'msg-1-billing',
-        },
-        { 'x-api-key': 'internal' }
-      )
+      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
 
     expect(res.status).toBe(500)
@@ -566,18 +501,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   it('preserves old Go duplicate-compatible 409 semantics for markerless callbacks', async () => {
     mockRecordCumulativeUsage.mockResolvedValue({ billed: false, delta: 0, total: 0.4662453 })
     const res = await POST(
-      createMockRequest(
-        'POST',
-        {
-          userId: 'user-1',
-          cost: 0.4662453,
-          model: 'claude-opus-4.8',
-          source: 'workspace-chat',
-          workspaceId: 'ws-1',
-          idempotencyKey: 'msg-1-billing',
-        },
-        { 'x-api-key': 'internal' }
-      )
+      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
     )
     expect(res.status).toBe(409)
     await expect(res.json()).resolves.toMatchObject({
@@ -589,7 +513,13 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         type: 'organization',
         id: 'org-1',
       },
-      { onError: 'throw' }
+      {
+        onError: 'throw',
+        expectedBillingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      }
     )
   })
 
@@ -601,18 +531,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
       .mockRejectedValueOnce(new Error('Threshold settlement unavailable'))
       .mockResolvedValueOnce(undefined)
     const createRequest = () =>
-      createMockRequest(
-        'POST',
-        {
-          userId: 'user-1',
-          cost: 0.4662453,
-          model: 'claude-opus-4.8',
-          source: 'workspace-chat',
-          workspaceId: 'ws-1',
-          idempotencyKey: 'msg-1-billing',
-        },
-        { 'x-api-key': 'internal' }
-      )
+      createMockRequest('POST', OLD_GO_HOSTED_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
 
     const firstResponse = await POST(createRequest())
     const retryResponse = await POST(createRequest())
@@ -624,6 +543,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     })
     expect(mockRecordCumulativeUsage).toHaveBeenCalledTimes(2)
     expect(mockRecordUsage).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).toHaveBeenCalledTimes(2)
     expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledTimes(2)
     expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenNthCalledWith(
       2,
@@ -631,30 +551,22 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         type: 'organization',
         id: 'org-1',
       },
-      { onError: 'throw' }
+      {
+        onError: 'throw',
+        expectedBillingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      }
     )
   })
 
-  it('records unattributed when workspaceId is omitted (headless client)', async () => {
-    const res = await POST(
-      createMockRequest(
-        'POST',
-        { userId: 'user-1', cost: 0.5, model: 'gpt', source: 'copilot' },
-        { 'x-api-key': 'internal' }
-      )
+  it('returns a stable retryable 503 when modern threshold settlement fails', async () => {
+    const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
+    mockCheckAndBillPayerOverageThreshold.mockRejectedValueOnce(
+      new MockThresholdSettlementError('provider_failure')
     )
-    expect(res.status).toBe(200)
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
-    expect(mockRecordUsage).toHaveBeenCalledTimes(1)
-    expect(mockRecordUsage.mock.calls[0][0]).toMatchObject({
-      userId: 'user-1',
-      workspaceId: undefined,
-    })
-  })
 
-  it('records unattributed when the workspace does not exist in this deployment (self-hosted client)', async () => {
-    mockGetCachedBillingAttribution.mockResolvedValue(undefined)
-    dbChainMockFns.limit.mockResolvedValue([])
     const res = await POST(
       createMockRequest(
         'POST',
@@ -663,18 +575,110 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
           cost: 0.5,
           model: 'claude-opus-4.8',
           source: 'workspace-chat',
-          workspaceId: 'self-hosted-ws',
-          idempotencyKey: 'msg-1-billing',
+          idempotencyKey: billingRequestId,
         },
-        { 'x-api-key': 'internal' }
+        {
+          'x-api-key': 'internal',
+          'x-sim-billing-protocol': 'direct-v1',
+          'x-sim-billing-request-id': billingRequestId,
+          'x-sim-billing-account-decision': 'serialized-account-decision',
+        }
       )
     )
+
+    expect(res.status).toBe(503)
+    expect(res.headers.get('retry-after')).toBe('1')
+    await expect(res.json()).resolves.toMatchObject({
+      success: false,
+      code: 'BILLING_SETTLEMENT_RETRYABLE',
+      error: 'Billing settlement temporarily unavailable',
+      retryable: true,
+    })
+  })
+
+  it('retries modern settlement on a duplicate cumulative callback before returning 409', async () => {
+    const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
+    mockRecordCumulativeUsage
+      .mockResolvedValueOnce({ billed: true, delta: 0.5, total: 0.5 })
+      .mockResolvedValueOnce({ billed: false, delta: 0, total: 0.5 })
+    mockCheckAndBillPayerOverageThreshold
+      .mockRejectedValueOnce(new MockThresholdSettlementError('required_state_missing'))
+      .mockResolvedValueOnce({ status: 'no-op', reason: 'already-settled' })
+    const createRequest = () =>
+      createMockRequest(
+        'POST',
+        {
+          userId: 'user-1',
+          cost: 0.5,
+          model: 'claude-opus-4.8',
+          source: 'workspace-chat',
+          idempotencyKey: billingRequestId,
+        },
+        {
+          'x-api-key': 'internal',
+          'x-sim-billing-protocol': 'direct-v1',
+          'x-sim-billing-request-id': billingRequestId,
+          'x-sim-billing-account-decision': 'serialized-account-decision',
+        }
+      )
+
+    const firstResponse = await POST(createRequest())
+    const retryResponse = await POST(createRequest())
+
+    expect(firstResponse.status).toBe(503)
+    expect(retryResponse.status).toBe(409)
+    expect(mockRecordCumulativeUsage).toHaveBeenCalledTimes(2)
+    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledTimes(2)
+    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenNthCalledWith(
+      2,
+      { type: 'organization', id: 'account-org' },
+      {
+        onError: 'throw',
+        expectedBillingPeriod: {
+          start: new Date('2026-07-01T00:00:00.000Z'),
+          end: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      }
+    )
+  })
+
+  it('preserves account-ledger ownership for the exact workspace-less old-Go callback', async () => {
+    const res = await POST(
+      createMockRequest('POST', OLD_GO_WORKSPACELESS_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
+    expect(mockRecordCumulativeUsage).toHaveBeenCalledTimes(1)
+    expect(mockRecordCumulativeUsage.mock.calls[0][0]).toMatchObject({
+      userId: 'user-1',
+      workspaceId: undefined,
+      eventKey: 'update-cost:random-old-go-direct-billing-id',
+    })
+    expect(mockRecordCumulativeUsage.mock.calls[0][0]).not.toHaveProperty('billingEntity')
+    expect(mockCheckAndBillOverageThreshold).toHaveBeenCalledWith('user-1', undefined, {
+      onError: 'throw',
+    })
+  })
+
+  it('preserves account-ledger ownership for an opaque direct legacy workspace', async () => {
+    mockResolveLegacyV0BillingAttribution.mockResolvedValueOnce(null)
+    const res = await POST(
+      createMockRequest('POST', OLD_GO_OPAQUE_WORKSPACE_UPDATE_COST_BODY, {
+        'x-api-key': 'internal',
+      })
+    )
+
     expect(res.status).toBe(200)
     expect(mockRecordCumulativeUsage).toHaveBeenCalledTimes(1)
     expect(mockRecordCumulativeUsage.mock.calls[0][0]).toMatchObject({
       userId: 'user-1',
       workspaceId: undefined,
-      eventKey: 'update-cost:msg-1-billing',
+      eventKey: 'update-cost:random-old-go-direct-billing-id',
+    })
+    expect(mockRecordCumulativeUsage.mock.calls[0][0]).not.toHaveProperty('billingEntity')
+    expect(mockCheckAndBillOverageThreshold).toHaveBeenCalledWith('user-1', undefined, {
+      onError: 'throw',
     })
   })
 
@@ -702,7 +706,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mockGetCachedBillingAttribution).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-1',
@@ -712,9 +716,8 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     )
   })
 
-  it('bills attributed-v1 from its envelope when Redis is unavailable', async () => {
+  it('keeps attributed-v1 isolated from legacy callback-time resolution', async () => {
     const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
-    mockGetCachedBillingAttribution.mockRejectedValue(new Error('Redis unavailable'))
 
     const res = await POST(
       createMockRequest(
@@ -741,7 +744,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
       actorUserId: 'user-1',
       workspaceId: 'ws-1',
     })
-    expect(mockGetCachedBillingAttribution).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
     expect(mockToBillingContext).toHaveBeenCalledWith(ATTRIBUTION)
   })
 

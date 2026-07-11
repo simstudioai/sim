@@ -29,7 +29,6 @@ vi.mock('@/lib/auth/ban', () => ({
 }))
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkServerSideUsageLimits: vi.fn(),
-  checkOrgMemberUsageLimit: vi.fn().mockResolvedValue({ isExceeded: false }),
 }))
 vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
   reserveExecutionSlot: mockReserveExecutionSlot,

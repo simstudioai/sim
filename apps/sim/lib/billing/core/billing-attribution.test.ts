@@ -69,6 +69,7 @@ import {
   requireBillingAttributionHeader,
   requireBillingRequestIdHeader,
   resolveBillingAttribution,
+  resolveLegacyV0BillingAttribution,
   resolveSystemBillingAttribution,
   serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
@@ -303,6 +304,41 @@ describe('resolveBillingAttribution', () => {
         workspaceId: 'missing-workspace',
       })
     ).rejects.toThrow('Unable to resolve billing payer for workspace missing-workspace')
+  })
+
+  it('resolves markerless legacy-v0 from the current workspace payer', async () => {
+    mockLimit.mockResolvedValue([
+      {
+        billedAccountUserId: 'owner-b',
+        organizationId: 'org-b',
+      },
+    ])
+    mockGetOrganizationSubscription.mockResolvedValue(ORG_SUBSCRIPTION)
+
+    await expect(
+      resolveLegacyV0BillingAttribution({
+        actorUserId: 'actor-a',
+        workspaceId: 'workspace-b',
+      })
+    ).resolves.toMatchObject({
+      actorUserId: 'actor-a',
+      workspaceId: 'workspace-b',
+      billedAccountUserId: 'owner-b',
+      billingEntity: { type: 'organization', id: 'org-b' },
+    })
+  })
+
+  it('returns no workspace payer for an opaque markerless legacy-v0 workspace', async () => {
+    mockLimit.mockResolvedValue([])
+
+    await expect(
+      resolveLegacyV0BillingAttribution({
+        actorUserId: 'actor-a',
+        workspaceId: 'foreign-workspace',
+      })
+    ).resolves.toBeNull()
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+    expect(mockGetHighestPriorityPersonalSubscription).not.toHaveBeenCalled()
   })
 
   it('converts the serialized period back to the exact runtime billing context', async () => {

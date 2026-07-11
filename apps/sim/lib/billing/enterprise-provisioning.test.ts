@@ -71,6 +71,9 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
 }))
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
+  acquireUserBillingIdentityLock: vi.fn(),
+}))
 vi.mock('@/lib/billing/stripe-client', () => ({
   requireStripeClient: () => ({
     customers: { create: mocks.customersCreate, list: mocks.customersList },

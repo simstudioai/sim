@@ -8,7 +8,21 @@ import {
   adminV1SingleResponseSchema,
 } from '@/lib/api/contracts/v1/admin/shared'
 
-const creditsSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
+const dollarAmountSchema = z
+  .number()
+  .finite()
+  .min(0)
+  .max(Number.MAX_SAFE_INTEGER / 200)
+const creditAlignedDollarAmountSchema = dollarAmountSchema.refine(
+  (value) => Math.abs(value * 200 - Math.round(value * 200)) < 1e-8,
+  { error: 'Dollar amounts must use $0.005 increments' }
+)
+const positiveCreditAlignedDollarAmountSchema = creditAlignedDollarAmountSchema.refine(
+  (value) => value > 0,
+  {
+    error: 'Dollar amount must be positive',
+  }
+)
 
 export const adminDashboardUserSchema = z.object({
   id: z.string(),
@@ -23,8 +37,8 @@ export const adminDashboardProvisioningSchema = z.object({
   organizationId: z.string(),
   status: z.enum(['pending', 'processing', 'dead_letter', 'awaiting_webhook', 'applied']),
   monthlyInvoiceAmountUsd: z.number(),
-  includedMonthlyCredits: creditsSchema,
-  usageLimitCredits: creditsSchema,
+  includedMonthlyDollars: creditAlignedDollarAmountSchema,
+  usageLimitDollars: creditAlignedDollarAmountSchema,
   seats: z.number().int().positive(),
   stripeSubscriptionId: z.string().nullable(),
   error: z.string().nullable(),
@@ -43,10 +57,10 @@ export const adminDashboardOrganizationSummarySchema = z.object({
   memberCount: z.number().int().min(0),
   externalCollaboratorCount: z.number().int().min(0),
   seats: z.number().int().min(0),
-  includedMonthlyCredits: creditsSchema,
-  usageLimitCredits: creditsSchema,
-  effectiveUsageLimitCredits: creditsSchema,
-  prepaidCredits: creditsSchema,
+  includedMonthlyDollars: dollarAmountSchema,
+  usageLimitDollars: dollarAmountSchema,
+  effectiveUsageLimitDollars: dollarAmountSchema,
+  prepaidBalanceDollars: dollarAmountSchema,
   monthlyInvoiceAmountUsd: z.number().nullable(),
   provisioning: adminDashboardProvisioningSchema.nullable(),
 })
@@ -60,7 +74,7 @@ export const adminDashboardOrganizationDetailSchema =
         name: z.string(),
         email: z.string(),
         role: z.string(),
-        usageLimitCredits: creditsSchema.nullable(),
+        usageLimitDollars: dollarAmountSchema.nullable(),
       })
     ),
     externalCollaborators: z.array(
@@ -69,7 +83,7 @@ export const adminDashboardOrganizationDetailSchema =
         name: z.string(),
         email: z.string(),
         workspaceCount: z.number().int().min(1),
-        usageLimitCredits: creditsSchema.nullable(),
+        usageLimitDollars: dollarAmountSchema.nullable(),
       })
     ),
     workspaces: z.array(z.object({ id: z.string(), name: z.string() })),
@@ -94,8 +108,8 @@ export const adminDashboardIssueEnterpriseBodySchema = z.object({
   ownerUserId: z.string().min(1),
   organizationName: z.string().trim().min(1).max(120).optional(),
   monthlyInvoiceAmountUsd: z.number().min(0.01).max(10_000_000).multipleOf(0.01),
-  includedMonthlyCredits: creditsSchema,
-  usageLimitCredits: creditsSchema.optional(),
+  includedMonthlyDollars: creditAlignedDollarAmountSchema,
+  usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
   seats: z.number().int().positive().max(100_000),
 })
 
@@ -105,24 +119,45 @@ export const adminDashboardSeatsBodySchema = z.object({
 
 export const adminDashboardLimitsBodySchema = z
   .object({
-    includedMonthlyCredits: creditsSchema.optional(),
-    usageLimitCredits: creditsSchema.optional(),
+    includedMonthlyDollars: creditAlignedDollarAmountSchema.optional(),
+    usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
   })
   .refine(
-    (value) => value.includedMonthlyCredits !== undefined || value.usageLimitCredits !== undefined,
+    (value) => value.includedMonthlyDollars !== undefined || value.usageLimitDollars !== undefined,
     { error: 'At least one limit must be provided' }
   )
 
-export const adminDashboardCreditsBodySchema = z.object({
+export const adminDashboardBalanceGrantBodySchema = z.object({
   operationId: z.string().uuid(),
-  credits: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  amountDollars: positiveCreditAlignedDollarAmountSchema,
   reason: z.string().trim().min(1).max(500).optional(),
 })
 
 export const adminDashboardAddMemberBodySchema = z.object({
   userId: z.string().min(1),
   role: z.enum(['admin', 'member']),
-  usageLimitCredits: creditsSchema.nullable().optional(),
+  usageLimitDollars: dollarAmountSchema.nullable().optional(),
+  personalWorkspaceIds: z.array(z.string().min(1)).max(100).default([]),
+})
+
+export const adminDashboardMemberPreflightQuerySchema = z.object({
+  userId: z.string().min(1),
+})
+
+export const adminDashboardMemberPreflightSchema = z.object({
+  user: z.object({ id: z.string(), name: z.string(), email: z.string() }),
+  currentOrganization: z.object({ id: z.string(), name: z.string(), role: z.string() }).nullable(),
+  personalWorkspaces: z.array(z.object({ id: z.string(), name: z.string() })),
+  credentialDependencies: z.array(
+    z.object({
+      id: z.string(),
+      displayName: z.string(),
+      type: z.string(),
+      workspaceId: z.string(),
+    })
+  ),
+  canAdd: z.boolean(),
+  reason: z.string().nullable(),
 })
 
 export const adminDashboardMemberParamsSchema = adminV1IdParamsSchema.extend({
@@ -136,14 +171,14 @@ export const adminDashboardExternalCollaboratorParamsSchema = adminV1IdParamsSch
 export const adminDashboardUpdateMemberBodySchema = z
   .object({
     role: z.enum(['admin', 'member']).optional(),
-    usageLimitCredits: creditsSchema.nullable().optional(),
+    usageLimitDollars: dollarAmountSchema.nullable().optional(),
   })
-  .refine((value) => value.role !== undefined || value.usageLimitCredits !== undefined, {
+  .refine((value) => value.role !== undefined || value.usageLimitDollars !== undefined, {
     error: 'At least one member field must be provided',
   })
 
 export const adminDashboardExternalCollaboratorLimitBodySchema = z.object({
-  usageLimitCredits: creditsSchema.nullable(),
+  usageLimitDollars: dollarAmountSchema.nullable(),
 })
 
 export const adminDashboardTransferOwnershipBodySchema = z.object({
@@ -151,12 +186,16 @@ export const adminDashboardTransferOwnershipBodySchema = z.object({
 })
 
 const adminDashboardMutationResultSchema = z.object({ success: z.literal(true) })
-const adminDashboardCreditsResultSchema = adminDashboardMutationResultSchema.extend({
-  prepaidCredits: creditsSchema,
-  usageLimitCredits: creditsSchema,
+const adminDashboardBalanceGrantResultSchema = adminDashboardMutationResultSchema.extend({
+  prepaidBalanceDollars: dollarAmountSchema,
+  usageLimitDollars: dollarAmountSchema,
 })
 const adminDashboardMemberResultSchema = adminDashboardMutationResultSchema.extend({
   memberId: z.string(),
+  transferredFromOrganizationId: z.string().nullable(),
+  workspaceMoves: z.array(
+    z.object({ workspaceId: z.string(), success: z.boolean(), error: z.string().optional() })
+  ),
 })
 
 export const adminDashboardListUsersContract = defineRouteContract({
@@ -228,25 +267,25 @@ export const adminDashboardUpdateLimitsContract = defineRouteContract({
   },
 })
 
-export const adminDashboardGrantCreditsContract = defineRouteContract({
+export const adminDashboardGrantBalanceContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/dashboard/organizations/[id]/credits',
   params: adminV1IdParamsSchema,
-  body: adminDashboardCreditsBodySchema,
+  body: adminDashboardBalanceGrantBodySchema,
   response: {
     mode: 'json',
-    schema: adminV1SingleResponseSchema(adminDashboardCreditsResultSchema),
+    schema: adminV1SingleResponseSchema(adminDashboardBalanceGrantResultSchema),
   },
 })
 
-export const adminDashboardGrantUserCreditsContract = defineRouteContract({
+export const adminDashboardGrantUserBalanceContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/dashboard/users/[id]/credits',
   params: adminV1IdParamsSchema,
-  body: adminDashboardCreditsBodySchema,
+  body: adminDashboardBalanceGrantBodySchema,
   response: {
     mode: 'json',
-    schema: adminV1SingleResponseSchema(adminDashboardCreditsResultSchema),
+    schema: adminV1SingleResponseSchema(adminDashboardBalanceGrantResultSchema),
   },
 })
 
@@ -256,6 +295,17 @@ export const adminDashboardAddMemberContract = defineRouteContract({
   params: adminV1IdParamsSchema,
   body: adminDashboardAddMemberBodySchema,
   response: { mode: 'json', schema: adminV1SingleResponseSchema(adminDashboardMemberResultSchema) },
+})
+
+export const adminDashboardMemberPreflightContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v1/admin/dashboard/organizations/[id]/members/preflight',
+  params: adminV1IdParamsSchema,
+  query: adminDashboardMemberPreflightQuerySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminDashboardMemberPreflightSchema),
+  },
 })
 
 export const adminDashboardUpdateMemberContract = defineRouteContract({

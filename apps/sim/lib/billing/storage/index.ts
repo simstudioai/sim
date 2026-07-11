@@ -8,14 +8,11 @@ export {
   getUserStorageUsage,
 } from './limits'
 export {
+  applyStorageUsageDeltasInTx,
   checkAndIncrementStorageUsageInTx,
-  decrementStorageUsage,
-  decrementStorageUsageForBillingContext,
   decrementStorageUsageForBillingContextInTx,
-  decrementStorageUsageInTx,
-  incrementStorageUsage,
-  incrementStorageUsageForBillingContext,
   incrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimit,
+  type LegacyStorageUsageDelta,
   maybeNotifyStorageLimitForBillingContext,
+  type WorkspaceStorageUsageDelta,
 } from './tracking'

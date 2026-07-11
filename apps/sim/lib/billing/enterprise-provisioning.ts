@@ -15,6 +15,7 @@ import {
   enterpriseProvisionPayloadSchema,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
@@ -429,7 +430,31 @@ export async function issueEnterpriseProvisioning(
         )
       }
       organizationId = membership.organizationId
+      await acquireOrganizationMutationLock(tx, organizationId)
+      await acquireUserBillingIdentityLock(tx, input.ownerUserId)
+      const [currentMembership] = await tx
+        .select({ role: member.role, organizationId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, input.ownerUserId))
+        .limit(1)
+      if (
+        currentMembership?.organizationId !== organizationId ||
+        currentMembership.role !== 'owner'
+      ) {
+        throw new EnterpriseProvisioningError('The selected user no longer owns this organization')
+      }
     } else {
+      await acquireUserBillingIdentityLock(tx, input.ownerUserId)
+      const [currentMembership] = await tx
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, input.ownerUserId))
+        .limit(1)
+      if (currentMembership) {
+        throw new EnterpriseProvisioningError(
+          'The selected user joined an organization while issuance was starting; retry the request'
+        )
+      }
       if (!input.organizationName) {
         throw new EnterpriseProvisioningError(
           'Organization name is required when the owner has no organization'

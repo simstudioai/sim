@@ -65,17 +65,6 @@ function gbToBytes(gb: number): number {
 }
 
 /**
- * Reads the legacy plan metadata key while retaining its integer-GB behavior.
- */
-function readLegacyPlanStorageLimitGB(metadata: unknown): number | null {
-  if (!isRecordLike(metadata)) return null
-  const value = metadata.storageLimitGB
-  if (!value || (typeof value !== 'string' && typeof value !== 'number')) return null
-  const parsed = Number.parseInt(String(value))
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-/**
  * Normalizes a positive finite custom storage limit.
  */
 function normalizeCustomStorageLimitGB(value: unknown): number | null {
@@ -196,19 +185,6 @@ export function getStorageLimits() {
       )
     ),
   }
-}
-
-/**
- * Get storage limit for a specific plan
- * Returns limit in bytes
- */
-export function getStorageLimitForPlan(plan: string, metadata?: unknown): number {
-  return resolveStorageLimit({
-    plan,
-    scope: isEnterprise(plan) ? 'organization' : 'user',
-    customStorageLimitGB: isEnterprise(plan) ? readLegacyPlanStorageLimitGB(metadata) : null,
-    limits: getStorageLimits(),
-  })
 }
 
 /**

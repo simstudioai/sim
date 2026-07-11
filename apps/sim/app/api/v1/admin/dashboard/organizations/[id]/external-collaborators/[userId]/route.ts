@@ -34,7 +34,7 @@ export const PATCH = withRouteHandler(
       await updateDashboardExternalCollaboratorUsageLimit(
         parsed.data.params.id,
         parsed.data.params.userId,
-        parsed.data.body.usageLimitCredits,
+        parsed.data.body.usageLimitDollars,
         await getAdminAuditActor(request)
       )
       return singleResponse({ success: true as const })
