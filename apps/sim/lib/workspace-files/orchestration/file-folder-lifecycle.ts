@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import {
   assertFolderMutable,
   assertResourceMutable,
+  assertResourceMutableUnlessUnlocking,
   ResourceLockedError,
 } from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
@@ -315,9 +316,11 @@ export async function performRenameWorkspaceFile(
   try {
     // An admin combining `locked: false` with a rename in one request is unlocking
     // the file as part of this same atomic write -- the mutable-check must not
-    // block that. Skip only when this request isn't also unlocking.
-    if (!isLockOnlyUpdate && locked !== false) {
-      await assertResourceMutable('file', fileId)
+    // treat that request's own current (about-to-be-cleared) lock as blocking. It
+    // must still enforce a lock inherited from the file's containing folder, since
+    // clearing the file's own `locked` flag doesn't affect that.
+    if (!isLockOnlyUpdate) {
+      await assertResourceMutableUnlessUnlocking('file', fileId, locked === false)
     }
 
     const file = await renameWorkspaceFile(workspaceId, fileId, name, locked)

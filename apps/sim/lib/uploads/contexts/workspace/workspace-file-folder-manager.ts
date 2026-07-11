@@ -588,6 +588,21 @@ export async function updateWorkspaceFileFolder(params: {
 
     if (!existing) throw new Error('Folder not found')
 
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock this folder in the window
+    // between that check and this transaction. Re-check inside the transaction
+    // (joining `tx` so the read is part of the same atomic unit as the write
+    // below) before applying anything. Unlike a full skip for a lock-only
+    // update, `assertFolderMutableUnlessUnlocking` only treats this folder's own
+    // (about-to-be-cleared) lock as satisfied -- a lock inherited from an
+    // ancestor still blocks, since clearing this folder's own flag doesn't
+    // affect that.
+    const isLockOnlyUpdate =
+      params.name === undefined && params.parentId === undefined && params.sortOrder === undefined
+    if (!isLockOnlyUpdate) {
+      await assertFolderMutableUnlessUnlocking(params.folderId, 'file', params.locked === false, tx)
+    }
+
     const updates: Partial<typeof workspaceFileFolder.$inferInsert> = { updatedAt: new Date() }
     const finalName =
       params.name !== undefined
@@ -614,6 +629,13 @@ export async function updateWorkspaceFileFolder(params: {
 
       if (!target) {
         throw new Error('Target folder not found')
+      }
+
+      // A folder in an unlocked location could otherwise be moved into a locked
+      // one -- this check is independent of the isLockOnlyUpdate skip above,
+      // since moving into a locked folder is never a lock-only operation.
+      if (finalParentId !== existing.parentId) {
+        await assertFolderMutable(finalParentId, 'file', tx)
       }
     }
 

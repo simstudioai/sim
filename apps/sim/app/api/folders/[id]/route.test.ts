@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
 import {
   auditMock,
   authMockFns,
@@ -238,15 +239,20 @@ describe('Individual Folder API Route', () => {
       expect(mockPerformUpdateFolder).not.toHaveBeenCalled()
     })
 
-    it('skips the mutable check when unlocking a locked folder combined with a move in the same request', async () => {
+    it('allows unlocking a directly-locked folder combined with a move in the same request', async () => {
       // Regression test: hasNonLockUpdate is true whenever parentId also changes, so
       // a combined "unlock + move" request previously still ran
       // policy.assertMutable(id) against the folder's current (still-locked) state
       // and was incorrectly rejected, even though the request unlocks it as part of
-      // this same atomic write.
+      // this same atomic write. The fixed behavior still runs the check (so an
+      // inherited lock is caught below), but treats a DIRECT lock as satisfied
+      // since this request clears it.
       mockAuthenticatedUser()
       resourceLockMockFns.mockAssertFolderMutable.mockReset()
       resourceLockMockFns.mockAssertFolderMutable.mockResolvedValue(undefined)
+      resourceLockMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+        new ResourceLockedError('workflow', false, 'Folder is locked')
+      )
 
       const req = createMockRequest('PUT', { locked: false, parentId: 'folder-2' })
       const params = Promise.resolve({ id: 'folder-1' })
@@ -254,11 +260,32 @@ describe('Individual Folder API Route', () => {
       const response = await PUT(req, { params })
 
       expect(response.status).toBe(200)
-      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledTimes(1)
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledTimes(2)
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith(
+        'folder-1',
+        'workflow'
+      )
       expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith(
         'folder-2',
         'workflow'
       )
+    })
+
+    it('still rejects unlocking a folder combined with a move when the lock is inherited from an ancestor', async () => {
+      // Clearing the folder's own `locked` flag doesn't affect a lock inherited from
+      // an ancestor -- that must still block the combined request.
+      mockAuthenticatedUser()
+      resourceLockMockFns.mockAssertFolderMutable.mockReset()
+      resourceLockMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+        new ResourceLockedError('workflow', true, 'Folder is locked by an ancestor folder')
+      )
+
+      const req = createMockRequest('PUT', { locked: false, parentId: 'folder-2' })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(423)
     })
 
     it('should update parent folder successfully', async () => {

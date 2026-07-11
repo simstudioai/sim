@@ -93,11 +93,13 @@ describe('table service — resource-lock enforcement', () => {
       expect(resourceLockMockFns.mockAssertResourceMutable).not.toHaveBeenCalled()
     })
 
-    it('skips the lock check when unlocking a locked table combined with a move in the same request', async () => {
+    it('allows unlocking a directly-locked table combined with a move in the same request', async () => {
       // Regression test: isLockOnlyUpdate is false whenever folderId also changes, so a
       // combined "unlock + move" request previously still ran assertResourceMutable
       // against the table's current (still-locked) state and was incorrectly rejected,
-      // even though the request unlocks it as part of this same atomic write.
+      // even though the request unlocks it as part of this same atomic write. The
+      // fixed behavior still runs the check (so an inherited lock is caught below),
+      // but treats a DIRECT lock as satisfied since this request clears it.
       dbChainMockFns.limit
         .mockResolvedValueOnce([{ workspaceId: 'ws-1' }]) // tableRow lookup
         .mockResolvedValueOnce([{ workspaceId: 'ws-1', resourceType: 'table', deletedAt: null }]) // assertFolderParentValid's parent lookup
@@ -110,12 +112,29 @@ describe('table service — resource-lock enforcement', () => {
           locked: false,
         },
       ])
+      resourceLockMockFns.mockAssertResourceMutable.mockRejectedValueOnce(
+        new ResourceLockedError('table', false, 'Table is locked')
+      )
 
       await renameTable('tbl-1', 'new_name', 'req-1', undefined, 'folder-1', false, false)
 
-      expect(resourceLockMockFns.mockAssertResourceMutable).not.toHaveBeenCalled()
+      expect(resourceLockMockFns.mockAssertResourceMutable).toHaveBeenCalledWith('table', 'tbl-1')
       expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith('folder-1', 'table')
       expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    })
+
+    it('still rejects unlocking a table combined with a move when the lock is inherited from its folder', async () => {
+      // Clearing the table's own `locked` flag doesn't affect a lock inherited from
+      // its containing folder -- that must still block the combined request.
+      resourceLockMockFns.mockAssertResourceMutable.mockRejectedValueOnce(
+        new ResourceLockedError('table', true, 'Table is locked by its containing folder')
+      )
+
+      await expect(
+        renameTable('tbl-1', 'new_name', 'req-1', undefined, 'folder-1', false, false)
+      ).rejects.toMatchObject({ status: 423, inherited: true })
+
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
 
     it('rejects moving the table into a locked destination folder with a 423', async () => {

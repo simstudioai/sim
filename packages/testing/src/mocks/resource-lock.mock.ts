@@ -41,11 +41,54 @@ const unlockedStatus = {
  * )
  * ```
  */
+const mockAssertFolderMutable = vi.fn().mockResolvedValue(undefined)
+const mockAssertResourceMutable = vi.fn().mockResolvedValue(undefined)
+
+/**
+ * Real wrapper logic (not a bare passthrough) so tests that configure
+ * `mockAssertFolderMutable`/`mockAssertResourceMutable` to reject with a
+ * direct vs. inherited `MockResourceLockedError` see the same "unless
+ * unlocking" behavior the production wrappers implement.
+ */
+async function assertFolderMutableUnlessUnlocking(
+  folderId: string | null,
+  resourceType: string,
+  unlocking: boolean,
+  dbClient?: unknown
+): Promise<void> {
+  try {
+    await mockAssertFolderMutable(
+      ...[folderId, resourceType, dbClient].filter((a) => a !== undefined)
+    )
+  } catch (error) {
+    if (unlocking && error instanceof MockResourceLockedError && !error.inherited) return
+    throw error
+  }
+}
+
+async function assertResourceMutableUnlessUnlocking(
+  resourceType: string,
+  resourceId: string,
+  unlocking: boolean,
+  dbClient?: unknown
+): Promise<void> {
+  try {
+    await mockAssertResourceMutable(
+      ...[resourceType, resourceId, dbClient].filter((a) => a !== undefined)
+    )
+  } catch (error) {
+    if (unlocking && error instanceof MockResourceLockedError && !error.inherited) return
+    throw error
+  }
+}
+
 export const resourceLockMockFns = {
   mockGetFolderLockStatus: vi.fn().mockResolvedValue(unlockedStatus),
   mockGetResourceLockStatus: vi.fn().mockResolvedValue(unlockedStatus),
-  mockAssertFolderMutable: vi.fn().mockResolvedValue(undefined),
-  mockAssertResourceMutable: vi.fn().mockResolvedValue(undefined),
+  mockAssertFolderMutable,
+  mockAssertResourceMutable,
+  mockAssertFolderMutableUnlessUnlocking: vi.fn(assertFolderMutableUnlessUnlocking),
+  mockAssertResourceMutableUnlessUnlocking: vi.fn(assertResourceMutableUnlessUnlocking),
 }
 
 /**
@@ -61,5 +104,8 @@ export const resourceLockMock = {
   getResourceLockStatus: resourceLockMockFns.mockGetResourceLockStatus,
   assertFolderMutable: resourceLockMockFns.mockAssertFolderMutable,
   assertResourceMutable: resourceLockMockFns.mockAssertResourceMutable,
+  assertFolderMutableUnlessUnlocking: resourceLockMockFns.mockAssertFolderMutableUnlessUnlocking,
+  assertResourceMutableUnlessUnlocking:
+    resourceLockMockFns.mockAssertResourceMutableUnlessUnlocking,
   ResourceLockedError: MockResourceLockedError,
 }

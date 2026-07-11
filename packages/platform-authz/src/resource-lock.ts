@@ -227,3 +227,40 @@ export async function assertResourceMutable(
     )
   }
 }
+
+/**
+ * Like {@link assertFolderMutable}, but when `unlocking` is true, a DIRECT lock on
+ * `folderId` itself is treated as satisfied -- the caller's own request is clearing
+ * that lock in the same atomic write, so a stale pre-write read of its own `locked`
+ * flag must not block the rest of that write. An INHERITED lock (from a still-locked
+ * ancestor) still blocks regardless, since clearing this folder's own flag has no
+ * effect on its ancestors.
+ */
+export async function assertFolderMutableUnlessUnlocking(
+  folderId: string | null,
+  resourceType: FolderResourceType,
+  unlocking: boolean,
+  dbClient: DbOrTx = db
+): Promise<void> {
+  try {
+    await assertFolderMutable(folderId, resourceType, dbClient)
+  } catch (error) {
+    if (unlocking && error instanceof ResourceLockedError && !error.inherited) return
+    throw error
+  }
+}
+
+/** Resource-level counterpart to {@link assertFolderMutableUnlessUnlocking}. */
+export async function assertResourceMutableUnlessUnlocking(
+  resourceType: FolderResourceType,
+  resourceId: string,
+  unlocking: boolean,
+  dbClient: DbOrTx = db
+): Promise<void> {
+  try {
+    await assertResourceMutable(resourceType, resourceId, dbClient)
+  } catch (error) {
+    if (unlocking && error instanceof ResourceLockedError && !error.inherited) return
+    throw error
+  }
+}

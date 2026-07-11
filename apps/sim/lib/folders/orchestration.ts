@@ -2,7 +2,11 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { folder as folderTable, knowledgeBase, userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, ResourceLockedError } from '@sim/platform-authz/resource-lock'
+import {
+  assertFolderMutable,
+  assertFolderMutableUnlessUnlocking,
+  ResourceLockedError,
+} from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -753,18 +757,47 @@ export async function performUpdateFolder(
   if (params.sortOrder !== undefined) updates.sortOrder = params.sortOrder
   if (params.locked !== undefined) updates.locked = params.locked
 
-  const [updated] = await db
-    .update(folderTable)
-    .set(updates)
-    .where(
-      and(
-        eq(folderTable.id, params.folderId),
-        eq(folderTable.workspaceId, params.workspaceId),
-        eq(folderTable.resourceType, params.resourceType),
-        isNull(folderTable.deletedAt)
+  const isLockOnlyUpdate =
+    params.name === undefined && params.parentId === undefined && params.sortOrder === undefined
+
+  const updated = await db.transaction(async (tx) => {
+    // The route checks lock state before calling this function, but that's a
+    // separate round-trip -- an admin could lock this folder (or its target
+    // parent) in the window between that check and this transaction. Re-check
+    // inside the transaction (joining `tx` so the read is part of the same
+    // atomic unit as the write below) before applying anything.
+    //
+    // `assertFolderMutableUnlessUnlocking` only treats this folder's own
+    // (about-to-be-cleared) lock as satisfied when this same request unlocks it --
+    // a lock inherited from an ancestor still blocks. Skipped entirely for a
+    // lock-only update, matching the file/kb/table lock-toggle precedent.
+    if (!isLockOnlyUpdate) {
+      await assertFolderMutableUnlessUnlocking(
+        params.folderId,
+        params.resourceType,
+        params.locked === false,
+        tx
       )
-    )
-    .returning()
+    }
+    if (params.parentId) {
+      // A folder in an unlocked location could otherwise be moved into a locked one.
+      await assertFolderMutable(params.parentId, params.resourceType, tx)
+    }
+
+    const [row] = await tx
+      .update(folderTable)
+      .set(updates)
+      .where(
+        and(
+          eq(folderTable.id, params.folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          eq(folderTable.resourceType, params.resourceType),
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .returning()
+    return row
+  })
 
   if (!updated) return { success: false, error: 'Folder not found', errorCode: 'not_found' }
   return { success: true, folder: updated }

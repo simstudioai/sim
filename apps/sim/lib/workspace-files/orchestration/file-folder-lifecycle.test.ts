@@ -128,13 +128,18 @@ describe('workspace-files orchestration — resource-lock enforcement', () => {
       expect(resourceLockMockFns.mockAssertResourceMutable).not.toHaveBeenCalled()
     })
 
-    it('skips the lock check when unlocking a locked file combined with a rename in the same request', async () => {
+    it('allows unlocking a directly-locked file combined with a rename in the same request', async () => {
       // Regression test: isLockOnlyUpdate is false whenever the name also changes, so
       // a combined "unlock + rename" request previously still ran
       // assertResourceMutable against the file's current (still-locked) state and was
       // incorrectly rejected, even though the request unlocks it as part of this same
-      // atomic write.
+      // atomic write. The fixed behavior still runs the check (so an inherited lock
+      // is caught below), but treats a DIRECT lock as satisfied since this request
+      // clears it.
       mockRenameWorkspaceFile.mockResolvedValueOnce({ id: 'file-1', name: 'renamed.txt' })
+      resourceLockMockFns.mockAssertResourceMutable.mockRejectedValueOnce(
+        new ResourceLockedError('file', false, 'File is locked')
+      )
 
       await performRenameWorkspaceFile({
         workspaceId: 'ws-1',
@@ -145,7 +150,28 @@ describe('workspace-files orchestration — resource-lock enforcement', () => {
         isLockOnlyUpdate: false,
       })
 
-      expect(resourceLockMockFns.mockAssertResourceMutable).not.toHaveBeenCalled()
+      expect(resourceLockMockFns.mockAssertResourceMutable).toHaveBeenCalledWith('file', 'file-1')
+      expect(mockRenameWorkspaceFile).toHaveBeenCalledTimes(1)
+    })
+
+    it('still rejects unlocking a file combined with a rename when the lock is inherited from its folder', async () => {
+      // Clearing the file's own `locked` flag doesn't affect a lock inherited from
+      // its containing folder -- that must still block the combined request.
+      resourceLockMockFns.mockAssertResourceMutable.mockRejectedValueOnce(
+        new ResourceLockedError('file', true, 'File is locked by its containing folder')
+      )
+
+      const result = await performRenameWorkspaceFile({
+        workspaceId: 'ws-1',
+        fileId: 'file-1',
+        name: 'renamed.txt',
+        userId: 'user-1',
+        locked: false,
+        isLockOnlyUpdate: false,
+      })
+
+      expect(result).toMatchObject({ success: false, errorCode: 'locked' })
+      expect(mockRenameWorkspaceFile).not.toHaveBeenCalled()
     })
   })
 

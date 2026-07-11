@@ -11,7 +11,11 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, assertResourceMutable } from '@sim/platform-authz/resource-lock'
+import {
+  assertFolderMutable,
+  assertResourceMutable,
+  assertResourceMutableUnlessUnlocking,
+} from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
@@ -577,10 +581,12 @@ export async function renameTable(
 
   // `isLockOnlyUpdate` is false whenever name/folderId also change, but an admin
   // combining `locked: false` with those changes in one request is unlocking the
-  // table as part of this same atomic write -- the mutable-check must not block
-  // that. Skip only when this request isn't also unlocking.
-  if (!isLockOnlyUpdate && locked !== false) {
-    await assertResourceMutable('table', tableId)
+  // table as part of this same atomic write -- the mutable-check must not treat
+  // that request's own current (about-to-be-cleared) lock as blocking. It must
+  // still enforce a lock inherited from the table's containing folder, since
+  // clearing the table's own `locked` flag doesn't affect that.
+  if (!isLockOnlyUpdate) {
+    await assertResourceMutableUnlessUnlocking('table', tableId, locked === false)
   }
 
   if (folderId) {

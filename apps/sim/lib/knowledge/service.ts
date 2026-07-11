@@ -8,7 +8,11 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, assertResourceMutable } from '@sim/platform-authz/resource-lock'
+import {
+  assertFolderMutable,
+  assertResourceMutable,
+  assertResourceMutableUnlessUnlocking,
+} from '@sim/platform-authz/resource-lock'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
@@ -315,10 +319,16 @@ export async function updateKnowledgeBase(
     updates.chunkingConfig !== undefined
   // An admin combining `locked: false` with other field changes in one request is
   // unlocking the knowledge base as part of this same atomic write -- the
-  // mutable-check must not block that. Skip only when this request isn't also
-  // unlocking.
-  if (hasNonLockUpdate && updates.locked !== false) {
-    await assertResourceMutable('knowledge_base', knowledgeBaseId)
+  // mutable-check must not treat that request's own current (about-to-be-cleared)
+  // lock as blocking. It must still enforce a lock inherited from the KB's
+  // containing folder, since clearing the KB's own `locked` flag doesn't affect
+  // that.
+  if (hasNonLockUpdate) {
+    await assertResourceMutableUnlessUnlocking(
+      'knowledge_base',
+      knowledgeBaseId,
+      updates.locked === false
+    )
   }
 
   if (updates.workspaceId !== undefined && !options?.actorUserId) {

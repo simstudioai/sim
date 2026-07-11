@@ -1,7 +1,10 @@
 import { db } from '@sim/db'
 import { folder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { ResourceLockedError } from '@sim/platform-authz/resource-lock'
+import {
+  assertFolderMutableUnlessUnlocking,
+  ResourceLockedError,
+} from '@sim/platform-authz/resource-lock'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateFolderContract } from '@/lib/api/contracts'
@@ -81,11 +84,12 @@ export const PUT = withRouteHandler(
 
       // An admin combining `locked: false` with other field changes (e.g. a move) in
       // one request is unlocking the folder as part of this same atomic write -- the
-      // mutable-check must not block that. Skip only when this request isn't also
-      // unlocking.
+      // mutable-check must not treat that request's own current (about-to-be-cleared)
+      // lock as blocking. It must still enforce a lock INHERITED from an ancestor,
+      // since clearing this folder's own `locked` flag doesn't affect that.
       const hasNonLockUpdate = Object.keys(parsed.data.body).some((key) => key !== 'locked')
-      if (hasNonLockUpdate && locked !== false) {
-        await policy.assertMutable(id)
+      if (hasNonLockUpdate) {
+        await assertFolderMutableUnlessUnlocking(id, existingFolder.resourceType, locked === false)
       }
       if (parentId !== undefined) {
         await policy.assertMutable(parentId)

@@ -12,32 +12,52 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Minimal stand-in for `@sim/platform-authz/resource-lock`'s `ResourceLockedError`
  *  (423, carries `resourceType`/`inherited`) — avoids `vi.importActual`. */
-const { mockAssertResourceMutable, mockAssertFolderMutable, MockResourceLockedError } = vi.hoisted(
-  () => {
-    class ResourceLockedErrorStub extends Error {
-      readonly status = 423
-      readonly resourceType: string
-      readonly inherited: boolean
-      constructor(resourceType: string, inherited: boolean, message?: string) {
-        super(message ?? `${resourceType} is locked`)
-        this.name = 'ResourceLockedError'
-        this.resourceType = resourceType
-        this.inherited = inherited
-      }
-    }
-    return {
-      mockAssertResourceMutable: vi.fn(),
-      mockAssertFolderMutable: vi.fn(),
-      MockResourceLockedError: ResourceLockedErrorStub,
+const {
+  mockAssertResourceMutable,
+  mockAssertFolderMutable,
+  mockAssertResourceMutableUnlessUnlocking,
+  MockResourceLockedError,
+} = vi.hoisted(() => {
+  class ResourceLockedErrorStub extends Error {
+    readonly status = 423
+    readonly resourceType: string
+    readonly inherited: boolean
+    constructor(resourceType: string, inherited: boolean, message?: string) {
+      super(message ?? `${resourceType} is locked`)
+      this.name = 'ResourceLockedError'
+      this.resourceType = resourceType
+      this.inherited = inherited
     }
   }
-)
+  const assertResourceMutable = vi.fn()
+  // Real wrapper logic (not a bare passthrough) so tests that configure
+  // assertResourceMutable to reject with a direct vs. inherited error see the
+  // same "unless unlocking" behavior the production wrapper implements.
+  const assertResourceMutableUnlessUnlocking = vi.fn(
+    async (resourceType: string, resourceId: string, unlocking: boolean, tx?: unknown) => {
+      try {
+        const args = [resourceType, resourceId, tx].filter((a) => a !== undefined)
+        await assertResourceMutable(...args)
+      } catch (error) {
+        if (unlocking && error instanceof ResourceLockedErrorStub && !error.inherited) return
+        throw error
+      }
+    }
+  )
+  return {
+    mockAssertResourceMutable: assertResourceMutable,
+    mockAssertFolderMutable: vi.fn(),
+    mockAssertResourceMutableUnlessUnlocking: assertResourceMutableUnlessUnlocking,
+    MockResourceLockedError: ResourceLockedErrorStub,
+  }
+})
 
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@sim/platform-authz/resource-lock', () => ({
   assertResourceMutable: mockAssertResourceMutable,
   assertFolderMutable: mockAssertFolderMutable,
+  assertResourceMutableUnlessUnlocking: mockAssertResourceMutableUnlessUnlocking,
   ResourceLockedError: MockResourceLockedError,
 }))
 
@@ -305,27 +325,48 @@ describe('updateKnowledgeBase — resource-lock enforcement', () => {
     expect(mockAssertResourceMutable).not.toHaveBeenCalled()
   })
 
-  it('skips the lock check when unlocking a locked knowledge base combined with a move in the same request', async () => {
+  it('allows unlocking a directly-locked knowledge base combined with a move in the same request', async () => {
     // Regression test: hasNonLockUpdate is true whenever folderId also changes, so a
     // combined "unlock + move" request previously still ran assertResourceMutable
     // against the KB's current (still-locked) state and was incorrectly rejected,
-    // even though the request unlocks it as part of this same atomic write.
+    // even though the request unlocks it as part of this same atomic write. The
+    // fixed behavior still runs the check (so an inherited lock is caught below),
+    // but treats a DIRECT lock as satisfied since this request clears it.
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }]) // currentKb (FOR UPDATE)
       .mockResolvedValueOnce([
         { workspaceId: 'ws-current', resourceType: 'knowledge_base', deletedAt: null },
       ]) // assertFolderParentValid's parent lookup
+    mockAssertResourceMutable.mockRejectedValueOnce(
+      new MockResourceLockedError('knowledge_base', false, 'Knowledge base is locked')
+    )
 
     await updateKnowledgeBase('kb-1', { folderId: 'folder-1', locked: false }, 'req-1').catch(
       () => undefined
     )
 
-    expect(mockAssertResourceMutable).not.toHaveBeenCalled()
+    expect(mockAssertResourceMutable).toHaveBeenCalledWith('knowledge_base', 'kb-1')
     expect(mockAssertFolderMutable).toHaveBeenCalledWith(
       'folder-1',
       'knowledge_base',
       expect.anything()
     )
+  })
+
+  it('still rejects unlocking a knowledge base combined with a move when the lock is inherited from its folder', async () => {
+    // Clearing the KB's own `locked` flag doesn't affect a lock inherited from its
+    // containing folder -- that must still block the combined request.
+    mockAssertResourceMutable.mockRejectedValueOnce(
+      new MockResourceLockedError(
+        'knowledge_base',
+        true,
+        'Knowledge base is locked by its containing folder'
+      )
+    )
+
+    await expect(
+      updateKnowledgeBase('kb-1', { folderId: 'folder-1', locked: false }, 'req-1')
+    ).rejects.toMatchObject({ status: 423, inherited: true })
   })
 
   it('rejects moving the knowledge base into a locked destination folder with a 423', async () => {
