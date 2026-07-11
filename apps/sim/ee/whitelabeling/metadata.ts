@@ -139,23 +139,22 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     },
     manifest: '/manifest.webmanifest',
     icons: {
-      icon: [
-        ...(brand.faviconUrl ? [] : [{ url: icons.svg, type: 'image/svg+xml', sizes: 'any' }]),
-        { url: icons.favicon16, sizes: '16x16', type: 'image/png' },
-        { url: icons.favicon32, sizes: '32x32', type: 'image/png' },
-        {
-          url: icons.android192,
-          sizes: '192x192',
-          type: 'image/png',
-        },
-        {
-          url: icons.android512,
-          sizes: '512x512',
-          type: 'image/png',
-        },
-        ...(brand.faviconUrl ? [{ url: brand.faviconUrl, sizes: 'any', type: 'image/png' }] : []),
-      ],
-      apple: icons.apple,
+      // A whitelabeled deployment only ever supplies one favicon URL (no
+      // multi-size set of its own) - emitting Sim's exact-size PNG/apple
+      // entries alongside it would let browsers prefer those more specific
+      // sizes over the tenant's generic `sizes: 'any'` entry, showing Sim
+      // branding instead. So the tenant favicon fully replaces every slot
+      // rather than being appended to Sim's.
+      icon: brand.faviconUrl
+        ? [{ url: brand.faviconUrl, sizes: 'any', type: 'image/png' }]
+        : [
+            { url: icons.svg, type: 'image/svg+xml', sizes: 'any' },
+            { url: icons.favicon16, sizes: '16x16', type: 'image/png' },
+            { url: icons.favicon32, sizes: '32x32', type: 'image/png' },
+            { url: icons.android192, sizes: '192x192', type: 'image/png' },
+            { url: icons.android512, sizes: '512x512', type: 'image/png' },
+          ],
+      apple: brand.faviconUrl || icons.apple,
       shortcut: brand.faviconUrl || icons.svg,
     },
     appleWebApp: {

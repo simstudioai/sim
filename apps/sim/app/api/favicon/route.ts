@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getDeploymentEnv } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getBrandConfig } from '@/ee/whitelabeling/branding'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,8 +22,13 @@ const FAVICON_DESTINATIONS: Record<ReturnType<typeof getDeploymentEnv>, string> 
  * here, at request time, not in `next.config.ts`, which only runs once during
  * that shared build and would freeze whichever tier happened to be active
  * then (never the tier the container actually ends up running as).
+ *
+ * A whitelabeled deployment's own favicon always wins here too, matching
+ * `generateBrandedMetadata()` (`ee/whitelabeling/metadata.ts`) — a tenant on
+ * a dev/staging environment should never see Sim's internal tinted mark.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const destination = FAVICON_DESTINATIONS[getDeploymentEnv()]
+  const brand = getBrandConfig()
+  const destination = brand.faviconUrl || FAVICON_DESTINATIONS[getDeploymentEnv()]
   return NextResponse.redirect(new URL(destination, request.url))
 })

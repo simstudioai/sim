@@ -24,7 +24,19 @@ export const viewport: Viewport = {
   ],
 }
 
-export const metadata: Metadata = generateBrandedMetadata()
+/**
+ * Not a static `export const metadata` object: {@link generateBrandedMetadata}
+ * reads `getDeploymentEnv()` for the favicon set, which depends on
+ * `process.env` being populated by `bootstrap.ts`'s runtime secrets load. A
+ * static object is resolved once at module-evaluation time and Next.js treats
+ * it as truly constant (eligible for build-time resolution on any
+ * statically-rendered route sharing this layout) — `generateMetadata()`
+ * forces the same per-request resolution `app/api/favicon/route.ts` already
+ * uses.
+ */
+export function generateMetadata(): Metadata {
+  return generateBrandedMetadata()
+}
 
 const GTM_ID = 'GTM-T7PHSRX5' as const
 const GA_ID = 'G-DR7YBE70VS' as const
