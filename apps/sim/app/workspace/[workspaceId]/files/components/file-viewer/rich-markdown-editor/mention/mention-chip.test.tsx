@@ -60,7 +60,20 @@ describe('MentionChipView', () => {
 
     const chip = container.querySelector('.mention-chip') as HTMLElement
     expect(chip).not.toBeNull()
-    expect(chip.className).not.toMatch(/text-\[var\(--text-primary\)\]/)
+
+    // Any bare (non-descendant-scoped) `text-*` color utility on the wrapper itself would
+    // regress this fix, not just the specific old `text-[var(--text-primary)]` class — a future
+    // edit swapping it for e.g. `text-[var(--text-secondary)]` or `text-blue-500` would still
+    // silently override ambient color and must fail this test too.
+    const ownColorUtilities = chip.className
+      .split(/\s+/)
+      .filter(
+        (cls) =>
+          !cls.startsWith('[&') &&
+          /^text-(\[.+\]|[a-z]+-\d{2,3}|black|white|current|transparent|inherit)$/.test(cls)
+      )
+    expect(ownColorUtilities).toEqual([])
+
     // The icon's own monochrome fallback is unrelated and must be untouched by this fix.
     expect(chip.className).toContain('[&>svg]:text-[var(--text-icon)]')
   })
