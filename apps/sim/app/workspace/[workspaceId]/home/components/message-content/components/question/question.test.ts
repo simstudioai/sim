@@ -114,7 +114,7 @@ describe('QuestionDisplay', () => {
     container.remove()
   })
 
-  it('focuses the free-text input when Something else is clicked', () => {
+  it('renders Something else as a placeholder instead of an option', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -129,16 +129,52 @@ describe('QuestionDisplay', () => {
       )
     })
 
-    const somethingElseButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Something else')
-    )
-    expect(somethingElseButton).toBeDefined()
-
-    act(() => somethingElseButton?.click())
-
     const input = container.querySelector('input')
     expect(input).not.toBeNull()
+    expect(input?.placeholder).toBe('Something else')
+    expect(input?.className).toContain('placeholder:text-[var(--text-muted)]')
+    expect(container.textContent).not.toContain('Something else')
+
+    const optionButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Keep the newest entry'
+    )
+    expect(optionButton).toBeDefined()
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('focuses the Something else input when its multi-select checkbox is selected', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: [QUESTIONS[2]],
+          onSelect: () => undefined,
+        })
+      )
+    })
+
+    const input = container.querySelector('input')
+    const checkbox = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Include \\"Something else\\" in the answer"]'
+    )
+    expect(input).not.toBeNull()
+    expect(checkbox).not.toBeNull()
+
+    act(() => checkbox?.click())
+
+    expect(checkbox?.dataset.state).toBe('checked')
     expect(document.activeElement).toBe(input)
+
+    act(() => checkbox?.focus())
+    act(() => checkbox?.click())
+
+    expect(checkbox?.dataset.state).toBe('unchecked')
 
     act(() => root.unmount())
     container.remove()
