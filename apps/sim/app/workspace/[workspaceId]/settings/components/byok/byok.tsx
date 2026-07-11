@@ -34,6 +34,7 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  xAIIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
 import { MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
@@ -75,6 +76,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'xai',
+    name: 'xAI',
+    icon: xAIIcon,
+    description: 'LLM calls',
+    placeholder: 'xai-...',
   },
   {
     id: 'fireworks',
@@ -287,6 +295,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'anthropic',
       'google',
       'mistral',
+      'xai',
       'fireworks',
       'together',
       'baseten',

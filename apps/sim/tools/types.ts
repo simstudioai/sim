@@ -8,6 +8,7 @@ export type BYOKProviderId =
   | 'google'
   | 'mistral'
   | 'zai'
+  | 'xai'
   | 'fireworks'
   | 'together'
   | 'baseten'
