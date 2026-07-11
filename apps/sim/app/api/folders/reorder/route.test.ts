@@ -426,6 +426,50 @@ describe('PUT /api/folders/reorder', () => {
     expect(mockTxUpdate).not.toHaveBeenCalled()
   })
 
+  it('rejects the write when a concurrent request created a cycle between the pre-check and the transaction', async () => {
+    // Regression test: the route's own cycle check reads an unlocked snapshot of
+    // the folder tree before this transaction opens. Two concurrent requests can
+    // each move one end of what becomes an A<->B cycle, both passing their own
+    // (mutually stale) check -- simulated here by having the pre-check snapshot
+    // show B's parentId as still null (stale), while the locked, tx-consistent
+    // read inside the transaction reflects a concurrent request that already
+    // committed B.parentId = A.
+    mockWhere
+      .mockReturnValueOnce([{ id: 'A', workspaceId: 'workspace-123', resourceType: 'workflow' }])
+      .mockReturnValueOnce([
+        { id: 'A', parentId: null },
+        { id: 'B', parentId: null },
+      ])
+      .mockReturnValueOnce([{ id: 'A', workspaceId: 'workspace-123' }])
+      .mockReturnValueOnce({ limit: mockLimit })
+    mockLimit.mockReturnValueOnce([
+      { workspaceId: 'workspace-123', resourceType: 'workflow', deletedAt: null },
+    ])
+
+    queueTxSelectResults(
+      [
+        { id: 'A', parentId: null },
+        { id: 'B', parentId: null },
+      ], // closure walk, level 1
+      [
+        { id: 'A', parentId: null, locked: false, deletedAt: null },
+        { id: 'B', parentId: 'A', locked: false, deletedAt: null }, // committed by a concurrent request
+      ]
+    )
+
+    const req = createMockRequest('PUT', {
+      workspaceId: 'workspace-123',
+      updates: [{ id: 'A', sortOrder: 0, parentId: 'B' }],
+    })
+
+    const response = await PUT(req)
+
+    expect(response.status).toBe(400)
+    const data = await response.json()
+    expect(data.error).toBe('Cannot create circular folder reference')
+    expect(mockTxUpdate).not.toHaveBeenCalled()
+  })
+
   it('rejects a batch that would form a cycle', async () => {
     mockWhere
       .mockReturnValueOnce([

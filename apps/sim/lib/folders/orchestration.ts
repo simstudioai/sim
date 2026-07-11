@@ -841,6 +841,8 @@ export async function performRestoreFolder(
 
 /** Marks a concurrent-deletion race caught inside the reorder transaction as a 404, not a 500. */
 class FolderReorderNotFoundError extends Error {}
+/** Marks a cycle caught inside the reorder transaction as a 400, not a 500. */
+class FolderReorderCycleError extends Error {}
 
 export async function performReorderFolders(params: PerformReorderFoldersParams): Promise<{
   success: boolean
@@ -954,6 +956,7 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
       const lockedRows = await tx
         .select({
           id: folderTable.id,
+          parentId: folderTable.parentId,
           locked: folderTable.locked,
           deletedAt: folderTable.deletedAt,
         })
@@ -980,6 +983,32 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
 
       if (lockedRows.some((row) => !row.deletedAt && row.locked)) {
         throw new ResourceLockedError(resourceType, false, 'Folder is locked')
+      }
+
+      // The route's own cycle check reads an unlocked snapshot of the folder tree
+      // before this transaction opens -- two concurrent reorder requests can each
+      // move one end of what becomes an A<->B cycle, both passing their own
+      // (mutually stale) check. A cycle can only newly appear through an edge this
+      // batch is writing, and every folder whose parentId this batch changes is a
+      // `startId`, so re-walking from every `startId` using this transaction's own
+      // locked, tx-consistent `parentId` values (closure already contains every
+      // node such a walk could reach) reliably catches it before the write below.
+      const lockedParentById = new Map(lockedRows.map((row) => [row.id, row.parentId]))
+      for (const update of validUpdates) {
+        if (update.parentId !== undefined) {
+          lockedParentById.set(update.id, update.parentId || null)
+        }
+      }
+      for (const update of validUpdates) {
+        const visited = new Set<string>()
+        let cursor: string | null = update.id
+        while (cursor) {
+          if (visited.has(cursor)) {
+            throw new FolderReorderCycleError('Cannot create circular folder reference')
+          }
+          visited.add(cursor)
+          cursor = lockedParentById.get(cursor) ?? null
+        }
       }
 
       for (const update of validUpdates) {
@@ -1011,6 +1040,9 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
     }
     if (error instanceof FolderReorderNotFoundError) {
       return { success: false, updated: 0, error: error.message, errorCode: 'not_found' }
+    }
+    if (error instanceof FolderReorderCycleError) {
+      return { success: false, updated: 0, error: error.message, errorCode: 'validation' }
     }
     // An unexpected DB/transaction failure, not a client-caused validation error --
     // log the real cause but don't leak internal error details to the response.
