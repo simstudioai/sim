@@ -1794,7 +1794,12 @@ const WorkflowContent = React.memo(
      */
     const handleToolbarDrop = useCallback(
       (
-        data: { type: string; enableTriggerMode?: boolean; presetOperation?: string },
+        data: {
+          type: string
+          enableTriggerMode?: boolean
+          presetOperation?: string
+          forcedSource?: { nodeId: string; handleId: string }
+        },
         position: { x: number; y: number }
       ) => {
         if (!data.type || data.type === 'connectionBlock') return
@@ -1802,6 +1807,40 @@ const WorkflowContent = React.memo(
         const operationConfig = data.presetOperation
           ? { operation: data.presetOperation }
           : undefined
+
+        const { forcedSource } = data
+
+        /**
+         * Edge for the new block. With a `forcedSource` (a drag-release from a
+         * handle), wire from that exact handle — but only when it stays within the
+         * resolved container context, matching onConnect's boundary rules; a
+         * cross-boundary source yields no edge. Otherwise fall back to normal
+         * proximity auto-connect.
+         */
+        const resolveEdge = (
+          targetId: string,
+          targetParentId: string | null,
+          fallback: () => Edge | undefined
+        ): Edge | undefined => {
+          if (!forcedSource) return fallback()
+
+          const isContainerStartHandle =
+            forcedSource.handleId === 'loop-start-source' ||
+            forcedSource.handleId === 'parallel-start-source'
+          if (isContainerStartHandle) {
+            // A container-start handle may only wire to a child of that container.
+            return forcedSource.nodeId === targetParentId
+              ? createEdgeObject(forcedSource.nodeId, targetId, forcedSource.handleId)
+              : undefined
+          }
+
+          const sourceBlock = blocks[forcedSource.nodeId]
+          if (!sourceBlock) return undefined
+          const sourceParentId = sourceBlock.data?.parentId ?? null
+          return sourceParentId === targetParentId
+            ? createEdgeObject(forcedSource.nodeId, targetId, forcedSource.handleId)
+            : undefined
+        }
 
         try {
           const containerInfo = isPointInLoopNode(position)
@@ -1832,11 +1871,13 @@ const WorkflowContent = React.memo(
                 .filter((b) => b.data?.parentId === containerInfo.loopId)
                 .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-              const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
-                targetParentId: containerInfo.loopId,
-                existingChildBlocks,
-                containerId: containerInfo.loopId,
-              })
+              const autoConnectEdge = resolveEdge(id, containerInfo.loopId, () =>
+                tryCreateAutoConnectEdge(relativePosition, id, {
+                  targetParentId: containerInfo.loopId,
+                  existingChildBlocks,
+                  containerId: containerInfo.loopId,
+                })
+              )
 
               addBlock(
                 id,
@@ -1857,9 +1898,11 @@ const WorkflowContent = React.memo(
 
               resizeLoopNodesWrapper()
             } else {
-              const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-                targetParentId: null,
-              })
+              const autoConnectEdge = resolveEdge(id, null, () =>
+                tryCreateAutoConnectEdge(position, id, {
+                  targetParentId: null,
+                })
+              )
 
               addBlock(
                 id,
@@ -1924,11 +1967,13 @@ const WorkflowContent = React.memo(
               .filter((b) => b.data?.parentId === containerInfo.loopId)
               .map((b) => ({ id: b.id, type: b.type, position: b.position }))
 
-            const autoConnectEdge = tryCreateAutoConnectEdge(relativePosition, id, {
-              targetParentId: containerInfo.loopId,
-              existingChildBlocks,
-              containerId: containerInfo.loopId,
-            })
+            const autoConnectEdge = resolveEdge(id, containerInfo.loopId, () =>
+              tryCreateAutoConnectEdge(relativePosition, id, {
+                targetParentId: containerInfo.loopId,
+                existingChildBlocks,
+                containerId: containerInfo.loopId,
+              })
+            )
 
             // Add block with parent info AND autoConnectEdge (atomic operation)
             addBlock(
@@ -1954,9 +1999,11 @@ const WorkflowContent = React.memo(
             // Centralized trigger constraints
             if (checkTriggerConstraints(data.type)) return
 
-            const autoConnectEdge = tryCreateAutoConnectEdge(position, id, {
-              targetParentId: null,
-            })
+            const autoConnectEdge = resolveEdge(id, null, () =>
+              tryCreateAutoConnectEdge(position, id, {
+                targetParentId: null,
+              })
+            )
 
             // Regular canvas drop with auto-connect edge
             // Use enableTriggerMode from drag data if present (when dragging from Triggers tab)
@@ -1985,6 +2032,7 @@ const WorkflowContent = React.memo(
         addBlock,
         tryCreateAutoConnectEdge,
         checkTriggerConstraints,
+        createEdgeObject,
       ]
     )
 
@@ -2001,65 +2049,38 @@ const WorkflowContent = React.memo(
         if (typeof type !== 'string' || !type) return
         if (type === 'connectionBlock') return
 
-        // Consume a pending drag-release only when THIS event is the palette
-        // selection it opened, matched by correlation token. Any other
-        // add-block event (toolbar, sidebar, command list) carries no matching
-        // token and cannot inherit the pending position/source.
+        // Complete a pending drag-release only when THIS event is the palette
+        // selection it opened (matched by correlation token). Any other add-block
+        // event (toolbar, sidebar, command list) carries no matching token and
+        // cannot inherit the pending position/source. Delegating to handleToolbarDrop
+        // with the drag source gives container-aware placement AND an edge from the
+        // released handle that respects container boundaries, exactly like onConnect.
         const pendingRef = pendingConnectRef.current
-        const pending =
-          pendingRef && typeof connectToken === 'string' && connectToken === pendingRef.token
-            ? pendingRef
-            : null
-        if (pending) pendingConnectRef.current = null
-
-        let basePosition = getViewportCenter()
-        if (pending) {
-          // screenToFlowPosition already subtracts the pane rect internally — pass
-          // raw client coords, do NOT pre-subtract container bounds.
-          basePosition = screenToFlowPosition({ x: pending.screenX, y: pending.screenY })
-
-          // Released inside a loop/parallel container: delegate to the container-aware
-          // drop path for correct parenting, clamping, and in-container auto-connect.
-          // A forced source→target edge would cross the container boundary, so it is
-          // intentionally not applied here.
-          if (isPointInLoopNode(basePosition)) {
-            handleToolbarDrop(
-              {
-                type,
-                enableTriggerMode: enableTriggerMode === true,
-                presetOperation: typeof presetOperation === 'string' ? presetOperation : undefined,
-              },
-              basePosition
-            )
-            return
-          }
+        if (pendingRef && typeof connectToken === 'string' && connectToken === pendingRef.token) {
+          pendingConnectRef.current = null
+          // screenToFlowPosition subtracts the pane rect internally — pass raw client coords.
+          handleToolbarDrop(
+            {
+              type,
+              enableTriggerMode: enableTriggerMode === true,
+              presetOperation: typeof presetOperation === 'string' ? presetOperation : undefined,
+              forcedSource: pendingRef.source,
+            },
+            screenToFlowPosition({ x: pendingRef.screenX, y: pendingRef.screenY })
+          )
+          return
         }
 
-        // Force the source→new-block edge only when it stays root-to-root, matching
-        // the root-level placement — a source inside a container (or a container-start
-        // handle) would cross the boundary and is rejected, as in onConnect.
-        const sourceBlock = pending ? blocks[pending.source.nodeId] : undefined
-        const isContainerStartHandle =
-          pending?.source.handleId === 'loop-start-source' ||
-          pending?.source.handleId === 'parallel-start-source'
-        const canForceEdge =
-          Boolean(sourceBlock) && !sourceBlock?.data?.parentId && !isContainerStartHandle
-
-        /**
-         * Edge for the new block: forced from the drag source when the palette was
-         * opened by a connection release, otherwise the normal auto-connect edge.
-         */
-        const resolveAutoConnectEdge = (targetId: string): Edge | undefined =>
-          pending && canForceEdge
-            ? createEdgeObject(pending.source.nodeId, targetId, pending.source.handleId)
-            : tryCreateAutoConnectEdge(basePosition, targetId, { targetParentId: null })
+        const basePosition = getViewportCenter()
 
         if (type === 'loop' || type === 'parallel') {
           const id = generateId()
           const baseName = type === 'loop' ? 'Loop' : 'Parallel'
           const name = getUniqueBlockName(baseName, blocks)
 
-          const autoConnectEdge = resolveAutoConnectEdge(id)
+          const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
+            targetParentId: null,
+          })
 
           addBlock(
             id,
@@ -2092,7 +2113,9 @@ const WorkflowContent = React.memo(
         const baseName = defaultTriggerName || blockConfig.name
         const name = getUniqueBlockName(baseName, blocks)
 
-        const autoConnectEdge = resolveAutoConnectEdge(id)
+        const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
+          targetParentId: null,
+        })
 
         addBlock(
           id,
@@ -2126,9 +2149,7 @@ const WorkflowContent = React.memo(
       checkTriggerConstraints,
       tryCreateAutoConnectEdge,
       screenToFlowPosition,
-      createEdgeObject,
       handleToolbarDrop,
-      isPointInLoopNode,
     ])
 
     /**
