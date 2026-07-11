@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { filterAndSort, fuzzyMatch } from './utils'
+import { filterAndCap, filterAndSort, fuzzyMatch, MAX_RESULTS_PER_GROUP } from './utils'
 
 /**
  * The matcher that shipped before fuzzy matching was introduced. Re-implemented
@@ -239,5 +239,25 @@ describe('fuzzyMatch — positions for highlighting', () => {
   it('matches multi-word tokens order-independently', () => {
     const result = fuzzyMatch('Slack Send Message', 'message slack')
     expect(result.matched).toBe(true)
+  })
+})
+
+describe('filterAndCap', () => {
+  const id = (s: string) => s
+
+  it('caps the result set to MAX_RESULTS_PER_GROUP', () => {
+    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
+    expect(filterAndCap(items, id, 'item')).toHaveLength(MAX_RESULTS_PER_GROUP)
+  })
+
+  it('returns every match untrimmed when under the cap', () => {
+    const items = ['Slack', 'Slate', 'Slalom']
+    expect(filterAndCap(items, id, 'sl')).toHaveLength(3)
+  })
+
+  it('caps to the top-ranked matches, preserving filterAndSort order', () => {
+    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 5 }, (_, i) => `item ${i}`)
+    const capped = filterAndCap(items, id, 'item')
+    expect(capped).toEqual(filterAndSort(items, id, 'item').slice(0, MAX_RESULTS_PER_GROUP))
   })
 })
