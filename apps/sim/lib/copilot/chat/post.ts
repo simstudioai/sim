@@ -44,6 +44,7 @@ import {
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
+import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
@@ -660,9 +661,9 @@ async function resolveBranch(params: {
     kind: 'workspace',
     workspaceId: requestedWorkspaceId,
     workspacePermission,
-    effectiveModel: DEFAULT_MODEL,
+    effectiveModel: env.MOTHERSHIP_MODEL ?? DEFAULT_MODEL,
     goRoute: '/api/mothership',
-    titleModel: DEFAULT_MODEL,
+    titleModel: env.MOTHERSHIP_MODEL ?? DEFAULT_MODEL,
     notifyWorkspaceStatus: true,
     buildPayload: async (payloadParams) =>
       buildCopilotRequestPayload(

@@ -482,6 +482,10 @@ export async function requestChatTitle(params: {
 }): Promise<string | null> {
   const { message, model, provider, userId, workspaceId, otelContext } = params
   if (!message || !model) return null
+  if (env.MOTHERSHIP_MODEL && model === env.MOTHERSHIP_MODEL) {
+    const { requestLocalChatTitle } = await import('@/lib/copilot/request/local/title')
+    return requestLocalChatTitle(message)
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

@@ -235,6 +235,32 @@ describe('litellmProvider.executeRequest', () => {
     expect(result.content).toBe('done')
   })
 
+  it('uses an injected tool executor when the caller owns the tool runtime', async () => {
+    mockCreate
+      .mockResolvedValueOnce(
+        chat({
+          toolCalls: [{ id: 'local-call-1', function: { name: 'known', arguments: '{"q":1}' } }],
+        })
+      )
+      .mockResolvedValueOnce(chat({ content: 'done' }))
+    const toolExecutor = vi.fn().mockResolvedValue({ success: true, output: { local: true } })
+
+    await run({ tools: [tool('known')], toolExecutor })
+
+    expect(toolExecutor).toHaveBeenCalledWith({
+      toolCallId: 'local-call-1',
+      toolId: 'known',
+      params: { q: 1 },
+    })
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(mockCreate.mock.calls[1][0].messages).toContainEqual({
+      role: 'tool',
+      tool_call_id: 'local-call-1',
+      name: 'known',
+      content: JSON.stringify({ local: true }),
+    })
+  })
+
   it('emits a stub tool response for an unanswered tool_call_id', async () => {
     mockCreate
       .mockResolvedValueOnce(

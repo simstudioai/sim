@@ -126,6 +126,22 @@ export interface ProviderToolConfig {
   paramsTransform?: (params: Record<string, any>) => Record<string, any>
 }
 
+export interface ProviderToolExecutionInput {
+  toolCallId: string
+  toolId: string
+  params: Record<string, unknown>
+}
+
+export interface ProviderToolExecutionResult {
+  success: boolean
+  output?: unknown
+  error?: string
+}
+
+export type ProviderToolExecutor = (
+  input: ProviderToolExecutionInput
+) => Promise<ProviderToolExecutionResult>
+
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'function' | 'tool'
   content: string | null
@@ -188,6 +204,8 @@ export interface ProviderRequest {
   /** Previous interaction ID for multi-turn Interactions API requests (deep research follow-ups) */
   previousInteractionId?: string
   abortSignal?: AbortSignal
+  /** Server-only override used when the caller owns a richer tool runtime. */
+  toolExecutor?: ProviderToolExecutor
 }
 
 /**

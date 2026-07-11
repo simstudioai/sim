@@ -356,9 +356,15 @@ export const litellmProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const result = request.toolExecutor
+              ? await request.toolExecutor({
+                  toolCallId: toolCall.id,
+                  toolId: toolName,
+                  params: toolParams as Record<string, unknown>,
+                })
+              : await executeTool(toolName, executionParams, {
+                  signal: request.abortSignal,
+                })
             const toolCallEndTime = Date.now()
 
             return {
@@ -423,8 +429,14 @@ export const litellmProvider: ProviderConfig = {
           })
 
           let resultContent: any
-          if (result.success && result.output) {
-            toolResults.push(result.output)
+          if (result.success && result.output !== undefined) {
+            if (
+              result.output !== null &&
+              typeof result.output === 'object' &&
+              !Array.isArray(result.output)
+            ) {
+              toolResults.push(result.output as Record<string, unknown>)
+            }
             resultContent = result.output
           } else {
             resultContent = {

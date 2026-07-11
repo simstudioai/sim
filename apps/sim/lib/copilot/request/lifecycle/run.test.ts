@@ -12,6 +12,7 @@ const {
   mockGetMothershipBaseURL,
   mockGetMothershipSourceEnvHeaders,
   mockPrepareExecutionContext,
+  mockRunLocalMothershipLifecycle,
   mockRunStreamLoop,
   mockToolWatchdogTimeoutMs,
   mockUpdateRunStatus,
@@ -22,6 +23,7 @@ const {
   mockGetMothershipBaseURL: vi.fn(),
   mockGetMothershipSourceEnvHeaders: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
+  mockRunLocalMothershipLifecycle: vi.fn(),
   mockRunStreamLoop: vi.fn(),
   mockToolWatchdogTimeoutMs: vi.fn(() => 60_000),
   mockUpdateRunStatus: vi.fn(),
@@ -92,15 +94,57 @@ vi.mock('@/lib/copilot/request/tools/executor', () => ({
   toolWatchdogTimeoutMs: mockToolWatchdogTimeoutMs,
 }))
 
+vi.mock('@/lib/copilot/request/local/lifecycle', () => ({
+  runLocalMothershipLifecycle: mockRunLocalMothershipLifecycle,
+}))
+
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { CopilotBackendError } from '@/lib/copilot/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+import { env } from '@/lib/core/config/env'
 
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(env as { MOTHERSHIP_MODEL?: string }).MOTHERSHIP_MODEL = undefined
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+  })
+
+  it('runs workspace Mothership locally when MOTHERSHIP_MODEL is configured', async () => {
+    ;(env as { MOTHERSHIP_MODEL?: string }).MOTHERSHIP_MODEL = 'litellm/gpt-test'
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+    mockRunLocalMothershipLifecycle.mockImplementation(
+      async (_payload, context: StreamingContext) => {
+        context.accumulatedContent = 'local answer'
+        context.finalAssistantContent = 'local answer'
+        context.contentBlocks.push({ type: 'text', content: 'local answer', timestamp: 1 })
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        goRoute: '/api/mothership',
+        executionContext,
+      }
+    )
+
+    expect(mockRunLocalMothershipLifecycle).toHaveBeenCalledOnce()
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(mockGetMothershipBaseURL).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ success: true, content: 'local answer' })
   })
 
   it('runs cancelled completion persistence when a stream throws after abort', async () => {

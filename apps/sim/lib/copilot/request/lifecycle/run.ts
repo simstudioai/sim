@@ -145,7 +145,12 @@ export async function runCopilotLifecycle(
   let onCompleteStarted = false
 
   try {
-    await runCheckpointLoop(requestPayload, context, execContext, lifecycleOptions, goRoute)
+    if (goRoute === '/api/mothership' && env.MOTHERSHIP_MODEL) {
+      const { runLocalMothershipLifecycle } = await import('@/lib/copilot/request/local/lifecycle')
+      await runLocalMothershipLifecycle(requestPayload, context, execContext, lifecycleOptions)
+    } else {
+      await runCheckpointLoop(requestPayload, context, execContext, lifecycleOptions, goRoute)
+    }
 
     const result: OrchestratorResult = {
       success: context.errors.length === 0 && !context.wasAborted,
