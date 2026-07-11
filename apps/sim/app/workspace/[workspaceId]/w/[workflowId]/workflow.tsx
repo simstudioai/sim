@@ -95,6 +95,7 @@ import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
+import type { PendingConnect } from '@/stores/modals/search/types'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesModalStore } from '@/stores/variables/modal'
@@ -209,7 +210,7 @@ interface AddBlockFromToolbarDetail {
   type?: unknown
   enableTriggerMode?: unknown
   presetOperation?: unknown
-  connectToken?: unknown
+  pendingConnect?: PendingConnect
 }
 
 /**
@@ -529,19 +530,6 @@ const WorkflowContent = React.memo(
 
     /** Tracks whether onConnect successfully handled the connection (ReactFlow pattern). */
     const connectionCompletedRef = useRef(false)
-
-    /**
-     * Holds the drag origin + drop point when a connection is released on empty
-     * canvas and the command palette is opened. The block chosen from the palette
-     * is placed at the drop point and wired from this source handle. Cleared when
-     * the palette closes without a selection.
-     */
-    const pendingConnectRef = useRef<{
-      source: { nodeId: string; handleId: string }
-      screenX: number
-      screenY: number
-      token: string
-    } | null>(null)
 
     /** Stores start positions for multi-node drag undo/redo recording. */
     const multiNodeDragStartRef = useRef<Map<string, { x: number; y: number; parentId?: string }>>(
@@ -2044,29 +2032,26 @@ const WorkflowContent = React.memo(
           return
         }
 
-        const { type, enableTriggerMode, presetOperation, connectToken } = event.detail
+        const { type, enableTriggerMode, presetOperation, pendingConnect } = event.detail
 
         if (typeof type !== 'string' || !type) return
         if (type === 'connectionBlock') return
 
-        // Complete a pending drag-release only when THIS event is the palette
-        // selection it opened (matched by correlation token). Any other add-block
-        // event (toolbar, sidebar, command list) carries no matching token and
-        // cannot inherit the pending position/source. Delegating to handleToolbarDrop
-        // with the drag source gives container-aware placement AND an edge from the
-        // released handle that respects container boundaries, exactly like onConnect.
-        const pendingRef = pendingConnectRef.current
-        if (pendingRef && typeof connectToken === 'string' && connectToken === pendingRef.token) {
-          pendingConnectRef.current = null
+        // Complete an edge drag-release: only a genuine palette selection carries
+        // `pendingConnect` (other add-block dispatchers — toolbar, sidebar, command
+        // list — don't), so its presence is the signal. Delegating to
+        // handleToolbarDrop with the drag source gives container-aware placement AND
+        // an edge from the released handle that respects container boundaries.
+        if (pendingConnect) {
           // screenToFlowPosition subtracts the pane rect internally — pass raw client coords.
           handleToolbarDrop(
             {
               type,
               enableTriggerMode: enableTriggerMode === true,
               presetOperation: typeof presetOperation === 'string' ? presetOperation : undefined,
-              forcedSource: pendingRef.source,
+              forcedSource: pendingConnect.source,
             },
-            screenToFlowPosition({ x: pendingRef.screenX, y: pendingRef.screenY })
+            screenToFlowPosition({ x: pendingConnect.screenX, y: pendingConnect.screenY })
           )
           return
         }
@@ -2151,22 +2136,6 @@ const WorkflowContent = React.memo(
       screenToFlowPosition,
       handleToolbarDrop,
     ])
-
-    /**
-     * Drops a pending drag-release connection if the command palette is dismissed
-     * without picking a block. A real selection consumes the ref synchronously (via
-     * the `add-block-from-toolbar` event) before the modal closes, so a ref still
-     * set on close means the user cancelled.
-     */
-    useEffect(
-      () =>
-        useSearchModalStore.subscribe((state, prev) => {
-          if (prev.isOpen && !state.isOpen) {
-            pendingConnectRef.current = null
-          }
-        }),
-      []
-    )
 
     /**
      * Listen for toolbar drops that occur on the empty-workflow overlay (command list).
@@ -3245,19 +3214,15 @@ const WorkflowContent = React.memo(
             targetHandle: 'target',
           })
         } else if (!targetNode) {
-          // Released on empty canvas: open the command palette and remember the
-          // drag origin + drop point so the chosen block lands here, wired from
-          // this source handle.
-          const connectToken = generateId()
-          pendingConnectRef.current = {
-            source: { nodeId: source.nodeId, handleId: source.handleId },
-            screenX: clientPos.clientX,
-            screenY: clientPos.clientY,
-            token: connectToken,
-          }
+          // Released on empty canvas: open the command palette with the drag origin
+          // + drop point, so the chosen block lands here wired from this handle.
           useSearchModalStore.getState().open({
             sections: ['blocks', 'tools', 'toolOperations'],
-            connectToken,
+            pendingConnect: {
+              source: { nodeId: source.nodeId, handleId: source.handleId },
+              screenX: clientPos.clientX,
+              screenY: clientPos.clientY,
+            },
           })
         }
 

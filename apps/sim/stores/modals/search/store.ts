@@ -68,23 +68,23 @@ export const useSearchModalStore = create<SearchModalState>()(
     (set, _) => ({
       isOpen: false,
       sections: null,
-      connectToken: null,
+      pendingConnect: null,
       data: initialData,
 
       setOpen: (open: boolean) => {
-        set({ isOpen: open, sections: null, connectToken: null })
+        set({ isOpen: open, sections: null, pendingConnect: null })
       },
 
       open: (options) => {
         set({
           isOpen: true,
           sections: options?.sections ?? null,
-          connectToken: options?.connectToken ?? null,
+          pendingConnect: options?.pendingConnect ?? null,
         })
       },
 
       close: () => {
-        set({ isOpen: false, sections: null, connectToken: null })
+        set({ isOpen: false, sections: null, pendingConnect: null })
       },
 
       initializeData: (filterBlocks) => {

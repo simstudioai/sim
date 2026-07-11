@@ -351,7 +351,7 @@ export function SearchModal({
           detail: {
             type: block.type,
             enableTriggerMode,
-            connectToken: useSearchModalStore.getState().connectToken,
+            pendingConnect: useSearchModalStore.getState().pendingConnect,
           },
         })
       )
@@ -372,7 +372,7 @@ export function SearchModal({
           detail: {
             type: op.blockType,
             presetOperation: op.operationId,
-            connectToken: useSearchModalStore.getState().connectToken,
+            pendingConnect: useSearchModalStore.getState().pendingConnect,
           },
         })
       )

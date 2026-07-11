@@ -76,6 +76,18 @@ export const SEARCH_SECTIONS = [
 export type SearchSection = (typeof SEARCH_SECTIONS)[number]
 
 /**
+ * Context handed to the palette when it is opened to complete an edge
+ * drag-release: the dragged source handle and the release point. A selection
+ * stamps it onto its event so the canvas places the block at the drop point and
+ * wires it from that handle.
+ */
+export interface PendingConnect {
+  source: { nodeId: string; handleId: string }
+  screenX: number
+  screenY: number
+}
+
+/**
  * Global state for the universal search modal.
  *
  * Centralizing this state in a store allows any component (e.g. sidebar,
@@ -92,29 +104,27 @@ export interface SearchModalState {
   sections: SearchSection[] | null
 
   /**
-   * Correlation token for the open session. When the palette is opened to
-   * complete a specific action (e.g. an edge drag-release), the opener passes a
-   * token that a selection stamps onto its event, so only that selection — not
-   * an unrelated concurrent add — can consume the pending action. `null` for
-   * ordinary opens.
+   * Pending edge drag-release the palette was opened to complete. A selection
+   * stamps it onto its event; other add-block dispatchers carry none, so only a
+   * genuine palette pick completes the connection. `null` for ordinary opens.
    */
-  connectToken: string | null
+  pendingConnect: PendingConnect | null
 
   /** Pre-computed search data. */
   data: SearchData
 
   /**
    * Explicitly set the open state of the modal. Always resets to the full
-   * palette (no section restriction, no correlation token).
+   * palette (no section restriction, no pending connect).
    */
   setOpen: (open: boolean) => void
 
   /**
    * Convenience method to open the modal. Pass `sections` to restrict the
-   * palette to a subset of result groups, and `connectToken` to correlate a
-   * selection with a pending action.
+   * palette to a subset of result groups, and `pendingConnect` to complete an
+   * edge drag-release with the selection.
    */
-  open: (options?: { sections?: SearchSection[]; connectToken?: string }) => void
+  open: (options?: { sections?: SearchSection[]; pendingConnect?: PendingConnect }) => void
 
   /**
    * Convenience method to close the modal.
