@@ -43,7 +43,11 @@ describe('table service — resource-lock enforcement', () => {
         inherited: false,
       })
 
-      expect(resourceLockMockFns.mockAssertResourceMutable).toHaveBeenCalledWith('table', 'tbl-1')
+      expect(resourceLockMockFns.mockAssertResourceMutable).toHaveBeenCalledWith(
+        'table',
+        'tbl-1',
+        expect.anything()
+      )
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
 
@@ -73,7 +77,11 @@ describe('table service — resource-lock enforcement', () => {
 
       await renameTable('tbl-1', 'new_name', 'req-1')
 
-      expect(resourceLockMockFns.mockAssertResourceMutable).toHaveBeenCalledWith('table', 'tbl-1')
+      expect(resourceLockMockFns.mockAssertResourceMutable).toHaveBeenCalledWith(
+        'table',
+        'tbl-1',
+        expect.anything()
+      )
       expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     })
 
@@ -118,8 +126,16 @@ describe('table service — resource-lock enforcement', () => {
 
       await renameTable('tbl-1', 'new_name', 'req-1', undefined, 'folder-1', false, false)
 
-      expect(resourceLockMockFns.mockAssertResourceMutable).toHaveBeenCalledWith('table', 'tbl-1')
-      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith('folder-1', 'table')
+      expect(resourceLockMockFns.mockAssertResourceMutable).toHaveBeenCalledWith(
+        'table',
+        'tbl-1',
+        expect.anything()
+      )
+      expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith(
+        'folder-1',
+        'table',
+        expect.anything()
+      )
       expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     })
 
@@ -154,7 +170,8 @@ describe('table service — resource-lock enforcement', () => {
 
       expect(resourceLockMockFns.mockAssertFolderMutable).toHaveBeenCalledWith(
         'folder-locked',
-        'table'
+        'table',
+        expect.anything()
       )
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })

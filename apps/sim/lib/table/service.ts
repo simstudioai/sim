@@ -579,61 +579,71 @@ export async function renameTable(
     throw new Error(nameValidation.errors.join(', '))
   }
 
-  // `isLockOnlyUpdate` is false whenever name/folderId also change, but an admin
-  // combining `locked: false` with those changes in one request is unlocking the
-  // table as part of this same atomic write -- the mutable-check must not treat
-  // that request's own current (about-to-be-cleared) lock as blocking. It must
-  // still enforce a lock inherited from the table's containing folder, since
-  // clearing the table's own `locked` flag doesn't affect that.
-  if (!isLockOnlyUpdate) {
-    await assertResourceMutableUnlessUnlocking('table', tableId, locked === false)
-  }
-
-  if (folderId) {
-    const [tableRow] = await db
-      .select({ workspaceId: userTableDefinitions.workspaceId })
-      .from(userTableDefinitions)
-      .where(eq(userTableDefinitions.id, tableId))
-      .limit(1)
-    if (!tableRow) {
-      throw new Error(`Table ${tableId} not found`)
-    }
-    const parentError = await assertFolderParentValid(folderId, {
-      workspaceId: tableRow.workspaceId,
-      resourceType: 'table',
-    })
-    if (parentError) {
-      throw new Error(`Invalid folderId: ${parentError.error}`)
-    }
-    // assertResourceMutable above only checked the table's *current* folder chain —
-    // without this, a table could be moved out of an unlocked folder into a locked one.
-    await assertFolderMutable(folderId, 'table')
-  }
-
   const now = new Date()
   try {
-    const result = await db
-      .update(userTableDefinitions)
-      .set({
-        name: newName,
-        updatedAt: now,
-        ...(folderId !== undefined ? { folderId } : {}),
-        ...(locked !== undefined ? { locked } : {}),
-      })
-      .where(eq(userTableDefinitions.id, tableId))
-      .returning({
-        id: userTableDefinitions.id,
-        createdBy: userTableDefinitions.createdBy,
-        workspaceId: userTableDefinitions.workspaceId,
-        folderId: userTableDefinitions.folderId,
-        locked: userTableDefinitions.locked,
-      })
+    const result = await db.transaction(async (trx) => {
+      // The lock/folder-validity checks and the write below all run inside this
+      // transaction (joining `trx`) so a lock toggled on the table or its target
+      // folder in the window between an outer pre-check and this write can't be
+      // silently bypassed -- matching the same recheck pattern used by
+      // deleteTable/createTable/updateKnowledgeBase in this file.
+      //
+      // `isLockOnlyUpdate` is false whenever name/folderId also change, but an admin
+      // combining `locked: false` with those changes in one request is unlocking the
+      // table as part of this same atomic write -- the mutable-check must not treat
+      // that request's own current (about-to-be-cleared) lock as blocking. It must
+      // still enforce a lock inherited from the table's containing folder, since
+      // clearing the table's own `locked` flag doesn't affect that.
+      if (!isLockOnlyUpdate) {
+        await assertResourceMutableUnlessUnlocking('table', tableId, locked === false, trx)
+      }
 
-    if (result.length === 0) {
-      throw new Error(`Table ${tableId} not found`)
-    }
+      if (folderId) {
+        const [tableRow] = await trx
+          .select({ workspaceId: userTableDefinitions.workspaceId })
+          .from(userTableDefinitions)
+          .where(eq(userTableDefinitions.id, tableId))
+          .limit(1)
+        if (!tableRow) {
+          throw new Error(`Table ${tableId} not found`)
+        }
+        const parentError = await assertFolderParentValid(
+          folderId,
+          { workspaceId: tableRow.workspaceId, resourceType: 'table' },
+          trx
+        )
+        if (parentError) {
+          throw new Error(`Invalid folderId: ${parentError.error}`)
+        }
+        // assertResourceMutable above only checked the table's *current* folder chain —
+        // without this, a table could be moved out of an unlocked folder into a locked one.
+        await assertFolderMutable(folderId, 'table', trx)
+      }
 
-    const { createdBy, workspaceId, folderId: updatedFolderId, locked: updatedLocked } = result[0]
+      const rows = await trx
+        .update(userTableDefinitions)
+        .set({
+          name: newName,
+          updatedAt: now,
+          ...(folderId !== undefined ? { folderId } : {}),
+          ...(locked !== undefined ? { locked } : {}),
+        })
+        .where(eq(userTableDefinitions.id, tableId))
+        .returning({
+          id: userTableDefinitions.id,
+          createdBy: userTableDefinitions.createdBy,
+          workspaceId: userTableDefinitions.workspaceId,
+          folderId: userTableDefinitions.folderId,
+          locked: userTableDefinitions.locked,
+        })
+
+      if (rows.length === 0) {
+        throw new Error(`Table ${tableId} not found`)
+      }
+      return rows[0]
+    })
+
+    const { createdBy, workspaceId, folderId: updatedFolderId, locked: updatedLocked } = result
     const renameActorId = actingUserId ?? createdBy
     if (renameActorId) {
       recordAudit({

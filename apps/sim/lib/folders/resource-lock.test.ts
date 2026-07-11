@@ -42,7 +42,9 @@ vi.mock('drizzle-orm', () => ({
 
 import {
   assertFolderMutable,
+  assertFolderMutableUnlessUnlocking,
   assertResourceMutable,
+  assertResourceMutableUnlessUnlocking,
   type FolderResourceType,
   getFolderLockStatus,
   getResourceLockStatus,
@@ -127,6 +129,91 @@ describe('resource-lock engine', () => {
       dbChainMockFns.limit.mockResolvedValueOnce([])
       const status = await getFolderLockStatus('missing-folder', resourceType)
       expect(status.locked).toBe(false)
+    })
+
+    it('getFolderLockStatus keeps walking past a direct lock and reports a locked ancestor, not the direct lock', async () => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ id: 'folder-1', parentId: 'folder-2', locked: true }])
+        .mockResolvedValueOnce([{ id: 'folder-2', parentId: null, locked: true }])
+      const status = await getFolderLockStatus('folder-1', resourceType)
+      expect(status).toMatchObject({
+        locked: true,
+        directLocked: false,
+        inheritedLocked: true,
+        lockedBy: 'folder',
+        lockedFolderId: 'folder-2',
+      })
+    })
+
+    it('getFolderLockStatus reports the direct lock when no ancestor is locked', async () => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ id: 'folder-1', parentId: 'folder-2', locked: true }])
+        .mockResolvedValueOnce([{ id: 'folder-2', parentId: null, locked: false }])
+      const status = await getFolderLockStatus('folder-1', resourceType)
+      expect(status).toMatchObject({
+        locked: true,
+        directLocked: true,
+        inheritedLocked: false,
+        lockedBy: 'folder',
+        lockedFolderId: 'folder-1',
+      })
+    })
+
+    it('assertFolderMutableUnlessUnlocking bypasses only a direct lock on the target itself', async () => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ id: 'folder-1', parentId: 'folder-2', locked: true }])
+        .mockResolvedValueOnce([{ id: 'folder-2', parentId: null, locked: false }])
+      await expect(
+        assertFolderMutableUnlessUnlocking('folder-1', resourceType, true)
+      ).resolves.toBeUndefined()
+    })
+
+    it('assertFolderMutableUnlessUnlocking still blocks on a locked ancestor even while bypassing the direct lock', async () => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ id: 'folder-1', parentId: 'folder-2', locked: true }])
+        .mockResolvedValueOnce([{ id: 'folder-2', parentId: null, locked: true }])
+      await expect(
+        assertFolderMutableUnlessUnlocking('folder-1', resourceType, true)
+      ).rejects.toThrow(ResourceLockedError)
+    })
+
+    it('assertFolderMutableUnlessUnlocking still throws when not unlocking', async () => {
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'folder-1', parentId: null, locked: true }])
+      await expect(
+        assertFolderMutableUnlessUnlocking('folder-1', resourceType, false)
+      ).rejects.toThrow(ResourceLockedError)
+    })
+
+    it('getResourceLockStatus reports a folder-inherited lock even when the resource itself is also directly locked', async () => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ locked: true, folderId: 'folder-1' }]) // resource row (also directly locked)
+        .mockResolvedValueOnce([{ id: 'folder-1', parentId: null, locked: true }]) // folder row
+      const status = await getResourceLockStatus(resourceType, 'res-1')
+      expect(status).toMatchObject({
+        locked: true,
+        directLocked: false,
+        inheritedLocked: true,
+        lockedBy: 'folder',
+        lockedFolderId: 'folder-1',
+      })
+    })
+
+    it('assertResourceMutableUnlessUnlocking still blocks on a locked folder even while bypassing a direct resource lock', async () => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ locked: true, folderId: 'folder-1' }])
+        .mockResolvedValueOnce([{ id: 'folder-1', parentId: null, locked: true }])
+      await expect(
+        assertResourceMutableUnlessUnlocking(resourceType, 'res-1', true)
+      ).rejects.toThrow(ResourceLockedError)
+    })
+
+    it('assertResourceMutableUnlessUnlocking bypasses a direct resource lock when its folder chain is unlocked', async () => {
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([{ locked: true, folderId: 'folder-1' }])
+        .mockResolvedValueOnce([{ id: 'folder-1', parentId: null, locked: false }])
+      await expect(
+        assertResourceMutableUnlessUnlocking(resourceType, 'res-1', true)
+      ).resolves.toBeUndefined()
     })
   })
 })

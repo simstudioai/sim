@@ -139,10 +139,33 @@ const CLEANUP_TARGETS = [
     table: workflowFolder,
     softDeleteCol: workflowFolder.deletedAt,
     wsCol: workflowFolder.workspaceId,
-    // `folder` is now a polymorphic table shared with file/knowledge_base/table
-    // folders — scope hard-delete to workflow folders only.
+    // `folder` is now a polymorphic table shared across all four resourceTypes --
+    // each resourceType gets its own CLEANUP_TARGETS entry (below) scoped by
+    // `extraPredicate` so every resourceType's soft-deleted folders eventually get
+    // purged, not just workflow's.
     extraPredicate: eq(workflowFolder.resourceType, 'workflow'),
     name: 'workflowFolder',
+  },
+  {
+    table: workflowFolder,
+    softDeleteCol: workflowFolder.deletedAt,
+    wsCol: workflowFolder.workspaceId,
+    extraPredicate: eq(workflowFolder.resourceType, 'file'),
+    name: 'fileFolder',
+  },
+  {
+    table: workflowFolder,
+    softDeleteCol: workflowFolder.deletedAt,
+    wsCol: workflowFolder.workspaceId,
+    extraPredicate: eq(workflowFolder.resourceType, 'knowledge_base'),
+    name: 'knowledgeBaseFolder',
+  },
+  {
+    table: workflowFolder,
+    softDeleteCol: workflowFolder.deletedAt,
+    wsCol: workflowFolder.workspaceId,
+    extraPredicate: eq(workflowFolder.resourceType, 'table'),
+    name: 'tableFolder',
   },
   {
     table: knowledgeBase,

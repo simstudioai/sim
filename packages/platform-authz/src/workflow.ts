@@ -73,8 +73,8 @@ type WorkflowRecord = typeof workflow.$inferSelect
  * `resource-lock.ts`.
  */
 export class WorkflowLockedError extends ResourceLockedError {
-  constructor(message = 'Workflow is locked') {
-    super('workflow', false, message)
+  constructor(message = 'Workflow is locked', inherited = false) {
+    super('workflow', inherited, message)
     this.name = 'WorkflowLockedError'
   }
 }
@@ -156,7 +156,8 @@ export async function assertWorkflowMutable(workflowId: string): Promise<void> {
     throw new WorkflowLockedError(
       status.lockedBy === 'folder'
         ? 'Workflow is locked by its containing folder'
-        : 'Workflow is locked'
+        : 'Workflow is locked',
+      status.lockedBy === 'folder'
     )
   }
 }

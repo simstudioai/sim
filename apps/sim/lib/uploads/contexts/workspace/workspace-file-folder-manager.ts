@@ -3,6 +3,7 @@ import { folder as workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   assertFolderMutable,
+  assertFolderMutableUnlessUnlocking,
   assertResourceMutable,
   ResourceLockedError,
 } from '@sim/platform-authz/resource-lock'

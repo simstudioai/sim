@@ -129,6 +129,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
+          folderId: table.folderId,
+          locked: table.locked,
           createdAt:
             table.createdAt instanceof Date
               ? table.createdAt.toISOString()

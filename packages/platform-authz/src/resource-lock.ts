@@ -114,6 +114,7 @@ export async function getFolderLockStatus(
   let currentFolderId: string | null = folderId
   let isDirect = true
   const visited = new Set<string>()
+  let directLock: LockStatus | null = null
 
   while (currentFolderId && !visited.has(currentFolderId)) {
     visited.add(currentFolderId)
@@ -142,12 +143,25 @@ export async function getFolderLockStatus(
 
     if (!folderRow) break
     if (folderRow.locked) {
-      return {
-        locked: true,
-        directLocked: isDirect,
-        inheritedLocked: !isDirect,
-        lockedBy: 'folder',
-        lockedFolderId: folderRow.id,
+      if (isDirect) {
+        // Remember the direct lock but keep walking -- an inherited lock further up
+        // the chain must still be reported even when the direct lock on `folderId`
+        // itself is being bypassed by the caller (see `assertFolderMutableUnlessUnlocking`).
+        directLock = {
+          locked: true,
+          directLocked: true,
+          inheritedLocked: false,
+          lockedBy: 'folder',
+          lockedFolderId: folderRow.id,
+        }
+      } else {
+        return {
+          locked: true,
+          directLocked: false,
+          inheritedLocked: true,
+          lockedBy: 'folder',
+          lockedFolderId: folderRow.id,
+        }
       }
     }
 
@@ -155,7 +169,7 @@ export async function getFolderLockStatus(
     isDirect = false
   }
 
-  return UNLOCKED_STATUS
+  return directLock ?? UNLOCKED_STATUS
 }
 
 /**
@@ -183,6 +197,25 @@ export async function getResourceLockStatus(
 
   if (!row) return UNLOCKED_STATUS
 
+  // Folder-inherited locks are checked first and unconditionally -- a lock on the
+  // resource's own row can be bypassed by a request that is itself unlocking it
+  // (see `assertResourceMutableUnlessUnlocking`), but a lock further up the folder
+  // chain never can be, so it must never be short-circuited by a direct resource lock.
+  const folderStatus = await getFolderLockStatus(
+    row.folderId as string | null,
+    resourceType,
+    dbClient
+  )
+  if (folderStatus.locked) {
+    return {
+      locked: true,
+      directLocked: false,
+      inheritedLocked: true,
+      lockedBy: 'folder',
+      lockedFolderId: folderStatus.lockedFolderId,
+    }
+  }
+
   if (row.locked) {
     return {
       locked: true,
@@ -193,7 +226,7 @@ export async function getResourceLockStatus(
     }
   }
 
-  return getFolderLockStatus(row.folderId as string | null, resourceType, dbClient)
+  return UNLOCKED_STATUS
 }
 
 export async function assertFolderMutable(

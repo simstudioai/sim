@@ -361,6 +361,21 @@ export async function updateKnowledgeBase(
         throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
       }
 
+      // The `hasNonLockUpdate` check above is a separate round-trip against the
+      // default `db` client -- an admin could lock this KB in the window between
+      // that check and this transaction. Re-check inside the transaction (joining
+      // `tx` so the read is part of the same atomic unit as the FOR UPDATE lock
+      // just acquired and the write below), matching deleteKnowledgeBase/
+      // restoreKnowledgeBase in this file.
+      if (hasNonLockUpdate) {
+        await assertResourceMutableUnlessUnlocking(
+          'knowledge_base',
+          knowledgeBaseId,
+          updates.locked === false,
+          tx
+        )
+      }
+
       if (updates.workspaceId !== undefined) {
         const actorUserId = options?.actorUserId as string
         const currentWorkspaceId = currentKb.workspaceId ?? null

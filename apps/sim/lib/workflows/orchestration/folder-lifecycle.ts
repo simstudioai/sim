@@ -323,6 +323,13 @@ async function deleteFolderRecursively(
   const timestamp = deletedAt ?? new Date()
   const stats = { folders: 0, workflows: 0 }
 
+  // Checked before recursing into children or archiving anything in this folder --
+  // without this, a lock placed on `folderId` itself right as the cascade begins
+  // would only be caught by the tx-wrapped recheck at the end of this function,
+  // after descendants have already been soft-deleted/archived, leaving them
+  // deleted while this (locked) folder itself survives.
+  await assertFolderMutable(folderId, 'workflow')
+
   const childFolders = await db
     .select({ id: folder.id })
     .from(folder)

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -13,6 +14,7 @@ import {
   restoreFolderContract,
   updateFolderContract,
 } from '@/lib/api/contracts'
+import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { type FolderQueryScope, folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
@@ -20,9 +22,35 @@ import {
   createOptimisticMutationHandlers,
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import type { Folder } from '@/stores/folders/types'
+
+/**
+ * A folder delete/restore cascades to the resources it contains -- invalidate the
+ * resource-type-scoped list (not just the folder list itself) so those cascaded
+ * changes show up without a manual refetch.
+ */
+function invalidateResourceListsForFolder(
+  queryClient: QueryClient,
+  workspaceId: string,
+  resourceType: FolderResourceType = DEFAULT_FOLDER_RESOURCE_TYPE
+) {
+  switch (resourceType) {
+    case 'workflow':
+      return invalidateWorkflowLists(queryClient, workspaceId, ['active', 'archived'])
+    case 'table':
+      return queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    case 'knowledge_base':
+      return queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+    case 'file':
+      return queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+    default:
+      return Promise.resolve()
+  }
+}
 
 const logger = createLogger('FolderQueries')
 
@@ -268,7 +296,11 @@ export function useDeleteFolderMutation() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
-      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
+      return invalidateResourceListsForFolder(
+        queryClient,
+        variables.workspaceId,
+        variables.resourceType
+      )
     },
   })
 }
@@ -291,7 +323,11 @@ export function useRestoreFolder() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
-      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
+      return invalidateResourceListsForFolder(
+        queryClient,
+        variables.workspaceId,
+        variables.resourceType
+      )
     },
   })
 }

@@ -2235,6 +2235,8 @@ export class WorkspaceVFS {
         archivedFiles,
         archivedFileFolders,
         archivedKBs,
+        archivedTableFolders,
+        archivedKnowledgeBaseFolders,
       ] = await Promise.all([
         listWorkflows(workspaceId, { scope: 'archived' }),
         db
@@ -2255,6 +2257,38 @@ export class WorkspaceVFS {
         listWorkspaceFiles(workspaceId, { scope: 'archived' }),
         listWorkspaceFileFolders(workspaceId, { scope: 'archived' }),
         getKnowledgeBases(userId, workspaceId, 'archived'),
+        // `table`/`knowledge_base` folders live in the same polymorphic `folder`
+        // table as workflow folders -- without these, an archived table/KB folder
+        // is invisible under `recently-deleted/` and the agent has no way to
+        // discover it in order to restore it.
+        db
+          .select({
+            id: workflowFolder.id,
+            name: workflowFolder.name,
+            archivedAt: workflowFolder.deletedAt,
+          })
+          .from(workflowFolder)
+          .where(
+            and(
+              eq(workflowFolder.workspaceId, workspaceId),
+              eq(workflowFolder.resourceType, 'table'),
+              isNotNull(workflowFolder.deletedAt)
+            )
+          ),
+        db
+          .select({
+            id: workflowFolder.id,
+            name: workflowFolder.name,
+            archivedAt: workflowFolder.deletedAt,
+          })
+          .from(workflowFolder)
+          .where(
+            and(
+              eq(workflowFolder.workspaceId, workspaceId),
+              eq(workflowFolder.resourceType, 'knowledge_base'),
+              isNotNull(workflowFolder.deletedAt)
+            )
+          ),
       ])
 
       for (const wf of archivedWorkflows) {
@@ -2291,6 +2325,40 @@ export class WorkspaceVFS {
             createdAt: table.createdAt,
             updatedAt: table.updatedAt,
           })
+        )
+      }
+
+      for (const folder of archivedTableFolders) {
+        const safeName = sanitizeName(folder.name)
+        this.files.set(
+          `recently-deleted/table-folders/${safeName}/meta.json`,
+          JSON.stringify(
+            {
+              id: folder.id,
+              name: folder.name,
+              archivedAt: folder.archivedAt,
+              type: 'table_folder',
+            },
+            null,
+            2
+          )
+        )
+      }
+
+      for (const folder of archivedKnowledgeBaseFolders) {
+        const safeName = sanitizeName(folder.name)
+        this.files.set(
+          `recently-deleted/knowledgebase-folders/${safeName}/meta.json`,
+          JSON.stringify(
+            {
+              id: folder.id,
+              name: folder.name,
+              archivedAt: folder.archivedAt,
+              type: 'knowledge_base_folder',
+            },
+            null,
+            2
+          )
         )
       }
 

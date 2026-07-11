@@ -324,8 +324,20 @@ export function Knowledge() {
           folder.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
         )
       : siblings
-    return [...searched].sort((a, b) => a.name.localeCompare(b.name))
-  }, [folders, currentFolderId, debouncedSearchQuery])
+    const col = activeSort?.column ?? 'name'
+    const dir = activeSort?.direction ?? 'asc'
+    return [...searched].sort((a, b) => {
+      let cmp = 0
+      if (col === 'updated') {
+        cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+      } else if (col === 'created') {
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      } else {
+        cmp = a.name.localeCompare(b.name)
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [folders, currentFolderId, debouncedSearchQuery, activeSort])
 
   const processedKBs = useMemo(() => {
     let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery).filter(

@@ -765,6 +765,16 @@ export async function performCreateFolder(
       return row
     })
 
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: created.id,
+      resourceName: created.name,
+      description: `Created ${cascadeResourceLabel(params.resourceType)} folder "${created.name}"`,
+    })
+
     return { success: true, folder: created }
   } catch (error) {
     // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
@@ -773,6 +783,13 @@ export async function performCreateFolder(
     }
     if (error instanceof FolderParentNotFoundError) {
       return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
     }
     throw error
   }
@@ -862,6 +879,21 @@ export async function performUpdateFolder(
         if (!targetParent) {
           throw new FolderParentNotFoundError('Parent folder not found')
         }
+
+        // The cycle check above (`checkFolderCircularReference`) ran against an
+        // unlocked pre-transaction snapshot -- a concurrent reparent could form a
+        // cycle in the window between that read and this transaction (the batch
+        // reorder path was hardened against exactly this race). Re-run it here
+        // against `tx` so it observes the same FOR-UPDATE-locked parent chain this
+        // transaction is about to write.
+        const wouldCreateCycleInTx = await checkFolderCircularReference(
+          params.folderId,
+          params.parentId,
+          tx
+        )
+        if (wouldCreateCycleInTx) {
+          throw new FolderCycleError('Cannot create circular folder reference')
+        }
       }
 
       const [row] = await tx
@@ -880,6 +912,17 @@ export async function performUpdateFolder(
     })
 
     if (!updated) return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      action: AuditAction.FOLDER_UPDATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: updated.id,
+      resourceName: updated.name,
+      description: `Updated ${cascadeResourceLabel(params.resourceType)} folder "${updated.name}"`,
+    })
+
     return { success: true, folder: updated }
   } catch (error) {
     // Propagate uncaught so the route's ResourceLockedError -> 423 handling applies.
@@ -888,6 +931,16 @@ export async function performUpdateFolder(
     }
     if (error instanceof FolderParentNotFoundError) {
       return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (error instanceof FolderCycleError) {
+      return { success: false, error: error.message, errorCode: 'validation' }
+    }
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
+      }
     }
     throw error
   }
@@ -935,7 +988,7 @@ class FolderParentNotFoundError extends Error {}
 /** Marks a concurrent-deletion race caught inside the reorder transaction as a 404, not a 500. */
 class FolderReorderNotFoundError extends Error {}
 /** Marks a cycle caught inside the reorder transaction as a 400, not a 500. */
-class FolderReorderCycleError extends Error {}
+class FolderCycleError extends Error {}
 /** Marks a closure that went stale between discovery and locking, caught inside the reorder transaction, as a 409, not a 500. */
 class FolderReorderStaleClosureError extends Error {}
 
@@ -1111,7 +1164,7 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
         let cursor: string | null = update.id
         while (cursor) {
           if (visited.has(cursor)) {
-            throw new FolderReorderCycleError('Cannot create circular folder reference')
+            throw new FolderCycleError('Cannot create circular folder reference')
           }
           visited.add(cursor)
           cursor = lockedParentById.get(cursor) ?? null
@@ -1148,7 +1201,7 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
     if (error instanceof FolderReorderNotFoundError) {
       return { success: false, updated: 0, error: error.message, errorCode: 'not_found' }
     }
-    if (error instanceof FolderReorderCycleError) {
+    if (error instanceof FolderCycleError) {
       return { success: false, updated: 0, error: error.message, errorCode: 'validation' }
     }
     if (error instanceof FolderReorderStaleClosureError) {

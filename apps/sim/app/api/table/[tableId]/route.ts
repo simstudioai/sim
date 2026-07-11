@@ -67,6 +67,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
           metadata: table.metadata ?? null,
           rowCount: table.rowCount,
           maxRows: maxRowsPerTable,
+          folderId: table.folderId,
           locked: table.locked,
           createdAt:
             table.createdAt instanceof Date

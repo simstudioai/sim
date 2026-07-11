@@ -451,7 +451,7 @@ export async function performRestoreWorkspaceFileFolder(
 
   const result = await performRestoreFolder({ resourceType: 'file', workspaceId, folderId, userId })
   if (!result.success || !result.restoredItems) {
-    return { success: false, error: result.error, errorCode: 'not_found' }
+    return { success: false, error: result.error, errorCode: result.errorCode }
   }
 
   const folder = await getWorkspaceFileFolder(workspaceId, folderId)

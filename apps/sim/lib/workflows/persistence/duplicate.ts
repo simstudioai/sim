@@ -67,10 +67,15 @@ async function assertTargetFolderMutable(
   targetWorkspaceId: string
 ): Promise<void> {
   let currentFolderId = folderId
+  let isDirect = true
   const visited = new Set<string>()
 
   while (currentFolderId && !visited.has(currentFolderId)) {
     visited.add(currentFolderId)
+    // Scoped to resourceType='workflow' and row-locked (`FOR UPDATE`) for the rest of
+    // this transaction -- without the resourceType filter, a folder id belonging to a
+    // file/knowledge_base/table folder tree would pass this check, letting a
+    // duplicated workflow be reparented into a folder of the wrong resource type.
     const [folder] = await tx
       .select({
         id: workflowFolder.id,
@@ -80,16 +85,23 @@ async function assertTargetFolderMutable(
         archivedAt: workflowFolder.deletedAt,
       })
       .from(workflowFolder)
-      .where(eq(workflowFolder.id, currentFolderId))
+      .where(
+        and(eq(workflowFolder.id, currentFolderId), eq(workflowFolder.resourceType, 'workflow'))
+      )
+      .for('update')
       .limit(1)
 
     if (!folder || folder.workspaceId !== targetWorkspaceId || folder.archivedAt) {
       throw new Error('Target folder not found')
     }
     if (folder.locked) {
-      throw new FolderLockedError()
+      throw new FolderLockedError(
+        isDirect ? 'Folder is locked' : 'Folder is locked by an ancestor folder',
+        !isDirect
+      )
     }
     currentFolderId = folder.parentId
+    isDirect = false
   }
 }
 
