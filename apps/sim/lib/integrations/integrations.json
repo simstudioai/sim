@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10",
+  "updatedAt": "2026-07-11",
   "integrations": [
     {
       "type": "onepassword",
@@ -3871,23 +3871,11 @@
           "description": "Retrieve brand data for a public company by its stock ticker symbol."
         },
         {
-          "name": "Get Brand (Simplified)",
-          "description": "Retrieve essential brand data for a domain: title, colors, logos, and backdrops."
-        },
-        {
           "name": "Identify Transaction",
           "description": "Identify the brand behind a raw bank/card transaction descriptor and return its brand data."
-        },
-        {
-          "name": "Prefetch Domain",
-          "description": "Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits)."
-        },
-        {
-          "name": "Prefetch by Email",
-          "description": "Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected."
         }
       ],
-      "operationCount": 22,
+      "operationCount": 19,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
