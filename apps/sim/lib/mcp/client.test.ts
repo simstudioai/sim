@@ -141,6 +141,17 @@ describe('McpClient notification handler', () => {
     expect(mockSdkConnect).toHaveBeenCalledWith(expect.anything(), { timeout: 12_345 })
   })
 
+  it('normalizes invalid connection timeouts before calling the SDK', async () => {
+    const client = new McpClient({
+      config: { ...createConfig(), timeout: -1 },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+
+    expect(mockSdkConnect).toHaveBeenCalledWith(expect.anything(), { timeout: 30_000 })
+  })
+
   it('logs connection diagnostics without header values', async () => {
     const client = new McpClient({
       config: {
@@ -188,11 +199,28 @@ describe('McpClient notification handler', () => {
         outcome: 'timeout',
         timeoutMs: 30_000,
         error: expect.objectContaining({
-          message: 'MCP error -32001: Request timed out',
+          name: 'Error',
         }),
       })
     )
     expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain('do-not-log')
+  })
+
+  it('does not log opaque credentials echoed by MCP errors', async () => {
+    const secret = 'opaque-credential-without-a-known-prefix'
+    mockSdkConnect.mockRejectedValueOnce(new Error(`Upstream rejected ${secret}`))
+    const client = new McpClient({
+      config: {
+        ...createConfig(),
+        authType: 'headers',
+        headers: { 'X-Custom-Credential': secret },
+      },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await expect(client.connect()).rejects.toThrow('Upstream rejected')
+
+    expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(secret)
   })
 
   it('passes configured headers for OAuth transports as well as header auth transports', () => {

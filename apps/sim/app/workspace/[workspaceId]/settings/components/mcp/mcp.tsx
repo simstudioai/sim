@@ -21,6 +21,8 @@ import {
   mcpServerIdParam,
   mcpServerIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import { getRefreshActionState } from '@/app/workspace/[workspaceId]/settings/components/mcp/refresh-action-state'
+import { getServerToolsLabel } from '@/app/workspace/[workspaceId]/settings/components/mcp/server-tools-label'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -44,8 +46,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { McpServerFormModal } from './components'
-import { getRefreshActionState } from './refresh-action-state'
-import { getServerToolsLabel } from './server-tools-label'
 
 const logger = createLogger('McpSettings')
 
@@ -81,7 +81,8 @@ function ServerListItem({
 }: ServerListItemProps) {
   const transportLabel = formatTransportLabel(server.transport || 'http')
   const toolsLabel = getServerToolsLabel(tools, server.connectionStatus, server.lastError)
-  const isError = server.connectionStatus === 'error'
+  const hasConnectionIssue =
+    server.connectionStatus === 'error' || server.connectionStatus === 'disconnected'
 
   return (
     <div className='flex items-center justify-between gap-3'>
@@ -95,7 +96,7 @@ function ServerListItem({
         <p
           className={cn(
             'truncate text-sm',
-            isError ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
+            hasConnectionIssue ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
           )}
         >
           {isRefreshing
@@ -399,11 +400,11 @@ export function MCP() {
               </div>
             )}
 
-            {server.connectionStatus === 'error' && (
+            {server.connectionStatus !== 'connected' && (
               <div className='flex flex-col gap-2'>
                 <span className='text-[var(--text-muted)] text-caption'>Status</span>
                 <p className='text-[var(--text-error)] text-sm'>
-                  {server.lastError || 'Unable to connect'}
+                  {getServerToolsLabel([], server.connectionStatus, server.lastError)}
                 </p>
               </div>
             )}

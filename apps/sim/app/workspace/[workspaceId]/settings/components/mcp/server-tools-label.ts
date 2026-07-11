@@ -13,6 +13,10 @@ export function getServerToolsLabel(
     return lastError?.trim() || 'Unable to connect'
   }
 
+  if (connectionStatus === 'disconnected') {
+    return lastError?.trim() || 'Not Connected'
+  }
+
   const count = tools.length
   const plural = count !== 1 ? 's' : ''
   const names = count > 0 ? `: ${tools.map((tool) => tool.name).join(', ')}` : ''

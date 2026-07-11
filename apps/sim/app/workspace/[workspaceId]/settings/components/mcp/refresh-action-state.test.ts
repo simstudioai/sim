@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getRefreshActionState } from './refresh-action-state'
+import { getRefreshActionState } from '@/app/workspace/[workspaceId]/settings/components/mcp/refresh-action-state'
 
 describe('getRefreshActionState', () => {
   it.each(['error', 'disconnected'] as const)(

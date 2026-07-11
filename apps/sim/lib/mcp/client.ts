@@ -113,7 +113,11 @@ export class McpClient {
    */
   async connect(options: McpClientConnectOptions = {}): Promise<void> {
     const startedAt = Date.now()
-    const timeoutMs = this.config.timeout ?? MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT
+    const configuredTimeout = this.config.timeout
+    const timeoutMs =
+      configuredTimeout !== undefined && Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? Math.min(Math.floor(configuredTimeout), getMaxExecutionTimeout())
+        : MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT
     const headerNames = Object.keys(this.config.headers ?? {}).sort()
     const hasUnresolvedEnvRefs = [
       this.config.url ?? '',
@@ -167,21 +171,21 @@ export class McpClient {
       this.isConnected = false
       const errorMessage = getErrorMessage(error, 'Unknown error')
       const describedError = describeError(error)
+      const outcome = classifyConnectionOutcome(error)
       logger.error(`Failed to connect to MCP server ${this.config.name}`, {
         ...diagnostics,
         durationMs: Date.now() - startedAt,
         error: {
-          ...describedError,
-          message: sanitizeForLogging(describedError.message, 500),
-          causeChain: describedError.causeChain?.map((cause) => sanitizeForLogging(cause, 500)),
-          stack:
-            error instanceof Error && error.stack
-              ? sanitizeForLogging(error.stack.split('\n').slice(1).join('\n'), 2000)
-              : undefined,
+          name: sanitizeForLogging(describedError.name, 100),
+          code: describedError.code ? sanitizeForLogging(describedError.code, 100) : undefined,
+          errno: describedError.errno ? sanitizeForLogging(describedError.errno, 100) : undefined,
+          syscall: describedError.syscall
+            ? sanitizeForLogging(describedError.syscall, 100)
+            : undefined,
         },
-        outcome: classifyConnectionOutcome(error),
+        outcome,
       })
-      if (error instanceof McpOauthRedirectRequired || error instanceof UnauthorizedError) {
+      if (outcome === 'authorization_required') {
         this.connectionStatus.lastError = undefined
         throw error
       }

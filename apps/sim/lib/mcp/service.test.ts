@@ -15,10 +15,12 @@ const {
   mockIsDomainAllowed,
   mockCacheAdapter,
   mockUpdateSet,
+  mockUpdateReturning,
 } = vi.hoisted(() => {
   const mockListTools = vi.fn()
   const mockConnect = vi.fn()
   const mockDisconnect = vi.fn()
+  const mockUpdateReturning = vi.fn().mockResolvedValue([{ id: 'server-1' }])
   // In-memory cache adapter so the service never touches the real Redis the
   // local .env points at (unreachable in CI/sandbox → hangs). Honors TTL via
   // an expiry timestamp so negative-cache assertions behave like production.
@@ -68,7 +70,10 @@ const {
     mockValidateDomain: vi.fn(),
     mockValidateSsrf: vi.fn(),
     mockIsDomainAllowed: vi.fn(() => true),
-    mockUpdateSet: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+    mockUpdateReturning,
+    mockUpdateSet: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({ returning: mockUpdateReturning }),
+    }),
   }
 })
 
@@ -174,6 +179,8 @@ describe('McpService.discoverTools per-server caching', () => {
     )
     mockConnect.mockResolvedValue(undefined)
     mockDisconnect.mockResolvedValue(undefined)
+    mockUpdateReturning.mockReset()
+    mockUpdateReturning.mockResolvedValue([{ id: 'server-1' }])
     // The McpService singleton holds cache state across imports.
     await mcpService.clearCache()
   })
@@ -423,5 +430,21 @@ describe('McpService.discoverTools per-server caching', () => {
         lastError: null,
       })
     )
+  })
+
+  it('does not negative-cache a failure older than a successful discovery', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockRejectedValueOnce(new Error('Older request failed'))
+    mockUpdateReturning.mockResolvedValueOnce([])
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'Older request failed'
+    )
+
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+
+    expect(tools.map((tool) => tool.name)).toEqual(['a1'])
+    expect(mockListTools).toHaveBeenCalledTimes(2)
   })
 })

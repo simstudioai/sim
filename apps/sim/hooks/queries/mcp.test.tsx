@@ -20,7 +20,7 @@ import {
   listMcpServersContract,
   type McpServer,
 } from '@/lib/api/contracts/mcp'
-import { useMcpToolsQuery } from '@/hooks/queries/mcp'
+import { useForceRefreshMcpTools, useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 
 const WORKSPACE_ID = 'workspace-1'
 
@@ -39,16 +39,20 @@ function server(id: string, overrides: Partial<McpServer> = {}): McpServer {
   }
 }
 
-function renderHookWithClient<T>(useHook: () => T): { unmount: () => void } {
+function renderHookWithClient<T>(useHook: () => T): {
+  getResult: () => T
+  unmount: () => void
+} {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   const container = document.createElement('div')
   const root: Root = createRoot(container)
+  let result: T | undefined
 
   function Probe() {
-    useHook()
+    result = useHook()
     return null
   }
 
@@ -64,14 +68,20 @@ function renderHookWithClient<T>(useHook: () => T): { unmount: () => void } {
     )
   })
 
-  return { unmount: () => act(() => root.unmount()) }
+  return {
+    getResult: () => {
+      if (result === undefined) throw new Error('Hook result is not ready')
+      return result
+    },
+    unmount: () => act(() => root.unmount()),
+  }
 }
 
 async function flush() {
   await act(async () => {
     for (let i = 0; i < 5; i++) {
       await Promise.resolve()
-      await sleep(0)
+      await sleep(1)
     }
   })
 }
@@ -135,6 +145,65 @@ describe('useMcpToolsQuery', () => {
       discoverMcpToolsContract,
       expect.objectContaining({
         query: { workspaceId: WORKSPACE_ID, serverId: 'headers-disconnected' },
+      })
+    )
+
+    unmount()
+  })
+
+  it('refreshes the server list after a connected OAuth discovery fails', async () => {
+    let serverListRequests = 0
+    mockRequestJson.mockImplementation(async (contract) => {
+      if (contract === listMcpServersContract) {
+        serverListRequests++
+        const connectionStatus = serverListRequests === 1 ? 'connected' : 'disconnected'
+        return {
+          success: true,
+          data: {
+            servers: [server('oauth-server', { authType: 'oauth', connectionStatus })],
+          },
+        }
+      }
+      if (contract === discoverMcpToolsContract) {
+        throw new Error('OAuth authorization required')
+      }
+      throw new Error('Unexpected MCP request')
+    })
+
+    const { unmount } = renderHookWithClient(() => useMcpToolsQuery(WORKSPACE_ID))
+    await flush()
+
+    expect(serverListRequests).toBe(2)
+    expect(
+      mockRequestJson.mock.calls.filter(([contract]) => contract === discoverMcpToolsContract)
+    ).toHaveLength(1)
+
+    unmount()
+  })
+
+  it('does not force-refresh disconnected OAuth servers', async () => {
+    mockServers([
+      server('oauth-disconnected', { authType: 'oauth', connectionStatus: 'disconnected' }),
+      server('headers-connected', { authType: 'headers', connectionStatus: 'connected' }),
+    ])
+
+    const { getResult, unmount } = renderHookWithClient(() => ({
+      servers: useMcpServers(WORKSPACE_ID),
+      refresh: useForceRefreshMcpTools(),
+    }))
+    await flush()
+
+    await act(async () => {
+      await getResult().refresh.mutateAsync(WORKSPACE_ID)
+    })
+
+    const discoveryCalls = mockRequestJson.mock.calls.filter(
+      ([contract]) => contract === discoverMcpToolsContract
+    )
+    expect(discoveryCalls).toHaveLength(1)
+    expect(discoveryCalls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        query: { workspaceId: WORKSPACE_ID, refresh: true, serverId: 'headers-connected' },
       })
     )
 
