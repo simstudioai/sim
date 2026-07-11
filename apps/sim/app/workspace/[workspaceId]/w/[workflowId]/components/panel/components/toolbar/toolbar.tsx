@@ -39,7 +39,7 @@ import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
-import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
+import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
@@ -451,9 +451,8 @@ export const Toolbar = memo(
     const workspaceId = params?.workspaceId as string | undefined
     const currentWorkflowId = params?.workflowId as string | undefined
     const { data: customBlocksData } = useCustomBlocks(workspaceId)
-    // No-icon custom blocks fall back to the org's whitelabel logo, then the glyph.
-    const { data: whitelabel } = useWhitelabelSettings(customBlocksData?.[0]?.organizationId)
-    const fallbackIconUrl = whitelabel?.logoUrl ?? null
+    /** No-icon custom blocks use the access-authorized workspace host logo, then the glyph. */
+    const fallbackIconUrl = useOrgBrandConfig().logoUrl ?? null
 
     const allTriggers = getTriggers()
     const allBlocks = getBlocks()

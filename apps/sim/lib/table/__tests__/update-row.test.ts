@@ -152,6 +152,23 @@ describe('updateRow — partial merge', () => {
     expect(result.data).toEqual({ name: 'Bob', age: 25 })
   })
 
+  it('sends only changed keys in JSONB patch mode while returning merged data', async () => {
+    const result = await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1',
+      { dataWriteMode: 'patch' }
+    )
+
+    expect(result?.data).toEqual({ name: 'Alice', age: 31 })
+    const setPayload = dbChainMockFns.set.mock.calls.at(-1)?.[0] as
+      | { data?: { strings?: string[]; values?: unknown[] } }
+      | undefined
+    expect(setPayload?.data?.strings?.join('')).toContain(' || ')
+    expect(setPayload?.data?.values).toContain(JSON.stringify({ age: 31 }))
+    expect(setPayload?.data?.values).not.toContain(JSON.stringify({ name: 'Alice', age: 31 }))
+  })
+
   it('throws when the row does not exist', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
 

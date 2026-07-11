@@ -388,6 +388,11 @@ export const workflowExecutionLogs = pgTable(
     runningStartedAtIdx: index('workflow_execution_logs_running_started_at_idx')
       .on(table.startedAt)
       .where(sql`status = 'running'`),
+    completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
+      .on(table.endedAt, table.workspaceId, table.executionId)
+      .where(
+        sql`${table.status} = 'completed' AND ${table.level} = 'info' AND ${table.endedAt} IS NOT NULL`
+      ),
   })
 )
 
@@ -1337,6 +1342,7 @@ export const workspace = pgTable(
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
     archivedAt: timestamp('archived_at'),
+    organizationAssignedAt: timestamp('organization_assigned_at'),
     forkedFromWorkspaceId: text('forked_from_workspace_id').references(
       (): AnyPgColumn => workspace.id,
       { onDelete: 'set null' }
@@ -2336,6 +2342,9 @@ export const copilotMessages = pgTable(
     chatStreamIdx: index('copilot_messages_chat_stream_idx')
       .on(table.chatId, table.streamId)
       .where(sql`${table.streamId} IS NOT NULL`),
+    userCreatedAtIdx: index('copilot_messages_user_created_at_idx')
+      .on(table.createdAt, table.chatId, table.messageId)
+      .where(sql`${table.role} = 'user' AND ${table.deletedAt} IS NULL`),
   })
 )
 
@@ -2632,6 +2641,10 @@ export const outboxEvent = pgTable(
       table.availableAt
     ),
     lockedAtIdx: index('outbox_event_locked_at_idx').on(table.lockedAt),
+    eventTypeCreatedIdx: index('outbox_event_type_created_idx').on(
+      table.eventType,
+      table.createdAt
+    ),
   })
 )
 

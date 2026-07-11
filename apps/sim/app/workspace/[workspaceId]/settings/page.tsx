@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { getWorkspaceSettingsHref } from '@/components/settings/navigation'
 
 interface SettingsPageProps {
   params: Promise<{
@@ -8,5 +9,5 @@ interface SettingsPageProps {
 
 export default async function SettingsPage({ params }: SettingsPageProps) {
   const { workspaceId } = await params
-  redirect(`/workspace/${workspaceId}/settings/general`)
+  redirect(getWorkspaceSettingsHref(workspaceId, 'teammates'))
 }

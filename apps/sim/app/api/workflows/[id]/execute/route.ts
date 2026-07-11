@@ -13,6 +13,11 @@ import {
   API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
   isWorkspaceApiExecutionEntitled,
 } from '@/lib/billing/core/api-access'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+  requireBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import {
@@ -50,7 +55,7 @@ import {
 } from '@/lib/execution/manual-cancellation'
 import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
-import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { type PreprocessExecutionSuccess, preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import {
   MAX_MCP_WORKFLOW_RESPONSE_BYTES,
@@ -65,6 +70,12 @@ import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/op
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
+import {
+  claimExecutionId,
+  type ExecutionIdClaim,
+  hasDurableExecutionOwner,
+  releaseExecutionIdClaim,
+} from '@/lib/workflows/executor/execution-id-claim'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import {
   loadDeployedWorkflowState,
@@ -72,6 +83,7 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
+import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
@@ -93,6 +105,7 @@ import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/
 
 const logger = createLogger('WorkflowExecuteAPI')
 const MAX_WORKFLOW_EXECUTE_BODY_BYTES = 10 * 1024 * 1024
+const SERVER_EXECUTION_ID_CLAIM_ATTEMPTS = 3
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -252,6 +265,7 @@ type AsyncExecutionParams = {
   requestId: string
   workflowId: string
   userId: string
+  billingAttribution: BillingAttributionSnapshot
   workspaceId: string
   input: any
   triggerType: CoreTriggerType
@@ -259,9 +273,54 @@ type AsyncExecutionParams = {
   callChain?: string[]
 }
 
+type ValidatedPreprocessContext = {
+  actorUserId: string
+  workflow: PreprocessExecutionSuccess['workflowRecord']
+  billingAttribution: BillingAttributionSnapshot
+  workspaceId: string
+}
+
+function requirePreprocessedExecutionContext(
+  result: PreprocessExecutionSuccess
+): ValidatedPreprocessContext {
+  if (!result.actorUserId) {
+    throw new Error('Preprocessing succeeded without an actor user')
+  }
+  if (!result.workflowRecord) {
+    throw new Error('Preprocessing succeeded without a workflow record')
+  }
+  if (!result.workflowRecord.workspaceId) {
+    throw new Error('Preprocessing succeeded without a workflow workspace')
+  }
+
+  const billingAttribution = assertBillingAttributionSnapshot(result.billingAttribution)
+  if (billingAttribution.actorUserId !== result.actorUserId) {
+    throw new Error('Preprocessing actor does not match billing attribution')
+  }
+  if (billingAttribution.workspaceId !== result.workflowRecord.workspaceId) {
+    throw new Error('Preprocessing workspace does not match billing attribution')
+  }
+
+  return {
+    actorUserId: result.actorUserId,
+    workflow: result.workflowRecord,
+    billingAttribution,
+    workspaceId: result.workflowRecord.workspaceId,
+  }
+}
+
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
-  const { requestId, workflowId, userId, workspaceId, input, triggerType, executionId, callChain } =
-    params
+  const {
+    requestId,
+    workflowId,
+    userId,
+    billingAttribution,
+    workspaceId,
+    input,
+    triggerType,
+    executionId,
+    callChain,
+  } = params
   const asyncLogger = logger.withMetadata({
     requestId,
     workflowId,
@@ -281,6 +340,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
   const payload: WorkflowExecutionPayload = {
     workflowId,
     userId,
+    billingAttribution,
     workspaceId,
     input,
     triggerType,
@@ -289,6 +349,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     correlation,
     callChain,
     executionMode: 'async',
+    admissionCompleted: true,
   }
 
   try {
@@ -301,8 +362,10 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
 
     if (shouldExecuteInline()) {
       void (async () => {
+        let workerOwnsReservation = false
         try {
           await jobQueue.startJob(jobId)
+          workerOwnsReservation = true
           const output = await executeWorkflowJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
@@ -311,11 +374,13 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
             jobId,
             error: errorMessage,
           })
-          // Release the reserved slot in case the job never reached
-          // executeWorkflowJob (e.g. startJob threw) and thus never finalized a
-          // LoggingSession to free it. Idempotent: a no-op when the job already
-          // finalized and released.
-          await releaseExecutionSlot(executionId)
+          /**
+           * Before worker ownership transfers, no LoggingSession exists to
+           * release the route's reservation.
+           */
+          if (!workerOwnsReservation) {
+            await releaseExecutionSlot(executionId)
+          }
           try {
             await jobQueue.markJobFailed(jobId, errorMessage)
           } catch (markFailedError) {
@@ -393,6 +458,8 @@ async function handleExecutePost(
   // Hoisted so the outer catch can release a reserved billing slot when a throw
   // after preprocessExecution exits before the stream takes over its release.
   let executionId = ''
+  let executionIdClaim: ExecutionIdClaim | null = null
+  let executionIdClaimCommitted = false
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
@@ -646,6 +713,7 @@ async function handleExecutePost(
               runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               parentWorkspaceId: _parentWorkspaceId,
+              executionId: _executionId,
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
@@ -689,7 +757,8 @@ async function handleExecutePost(
       )
     }
 
-    executionId = isClientSession && requestedExecutionId ? requestedExecutionId : generateId()
+    const callerProvidedExecutionId = requestedExecutionId
+    executionId = callerProvidedExecutionId ?? generateId()
     reqLogger = reqLogger.withMetadata({ userId, executionId })
 
     reqLogger.info('Starting server-side execution', {
@@ -705,15 +774,11 @@ async function handleExecutePost(
     if (CORE_TRIGGER_TYPES.includes(triggerType as CoreTriggerType)) {
       loggingTriggerType = triggerType as CoreTriggerType
     }
-    const loggingSession = new LoggingSession(
-      workflowId,
-      executionId,
-      loggingTriggerType,
-      requestId
-    )
 
-    // Client-side sessions and personal API keys bill/permission-check the
-    // authenticated user, not the workspace billed account.
+    /**
+     * Interactive sessions and personal keys preserve the authenticated human
+     * as actor. Preprocessing resolves the workspace payer independently.
+     */
     const useAuthenticatedUserAsActor =
       isClientSession ||
       (auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal') ||
@@ -731,6 +796,28 @@ async function handleExecutePost(
         { error: workflowAuthorization.message || 'Access denied' },
         { status: workflowAuthorization.status }
       )
+    }
+
+    const workflowWorkspaceId = workflowAuthorization.workflow?.workspaceId
+    if (auth.authType === AuthType.API_KEY) {
+      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
+        return NextResponse.json(
+          { error: 'API key is not authorized for this workspace' },
+          { status: 403 }
+        )
+      }
+
+      if (auth.apiKeyType === 'personal') {
+        const workspaceSettings = workflowWorkspaceId
+          ? await getWorkspaceBillingSettings(workflowWorkspaceId)
+          : null
+        if (!workspaceSettings?.allowPersonalApiKeys) {
+          return NextResponse.json(
+            { error: 'Personal API keys are not allowed for this workspace' },
+            { status: 403 }
+          )
+        }
+      }
     }
 
     /**
@@ -752,11 +839,67 @@ async function handleExecutePost(
       )
     }
 
+    const upstreamBillingAttribution =
+      auth.authType === AuthType.INTERNAL_JWT && workflowAuthorization.workflow?.workspaceId
+        ? requireBillingAttributionHeader(req.headers, {
+            actorUserId: userId,
+            workspaceId: workflowAuthorization.workflow.workspaceId,
+          })
+        : undefined
+
     if (req.signal.aborted) {
       return clientCancelledResponse()
     }
 
-    // Pass the pre-fetched workflow record to skip the redundant Step 1 DB query in preprocessing.
+    try {
+      for (let attempt = 1; attempt <= SERVER_EXECUTION_ID_CLAIM_ATTEMPTS; attempt++) {
+        executionIdClaim = await claimExecutionId(executionId)
+        if (executionIdClaim || callerProvidedExecutionId) {
+          break
+        }
+
+        if (attempt < SERVER_EXECUTION_ID_CLAIM_ATTEMPTS) {
+          executionId = generateId()
+          reqLogger = reqLogger.withMetadata({ executionId })
+        }
+      }
+    } catch (error) {
+      reqLogger.error('Failed to claim workflow execution ID', {
+        error: getErrorMessage(error),
+      })
+      return NextResponse.json(
+        { error: 'Workflow execution identity is temporarily unavailable' },
+        { status: 503 }
+      )
+    }
+
+    if (!executionIdClaim) {
+      if (callerProvidedExecutionId) {
+        return NextResponse.json(
+          {
+            error: 'Execution ID has already been used',
+            code: 'EXECUTION_ID_CONFLICT',
+            executionId,
+          },
+          { status: 409 }
+        )
+      }
+
+      reqLogger.error('Failed to allocate a unique server execution ID')
+      return NextResponse.json(
+        { error: 'Unable to allocate workflow execution identity' },
+        { status: 503 }
+      )
+    }
+
+    const loggingSession = new LoggingSession(
+      workflowId,
+      executionId,
+      loggingTriggerType,
+      requestId
+    )
+
+    /** The pre-fetched record avoids a redundant initial workflow lookup. */
     const preprocessResult = await preprocessExecution({
       workflowId,
       userId,
@@ -765,15 +908,16 @@ async function handleExecutePost(
       requestId,
       checkDeployment: !shouldUseDraftState,
       loggingSession,
-      useDraftState: shouldUseDraftState,
       useAuthenticatedUserAsActor,
       workflowRecord: workflowAuthorization.workflow ?? undefined,
+      billingAttribution: upstreamBillingAttribution,
     })
 
     if (!preprocessResult.success) {
+      const preprocessError = preprocessResult.error
       return NextResponse.json(
-        { error: preprocessResult.error!.message },
-        { status: preprocessResult.error!.statusCode }
+        { error: preprocessError.message },
+        { status: preprocessError.statusCode }
       )
     }
 
@@ -785,38 +929,40 @@ async function handleExecutePost(
       return clientCancelledResponse()
     }
 
-    const actorUserId = preprocessResult.actorUserId!
-    const workflow = preprocessResult.workflowRecord!
-
-    if (!workflow.workspaceId) {
-      reqLogger.error('Workflow has no workspaceId')
-      await releaseExecutionSlot(executionId)
-      return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
-    }
-    const workspaceId = workflow.workspaceId
-    reqLogger = reqLogger.withMetadata({ workspaceId, userId: actorUserId })
-
-    if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workspaceId) {
+    let validatedContext: ValidatedPreprocessContext
+    try {
+      validatedContext = requirePreprocessedExecutionContext(preprocessResult)
+    } catch (error) {
+      reqLogger.error('Preprocessing returned an invalid execution context', {
+        error: getErrorMessage(error),
+      })
       await releaseExecutionSlot(executionId)
       return NextResponse.json(
-        { error: 'API key is not authorized for this workspace' },
-        { status: 403 }
+        { error: 'Invalid execution context returned by preprocessing' },
+        { status: 500 }
       )
     }
+    const { actorUserId, workflow, billingAttribution, workspaceId } = validatedContext
+    reqLogger = reqLogger.withMetadata({ workspaceId, userId: actorUserId })
 
     reqLogger.info('Preprocessing passed')
 
     if (isAsyncMode) {
-      return handleAsyncExecution({
+      const response = await handleAsyncExecution({
         requestId,
         workflowId,
         userId: actorUserId,
+        billingAttribution,
         workspaceId,
         input,
         triggerType: loggingTriggerType,
         executionId,
         callChain,
       })
+      if (response.status === 202) {
+        executionIdClaimCommitted = true
+      }
+      return response
     }
 
     let cachedWorkflowData: {
@@ -891,8 +1037,9 @@ async function handleExecutePost(
     } catch (fileError) {
       reqLogger.error('Failed to process input file fields:', fileError)
 
-      await loggingSession.safeStart({
+      executionIdClaimCommitted = await loggingSession.safeStart({
         userId: actorUserId,
+        billingAttribution,
         workspaceId,
         variables: {},
       })
@@ -933,6 +1080,7 @@ async function handleExecutePost(
         workflowId,
         workspaceId,
         userId: actorUserId,
+        billingAttribution,
         sessionUserId: isClientSession ? userId : undefined,
         workflowUserId: workflow.userId,
         triggerType,
@@ -1209,6 +1357,7 @@ async function handleExecutePost(
               base64MaxBytes,
               abortSignal,
               executionMode: 'stream',
+              billingAttribution,
               largeValueKeys,
               fileKeys,
               stopAfterBlockId,
@@ -1218,6 +1367,7 @@ async function handleExecutePost(
           ),
       })
 
+      executionIdClaimCommitted = true
       return new NextResponse(stream, {
         status: 200,
         headers: SSE_HEADERS,
@@ -1248,6 +1398,7 @@ async function handleExecutePost(
       )
     }
 
+    executionIdClaimCommitted = true
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let finalMetaStatus: 'complete' | 'error' | 'cancelled' | null = null
@@ -1511,6 +1662,7 @@ async function handleExecutePost(
             workflowId,
             workspaceId,
             userId: actorUserId,
+            billingAttribution,
             sessionUserId: isClientSession ? userId : undefined,
             workflowUserId: workflow.userId,
             triggerType,
@@ -1823,5 +1975,28 @@ async function handleExecutePost(
       { error: error.message || 'Failed to start workflow execution' },
       { status: 500 }
     )
+  } finally {
+    if (executionIdClaim && !executionIdClaimCommitted) {
+      try {
+        executionIdClaimCommitted = await hasDurableExecutionOwner(executionId)
+      } catch (error) {
+        executionIdClaimCommitted = true
+        reqLogger.warn('Unable to verify execution ID ownership; retaining claim', {
+          error: toError(error).message,
+          executionId,
+        })
+      }
+    }
+
+    if (executionIdClaim && !executionIdClaimCommitted) {
+      try {
+        await releaseExecutionIdClaim(executionIdClaim)
+      } catch (error) {
+        reqLogger.warn('Failed to release pre-start execution ID claim', {
+          error: toError(error).message,
+          executionId,
+        })
+      }
+    }
   }
 }

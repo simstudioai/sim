@@ -12,8 +12,10 @@ import {
   type WorkspaceRoleSource,
   workspaceRoleLockReason,
 } from '@/components/permissions'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import {
   MemberRow,
   MemberSection,
@@ -24,7 +26,6 @@ import {
   teammatesSearchParam,
   teammatesUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/teammates/search-params'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
   useCancelWorkspaceInvitation,
@@ -95,7 +96,10 @@ export function Teammates() {
   const updatePermissions = useUpdateWorkspacePermissions()
 
   const viewer = permissions?.viewer
-  const canManage = Boolean(viewer?.isAdmin)
+  const canManage = canMutateWorkspaceSettingsSection('teammates', {
+    canEdit: viewer?.permissionType === 'write' || viewer?.permissionType === 'admin',
+    canAdmin: Boolean(viewer?.isAdmin),
+  })
 
   const activeWorkspace = workspaces?.find((workspace) => workspace.id === workspaceId)
   const inviteDisabledReason = activeWorkspace?.inviteDisabledReason ?? null
@@ -176,16 +180,20 @@ export function Teammates() {
           onChange: (value) => void setSearchTerm(value),
           placeholder: 'Search teammates...',
         }}
-        actions={[
-          {
-            text: 'Invite',
-            icon: Plus,
-            variant: 'primary',
-            onSelect: handleInvite,
-            tooltip: inviteDisabledReason ?? undefined,
-            onPrefetch: isInvitationsDisabled ? prefetchUpgrade : undefined,
-          },
-        ]}
+        actions={
+          canManage
+            ? [
+                {
+                  text: 'Invite',
+                  icon: Plus,
+                  variant: 'primary',
+                  onSelect: handleInvite,
+                  tooltip: inviteDisabledReason ?? undefined,
+                  onPrefetch: isInvitationsDisabled ? prefetchUpgrade : undefined,
+                },
+              ]
+            : []
+        }
       >
         <MemberSection
           label={`Teammates (${teammates.length})`}
@@ -300,13 +308,15 @@ export function Teammates() {
         </MemberSection>
       </SettingsPanel>
 
-      <InviteModal
-        open={isInviteModalOpen}
-        onOpenChange={setIsInviteModalOpen}
-        workspaceName={activeWorkspace?.name ?? 'Workspace'}
-        inviteDisabledReason={inviteDisabledReason}
-        organizationId={activeWorkspace?.organizationId ?? null}
-      />
+      {canManage && (
+        <InviteModal
+          open={isInviteModalOpen}
+          onOpenChange={setIsInviteModalOpen}
+          workspaceName={activeWorkspace?.name ?? 'Workspace'}
+          inviteDisabledReason={inviteDisabledReason}
+          organizationId={activeWorkspace?.organizationId ?? null}
+        />
+      )}
     </>
   )
 }

@@ -18,10 +18,14 @@ import {
 import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal } from 'lucide-react'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useActiveOrganization } from '@/lib/auth/auth-client'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
+import {
+  CreateWorkspaceModal,
+  type CreateWorkspaceTarget,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -119,6 +123,7 @@ function WorkspaceHeaderImpl({
     setIsMounted(true)
   }, [])
 
+  const { data: viewerActiveOrganization } = useActiveOrganization()
   const { navigateToSettings } = useSettingsNavigation()
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
@@ -129,6 +134,17 @@ function WorkspaceHeaderImpl({
   const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
+  const createWorkspaceTarget: CreateWorkspaceTarget =
+    workspaceCreationPolicy?.workspaceMode === 'organization' &&
+    workspaceCreationPolicy.organizationId
+      ? {
+          type: 'organization',
+          organizationName:
+            viewerActiveOrganization?.id === workspaceCreationPolicy.organizationId
+              ? viewerActiveOrganization.name
+              : 'your organization',
+        }
+      : { type: 'personal' }
 
   /**
    * Save and exit edit mode when popover closes
@@ -664,6 +680,7 @@ function WorkspaceHeaderImpl({
           setIsCreateModalOpen(false)
         }}
         isCreating={isCreatingWorkspace}
+        target={createWorkspaceTarget}
       />
 
       <InviteModal

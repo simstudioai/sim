@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, subscription, user } from '@sim/db/schema'
+import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -404,7 +404,7 @@ export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<
       return isOrganizationOnEnterprisePlan(ws.organizationId)
     }
 
-    const billedSub = await getHighestPrioritySubscription(ws.billedAccountUserId)
+    const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
     return !!billedSub && checkEnterprisePlan(billedSub)
   } catch (error) {
     logger.error('Error checking workspace enterprise plan status', { error, workspaceId })
@@ -453,7 +453,7 @@ export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<bool
     }
 
     const [billedSub, billingStatus] = await Promise.all([
-      getHighestPrioritySubscription(ws.billedAccountUserId),
+      getHighestPriorityPersonalSubscription(ws.billedAccountUserId),
       getEffectiveBillingStatus(ws.billedAccountUserId),
     ])
     if (!billedSub) return false
@@ -492,7 +492,7 @@ export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise
       return !!orgSub && isInboxEntitledPlan(orgSub.plan)
     }
 
-    const billedSub = await getHighestPrioritySubscription(ws.billedAccountUserId)
+    const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
     return !!billedSub && isInboxEntitledPlan(billedSub.plan)
   } catch (error) {
     logger.error('Error checking workspace inbox grace access', { error, workspaceId })
@@ -501,25 +501,43 @@ export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise
 }
 
 /**
- * Check if user has access to live sync (every 5 minutes) for KB connectors
- * Returns true if:
- * - Self-hosted deployment, OR
- * - User has a Max plan (credits >= 25000) or enterprise plan
+ * Checks whether the exact workspace payer can use five-minute connector sync.
  */
-export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
+export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<boolean> {
   try {
-    if (!isHosted) {
-      return true
+    if (!isHosted || !isBillingEnabled) return true
+
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+    if (!ws) return false
+
+    if (ws.organizationId) {
+      const [billingBlocked, orgSub] = await Promise.all([
+        isOrganizationBillingBlocked(ws.organizationId),
+        getOrganizationSubscriptionUsable(ws.organizationId),
+      ])
+      if (!orgSub) return false
+      if (!hasUsableSubscriptionAccess(orgSub.status, billingBlocked)) return false
+      return isInboxEntitledPlan(orgSub.plan)
     }
-    const [sub, billingStatus] = await Promise.all([
-      getHighestPrioritySubscription(userId),
-      getEffectiveBillingStatus(userId),
+
+    const [billedSub, billedStatusRows] = await Promise.all([
+      getHighestPriorityPersonalSubscription(ws.billedAccountUserId),
+      db
+        .select({ billingBlocked: userStats.billingBlocked })
+        .from(userStats)
+        .where(eq(userStats.userId, ws.billedAccountUserId))
+        .limit(1),
     ])
-    if (!sub) return false
-    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
-    return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
+    if (!billedSub) return false
+    if (
+      !hasUsableSubscriptionAccess(billedSub.status, Boolean(billedStatusRows[0]?.billingBlocked))
+    ) {
+      return false
+    }
+    return isInboxEntitledPlan(billedSub.plan)
   } catch (error) {
-    logger.error('Error checking live sync access', { error, userId })
+    logger.error('Error checking workspace live sync access', { error, workspaceId })
     return false
   }
 }

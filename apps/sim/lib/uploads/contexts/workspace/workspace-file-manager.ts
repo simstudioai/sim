@@ -12,9 +12,10 @@ import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
-  checkStorageQuota,
-  decrementStorageUsage,
-  incrementStorageUsage,
+  checkStorageQuotaForBillingContext,
+  decrementStorageUsageForBillingContext,
+  incrementStorageUsageForBillingContext,
+  resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
@@ -181,7 +182,11 @@ export async function uploadWorkspaceFile(
   const folderId = await assertWorkspaceFileFolderTarget(workspaceId, options?.folderId)
   const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
   const exactName = options?.exactName ?? false
-  const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
+  const storageBillingContext = await resolveStorageBillingContext(workspaceId)
+  const quotaCheck = await checkStorageQuotaForBillingContext(
+    storageBillingContext,
+    fileBuffer.length
+  )
 
   if (!quotaCheck.allowed) {
     throw new Error(quotaCheck.error || 'Storage limit exceeded')
@@ -267,7 +272,7 @@ export async function uploadWorkspaceFile(
       )
 
       try {
-        await incrementStorageUsage(userId, fileBuffer.length, workspaceId)
+        await incrementStorageUsageForBillingContext(storageBillingContext, fileBuffer.length)
       } catch (storageError) {
         logger.error(`Failed to update storage tracking:`, storageError)
       }
@@ -375,7 +380,8 @@ export async function registerUploadedWorkspaceFile(params: {
   let created = false
 
   if (!existing) {
-    const quotaCheck = await checkStorageQuota(userId, verifiedSize)
+    const storageBillingContext = await resolveStorageBillingContext(workspaceId)
+    const quotaCheck = await checkStorageQuotaForBillingContext(storageBillingContext, verifiedSize)
     if (!quotaCheck.allowed) {
       await cleanupOrphan('quota rejection')
       throw new Error(quotaCheck.error || 'Storage limit exceeded')
@@ -431,7 +437,7 @@ export async function registerUploadedWorkspaceFile(params: {
     }
 
     try {
-      await incrementStorageUsage(userId, verifiedSize, workspaceId)
+      await incrementStorageUsageForBillingContext(storageBillingContext, verifiedSize)
     } catch (storageError) {
       logger.error('Failed to update storage tracking:', storageError)
     }
@@ -892,8 +898,10 @@ export async function updateWorkspaceFileContent(
   }
 
   const sizeDiff = content.length - fileRecord.size
+  const storageBillingContext =
+    sizeDiff === 0 ? null : await resolveStorageBillingContext(workspaceId)
   if (sizeDiff > 0) {
-    const quotaCheck = await checkStorageQuota(userId, sizeDiff)
+    const quotaCheck = await checkStorageQuotaForBillingContext(storageBillingContext!, sizeDiff)
     if (!quotaCheck.allowed) {
       throw new Error(quotaCheck.error || 'Storage limit exceeded')
     }
@@ -935,9 +943,9 @@ export async function updateWorkspaceFileContent(
     if (sizeDiff !== 0) {
       try {
         if (sizeDiff > 0) {
-          await incrementStorageUsage(userId, sizeDiff, workspaceId)
+          await incrementStorageUsageForBillingContext(storageBillingContext!, sizeDiff)
         } else {
-          await decrementStorageUsage(userId, Math.abs(sizeDiff), workspaceId)
+          await decrementStorageUsageForBillingContext(storageBillingContext!, Math.abs(sizeDiff))
         }
       } catch (storageError) {
         logger.error(`Failed to update storage tracking:`, storageError)

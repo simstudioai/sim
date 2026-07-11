@@ -3,9 +3,7 @@
 import { useState } from 'react'
 import {
   Calendar,
-  Chip,
   ChipCombobox,
-  ChipLink,
   type ComboboxOption,
   chipVariants,
   cn,
@@ -16,17 +14,18 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, Download } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { UsageLogEntry, UsageLogPeriod } from '@/lib/api/contracts/user'
 import { formatApportionedCreditCost, formatCreditsLabel } from '@/lib/billing/credits/conversion'
 import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-labels'
-import { CredentialDetailLayout } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
 import {
   creditUsageParsers,
   creditUsageUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/billing/credit-usage/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useUsageLogs } from '@/hooks/queries/usage-logs'
 
 const PERIOD_OPTIONS: ComboboxOption[] = [
@@ -63,13 +62,8 @@ function UsageLogRow({ log }: UsageLogRowProps) {
   )
 }
 
-interface CreditUsageViewProps {
-  workspaceId: string
-}
-
-export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
-  const billingHref = `/workspace/${workspaceId}/settings/billing`
-
+export function CreditUsageView() {
+  const router = useRouter()
   const [{ period, startDate, endDate }, setFilters] = useQueryStates(
     creditUsageParsers,
     creditUsageUrlKeys
@@ -151,29 +145,23 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
   const totalCredits = data?.pages[0]?.summary.totalCredits ?? 0
 
   return (
-    <CredentialDetailLayout
-      back={
-        <ChipLink href={billingHref} leftIcon={ArrowLeft}>
-          Billing
-        </ChipLink>
-      }
-      actions={
-        <Chip
-          leftIcon={Download}
-          onClick={() => void handleExport()}
-          disabled={logs.length === 0 || isPlaceholderData}
-        >
-          Export
-        </Chip>
-      }
+    <SettingsPanel
+      back={{
+        text: 'Billing',
+        icon: ArrowLeft,
+        onSelect: () => router.push('/account/settings/billing'),
+      }}
+      actions={[
+        {
+          text: 'Export',
+          icon: Download,
+          onSelect: () => void handleExport(),
+          disabled: logs.length === 0 || isPlaceholderData,
+        },
+      ]}
+      title='Credit usage'
+      description='Every credit-consuming event behind your usage.'
     >
-      <div className='flex flex-col gap-1'>
-        <h1 className='font-medium text-[var(--text-body)] text-lg'>Credit usage</h1>
-        <p className='text-[var(--text-muted)] text-md'>
-          Every credit-consuming event behind your usage.
-        </p>
-      </div>
-
       <div className='flex items-center justify-between'>
         <span className='text-[var(--text-muted)] text-small'>
           Total: {formatCreditsLabel(totalCredits)}
@@ -242,6 +230,6 @@ export function CreditUsageView({ workspaceId }: CreditUsageViewProps) {
           </>
         )}
       </div>
-    </CredentialDetailLayout>
+    </SettingsPanel>
   )
 }

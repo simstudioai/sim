@@ -14,6 +14,7 @@ import {
 import { client, useSession } from '@/lib/auth/auth-client'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { organizationKeys } from '@/hooks/queries/organization'
+import { refreshSessionQuery } from '@/hooks/queries/session'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 
 const logger = createLogger('InviteById')
@@ -236,6 +237,7 @@ export default function Invite() {
       })
 
       await Promise.all([
+        refreshSessionQuery(queryClient),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.all }),
         queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
       ])

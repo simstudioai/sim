@@ -11,6 +11,56 @@ export interface EffectiveBillingStatus {
   blockedByOrgOwner: boolean
 }
 
+export interface BillingEntityBlockStatus {
+  billingBlocked: boolean
+  billingBlockedReason: 'payment_failed' | 'dispute' | null
+}
+
+async function getUserBillingBlockStatus(userId: string): Promise<BillingEntityBlockStatus> {
+  const [stats] = await db
+    .select({
+      billingBlocked: userStats.billingBlocked,
+      billingBlockedReason: userStats.billingBlockedReason,
+    })
+    .from(userStats)
+    .where(eq(userStats.userId, userId))
+    .limit(1)
+
+  const billingBlocked = Boolean(stats?.billingBlocked)
+  return {
+    billingBlocked,
+    billingBlockedReason: billingBlocked ? (stats?.billingBlockedReason ?? null) : null,
+  }
+}
+
+/**
+ * Reads the block state of one exact personal or organization payer.
+ */
+export async function getBillingEntityBlockStatus(billingEntity: {
+  type: 'user' | 'organization'
+  id: string
+}): Promise<BillingEntityBlockStatus> {
+  if (billingEntity.type === 'user') {
+    return getUserBillingBlockStatus(billingEntity.id)
+  }
+
+  const [owner] = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, billingEntity.id), eq(member.role, 'owner')))
+    .limit(1)
+
+  if (!owner) {
+    logger.error(
+      'Organization has no owner when checking billing-blocked state — data integrity issue',
+      { organizationId: billingEntity.id }
+    )
+    return { billingBlocked: false, billingBlockedReason: null }
+  }
+
+  return getUserBillingBlockStatus(owner.userId)
+}
+
 /**
  * Gets the effective billing blocked status for a user.
  * If the user belongs to an organization, also checks whether the org owner is blocked.
@@ -88,25 +138,6 @@ export async function getEffectiveBillingStatus(userId: string): Promise<Effecti
 }
 
 export async function isOrganizationBillingBlocked(organizationId: string): Promise<boolean> {
-  const [owner] = await db
-    .select({ userId: member.userId })
-    .from(member)
-    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
-    .limit(1)
-
-  if (!owner) {
-    logger.error(
-      'Organization has no owner when checking billing-blocked state — data integrity issue',
-      { organizationId }
-    )
-    return false
-  }
-
-  const [ownerStats] = await db
-    .select({ blocked: userStats.billingBlocked })
-    .from(userStats)
-    .where(eq(userStats.userId, owner.userId))
-    .limit(1)
-
-  return !!ownerStats?.blocked
+  const status = await getBillingEntityBlockStatus({ type: 'organization', id: organizationId })
+  return status.billingBlocked
 }

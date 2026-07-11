@@ -9,8 +9,12 @@ import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  getHighestPriorityPersonalSubscription,
+  getHighestPrioritySubscription,
+} from '@/lib/billing/core/plan'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import { getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
@@ -20,9 +24,11 @@ import {
   hasUsableSubscriptionStatus,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
+import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 
 const logger = createLogger('SwitchPlan')
 
@@ -52,15 +58,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(billingSwitchPlanContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { targetPlanName, interval } = parsed.data.body
+    const { targetPlanName, interval, workspaceId } = parsed.data.body
     const userId = session.user.id
 
-    const sub = await getHighestPrioritySubscription(userId)
+    const hostContext = workspaceId
+      ? await getWorkspaceHostContextForViewer(workspaceId, userId)
+      : null
+    if (workspaceId && (!hostContext || !canManageWorkspaceBilling(hostContext, userId))) {
+      return NextResponse.json(
+        { error: 'Only workspace billing administrators can change this plan' },
+        { status: 403 }
+      )
+    }
+
+    const sub = hostContext
+      ? hostContext.hostOrganizationId
+        ? await getOrganizationSubscription(hostContext.hostOrganizationId)
+        : await getHighestPriorityPersonalSubscription(hostContext.workspace.billedAccountUserId)
+      : await getHighestPrioritySubscription(userId)
     if (!sub || !sub.stripeSubscriptionId) {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 
-    const billingStatus = await getEffectiveBillingStatus(userId)
+    const billingStatus = await getEffectiveBillingStatus(
+      hostContext?.workspace.billedAccountUserId ?? userId
+    )
     if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) {
       return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
     }

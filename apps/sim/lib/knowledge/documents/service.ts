@@ -14,21 +14,44 @@ import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
+  toBillingContext,
+} from '@/lib/billing/core/billing-attribution'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   checkStorageQuota,
+  checkStorageQuotaForBillingContext,
+  decrementStorageUsageForBillingContextInTx,
   decrementStorageUsageInTx,
   incrementStorageUsage,
+  incrementStorageUsageForBillingContext,
+  resolveStorageBillingContext,
+  type StorageBillingContext,
 } from '@/lib/billing/storage'
-import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+import {
+  checkAndBillOverageThreshold,
+  checkAndBillPayerOverageThreshold,
+} from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import {
+  assertDocumentProcessingBillingContext,
+  createDocumentProcessingPayload,
+  createNonWorkspaceDocumentProcessingBillingContext,
+  createWorkspaceDocumentProcessingBillingContext,
+  type DocumentProcessingBillingContext,
+  type DocumentProcessingPayload,
+  hasDocumentProcessingBillingScope,
+} from '@/lib/knowledge/documents/processing-payload'
 import {
   buildTagFilterCondition,
   type TagFilterCondition,
@@ -48,10 +71,7 @@ import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata, getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
-import type {
-  DocumentProcessingPayload,
-  processDocument as processDocumentTask,
-} from '@/background/knowledge-processing'
+import type { processDocument as processDocumentTask } from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentService')
@@ -387,20 +407,61 @@ function buildJobPayload(
   doc: DocumentData,
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
-  requestId: string
+  requestId: string,
+  billingContext: DocumentProcessingBillingContext
 ): DocumentProcessingPayload {
-  return {
-    knowledgeBaseId,
-    documentId: doc.documentId,
-    docData: {
-      filename: doc.filename,
-      fileUrl: doc.fileUrl,
-      fileSize: doc.fileSize,
-      mimeType: doc.mimeType,
+  return createDocumentProcessingPayload(
+    {
+      knowledgeBaseId,
+      documentId: doc.documentId,
+      docData: {
+        filename: doc.filename,
+        fileUrl: doc.fileUrl,
+        fileSize: doc.fileSize,
+        mimeType: doc.mimeType,
+      },
+      processingOptions,
+      requestId,
     },
-    processingOptions,
-    requestId,
+    billingContext
+  )
+}
+
+async function resolveDocumentProcessingBillingContext(
+  knowledgeBaseId: string,
+  providedBillingAttribution: BillingAttributionSnapshot | undefined
+): Promise<DocumentProcessingBillingContext> {
+  const [knowledgeBaseContext] = await db
+    .select({
+      userId: knowledgeBase.userId,
+      workspaceId: knowledgeBase.workspaceId,
+    })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+
+  if (!knowledgeBaseContext) {
+    throw new Error(`Knowledge base ${knowledgeBaseId} not found for document processing`)
   }
+
+  if (knowledgeBaseContext.workspaceId) {
+    if (!providedBillingAttribution) {
+      throw new Error('Workspace document processing requires a billing attribution snapshot')
+    }
+    const billingContext = createWorkspaceDocumentProcessingBillingContext(
+      providedBillingAttribution
+    )
+    if (billingContext.workspaceId !== knowledgeBaseContext.workspaceId) {
+      throw new Error('Document processing workspace does not match billing attribution')
+    }
+    return billingContext
+  }
+
+  if (providedBillingAttribution !== undefined) {
+    throw new Error('Non-workspace document processing cannot include billing attribution')
+  }
+
+  return createNonWorkspaceDocumentProcessingBillingContext(knowledgeBaseContext.userId)
 }
 
 /**
@@ -412,12 +473,17 @@ export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
-  requestId: string
+  requestId: string,
+  billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<void> {
   if (createdDocuments.length === 0) return
 
+  const billingContext = await resolveDocumentProcessingBillingContext(
+    knowledgeBaseId,
+    billingAttribution
+  )
   const jobPayloads = createdDocuments.map((doc) =>
-    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId)
+    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId, billingContext)
   )
 
   const useTrigger = isTriggerAvailable()
@@ -491,7 +557,13 @@ async function dispatchInProcess(
     IN_PROCESS_DISPATCH_CONCURRENCY,
     async (p) => {
       try {
-        await processDocumentAsync(p.knowledgeBaseId, p.documentId, p.docData, p.processingOptions)
+        await processDocumentAsync(
+          p.knowledgeBaseId,
+          p.documentId,
+          p.docData,
+          p.processingOptions,
+          p
+        )
         return true
       } catch (error) {
         logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(error) })
@@ -511,7 +583,8 @@ export async function processDocumentAsync(
     fileSize: number
     mimeType: string
   },
-  processingOptions: ProcessingOptions = {}
+  processingOptions: ProcessingOptions = {},
+  providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext
 ): Promise<void> {
   const startTime = Date.now()
   try {
@@ -521,6 +594,7 @@ export async function processDocumentAsync(
     const contextRows = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
+        knowledgeBaseUserId: knowledgeBase.userId,
         chunkingConfig: knowledgeBase.chunkingConfig,
         embeddingModel: knowledgeBase.embeddingModel,
         billedAccountUserId: workspaceTable.billedAccountUserId,
@@ -605,22 +679,47 @@ export async function processDocumentAsync(
     }
 
     const kbEmbeddingModel = ctx.embeddingModel
-    if (!ctx.workspaceId) {
-      throw new Error(`Knowledge base ${knowledgeBaseId} is missing workspace billing context`)
-    }
-    // Bill the uploader when known; connector/cron-synced docs (and pre-migration
-    // rows) have no uploader and fall back to the workspace billed account.
-    const billingUserId = ctx.uploadedBy ?? ctx.billedAccountUserId
-    if (!billingUserId) {
-      throw new Error(
-        `Workspace ${ctx.workspaceId} is missing billed account and document has no uploader`
-      )
+    const queuedBillingContext = hasDocumentProcessingBillingScope(providedBillingContext)
+      ? assertDocumentProcessingBillingContext(providedBillingContext)
+      : undefined
+    const restoredBillingAttribution =
+      queuedBillingContext?.billingScope === 'workspace'
+        ? queuedBillingContext.billingAttribution
+        : providedBillingContext && !queuedBillingContext
+          ? assertBillingAttributionSnapshot(providedBillingContext)
+          : undefined
+    const documentActorUserId =
+      queuedBillingContext?.actorUserId ??
+      restoredBillingAttribution?.actorUserId ??
+      ctx.uploadedBy ??
+      ctx.billedAccountUserId ??
+      ctx.knowledgeBaseUserId
+    let billingAttribution: BillingAttributionSnapshot | undefined
+    if (ctx.workspaceId) {
+      if (queuedBillingContext?.billingScope === 'non-workspace') {
+        throw new Error('Document processing billing scope does not match knowledge base workspace')
+      }
+      if (!restoredBillingAttribution) {
+        throw new Error('Billing attribution is required for queued document processing')
+      }
+      billingAttribution = restoredBillingAttribution
+      if (
+        billingAttribution.actorUserId !== documentActorUserId ||
+        billingAttribution.workspaceId !== ctx.workspaceId
+      ) {
+        throw new Error('Document billing attribution does not match its actor and workspace')
+      }
+    } else if (restoredBillingAttribution || queuedBillingContext?.billingScope === 'workspace') {
+      throw new Error('Workspace-less document processing cannot use workspace billing attribution')
     }
 
-    // Authoritative usage gate covering every indexing path (connector/cron/
-    // retry/copilot plus the HTTP routes). Mark the document failed with the limit
-    // message — surfaced in the KB UI — rather than incurring embedding cost.
-    const usageGate = await checkActorUsageLimits(billingUserId, ctx.workspaceId)
+    /**
+     * Authoritative gate covering every indexing path. Workspace-less legacy
+     * knowledge bases retain account-only enforcement.
+     */
+    const usageGate = billingAttribution
+      ? await checkAttributedUsageLimits(billingAttribution)
+      : await checkActorUsageLimits(documentActorUserId)
     if (usageGate.isExceeded) {
       logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
       await db
@@ -648,12 +747,12 @@ export async function processDocumentAsync(
           kbConfig.maxSize,
           kbConfig.overlap,
           kbConfig.minSize,
-          // Authorize the source file (and run OCR/processing) as the billed
-          // actor — the uploader when known, else the workspace billed account —
-          // the same principal embeddings are billed to. Using the KB owner here
-          // would authorize an attacker-supplied internal fileUrl against the
-          // owner, letting a KB write-member ingest a file only the owner can read.
-          billingUserId,
+          /**
+           * Authorize source-file processing as the actor, not the payer. Using
+           * the KB owner would let a writer ingest an internal file that only the
+           * owner can read.
+           */
+          documentActorUserId,
           ctx.workspaceId,
           rawConfig?.strategy,
           rawConfig?.strategyOptions
@@ -800,7 +899,7 @@ export async function processDocumentAsync(
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
-    if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && billingUserId) {
+    if (!embeddingIsBYOK && totalEmbeddingTokens > 0) {
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
@@ -812,8 +911,9 @@ export async function processDocumentAsync(
         )
         if (cost > 0) {
           await recordUsage({
-            userId: billingUserId,
+            userId: documentActorUserId,
             workspaceId: ctx.workspaceId ?? undefined,
+            ...(billingAttribution ? toBillingContext(billingAttribution) : {}),
             entries: [
               {
                 category: 'model',
@@ -825,7 +925,11 @@ export async function processDocumentAsync(
               },
             ],
           })
-          await checkAndBillOverageThreshold(billingUserId)
+          if (billingAttribution) {
+            await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+          } else {
+            await checkAndBillOverageThreshold(documentActorUserId)
+          }
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
@@ -864,6 +968,48 @@ export function isTriggerAvailable(): boolean {
   return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
 }
 
+type DocumentStorageBilling =
+  | { readonly context: StorageBillingContext; readonly bytes: number }
+  | { readonly userId: string; readonly bytes: number }
+
+/**
+ * Resolves and checks one document-write storage payer. Workspace documents
+ * use only the workspace-selected payer; workspace-less legacy documents retain
+ * their account-scoped behavior.
+ */
+async function prepareDocumentStorageBilling(
+  workspaceId: string | null,
+  legacyUserId: string,
+  bytes: number
+): Promise<DocumentStorageBilling> {
+  if (workspaceId) {
+    const context = await resolveStorageBillingContext(workspaceId)
+    const quotaCheck = await checkStorageQuotaForBillingContext(context, bytes)
+    if (!quotaCheck.allowed) {
+      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    }
+    return { context, bytes }
+  }
+
+  const quotaCheck = await checkStorageQuota(legacyUserId, bytes)
+  if (!quotaCheck.allowed) {
+    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+  }
+  return { userId: legacyUserId, bytes }
+}
+
+/**
+ * Applies the counter increment to the same payer captured by
+ * {@link prepareDocumentStorageBilling}.
+ */
+async function incrementDocumentStorageUsage(billing: DocumentStorageBilling): Promise<void> {
+  if ('context' in billing) {
+    await incrementStorageUsageForBillingContext(billing.context, billing.bytes)
+    return
+  }
+  await incrementStorageUsage(billing.userId, billing.bytes)
+}
+
 export async function createDocumentRecords(
   documents: Array<{
     filename: string
@@ -883,7 +1029,7 @@ export async function createDocumentRecords(
   requestId: string,
   uploadedBy: string | null = null
 ): Promise<DocumentData[]> {
-  let storageBilling: { userId: string; workspaceId: string | null; bytes: number } | null = null
+  let storageBilling: DocumentStorageBilling | null = null
 
   const returnData = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
@@ -914,11 +1060,7 @@ export async function createDocumentRecords(
     const billedUserId = uploadedBy ?? kb[0].userId
     const totalBytes = documents.reduce((sum, docData) => sum + (docData.fileSize || 0), 0)
     if (totalBytes > 0) {
-      const quotaCheck = await checkStorageQuota(billedUserId, totalBytes)
-      if (!quotaCheck.allowed) {
-        throw new Error(quotaCheck.error || 'Storage limit exceeded')
-      }
-      storageBilling = { userId: billedUserId, workspaceId: kbWorkspaceId, bytes: totalBytes }
+      storageBilling = await prepareDocumentStorageBilling(kbWorkspaceId, billedUserId, totalBytes)
     }
 
     // One load per batch (was N+1); skip entirely if no doc carries tags.
@@ -1011,9 +1153,8 @@ export async function createDocumentRecords(
   })
 
   if (storageBilling) {
-    const billing: { userId: string; workspaceId: string | null; bytes: number } = storageBilling
     try {
-      await incrementStorageUsage(billing.userId, billing.bytes, billing.workspaceId ?? undefined)
+      await incrementDocumentStorageUsage(storageBilling)
     } catch (storageError) {
       logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
     }
@@ -1338,7 +1479,7 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
-  let storageBilling: { userId: string; workspaceId: string | null; bytes: number } | null = null
+  let storageBilling: DocumentStorageBilling | null = null
 
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
@@ -1367,15 +1508,11 @@ export async function createSingleDocument(
 
     const billedUserId = uploadedBy ?? kb[0].userId
     if (documentData.fileSize > 0) {
-      const quotaCheck = await checkStorageQuota(billedUserId, documentData.fileSize)
-      if (!quotaCheck.allowed) {
-        throw new Error(quotaCheck.error || 'Storage limit exceeded')
-      }
-      storageBilling = {
-        userId: billedUserId,
-        workspaceId: kb[0].workspaceId,
-        bytes: documentData.fileSize,
-      }
+      storageBilling = await prepareDocumentStorageBilling(
+        kb[0].workspaceId,
+        billedUserId,
+        documentData.fileSize
+      )
     }
 
     await tx.insert(document).values(newDocument)
@@ -1387,9 +1524,8 @@ export async function createSingleDocument(
   })
 
   if (storageBilling) {
-    const billing: { userId: string; workspaceId: string | null; bytes: number } = storageBilling
     try {
-      await incrementStorageUsage(billing.userId, billing.bytes, billing.workspaceId ?? undefined)
+      await incrementDocumentStorageUsage(storageBilling)
     } catch (storageError) {
       logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
     }
@@ -1620,7 +1756,8 @@ export async function retryDocumentProcessing(
     fileSize: number
     mimeType: string
   },
-  requestId: string
+  requestId: string,
+  billingAttribution: BillingAttributionSnapshot | undefined
 ): Promise<{ success: boolean; status: string; message: string }> {
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(eq(embedding.documentId, documentId))
@@ -1651,7 +1788,8 @@ export async function retryDocumentProcessing(
     ],
     knowledgeBaseId,
     {},
-    requestId
+    requestId,
+    billingAttribution
   )
 
   logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
@@ -2058,11 +2196,23 @@ export async function hardDeleteDocuments(
 
   const existingIds = documentsToDelete.map((doc) => doc.id)
 
-  // Resolve owner subscriptions before the transaction (reads). Connector-synced
-  // documents are never metered at ingest, so they are excluded from billing here.
+  /**
+   * Resolve immutable workspace payers and legacy account subscriptions before
+   * opening the deletion transaction. Connector documents were never metered.
+   */
+  const storageContextByWorkspace = new Map<string, StorageBillingContext>()
   const candidateUserIds = new Set<string>()
   for (const doc of documentsToDelete) {
     if (doc.connectorId || doc.fileSize <= 0) continue
+    if (doc.workspaceId) {
+      if (!storageContextByWorkspace.has(doc.workspaceId)) {
+        storageContextByWorkspace.set(
+          doc.workspaceId,
+          await resolveStorageBillingContext(doc.workspaceId)
+        )
+      }
+      continue
+    }
     const billedUserId = doc.uploadedBy ?? doc.kbUserId
     if (billedUserId) candidateUserIds.add(billedUserId)
   }
@@ -2071,8 +2221,10 @@ export async function hardDeleteDocuments(
     subByUser.set(billedUserId, await getHighestPrioritySubscription(billedUserId))
   }
 
-  // Key everything off the rows this tx actually deleted (`returning()`) so a
-  // concurrent delete that claimed some ids first isn't double-counted here.
+  /**
+   * Key every decrement off rows this transaction actually deleted so
+   * concurrent deletion cannot double-decrement a payer.
+   */
   let deletedDocs: typeof documentsToDelete = []
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
@@ -2084,14 +2236,29 @@ export async function hardDeleteDocuments(
     const deletedIds = new Set(deletedRows.map((row) => row.id))
     deletedDocs = documentsToDelete.filter((doc) => deletedIds.has(doc.id))
 
-    const bytesByUser = new Map<string, number>()
+    const bytesByWorkspace = new Map<string, number>()
+    const legacyBytesByUser = new Map<string, number>()
     for (const doc of deletedDocs) {
       if (doc.connectorId || doc.fileSize <= 0) continue
+      if (doc.workspaceId) {
+        bytesByWorkspace.set(
+          doc.workspaceId,
+          (bytesByWorkspace.get(doc.workspaceId) ?? 0) + doc.fileSize
+        )
+        continue
+      }
       const billedUserId = doc.uploadedBy ?? doc.kbUserId
       if (!billedUserId) continue
-      bytesByUser.set(billedUserId, (bytesByUser.get(billedUserId) ?? 0) + doc.fileSize)
+      legacyBytesByUser.set(billedUserId, (legacyBytesByUser.get(billedUserId) ?? 0) + doc.fileSize)
     }
-    for (const [billedUserId, bytes] of bytesByUser) {
+    for (const [workspaceId, bytes] of bytesByWorkspace) {
+      const context = storageContextByWorkspace.get(workspaceId)
+      if (!context) {
+        throw new Error(`Missing storage billing context for workspace ${workspaceId}`)
+      }
+      await decrementStorageUsageForBillingContextInTx(tx, context, bytes)
+    }
+    for (const [billedUserId, bytes] of legacyBytesByUser) {
       await decrementStorageUsageInTx(tx, subByUser.get(billedUserId) ?? null, billedUserId, bytes)
     }
   })

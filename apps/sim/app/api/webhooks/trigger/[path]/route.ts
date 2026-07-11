@@ -16,6 +16,7 @@ import {
   handlePreLookupWebhookVerification,
   handleProviderChallenges,
   handleProviderReachabilityTest,
+  handleWebhookEventFilter,
   parseWebhookBody,
   queueWebhookExecution,
   shouldSkipWebhookEvent,
@@ -172,15 +173,20 @@ async function handleWebhookPost(
       return reachabilityResponse
     }
 
-    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
-    if (preprocessResult.error) {
-      if (webhooksForPath.length > 1) {
-        logger.warn(
-          `[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}, continuing to next`
-        )
-        continue
-      }
-      return preprocessResult.error
+    if (shouldSkipWebhookEvent(foundWebhook, body, requestId)) {
+      continue
+    }
+
+    const eventFilterResponse = await handleWebhookEventFilter(
+      foundWebhook,
+      foundWorkflow,
+      body,
+      request,
+      requestId
+    )
+    if (eventFilterResponse) {
+      responses.push(eventFilterResponse)
+      continue
     }
 
     if (foundWebhook.blockId) {
@@ -201,13 +207,22 @@ async function handleWebhookPost(
       }
     }
 
-    if (shouldSkipWebhookEvent(foundWebhook, body, requestId)) {
-      continue
+    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
+    if (preprocessResult.error) {
+      if (webhooksForPath.length > 1) {
+        logger.warn(
+          `[${requestId}] Preprocessing failed for webhook ${foundWebhook.id}, continuing to next`
+        )
+        continue
+      }
+      return preprocessResult.error
     }
+
     const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
       requestId,
       path,
       actorUserId: preprocessResult.actorUserId,
+      billingAttribution: preprocessResult.billingAttribution,
       executionId: preprocessResult.executionId,
       correlation: preprocessResult.correlation,
       receivedAt,

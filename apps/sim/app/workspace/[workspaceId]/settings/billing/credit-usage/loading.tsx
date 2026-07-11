@@ -1,8 +1,8 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
-import { CredentialDetailLayout } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { useRouter } from 'next/navigation'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 
 /**
  * Route-level loading fallback (Next.js convention) and the `Suspense`
@@ -11,20 +11,17 @@ import { CredentialDetailLayout } from '@/app/workspace/[workspaceId]/components
  * here means a suspend never flashes a blank frame.
  */
 export default function CreditUsageLoading() {
+  const router = useRouter()
+
   return (
-    <CredentialDetailLayout
-      back={
-        <Chip leftIcon={ArrowLeft} disabled>
-          Billing
-        </Chip>
-      }
-    >
-      <div className='flex flex-col gap-1'>
-        <h1 className='font-medium text-[var(--text-body)] text-lg'>Credit usage</h1>
-        <p className='text-[var(--text-muted)] text-md'>
-          Every credit-consuming event behind your usage.
-        </p>
-      </div>
-    </CredentialDetailLayout>
+    <SettingsPanel
+      back={{
+        text: 'Billing',
+        icon: ArrowLeft,
+        onSelect: () => router.push('/account/settings/billing'),
+      }}
+      title='Credit usage'
+      description='Every credit-consuming event behind your usage.'
+    />
   )
 }

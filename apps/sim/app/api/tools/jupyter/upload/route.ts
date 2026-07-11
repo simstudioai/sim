@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { jupyterUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
@@ -128,17 +129,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const uploaded = await response.json()
+    const uploadedValue: unknown = await response.json()
+    const uploaded = isRecordLike(uploadedValue) ? uploadedValue : {}
+    const uploadedPath = typeof uploaded.path === 'string' ? uploaded.path : destinationPath
 
-    logger.info(`[${requestId}] File uploaded to Jupyter: ${uploaded.path}`)
+    logger.info(`[${requestId}] File uploaded to Jupyter: ${uploadedPath}`)
 
     return NextResponse.json({
       success: true,
       output: {
-        name: uploaded.name ?? fileName,
-        path: uploaded.path ?? destinationPath,
-        size: uploaded.size ?? fileBuffer.length,
-        lastModified: uploaded.last_modified ?? null,
+        name: typeof uploaded.name === 'string' ? uploaded.name : fileName,
+        path: uploadedPath,
+        size: typeof uploaded.size === 'number' ? uploaded.size : fileBuffer.length,
+        lastModified: typeof uploaded.last_modified === 'string' ? uploaded.last_modified : null,
       },
     })
   } catch (error) {

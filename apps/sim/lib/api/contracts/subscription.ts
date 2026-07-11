@@ -1,5 +1,11 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  BILLING_REQUEST_ID_HEADER,
+  COPILOT_BILLING_PROTOCOL_HEADER,
+  COPILOT_BILLING_PROTOCOL_VALUES,
+} from '@/lib/copilot/generated/billing-protocol-v1'
 
 const booleanQueryParamSchema = z
   .preprocess((value) => {
@@ -22,20 +28,26 @@ export const billingUpdateCostBodySchema = z.object({
   idempotencyKey: z.string().min(1).optional(),
   /**
    * Originating workspace, used for org-workspace cost attribution on hosted
-   * Sim. Best-effort by design: self-hosted and headless clients bill through
-   * this endpoint with workspace IDs that exist only in their own deployment
-   * (or with none at all — the Go client omits the field when empty), so the
-   * value is optional and the route only stamps it onto the ledger when it
-   * resolves to a workspace in this deployment. Billing is keyed on the
-   * user's billing entity and must never fail over attribution metadata.
+   * Sim. The value remains optional because self-hosted/headless callers may
+   * supply an ID from another deployment or omit it. A locally known workspace
+   * is billed only with the immutable snapshot cached before work began; it is
+   * never re-resolved during this callback. Unknown workspaces remain
+   * account-only so a foreign key cannot strand otherwise valid cost.
    */
   workspaceId: z.string().min(1).optional(),
 })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 
+export const billingUpdateCostHeadersSchema = z.object({
+  [COPILOT_BILLING_PROTOCOL_HEADER]: z.enum(COPILOT_BILLING_PROTOCOL_VALUES).optional(),
+  [BILLING_REQUEST_ID_HEADER]: z.string().uuid().optional(),
+})
+export type BillingUpdateCostHeaders = z.input<typeof billingUpdateCostHeadersSchema>
+
 export const billingSwitchPlanBodySchema = z.object({
   targetPlanName: z.string(),
   interval: z.enum(['month', 'year']).optional(),
+  workspaceId: workspaceIdSchema.optional(),
 })
 export type BillingSwitchPlanBody = z.input<typeof billingSwitchPlanBodySchema>
 
@@ -84,11 +96,12 @@ export const subscriptionBillingDataSchema = z
     metadata: z.unknown().nullable(),
     stripeSubscriptionId: z.string().nullable(),
     periodEnd: z.string().nullable(),
-    cancelAtPeriodEnd: z.boolean().optional(),
+    cancelAtPeriodEnd: z.boolean(),
     usage: billingUsageDataSchema,
-    billingBlocked: z.boolean().optional(),
-    billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable().optional(),
-    blockedByOrgOwner: z.boolean().optional(),
+    billingBlocked: z.boolean(),
+    billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable(),
+    blockedByOrgOwner: z.boolean(),
+    upgradeWorkspaceId: workspaceIdSchema.nullable(),
     organization: z
       .object({
         id: z.string(),
@@ -120,8 +133,13 @@ export const organizationBillingDataSchema = z
   .object({
     organizationId: z.string(),
     organizationName: z.string(),
+    subscriptionState: z.enum(['active', 'free', 'lapsed']),
+    hasSubscription: z.boolean(),
     subscriptionPlan: z.string(),
     subscriptionStatus: z.string().nullable(),
+    creditBalance: z.number(),
+    billingInterval: z.enum(['month', 'year']),
+    cancelAtPeriodEnd: z.boolean(),
     totalSeats: z.number(),
     usedSeats: z.number(),
     seatsCount: z.number(),
@@ -132,9 +150,10 @@ export const organizationBillingDataSchema = z
     billingPeriodStart: z.string().nullable(),
     billingPeriodEnd: z.string().nullable(),
     members: z.array(organizationBillingMemberSchema),
-    billingBlocked: z.boolean().optional(),
-    billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable().optional(),
-    blockedByOrgOwner: z.boolean().optional(),
+    billingBlocked: z.boolean(),
+    billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable(),
+    blockedByOrgOwner: z.boolean(),
+    upgradeWorkspaceId: workspaceIdSchema.nullable(),
   })
   .passthrough()
 
@@ -144,9 +163,9 @@ export const organizationBillingApiResponseSchema = z
     context: z.literal('organization'),
     data: organizationBillingDataSchema,
     userRole: z.enum(['owner', 'admin', 'member']),
-    billingBlocked: z.boolean().optional(),
-    billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable().optional(),
-    blockedByOrgOwner: z.boolean().optional(),
+    billingBlocked: z.boolean(),
+    billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable(),
+    blockedByOrgOwner: z.boolean(),
   })
   .passthrough()
 
@@ -371,6 +390,7 @@ export const billingSwitchPlanContract = defineRouteContract({
 export const billingUpdateCostContract = defineRouteContract({
   method: 'POST',
   path: '/api/billing/update-cost',
+  headers: billingUpdateCostHeadersSchema,
   body: billingUpdateCostBodySchema,
   response: {
     mode: 'json',

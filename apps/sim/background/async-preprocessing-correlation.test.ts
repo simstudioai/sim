@@ -14,6 +14,7 @@ import {
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
 const { mockTask, mockExecuteWorkflowCore, mockGetScheduleTimeValues, mockGetSubBlockValue } =
   vi.hoisted(() => ({
@@ -90,6 +91,19 @@ vi.mock('@/executor/utils/errors', () => ({
 import { executeScheduleJob } from './schedule-execution'
 import { executeWorkflowJob } from './workflow-execution'
 
+const billingAttribution = {
+  actorUserId: 'actor-1',
+  workspaceId: 'workspace-1',
+  organizationId: null,
+  billedAccountUserId: 'actor-1',
+  billingEntity: { type: 'user' as const, id: 'actor-1' },
+  billingPeriod: {
+    start: '2025-01-01T00:00:00.000Z',
+    end: '2025-02-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+}
+
 describe('async preprocessing correlation threading', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -128,6 +142,7 @@ describe('async preprocessing correlation threading', () => {
         workspaceId: 'workspace-1',
         variables: {},
       },
+      billingAttribution,
       executionTimeout: {},
     })
     mockExecuteWorkflowCore.mockResolvedValueOnce({
@@ -139,7 +154,9 @@ describe('async preprocessing correlation threading', () => {
 
     await executeWorkflowJob({
       workflowId: 'workflow-1',
-      userId: 'user-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
       triggerType: 'api',
       executionId: 'execution-1',
       requestId: 'request-1',
@@ -165,6 +182,7 @@ describe('async preprocessing correlation threading', () => {
         workspaceId: 'workspace-1',
         variables: {},
       },
+      billingAttribution: { ...billingAttribution, actorUserId: 'actor-2' },
       executionTimeout: {},
     })
     mockExecuteWorkflowCore.mockResolvedValueOnce({
@@ -177,6 +195,8 @@ describe('async preprocessing correlation threading', () => {
     await executeScheduleJob({
       scheduleId: 'schedule-1',
       workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      billingAttribution: { ...billingAttribution, actorUserId: 'actor-2' },
       executionId: 'execution-2',
       requestId: 'request-2',
       now: '2025-01-01T00:00:00.000Z',
@@ -196,21 +216,24 @@ describe('async preprocessing correlation threading', () => {
   it('passes workflow correlation into preprocessing', async () => {
     mockPreprocessExecution.mockResolvedValueOnce({
       success: false,
-      error: { message: 'preprocessing failed', statusCode: 500, logCreated: true },
+      error: { message: 'preprocessing failed', statusCode: 500 },
     })
 
     await expect(
       executeWorkflowJob({
         workflowId: 'workflow-1',
-        userId: 'user-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
         triggerType: 'api',
         executionId: 'execution-1',
         requestId: 'request-1',
+        billingAttribution,
       })
     ).rejects.toThrow('preprocessing failed')
 
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({
+        billingAttribution,
         triggerData: {
           correlation: {
             executionId: 'execution-1',
@@ -224,23 +247,53 @@ describe('async preprocessing correlation threading', () => {
     )
   })
 
+  it('does not repeat admission gates for route-admitted workflow jobs', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: { message: 'preprocessing failed', statusCode: 500 },
+    })
+
+    await expect(
+      executeWorkflowJob({
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        triggerType: 'api',
+        executionId: 'execution-admitted',
+        requestId: 'request-admitted',
+        billingAttribution,
+        admissionCompleted: true,
+      })
+    ).rejects.toThrow('preprocessing failed')
+
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkRateLimit: false,
+        skipUsageLimits: true,
+      })
+    )
+  })
+
   it('passes schedule correlation into preprocessing', async () => {
     mockPreprocessExecution.mockResolvedValueOnce({
       success: false,
-      error: { message: 'auth failed', statusCode: 401, logCreated: true },
+      error: { message: 'auth failed', statusCode: 401 },
     })
 
     await executeScheduleJob({
       scheduleId: 'schedule-1',
       workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
       executionId: 'execution-2',
       requestId: 'request-2',
       now: '2025-01-01T00:00:00.000Z',
       scheduledFor: '2025-01-01T00:00:00.000Z',
+      billingAttribution,
     })
 
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({
+        billingAttribution,
         triggerData: {
           correlation: {
             executionId: 'execution-2',
@@ -262,7 +315,6 @@ describe('async preprocessing correlation threading', () => {
       error: {
         message: 'database unavailable',
         statusCode: 500,
-        logCreated: true,
         retryable: true,
         cause: { code: '53300' },
       },
@@ -271,6 +323,8 @@ describe('async preprocessing correlation threading', () => {
     await executeScheduleJob({
       scheduleId: 'schedule-1',
       workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
       executionId: 'execution-retry',
       requestId: 'request-retry',
       now: '2025-01-01T00:00:00.000Z',
@@ -286,13 +340,76 @@ describe('async preprocessing correlation threading', () => {
     )
   })
 
+  it('routes retryable reservation concurrency through bounded infrastructure backoff', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Too many concurrent executions',
+        statusCode: 429,
+        retryable: true,
+        code: ADMISSION_ERROR_CODE.RESERVATION_CONCURRENCY,
+      },
+    })
+
+    await executeScheduleJob({
+      scheduleId: 'schedule-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      executionId: 'execution-concurrency-retry',
+      requestId: 'request-concurrency-retry',
+      now: '2025-01-01T00:00:00.000Z',
+      scheduledFor: '2025-01-01T00:00:00.000Z',
+      infraRetryCount: 2,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastQueuedAt: null,
+        infraRetryCount: 3,
+      })
+    )
+  })
+
+  it('keeps retryable non-admission 429 failures on the fixed rate-limit delay', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Rate limit exceeded',
+        statusCode: 429,
+        retryable: true,
+        code: 'RATE_LIMIT_EXCEEDED',
+      },
+    })
+
+    await executeScheduleJob({
+      scheduleId: 'schedule-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      executionId: 'execution-rate-limit',
+      requestId: 'request-rate-limit',
+      now: '2025-01-01T00:00:00.000Z',
+      scheduledFor: '2025-01-01T00:00:00.000Z',
+      infraRetryCount: 2,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastQueuedAt: null,
+        infraRetryCount: 0,
+      })
+    )
+    const update = dbChainMockFns.set.mock.calls.at(-1)?.[0]
+    expect(update.nextRunAt.getTime() - update.updatedAt.getTime()).toBe(5 * 60 * 1000)
+  })
+
   it('moves exhausted infrastructure retries onto the normal failure path', async () => {
     mockPreprocessExecution.mockResolvedValueOnce({
       success: false,
       error: {
         message: 'database unavailable',
         statusCode: 500,
-        logCreated: true,
         retryable: true,
         cause: { code: '53300' },
       },
@@ -301,6 +418,8 @@ describe('async preprocessing correlation threading', () => {
     await executeScheduleJob({
       scheduleId: 'schedule-1',
       workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
       executionId: 'execution-retry-exhausted',
       requestId: 'request-retry-exhausted',
       now: '2025-01-01T00:00:00.000Z',

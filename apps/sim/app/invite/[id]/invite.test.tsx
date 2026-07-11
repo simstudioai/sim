@@ -6,14 +6,19 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockCancelQueries,
+  mockGetSession,
   mockInvalidateQueries,
   mockPush,
   mockRequestJson,
   mockSearchParams,
   mockSetActive,
+  mockSetQueryData,
   mockSignOut,
   mockUseSession,
 } = vi.hoisted(() => ({
+  mockCancelQueries: vi.fn(),
+  mockGetSession: vi.fn(),
   mockInvalidateQueries: vi.fn(),
   mockPush: vi.fn(),
   mockRequestJson: vi.fn(),
@@ -21,6 +26,7 @@ const {
     get: (key: string) => (key === 'token' ? 'token-1' : null),
   },
   mockSetActive: vi.fn(),
+  mockSetQueryData: vi.fn(),
   mockSignOut: vi.fn(),
   mockUseSession: vi.fn(),
 }))
@@ -32,7 +38,11 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+  useQueryClient: () => ({
+    cancelQueries: mockCancelQueries,
+    invalidateQueries: mockInvalidateQueries,
+    setQueryData: mockSetQueryData,
+  }),
 }))
 
 vi.mock('@/lib/api/client/request', () => ({
@@ -41,6 +51,7 @@ vi.mock('@/lib/api/client/request', () => ({
 
 vi.mock('@/lib/auth/auth-client', () => ({
   client: {
+    getSession: mockGetSession,
     organization: { setActive: mockSetActive },
     signOut: mockSignOut,
   },
@@ -65,13 +76,43 @@ vi.mock('@/app/invite/components', () => ({
 }))
 
 import Invite from '@/app/invite/[id]/invite'
+import { sessionKeys } from '@/hooks/queries/session'
 
 let container: HTMLDivElement
 let root: Root
+let membershipIntent: 'external' | 'internal'
+
+const EXTERNAL_REFRESHED_SESSION = {
+  user: { id: 'user-1', email: 'invitee@example.com' },
+  session: { id: 'session-1', userId: 'user-1', activeOrganizationId: 'organization-a' },
+}
+
+const INTERNAL_REFRESHED_SESSION = {
+  user: { id: 'user-1', email: 'invitee@example.com' },
+  session: { id: 'session-1', userId: 'user-1', activeOrganizationId: 'organization-2' },
+}
 
 async function flush(): Promise<void> {
   await act(async () => {
     await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+}
+
+async function acceptCurrentInvitation(): Promise<void> {
+  act(() => {
+    root.render(<Invite />)
+  })
+  await flush()
+
+  const acceptButton = Array.from(container.querySelectorAll('button')).find(
+    (button) => button.textContent === 'Accept Invitation'
+  )
+  expect(acceptButton).toBeDefined()
+
+  await act(async () => {
+    acceptButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await Promise.resolve()
     await Promise.resolve()
   })
@@ -88,6 +129,9 @@ beforeEach(() => {
     data: { user: { id: 'user-1', email: 'invitee@example.com' } },
     isPending: false,
   })
+  membershipIntent = 'external'
+  mockCancelQueries.mockResolvedValue(undefined)
+  mockGetSession.mockResolvedValue({ data: EXTERNAL_REFRESHED_SESSION })
   mockInvalidateQueries.mockResolvedValue(undefined)
   mockRequestJson.mockImplementation((contract: { method?: string }) => {
     if (contract.method === 'GET') {
@@ -98,7 +142,7 @@ beforeEach(() => {
           email: 'invitee@example.com',
           organizationId: 'organization-2',
           organizationName: 'External Team',
-          membershipIntent: 'external',
+          membershipIntent,
           role: 'admin',
           status: 'pending',
           expiresAt: '2026-07-10T00:00:00.000Z',
@@ -138,23 +182,26 @@ afterEach(() => {
 })
 
 describe('Invite', () => {
-  it('does not replace the active organization after accepting an external workspace invite', async () => {
-    act(() => {
-      root.render(<Invite />)
-    })
-    await flush()
-
-    const acceptButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Accept Invitation'
-    )
-    expect(acceptButton).toBeDefined()
-
-    await act(async () => {
-      acceptButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await Promise.resolve()
-      await Promise.resolve()
-    })
+  it('refreshes an external acceptance without replacing the viewer organization client-side', async () => {
+    await acceptCurrentInvitation()
 
     expect(mockSetActive).not.toHaveBeenCalled()
+    expect(mockGetSession).toHaveBeenCalledWith({
+      query: { disableCookieCache: true },
+    })
+    expect(mockCancelQueries).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail(),
+    })
+    expect(mockSetQueryData).toHaveBeenCalledWith(sessionKeys.detail(), EXTERNAL_REFRESHED_SESSION)
+  })
+
+  it('stores the server-selected active organization after an internal join', async () => {
+    membershipIntent = 'internal'
+    mockGetSession.mockResolvedValue({ data: INTERNAL_REFRESHED_SESSION })
+
+    await acceptCurrentInvitation()
+
+    expect(mockSetActive).not.toHaveBeenCalled()
+    expect(mockSetQueryData).toHaveBeenCalledWith(sessionKeys.detail(), INTERNAL_REFRESHED_SESSION)
   })
 })

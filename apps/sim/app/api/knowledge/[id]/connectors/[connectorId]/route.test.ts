@@ -11,7 +11,7 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDbChain, mockValidateConfig } = vi.hoisted(() => {
+const { mockDbChain, mockHasWorkspaceLiveSyncAccess, mockValidateConfig } = vi.hoisted(() => {
   const chain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -29,6 +29,7 @@ const { mockDbChain, mockValidateConfig } = vi.hoisted(() => {
   }
   return {
     mockDbChain: chain,
+    mockHasWorkspaceLiveSyncAccess: vi.fn(),
     mockValidateConfig: vi.fn(),
   }
 })
@@ -49,6 +50,9 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@/lib/billing/core/subscription', () => ({
+  hasWorkspaceLiveSyncAccess: mockHasWorkspaceLiveSyncAccess,
 }))
 vi.mock('@sim/audit', () => auditMock)
 
@@ -179,10 +183,10 @@ describe('Knowledge Connector By ID API Route', () => {
       expect(response.status).toBe(404)
     })
 
-    it('returns 200 and updates status', async () => {
+    it('allows a free external actor to enable live sync for a Max workspace', async () => {
       hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
         success: true,
-        userId: 'user-1',
+        userId: 'free-external-admin',
         userName: 'Test',
         userEmail: 'test@test.com',
       })
@@ -190,17 +194,37 @@ describe('Knowledge Connector By ID API Route', () => {
         hasAccess: true,
         knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
       })
+      mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
 
-      const updatedConnector = { id: 'conn-456', status: 'paused', syncIntervalMinutes: 120 }
+      const updatedConnector = { id: 'conn-456', status: 'paused', syncIntervalMinutes: 5 }
       mockDbChain.limit.mockResolvedValueOnce([updatedConnector])
 
-      const req = createMockRequest('PATCH', { status: 'paused', syncIntervalMinutes: 120 })
+      const req = createMockRequest('PATCH', { status: 'paused', syncIntervalMinutes: 5 })
       const response = await PATCH(req, { params: mockParams })
       const data = await response.json()
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.status).toBe('paused')
+      expect(mockHasWorkspaceLiveSyncAccess).toHaveBeenCalledWith('ws-1')
+    })
+
+    it('denies a paid actor when the knowledge base workspace is free', async () => {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'paid-external-admin',
+      })
+      mockCheckWriteAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { workspaceId: 'ws-free', name: 'Free KB' },
+      })
+      mockHasWorkspaceLiveSyncAccess.mockResolvedValue(false)
+
+      const req = createMockRequest('PATCH', { syncIntervalMinutes: 5 })
+      const response = await PATCH(req, { params: mockParams })
+
+      expect(response.status).toBe(403)
+      expect(mockHasWorkspaceLiveSyncAccess).toHaveBeenCalledWith('ws-free')
     })
   })
 

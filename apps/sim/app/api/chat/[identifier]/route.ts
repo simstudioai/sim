@@ -129,6 +129,7 @@ export const POST = withRouteHandler(
             stackTrace: undefined,
           },
           traceSpans: [],
+          skipCost: true,
         })
 
         return createErrorResponse('This chat is currently unavailable', 403)
@@ -193,8 +194,8 @@ export const POST = withRouteHandler(
         )
       }
 
-      const { actorUserId, workflowRecord } = preprocessResult
-      const workspaceOwnerId = actorUserId!
+      const { actorUserId, billingAttribution, workflowRecord } = preprocessResult
+      const resolvedActorUserId = actorUserId!
       const workspaceId = workflowRecord?.workspaceId
       if (!workspaceId) {
         logger.error(`[${requestId}] Workflow ${deployment.workflowId} has no workspaceId`)
@@ -243,7 +244,9 @@ export const POST = withRouteHandler(
             logger.error(`[${requestId}] Failed to process chat files:`, fileError)
 
             await loggingSession.safeStart({
-              userId: workspaceOwnerId,
+              userId: resolvedActorUserId,
+              actorUserId: resolvedActorUserId,
+              billingAttribution,
               workspaceId,
               variables: {},
             })
@@ -278,13 +281,13 @@ export const POST = withRouteHandler(
           executionId,
           workspaceId,
           workflowId: deployment.workflowId,
-          userId: workspaceOwnerId,
+          userId: resolvedActorUserId,
           executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
             executeWorkflow(
               workflowForExecution,
               requestId,
               workflowInput,
-              workspaceOwnerId,
+              resolvedActorUserId,
               {
                 enabled: true,
                 selectedOutputs,
@@ -295,6 +298,7 @@ export const POST = withRouteHandler(
                 skipLoggingComplete: true,
                 abortSignal,
                 executionMode: 'stream',
+                billingAttribution,
               },
               executionId
             ),

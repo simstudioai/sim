@@ -3,13 +3,21 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFlags, mockDbLimit, mockGetOrgMemberUsageLimit, mockGetOrgMemberWorkspaceUsage } =
-  vi.hoisted(() => ({
-    mockFlags: { isHosted: true, isBillingEnabled: true },
-    mockDbLimit: vi.fn(),
-    mockGetOrgMemberUsageLimit: vi.fn(),
-    mockGetOrgMemberWorkspaceUsage: vi.fn(),
-  }))
+const {
+  mockFlags,
+  mockDbLimit,
+  mockGetOrgMemberUsageForBillingPeriod,
+  mockGetOrgMemberUsageLimit,
+  mockGetOrgMemberWorkspaceUsage,
+  mockIsOrganizationBillingBlocked,
+} = vi.hoisted(() => ({
+  mockFlags: { isHosted: true, isBillingEnabled: true },
+  mockDbLimit: vi.fn(),
+  mockGetOrgMemberUsageForBillingPeriod: vi.fn(),
+  mockGetOrgMemberUsageLimit: vi.fn(),
+  mockGetOrgMemberWorkspaceUsage: vi.fn(),
+  mockIsOrganizationBillingBlocked: vi.fn(),
+}))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   get isHosted() {
@@ -33,8 +41,13 @@ vi.mock('@sim/db', () => ({
 }))
 
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
+  getOrgMemberUsageForBillingPeriod: mockGetOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageLimit: mockGetOrgMemberUsageLimit,
   getOrgMemberWorkspaceUsage: mockGetOrgMemberWorkspaceUsage,
+}))
+
+vi.mock('@/lib/billing/core/access', () => ({
+  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
 }))
 
 // core/usage pulls in the email-rendering chain at import; stub the two symbols
@@ -44,7 +57,96 @@ vi.mock('@/lib/billing/core/usage', () => ({
   getUserUsageLimit: vi.fn(),
 }))
 
-import { checkOrgMemberUsageLimit } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkBillingBlocked,
+  checkBillingEntityBlocked,
+  checkOrganizationMemberUsageLimit,
+  checkOrgMemberUsageLimit,
+} from '@/lib/billing/calculations/usage-monitor'
+
+describe('checkBillingBlocked', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFlags.isHosted = true
+    mockFlags.isBillingEnabled = true
+    mockDbLimit.mockResolvedValue([{ blocked: false, blockedReason: null }])
+  })
+
+  it("checks only the actor's own user account without inspecting organization memberships", async () => {
+    mockIsOrganizationBillingBlocked.mockResolvedValue(true)
+
+    await expect(checkBillingBlocked('actor-1')).resolves.toEqual({ blocked: false })
+
+    expect(mockDbLimit).toHaveBeenCalledTimes(1)
+    expect(mockIsOrganizationBillingBlocked).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkBillingEntityBlocked', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFlags.isHosted = true
+    mockFlags.isBillingEnabled = true
+    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+    mockDbLimit.mockResolvedValue([])
+  })
+
+  it('checks only the exact organization payer', async () => {
+    mockIsOrganizationBillingBlocked.mockResolvedValue(true)
+
+    await expect(
+      checkBillingEntityBlocked({ type: 'organization', id: 'workspace-org' })
+    ).resolves.toMatchObject({ blocked: true })
+
+    expect(mockIsOrganizationBillingBlocked).toHaveBeenCalledWith('workspace-org')
+    expect(mockDbLimit).not.toHaveBeenCalled()
+  })
+
+  it('checks the exact personal payer directly', async () => {
+    mockDbLimit.mockResolvedValue([{ blocked: true, blockedReason: 'dispute' }])
+
+    await expect(
+      checkBillingEntityBlocked({ type: 'user', id: 'personal-payer' })
+    ).resolves.toEqual({
+      blocked: true,
+      message: 'Account frozen. Please contact support to resolve this issue.',
+    })
+
+    expect(mockIsOrganizationBillingBlocked).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkOrganizationMemberUsageLimit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFlags.isHosted = true
+    mockFlags.isBillingEnabled = true
+    mockGetOrgMemberUsageLimit.mockResolvedValue(2)
+    mockGetOrgMemberUsageForBillingPeriod.mockResolvedValue(1)
+  })
+
+  it('uses the immutable organization and billing period', async () => {
+    const billingPeriod = {
+      start: new Date('2026-06-01T00:00:00.000Z'),
+      end: new Date('2026-07-01T00:00:00.000Z'),
+    }
+
+    await expect(
+      checkOrganizationMemberUsageLimit('actor-1', 'snapshot-org', billingPeriod)
+    ).resolves.toMatchObject({
+      currentUsage: 1,
+      isExceeded: false,
+      limit: 2,
+    })
+
+    expect(mockGetOrgMemberUsageForBillingPeriod).toHaveBeenCalledWith(
+      'snapshot-org',
+      'actor-1',
+      billingPeriod
+    )
+    expect(mockGetOrgMemberWorkspaceUsage).not.toHaveBeenCalled()
+  })
+})
 
 describe('checkOrgMemberUsageLimit', () => {
   beforeEach(() => {

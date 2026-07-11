@@ -529,6 +529,7 @@ const workflowExecutionPausedDetailSchema = z.object({
   resumeAt: z.string().nullable(),
   pauseKind: z.enum(['time', 'human']).nullable(),
   blockedOnBlockId: z.string().nullable(),
+  automaticResumeWaitingReason: z.string().nullable(),
   pausedExecutionId: z.string(),
   pausePointCount: z.number(),
   resumedCount: z.number(),

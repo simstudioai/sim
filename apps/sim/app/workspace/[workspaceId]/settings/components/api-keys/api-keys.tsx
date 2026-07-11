@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
@@ -15,6 +16,7 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type ApiKey,
+  type ApiKeyScope,
   useApiKeys,
   useDeleteApiKey,
   useUpdateWorkspaceApiKeySettings,
@@ -65,19 +67,25 @@ function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuPro
   )
 }
 
-export function ApiKeys() {
+interface ApiKeysProps {
+  scope?: Extract<ApiKeyScope, 'personal' | 'workspace'>
+}
+
+export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const { data: session } = useSession()
   const userId = session?.user?.id
-  const params = useParams()
+  const params = useParams<{ workspaceId?: string }>()
   const workspaceId = (params?.workspaceId as string) || ''
-  const userPermissions = useUserPermissionsContext()
-  const canManageWorkspaceKeys = userPermissions.canAdmin
+  const workspacePermissions = useUserPermissionsContext()
+  const isWorkspaceScope = scope === 'workspace'
+  const isPersonalScope = scope === 'personal'
+  const canManageWorkspaceKeys = canMutateWorkspaceSettingsSection('api-keys', workspacePermissions)
 
   const {
     data: apiKeysData,
     isLoading: isLoadingKeys,
     refetch: refetchApiKeys,
-  } = useApiKeys(workspaceId)
+  } = useApiKeys(workspaceId, scope)
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } =
     useWorkspaceSettings(workspaceId)
   const deleteApiKeyMutation = useDeleteApiKey()
@@ -86,7 +94,7 @@ export function ApiKeys() {
   const workspaceKeys = apiKeysData?.workspaceKeys ?? EMPTY_KEYS
   const personalKeys = apiKeysData?.personalKeys ?? EMPTY_KEYS
   const conflicts = apiKeysData?.conflicts ?? EMPTY_KEY_NAMES
-  const isLoading = isLoadingKeys || isLoadingSettings
+  const isLoading = isLoadingKeys || (isWorkspaceScope && isLoadingSettings)
 
   const allowPersonalApiKeys =
     workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
@@ -96,8 +104,8 @@ export function ApiKeys() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const defaultKeyType = allowPersonalApiKeys ? 'personal' : 'workspace'
-  const createButtonDisabled = isLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
+  const defaultKeyType = isPersonalScope ? 'personal' : 'workspace'
+  const createButtonDisabled = isLoading || (isWorkspaceScope && !canManageWorkspaceKeys)
 
   const filteredWorkspaceKeys = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
@@ -127,16 +135,13 @@ export function ApiKeys() {
     if (!userId || !deleteKey) return
 
     try {
-      const isWorkspaceKey = workspaceKeys.some((k) => k.id === deleteKey.id)
-      const keyTypeToDelete = isWorkspaceKey ? 'workspace' : 'personal'
-
       setShowDeleteDialog(false)
       setDeleteKey(null)
 
       await deleteApiKeyMutation.mutateAsync({
         workspaceId,
         keyId: deleteKey.id,
-        keyType: keyTypeToDelete,
+        keyType: scope,
       })
     } catch (error) {
       logger.error('Error deleting API key:', { error })
@@ -171,7 +176,7 @@ export function ApiKeys() {
           <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-6'>
-            {!searchTerm.trim() ? (
+            {isWorkspaceScope && !searchTerm.trim() ? (
               <SettingsSection label='Workspace'>
                 {workspaceKeys.length === 0 ? (
                   <div className='text-[var(--text-muted)] text-sm'>No workspace API keys yet</div>
@@ -189,7 +194,7 @@ export function ApiKeys() {
                             </span>
                           </div>
                           <p className='truncate text-[var(--text-muted)] text-caption'>
-                            {key.displayKey || key.key}
+                            {key.displayKey}
                           </p>
                         </div>
                         <ApiKeyRowMenu
@@ -205,7 +210,7 @@ export function ApiKeys() {
                   </div>
                 )}
               </SettingsSection>
-            ) : filteredWorkspaceKeys.length > 0 ? (
+            ) : isWorkspaceScope && filteredWorkspaceKeys.length > 0 ? (
               <SettingsSection label='Workspace'>
                 <div className='flex flex-col gap-2'>
                   {filteredWorkspaceKeys.map(({ key }) => (
@@ -220,7 +225,7 @@ export function ApiKeys() {
                           </span>
                         </div>
                         <p className='truncate text-[var(--text-muted)] text-caption'>
-                          {key.displayKey || key.key}
+                          {key.displayKey}
                         </p>
                       </div>
                       <ApiKeyRowMenu
@@ -237,7 +242,7 @@ export function ApiKeys() {
               </SettingsSection>
             ) : null}
 
-            {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+            {isPersonalScope && (!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
               <SettingsSection label='Personal'>
                 <div className='flex flex-col gap-2'>
                   {filteredPersonalKeys.map(({ key }) => {
@@ -255,7 +260,7 @@ export function ApiKeys() {
                               </span>
                             </div>
                             <p className='truncate text-[var(--text-muted)] text-caption'>
-                              {key.displayKey || key.key}
+                              {key.displayKey}
                             </p>
                           </div>
                           <ApiKeyRowMenu
@@ -290,7 +295,7 @@ export function ApiKeys() {
           </div>
         )}
 
-        {!isLoading && canManageWorkspaceKeys && (
+        {isWorkspaceScope && !isLoading && canManageWorkspaceKeys && (
           <Tooltip.Provider delayDuration={150}>
             <SettingsSection label='Permissions'>
               <div className='flex items-center justify-between'>
@@ -306,8 +311,9 @@ export function ApiKeys() {
                       </button>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top' className='max-w-xs text-small'>
-                      Allow collaborators to create and use their own keys with billing charged to
-                      them.
+                      Allow collaborators to authenticate with their own keys. Hosted usage is
+                      billed to this workspace, attributed to the key owner, and counted toward
+                      their member cap.
                     </Tooltip.Content>
                   </Tooltip.Root>
                 </div>
@@ -338,7 +344,7 @@ export function ApiKeys() {
         onOpenChange={setIsCreateDialogOpen}
         workspaceId={workspaceId}
         existingKeyNames={[...workspaceKeys, ...personalKeys].map((k) => k.name)}
-        allowPersonalApiKeys={allowPersonalApiKeys}
+        allowPersonalApiKeys={isPersonalScope}
         canManageWorkspaceKeys={canManageWorkspaceKeys}
         defaultKeyType={defaultKeyType}
       />

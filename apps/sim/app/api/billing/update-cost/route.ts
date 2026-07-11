@@ -7,18 +7,51 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
-import { recordCumulativeUsage, recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+import {
+  BILLING_REQUEST_ID_HEADER,
+  COPILOT_BILLING_PROTOCOL,
+  COPILOT_BILLING_PROTOCOL_HEADER,
+  type CopilotBillingProtocol,
+  toBillingContext,
+} from '@/lib/billing/core/billing-attribution'
+import {
+  getCachedAccountBillingDecision,
+  getCachedBillingAttribution,
+} from '@/lib/billing/core/billing-attribution-cache'
+import {
+  type CumulativeUsageContextField,
+  CumulativeUsageContextMismatchError,
+  recordCumulativeUsage,
+  recordUsage,
+} from '@/lib/billing/core/usage-log'
+import {
+  checkAndBillOverageThreshold,
+  checkAndBillPayerOverageThreshold,
+} from '@/lib/billing/threshold-billing'
+import { BILLING_CALLBACK_OUTCOME } from '@/lib/copilot/generated/billing-protocol-v1'
 import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isCopilotBillingAttributionV1Enabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingUpdateCostAPI')
+
+function invalidBillingProtocolResponse(requestId: string, span: Span): NextResponse {
+  span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
+  span.setAttribute(TraceAttr.HttpStatusCode, 400)
+  return NextResponse.json(
+    {
+      success: false,
+      error: 'Invalid billing protocol',
+      requestId,
+    },
+    { status: 400 }
+  )
+}
 
 /**
  * Resolves the request-supplied workspace to one that exists in this
@@ -27,8 +60,10 @@ const logger = createLogger('BillingUpdateCostAPI')
  * IDs from their own databases, and `usage_log.workspace_id` carries an FK to
  * `workspace`, so stamping a foreign ID would fail the entire flush with an
  * FK violation and strand real cost in the caller's dead-letter queue.
- * Unknown workspaces are recorded unattributed instead — billing is keyed on
- * the user's billing entity and never depends on the workspace.
+ * Unknown workspaces are recorded without local workspace attribution because
+ * this deployment cannot resolve their payer. Direct-v1 account callbacks do
+ * not call this helper at all: their self-hosted workspace is not hosted payer
+ * identity.
  */
 async function resolveAttributableWorkspaceId(
   requestId: string,
@@ -77,20 +112,6 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
   try {
     logger.info(`[${requestId}] Update cost request started`)
 
-    if (!isBillingEnabled) {
-      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.BillingDisabled)
-      span.setAttribute(TraceAttr.HttpStatusCode, 200)
-      return NextResponse.json({
-        success: true,
-        message: 'Billing disabled, cost update skipped',
-        data: {
-          billingEnabled: false,
-          processedAt: new Date().toISOString(),
-          requestId,
-        },
-      })
-    }
-
     // Check authentication (internal API key)
     const authResult = checkInternalApiKey(req)
     if (!authResult.success) {
@@ -104,6 +125,20 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
         },
         { status: 401 }
       )
+    }
+
+    if (!isBillingEnabled) {
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.BillingDisabled)
+      span.setAttribute(TraceAttr.HttpStatusCode, 200)
+      return NextResponse.json({
+        success: true,
+        message: 'Billing disabled, cost update skipped',
+        data: {
+          billingEnabled: false,
+          processedAt: new Date().toISOString(),
+          requestId,
+        },
+      })
     }
 
     const parsed = await parseRequest(
@@ -141,6 +176,27 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey, workspaceId } =
       parsed.data.body
+    const requestedProtocol = parsed.data.headers?.[COPILOT_BILLING_PROTOCOL_HEADER]
+    const billingRequestId = parsed.data.headers?.[BILLING_REQUEST_ID_HEADER]
+    const protocol: CopilotBillingProtocol | undefined =
+      requestedProtocol ??
+      (isCopilotBillingAttributionV1Enabled ? undefined : COPILOT_BILLING_PROTOCOL.legacy)
+    if (!protocol) {
+      return invalidBillingProtocolResponse(requestId, span)
+    }
+
+    const isModernProtocol =
+      protocol === COPILOT_BILLING_PROTOCOL.attributed ||
+      protocol === COPILOT_BILLING_PROTOCOL.direct
+    const isAttributedProtocol = protocol === COPILOT_BILLING_PROTOCOL.attributed
+    const isDirectProtocol = protocol === COPILOT_BILLING_PROTOCOL.direct
+    if (
+      (isModernProtocol &&
+        (!billingRequestId || !idempotencyKey || billingRequestId !== idempotencyKey)) ||
+      (protocol === COPILOT_BILLING_PROTOCOL.legacy && billingRequestId)
+    ) {
+      return invalidBillingProtocolResponse(requestId, span)
+    }
     const isMcp = source === 'mcp_copilot'
 
     span.setAttributes({
@@ -161,7 +217,66 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       source,
     })
 
-    const attributedWorkspaceId = await resolveAttributableWorkspaceId(requestId, workspaceId)
+    const attributionCacheKey = isAttributedProtocol
+      ? billingRequestId
+      : protocol === COPILOT_BILLING_PROTOCOL.legacy
+        ? idempotencyKey
+        : undefined
+    const cachedBillingAttribution = attributionCacheKey
+      ? await getCachedBillingAttribution(attributionCacheKey)
+      : undefined
+    const cachedAccountDecision =
+      isDirectProtocol && billingRequestId
+        ? await getCachedAccountBillingDecision(billingRequestId)
+        : undefined
+    if (isAttributedProtocol && !cachedBillingAttribution) {
+      throw new Error(`Immutable ${protocol} billing attribution is missing`)
+    }
+    if (isDirectProtocol && !cachedAccountDecision) {
+      throw new Error(`Immutable ${protocol} account billing decision is missing`)
+    }
+    if (cachedAccountDecision && cachedAccountDecision.userId !== userId) {
+      throw new CumulativeUsageContextMismatchError(`update-cost:${idempotencyKey}`, ['actor'])
+    }
+    if (cachedBillingAttribution) {
+      const mismatchedFields: CumulativeUsageContextField[] = []
+      if (cachedBillingAttribution.actorUserId !== userId) {
+        mismatchedFields.push('actor')
+      }
+      if (
+        (isAttributedProtocol && cachedBillingAttribution.workspaceId !== workspaceId) ||
+        (!isAttributedProtocol &&
+          workspaceId &&
+          cachedBillingAttribution.workspaceId !== workspaceId)
+      ) {
+        mismatchedFields.push('workspace')
+      }
+      if (mismatchedFields.length > 0) {
+        throw new CumulativeUsageContextMismatchError(
+          `update-cost:${idempotencyKey}`,
+          mismatchedFields
+        )
+      }
+    }
+
+    const resolvedWorkspaceId = isDirectProtocol
+      ? undefined
+      : await resolveAttributableWorkspaceId(
+          requestId,
+          workspaceId ?? cachedBillingAttribution?.workspaceId
+        )
+    const billingAttribution = cachedBillingAttribution
+    const billingContext = billingAttribution
+      ? toBillingContext(billingAttribution)
+      : cachedAccountDecision
+        ? {
+            billingEntity: cachedAccountDecision.billingEntity,
+            billingPeriod: {
+              start: new Date(cachedAccountDecision.billingPeriod.start),
+              end: new Date(cachedAccountDecision.billingPeriod.end),
+            },
+          }
+        : undefined
 
     // Go sends the request's CUMULATIVE cost, possibly more than once (a
     // mid-loop provider-error flush, then the recovered terminal flush, plus
@@ -175,7 +290,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     if (idempotencyKey) {
       const result = await recordCumulativeUsage({
         userId,
-        workspaceId: attributedWorkspaceId,
+        workspaceId: resolvedWorkspaceId,
+        ...billingContext,
         source,
         model,
         cost,
@@ -194,7 +310,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     } else {
       await recordUsage({
         userId,
-        workspaceId: attributedWorkspaceId,
+        workspaceId: resolvedWorkspaceId,
+        ...billingContext,
         entries: [
           {
             category: 'model',
@@ -230,7 +347,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       return NextResponse.json(
         {
           success: false,
-          error: 'Duplicate request: cumulative cost already recorded',
+          code: BILLING_CALLBACK_OUTCOME.duplicateBillingEvent.code,
+          error: BILLING_CALLBACK_OUTCOME.duplicateBillingEvent.message,
           requestId,
         },
         { status: 409 }
@@ -240,7 +358,11 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     // Check if user has hit overage threshold and bill incrementally. Reads the
     // (now topped-up) ledger total and is idempotent against billedOverage, so
     // it is safe to run on every flush that records new cost.
-    await checkAndBillOverageThreshold(userId)
+    if (billingContext) {
+      await checkAndBillPayerOverageThreshold(billingContext.billingEntity)
+    } else {
+      await checkAndBillOverageThreshold(userId)
+    }
 
     logger.info(`[${requestId}] Cost update completed successfully`, {
       userId,
@@ -262,6 +384,26 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     })
   } catch (error) {
     const duration = Date.now() - startTime
+
+    if (error instanceof CumulativeUsageContextMismatchError) {
+      logger.error(`[${requestId}] Billing context mismatch`, {
+        eventKey: error.eventKey,
+        mismatchedFields: error.mismatchedFields,
+        duration,
+      })
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
+      span.setAttribute(TraceAttr.HttpStatusCode, 409)
+      span.setAttribute(TraceAttr.BillingDurationMs, duration)
+      return NextResponse.json(
+        {
+          success: false,
+          code: BILLING_CALLBACK_OUTCOME.billingContextMismatch.code,
+          error: BILLING_CALLBACK_OUTCOME.billingContextMismatch.message,
+          requestId,
+        },
+        { status: 409 }
+      )
+    }
 
     // Surface the underlying Postgres failure (e.g. 23503 FK violation vs a
     // lock timeout) — Drizzle's "Failed query" wrapper alone cannot

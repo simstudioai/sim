@@ -1,76 +1,97 @@
-import { Suspense } from 'react'
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { prefetchGeneralSettings, prefetchSubscriptionData, prefetchUserProfile } from './prefetch'
-import { SettingsPage } from './settings'
+import { notFound, redirect } from 'next/navigation'
+import {
+  getLegacyTopLevelWorkspaceHref,
+  getSettingsSectionMeta,
+  LEGACY_SETTINGS_SECTIONS,
+  parseSettingsPathSection,
+  resolveLegacySettingsHref,
+  resolveWorkspaceNavigation,
+  WORKSPACE_SETTINGS_ITEMS,
+  WORKSPACE_SETTINGS_PATH_ALIASES,
+} from '@/components/settings/navigation'
+import { WorkspaceSettingsRenderer } from '@/components/settings/workspace-settings-renderer'
+import { getSession } from '@/lib/auth'
+import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/env-flags'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
+import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
 
-/**
- * Legacy settings sections that moved to top-level workspace routes.
- * Old bookmarks and emails deep-link here; without the redirect the
- * section renderer has no matching branch and shows an empty panel.
- */
-const SETTINGS_REDIRECTS: Record<string, (workspaceId: string) => string> = {
-  integrations: (id) => `/workspace/${id}/integrations`,
-  skills: (id) => `/workspace/${id}/skills`,
+interface WorkspaceSettingsSectionPageProps {
+  params: Promise<{ workspaceId: string; section: string }>
 }
-
-const SECTION_TITLES: Record<string, string> = {
-  general: 'General',
-  secrets: 'Secrets',
-  'access-control': 'Access Control',
-  'audit-logs': 'Audit Logs',
-  apikeys: 'Sim API Keys',
-  byok: 'BYOK',
-  subscription: 'Subscription',
-  billing: 'Billing',
-  teammates: 'Teammates',
-  team: 'Team',
-  sso: 'Single Sign-On',
-  whitelabeling: 'Whitelabeling',
-  copilot: 'Chat Keys',
-  forks: 'Workspace Forks',
-  mcp: 'MCP Tools',
-  'custom-tools': 'Custom Tools',
-  'workflow-mcp-servers': 'MCP Servers',
-  'data-retention': 'Data Retention',
-  'recently-deleted': 'Recently Deleted',
-  debug: 'Debug',
-} as const
 
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ section: string }>
-}): Promise<Metadata> {
+}: WorkspaceSettingsSectionPageProps): Promise<Metadata> {
   const { section } = await params
-  return { title: SECTION_TITLES[section] ?? 'Settings' }
+  const parsed = parseSettingsPathSection({
+    path: section,
+    items: WORKSPACE_SETTINGS_ITEMS,
+    defaultSection: null,
+    aliases: WORKSPACE_SETTINGS_PATH_ALIASES,
+  })
+  const meta = parsed ? getSettingsSectionMeta('workspace', parsed) : null
+  return { title: meta ? `${meta.label} - Workspace settings` : 'Settings' }
 }
 
-export default async function SettingsSectionPage({
+export default async function WorkspaceSettingsSectionPage({
   params,
-}: {
-  params: Promise<{ workspaceId: string; section: string }>
-}) {
+}: WorkspaceSettingsSectionPageProps) {
+  const session = await getSession()
+  if (!session?.user) redirect('/login')
+
   const { workspaceId, section } = await params
+  const topLevelHref = getLegacyTopLevelWorkspaceHref(workspaceId, section)
+  if (topLevelHref) redirect(topLevelHref)
 
-  const redirectTo = SETTINGS_REDIRECTS[section]
-  if (redirectTo) redirect(redirectTo(workspaceId))
+  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, session.user.id)
+  if (!hostContext) notFound()
 
-  const queryClient = getQueryClient()
+  const legacy = LEGACY_SETTINGS_SECTIONS.find((item) => item.legacySection === section)
+  if (legacy && (legacy.plane !== 'workspace' || legacy.section !== section)) {
+    redirect(
+      resolveLegacySettingsHref({
+        legacySection: section,
+        workspaceId,
+        hostOrganizationId: hostContext.hostOrganizationId,
+        isTargetOrganizationMember: hostContext.viewer.isHostOrganizationMember,
+      })
+    )
+  }
 
-  void prefetchGeneralSettings(queryClient)
-  void prefetchUserProfile(queryClient)
-  if (isBillingEnabled) void prefetchSubscriptionData(queryClient)
+  const parsed = parseSettingsPathSection({
+    path: section,
+    items: WORKSPACE_SETTINGS_ITEMS,
+    defaultSection: null,
+    aliases: WORKSPACE_SETTINGS_PATH_ALIASES,
+  })
+  if (!parsed) notFound()
 
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={null}>
-        <SettingsPage section={section as SettingsSection} />
-      </Suspense>
-    </HydrationBoundary>
-  )
+  const [permissionGroup, forksAvailable, inboxAvailable] = await Promise.all([
+    hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
+      ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
+      : null,
+    isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
+    hasWorkspaceInboxAccess(workspaceId),
+  ])
+  const customBlocksAvailable = isHosted
+    ? hostContext.ownerBilling.isEnterprise
+    : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
+
+  const navigation = resolveWorkspaceNavigation({
+    permission: hostContext.viewer.permission,
+    permissionConfig: permissionGroup?.config ?? {},
+    entitlements: {
+      byok: isHosted,
+      inbox: inboxAvailable,
+      customBlocks: customBlocksAvailable,
+      forks: forksAvailable,
+    },
+  })
+  if (!navigation.some((item) => item.id === parsed)) notFound()
+
+  return <WorkspaceSettingsRenderer section={parsed} />
 }

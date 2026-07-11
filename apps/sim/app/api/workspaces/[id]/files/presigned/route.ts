@@ -4,7 +4,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { workspacePresignedUploadContract } from '@/lib/api/contracts/workspace-files'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { checkStorageQuota } from '@/lib/billing/storage'
+import {
+  checkStorageQuotaForBillingContext,
+  resolveStorageBillingContext,
+} from '@/lib/billing/storage'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import { assertWorkspaceFileFolderTarget } from '@/lib/uploads/contexts/workspace'
@@ -68,7 +71,8 @@ export const POST = withRouteHandler(
       })
     }
 
-    const quotaCheck = await checkStorageQuota(userId, fileSize)
+    const storageBillingContext = await resolveStorageBillingContext(workspaceId)
+    const quotaCheck = await checkStorageQuotaForBillingContext(storageBillingContext, fileSize)
     if (!quotaCheck.allowed) {
       return NextResponse.json(
         { error: quotaCheck.error || 'Storage limit exceeded' },

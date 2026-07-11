@@ -13,7 +13,13 @@ import {
   workflowsPersistenceUtilsMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
+import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  ADMISSION_ERROR_CODE,
+  ADMISSION_ERROR_DESCRIPTOR,
+  ADMISSION_RETRY_AFTER_SECONDS,
+} from '@/lib/core/admission/transient-failure'
 
 /** Mock execution dependencies for webhook tests */
 function mockExecutionDependencies() {
@@ -85,6 +91,7 @@ const testData = {
     isActive: boolean
     providerConfig?: Record<string, unknown>
     workflowId: string
+    blockId?: string
     rateLimitCount?: number
     rateLimitPeriod?: number
   }>,
@@ -105,8 +112,13 @@ const {
   processWebhookMock,
   executeMock,
   getWorkspaceBilledAccountUserIdMock,
+  checkWebhookPreprocessingMock,
+  handleWebhookEventFilterMock,
   queueWebhookExecutionMock,
   isWorkspaceApiExecutionEntitledMock,
+  shouldSkipWebhookEventMock,
+  admissionRejectedResponseMock,
+  tryAdmitMock,
 } = vi.hoisted(() => ({
   generateRequestHashMock: vi.fn().mockResolvedValue('test-hash-123'),
   validateSlackSignatureMock: vi.fn().mockResolvedValue(true),
@@ -130,16 +142,52 @@ const {
     .mockImplementation(async (workspaceId: string | null | undefined) =>
       workspaceId ? 'test-user-id' : null
     ),
+  checkWebhookPreprocessingMock: vi.fn().mockResolvedValue({
+    error: null,
+    actorUserId: 'test-user-id',
+    billingAttribution: {
+      actorUserId: 'test-user-id',
+      workspaceId: 'test-workspace-id',
+      organizationId: null,
+      billedAccountUserId: 'test-user-id',
+      billingEntity: { type: 'user', id: 'test-user-id' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    },
+    executionId: 'preprocess-execution-id',
+    correlation: {
+      executionId: 'preprocess-execution-id',
+      requestId: 'mock-request-id',
+      source: 'webhook',
+      workflowId: 'test-workflow-id',
+      webhookId: 'generic-webhook-id',
+      path: 'test-path',
+      provider: 'generic',
+      triggerType: 'webhook',
+    },
+  }),
+  handleWebhookEventFilterMock: vi.fn().mockResolvedValue(null),
   queueWebhookExecutionMock: vi.fn().mockImplementation(async () => {
     const { NextResponse } = await import('next/server')
     return NextResponse.json({ message: 'Webhook processed' })
   }),
   isWorkspaceApiExecutionEntitledMock: vi.fn().mockResolvedValue(true),
+  shouldSkipWebhookEventMock: vi.fn().mockReturnValue(false),
+  admissionRejectedResponseMock: vi.fn(),
+  tryAdmitMock: vi.fn<() => { release: () => void } | null>(() => ({ release: vi.fn() })),
 }))
 
 vi.mock('@/lib/billing/core/api-access', () => ({
   API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
   isWorkspaceApiExecutionEntitled: isWorkspaceApiExecutionEntitledMock,
+}))
+
+vi.mock('@/lib/core/admission/gate', () => ({
+  admissionRejectedResponse: admissionRejectedResponseMock,
+  tryAdmit: tryAdmitMock,
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({
@@ -274,6 +322,7 @@ vi.mock('@/lib/webhooks/processor', () => ({
       }
     ),
   handleProviderReachabilityTest: vi.fn().mockReturnValue(null),
+  handleWebhookEventFilter: handleWebhookEventFilterMock,
   verifyProviderAuth: vi
     .fn()
     .mockImplementation(
@@ -329,26 +378,12 @@ vi.mock('@/lib/webhooks/processor', () => ({
         return null
       }
     ),
-  checkWebhookPreprocessing: vi.fn().mockResolvedValue({
-    error: null,
-    actorUserId: 'test-user-id',
-    executionId: 'preprocess-execution-id',
-    correlation: {
-      executionId: 'preprocess-execution-id',
-      requestId: 'mock-request-id',
-      source: 'webhook',
-      workflowId: 'test-workflow-id',
-      webhookId: 'generic-webhook-id',
-      path: 'test-path',
-      provider: 'generic',
-      triggerType: 'webhook',
-    },
-  }),
+  checkWebhookPreprocessing: checkWebhookPreprocessingMock,
   formatProviderErrorResponse: vi.fn().mockImplementation((_webhook, error, status) => {
     const { NextResponse } = require('next/server')
     return NextResponse.json({ error }, { status })
   }),
-  shouldSkipWebhookEvent: vi.fn().mockReturnValue(false),
+  shouldSkipWebhookEvent: shouldSkipWebhookEventMock,
   handlePreDeploymentVerification: vi.fn().mockReturnValue(null),
   queueWebhookExecution: queueWebhookExecutionMock,
 }))
@@ -366,6 +401,22 @@ import { GET, POST } from '@/app/api/webhooks/trigger/[path]/route'
 describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    const gateDescriptor = ADMISSION_ERROR_DESCRIPTOR.GATE_CAPACITY
+    admissionRejectedResponseMock.mockImplementation(() =>
+      NextResponse.json(
+        {
+          error: 'Too many requests',
+          message: 'Server is at capacity. Please retry shortly.',
+          code: gateDescriptor.code,
+          retryable: gateDescriptor.retryable,
+          retryAfterSeconds: gateDescriptor.retryAfterSeconds,
+        },
+        {
+          status: gateDescriptor.statusCode,
+          headers: { 'Retry-After': String(gateDescriptor.retryAfterSeconds) },
+        }
+      )
+    )
 
     // Reset test data arrays
     testData.webhooks.length = 0
@@ -380,15 +431,6 @@ describe('Webhook Trigger API Route', () => {
         isDeployed: true,
         workspaceId: 'test-workspace-id',
       },
-      userSubscription: {
-        plan: 'pro',
-        status: 'active',
-      },
-      rateLimitInfo: {
-        allowed: true,
-        remaining: 100,
-        resetAt: new Date(),
-      },
     })
 
     workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
@@ -400,6 +442,8 @@ describe('Webhook Trigger API Route', () => {
     })
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
     isWorkspaceApiExecutionEntitledMock.mockResolvedValue(true)
+    handleWebhookEventFilterMock.mockResolvedValue(null)
+    shouldSkipWebhookEventMock.mockReturnValue(false)
 
     mockExecutionDependencies()
     mockTriggerDevSdk()
@@ -427,6 +471,25 @@ describe('Webhook Trigger API Route', () => {
 
     const text = await response.text()
     expect(text).toMatch(/not found/i)
+  })
+
+  it('returns a stable retryable response when the webhook admission gate is full', async () => {
+    tryAdmitMock.mockReturnValueOnce(null)
+
+    const response = await POST(createMockRequest('POST', { event: 'test' }) as any, {
+      params: Promise.resolve({ path: 'test-path' }),
+    })
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe(String(ADMISSION_RETRY_AFTER_SECONDS))
+    await expect(response.json()).resolves.toMatchObject({
+      code: ADMISSION_ERROR_CODE.GATE_CAPACITY,
+      retryable: true,
+      retryAfterSeconds: ADMISSION_RETRY_AFTER_SECONDS,
+    })
+    expect(admissionRejectedResponseMock).toHaveBeenCalledOnce()
+    expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
+    expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
   })
 
   it('should return 405 for GET requests on unknown webhook paths', async () => {
@@ -538,6 +601,70 @@ describe('Webhook Trigger API Route', () => {
     })
   })
 
+  describe('Reservation-free filtering', () => {
+    it('skips filtered webhook events before preprocessing reserves a slot', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'filtered-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+      })
+      shouldSkipWebhookEventMock.mockReturnValueOnce(true)
+
+      await POST(createMockRequest('POST', { event: 'ignored' }) as any, {
+        params: Promise.resolve({ path: 'filtered-path' }),
+      })
+
+      expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
+      expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+    })
+
+    it('runs asynchronous event matching before preprocessing reserves a slot', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'event-filter-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+      })
+      handleWebhookEventFilterMock.mockResolvedValueOnce(
+        NextResponse.json({ message: 'Event ignored' })
+      )
+
+      const response = await POST(createMockRequest('POST', { event: 'ignored' }) as any, {
+        params: Promise.resolve({ path: 'event-filter-path' }),
+      })
+
+      expect(response.status).toBe(200)
+      expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
+      expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+    })
+
+    it('checks for a missing trigger block before preprocessing reserves a slot', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'missing-block-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+        blockId: 'missing-block',
+      })
+      workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValueOnce(false)
+
+      const response = await POST(createMockRequest('POST', { event: 'test' }) as any, {
+        params: Promise.resolve({ path: 'missing-block-path' }),
+      })
+
+      expect(response.status).toBe(404)
+      expect(checkWebhookPreprocessingMock).not.toHaveBeenCalled()
+      expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+    })
+  })
+
   describe('Generic Webhook Authentication', () => {
     it('passes correlation-bearing request context into webhook queueing', async () => {
       testData.webhooks.push({
@@ -579,6 +706,55 @@ describe('Webhook Trigger API Route', () => {
         })
       )
     })
+
+    it.each([
+      {
+        statusCode: 429,
+        code: ADMISSION_ERROR_CODE.RESERVATION_CONCURRENCY,
+      },
+      {
+        statusCode: 503,
+        code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
+      },
+    ])(
+      'preserves retryable admission $statusCode status, code, and Retry-After',
+      async ({ statusCode, code }) => {
+        testData.webhooks.push({
+          id: 'generic-webhook-id',
+          provider: 'generic',
+          path: 'test-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+        })
+        checkWebhookPreprocessingMock.mockResolvedValueOnce({
+          error: NextResponse.json(
+            {
+              error: 'Admission temporarily unavailable',
+              code,
+              retryable: true,
+              retryAfterSeconds: ADMISSION_RETRY_AFTER_SECONDS,
+            },
+            {
+              status: statusCode,
+              headers: { 'Retry-After': String(ADMISSION_RETRY_AFTER_SECONDS) },
+            }
+          ),
+        })
+
+        const response = await POST(createMockRequest('POST', { event: 'test' }) as any, {
+          params: Promise.resolve({ path: 'test-path' }),
+        })
+
+        expect(response.status).toBe(statusCode)
+        expect(response.headers.get('Retry-After')).toBe(String(ADMISSION_RETRY_AFTER_SECONDS))
+        await expect(response.json()).resolves.toMatchObject({
+          code,
+          retryable: true,
+        })
+        expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+      }
+    )
 
     it('should process generic webhook without authentication', async () => {
       testData.webhooks.push({

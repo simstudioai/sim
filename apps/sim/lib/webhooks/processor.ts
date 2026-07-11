@@ -5,7 +5,14 @@ import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
+import {
+  ADMISSION_ERROR_DESCRIPTOR,
+  classifyTransientAdmissionFailure,
+  type TransientAdmissionFailure,
+} from '@/lib/core/admission/transient-failure'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import {
@@ -24,7 +31,7 @@ import {
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
 import { SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
-import { executeWebhookJob } from '@/background/webhook-execution'
+import { executeWebhookJob, type WebhookExecutionPayload } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isPollingWebhookProvider } from '@/triggers/constants'
 
@@ -35,6 +42,7 @@ export interface WebhookProcessorOptions {
   path?: string
   webhookId?: string
   actorUserId?: string
+  billingAttribution?: BillingAttributionSnapshot
   executionId?: string
   correlation?: AsyncExecutionCorrelation
   /** Epoch ms when the webhook HTTP request was first received (for dispatch-latency metrics). */
@@ -45,7 +53,9 @@ export interface WebhookProcessorOptions {
 
 export interface WebhookPreprocessingResult {
   error: NextResponse | null
+  transientAdmissionFailure?: TransientAdmissionFailure
   actorUserId?: string
+  billingAttribution?: BillingAttributionSnapshot
   executionId?: string
   correlation?: AsyncExecutionCorrelation
 }
@@ -185,6 +195,24 @@ export function formatProviderErrorResponse(
   return handler.formatErrorResponse?.(error, status) ?? NextResponse.json({ error }, { status })
 }
 
+function formatGenericTransientAdmissionResponse(
+  message: string,
+  failure: TransientAdmissionFailure
+): NextResponse {
+  return NextResponse.json(
+    {
+      error: message,
+      code: failure.code,
+      retryable: failure.retryable,
+      retryAfterSeconds: failure.retryAfterSeconds,
+    },
+    {
+      status: failure.statusCode,
+      headers: { 'Retry-After': String(failure.retryAfterSeconds) },
+    }
+  )
+}
+
 /**
  * Check if a webhook event should be skipped based on provider-specific filtering.
  * Delegates to the provider handler registry.
@@ -199,6 +227,42 @@ export function shouldSkipWebhookEvent(
   return (
     handler.shouldSkipEvent?.({ webhook: webhookRecord, body, requestId, providerConfig }) ?? false
   )
+}
+
+/**
+ * Applies an asynchronous provider event matcher before execution admission.
+ * Returns the provider's ignore response, or null when execution should proceed.
+ */
+export async function handleWebhookEventFilter(
+  webhookRecord: any,
+  workflowRecord: any,
+  body: any,
+  request: NextRequest,
+  requestId: string
+): Promise<NextResponse | null> {
+  const handler = getProviderHandler(webhookRecord.provider)
+  if (!handler.matchEvent) {
+    return null
+  }
+
+  const providerConfig = (webhookRecord.providerConfig as Record<string, unknown>) || {}
+  const result = await handler.matchEvent({
+    webhook: webhookRecord,
+    workflow: workflowRecord,
+    body,
+    request,
+    requestId,
+    providerConfig,
+  })
+  if (result === true) {
+    return null
+  }
+  if (result instanceof NextResponse) {
+    return result
+  }
+  return NextResponse.json({
+    message: 'Event type does not match trigger configuration. Ignoring.',
+  })
 }
 
 /** Returns 200 OK for providers that validate URLs before the workflow is deployed */
@@ -487,7 +551,8 @@ export async function checkWebhookPreprocessing(
     })
 
     if (!preprocessResult.success) {
-      const error = preprocessResult.error!
+      const error = preprocessResult.error
+      const transientAdmissionFailure = classifyTransientAdmissionFailure(error)
       logger.warn(`[${requestId}] Webhook preprocessing failed`, {
         provider: foundWebhook.provider,
         error: error.message,
@@ -495,13 +560,18 @@ export async function checkWebhookPreprocessing(
       })
 
       return {
-        error: formatProviderErrorResponse(foundWebhook, error.message, error.statusCode),
+        error:
+          transientAdmissionFailure && foundWebhook.provider === 'generic'
+            ? formatGenericTransientAdmissionResponse(error.message, transientAdmissionFailure)
+            : formatProviderErrorResponse(foundWebhook, error.message, error.statusCode),
+        ...(transientAdmissionFailure ? { transientAdmissionFailure } : {}),
       }
     }
 
     return {
       error: null,
       actorUserId: preprocessResult.actorUserId,
+      billingAttribution: preprocessResult.billingAttribution,
       executionId,
       correlation,
     }
@@ -523,27 +593,10 @@ export async function queueWebhookExecution(
 ): Promise<NextResponse> {
   const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
   const handler = getProviderHandler(foundWebhook.provider)
+  const reservedExecutionId = options.executionId
+  let reservationTransferred = false
 
   try {
-    if (handler.matchEvent) {
-      const result = await handler.matchEvent({
-        webhook: foundWebhook,
-        workflow: foundWorkflow,
-        body,
-        request,
-        requestId: options.requestId,
-        providerConfig,
-      })
-      if (result !== true) {
-        if (result instanceof NextResponse) {
-          return result
-        }
-        return NextResponse.json({
-          message: 'Event type does not match trigger configuration. Ignoring.',
-        })
-      }
-    }
-
     const { 'x-sim-idempotency-key': _, ...headers } = Object.fromEntries(request.headers.entries())
 
     if (handler.enrichHeaders) {
@@ -556,8 +609,10 @@ export async function queueWebhookExecution(
     const credentialId = providerConfig.credentialId as string | undefined
 
     const actorUserId = options.actorUserId
-    if (!actorUserId) {
-      logger.error(`[${options.requestId}] No actorUserId provided for webhook ${foundWebhook.id}`)
+    const billingAttribution = options.billingAttribution
+    const workspaceId = foundWorkflow.workspaceId
+    if (!actorUserId || !billingAttribution || !workspaceId) {
+      logger.error(`[${options.requestId}] Missing billing context for webhook ${foundWebhook.id}`)
       return NextResponse.json({ error: 'Unable to resolve billing account' }, { status: 500 })
     }
 
@@ -579,6 +634,7 @@ export async function queueWebhookExecution(
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
       userId: actorUserId,
+      billingAttribution,
       executionId,
       requestId: options.requestId,
       correlation,
@@ -587,13 +643,13 @@ export async function queueWebhookExecution(
       headers,
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
-      workspaceId: foundWorkflow.workspaceId,
+      workspaceId,
       ...(credentialId ? { credentialId } : {}),
       ...(options.receivedAt !== undefined ? { webhookReceivedAt: options.receivedAt } : {}),
       ...(options.triggerTimestampMs !== undefined
         ? { triggerTimestampMs: options.triggerTimestampMs }
         : {}),
-    }
+    } satisfies WebhookExecutionPayload
 
     const isPolling = isPollingWebhookProvider(payload.provider)
 
@@ -606,6 +662,7 @@ export async function queueWebhookExecution(
           correlation,
         },
       })
+      reservationTransferred = true
       logger.info(
         `[${options.requestId}] Queued polling webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
       )
@@ -619,22 +676,17 @@ export async function queueWebhookExecution(
           correlation,
         },
       })
+      reservationTransferred = true
       logger.info(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
 
-      /**
-       * Inline runs in-process microseconds after the route resolved the actor,
-       * so reuse it to skip a redundant billed-account lookup. Set only on the
-       * in-process payload — the enqueued/persisted copy omits it so any deferred
-       * re-run re-resolves the current billed account.
-       */
-      const inlinePayload = { ...payload, resolvedActorUserId: actorUserId }
-
       void (async () => {
+        let workerOwnsReservation = false
         try {
           await jobQueue.startJob(jobId)
-          const output = await executeWebhookJob(inlinePayload)
+          workerOwnsReservation = true
+          const output = await executeWebhookJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
           const errorMessage = toError(error).message
@@ -642,6 +694,9 @@ export async function queueWebhookExecution(
             jobId,
             error: errorMessage,
           })
+          if (!workerOwnsReservation) {
+            await releaseExecutionSlot(executionId)
+          }
           try {
             await jobQueue.markJobFailed(jobId, errorMessage)
           } catch (markFailedError) {
@@ -672,6 +727,10 @@ export async function queueWebhookExecution(
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } finally {
+    if (!reservationTransferred && reservedExecutionId) {
+      await releaseExecutionSlot(reservedExecutionId)
+    }
   }
 }
 
@@ -679,6 +738,9 @@ export interface PolledWebhookEventResult {
   success: boolean
   error?: string
   statusCode?: number
+  code?: string
+  retryable?: boolean
+  retryAfterSeconds?: number
   executionId?: string
 }
 
@@ -691,7 +753,7 @@ type PolledWorkflowRecord = typeof workflow.$inferSelect
  * anti-pattern where they would otherwise POST back to /api/webhooks/trigger/{path}.
  *
  * Performs only the steps actually needed for polling providers:
- * admission control, preprocessing, block existence check, and queue execution.
+ * admission control, block existence check, preprocessing, and queue execution.
  */
 export async function processPolledWebhookEvent(
   foundWebhook: PolledWebhookRecord,
@@ -706,24 +768,21 @@ export async function processPolledWebhookEvent(
 
   const ticket = tryAdmit()
   if (!ticket) {
+    const gateFailure = ADMISSION_ERROR_DESCRIPTOR.GATE_CAPACITY
     logger.warn(`[${requestId}] Admission gate rejected polled webhook event`)
-    return { success: false, error: 'Server at capacity', statusCode: 429 }
+    return {
+      success: false,
+      error: 'Server at capacity',
+      statusCode: gateFailure.statusCode,
+      code: gateFailure.code,
+      retryable: gateFailure.retryable,
+      retryAfterSeconds: gateFailure.retryAfterSeconds,
+    }
   }
 
+  let reservedExecutionId: string | undefined
+  let reservationTransferred = false
   try {
-    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
-    if (preprocessResult.error) {
-      const errorResponse = preprocessResult.error
-      const statusCode = errorResponse.status
-      const errorBody = await errorResponse.json().catch(() => ({}))
-      const errorMessage = errorBody.error ?? 'Preprocessing failed'
-      logger.warn(`[${requestId}] Polled webhook preprocessing failed`, {
-        statusCode,
-        error: errorMessage,
-      })
-      return { success: false, error: errorMessage, statusCode }
-    }
-
     if (foundWebhook.blockId) {
       const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
       if (!blockExists) {
@@ -734,12 +793,39 @@ export async function processPolledWebhookEvent(
       }
     }
 
+    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
+    if (preprocessResult.error) {
+      const errorResponse = preprocessResult.error
+      const statusCode = errorResponse.status
+      const errorBody = await errorResponse.json().catch(() => ({}))
+      const errorMessage = errorBody.error ?? 'Preprocessing failed'
+      logger.warn(`[${requestId}] Polled webhook preprocessing failed`, {
+        statusCode,
+        error: errorMessage,
+      })
+      return {
+        success: false,
+        error: errorMessage,
+        statusCode,
+        ...(preprocessResult.transientAdmissionFailure
+          ? {
+              code: preprocessResult.transientAdmissionFailure.code,
+              retryable: preprocessResult.transientAdmissionFailure.retryable,
+              retryAfterSeconds: preprocessResult.transientAdmissionFailure.retryAfterSeconds,
+            }
+          : {}),
+      }
+    }
+    reservedExecutionId = preprocessResult.executionId
+
     const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
     const credentialId = providerConfig.credentialId as string | undefined
 
     const actorUserId = preprocessResult.actorUserId
-    if (!actorUserId) {
-      logger.error(`[${requestId}] No actorUserId provided for webhook ${foundWebhook.id}`)
+    const billingAttribution = preprocessResult.billingAttribution
+    const workspaceId = foundWorkflow.workspaceId ?? undefined
+    if (!actorUserId || !billingAttribution || !workspaceId) {
+      logger.error(`[${requestId}] Missing billing context for webhook ${foundWebhook.id}`)
       return { success: false, error: 'Unable to resolve billing account', statusCode: 500 }
     }
 
@@ -757,11 +843,11 @@ export async function processPolledWebhookEvent(
         triggerType: 'webhook',
       } satisfies AsyncExecutionCorrelation)
 
-    const workspaceId = foundWorkflow.workspaceId ?? undefined
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
       userId: actorUserId,
+      billingAttribution,
       executionId,
       requestId,
       correlation,
@@ -772,7 +858,7 @@ export async function processPolledWebhookEvent(
       blockId: foundWebhook.blockId ?? undefined,
       workspaceId,
       ...(credentialId ? { credentialId } : {}),
-    }
+    } satisfies WebhookExecutionPayload
 
     const isQueueRoutedProvider =
       isPollingWebhookProvider(payload.provider) || payload.provider === SIM_TRIGGER_PROVIDER
@@ -785,6 +871,7 @@ export async function processPolledWebhookEvent(
           correlation,
         },
       })
+      reservationTransferred = true
       logger.info(
         `[${requestId}] Queued polling webhook execution task ${jobId} for ${provider} webhook via job queue`
       )
@@ -798,11 +885,14 @@ export async function processPolledWebhookEvent(
           correlation,
         },
       })
+      reservationTransferred = true
       logger.info(`[${requestId}] Queued ${provider} webhook execution ${jobId} via inline backend`)
 
       void (async () => {
+        let workerOwnsReservation = false
         try {
           await jobQueue.startJob(jobId)
+          workerOwnsReservation = true
           const output = await executeWebhookJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
@@ -811,6 +901,9 @@ export async function processPolledWebhookEvent(
             jobId,
             error: errorMessage,
           })
+          if (!workerOwnsReservation) {
+            await releaseExecutionSlot(executionId)
+          }
           try {
             await jobQueue.markJobFailed(jobId, errorMessage)
           } catch (markFailedError) {
@@ -831,6 +924,9 @@ export async function processPolledWebhookEvent(
     logger.error(`[${requestId}] Failed to process polled webhook event:`, error)
     return { success: false, error: 'Internal server error', statusCode: 500 }
   } finally {
+    if (!reservationTransferred && reservedExecutionId) {
+      await releaseExecutionSlot(reservedExecutionId)
+    }
     ticket.release()
   }
 }

@@ -3024,6 +3024,7 @@ export const auth = betterAuth({
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
+                  enterpriseOperationId: stripeSubscription.metadata?.enterpriseOperationId ?? null,
                 }
 
                 let resolvedSubscription = subscription
@@ -3106,6 +3107,7 @@ export const auth = betterAuth({
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
+                  enterpriseOperationId: stripeSubscription.metadata?.enterpriseOperationId ?? null,
                 }
 
                 let resolvedSubscription = subscription
@@ -3239,7 +3241,8 @@ export const auth = betterAuth({
                     await handleInvoiceFinalized(event)
                     break
                   }
-                  case 'customer.subscription.created': {
+                  case 'customer.subscription.created':
+                  case 'customer.subscription.updated': {
                     await handleManualEnterpriseSubscription(event)
                     break
                   }

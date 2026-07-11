@@ -387,7 +387,8 @@ describe('Document By ID API Route', () => {
           fileSize: failedDocument.fileSize,
           mimeType: failedDocument.mimeType,
         },
-        expect.any(String)
+        expect.any(String),
+        undefined
       )
     })
 

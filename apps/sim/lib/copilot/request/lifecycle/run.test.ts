@@ -7,6 +7,7 @@ import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/t
 
 const {
   mockCreateRunSegment,
+  mockCacheBillingAttribution,
   mockForceFailHungToolCall,
   mockGetEffectiveDecryptedEnv,
   mockGetMothershipBaseURL,
@@ -15,8 +16,11 @@ const {
   mockRunStreamLoop,
   mockToolWatchdogTimeoutMs,
   mockUpdateRunStatus,
+  mockEnv,
+  mockFlags,
 } = vi.hoisted(() => ({
   mockCreateRunSegment: vi.fn(),
+  mockCacheBillingAttribution: vi.fn(),
   mockForceFailHungToolCall: vi.fn(),
   mockGetEffectiveDecryptedEnv: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
@@ -25,11 +29,39 @@ const {
   mockRunStreamLoop: vi.fn(),
   mockToolWatchdogTimeoutMs: vi.fn(() => 60_000),
   mockUpdateRunStatus: vi.fn(),
+  mockEnv: {
+    COPILOT_API_KEY: undefined as string | undefined,
+  },
+  mockFlags: {
+    isHosted: false,
+    isCopilotBillingAttributionV1Enabled: false,
+  },
 }))
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
   createRunSegment: mockCreateRunSegment,
   updateRunStatus: mockUpdateRunStatus,
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution-cache', () => ({
+  cacheBillingAttribution: mockCacheBillingAttribution,
+  createAttributedBillingRequestEnvelope: vi.fn(
+    async (attribution: unknown, errorMessage: string) => {
+      const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
+      const cached = await mockCacheBillingAttribution(billingRequestId, attribution)
+      if (!cached) throw new Error(errorMessage)
+      const serializedAttribution = encodeURIComponent(JSON.stringify(attribution))
+      return {
+        billingRequestId,
+        serializedAttribution,
+        headers: {
+          'x-sim-billing-protocol': 'attribution-v1',
+          'x-sim-billing-request-id': billingRequestId,
+          'x-sim-billing-attribution': serializedAttribution,
+        },
+      }
+    }
+  ),
 }))
 
 vi.mock('@/lib/copilot/request/go/stream', () => {
@@ -66,12 +98,19 @@ vi.mock('@/lib/copilot/server/agent-url', () => ({
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    COPILOT_API_KEY: undefined,
-  },
+  env: mockEnv,
   getEnv: vi.fn((key: string) => (key === 'NEXT_PUBLIC_APP_URL' ? 'http://localhost:3000' : '')),
   isTruthy: vi.fn((value: string | undefined) => value === 'true'),
   isFalsy: vi.fn((value: string | undefined) => value === 'false'),
+}))
+
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isCopilotBillingAttributionV1Enabled() {
+    return mockFlags.isCopilotBillingAttributionV1Enabled
+  },
+  get isHosted() {
+    return mockFlags.isHosted
+  },
 }))
 
 vi.mock('@/lib/environment/utils', () => ({
@@ -99,8 +138,12 @@ import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockEnv.COPILOT_API_KEY = undefined
+    mockFlags.isHosted = false
+    mockFlags.isCopilotBillingAttributionV1Enabled = false
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
+    mockCacheBillingAttribution.mockResolvedValue(true)
   })
 
   it('runs cancelled completion persistence when a stream throws after abort', async () => {
@@ -347,6 +390,184 @@ describe('runCopilotLifecycle', () => {
         userPermission: 'write',
       })
     )
+  })
+
+  it('uses one server billing identity and immutable attribution on initial and resume legs', async () => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      billedAccountUserId: 'owner-1',
+      organizationId: 'org-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+    mockFlags.isHosted = true
+    mockFlags.isCopilotBillingAttributionV1Enabled = true
+    mockEnv.COPILOT_API_KEY = 'sim-agent-key'
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+    mockRunStreamLoop.mockResolvedValueOnce(undefined)
+
+    await runCopilotLifecycle(
+      {
+        message: 'hello',
+        messageId: 'message-1',
+        billingRequestId: 'caller-controlled',
+      },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        simRequestId: 'request-1',
+        billingAttribution,
+      }
+    )
+
+    const billingRequestId = mockCacheBillingAttribution.mock.calls[0]?.[0] as string
+    expect(billingRequestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    )
+    expect(billingRequestId).not.toBe('caller-controlled')
+    expect(mockCacheBillingAttribution).toHaveBeenCalledWith(billingRequestId, billingAttribution)
+
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    for (const call of mockRunStreamLoop.mock.calls) {
+      const headers = call[1].headers as Record<string, string>
+      expect(headers).toMatchObject({
+        'x-api-key': 'sim-agent-key',
+        'x-sim-billing-protocol': 'attribution-v1',
+        'x-sim-billing-request-id': billingRequestId,
+      })
+      expect(JSON.parse(decodeURIComponent(headers['x-sim-billing-attribution']))).toEqual(
+        billingAttribution
+      )
+    }
+  })
+
+  it('keeps the producer dormant during the Sim-first deployment stage', async () => {
+    mockFlags.isHosted = true
+    mockEnv.COPILOT_API_KEY = 'sim-agent-key'
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        simRequestId: 'request-1',
+        billingAttribution: {
+          actorUserId: 'user-1',
+          workspaceId: 'ws-1',
+          billedAccountUserId: 'owner-1',
+          organizationId: null,
+          billingEntity: { type: 'user', id: 'owner-1' },
+          billingPeriod: {
+            start: '2026-07-01T00:00:00.000Z',
+            end: '2026-08-01T00:00:00.000Z',
+          },
+          payerSubscription: null,
+        },
+      }
+    )
+
+    expect(mockCacheBillingAttribution).toHaveBeenCalledWith(
+      ['message-1', 'execution-1', 'run-1', 'request-1'],
+      expect.objectContaining({ actorUserId: 'user-1', workspaceId: 'ws-1' })
+    )
+    const headers = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
+    expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
+    expect(headers['x-sim-billing-request-id']).toBeUndefined()
+    expect(headers['x-sim-billing-attribution']).toBeUndefined()
+  })
+
+  it('fails before hosted work when the dedicated attribution alias cannot be cached', async () => {
+    mockFlags.isHosted = true
+    mockFlags.isCopilotBillingAttributionV1Enabled = true
+    mockCacheBillingAttribution.mockResolvedValueOnce(false)
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
+
+    await expect(
+      runCopilotLifecycle(
+        { message: 'hello', messageId: 'message-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          billingAttribution: {
+            actorUserId: 'user-1',
+            workspaceId: 'ws-1',
+            billedAccountUserId: 'owner-1',
+            organizationId: null,
+            billingEntity: { type: 'user', id: 'owner-1' },
+            billingPeriod: {
+              start: '2026-07-01T00:00:00.000Z',
+              end: '2026-08-01T00:00:00.000Z',
+            },
+            payerSubscription: null,
+          },
+        }
+      )
+    ).rejects.toThrow('Unable to preserve billing attribution')
+
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+  })
+
+  it('does not emit trusted billing headers for a non-hosted lifecycle', async () => {
+    mockEnv.COPILOT_API_KEY = 'user-or-self-hosted-key'
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1', billingRequestId: 'caller-controlled' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        billingAttribution: {
+          actorUserId: 'user-1',
+          workspaceId: 'ws-1',
+          billedAccountUserId: 'owner-1',
+          organizationId: null,
+          billingEntity: { type: 'user', id: 'owner-1' },
+          billingPeriod: {
+            start: '2026-07-01T00:00:00.000Z',
+            end: '2026-08-01T00:00:00.000Z',
+          },
+          payerSubscription: null,
+        },
+      }
+    )
+
+    expect(mockCacheBillingAttribution).not.toHaveBeenCalled()
+    const headers = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
+    expect(headers['x-sim-billing-protocol']).toBeUndefined()
+    expect(headers['x-sim-billing-request-id']).toBeUndefined()
+    expect(headers['x-sim-billing-attribution']).toBeUndefined()
   })
 
   it('normalizes the initial request body with workspaceId from lifecycle options', async () => {

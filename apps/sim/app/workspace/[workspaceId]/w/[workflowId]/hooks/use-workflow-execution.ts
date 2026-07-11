@@ -3,7 +3,7 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { generateId, generateShortId } from '@sim/utils/id'
+import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -11,7 +11,6 @@ import { requestJson } from '@/lib/api/client/request'
 import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
-import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import {
@@ -25,6 +24,11 @@ import {
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import {
+  type UploadedWorkflowAttachment,
+  uploadWorkflowAttachments,
+  type WorkflowAttachmentInput,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-attachment-upload'
 import {
   addHttpErrorConsoleEntry,
   type BlockEventHandlerConfig,
@@ -137,6 +141,37 @@ function normalizeErrorMessage(error: unknown): string {
   }
 
   return WORKFLOW_EXECUTION_FAILURE_MESSAGE
+}
+
+interface ChatWorkflowInput {
+  input: unknown
+  files?: WorkflowAttachmentInput[]
+}
+
+function isChatWorkflowInput(value: unknown): value is ChatWorkflowInput {
+  return isRecord(value) && 'input' in value
+}
+
+export interface ChatWorkflowRunResult {
+  success: true
+  stream: ReadableStream<Uint8Array>
+  uploadedAttachments: UploadedWorkflowAttachment[]
+}
+
+export class WorkflowAttachmentUploadError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'WorkflowAttachmentUploadError'
+  }
+}
+
+export function isChatWorkflowRunResult(value: unknown): value is ChatWorkflowRunResult {
+  return (
+    isRecord(value) &&
+    value.success === true &&
+    value.stream instanceof ReadableStream &&
+    Array.isArray(value.uploadedAttachments)
+  )
 }
 
 /**
@@ -474,7 +509,7 @@ export function useWorkflowExecution() {
   }
 
   const handleRunWorkflow = useCallback(
-    async (workflowInput?: any, enableDebug = false) => {
+    async (workflowInput?: unknown, enableDebug = false) => {
       if (!activeWorkflowId) return
 
       const scopedWorkspaceId = routeWorkspaceId ?? hydrationWorkspaceId ?? undefined
@@ -498,14 +533,36 @@ export function useWorkflowExecution() {
       }
 
       // Determine if this is a chat execution
-      const isChatExecution =
-        workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput
+      const isChatExecution = isChatWorkflowInput(workflowInput)
 
       // For chat executions, we'll use a streaming approach
       if (isChatExecution) {
         let isCancelled = false
         const executionId = generateId()
         let preserveChatExecutionForRecovery = false
+        let preparedWorkflowInput: unknown = workflowInput
+        let uploadedAttachments: UploadedWorkflowAttachment[] = []
+
+        if (workflowInput.files && workflowInput.files.length > 0) {
+          try {
+            uploadedAttachments = await uploadWorkflowAttachments({
+              files: workflowInput.files,
+              workspaceId,
+              workflowId: activeWorkflowId,
+              executionId,
+            })
+            preparedWorkflowInput = { ...workflowInput, files: uploadedAttachments }
+          } catch (error) {
+            const message = getErrorMessage(error, 'Unexpected error uploading files')
+            logger.error('Error uploading workflow attachments', { message })
+            currentChatExecutionIdRef.current = null
+            setIsExecuting(activeWorkflowId, false)
+            setIsDebugging(activeWorkflowId, false)
+            setActiveBlocks(activeWorkflowId, new Set())
+            throw new WorkflowAttachmentUploadError(message)
+          }
+        }
+
         currentChatExecutionIdRef.current = executionId
         const stream = new ReadableStream({
           async start(controller) {
@@ -520,109 +577,6 @@ export function useWorkflowExecution() {
                 } catch {
                   isCancelled = true
                 }
-              }
-            }
-
-            // Handle file uploads if present
-            const uploadedFiles: any[] = []
-            interface UploadErrorCapableInput {
-              onUploadError: (message: string) => void
-            }
-            const isUploadErrorCapable = (value: unknown): value is UploadErrorCapableInput =>
-              !!value &&
-              typeof value === 'object' &&
-              'onUploadError' in (value as any) &&
-              typeof (value as any).onUploadError === 'function'
-            if (workflowInput.files && Array.isArray(workflowInput.files)) {
-              try {
-                const presignedEndpoint = `/api/files/presigned?type=execution&workflowId=${encodeURIComponent(activeWorkflowId)}&executionId=${encodeURIComponent(executionId)}&workspaceId=${encodeURIComponent(workspaceId)}`
-                for (const fileData of workflowInput.files) {
-                  try {
-                    const result = await runUploadStrategy({
-                      file: fileData.file,
-                      workspaceId,
-                      context: 'execution',
-                      workflowId: activeWorkflowId,
-                      executionId,
-                      presignedEndpoint,
-                    })
-                    uploadedFiles.push({
-                      id: `file_${Date.now()}_${generateShortId(7)}`,
-                      name: fileData.file.name,
-                      url: result.path,
-                      size: fileData.file.size,
-                      type: fileData.file.type,
-                      key: result.key,
-                      context: 'execution',
-                    })
-                  } catch (uploadError) {
-                    if (
-                      uploadError instanceof DirectUploadError &&
-                      uploadError.code === 'FALLBACK_REQUIRED'
-                    ) {
-                      const formData = new FormData()
-                      formData.append('file', fileData.file)
-                      formData.append('context', 'execution')
-                      formData.append('workflowId', activeWorkflowId)
-                      formData.append('executionId', executionId)
-                      formData.append('workspaceId', workspaceId)
-
-                      // boundary-raw-fetch: local-dev fallback when cloud storage is not configured; multipart upload incompatible with requestJson
-                      const response = await fetch('/api/files/upload', {
-                        method: 'POST',
-                        body: formData,
-                      })
-                      if (!response.ok) {
-                        const errorData = await response.json().catch(() => null)
-                        const reason =
-                          errorData?.message || errorData?.error || `${response.status}`
-                        const message = `Failed to upload ${fileData.name}: ${reason}`
-                        logger.error(message)
-                        if (isUploadErrorCapable(workflowInput)) {
-                          try {
-                            workflowInput.onUploadError(message)
-                          } catch {}
-                        }
-                        continue
-                      }
-                      const uploadResult = await response.json()
-                      const processUploadResult = (r: any) => ({
-                        id: r.id || `file_${Date.now()}_${generateShortId(7)}`,
-                        name: r.name,
-                        url: r.url,
-                        size: r.size,
-                        type: r.type,
-                        key: r.key,
-                        context: r.context || 'execution',
-                        uploadedAt: r.uploadedAt,
-                        expiresAt: r.expiresAt,
-                      })
-                      if (uploadResult.files && Array.isArray(uploadResult.files)) {
-                        uploadedFiles.push(...uploadResult.files.map(processUploadResult))
-                      } else if (uploadResult.path || uploadResult.url) {
-                        uploadedFiles.push(processUploadResult(uploadResult))
-                      }
-                    } else {
-                      const message = `Failed to upload ${fileData.name}: ${toError(uploadError).message}`
-                      logger.error(message)
-                      if (isUploadErrorCapable(workflowInput)) {
-                        try {
-                          workflowInput.onUploadError(message)
-                        } catch {}
-                      }
-                    }
-                  }
-                }
-                workflowInput.files = uploadedFiles
-              } catch (error) {
-                logger.error('Error uploading files:', error)
-                if (isUploadErrorCapable(workflowInput)) {
-                  try {
-                    workflowInput.onUploadError('Unexpected error uploading files')
-                  } catch {}
-                }
-                // Continue execution even if file upload fails
-                workflowInput.files = []
               }
             }
 
@@ -724,7 +678,7 @@ export function useWorkflowExecution() {
 
             try {
               const result = await executeWorkflow(
-                workflowInput,
+                preparedWorkflowInput,
                 onStream,
                 executionId,
                 onBlockComplete,
@@ -843,7 +797,7 @@ export function useWorkflowExecution() {
             isCancelled = true
           },
         })
-        return { success: true, stream }
+        return { success: true, stream, uploadedAttachments } satisfies ChatWorkflowRunResult
       }
 
       const manualExecutionId = generateId()

@@ -2,11 +2,17 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+} from '@/lib/billing/core/billing-attribution'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { isExecCancelled } from '@/lib/table/deps'
-import type { RowData, RowExecutionMetadata } from '@/lib/table/types'
+import type { RowExecutionMetadata } from '@/lib/table/types'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { RESUME_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
+import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { SerializedSnapshot } from '@/executor/types'
 
 const logger = createLogger('TriggerResumeExecution')
 
@@ -37,6 +43,11 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
     if (!pausedExecution) {
       throw new Error(`Paused execution not found: ${pausedExecutionId}`)
     }
+    const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
+    const persistedSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
+    const billingAttribution = assertBillingAttributionSnapshot(
+      persistedSnapshot.metadata.billingAttribution
+    )
 
     // If this paused execution belongs to a table cell, rehydrate the cell
     // context so post-resume block outputs land on the same row + group as
@@ -118,7 +129,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
       async () => {
         const result = await runResumeAndCellTerminal(payload, pausedExecution, writers)
         if (result.status === 'paused') return result
-        await continueCascadeAfterResume(cellContext)
+        await continueCascadeAfterResume(cellContext, billingAttribution)
         return result
       }
     )
@@ -178,12 +189,13 @@ async function buildResumeCellWriters(
   parentExecutionId: string
 ): Promise<CellWriters | null> {
   const { getTableById } = await import('@/lib/table/service')
-  const { writeWorkflowGroupState, buildOutputsByBlockId } = await import('@/lib/table/cell-write')
-  const { pluckByPath } = await import('@/lib/table/pluck')
+  const { createWorkflowCellProgressWriter, writeWorkflowGroupState } = await import(
+    '@/lib/table/cell-write'
+  )
 
   const table = await getTableById(cellContext.tableId)
   const group = table?.schema.workflowGroups?.find((g) => g.id === cellContext.groupId)
-  if (!group) {
+  if (!table || !group) {
     logger.warn('Cell context found but table or group missing — falling back to plain resume', {
       parentExecutionId,
       tableId: cellContext.tableId,
@@ -192,9 +204,6 @@ async function buildResumeCellWriters(
     return null
   }
 
-  const outputsByBlockId = buildOutputsByBlockId(group)
-  const accumulatedData: RowData = {}
-  const blockErrors: Record<string, string> = {}
   const writeCtx = {
     tableId: cellContext.tableId,
     rowId: cellContext.rowId,
@@ -202,67 +211,41 @@ async function buildResumeCellWriters(
     groupId: cellContext.groupId,
     executionId: parentExecutionId,
     requestId: `wfgrp-resume-${parentExecutionId}`,
+    table,
   }
-  let writeChain: Promise<void> = Promise.resolve()
-  let terminalWritten = false
-
-  const cellOnBlockComplete = async (blockId: string, output: unknown) => {
-    const outputs = outputsByBlockId.get(blockId)
-    if (!outputs) return
-    const blockResult =
-      output && typeof output === 'object' && 'output' in (output as object)
-        ? (output as { output: unknown }).output
-        : output
-    const errorMessage =
-      blockResult &&
-      typeof blockResult === 'object' &&
-      typeof (blockResult as { error?: unknown }).error === 'string'
-        ? (blockResult as { error: string }).error
-        : null
-    if (errorMessage) {
-      blockErrors[blockId] = errorMessage
-    } else {
-      for (const out of outputs) {
-        const plucked = pluckByPath(blockResult, out.path)
-        if (plucked === undefined) continue
-        accumulatedData[out.columnName] = plucked as RowData[string]
+  const progressWriter = createWorkflowCellProgressWriter({
+    group,
+    writeProgress: ({ dataPatch, eventOutputs, blockErrors }) => {
+      const partial: RowExecutionMetadata = {
+        status: 'running',
+        executionId: parentExecutionId,
+        jobId: null,
+        workflowId: cellContext.workflowId,
+        error: null,
+        blockErrors,
       }
-    }
-    const dataSnapshot: RowData = { ...accumulatedData }
-    const blockErrorsSnapshot = { ...blockErrors }
-    writeChain = writeChain
-      .then(async () => {
-        if (terminalWritten) return
-        const partial: RowExecutionMetadata = {
-          status: 'running',
-          executionId: parentExecutionId,
-          jobId: null,
-          workflowId: cellContext.workflowId,
-          error: null,
-          blockErrors: blockErrorsSnapshot,
-        }
-        await writeWorkflowGroupState(writeCtx, {
-          executionState: partial,
-          dataPatch: dataSnapshot,
-        })
+      return writeWorkflowGroupState(writeCtx, {
+        executionState: partial,
+        dataPatch,
+        eventOutputs,
       })
-      .catch((err) => {
-        logger.warn(
-          `Resume per-block partial write failed (table=${cellContext.tableId} row=${cellContext.rowId} group=${cellContext.groupId}):`,
-          err
-        )
-      })
-  }
+    },
+    onWriteError: (err) => {
+      logger.warn(
+        `Resume per-block partial write failed (table=${cellContext.tableId} row=${cellContext.rowId} group=${cellContext.groupId}):`,
+        err
+      )
+    },
+  })
+
+  const cellOnBlockComplete = progressWriter.onBlockComplete
 
   const writeCellTerminal = async (
     status: 'completed' | 'error' | 'paused',
     error: string | null
   ) => {
-    terminalWritten = true
-    await writeChain.catch(() => {})
-    // Paused → keep `pending` + sentinel jobId so eligibility predicates
-    // continue treating the row as in-flight while we wait on another
-    // pause. Mirrors the initial cell-task pause branch.
+    await progressWriter.finish()
+    const blockErrors = progressWriter.getBlockErrors()
     const terminal: RowExecutionMetadata =
       status === 'paused'
         ? {
@@ -284,7 +267,8 @@ async function buildResumeCellWriters(
           }
     await writeWorkflowGroupState(writeCtx, {
       executionState: terminal,
-      dataPatch: accumulatedData,
+      dataPatch: progressWriter.getPendingDataPatch(),
+      eventOutputs: progressWriter.getEventOutputs(),
     })
   }
 
@@ -318,12 +302,15 @@ async function runResumeAndCellTerminal(
   return result
 }
 
-async function continueCascadeAfterResume(cellContext: {
-  tableId: string
-  rowId: string
-  workspaceId: string
-  groupId: string
-}): Promise<void> {
+async function continueCascadeAfterResume(
+  cellContext: {
+    tableId: string
+    rowId: string
+    workspaceId: string
+    groupId: string
+  },
+  billingAttribution: BillingAttributionSnapshot
+): Promise<void> {
   const { getTableById } = await import('@/lib/table/service')
   const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
@@ -343,6 +330,7 @@ async function continueCascadeAfterResume(cellContext: {
     groupId: next.id,
     workflowId: next.workflowId,
     executionId: generateId(),
+    billingAttribution,
   })
 }
 

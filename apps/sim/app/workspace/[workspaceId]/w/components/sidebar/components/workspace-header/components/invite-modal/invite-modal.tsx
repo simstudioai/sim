@@ -13,10 +13,11 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useBatchSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 
@@ -51,10 +52,15 @@ export function InviteModal({
   const workspaceId = params.workspaceId as string
 
   const { data: session } = useSession()
+  const hostContext = useWorkspaceHostContext()
   const { workspacePermissions, userPermissions: userPerms } = useWorkspacePermissionsContext()
+  const canViewOrganizationBilling =
+    Boolean(organizationId) &&
+    hostContext.hostOrganizationId === organizationId &&
+    hostContext.viewer.isHostOrganizationAdmin
 
   const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '', {
-    enabled: open && isBillingEnabled,
+    enabled: open && isBillingEnabled && canViewOrganizationBilling,
   })
 
   const batchSendInvitations = useBatchSendWorkspaceInvitations()
@@ -68,7 +74,7 @@ export function InviteModal({
   // Only Enterprise plans have a fixed seat cap that gates invites. Team/Pro
   // seats are provisioned automatically when an invitee accepts.
   const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
-  const hasSeatData = !!organizationId && isEnterpriseOrg && totalSeats > 0
+  const hasSeatData = canViewOrganizationBilling && isEnterpriseOrg && totalSeats > 0
   const exceedsSeatCapacity = hasSeatData && userPerms.canAdmin && emails.length > availableSeats
   const seatLimitReason = exceedsSeatCapacity
     ? `Only ${availableSeats} internal seat${availableSeats === 1 ? '' : 's'} available. External workspace invites do not require seats.`

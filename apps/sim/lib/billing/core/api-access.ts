@@ -1,7 +1,7 @@
+import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled, isFreeApiDeploymentGateEnabled } from '@/lib/core/config/env-flags'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 /** The programmatic-execution paywall is active only when billing is enforced AND the gate flag is on. */
 function isApiExecutionGateActive(): boolean {
@@ -32,14 +32,14 @@ export async function isApiExecutionEntitled(userId: string | undefined): Promis
 
 /**
  * Workspace-scoped variant of {@link isApiExecutionEntitled} that gates on the
- * workspace's billed account. Short-circuits when billing is off before any DB
- * lookup, so the billed-account query only runs when billing is enforced.
+ * workspace-selected payer's exact subscription. Short-circuits when billing is
+ * off before any DB lookup.
  */
 export async function isWorkspaceApiExecutionEntitled(
   workspaceId: string | undefined
 ): Promise<boolean> {
   if (!isApiExecutionGateActive() || !workspaceId) return true
 
-  const billedUserId = await getWorkspaceBilledAccountUserId(workspaceId)
-  return isApiExecutionEntitled(billedUserId ?? undefined)
+  const payer = await resolveWorkspaceBillingPayer(workspaceId, { onMissing: 'return-null' })
+  return isPaid(payer?.payerSubscription?.plan)
 }

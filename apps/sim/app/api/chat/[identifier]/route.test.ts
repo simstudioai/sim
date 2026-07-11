@@ -175,15 +175,6 @@ describe('Chat Identifier API Route', () => {
         workspaceId: 'test-workspace-id',
         variables: {},
       },
-      userSubscription: {
-        plan: 'pro',
-        status: 'active',
-      },
-      rateLimitInfo: {
-        allowed: true,
-        remaining: 100,
-        resetAt: new Date(),
-      },
     })
 
     mockValidateChatAuth.mockResolvedValue({ authorized: true })
@@ -404,7 +395,6 @@ describe('Chat Identifier API Route', () => {
         error: {
           message: 'Workflow is not deployed',
           statusCode: 403,
-          logCreated: false,
         },
       })
 

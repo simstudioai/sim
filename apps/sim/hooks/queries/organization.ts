@@ -137,7 +137,7 @@ async function fetchOrganizationRoster(
     })
     return payload.data
   } catch (error) {
-    if (error instanceof ApiClientError && (error.status === 403 || error.status === 404)) {
+    if (error instanceof ApiClientError && error.status === 404) {
       return null
     }
     throw error
@@ -150,14 +150,16 @@ export function useOrganizationRoster(orgId: string | undefined | null) {
     queryFn: ({ signal }) => fetchOrganizationRoster(orgId as string, signal),
     enabled: !!orgId,
     staleTime: ORGANIZATION_ROSTER_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
 /**
- * Fetch all organizations for the current user
- * Note: Billing data is fetched separately via useSubscriptionData() to avoid duplicate calls
- * Note: better-auth client does not support AbortSignal, so signal is accepted but not forwarded
+ * Fetches the current viewer's account-scoped organizations.
+ *
+ * `activeOrganization` reflects the viewer session's selected organization. It
+ * must not be used as the organization context for a routed workspace; those
+ * surfaces use the workspace host context instead. Billing data is fetched
+ * separately, and the Better Auth client does not accept an AbortSignal.
  */
 async function fetchOrganizations(_signal?: AbortSignal) {
   const [orgsResponse, activeOrgResponse] = await Promise.all([
@@ -172,7 +174,10 @@ async function fetchOrganizations(_signal?: AbortSignal) {
 }
 
 /**
- * Hook to fetch all organizations
+ * Reads the viewer's account organizations and account-scoped active organization.
+ *
+ * Workspace-bound consumers must use the routed workspace host context instead
+ * of `activeOrganization`.
  */
 export function useOrganizations() {
   return useQuery({
@@ -207,7 +212,6 @@ export function useOrganization(orgId: string) {
     queryFn: ({ signal }) => fetchOrganization(orgId, signal),
     enabled: !!orgId,
     staleTime: ORGANIZATION_DETAIL_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -291,7 +295,6 @@ export function useOrganizationBilling(
     enabled: !!orgId && (options?.enabled ?? true),
     retry: false,
     staleTime: ORGANIZATION_BILLING_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 

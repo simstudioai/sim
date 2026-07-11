@@ -4,7 +4,7 @@ import { usageLog, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
@@ -79,7 +79,7 @@ interface UsageEntry {
 }
 
 interface RecordUsageBaseParams {
-  /** The user being charged */
+  /** Actor recorded in usage_log.userId. */
   userId: string
   /** One or more usage_log entries to record. Total cost is derived from these. */
   entries: UsageEntry[]
@@ -136,12 +136,10 @@ export interface BillingContext {
 }
 
 /**
- * Derive the billing entity + period from an ALREADY-resolved subscription.
- * Callers that already hold the subscription (e.g. the workflow completion path,
- * which fetches it for usage-threshold emails) can derive the context once and
- * pass it into recordUsage so resolveBillingContext skips a redundant lookup.
- * This is the single source of the entity/period derivation — keep it the only
- * place that maps a subscription to a billing context.
+ * Derive an account-only billing entity and period from an already-resolved
+ * subscription. Workspace-hosted callers must use `resolveBillingAttribution`
+ * so the routed workspace, rather than the actor's subscriptions, selects the
+ * payer.
  */
 export function deriveBillingContext(
   userId: string,
@@ -246,10 +244,10 @@ export async function getBillingPeriodUsageCostByUser(
  * Unlike {@link getBillingPeriodUsageCostByUser} (which filters by the attributed
  * billing entity and the stored billing-period columns), this joins `workspace`
  * on `organization_id` and filters by `user_id` + a `created_at` range. That
- * captures the member's consumption inside org-owned workspaces regardless of
- * which billing entity the row was attributed to — required for per-member
- * org-workspace usage, including external members whose runs bill to their own
- * personal entity and mothership/copilot cost attributed to the using user.
+ * captures the member's consumption inside org-owned workspaces and remains
+ * compatible with legacy rows whose billing entity may differ. New hosted rows,
+ * including external-member and mothership/copilot usage, use the workspace
+ * organization as payer while retaining the actor in `user_id`.
  * Scoped to one user so it uses the `(user_id, created_at)` index rather than
  * scanning the whole org's period on the execution hot path.
  */
@@ -266,6 +264,10 @@ export async function getOrgWorkspaceUsageCostForUser(
       and(
         eq(usageLog.userId, userId),
         eq(workspace.organizationId, organizationId),
+        or(
+          isNull(workspace.organizationAssignedAt),
+          gte(usageLog.createdAt, workspace.organizationAssignedAt)
+        ),
         gte(usageLog.createdAt, window.start),
         lt(usageLog.createdAt, window.end)
       )
@@ -301,6 +303,10 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
 
   if (validEntries.length === 0) {
     return
+  }
+
+  if (workspaceId && (!billingEntity || !billingPeriod)) {
+    throw new Error('Workspace usage requires an explicit billing entity and billing period')
   }
 
   const context = await resolveBillingContext(userId, billingEntity, billingPeriod)
@@ -401,8 +407,13 @@ export function resolveCumulativeTopUp(
 }
 
 export interface RecordCumulativeUsageParams {
+  /** Actor recorded in usage_log.userId. */
   userId: string
   workspaceId?: string
+  /** Exact workspace payer, required whenever workspaceId is present. */
+  billingEntity?: BillingEntity
+  /** Exact workspace payer period, required whenever workspaceId is present. */
+  billingPeriod?: { start: Date; end: Date }
   source: UsageLogSource
   /** Model name, stored as the row description. */
   model: string
@@ -420,6 +431,68 @@ export interface RecordCumulativeUsageResult {
   delta: number
   /** The request's recorded cumulative cost after this flush. */
   total: number
+}
+
+export type CumulativeUsageContextField =
+  | 'actor'
+  | 'workspace'
+  | 'billing entity'
+  | 'billing period'
+
+export class CumulativeUsageContextMismatchError extends Error {
+  constructor(
+    readonly eventKey: string,
+    readonly mismatchedFields: readonly CumulativeUsageContextField[]
+  ) {
+    super(
+      `Cumulative usage event "${eventKey}" is already bound to a different billing context (${mismatchedFields.join(', ')})`
+    )
+    this.name = 'CumulativeUsageContextMismatchError'
+  }
+}
+
+interface CumulativeUsageLedgerBinding {
+  userId: string
+  workspaceId: string | null
+  billingEntityType: BillingEntityType | null
+  billingEntityId: string | null
+  billingPeriodStart: Date | null
+  billingPeriodEnd: Date | null
+}
+
+function assertCumulativeUsageLedgerBinding(
+  existing: CumulativeUsageLedgerBinding,
+  expected: {
+    userId: string
+    workspaceId?: string
+    billingContext: BillingContext
+    eventKey: string
+  }
+): void {
+  const mismatchedFields: CumulativeUsageContextField[] = []
+  if (existing.userId !== expected.userId) {
+    mismatchedFields.push('actor')
+  }
+  if (existing.workspaceId !== (expected.workspaceId ?? null)) {
+    mismatchedFields.push('workspace')
+  }
+  if (
+    existing.billingEntityType !== expected.billingContext.billingEntity.type ||
+    existing.billingEntityId !== expected.billingContext.billingEntity.id
+  ) {
+    mismatchedFields.push('billing entity')
+  }
+  if (
+    existing.billingPeriodStart?.getTime() !==
+      expected.billingContext.billingPeriod.start.getTime() ||
+    existing.billingPeriodEnd?.getTime() !== expected.billingContext.billingPeriod.end.getTime()
+  ) {
+    mismatchedFields.push('billing period')
+  }
+
+  if (mismatchedFields.length > 0) {
+    throw new CumulativeUsageContextMismatchError(expected.eventKey, mismatchedFields)
+  }
 }
 
 /**
@@ -440,6 +513,8 @@ const CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS = 3_000
  * each flush. A per-key transactional advisory lock serializes concurrent
  * flushes so the read-then-write — including the first insert — is race-free
  * (no two flushes can both believe they are first and clobber each other).
+ * An existing row must match the incoming actor, workspace, payer, and billing
+ * period before either a duplicate no-op or a top-up is accepted.
  * The billing context is resolved BEFORE the transaction and the lock wait is
  * bounded by `lock_timeout`, keeping the critical section to one SELECT plus
  * one INSERT/UPDATE on a single pooled connection.
@@ -452,15 +527,23 @@ const CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS = 3_000
 export async function recordCumulativeUsage(
   params: RecordCumulativeUsageParams
 ): Promise<RecordCumulativeUsageResult> {
-  const { userId, workspaceId, source, model, cost, eventKey, metadata } = params
+  const {
+    userId,
+    workspaceId,
+    billingEntity,
+    billingPeriod,
+    source,
+    model,
+    cost,
+    eventKey,
+    metadata,
+  } = params
 
-  // Resolved before the locked transaction on purpose: resolving inside it
-  // ran the subscription lookups on the global pool while this tx already
-  // held a pooled connection plus the advisory lock, so under load N
-  // first-flush transactions each pinned a connection while waiting for one
-  // more — starving the pool and queueing every same-key flush (and the Go
-  // side's retries) behind the stall.
-  const billingContext = await resolveBillingContext(userId)
+  if (workspaceId && (!billingEntity || !billingPeriod)) {
+    throw new Error('Workspace usage requires an explicit billing entity and billing period')
+  }
+
+  const billingContext = await resolveBillingContext(userId, billingEntity, billingPeriod)
 
   return db.transaction(async (tx) => {
     // Serialize all flushes for this request (lock auto-releases at tx end),
@@ -472,10 +555,28 @@ export async function recordCumulativeUsage(
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${eventKey}, 0))`)
 
     const [existing] = await tx
-      .select({ id: usageLog.id, cost: usageLog.cost })
+      .select({
+        id: usageLog.id,
+        cost: usageLog.cost,
+        userId: usageLog.userId,
+        workspaceId: usageLog.workspaceId,
+        billingEntityType: usageLog.billingEntityType,
+        billingEntityId: usageLog.billingEntityId,
+        billingPeriodStart: usageLog.billingPeriodStart,
+        billingPeriodEnd: usageLog.billingPeriodEnd,
+      })
       .from(usageLog)
       .where(eq(usageLog.eventKey, eventKey))
       .limit(1)
+
+    if (existing) {
+      assertCumulativeUsageLedgerBinding(existing, {
+        userId,
+        workspaceId,
+        billingContext,
+        eventKey,
+      })
+    }
 
     const recorded = existing ? Number.parseFloat(existing.cost) : 0
     const { shouldBill, delta, newTotal } = resolveCumulativeTopUp(recorded, cost)

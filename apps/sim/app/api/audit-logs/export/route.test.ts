@@ -43,11 +43,13 @@ const MEMBER_IDS = ['admin-1']
 const SCOPE_SENTINEL = { type: 'org-scope-sentinel' }
 
 function makeRequest(query = '') {
+  const search = new URLSearchParams(query.startsWith('?') ? query.slice(1) : query)
+  search.set('organizationId', ORG_ID)
   return createMockRequest(
     'GET',
     undefined,
     {},
-    `http://localhost:3000/api/audit-logs/export${query}`
+    `http://localhost:3000/api/audit-logs/export?${search.toString()}`
   )
 }
 
@@ -105,6 +107,7 @@ describe('GET /api/audit-logs/export', () => {
     const response = await GET(makeRequest())
 
     expect(response.status).toBe(403)
+    expect(mockValidateEnterpriseAuditAccess).toHaveBeenCalledWith('admin-1', ORG_ID)
     expect(mockQueryAuditLogs).not.toHaveBeenCalled()
   })
 

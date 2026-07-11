@@ -305,7 +305,9 @@ By default, your usage is capped at the credits included in your plan. To allow 
 - **Disable On-Demand**: Resets your usage limit back to the plan's included amount (only available if your current usage hasn't already exceeded it).
 
 <Callout type="info">
-  On-demand billing is managed by workspace admins for team plans. Non-admin team members cannot toggle on-demand billing.
+  On-demand billing for team plans is managed by organization owners and
+  administrators. Workspace admin permission alone does not grant billing
+  authority.
 </Callout>
 
 ## Plan Limits
@@ -371,7 +373,8 @@ Sim uses a **base subscription + overage** billing model:
 
 **Team Plans:**
 - Usage is pooled across internal team members in the organization
-- External workspace members keep their own organization or personal billing context for runs where they are the billing actor
+- Usage in an organization-owned workspace is billed to that workspace's organization, including work performed by external collaborators
+- Each authenticated actor's usage is also counted toward their member cap for that organization
 - Overage is calculated from total team usage against the pooled limit
 - Organization owner receives one bill
 

@@ -6,11 +6,13 @@ import { and, eq, sql } from 'drizzle-orm'
 import { BILLING_LOCK_TIMEOUT_MS, DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { calculateSubscriptionOverage, computeOrgOverageAmount } from '@/lib/billing/core/billing'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
+  getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
   getOrganizationSubscriptionUsable,
 } from '@/lib/billing/core/subscription'
-import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
   hasUsableSubscriptionAccess,
@@ -42,11 +44,34 @@ interface OrganizationUsageSnapshot {
   departedMemberUsage: number
 }
 
-export async function checkAndBillOverageThreshold(userId: string): Promise<void> {
+/**
+ * Runs threshold billing against an already-resolved payer entity.
+ */
+export async function checkAndBillPayerOverageThreshold(
+  billingEntity: BillingEntity
+): Promise<void> {
+  if (billingEntity.type === 'organization') {
+    await checkAndBillOrganizationOverageThreshold(billingEntity.id)
+    return
+  }
+
+  const personalSubscription = await getHighestPriorityPersonalSubscription(billingEntity.id, {
+    onError: 'throw',
+  })
+  await checkAndBillOverageThreshold(billingEntity.id, personalSubscription)
+}
+
+export async function checkAndBillOverageThreshold(
+  userId: string,
+  preloadedSubscription?: HighestPrioritySubscription
+): Promise<void> {
   try {
     const threshold = OVERAGE_THRESHOLD
 
-    const userSubscription = await getHighestPrioritySubscription(userId)
+    const userSubscription =
+      preloadedSubscription === undefined
+        ? await getHighestPrioritySubscription(userId)
+        : preloadedSubscription
     const billingStatus = await getEffectiveBillingStatus(userId)
 
     if (

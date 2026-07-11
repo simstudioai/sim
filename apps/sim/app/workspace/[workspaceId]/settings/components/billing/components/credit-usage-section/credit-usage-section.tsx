@@ -8,16 +8,12 @@ import { useUsageSummary } from '@/hooks/queries/usage-logs'
 /** Period the compact Billing glance summarizes; the full page offers finer control. */
 const SUMMARY_PERIOD = '30d'
 
-interface CreditUsageSectionProps {
-  workspaceId: string
-}
-
 /**
  * Compact "how much have I used" glance in Billing settings — a single total
  * plus a link to the full, filterable Credit usage page. Shown to every plan
  * except Enterprise, which manages billing out-of-band.
  */
-export function CreditUsageSection({ workspaceId }: CreditUsageSectionProps) {
+export function CreditUsageSection() {
   const { data: totalCredits, isPending, isError } = useUsageSummary(SUMMARY_PERIOD)
 
   return (
@@ -29,9 +25,7 @@ export function CreditUsageSection({ workspaceId }: CreditUsageSectionProps) {
           </span>
           <span className='text-[var(--text-muted)] text-caption'>Last 30 days</span>
         </div>
-        <ChipLink href={`/workspace/${workspaceId}/settings/billing/credit-usage`}>
-          View usage logs
-        </ChipLink>
+        <ChipLink href='/account/settings/billing/credit-usage'>View usage logs</ChipLink>
       </div>
     </SettingsSection>
   )

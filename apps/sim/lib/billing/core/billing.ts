@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
+  getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
   resolveBillingInterval,
 } from '@/lib/billing/core/subscription'
-import { getOrgUsageLimit, getUserUsageData } from '@/lib/billing/core/usage'
+import { ensureUserStatsExists, getOrgUsageLimit, getUserUsageData } from '@/lib/billing/core/usage'
 import { COPILOT_USAGE_SOURCES, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import {
@@ -21,7 +23,7 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
-import type { DbClient } from '@/lib/db/types'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 export { getPlanPricing }
 
@@ -31,8 +33,8 @@ const logger = createLogger('Billing')
 
 interface GetOrganizationSubscriptionOptions {
   onError?: 'return-null' | 'throw'
-  /** Read-routing client (primary or replica); defaults to the primary. */
-  executor?: DbClient
+  /** Primary/replica client or a caller-owned enforcement transaction. */
+  executor?: DbClient | DbOrTx
 }
 
 /**
@@ -386,6 +388,156 @@ export async function calculateSubscriptionOverage(sub: {
   }
 
   return toNumber(totalOverageDecimal)
+}
+
+/**
+ * Returns billing data for the exact personal payer only. Organization
+ * memberships never participate in subscription, usage, credit, or blocked
+ * status resolution.
+ */
+export async function getPersonalBillingSummary(userId: string, executor: DbClient = db) {
+  try {
+    await ensureUserStatsExists(userId)
+
+    const [personalSubscription, statsRows] = await Promise.all([
+      getHighestPriorityPersonalSubscription(userId, { executor }),
+      db
+        .select({
+          currentPeriodCost: userStats.currentPeriodCost,
+          currentUsageLimit: userStats.currentUsageLimit,
+          lastPeriodCost: userStats.lastPeriodCost,
+          proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
+          proPeriodCostSnapshotAt: userStats.proPeriodCostSnapshotAt,
+          currentPeriodCopilotCost: userStats.currentPeriodCopilotCost,
+          lastPeriodCopilotCost: userStats.lastPeriodCopilotCost,
+          creditBalance: userStats.creditBalance,
+          billingBlocked: userStats.billingBlocked,
+          billingBlockedReason: userStats.billingBlockedReason,
+        })
+        .from(userStats)
+        .where(eq(userStats.userId, userId))
+        .limit(1),
+    ])
+
+    const stats = statsRows[0]
+    if (!stats) {
+      throw new Error(`User stats not found for userId: ${userId}`)
+    }
+
+    const plan = personalSubscription?.plan ?? 'free'
+    const billingPeriod =
+      personalSubscription?.periodStart && personalSubscription.periodEnd
+        ? { start: personalSubscription.periodStart, end: personalSubscription.periodEnd }
+        : defaultBillingPeriod()
+    const [ledgerUsage, copilotLedgerUsage] = await Promise.all([
+      getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod, undefined, executor),
+      getBillingPeriodUsageCost(
+        { type: 'user', id: userId },
+        billingPeriod,
+        COPILOT_USAGE_SOURCES,
+        executor
+      ),
+    ])
+
+    const hasPersonalUsageSnapshot =
+      Boolean(personalSubscription) && isPro(plan) && stats.proPeriodCostSnapshotAt !== null
+    const personalUsageBaseline = hasPersonalUsageSnapshot
+      ? stats.proPeriodCostSnapshot
+      : stats.currentPeriodCost
+    const currentUsage = toDecimal(personalUsageBaseline).plus(ledgerUsage)
+
+    let refreshDeduction = 0
+    if (
+      personalSubscription &&
+      isPaid(plan) &&
+      hasPaidSubscriptionStatus(personalSubscription.status) &&
+      personalSubscription.periodStart
+    ) {
+      const planDollars = getPlanTierDollars(plan)
+      if (planDollars > 0) {
+        refreshDeduction = await computeDailyRefreshConsumed(
+          {
+            userIds: [userId],
+            periodStart: personalSubscription.periodStart,
+            periodEnd: hasPersonalUsageSnapshot
+              ? stats.proPeriodCostSnapshotAt
+              : (personalSubscription.periodEnd ?? null),
+            planDollars,
+            billingEntity: { type: 'user', id: userId },
+          },
+          executor
+        )
+      }
+    }
+
+    const effectiveCurrentUsage = Math.max(0, toNumber(currentUsage) - refreshDeduction)
+    const usageLimit = stats.currentUsageLimit
+      ? toNumber(toDecimal(stats.currentUsageLimit))
+      : getFreeTierLimit()
+    const percentUsed = usageLimit > 0 ? (effectiveCurrentUsage / usageLimit) * 100 : 0
+    const isExceeded = effectiveCurrentUsage >= usageLimit
+    const isWarning = !isExceeded && percentUsed >= 80
+    const daysRemaining = personalSubscription?.periodEnd
+      ? Math.max(
+          0,
+          Math.ceil((personalSubscription.periodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        )
+      : 0
+    const hasPaidEntitlement = hasPaidSubscriptionStatus(personalSubscription?.status)
+    const billingBlocked = Boolean(stats.billingBlocked)
+
+    return {
+      type: 'individual' as const,
+      plan,
+      currentUsage: effectiveCurrentUsage,
+      usageLimit,
+      percentUsed,
+      isWarning,
+      isExceeded,
+      daysRemaining,
+      creditBalance: toNumber(toDecimal(stats.creditBalance)),
+      billingInterval: resolveBillingInterval(personalSubscription),
+      isPaid: hasPaidEntitlement && isPaid(plan),
+      isPro: hasPaidEntitlement && isPro(plan),
+      isTeam: hasPaidEntitlement && isTeam(plan),
+      isEnterprise: hasPaidEntitlement && isEnterprise(plan),
+      isOrgScoped: false,
+      organizationId: null,
+      status: personalSubscription?.status ?? null,
+      seats: personalSubscription?.seats ?? null,
+      metadata: personalSubscription?.metadata ?? null,
+      stripeSubscriptionId: personalSubscription?.stripeSubscriptionId ?? null,
+      periodEnd: personalSubscription?.periodEnd ?? null,
+      cancelAtPeriodEnd: personalSubscription?.cancelAtPeriodEnd ?? false,
+      billingBlocked,
+      billingBlockedReason: billingBlocked ? (stats.billingBlockedReason ?? null) : null,
+      blockedByOrgOwner: false,
+      usage: {
+        current: effectiveCurrentUsage,
+        limit: usageLimit,
+        percentUsed,
+        isWarning,
+        isExceeded,
+        billingPeriodStart: personalSubscription?.periodStart ?? null,
+        billingPeriodEnd: personalSubscription?.periodEnd ?? null,
+        lastPeriodCost: toNumber(toDecimal(stats.lastPeriodCost)),
+        lastPeriodCopilotCost: toNumber(toDecimal(stats.lastPeriodCopilotCost)),
+        daysRemaining,
+        copilotCost:
+          (hasPersonalUsageSnapshot ? 0 : toNumber(toDecimal(stats.currentPeriodCopilotCost))) +
+          copilotLedgerUsage,
+      },
+    }
+  } catch (error) {
+    logger.error('Failed to get personal billing summary', { userId, error })
+    return {
+      ...getDefaultBillingSummary('individual'),
+      cancelAtPeriodEnd: false,
+      billingBlocked: false,
+      billingBlockedReason: null,
+      blockedByOrgOwner: false,
+    }
+  }
 }
 
 /**

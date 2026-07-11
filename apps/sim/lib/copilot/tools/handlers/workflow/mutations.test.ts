@@ -3,21 +3,39 @@
  */
 import { createEnvMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { ExecutionContext } from '@/lib/copilot/request/types'
 
 const {
   ensureWorkflowAccessMock,
+  ensureWorkspaceAccessMock,
   setWorkflowVariablesMock,
   recordAuditMock,
+  performCreateWorkflowMock,
   executeWorkflowMock,
   getExecutionStateForWorkflowMock,
   getLatestExecutionStateWithExecutionIdMock,
+  loadWorkflowFromNormalizedTablesMock,
+  resolveBillingAttributionMock,
+  resolveTriggerRunOptionsMock,
+  checkAttributedUsageLimitsMock,
+  reserveExecutionSlotMock,
+  releaseExecutionSlotMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
+  ensureWorkspaceAccessMock: vi.fn(),
   setWorkflowVariablesMock: vi.fn(),
   recordAuditMock: vi.fn(),
+  performCreateWorkflowMock: vi.fn(),
   executeWorkflowMock: vi.fn(),
   getExecutionStateForWorkflowMock: vi.fn(),
   getLatestExecutionStateWithExecutionIdMock: vi.fn(),
+  loadWorkflowFromNormalizedTablesMock: vi.fn(),
+  resolveBillingAttributionMock: vi.fn(),
+  resolveTriggerRunOptionsMock: vi.fn(),
+  checkAttributedUsageLimitsMock: vi.fn(),
+  reserveExecutionSlotMock: vi.fn(),
+  releaseExecutionSlotMock: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -33,6 +51,17 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('@/lib/api-key/orchestration', () => ({
   performCreateWorkspaceApiKey: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  checkAttributedUsageLimits: checkAttributedUsageLimitsMock,
+  resolveBillingAttribution: resolveBillingAttributionMock,
+}))
+
+vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
+  releaseExecutionSlot: releaseExecutionSlotMock,
+  reserveExecutionSlot: reserveExecutionSlotMock,
+  UsageReservationUnavailableError: class UsageReservationUnavailableError extends Error {},
 }))
 
 vi.mock('@/lib/core/config/env', () => createEnvMock({ INTERNAL_API_SECRET: 'secret' }))
@@ -56,7 +85,7 @@ vi.mock('@/lib/workflows/executor/execution-state', () => ({
 
 vi.mock('@/lib/workflows/orchestration', () => ({
   performCreateFolder: vi.fn(),
-  performCreateWorkflow: vi.fn(),
+  performCreateWorkflow: performCreateWorkflowMock,
   performDeleteFolder: vi.fn(),
   performDeleteWorkflow: vi.fn(),
   performUpdateFolder: vi.fn(),
@@ -64,12 +93,17 @@ vi.mock('@/lib/workflows/orchestration', () => ({
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: vi.fn(),
+  loadWorkflowFromNormalizedTables: loadWorkflowFromNormalizedTablesMock,
   saveWorkflowToNormalizedTables: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
   sanitizeForCopilot: vi.fn((state) => state),
+}))
+
+vi.mock('@/lib/workflows/triggers/run-options', () => ({
+  resolveTriggerRunOptions: resolveTriggerRunOptionsMock,
+  validateTriggerInput: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/utils', () => ({
@@ -84,20 +118,55 @@ vi.mock('@/executor/utils/errors', () => ({
 
 vi.mock('../access', () => ({
   ensureWorkflowAccess: ensureWorkflowAccessMock,
-  ensureWorkspaceAccess: vi.fn(),
+  ensureWorkspaceAccess: ensureWorkspaceAccessMock,
   getDefaultWorkspaceId: vi.fn(),
 }))
 
+import { applyCreateWorkflowOutputToContext } from '@/lib/copilot/request/tools/workflow-context'
 import { performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import { verifyFolderWorkspace } from '@/lib/workflows/utils'
 import {
+  executeCreateWorkflow,
   executeMoveWorkflow,
+  executeRunBlock,
   executeRunFromBlock,
+  executeRunWorkflow,
+  executeRunWorkflowUntilBlock,
   executeSetGlobalWorkflowVariables,
 } from './mutations'
 
 const performUpdateWorkflowMock = vi.mocked(performUpdateWorkflow)
 const verifyFolderWorkspaceMock = vi.mocked(verifyFolderWorkspace)
+const billingAttribution: BillingAttributionSnapshot = {
+  actorUserId: 'user-1',
+  workspaceId: 'workspace-1',
+  organizationId: null,
+  billedAccountUserId: 'owner-1',
+  billingEntity: { type: 'user', id: 'owner-1' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+}
+const childBillingAttribution: BillingAttributionSnapshot = Object.freeze({
+  actorUserId: 'user-1',
+  workspaceId: 'workspace-2',
+  organizationId: 'organization-2',
+  billedAccountUserId: 'owner-2',
+  billingEntity: { type: 'organization', id: 'organization-2' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+})
+const executionContext: ExecutionContext = {
+  userId: 'user-1',
+  workflowId: 'workflow-1',
+  workspaceId: 'workspace-1',
+  billingAttribution,
+}
 
 describe('executeSetGlobalWorkflowVariables', () => {
   beforeEach(() => {
@@ -193,6 +262,455 @@ describe('lock enforcement', () => {
   })
 })
 
+describe('executeCreateWorkflow billing attribution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ensureWorkspaceAccessMock.mockResolvedValue(undefined)
+    workflowAuthzMockFns.mockAssertFolderMutable.mockResolvedValue(undefined)
+    loadWorkflowFromNormalizedTablesMock.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+    resolveTriggerRunOptionsMock.mockReturnValue([
+      {
+        triggerBlockId: 'trigger-1',
+        blockName: 'Start',
+        mockPayload: { source: 'copilot' },
+      },
+    ])
+    executeWorkflowMock.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [],
+      metadata: { executionId: 'new-execution-1' },
+    })
+    checkAttributedUsageLimitsMock.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 1, limit: 10 },
+    })
+    reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
+  })
+
+  it('keeps same-workspace creation and subsequent execution on the immutable payer', async () => {
+    const context: ExecutionContext = { ...executionContext, workflowId: '' }
+    performCreateWorkflowMock.mockResolvedValue({
+      success: true,
+      workflow: {
+        id: 'created-workflow',
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderId: null,
+      },
+    })
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'created-workflow',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+    })
+
+    const createResult = await executeCreateWorkflow(
+      { name: 'Created Workflow', workspaceId: 'workspace-1' },
+      context
+    )
+
+    expect(createResult.success).toBe(true)
+    applyCreateWorkflowOutputToContext(createResult.output, context)
+    expect(context).toMatchObject({
+      userId: 'user-1',
+      workflowId: 'created-workflow',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+    })
+    expect(context.billingAttribution).toBe(billingAttribution)
+    expect(performCreateWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', workspaceId: 'workspace-1' })
+    )
+
+    const runResult = await executeRunWorkflow({ useMockPayload: true }, context)
+
+    expect(runResult.success).toBe(true)
+    expect(executeWorkflowMock.mock.calls[0]?.[3]).toBe('user-1')
+    expect(executeWorkflowMock.mock.calls[0]?.[4]).toEqual(
+      expect.objectContaining({ billingAttribution })
+    )
+    expect(checkAttributedUsageLimitsMock).not.toHaveBeenCalled()
+    expect(reserveExecutionSlotMock).not.toHaveBeenCalled()
+    expect(resolveBillingAttributionMock).not.toHaveBeenCalled()
+  })
+
+  it('creates cross-workspace and gives subsequent execution a child payer snapshot', async () => {
+    const context: ExecutionContext = { ...executionContext, workflowId: '' }
+    performCreateWorkflowMock.mockResolvedValue({
+      success: true,
+      workflow: {
+        id: 'created-workflow',
+        name: 'Other Workspace Workflow',
+        workspaceId: 'workspace-2',
+        folderId: null,
+      },
+    })
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'created-workflow',
+        userId: 'owner-2',
+        workspaceId: 'workspace-2',
+        variables: {},
+      },
+    })
+    resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
+
+    const createResult = await executeCreateWorkflow(
+      { name: 'Other Workspace Workflow', workspaceId: 'workspace-2' },
+      context
+    )
+
+    expect(createResult.success).toBe(true)
+    applyCreateWorkflowOutputToContext(createResult.output, context)
+    expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith('workspace-2', 'user-1', 'write')
+    expect(performCreateWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', workspaceId: 'workspace-2' })
+    )
+    expect(context).toMatchObject({
+      userId: 'user-1',
+      workflowId: 'created-workflow',
+      workspaceId: 'workspace-2',
+      billingAttribution,
+    })
+    expect(context.billingAttribution).toBe(billingAttribution)
+
+    const runResult = await executeRunWorkflow({ useMockPayload: true }, context)
+
+    expect(runResult.success).toBe(true)
+    expect(resolveBillingAttributionMock).toHaveBeenCalledOnce()
+    expect(resolveBillingAttributionMock).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-2',
+    })
+    expect(executeWorkflowMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ id: 'created-workflow', workspaceId: 'workspace-2' })
+    )
+    expect(executeWorkflowMock.mock.calls[0]?.[3]).toBe('user-1')
+    expect(executeWorkflowMock.mock.calls[0]?.[4]).toEqual(
+      expect.objectContaining({ billingAttribution: childBillingAttribution })
+    )
+    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledOnce()
+    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledWith(childBillingAttribution)
+    expect(reserveExecutionSlotMock).toHaveBeenCalledOnce()
+    expect(reserveExecutionSlotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billingEntity: childBillingAttribution.billingEntity,
+        executionId: executeWorkflowMock.mock.calls[0]?.[5],
+      })
+    )
+    expect(context.billingAttribution).toBe(billingAttribution)
+  })
+})
+
+describe('Copilot workflow execution billing attribution', () => {
+  const sourceSnapshot = {
+    blockStates: {},
+    executedBlocks: [],
+    blockLogs: [],
+    decisions: {},
+    completedLoops: [],
+    activeExecutionPath: [],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+    })
+    loadWorkflowFromNormalizedTablesMock.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+    resolveTriggerRunOptionsMock.mockReturnValue([
+      {
+        triggerBlockId: 'trigger-1',
+        blockName: 'Start',
+        mockPayload: { source: 'copilot' },
+      },
+    ])
+    getExecutionStateForWorkflowMock.mockResolvedValue(sourceSnapshot)
+    executeWorkflowMock.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [],
+      metadata: { executionId: 'new-execution-1' },
+    })
+    checkAttributedUsageLimitsMock.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 1, limit: 10 },
+    })
+    reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
+  })
+
+  async function expectBillingAttributionForwarded(
+    run: () => Promise<{ success: boolean }>
+  ): Promise<void> {
+    const result = await run()
+
+    expect(result.success).toBe(true)
+    expect(executeWorkflowMock).toHaveBeenCalledTimes(1)
+    expect(executeWorkflowMock.mock.calls[0]?.[4]).toEqual(
+      expect.objectContaining({ billingAttribution })
+    )
+    expect(checkAttributedUsageLimitsMock).not.toHaveBeenCalled()
+    expect(reserveExecutionSlotMock).not.toHaveBeenCalled()
+  }
+
+  it('passes immutable attribution when running a workflow', async () => {
+    await expectBillingAttributionForwarded(() =>
+      executeRunWorkflow({ workflowId: 'workflow-1', useMockPayload: true }, executionContext)
+    )
+  })
+
+  it('passes immutable attribution when running until a block', async () => {
+    await expectBillingAttributionForwarded(() =>
+      executeRunWorkflowUntilBlock(
+        {
+          workflowId: 'workflow-1',
+          stopAfterBlockId: 'agent-1',
+          useMockPayload: true,
+        },
+        executionContext
+      )
+    )
+  })
+
+  it('passes immutable attribution when running from a block', async () => {
+    await expectBillingAttributionForwarded(() =>
+      executeRunFromBlock(
+        {
+          workflowId: 'workflow-1',
+          startBlockId: 'agent-1',
+          executionId: 'source-execution-1',
+        },
+        executionContext
+      )
+    )
+  })
+
+  it('passes immutable attribution when running one block', async () => {
+    await expectBillingAttributionForwarded(() =>
+      executeRunBlock(
+        {
+          workflowId: 'workflow-1',
+          blockId: 'agent-1',
+          executionId: 'source-execution-1',
+        },
+        executionContext
+      )
+    )
+  })
+
+  it.each([
+    {
+      mode: 'a workflow',
+      run: (context: ExecutionContext) =>
+        executeRunWorkflow({ workflowId: 'workflow-2', useMockPayload: true }, context),
+    },
+    {
+      mode: 'until a block',
+      run: (context: ExecutionContext) =>
+        executeRunWorkflowUntilBlock(
+          {
+            workflowId: 'workflow-2',
+            stopAfterBlockId: 'agent-1',
+            useMockPayload: true,
+          },
+          context
+        ),
+    },
+    {
+      mode: 'from a block',
+      run: (context: ExecutionContext) =>
+        executeRunFromBlock(
+          {
+            workflowId: 'workflow-2',
+            startBlockId: 'agent-1',
+            executionId: 'source-execution-1',
+          },
+          context
+        ),
+    },
+    {
+      mode: 'one block',
+      run: (context: ExecutionContext) =>
+        executeRunBlock(
+          {
+            workflowId: 'workflow-2',
+            blockId: 'agent-1',
+            executionId: 'source-execution-1',
+          },
+          context
+        ),
+    },
+  ])('resolves a child snapshot when running $mode cross-workspace', async ({ run }) => {
+    const context: ExecutionContext = {
+      ...executionContext,
+      workflowId: 'workflow-2',
+      workspaceId: 'workspace-2',
+    }
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'workflow-2',
+        userId: 'owner-2',
+        workspaceId: 'workspace-2',
+        variables: {},
+      },
+    })
+    resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
+
+    const result = await run(context)
+
+    expect(result.success).toBe(true)
+    expect(resolveBillingAttributionMock).toHaveBeenCalledOnce()
+    expect(resolveBillingAttributionMock).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-2',
+    })
+    expect(executeWorkflowMock.mock.calls[0]?.[4]).toEqual(
+      expect.objectContaining({ billingAttribution: childBillingAttribution })
+    )
+    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledOnce()
+    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledWith(childBillingAttribution)
+    expect(reserveExecutionSlotMock).toHaveBeenCalledOnce()
+    expect(reserveExecutionSlotMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionId: executeWorkflowMock.mock.calls[0]?.[5],
+      })
+    )
+    expect(context.billingAttribution).toBe(billingAttribution)
+  })
+
+  it('blocks a cross-workspace run before execution when target usage is exhausted', async () => {
+    const context: ExecutionContext = { ...executionContext, workspaceId: 'workspace-2' }
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'workflow-2',
+        userId: 'owner-2',
+        workspaceId: 'workspace-2',
+        variables: {},
+      },
+    })
+    resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
+    checkAttributedUsageLimitsMock.mockResolvedValue({
+      isExceeded: true,
+      scope: 'member',
+      message: 'Member limit reached',
+      payerUsage: { currentUsage: 1, limit: 10 },
+      memberUsage: { currentUsage: 2, limit: 2 },
+    })
+
+    const result = await executeRunWorkflow(
+      { workflowId: 'workflow-2', useMockPayload: true },
+      context
+    )
+
+    expect(result).toEqual({ success: false, error: 'Member limit reached' })
+    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledOnce()
+    expect(reserveExecutionSlotMock).not.toHaveBeenCalled()
+    expect(executeWorkflowMock).not.toHaveBeenCalled()
+  })
+
+  it('blocks a cross-workspace run when its atomic target reservation is full', async () => {
+    const context: ExecutionContext = { ...executionContext, workspaceId: 'workspace-2' }
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'workflow-2',
+        userId: 'owner-2',
+        workspaceId: 'workspace-2',
+        variables: {},
+      },
+    })
+    resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
+    reserveExecutionSlotMock.mockResolvedValue({
+      reserved: false,
+      reason: 'payer_concurrency',
+    })
+
+    const result = await executeRunWorkflow(
+      { workflowId: 'workflow-2', useMockPayload: true },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('concurrency')
+    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledOnce()
+    expect(reserveExecutionSlotMock).toHaveBeenCalledOnce()
+    expect(executeWorkflowMock).not.toHaveBeenCalled()
+  })
+
+  it('releases the child reservation when direct target execution throws', async () => {
+    const context: ExecutionContext = { ...executionContext, workspaceId: 'workspace-2' }
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'workflow-2',
+        userId: 'owner-2',
+        workspaceId: 'workspace-2',
+        variables: {},
+      },
+    })
+    resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
+    executeWorkflowMock.mockRejectedValue(new Error('direct execution failed'))
+
+    const result = await executeRunWorkflow(
+      { workflowId: 'workflow-2', useMockPayload: true },
+      context
+    )
+
+    const childExecutionId = executeWorkflowMock.mock.calls[0]?.[5]
+    expect(result).toEqual({ success: false, error: 'direct execution failed' })
+    expect(reserveExecutionSlotMock).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: childExecutionId })
+    )
+    expect(releaseExecutionSlotMock).toHaveBeenCalledOnce()
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith(childExecutionId)
+  })
+
+  it('leaves pause release to durable pause persistence', async () => {
+    const context: ExecutionContext = { ...executionContext, workspaceId: 'workspace-2' }
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: {
+        id: 'workflow-2',
+        userId: 'owner-2',
+        workspaceId: 'workspace-2',
+        variables: {},
+      },
+    })
+    resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
+    executeWorkflowMock.mockResolvedValue({
+      success: true,
+      status: 'paused',
+      output: {},
+      logs: [],
+      metadata: { executionId: 'child-execution' },
+    })
+
+    const result = await executeRunWorkflow(
+      { workflowId: 'workflow-2', useMockPayload: true },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(releaseExecutionSlotMock).not.toHaveBeenCalled()
+  })
+})
+
 describe('executeRunFromBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -256,7 +774,8 @@ describe('executeRunFromBlock', () => {
           sourceSnapshot,
           sourceExecutionId: 'source-execution-1',
         },
-      })
+      }),
+      expect.any(String)
     )
   })
 })

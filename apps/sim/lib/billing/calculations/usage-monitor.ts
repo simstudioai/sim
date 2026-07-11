@@ -1,21 +1,24 @@
 import { db } from '@sim/db'
-import { member, userStats, workspace } from '@sim/db/schema'
+import { userStats, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
-  getHighestPrioritySubscription,
-  type HighestPrioritySubscription,
-} from '@/lib/billing/core/plan'
-import { getPooledOrgCurrentPeriodCost, getUserUsageLimit } from '@/lib/billing/core/usage'
-import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+  getPooledOrgCurrentPeriodCost,
+  getUserUsageLimit,
+  type UsageLimitSubscription,
+} from '@/lib/billing/core/usage'
+import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
 } from '@/lib/billing/credits/daily-refresh'
 import {
+  getOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageLimit,
   getOrgMemberWorkspaceUsage,
 } from '@/lib/billing/organizations/member-limits'
@@ -74,7 +77,7 @@ async function computePooledOrgUsage(
  */
 export async function checkUsageStatus(
   userId: string,
-  preloadedSubscription?: HighestPrioritySubscription
+  preloadedSubscription?: UsageLimitSubscription | null
 ): Promise<UsageData> {
   try {
     if (!isBillingEnabled) {
@@ -289,14 +292,16 @@ async function checkAndNotifyUsage(userId: string): Promise<void> {
 }
 
 /**
- * Whether an account (or its organization owner) is billing-blocked — frozen for
- * a dispute or flagged for a payment issue. Independent of usage limits, so it can
- * gate paths that are otherwise exempt from metered caps (e.g. BYOK wand): a
- * frozen account is locked out everywhere.
+ * Whether the exact hosted user account is billing-blocked. Organization
+ * memberships are deliberately ignored; workspace payer checks are separate.
  */
 export async function checkBillingBlocked(
   userId: string
 ): Promise<{ blocked: boolean; message?: string }> {
+  if (!isHosted || !isBillingEnabled) {
+    return { blocked: false }
+  }
+
   const stats = await db
     .select({ blocked: userStats.billingBlocked, blockedReason: userStats.billingBlockedReason })
     .from(userStats)
@@ -313,41 +318,50 @@ export async function checkBillingBlocked(
     }
   }
 
-  const memberships = await db
-    .select({ organizationId: member.organizationId })
-    .from(member)
-    .where(eq(member.userId, userId))
+  return { blocked: false }
+}
 
-  for (const m of memberships) {
-    const owners = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(and(eq(member.organizationId, m.organizationId), eq(member.role, 'owner')))
-      .limit(1)
-
-    if (owners.length > 0) {
-      const ownerStats = await db
-        .select({
-          blocked: userStats.billingBlocked,
-          blockedReason: userStats.billingBlockedReason,
-        })
-        .from(userStats)
-        .where(eq(userStats.userId, owners[0].userId))
-        .limit(1)
-
-      if (ownerStats.length > 0 && ownerStats[0].blocked) {
-        return {
-          blocked: true,
-          message:
-            ownerStats[0].blockedReason === 'dispute'
-              ? 'Organization account frozen. Please contact support to resolve this issue.'
-              : 'Organization billing issue. Please contact your organization owner.',
-        }
-      }
-    }
+/**
+ * Checks only the exact immutable payer selected by a billing attribution.
+ *
+ * Organization checks are scoped to that organization owner, while personal
+ * checks read only that billed user. Actor memberships are never consulted.
+ */
+export async function checkBillingEntityBlocked(
+  billingEntity: BillingEntity
+): Promise<{ blocked: boolean; message?: string }> {
+  if (!isHosted || !isBillingEnabled) {
+    return { blocked: false }
   }
 
-  return { blocked: false }
+  if (billingEntity.type === 'organization') {
+    const blocked = await isOrganizationBillingBlocked(billingEntity.id)
+    return blocked
+      ? {
+          blocked: true,
+          message: 'Organization billing issue. Please contact your organization owner.',
+        }
+      : { blocked: false }
+  }
+
+  const [stats] = await db
+    .select({
+      blocked: userStats.billingBlocked,
+      blockedReason: userStats.billingBlockedReason,
+    })
+    .from(userStats)
+    .where(eq(userStats.userId, billingEntity.id))
+    .limit(1)
+
+  if (!stats?.blocked) return { blocked: false }
+
+  return {
+    blocked: true,
+    message:
+      stats.blockedReason === 'dispute'
+        ? 'Account frozen. Please contact support to resolve this issue.'
+        : 'Billing issue detected. Please update your payment method to continue.',
+  }
 }
 
 /**
@@ -359,7 +373,7 @@ export async function checkBillingBlocked(
  */
 export async function checkServerSideUsageLimits(
   userId: string,
-  preloadedSubscription?: HighestPrioritySubscription
+  preloadedSubscription?: UsageLimitSubscription | null
 ): Promise<{
   isExceeded: boolean
   currentUsage: number
@@ -429,18 +443,73 @@ export async function checkServerSideUsageLimits(
 }
 
 /**
- * Per-member usage cap for the organization that owns the given workspace.
+ * Per-member usage cap for an exact `(organizationId, actorUserId)` pair.
  *
  * Hosted-only and independent of the pooled org limit
- * ({@link checkServerSideUsageLimits}). No-ops (isExceeded:false) when the
- * feature is off (`!isHosted` / `!isBillingEnabled`), the workspace is not
- * org-owned, or the actor has no per-member cap. Otherwise compares the actor's
- * current-period usage inside the org's workspaces against their cap
- * (`usage >= limit` blocks).
+ * ({@link checkServerSideUsageLimits}). The actor need not have an organization
+ * member row; configured limits are keyed directly by organization and user.
  *
  * Fails open on unexpected error: this is a secondary, additive gate, so a
  * transient fault must not block execution that the primary pooled/personal
  * check already allowed.
+ */
+export async function checkOrganizationMemberUsageLimit(
+  userId: string,
+  organizationId: string,
+  billingPeriod: { start: Date; end: Date }
+): Promise<OrganizationMemberUsageLimitResult> {
+  try {
+    if (!isHosted || !isBillingEnabled || !organizationId) {
+      return { isExceeded: false, currentUsage: 0, limit: null }
+    }
+
+    return await evaluateOrganizationMemberUsageLimit(organizationId, userId, () =>
+      getOrgMemberUsageForBillingPeriod(organizationId, userId, billingPeriod)
+    )
+  } catch (error) {
+    logger.error('Error checking per-member org usage limit', {
+      error: toError(error).message,
+      userId,
+      organizationId,
+    })
+    return { isExceeded: false, currentUsage: 0, limit: null }
+  }
+}
+
+interface OrganizationMemberUsageLimitResult {
+  isExceeded: boolean
+  currentUsage: number
+  limit: number | null
+  message?: string
+}
+
+async function evaluateOrganizationMemberUsageLimit(
+  organizationId: string,
+  userId: string,
+  getUsage: () => Promise<number>
+): Promise<OrganizationMemberUsageLimitResult> {
+  const limit = await getOrgMemberUsageLimit(organizationId, userId)
+  if (limit === null) {
+    return { isExceeded: false, currentUsage: 0, limit: null }
+  }
+
+  const usage = await getUsage()
+  const isExceeded = usage >= limit
+
+  return {
+    isExceeded,
+    currentUsage: usage,
+    limit,
+    message: isExceeded
+      ? `Member credit limit exceeded: ${dollarsToCredits(usage).toLocaleString()} of ${dollarsToCredits(limit).toLocaleString()} credits used for this organization's workspaces. Ask an organization admin to raise your credit limit to continue.`
+      : undefined,
+  }
+}
+
+/**
+ * Resolves a workspace's organization and delegates to the exact organization
+ * member-cap check. Retained for account-only callers that do not already hold
+ * a billing attribution snapshot.
  */
 export async function checkOrgMemberUsageLimit(
   userId: string,
@@ -467,27 +536,11 @@ export async function checkOrgMemberUsageLimit(
       return { isExceeded: false, currentUsage: 0, limit: null }
     }
 
-    // Resolve the cap first and short-circuit when unset (the common case); only
-    // then is computing usage worthwhile. Kept sequential, not raced, to avoid a
-    // usage query on every uncapped member's execution.
-    const limit = await getOrgMemberUsageLimit(organizationId, userId)
-    if (limit === null) {
-      return { isExceeded: false, currentUsage: 0, limit: null }
-    }
-
-    const usage = await getOrgMemberWorkspaceUsage(organizationId, userId)
-    const isExceeded = usage >= limit
-
-    return {
-      isExceeded,
-      currentUsage: usage,
-      limit,
-      message: isExceeded
-        ? `Member credit limit exceeded: ${dollarsToCredits(usage).toLocaleString()} of ${dollarsToCredits(limit).toLocaleString()} credits used for this organization's workspaces. Ask an organization admin to raise your credit limit to continue.`
-        : undefined,
-    }
+    return await evaluateOrganizationMemberUsageLimit(organizationId, userId, () =>
+      getOrgMemberWorkspaceUsage(organizationId, userId)
+    )
   } catch (error) {
-    logger.error('Error checking per-member org usage limit', {
+    logger.error('Error resolving workspace organization for member usage limit', {
       error: toError(error).message,
       userId,
       workspaceId,
@@ -497,29 +550,18 @@ export async function checkOrgMemberUsageLimit(
 }
 
 /**
- * Unified usage gate for an actor: the pooled/personal cap first
- * ({@link checkServerSideUsageLimits}), then the per-member org-workspace cap
- * ({@link checkOrgMemberUsageLimit}) when a workspace is in scope. Returns the
- * first exceeded result so every billable surface (workflow exec, copilot,
- * voice, wand, enrichment, KB indexing) can gate on a single
- * `{ isExceeded, message }`. `scope` distinguishes a pooled cap from a per-member
- * cap so clients can hide an "Upgrade" affordance a capped member can't act on (a
- * per-member cap is only raisable by an org admin).
+ * Account-scoped usage gate for operations without a workspace payer.
+ *
+ * Workspace-hosted operations must resolve a billing attribution snapshot and
+ * use `checkAttributedUsageLimits` so the workspace payer pool and exact
+ * `(organizationId, actorUserId)` member cap are enforced.
  */
 export async function checkActorUsageLimits(
-  userId: string,
-  workspaceId?: string | null
+  userId: string
 ): Promise<{ isExceeded: boolean; message?: string; scope?: 'pooled' | 'member' }> {
   const pooled = await checkServerSideUsageLimits(userId)
   if (pooled.isExceeded) {
     return { isExceeded: true, message: pooled.message, scope: 'pooled' }
-  }
-
-  if (workspaceId) {
-    const member = await checkOrgMemberUsageLimit(userId, workspaceId)
-    if (member.isExceeded) {
-      return { isExceeded: true, message: member.message, scope: 'member' }
-    }
   }
 
   return { isExceeded: false }

@@ -16,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -28,10 +29,16 @@ import {
   usePermissionGroups,
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
 
 const logger = createLogger('AccessControl')
 
-export function AccessControl() {
+interface AccessControlProps {
+  isOrganizationAdmin: boolean
+  organizationId: string
+}
+
+export function AccessControl({ isOrganizationAdmin, organizationId }: AccessControlProps) {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
@@ -43,8 +50,9 @@ export function AccessControl() {
    */
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
-  const organizationId = userPermissionConfig?.organizationId ?? undefined
-  const currentUserIsOrgAdmin = userPermissionConfig?.isOrgAdmin ?? false
+  const { data: organizationBillingData, isPending: organizationBillingLoading } =
+    useOrganizationBilling(organizationId)
+  const currentUserIsOrgAdmin = isOrganizationAdmin
 
   const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
     organizationId,
@@ -54,12 +62,14 @@ export function AccessControl() {
     useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
-  const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled
+  const isEntitled =
+    accessControlEnabledLocally ||
+    !!userPermissionConfig?.entitled ||
+    isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
 
   const isLoading =
-    !workspaceId ||
-    entitlementLoading ||
+    (workspaceId ? entitlementLoading : organizationBillingLoading) ||
     (!!organizationId && currentUserIsOrgAdmin && groupsLoading)
 
   const createPermissionGroup = useCreatePermissionGroup()

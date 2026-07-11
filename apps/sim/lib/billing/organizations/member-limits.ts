@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
-import { organizationMemberUsageLimit } from '@sim/db/schema'
+import { organizationMemberUsageLimit, usageLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte, isNull, lt, or, sql } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getOrgWorkspaceUsageCostForUser } from '@/lib/billing/core/usage-log'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrgMemberLimits')
 
@@ -45,10 +46,11 @@ export async function setOrgMemberUsageLimit(
   organizationId: string,
   userId: string,
   limitDollars: number | null,
-  setBy?: string
+  setBy?: string,
+  executor: DbOrTx = db
 ): Promise<void> {
   if (limitDollars === null) {
-    await db
+    await executor
       .delete(organizationMemberUsageLimit)
       .where(
         and(
@@ -60,7 +62,7 @@ export async function setOrgMemberUsageLimit(
     return
   }
 
-  await db
+  await executor
     .insert(organizationMemberUsageLimit)
     .values({
       id: generateId(),
@@ -80,6 +82,52 @@ export async function setOrgMemberUsageLimit(
     })
 
   logger.info('Set per-member usage limit', { organizationId, userId, limitDollars, setBy })
+}
+
+/**
+ * Sums an actor's usage against an immutable organization attribution snapshot
+ * plus disjoint legacy rows that predate billing attribution.
+ *
+ * New rows use the captured organization and period directly. Legacy rows with
+ * null billing attribution may use the workspace join only after that workspace
+ * was assigned to the organization. The branches are disjoint, so an attributed
+ * row can never be counted again through mutable workspace ownership.
+ */
+export async function getOrgMemberUsageForBillingPeriod(
+  organizationId: string,
+  userId: string,
+  billingPeriod: { start: Date; end: Date }
+): Promise<number> {
+  const [row] = await db
+    .select({ cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)` })
+    .from(usageLog)
+    .leftJoin(workspace, eq(workspace.id, usageLog.workspaceId))
+    .where(
+      and(
+        eq(usageLog.userId, userId),
+        or(
+          and(
+            eq(usageLog.billingEntityType, 'organization'),
+            eq(usageLog.billingEntityId, organizationId),
+            eq(usageLog.billingPeriodStart, billingPeriod.start),
+            eq(usageLog.billingPeriodEnd, billingPeriod.end)
+          ),
+          and(
+            isNull(usageLog.billingEntityType),
+            isNull(usageLog.billingEntityId),
+            eq(workspace.organizationId, organizationId),
+            or(
+              isNull(workspace.organizationAssignedAt),
+              gte(usageLog.createdAt, workspace.organizationAssignedAt)
+            ),
+            gte(usageLog.createdAt, billingPeriod.start),
+            lt(usageLog.createdAt, billingPeriod.end)
+          )
+        )
+      )
+    )
+
+  return Number.parseFloat(row?.cost ?? '0')
 }
 
 /**

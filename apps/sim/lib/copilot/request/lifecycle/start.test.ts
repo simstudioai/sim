@@ -24,6 +24,9 @@ const {
   cleanupAbortMarker,
   hasAbortMarker,
   releasePendingChatStream,
+  cacheBillingAttribution,
+  fetchGo,
+  billingFlags,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
   createRunSegment: vi.fn(),
@@ -37,7 +40,26 @@ const {
   cleanupAbortMarker: vi.fn(),
   hasAbortMarker: vi.fn(),
   releasePendingChatStream: vi.fn(),
+  cacheBillingAttribution: vi.fn(),
+  fetchGo: vi.fn(),
+  billingFlags: {
+    isHosted: false,
+    isCopilotBillingAttributionV1Enabled: false,
+  },
 }))
+
+const BILLING_ATTRIBUTION = {
+  actorUserId: 'user-1',
+  workspaceId: 'workspace-1',
+  billedAccountUserId: 'owner-1',
+  organizationId: 'org-1',
+  billingEntity: { type: 'organization' as const, id: 'org-1' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+}
 
 vi.mock('@/lib/copilot/request/lifecycle/run', () => ({
   runCopilotLifecycle,
@@ -111,7 +133,46 @@ vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: null,
 }))
 
-import { createSSEStream } from './start'
+vi.mock('@/lib/billing/core/billing-attribution-cache', () => ({
+  cacheBillingAttribution,
+  createAttributedBillingRequestEnvelope: vi.fn(
+    async (attribution: unknown, errorMessage: string) => {
+      const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
+      const cached = await cacheBillingAttribution(billingRequestId, attribution)
+      if (!cached) throw new Error(errorMessage)
+      const serializedAttribution = encodeURIComponent(JSON.stringify(attribution))
+      return {
+        billingRequestId,
+        serializedAttribution,
+        headers: {
+          'x-sim-billing-protocol': 'attribution-v1',
+          'x-sim-billing-request-id': billingRequestId,
+          'x-sim-billing-attribution': serializedAttribution,
+        },
+      }
+    }
+  ),
+}))
+
+vi.mock('@/lib/copilot/request/go/fetch', () => ({
+  fetchGo,
+}))
+
+vi.mock('@/lib/copilot/server/agent-url', () => ({
+  getMothershipBaseURL: vi.fn().mockResolvedValue('https://copilot.test'),
+  getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({}),
+}))
+
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isHosted() {
+    return billingFlags.isHosted
+  },
+  get isCopilotBillingAttributionV1Enabled() {
+    return billingFlags.isCopilotBillingAttributionV1Enabled
+  },
+}))
+
+import { createSSEStream, requestChatTitle } from './start'
 
 async function drainStream(stream: ReadableStream) {
   const reader = stream.getReader()
@@ -124,6 +185,17 @@ async function drainStream(stream: ReadableStream) {
 describe('createSSEStream terminal error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    billingFlags.isHosted = false
+    billingFlags.isCopilotBillingAttributionV1Enabled = false
+    cacheBillingAttribution.mockResolvedValue(true)
+    fetchGo.mockResolvedValue(
+      new Response(JSON.stringify({ title: 'Test title' }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+    )
     trace.setGlobalTracerProvider(new BasicTracerProvider())
     propagation.setGlobalPropagator(new W3CTraceContextPropagator())
     vi.stubGlobal(
@@ -290,5 +362,76 @@ describe('createSSEStream terminal error handling', () => {
     await drainStream(stream)
 
     expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
+  })
+})
+
+describe('requestChatTitle billing protocol', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    billingFlags.isHosted = true
+    billingFlags.isCopilotBillingAttributionV1Enabled = true
+    cacheBillingAttribution.mockResolvedValue(true)
+    fetchGo.mockResolvedValue(
+      new Response(JSON.stringify({ title: 'Billing Protocol' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+  })
+
+  it('freezes and forwards a dedicated attributed identity before title work', async () => {
+    const title = await requestChatTitle({
+      message: 'explain billing',
+      model: 'claude-opus-4.8',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+
+    expect(title).toBe('Billing Protocol')
+    const billingRequestId = cacheBillingAttribution.mock.calls[0]?.[0] as string
+    expect(billingRequestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    )
+    expect(cacheBillingAttribution).toHaveBeenCalledWith(billingRequestId, BILLING_ATTRIBUTION)
+    const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
+    expect(headers).toMatchObject({
+      'x-sim-billing-protocol': 'attribution-v1',
+      'x-sim-billing-request-id': billingRequestId,
+    })
+    expect(JSON.parse(decodeURIComponent(headers['x-sim-billing-attribution']))).toEqual(
+      BILLING_ATTRIBUTION
+    )
+  })
+
+  it('sends explicit legacy-v0 during the Sim-first compatibility stage', async () => {
+    billingFlags.isCopilotBillingAttributionV1Enabled = false
+
+    await requestChatTitle({
+      message: 'explain billing',
+      model: 'claude-opus-4.8',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+
+    const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
+    expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
+    expect(headers['x-sim-billing-request-id']).toBeUndefined()
+    expect(cacheBillingAttribution).not.toHaveBeenCalled()
+  })
+
+  it('does not start title work when its immutable attribution cannot be cached', async () => {
+    cacheBillingAttribution.mockResolvedValueOnce(false)
+
+    const title = await requestChatTitle({
+      message: 'explain billing',
+      model: 'claude-opus-4.8',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+
+    expect(title).toBeNull()
+    expect(fetchGo).not.toHaveBeenCalled()
   })
 })
