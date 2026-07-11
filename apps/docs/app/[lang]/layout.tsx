@@ -11,7 +11,7 @@ import {
 } from '@/components/docs-layout/sidebar-components'
 import { Footer } from '@/components/footer/footer'
 import { Navbar } from '@/components/navbar/navbar'
-import { SimLogoIcon } from '@/components/ui/sim-logo'
+import { SimWordmark } from '@/components/ui/sim-logo'
 import { i18n } from '@/lib/i18n'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { source } from '@/lib/source'
@@ -102,7 +102,7 @@ export default async function Layout({ children, params }: LayoutProps) {
           <DocsLayout
             tree={source.pageTree[lang]}
             nav={{
-              title: <SimLogoIcon className='size-[22px]' />,
+              title: <SimWordmark className='h-[18px]' />,
             }}
             sidebar={{
               tabs: false,

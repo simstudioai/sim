@@ -22,7 +22,7 @@ const OG_CONTAINER_STYLE = {
   justifyContent: 'space-between',
   padding: '56px 64px',
   background: '#c3c3c3',
-  fontFamily: 'Geist',
+  fontFamily: 'Season',
 } satisfies CSSProperties
 const OG_HEADER_STYLE = {
   display: 'flex',
@@ -82,31 +82,29 @@ function wrapTitleLines(title: string, fontSize: number): string[] {
 }
 
 /**
- * Loads a Google Font dynamically by fetching the CSS and extracting the font URL.
+ * Loads a static (600/semibold) TTF instance of the site's own Season Sans
+ * font — the platform's real brand/body font, also used by the library/blog
+ * cover template this OG image matches. Instantiated from the variable font
+ * at `apps/docs/app/fonts/SeasonSansUprightsVF.woff2` (`fonttools
+ * varLib.instancer wght=600`, then flavor-stripped to plain TTF) rather than
+ * loading the variable WOFF2 directly: Satori (`next/og`'s renderer) can't
+ * parse variable fonts without excessive memory use, and can't parse WOFF2
+ * at all ("Unsupported OpenType signature wOF2") — it needs an uncompressed
+ * TTF/OTF. Fetched over HTTP since the edge runtime has no filesystem access
+ * — served from `/static/fonts/` (not `/fonts/`) so it isn't intercepted by
+ * the site's i18n proxy (`proxy.ts`), whose matcher excludes `static` but
+ * not `fonts`.
  */
-async function loadGoogleFont(font: string, weights: string, text: string): Promise<ArrayBuffer> {
-  const url = `https://fonts.googleapis.com/css2?family=${font}:wght@${weights}&text=${encodeURIComponent(text)}`
-  const cssResponse = await fetch(url, {
+async function loadSeasonFont(baseUrl: string): Promise<ArrayBuffer> {
+  const response = await fetch(new URL('/static/fonts/SeasonSans-600-static.ttf', baseUrl), {
     next: { revalidate: FONT_CACHE_REVALIDATE_SECONDS },
   })
 
-  if (!cssResponse.ok) {
-    throw new Error(`Failed to load font CSS: ${cssResponse.status} ${cssResponse.statusText}`)
+  if (!response.ok) {
+    throw new Error(`Failed to load font data: ${response.status} ${response.statusText}`)
   }
 
-  const css = await cssResponse.text()
-  const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/)
-
-  if (resource) {
-    const response = await fetch(resource[1], {
-      next: { revalidate: FONT_CACHE_REVALIDATE_SECONDS },
-    })
-    if (response.ok) {
-      return await response.arrayBuffer()
-    }
-  }
-
-  throw new Error('Failed to load font data')
+  return await response.arrayBuffer()
 }
 
 /** "sim" wordmark, no icon — same brandbook workmark geometry as the docs navbar/landing OG cards. */
@@ -154,7 +152,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const title = searchParams.get('title') || 'Documentation'
 
-  const fontData = await loadGoogleFont('Geist', '400;500;600', title)
+  const fontData = await loadSeasonFont(request.url)
   const fontSize = getTitleFontSize(title)
   const titleLines = wrapTitleLines(title, fontSize)
 
@@ -176,9 +174,10 @@ export async function GET(request: NextRequest) {
       height: 630,
       fonts: [
         {
-          name: 'Geist',
+          name: 'Season',
           data: fontData,
           style: 'normal',
+          weight: 600,
         },
       ],
     }
