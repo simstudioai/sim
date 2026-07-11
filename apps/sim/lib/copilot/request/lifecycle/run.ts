@@ -4,14 +4,12 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import {
+  type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
-import {
-  type AttributedBillingRequestEnvelope,
-  cacheBillingAttribution,
   createAttributedBillingRequestEnvelope,
-} from '@/lib/billing/core/billing-attribution-cache'
+} from '@/lib/billing/core/billing-attribution'
+import { cacheBillingAttribution } from '@/lib/billing/core/billing-attribution-cache'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_VERSION, TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/copilot/constants'
@@ -170,10 +168,7 @@ export async function runCopilotLifecycle(
     }
     execContext.billingAttribution = billingAttribution
     if (shouldUseHostedBillingProtocol) {
-      hostedBillingRequest = await createAttributedBillingRequestEnvelope(
-        billingAttribution,
-        'Unable to preserve billing attribution for hosted Copilot execution'
-      )
+      hostedBillingRequest = createAttributedBillingRequestEnvelope(billingAttribution)
     } else if (isHosted) {
       const legacyAliases = [
         payloadMsgId,
@@ -181,7 +176,10 @@ export async function runCopilotLifecycle(
         resolvedRunId,
         options.simRequestId,
       ].filter((value): value is string => typeof value === 'string' && value.length > 0)
-      await cacheBillingAttribution(legacyAliases, billingAttribution)
+      const cached = await cacheBillingAttribution(legacyAliases, billingAttribution)
+      if (!cached) {
+        throw new Error('Unable to preserve legacy billing attribution')
+      }
     }
   }
 

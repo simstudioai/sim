@@ -218,6 +218,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       })
     )
     expect(mockPreprocessExecution.mock.calls[0]?.[0]).not.toHaveProperty('skipUsageLimits')
+    expect(mockPreprocessExecution.mock.calls[0]?.[0]).not.toHaveProperty('reservationId')
     expect(mockEnqueueOrStartResume).toHaveBeenCalledWith({
       executionId: EXECUTION_ID,
       workflowId: WORKFLOW_ID,

@@ -6,12 +6,22 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockDbDelete,
+  mockDbReturning,
+  mockDbWhere,
+  mockDecrementStorageUsageForBillingContext,
+  mockDecrementStorageUsageForBillingContextInTx,
   mockGetAccessibleCopilotChat,
   mockReconcileChatStreamMarkers,
   mockReadEvents,
   mockReadFilePreviewSessions,
   mockGetLatestRunForStream,
 } = vi.hoisted(() => ({
+  mockDbDelete: vi.fn(),
+  mockDbReturning: vi.fn(),
+  mockDbWhere: vi.fn(),
+  mockDecrementStorageUsageForBillingContext: vi.fn(),
+  mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockGetAccessibleCopilotChat: vi.fn(),
   mockReconcileChatStreamMarkers: vi.fn(),
   mockReadEvents: vi.fn(),
@@ -19,7 +29,11 @@ const {
   mockGetLatestRunForStream: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: {} }))
+vi.mock('@sim/db', () => ({
+  db: {
+    delete: mockDbDelete,
+  },
+}))
 
 vi.mock('@sim/db/schema', () => ({
   copilotChats: {
@@ -28,6 +42,7 @@ vi.mock('@sim/db/schema', () => ({
     type: 'copilotChats.type',
     updatedAt: 'copilotChats.updatedAt',
     lastSeenAt: 'copilotChats.lastSeenAt',
+    workspaceId: 'copilotChats.workspaceId',
   },
 }))
 
@@ -83,11 +98,16 @@ vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: { publishStatusChanged: vi.fn() },
 }))
 
+vi.mock('@/lib/billing/storage', () => ({
+  decrementStorageUsageForBillingContext: mockDecrementStorageUsageForBillingContext,
+  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
+}))
+
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),
 }))
 
-import { GET } from '@/app/api/mothership/chats/[chatId]/route'
+import { DELETE, GET } from '@/app/api/mothership/chats/[chatId]/route'
 
 function makeContext(chatId: string) {
   return { params: Promise.resolve({ chatId }) }
@@ -242,5 +262,37 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(response.status).toBe(401)
     expect(mockGetAccessibleCopilotChat).not.toHaveBeenCalled()
     expect(mockReconcileChatStreamMarkers).not.toHaveBeenCalled()
+  })
+})
+
+describe('DELETE /api/mothership/chats/[chatId]', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
+      userId: 'user-1',
+      isAuthenticated: true,
+    })
+    mockGetAccessibleCopilotChat.mockResolvedValue({
+      id: 'chat-delete',
+      type: 'mothership',
+      workspaceId: 'workspace-1',
+    })
+    mockDbDelete.mockReturnValue({ where: mockDbWhere })
+    mockDbWhere.mockReturnValue({ returning: mockDbReturning })
+    mockDbReturning.mockResolvedValue([{ workspaceId: 'workspace-1' }])
+  })
+
+  it('deletes an unbilled chat without decrementing workspace or payer storage', async () => {
+    const response = await DELETE(
+      new NextRequest('http://localhost:3000/api/mothership/chats/chat-delete', {
+        method: 'DELETE',
+      }),
+      makeContext('chat-delete')
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDbDelete).toHaveBeenCalled()
+    expect(mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
+    expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
   })
 })

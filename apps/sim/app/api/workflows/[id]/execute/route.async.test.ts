@@ -20,6 +20,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 
 const {
   mockAssertBillingAttributionSnapshot,
@@ -376,6 +377,7 @@ describe('workflow execute async route', () => {
         billingAttribution,
       }),
       expect.objectContaining({
+        jobId: 'workflow-execution:execution-123',
         metadata: expect.objectContaining({
           workflowId: 'workflow-1',
           userId: 'actor-1',
@@ -406,8 +408,13 @@ describe('workflow execute async route', () => {
     )
     expect(mockEnqueue).toHaveBeenCalledWith(
       'workflow-execution',
-      expect.objectContaining({ executionId: requestedExecutionId }),
-      expect.any(Object)
+      expect.objectContaining({
+        executionId: requestedExecutionId,
+        input: { hello: 'world' },
+      }),
+      expect.objectContaining({
+        jobId: `workflow-execution:${requestedExecutionId}`,
+      })
     )
   })
 
@@ -554,7 +561,7 @@ describe('workflow execute async route', () => {
   )
 
   it.each(EXTERNAL_EXECUTION_CALLERS)(
-    'strips executionId from $caseName workflow input',
+    'preserves a legacy body executionId in $caseName flat workflow input',
     async (caller) => {
       const requestedExecutionId = '88888888-8888-4888-8888-888888888888'
       configureExecutionCaller(caller)
@@ -568,12 +575,92 @@ describe('workflow execute async route', () => {
         'workflow-execution',
         expect.objectContaining({
           executionId: requestedExecutionId,
-          input: { hello: 'world' },
+          input: { hello: 'world', executionId: requestedExecutionId },
         }),
         expect.any(Object)
       )
     }
   )
+
+  it.each(EXTERNAL_EXECUTION_CALLERS)(
+    'uses the execution header for $caseName transport identity while preserving the body field',
+    async (caller) => {
+      const bodyExecutionId = 'workflow data with spaces'
+      const headerExecutionId = '99999999-9999-4999-8999-999999999999'
+      configureExecutionCaller(caller)
+      const request = createCallerExecutionRequest(caller, bodyExecutionId)
+      request.headers.set('X-Execution-Id', headerExecutionId)
+
+      const response = await POST(request, {
+        params: Promise.resolve({ id: 'workflow-1' }),
+      })
+
+      expect(response.status).toBe(202)
+      await expect(response.json()).resolves.toMatchObject({ executionId: headerExecutionId })
+      expect(mockClaimExecutionId).toHaveBeenCalledWith(headerExecutionId)
+      expect(mockEnqueue).toHaveBeenCalledWith(
+        'workflow-execution',
+        expect.objectContaining({
+          executionId: headerExecutionId,
+          input: { hello: 'world', executionId: bodyExecutionId },
+        }),
+        expect.objectContaining({
+          jobId: `workflow-execution:${headerExecutionId}`,
+        })
+      )
+    }
+  )
+
+  it('keeps legacy body execution ID validation when no header is present', async () => {
+    const caller = EXECUTION_CALLERS[1]
+    configureExecutionCaller(caller)
+
+    const response = await POST(createCallerExecutionRequest(caller, 'invalid execution id'), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Invalid request body',
+    })
+    expect(mockClaimExecutionId).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid execution identity header before claiming an ID', async () => {
+    const caller = EXECUTION_CALLERS[1]
+    configureExecutionCaller(caller)
+    const request = createCallerExecutionRequest(caller)
+    request.headers.set('X-Execution-Id', 'invalid execution id')
+
+    const response = await POST(request, {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Invalid execution ID header',
+    })
+    expect(mockClaimExecutionId).not.toHaveBeenCalled()
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('keeps session input nested when executionId is supplied in the body', async () => {
+    const requestedExecutionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+
+    const response = await POST(createSessionReplayRequest(requestedExecutionId), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'workflow-execution',
+      expect.objectContaining({
+        executionId: requestedExecutionId,
+        input: { hello: 'world' },
+      }),
+      expect.any(Object)
+    )
+  })
 
   it('retries a generated execution ID collision with a fresh server ID', async () => {
     mockGenerateId
@@ -671,8 +758,13 @@ describe('workflow execute async route', () => {
     expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
   })
 
-  it('releases the admission reservation when enqueue fails', async () => {
-    mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
+  it('releases the admission reservation when enqueue proves non-acceptance', async () => {
+    mockEnqueue.mockRejectedValueOnce(
+      new AsyncJobEnqueueError('queue rejected the job', {
+        acceptance: 'rejected',
+        retryable: false,
+      })
+    )
     const req = createMockRequest(
       'POST',
       { input: { hello: 'world' } },
@@ -685,10 +777,103 @@ describe('workflow execute async route', () => {
     const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
 
     expect(response.status).toBe(500)
+    expect(mockEnqueue).toHaveBeenCalledTimes(1)
     expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-123')
     expect(mockReleaseExecutionIdClaim).toHaveBeenCalledWith(
       expect.objectContaining({ key: 'workflow-execution-id:execution-123' })
     )
+  })
+
+  it('retries an accepted-response-lost enqueue with the same deterministic job ID', async () => {
+    mockEnqueue.mockRejectedValueOnce(
+      new AsyncJobEnqueueError('enqueue response was lost', {
+        acceptance: 'unknown',
+        retryable: true,
+      })
+    )
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockEnqueue).toHaveBeenCalledTimes(2)
+    for (const [, , options] of mockEnqueue.mock.calls) {
+      expect(options).toEqual(
+        expect.objectContaining({ jobId: 'workflow-execution:execution-123' })
+      )
+    }
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
+  })
+
+  it('retains the reservation and execution claim when enqueue acceptance stays ambiguous', async () => {
+    const ambiguousError = new AsyncJobEnqueueError('enqueue response was lost', {
+      acceptance: 'unknown',
+      retryable: true,
+    })
+    mockEnqueue.mockRejectedValueOnce(ambiguousError).mockRejectedValueOnce(ambiguousError)
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'ASYNC_ENQUEUE_AMBIGUOUS',
+      executionId: 'execution-123',
+    })
+    expect(mockEnqueue).toHaveBeenCalledTimes(2)
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
+  })
+
+  it('retains ownership when a later rejection cannot disprove earlier acceptance', async () => {
+    mockEnqueue
+      .mockRejectedValueOnce(
+        new AsyncJobEnqueueError('enqueue response was lost', {
+          acceptance: 'unknown',
+          retryable: true,
+        })
+      )
+      .mockRejectedValueOnce(
+        new AsyncJobEnqueueError('retry rejected', {
+          acceptance: 'rejected',
+          retryable: false,
+        })
+      )
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { input: { hello: 'world' } },
+        {
+          'Content-Type': 'application/json',
+          'X-Execution-Mode': 'async',
+        }
+      ),
+      { params: Promise.resolve({ id: 'workflow-1' }) }
+    )
+
+    expect(response.status).toBe(503)
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
   })
 
   it.each([

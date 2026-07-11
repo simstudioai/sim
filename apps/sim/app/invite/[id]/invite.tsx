@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -18,6 +19,17 @@ import { refreshSessionQuery } from '@/hooks/queries/session'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 
 const logger = createLogger('InviteById')
+
+function runBestEffortCacheRefresh(cache: string, refresh: () => Promise<unknown>): void {
+  void Promise.resolve()
+    .then(refresh)
+    .catch((refreshError) => {
+      logger.warn('Post-acceptance cache refresh failed', {
+        cache,
+        error: getErrorMessage(refreshError),
+      })
+    })
+}
 
 type InviteErrorCode =
   | 'missing-token'
@@ -236,16 +248,17 @@ export default function Invite() {
         body: { token: token ?? undefined },
       })
 
-      await Promise.all([
-        refreshSessionQuery(queryClient),
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.all }),
-        queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
-      ])
-
       setAccepted(true)
       setIsAccepting(false)
-
       setTimeout(() => router.push(data.redirectPath), 1200)
+
+      runBestEffortCacheRefresh('session', () => refreshSessionQuery(queryClient))
+      runBestEffortCacheRefresh('subscription', () =>
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      )
+      runBestEffortCacheRefresh('organization', () =>
+        queryClient.invalidateQueries({ queryKey: organizationKeys.all })
+      )
     } catch (acceptError) {
       logger.error('Error accepting invitation:', acceptError)
       const code =

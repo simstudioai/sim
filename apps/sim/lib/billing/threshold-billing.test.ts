@@ -18,6 +18,8 @@ const {
   mockIsFree,
   mockIsOrgScopedSubscription,
   mockIsOrganizationBillingBlocked,
+  mockRecordAudit,
+  mockCaptureServerEvent,
   mockTxExecute,
   mockTxSelect,
   mockTxStatsLimit,
@@ -37,10 +39,18 @@ const {
   mockIsFree: vi.fn(),
   mockIsOrgScopedSubscription: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
+  mockRecordAudit: vi.fn(),
+  mockCaptureServerEvent: vi.fn(),
   mockTxExecute: vi.fn(),
   mockTxSelect: vi.fn(),
   mockTxStatsLimit: vi.fn(),
   mockTxUpdate: vi.fn(),
+}))
+
+vi.mock('@sim/audit', () => ({
+  AuditAction: { OVERAGE_BILLED: 'overage.billed' },
+  AuditResourceType: { BILLING: 'billing' },
+  recordAudit: mockRecordAudit,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -120,7 +130,14 @@ vi.mock('@/lib/core/outbox/service', () => ({
   enqueueOutboxEvent: mockEnqueueOutboxEvent,
 }))
 
-import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+vi.mock('@/lib/posthog/server', () => ({
+  captureServerEvent: mockCaptureServerEvent,
+}))
+
+import {
+  checkAndBillOverageThreshold,
+  checkAndBillPayerOverageThreshold,
+} from '@/lib/billing/threshold-billing'
 
 interface MockTx {
   execute: typeof mockTxExecute
@@ -256,6 +273,28 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
+  it('preserves best-effort error handling for existing callers', async () => {
+    mockCalculateSubscriptionOverage.mockRejectedValue(new Error('Overage lookup unavailable'))
+
+    await expect(checkAndBillOverageThreshold('user-1')).resolves.toBeUndefined()
+  })
+
+  it('rethrows personal threshold failures when strict settlement is requested', async () => {
+    mockCalculateSubscriptionOverage.mockRejectedValue(new Error('Overage lookup unavailable'))
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
+    ).rejects.toThrow('Overage lookup unavailable')
+  })
+
+  it('rethrows organization threshold failures through the strict payer helper', async () => {
+    mockIsOrganizationBillingBlocked.mockRejectedValue(new Error('Organization lookup unavailable'))
+
+    await expect(
+      checkAndBillPayerOverageThreshold({ type: 'organization', id: 'org-1' }, { onError: 'throw' })
+    ).rejects.toThrow('Organization lookup unavailable')
+  })
+
   it('calculates overage before opening the short user_stats transaction', async () => {
     mockCalculateSubscriptionOverage.mockResolvedValue(250)
     mockTxStatsLimit.mockResolvedValue([
@@ -278,6 +317,38 @@ describe('checkAndBillOverageThreshold', () => {
     )
     expect(mockTxExecute).toHaveBeenCalledTimes(1)
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits audit and analytics once when a retry finds overage already settled', async () => {
+    mockCalculateSubscriptionOverage.mockResolvedValue(250)
+    mockTxStatsLimit
+      .mockResolvedValueOnce([
+        {
+          currentPeriodCost: '0',
+          proPeriodCostSnapshot: '0',
+          proPeriodCostSnapshotAt: null,
+          lastPeriodCost: '0',
+          billedOverageThisPeriod: '0',
+          creditBalance: '0',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          currentPeriodCost: '0',
+          proPeriodCostSnapshot: '0',
+          proPeriodCostSnapshotAt: null,
+          lastPeriodCost: '0',
+          billedOverageThisPeriod: '250',
+          creditBalance: '0',
+        },
+      ])
+
+    await checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
+    await checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
+
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+    expect(mockRecordAudit).toHaveBeenCalledTimes(1)
+    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
   })
 
   it('rechecks billed overage while locked before enqueueing an invoice', async () => {

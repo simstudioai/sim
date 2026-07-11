@@ -44,26 +44,32 @@ interface OrganizationUsageSnapshot {
   departedMemberUsage: number
 }
 
+export interface ThresholdBillingOptions {
+  onError?: 'log' | 'throw'
+}
+
 /**
  * Runs threshold billing against an already-resolved payer entity.
  */
 export async function checkAndBillPayerOverageThreshold(
-  billingEntity: BillingEntity
+  billingEntity: BillingEntity,
+  options: ThresholdBillingOptions = {}
 ): Promise<void> {
   if (billingEntity.type === 'organization') {
-    await checkAndBillOrganizationOverageThreshold(billingEntity.id)
+    await checkAndBillOrganizationOverageThreshold(billingEntity.id, options)
     return
   }
 
   const personalSubscription = await getHighestPriorityPersonalSubscription(billingEntity.id, {
     onError: 'throw',
   })
-  await checkAndBillOverageThreshold(billingEntity.id, personalSubscription)
+  await checkAndBillOverageThreshold(billingEntity.id, personalSubscription, options)
 }
 
 export async function checkAndBillOverageThreshold(
   userId: string,
-  preloadedSubscription?: HighestPrioritySubscription
+  preloadedSubscription?: HighestPrioritySubscription,
+  options: ThresholdBillingOptions = {}
 ): Promise<void> {
   try {
     const threshold = OVERAGE_THRESHOLD
@@ -93,7 +99,7 @@ export async function checkAndBillOverageThreshold(
         organizationId: userSubscription.referenceId,
         plan: userSubscription.plan,
       })
-      await checkAndBillOrganizationOverageThreshold(userSubscription.referenceId)
+      await checkAndBillOrganizationOverageThreshold(userSubscription.referenceId, options)
       return
     }
 
@@ -308,10 +314,16 @@ export async function checkAndBillOverageThreshold(
       userId,
       error,
     })
+    if (options.onError === 'throw') {
+      throw error
+    }
   }
 }
 
-async function checkAndBillOrganizationOverageThreshold(organizationId: string): Promise<void> {
+async function checkAndBillOrganizationOverageThreshold(
+  organizationId: string,
+  options: ThresholdBillingOptions
+): Promise<void> {
   logger.info('=== ENTERED checkAndBillOrganizationOverageThreshold ===', { organizationId })
 
   try {
@@ -659,6 +671,9 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
       organizationId,
       error,
     })
+    if (options.onError === 'throw') {
+      throw error
+    }
   }
 }
 

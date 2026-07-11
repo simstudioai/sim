@@ -26,6 +26,7 @@ import {
   PauseResumeManager,
   updateResumeOutputInAggregationBuffers,
 } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
 import { AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH } from '@/lib/workflows/executor/resume-policy'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint, SerializedSnapshot } from '@/executor/types'
@@ -72,6 +73,26 @@ function createExecutionState(): SerializableExecutionState {
     activeExecutionPath: [],
   }
 }
+
+describe('automatic resume waiting metadata compatibility', () => {
+  it('loads legacy waiting metadata with bounded retry defaults', () => {
+    expect(
+      getAutomaticResumeWaitingMetadata({
+        automaticResumeWaiting: {
+          contextId: 'context-1',
+          reason: 'Temporary admission outage',
+          recordedAt: '2026-07-10T12:00:00.000Z',
+        },
+      })
+    ).toEqual({
+      contextId: 'context-1',
+      reason: 'Temporary admission outage',
+      recordedAt: '2026-07-10T12:00:00.000Z',
+      state: 'waiting',
+      retryCount: 0,
+    })
+  })
+})
 
 describe('updateResumeOutputInAggregationBuffers', () => {
   it('replaces a paused parallel branch placeholder with the resumed HITL output', () => {
@@ -384,6 +405,7 @@ describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () 
     await PauseResumeManager.persistPauseResult({
       workflowId: 'workflow-1',
       executionId: 'execution-1',
+      reservationId: 'resume-entry-1',
       pausePoints,
       snapshotSeed,
       executorUserId: 'user-1',
@@ -395,9 +417,11 @@ describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () 
     expect(updateSetCall).toBeDefined()
 
     const update = updateSetCall![0] as {
+      automaticResumeRetryCount: number
       metadata: Record<string, unknown>
       pausePoints: Record<string, Record<string, unknown>>
     }
+    expect(update.automaticResumeRetryCount).toBe(0)
     const updatedMetadata = update.metadata
     expect(updatedMetadata.cellContext).toEqual(cellContext)
     expect(updatedMetadata.pauseScope).toBe('execution')
@@ -410,7 +434,7 @@ describe('PauseResumeManager.persistPauseResult metadata merge on re-pause', () 
     )
     expect(update.pausePoints['ctx-wait-1']).not.toHaveProperty('automaticResumeWaitingReason')
     expect(mockReleaseExecutionSlot).toHaveBeenCalledTimes(1)
-    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('resume-entry-1')
   })
 
   it('stores only canonical bounded resume metadata while retaining the full snapshot', async () => {
@@ -551,6 +575,7 @@ describe('PauseResumeManager blocked resume readmission', () => {
   it('keeps the queued input pending without incrementing resumed state', async () => {
     const failureReason = 'Usage admission unavailable '.repeat(100)
     const startedAt = Date.now()
+    dbChainMockFns.limit.mockResolvedValueOnce([{ automaticResumeRetryCount: 0, status: 'paused' }])
 
     await PauseResumeManager.markResumeAttemptFailed({
       resumeEntryId: 'resume-entry-1',
@@ -559,6 +584,7 @@ describe('PauseResumeManager blocked resume readmission', () => {
       contextId: 'context-1',
       failureReason,
       preserveForRetry: true,
+      retryable: true,
     })
 
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
@@ -571,10 +597,12 @@ describe('PauseResumeManager blocked resume readmission', () => {
       nextResumeAt: Date
       pausePoints: unknown
       metadata: unknown
+      automaticResumeRetryCount: number
     }
     expect(pausedUpdate).toEqual(expect.objectContaining({ nextResumeAt: expect.any(Date) }))
     expect(pausedUpdate.nextResumeAt.getTime() - startedAt).toBeGreaterThanOrEqual(59_000)
     expect(pausedUpdate.nextResumeAt.getTime() - startedAt).toBeLessThanOrEqual(61_000)
+    expect(pausedUpdate.automaticResumeRetryCount).toBe(1)
     const persistedWaitingState = JSON.stringify({
       pausePoints: pausedUpdate.pausePoints,
       metadata: pausedUpdate.metadata,
@@ -594,20 +622,24 @@ describe('PauseResumeManager blocked resume readmission', () => {
   it('stores a bounded automatic waiting reason with the requested retry time', async () => {
     const reason = 'Temporary admission outage '.repeat(100)
     const retryAt = new Date('2026-07-10T12:01:00.000Z')
+    dbChainMockFns.limit.mockResolvedValueOnce([{ automaticResumeRetryCount: 0, status: 'paused' }])
 
     await PauseResumeManager.setAutomaticResumeWaiting({
       pausedExecutionId: 'paused-exec-1',
       contextId: 'context-1',
       reason,
       retryAt,
+      retryable: true,
     })
 
     const update = dbChainMockFns.set.mock.calls[0]?.[0] as {
       nextResumeAt: Date
       pausePoints: unknown
       metadata: unknown
+      automaticResumeRetryCount: number
     }
     expect(update.nextResumeAt).toBe(retryAt)
+    expect(update.automaticResumeRetryCount).toBe(1)
     const serializedWaitingState = JSON.stringify({
       pausePoints: update.pausePoints,
       metadata: update.metadata,
@@ -616,5 +648,67 @@ describe('PauseResumeManager blocked resume readmission', () => {
     expect(serializedWaitingState).not.toContain(
       reason.slice(0, AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH + 1)
     )
+  })
+
+  it('fails pending automatic work and restores manual resumability for permanent errors', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ automaticResumeRetryCount: 0, status: 'paused' }])
+      .mockResolvedValueOnce([])
+
+    await PauseResumeManager.setAutomaticResumeWaiting({
+      pausedExecutionId: 'paused-exec-1',
+      contextId: 'context-1',
+      reason: 'Usage limit reached',
+      retryAt: null,
+      retryable: false,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        status: 'failed',
+        completedAt: expect.any(Date),
+      })
+    )
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        automaticResumeRetryCount: 0,
+        nextResumeAt: null,
+      })
+    )
+    const pausedUpdate = JSON.stringify(dbChainMockFns.set.mock.calls[1]?.[0])
+    expect(pausedUpdate).toContain('intervention_required')
+    expect(pausedUpdate).toContain('paused')
+  })
+
+  it('fails the queued attempt and leaves the pause manually resumable after exhaustion', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ automaticResumeRetryCount: 3, status: 'paused' }])
+
+    await PauseResumeManager.markResumeAttemptFailed({
+      resumeEntryId: 'resume-entry-1',
+      pausedExecutionId: 'paused-exec-1',
+      parentExecutionId: 'execution-1',
+      contextId: 'context-1',
+      failureReason: 'Usage admission unavailable',
+      preserveForRetry: true,
+      retryable: true,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        status: 'failed',
+        completedAt: expect.any(Date),
+      })
+    )
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        automaticResumeRetryCount: 3,
+        nextResumeAt: null,
+      })
+    )
+    expect(JSON.stringify(dbChainMockFns.set.mock.calls[1]?.[0])).toContain('intervention_required')
   })
 })

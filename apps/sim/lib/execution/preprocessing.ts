@@ -51,6 +51,8 @@ export interface PreprocessExecutionOptions {
   userId: string
   triggerType: CoreTriggerType
   executionId: string
+  /** Reservation identity; defaults to `executionId` for initial executions. */
+  reservationId?: string
   requestId: string
 
   checkRateLimit?: boolean
@@ -122,6 +124,7 @@ export async function preprocessExecution(
     userId,
     triggerType,
     executionId,
+    reservationId = executionId,
     requestId,
     checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
     checkDeployment = triggerType !== 'manual',
@@ -653,7 +656,7 @@ export async function preprocessExecution(
     try {
       const reservation = await reserveExecutionSlot({
         billingEntity: billingAttribution.billingEntity,
-        executionId,
+        reservationId,
         plan: billingAttribution.payerSubscription?.plan,
         currentUsage: usageSnapshot.currentUsage,
         limit: usageSnapshot.limit,

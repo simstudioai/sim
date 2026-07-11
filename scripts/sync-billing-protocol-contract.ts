@@ -144,6 +144,11 @@ function render(schema: SchemaNode): string {
     'BillingProtocolV1Headers'
   )
   const headers = {
+    accountDecision: singletonString(
+      definitions,
+      headerProperties.accountDecision,
+      'BillingProtocolV1Headers.accountDecision'
+    ),
     attribution: singletonString(
       definitions,
       headerProperties.attribution,
@@ -184,6 +189,11 @@ function render(schema: SchemaNode): string {
     limitProperties.attributionHeaderMaxBytes,
     'BillingProtocolV1Limits.attributionHeaderMaxBytes'
   )
+  const accountDecisionHeaderMaxBytes = singletonNumber(
+    definitions,
+    limitProperties.accountDecisionHeaderMaxBytes,
+    'BillingProtocolV1Limits.accountDecisionHeaderMaxBytes'
+  )
   const callbackOutcomes = namedPairs(definitions, 'BillingProtocolV1CallbackOutcomes')
   const analyticsOutcomes = stringEnum(
     schemaDefinition(definitions, 'BillingAnalyticsOutcome'),
@@ -201,12 +211,14 @@ function render(schema: SchemaNode): string {
 
 export const BILLING_PROTOCOL_HEADERS = {
 ${renderRecord([
+  { name: 'accountDecision', value: headers.accountDecision },
   { name: 'attribution', value: headers.attribution },
   { name: 'protocol', value: headers.protocol },
   { name: 'requestId', value: headers.requestId },
 ])}
 } as const;
 
+export const BILLING_ACCOUNT_DECISION_HEADER = BILLING_PROTOCOL_HEADERS.accountDecision;
 export const BILLING_ATTRIBUTION_HEADER = BILLING_PROTOCOL_HEADERS.attribution;
 export const COPILOT_BILLING_PROTOCOL_HEADER = BILLING_PROTOCOL_HEADERS.protocol;
 export const BILLING_REQUEST_ID_HEADER = BILLING_PROTOCOL_HEADERS.requestId;
@@ -227,6 +239,7 @@ export const COPILOT_BILLING_PROTOCOL_VALUES = [
 ] as const;
 
 export const BILLING_ATTRIBUTION_HEADER_MAX_BYTES = ${attributionHeaderMaxBytes};
+export const BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES = ${accountDecisionHeaderMaxBytes};
 
 export const BILLING_CALLBACK_OUTCOME = {
 ${renderPairs(callbackOutcomes)}

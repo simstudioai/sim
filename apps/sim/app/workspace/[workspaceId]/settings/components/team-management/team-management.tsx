@@ -31,9 +31,13 @@ const logger = createLogger('TeamManagement')
 
 interface TeamManagementProps {
   organizationId: string
+  billingHref?: string
 }
 
-export function TeamManagement({ organizationId }: TeamManagementProps) {
+export function TeamManagement({
+  organizationId,
+  billingHref = `/organization/${organizationId}/settings/billing`,
+}: TeamManagementProps) {
   const { data: session } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
 
@@ -320,7 +324,7 @@ export function TeamManagement({ organizationId }: TeamManagementProps) {
       >
         {adminOrOwner && (
           <TeamSeatsOverview
-            billingHref={`/organization/${organizationId}/settings/billing`}
+            billingHref={billingHref}
             subscriptionData={orgSubscription}
             isLoadingSubscription={isOrgBillingLoading}
             totalSeats={totalSeats}

@@ -755,10 +755,12 @@ interface PaidOrgJoinBillingActions {
  *   - snapshots current Pro usage so new usage attributes to the org;
  *   - marks personal Pro subscription `cancelAtPeriodEnd=true` and enqueues
  *     the Stripe sync via the outbox;
- *   - transfers personal storage bytes into the org's pool.
  *
- * Idempotent: re-running is a no-op when Pro is already flagged cancel-at-period-end
- * and the user's storage is already transferred (zeroed).
+ * Storage follows each workspace's routed payer independently. The workspace
+ * payer-change transaction transfers that workspace's durable byte ledger; a
+ * membership change must never move the user's account-wide storage counter.
+ *
+ * Idempotent: re-running is a no-op when Pro is already flagged cancel-at-period-end.
  */
 async function applyPaidOrgJoinBillingTx(
   tx: DbOrTx,
@@ -831,31 +833,6 @@ async function applyPaidOrgJoinBillingTx(
       userId,
       subscriptionId: personalPro.id,
       organizationId,
-    })
-  }
-
-  const storageRows = await tx
-    .select({ storageUsedBytes: userStats.storageUsedBytes })
-    .from(userStats)
-    .where(eq(userStats.userId, userId))
-    .for('update')
-    .limit(1)
-
-  const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
-  if (bytesToTransfer > 0) {
-    await tx
-      .update(organization)
-      .set({
-        storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytesToTransfer}`,
-      })
-      .where(eq(organization.id, organizationId))
-
-    await tx.update(userStats).set({ storageUsedBytes: 0 }).where(eq(userStats.userId, userId))
-
-    logger.info('Transferred personal storage bytes to org pool on join', {
-      userId,
-      organizationId,
-      bytes: bytesToTransfer,
     })
   }
 

@@ -72,7 +72,7 @@ const RESERVE_DUPLICATE = 5
  * The script performs only constant-size scalar work plus sorted-set operations
  * over at most `maxConcurrency` entries (300). No Lua collection grows with
  * traffic. Base-charge slots have no floor: zero remaining guaranteed-minimum
- * charges is a headroom rejection, while duplicate execution ids remain
+ * charges is a headroom rejection, while duplicate reservation ids remain
  * idempotent.
  */
 const RESERVE_SCRIPT = `
@@ -325,12 +325,12 @@ function parseDescriptor(value: string): ReservationDescriptor | null {
 
 function buildLocalKeys(
   descriptor: ReservationDescriptor,
-  executionId: string
+  reservationId: string
 ): LocalReservationKeys {
   const tag = `{${descriptor.entityKey}}`
   return {
     payerKey: `${PAYER_KEY_PREFIX}${tag}:payer`,
-    ownerKey: `${OWNER_KEY_PREFIX}${tag}:${executionId}`,
+    ownerKey: `${OWNER_KEY_PREFIX}${tag}:${reservationId}`,
     ...(descriptor.member
       ? {
           memberKey: `${PAYER_KEY_PREFIX}${tag}:member:${descriptor.member.organizationId}:${descriptor.member.actorUserId}`,
@@ -348,7 +348,7 @@ function localKeyArguments(keys: LocalReservationKeys): string[] {
 async function rollbackCreatedReservation(params: {
   redis: NonNullable<ReturnType<typeof getRedisClient>>
   keys: LocalReservationKeys
-  executionId: string
+  reservationId: string
   descriptorValue: string
 }): Promise<boolean> {
   try {
@@ -357,22 +357,21 @@ async function rollbackCreatedReservation(params: {
       RELEASE_LOCAL_SCRIPT,
       keyArgs.length,
       ...keyArgs,
-      params.executionId,
+      params.reservationId,
       params.descriptorValue
     )
     return result === 0 || result === 1
   } catch (error) {
     logger.error('Unable to prove usage reservation rollback', {
-      executionId: params.executionId,
+      reservationId: params.reservationId,
       error: toError(error).message,
     })
     return false
   }
 }
 
-export interface ReserveExecutionSlotParams {
+interface ReserveExecutionSlotBaseParams {
   billingEntity: BillingEntity
-  executionId: string
   plan: string | null | undefined
   /** Recorded usage for the billing entity at admission time (dollars). */
   currentUsage: number
@@ -381,6 +380,20 @@ export interface ReserveExecutionSlotParams {
   /** Optional exact organization-member cap captured by the attributed usage check. */
   member?: MemberReservationConstraint
 }
+
+export type ReserveExecutionSlotParams = ReserveExecutionSlotBaseParams &
+  (
+    | {
+        /** Unique identity for this initial run or durable resume-queue attempt. */
+        reservationId: string
+        executionId?: never
+      }
+    | {
+        /** Legacy initial-execution call sites use the execution id as reservation identity. */
+        executionId: string
+        reservationId?: never
+      }
+  )
 
 export type ReserveExecutionSlotResult =
   | { reserved: true; created: boolean }
@@ -412,7 +425,10 @@ export async function reserveExecutionSlot(
   }
 
   const { billingEntity, plan, member } = params
-  const executionId = requireBoundedIdentifier(params.executionId, 'execution id')
+  const reservationId = requireBoundedIdentifier(
+    params.reservationId ?? params.executionId,
+    'reservation id'
+  )
   const entityKey = resolveBillingEntityKey(billingEntity)
   if (
     member &&
@@ -424,9 +440,9 @@ export async function reserveExecutionSlot(
   }
   const descriptor = buildDescriptor(entityKey, member)
   const descriptorValue = serializeDescriptor(descriptor)
-  const keys = buildLocalKeys(descriptor, executionId)
+  const keys = buildLocalKeys(descriptor, reservationId)
   const keyArgs = localKeyArguments(keys)
-  const pointerKey = `${POINTER_KEY_PREFIX}${executionId}`
+  const pointerKey = `${POINTER_KEY_PREFIX}${reservationId}`
   const maxConcurrency = getMaxConcurrentExecutions(plan)
   const currentUsage = requireUsageNumber(params.currentUsage, 'payer current usage')
   const limit = requireUsageNumber(params.limit, 'payer limit')
@@ -455,7 +471,7 @@ export async function reserveExecutionSlot(
       expiryScore.toString(),
       maxConcurrency.toString(),
       payerBaseChargeSlots.toString(),
-      executionId,
+      reservationId,
       descriptorValue,
       expiryScore.toString(),
       memberBaseChargeSlots.toString()
@@ -464,7 +480,7 @@ export async function reserveExecutionSlot(
     logger.error('Atomic usage reservation result unavailable — failing closed', {
       error: toError(error).message,
       entityKey,
-      executionId,
+      reservationId,
     })
     throw new UsageReservationUnavailableError(
       'Usage admission is temporarily unavailable. Please retry.',
@@ -499,7 +515,7 @@ export async function reserveExecutionSlot(
       return { reserved: true, created: localResult === RESERVE_CREATED }
     }
     throw new UsageReservationUnavailableError(
-      'Execution id is already reserved by a different payer'
+      'Reservation id is already reserved by a different payer'
     )
   } catch (error) {
     let pointerState: 'matching' | 'absent' | 'conflicting' | 'unknown' = 'unknown'
@@ -514,14 +530,14 @@ export async function reserveExecutionSlot(
     } catch (pointerReadError) {
       logger.error('Unable to verify usage reservation pointer after write failure', {
         entityKey,
-        executionId,
+        reservationId,
         error: toError(pointerReadError).message,
       })
     }
     if (pointerState === 'matching') {
       logger.warn('Usage reservation pointer response unavailable; ownership verified', {
         entityKey,
-        executionId,
+        reservationId,
       })
       return { reserved: true, created: localResult === RESERVE_CREATED }
     }
@@ -531,13 +547,13 @@ export async function reserveExecutionSlot(
         ? await rollbackCreatedReservation({
             redis,
             keys,
-            executionId,
+            reservationId,
             descriptorValue,
           })
         : false
     logger.error('Usage reservation pointer registration failed — failing closed', {
       entityKey,
-      executionId,
+      reservationId,
       rollbackProven,
       pointerState,
       duplicateReservation: localResult === RESERVE_DUPLICATE,
@@ -561,7 +577,7 @@ export async function reserveExecutionSlot(
  * bounded by the payer ceiling and absolute TTL. Paused executions call this
  * only after their pause snapshot is durable.
  */
-export async function releaseExecutionSlot(executionId: string): Promise<void> {
+export async function releaseExecutionSlot(reservationId: string): Promise<void> {
   if (!isHosted || !isBillingEnabled) {
     return
   }
@@ -572,13 +588,13 @@ export async function releaseExecutionSlot(executionId: string): Promise<void> {
   }
 
   try {
-    const boundedExecutionId = requireBoundedIdentifier(executionId, 'execution id')
-    const pointerKey = `${POINTER_KEY_PREFIX}${boundedExecutionId}`
+    const boundedReservationId = requireBoundedIdentifier(reservationId, 'reservation id')
+    const pointerKey = `${POINTER_KEY_PREFIX}${boundedReservationId}`
     const descriptorValue = await redis.get(pointerKey)
     if (!descriptorValue) return
     const descriptor = parseDescriptor(descriptorValue)
     if (!descriptor) {
-      logger.error('Invalid usage reservation pointer; awaiting TTL cleanup', { executionId })
+      logger.error('Invalid usage reservation pointer; awaiting TTL cleanup', { reservationId })
       return
     }
     try {
@@ -590,35 +606,35 @@ export async function releaseExecutionSlot(executionId: string): Promise<void> {
         pointerDeleted = (await redis.get(pointerKey)) === null
       } catch (pointerReadError) {
         logger.warn('Unable to verify usage reservation pointer deletion', {
-          executionId,
+          reservationId,
           error: toError(pointerReadError).message,
         })
       }
       if (!pointerDeleted) {
         logger.warn('Usage reservation pointer deletion failed; retaining local constraints', {
-          executionId,
+          reservationId,
           error: toError(pointerError).message,
         })
         return
       }
     }
-    const keys = buildLocalKeys(descriptor, boundedExecutionId)
+    const keys = buildLocalKeys(descriptor, boundedReservationId)
     const keyArgs = localKeyArguments(keys)
     const localResult = await redis.eval(
       RELEASE_LOCAL_SCRIPT,
       keyArgs.length,
       ...keyArgs,
-      boundedExecutionId,
+      boundedReservationId,
       descriptorValue
     )
     if (localResult !== 0 && localResult !== 1) {
-      logger.error('Usage reservation owner mismatch; awaiting TTL cleanup', { executionId })
+      logger.error('Usage reservation owner mismatch; awaiting TTL cleanup', { reservationId })
       return
     }
   } catch (error) {
     logger.warn('Failed to release usage reservation', {
       error: toError(error).message,
-      executionId,
+      reservationId,
     })
   }
 }

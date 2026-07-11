@@ -1,0 +1,1 @@
+ALTER TABLE "paused_executions" ADD COLUMN "automatic_resume_retry_count" integer DEFAULT 0 NOT NULL;

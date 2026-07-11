@@ -94,5 +94,12 @@ export function getAutomaticResumeWaitingMetadata(
     contextId: waiting.contextId,
     reason: normalizeAutomaticResumeWaitingReason(waiting.reason),
     recordedAt: waiting.recordedAt,
+    state: waiting.state === 'intervention_required' ? 'intervention_required' : 'waiting',
+    retryCount:
+      typeof waiting.retryCount === 'number' &&
+      Number.isInteger(waiting.retryCount) &&
+      waiting.retryCount >= 0
+        ? waiting.retryCount
+        : 0,
   }
 }

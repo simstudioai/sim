@@ -7,16 +7,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockCheckStorageQuota,
   mockCheckStorageQuotaForBillingContext,
+  mockDecrementStorageUsageForBillingContextInTx,
   mockDecrementStorageUsageInTx,
   mockIncrementStorageUsage,
-  mockIncrementStorageUsageForBillingContext,
+  mockIncrementStorageUsageForBillingContextInTx,
   mockResolveStorageBillingContext,
 } = vi.hoisted(() => ({
   mockCheckStorageQuota: vi.fn(),
   mockCheckStorageQuotaForBillingContext: vi.fn(),
+  mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockDecrementStorageUsageInTx: vi.fn(),
   mockIncrementStorageUsage: vi.fn(),
-  mockIncrementStorageUsageForBillingContext: vi.fn(),
+  mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
 }))
 
@@ -25,9 +27,10 @@ vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/billing/storage', () => ({
   checkStorageQuota: mockCheckStorageQuota,
   checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
+  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
   decrementStorageUsageInTx: mockDecrementStorageUsageInTx,
   incrementStorageUsage: mockIncrementStorageUsage,
-  incrementStorageUsageForBillingContext: mockIncrementStorageUsageForBillingContext,
+  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
   resolveStorageBillingContext: mockResolveStorageBillingContext,
 }))
 
@@ -54,7 +57,7 @@ describe('knowledge document storage attribution', () => {
     ])
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
     mockCheckStorageQuotaForBillingContext.mockResolvedValue({ allowed: true })
-    mockIncrementStorageUsageForBillingContext.mockResolvedValue(undefined)
+    mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
   })
 
   it.each(['external-collaborator', 'personal-api-key-user'])(
@@ -76,7 +79,11 @@ describe('knowledge document storage attribution', () => {
 
       expect(mockResolveStorageBillingContext).toHaveBeenCalledWith('workspace-1')
       expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 5)
-      expect(mockIncrementStorageUsageForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 5)
+      expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+        expect.anything(),
+        STORAGE_CONTEXT,
+        5
+      )
       expect(mockCheckStorageQuota).not.toHaveBeenCalled()
       expect(mockIncrementStorageUsage).not.toHaveBeenCalled()
       expect(dbChainMockFns.values).toHaveBeenCalledWith([

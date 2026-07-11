@@ -45,23 +45,6 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
 
 vi.mock('@/lib/billing/core/billing-attribution-cache', () => ({
   cacheBillingAttribution: mockCacheBillingAttribution,
-  createAttributedBillingRequestEnvelope: vi.fn(
-    async (attribution: unknown, errorMessage: string) => {
-      const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
-      const cached = await mockCacheBillingAttribution(billingRequestId, attribution)
-      if (!cached) throw new Error(errorMessage)
-      const serializedAttribution = encodeURIComponent(JSON.stringify(attribution))
-      return {
-        billingRequestId,
-        serializedAttribution,
-        headers: {
-          'x-sim-billing-protocol': 'attribution-v1',
-          'x-sim-billing-request-id': billingRequestId,
-          'x-sim-billing-attribution': serializedAttribution,
-        },
-      }
-    }
-  ),
 }))
 
 vi.mock('@/lib/copilot/request/go/stream', () => {
@@ -446,12 +429,13 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    const billingRequestId = mockCacheBillingAttribution.mock.calls[0]?.[0] as string
+    const firstHeaders = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
+    const billingRequestId = firstHeaders['x-sim-billing-request-id']
     expect(billingRequestId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     )
     expect(billingRequestId).not.toBe('caller-controlled')
-    expect(mockCacheBillingAttribution).toHaveBeenCalledWith(billingRequestId, billingAttribution)
+    expect(mockCacheBillingAttribution).not.toHaveBeenCalled()
 
     expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
     for (const call of mockRunStreamLoop.mock.calls) {
@@ -506,9 +490,9 @@ describe('runCopilotLifecycle', () => {
     expect(headers['x-sim-billing-attribution']).toBeUndefined()
   })
 
-  it('fails before hosted work when the dedicated attribution alias cannot be cached', async () => {
+  it('fails legacy hosted work when its required attribution aliases cannot be cached', async () => {
     mockFlags.isHosted = true
-    mockFlags.isCopilotBillingAttributionV1Enabled = true
+    mockEnv.COPILOT_API_KEY = 'sim-agent-key'
     mockCacheBillingAttribution.mockResolvedValueOnce(false)
     mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
 
@@ -519,6 +503,7 @@ describe('runCopilotLifecycle', () => {
           userId: 'user-1',
           workspaceId: 'ws-1',
           chatId: 'chat-1',
+          executionId: 'execution-1',
           billingAttribution: {
             actorUserId: 'user-1',
             workspaceId: 'ws-1',
@@ -533,9 +518,40 @@ describe('runCopilotLifecycle', () => {
           },
         }
       )
-    ).rejects.toThrow('Unable to preserve billing attribution')
+    ).rejects.toThrow('Unable to preserve legacy billing attribution')
 
     expect(mockRunStreamLoop).not.toHaveBeenCalled()
+  })
+
+  it('runs modern hosted work when the legacy Redis cache is unavailable', async () => {
+    mockFlags.isHosted = true
+    mockFlags.isCopilotBillingAttributionV1Enabled = true
+    mockCacheBillingAttribution.mockRejectedValueOnce(new Error('Redis unavailable'))
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        billingAttribution: {
+          actorUserId: 'user-1',
+          workspaceId: 'ws-1',
+          billedAccountUserId: 'owner-1',
+          organizationId: null,
+          billingEntity: { type: 'user', id: 'owner-1' },
+          billingPeriod: {
+            start: '2026-07-01T00:00:00.000Z',
+            end: '2026-08-01T00:00:00.000Z',
+          },
+          payerSubscription: null,
+        },
+      }
+    )
+
+    expect(mockCacheBillingAttribution).not.toHaveBeenCalled()
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(1)
   })
 
   it('does not emit trusted billing headers for a non-hosted lifecycle', async () => {

@@ -4,44 +4,60 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDbFrom,
-  mockDbLimit,
   mockDbReturning,
-  mockDbSelect,
   mockDbSet,
+  mockDbTransaction,
   mockDbUpdate,
   mockDbWhere,
-  mockEq,
   mockFlags,
   mockGetHighestPrioritySubscription,
   mockMaybeNotifyLimit,
   mockSql,
+  mockTxExecute,
+  mockTxFrom,
+  mockTxLimit,
   mockTxReturning,
+  mockTxSelect,
   mockTxSet,
   mockTxUpdate,
   mockTxWhere,
+  mockWorkspaceRow,
 } = vi.hoisted(() => ({
-  mockDbFrom: vi.fn(),
-  mockDbLimit: vi.fn(),
   mockDbReturning: vi.fn(),
-  mockDbSelect: vi.fn(),
   mockDbSet: vi.fn(),
+  mockDbTransaction: vi.fn(),
   mockDbUpdate: vi.fn(),
   mockDbWhere: vi.fn(),
-  mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
   mockFlags: { isBillingEnabled: true },
   mockGetHighestPrioritySubscription: vi.fn(),
   mockMaybeNotifyLimit: vi.fn(),
   mockSql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+  mockTxExecute: vi.fn(),
+  mockTxFrom: vi.fn(),
+  mockTxLimit: vi.fn(),
   mockTxReturning: vi.fn(),
+  mockTxSelect: vi.fn(),
   mockTxSet: vi.fn(),
   mockTxUpdate: vi.fn(),
   mockTxWhere: vi.fn(),
+  mockWorkspaceRow: {
+    current: {
+      billedAccountUserId: 'workspace-owner',
+      organizationId: 'workspace-org' as string | null,
+      storageUsedBytes: 1_000,
+    },
+  },
 }))
+
+const mockTx = {
+  execute: mockTxExecute,
+  select: mockTxSelect,
+  update: mockTxUpdate,
+}
 
 vi.mock('@sim/db', () => ({
   db: {
-    select: mockDbSelect,
+    transaction: mockDbTransaction,
     update: mockDbUpdate,
   },
 }))
@@ -55,10 +71,18 @@ vi.mock('@sim/db/schema', () => ({
     storageUsedBytes: 'userStats.storageUsedBytes',
     userId: 'userStats.userId',
   },
+  workspace: {
+    billedAccountUserId: 'workspace.billedAccountUserId',
+    id: 'workspace.id',
+    organizationId: 'workspace.organizationId',
+    storageUsedBytes: 'workspace.storageUsedBytes',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
-  eq: mockEq,
+  and: vi.fn((...conditions: unknown[]) => conditions),
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
+  gte: vi.fn((field: unknown, value: unknown) => ({ field, value })),
   sql: mockSql,
 }))
 
@@ -83,10 +107,9 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 import type { StorageBillingContext } from '@/lib/billing/storage/context'
 import {
   decrementStorageUsageForBillingContext,
-  decrementStorageUsageForBillingContextInTx,
-  decrementStorageUsageInTx,
   incrementStorageUsage,
   incrementStorageUsageForBillingContext,
+  incrementStorageUsageForBillingContextInTx,
 } from '@/lib/billing/storage/tracking'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -98,149 +121,117 @@ const ORG_CONTEXT: StorageBillingContext = {
   customStorageLimitGB: null,
 }
 
-const USER_CONTEXT: StorageBillingContext = {
-  workspaceId: 'workspace-2',
-  billedAccountUserId: 'workspace-payer',
-  billingEntity: { type: 'user', id: 'workspace-payer' },
-  plan: 'pro_4000',
-  customStorageLimitGB: null,
-}
-
-describe('storage counter mutations', () => {
+describe('workspace storage counter mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFlags.isBillingEnabled = true
-    mockDbUpdate.mockReturnValue({ set: mockDbSet })
-    mockDbSet.mockReturnValue({ where: mockDbWhere })
-    mockDbWhere.mockReturnValue({ returning: mockDbReturning })
-    mockDbReturning.mockResolvedValue([{ storageUsedBytes: 2048 }])
-    mockDbSelect.mockReturnValue({ from: mockDbFrom })
-    mockDbFrom.mockReturnValue({
+    mockWorkspaceRow.current = {
+      billedAccountUserId: 'workspace-owner',
+      organizationId: 'workspace-org',
+      storageUsedBytes: 1_000,
+    }
+
+    mockDbTransaction.mockImplementation(
+      async (callback: (tx: typeof mockTx) => Promise<unknown>) => callback(mockTx)
+    )
+    mockTxSelect.mockReturnValue({ from: mockTxFrom })
+    mockTxFrom.mockReturnValue({
       where: vi.fn(() => ({
-        limit: mockDbLimit,
+        for: vi.fn(() => ({ limit: mockTxLimit })),
       })),
     })
-    mockDbLimit.mockResolvedValue([{ storageUsedBytes: 1024 }])
+    mockTxLimit.mockImplementation(async () => [mockWorkspaceRow.current])
     mockTxUpdate.mockReturnValue({ set: mockTxSet })
     mockTxSet.mockReturnValue({ where: mockTxWhere })
     mockTxWhere.mockReturnValue({ returning: mockTxReturning })
-    mockTxReturning.mockResolvedValue([{ storageUsedBytes: 0 }])
+    mockTxReturning.mockResolvedValue([{ storageUsedBytes: 1_100 }])
+    mockTxExecute.mockResolvedValue(undefined)
+
+    mockDbUpdate.mockReturnValue({ set: mockDbSet })
+    mockDbSet.mockReturnValue({ where: mockDbWhere })
+    mockDbWhere.mockReturnValue({ returning: mockDbReturning })
+    mockDbReturning.mockResolvedValue([{ storageUsedBytes: 100 }])
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
     mockMaybeNotifyLimit.mockResolvedValue(undefined)
   })
 
-  it.each([
-    {
-      context: ORG_CONTEXT,
-      expectedField: 'organization.id',
-      expectedId: 'workspace-org',
-      expectedTable: expect.objectContaining({ id: 'organization.id' }),
-    },
-    {
-      context: USER_CONTEXT,
-      expectedField: 'userStats.userId',
-      expectedId: 'workspace-payer',
-      expectedTable: expect.objectContaining({ userId: 'userStats.userId' }),
-    },
-  ])(
-    'updates the $context.billingEntity.type payer once and notifies from RETURNING',
-    async ({ context, expectedField, expectedId, expectedTable }) => {
-      await incrementStorageUsageForBillingContext(context, 100)
+  it('locks one workspace row and updates its ledger and current payer in one transaction', async () => {
+    await incrementStorageUsageForBillingContext(ORG_CONTEXT, 100)
 
-      await vi.waitFor(() => expect(mockMaybeNotifyLimit).toHaveBeenCalledTimes(1))
-      expect(mockDbUpdate).toHaveBeenCalledTimes(1)
-      expect(mockDbUpdate).toHaveBeenCalledWith(expectedTable)
-      expect(mockEq).toHaveBeenCalledWith(expectedField, expectedId)
-      expect(mockDbReturning).toHaveBeenCalledWith({
-        storageUsedBytes:
-          context.billingEntity.type === 'organization'
-            ? 'organization.storageUsedBytes'
-            : 'userStats.storageUsedBytes',
-      })
-      expect(mockDbSelect).not.toHaveBeenCalled()
-      expect(mockMaybeNotifyLimit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          billingEntity: context.billingEntity,
-          currentUsage: 2048,
-          workspaceId: context.workspaceId,
-        })
-      )
-    }
-  )
-
-  it('keeps decrements atomic and clamped at zero', async () => {
-    await decrementStorageUsageForBillingContext(ORG_CONTEXT, 4096)
-
-    const update = mockDbSet.mock.calls[0]?.[0] as
-      | { storageUsedBytes?: { strings?: readonly string[] } }
-      | undefined
-    expect(update?.storageUsedBytes?.strings?.join('')).toContain('GREATEST(0, ')
-    expect(mockDbUpdate).toHaveBeenCalledTimes(1)
-    expect(mockDbReturning).toHaveBeenCalledTimes(1)
+    expect(mockDbTransaction).toHaveBeenCalledTimes(1)
+    expect(mockTxSelect).toHaveBeenCalledWith({
+      billedAccountUserId: 'workspace.billedAccountUserId',
+      organizationId: 'workspace.organizationId',
+      storageUsedBytes: 'workspace.storageUsedBytes',
+    })
+    expect(mockTxExecute).toHaveBeenCalledTimes(1)
+    expect(mockTxExecute.mock.calls[0]?.[0]).toMatchObject({
+      values: ['workspace-storage-payer:organization:workspace-org'],
+    })
+    expect(mockTxUpdate).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 'workspace.id' }))
+    expect(mockTxSet).toHaveBeenNthCalledWith(1, { storageUsedBytes: 1_100 })
+    expect(mockTxUpdate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: 'organization.id' })
+    )
+    await vi.waitFor(() => expect(mockMaybeNotifyLimit).toHaveBeenCalledTimes(1))
   })
 
-  it('falls back to a usage read when UPDATE RETURNING has no row', async () => {
-    mockDbReturning.mockResolvedValueOnce([])
+  it('uses the payer read under the workspace lock instead of a stale context payer', async () => {
+    mockWorkspaceRow.current = {
+      billedAccountUserId: 'new-user-payer',
+      organizationId: null,
+      storageUsedBytes: 1_000,
+    }
 
     await incrementStorageUsageForBillingContext(ORG_CONTEXT, 100)
 
-    await vi.waitFor(() => expect(mockMaybeNotifyLimit).toHaveBeenCalledTimes(1))
-    expect(mockDbSelect).toHaveBeenCalledTimes(1)
-    expect(mockMaybeNotifyLimit).toHaveBeenCalledWith(
-      expect.objectContaining({ currentUsage: 1024 })
+    expect(mockTxUpdate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ userId: 'userStats.userId' })
     )
   })
 
-  it('routes legacy user and organization wrappers through the same mutation path', async () => {
-    await incrementStorageUsage('legacy-user', 100)
-    mockGetHighestPrioritySubscription.mockResolvedValueOnce({
-      metadata: null,
-      plan: 'team_25000',
-      referenceId: 'legacy-org',
-    })
-    await incrementStorageUsage('legacy-member', 100)
+  it('applies only remaining workspace bytes on delete and never writes a negative ledger', async () => {
+    await decrementStorageUsageForBillingContext(ORG_CONTEXT, 4_096)
 
-    expect(mockDbUpdate).toHaveBeenCalledTimes(2)
-    expect(mockEq).toHaveBeenNthCalledWith(1, 'userStats.userId', 'legacy-user')
-    expect(mockEq).toHaveBeenNthCalledWith(2, 'organization.id', 'legacy-org')
-    expect(mockDbReturning).toHaveBeenCalledTimes(2)
+    expect(mockTxSet).toHaveBeenNthCalledWith(1, { storageUsedBytes: 0 })
+    const payerUpdate = mockTxSet.mock.calls[1]?.[0] as {
+      storageUsedBytes: { values: unknown[] }
+    }
+    expect(payerUpdate.storageUsedBytes.values).toContain(1_000)
   })
 
-  it('uses the shared mutation inside transactions without notifications or DB reads', async () => {
-    const tx = { update: mockTxUpdate } as unknown as DbOrTx
+  it('throws when the payer row is missing so the transaction rolls back both writes', async () => {
+    mockTxReturning.mockResolvedValueOnce([])
 
-    await decrementStorageUsageForBillingContextInTx(tx, ORG_CONTEXT, 4096)
-    await decrementStorageUsageInTx(
-      tx,
-      { referenceId: 'legacy-org' } as never,
-      'legacy-member',
-      4096
+    await expect(incrementStorageUsageForBillingContext(ORG_CONTEXT, 100)).rejects.toThrow(
+      'Storage payer organization:workspace-org is missing or below 100 bytes'
     )
-
-    expect(mockTxUpdate).toHaveBeenCalledTimes(2)
-    expect(mockTxReturning).toHaveBeenCalledTimes(2)
-    expect(mockDbUpdate).not.toHaveBeenCalled()
-    expect(mockDbSelect).not.toHaveBeenCalled()
+    expect(mockTxSet).toHaveBeenNthCalledWith(1, { storageUsedBytes: 1_100 })
     expect(mockMaybeNotifyLimit).not.toHaveBeenCalled()
-    const updates = mockTxSet.mock.calls.map(
-      ([value]) =>
-        (
-          value as { storageUsedBytes?: { strings?: readonly string[] } }
-        ).storageUsedBytes?.strings?.join('') ?? ''
-    )
-    expect(updates).toEqual([
-      expect.stringContaining('GREATEST(0, '),
-      expect.stringContaining('GREATEST(0, '),
-    ])
   })
 
-  it('skips mutations while billing is disabled', async () => {
+  it('can share the caller transaction with billable metadata insertion', async () => {
+    await incrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, ORG_CONTEXT, 100)
+
+    expect(mockDbTransaction).not.toHaveBeenCalled()
+    expect(mockTxUpdate).toHaveBeenCalledTimes(2)
+    expect(mockMaybeNotifyLimit).not.toHaveBeenCalled()
+  })
+
+  it('keeps workspace-less legacy writes on the aggregate-only compatibility path', async () => {
+    await incrementStorageUsage('legacy-user', 100)
+
+    expect(mockDbUpdate).toHaveBeenCalledTimes(1)
+    expect(mockDbTransaction).not.toHaveBeenCalled()
+  })
+
+  it('skips all mutations while billing is disabled', async () => {
     mockFlags.isBillingEnabled = false
 
     await incrementStorageUsageForBillingContext(ORG_CONTEXT, 100)
-    await decrementStorageUsageForBillingContext(USER_CONTEXT, 100)
 
-    expect(mockDbUpdate).not.toHaveBeenCalled()
-    expect(mockMaybeNotifyLimit).not.toHaveBeenCalled()
+    expect(mockDbTransaction).not.toHaveBeenCalled()
   })
 })

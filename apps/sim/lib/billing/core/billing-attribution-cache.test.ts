@@ -20,11 +20,7 @@ vi.mock('@/lib/core/config/redis', () => ({
 }))
 
 import {
-  cacheAccountBillingDecisionOrThrow,
   cacheBillingAttribution,
-  cacheBillingAttributionOrThrow,
-  createAttributedBillingRequestEnvelope,
-  getCachedAccountBillingDecision,
   getCachedBillingAttribution,
 } from '@/lib/billing/core/billing-attribution-cache'
 
@@ -41,15 +37,6 @@ const ATTRIBUTION = {
   workspaceId: 'workspace-b',
 }
 
-const ACCOUNT_BILLING_DECISION = {
-  userId: 'user-1',
-  billingEntity: { type: 'organization' as const, id: 'org-1' },
-  billingPeriod: {
-    start: '2026-07-01T00:00:00.000Z',
-    end: '2026-08-01T00:00:00.000Z',
-  },
-}
-
 describe('billing attribution cache', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -58,7 +45,7 @@ describe('billing attribution cache', () => {
     mockMget.mockResolvedValue([null])
   })
 
-  it('atomically stores one immutable snapshot under its dedicated billing identity', async () => {
+  it('atomically stores one legacy immutable snapshot alias', async () => {
     await expect(cacheBillingAttribution('billing-request-1', ATTRIBUTION)).resolves.toBe(true)
 
     expect(mockEval).toHaveBeenCalledTimes(1)
@@ -82,6 +69,13 @@ describe('billing attribution cache', () => {
     const args = call.slice(2 + keyCount)
     expect(keyCount).toBe(2)
     expect(args.slice(1)).toEqual(['604800', '0', '', '0', ''])
+  })
+
+  it('reports an unavailable legacy cache without affecting modern envelopes', async () => {
+    mockRedisState.available = false
+
+    await expect(cacheBillingAttribution('message-1', ATTRIBUTION)).resolves.toBe(false)
+    expect(mockEval).not.toHaveBeenCalled()
   })
 
   it('accepts a semantic-equivalent retry and refreshes every key atomically', async () => {
@@ -117,71 +111,6 @@ describe('billing attribution cache', () => {
     await expect(cacheBillingAttribution('billing-request-1', ATTRIBUTION)).rejects.toThrow(
       'Billing attribution cache conflict for request key "billing-request-1"'
     )
-    expect(mockEval).not.toHaveBeenCalled()
-  })
-
-  it('creates a complete attributed-v1 envelope only after caching succeeds', async () => {
-    const envelope = await createAttributedBillingRequestEnvelope(
-      ATTRIBUTION,
-      'Unable to preserve test attribution'
-    )
-
-    expect(envelope.billingRequestId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    )
-    expect(envelope.headers).toEqual({
-      'x-sim-billing-attribution': envelope.serializedAttribution,
-      'x-sim-billing-protocol': 'attribution-v1',
-      'x-sim-billing-request-id': envelope.billingRequestId,
-    })
-    expect(JSON.parse(decodeURIComponent(envelope.serializedAttribution))).toEqual(ATTRIBUTION)
-    expect(mockEval).toHaveBeenCalledTimes(1)
-  })
-
-  it('preserves the producer error when immutable attribution cannot be cached', async () => {
-    mockRedisState.available = false
-
-    await expect(
-      cacheBillingAttributionOrThrow(
-        'billing-request-1',
-        ATTRIBUTION,
-        'Unable to preserve test attribution'
-      )
-    ).rejects.toThrow('Unable to preserve test attribution')
-    expect(mockEval).not.toHaveBeenCalled()
-  })
-
-  it('stores and restores a direct-v1 hosted account decision without workspace identity', async () => {
-    await expect(
-      cacheAccountBillingDecisionOrThrow(
-        'billing-request-1',
-        ACCOUNT_BILLING_DECISION,
-        'Unable to preserve account decision'
-      )
-    ).resolves.toBeUndefined()
-
-    const args = mockEval.mock.calls[0].slice(3)
-    expect(JSON.parse(args[0])).toEqual(ACCOUNT_BILLING_DECISION)
-    expect(args.slice(1)).toEqual(['604800', '0', ''])
-
-    mockMget.mockResolvedValueOnce([JSON.stringify(ACCOUNT_BILLING_DECISION)])
-    await expect(getCachedAccountBillingDecision('billing-request-1')).resolves.toEqual(
-      ACCOUNT_BILLING_DECISION
-    )
-  })
-
-  it('rejects a direct-v1 attempt to change the hosted account decision', async () => {
-    mockMget.mockResolvedValue([
-      JSON.stringify({ ...ACCOUNT_BILLING_DECISION, userId: 'different-user' }),
-    ])
-
-    await expect(
-      cacheAccountBillingDecisionOrThrow(
-        'billing-request-1',
-        ACCOUNT_BILLING_DECISION,
-        'Unable to preserve account decision'
-      )
-    ).rejects.toThrow('Account billing decision conflicts')
     expect(mockEval).not.toHaveBeenCalled()
   })
 

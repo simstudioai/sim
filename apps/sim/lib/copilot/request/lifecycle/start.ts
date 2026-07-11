@@ -7,9 +7,9 @@ import { eq } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  createAttributedBillingRequestEnvelope,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
-import { createAttributedBillingRequestEnvelope } from '@/lib/billing/core/billing-attribution-cache'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
@@ -521,10 +521,7 @@ export async function requestChatTitle(params: {
         throw new Error('Title billing attribution does not match its actor and workspace')
       }
 
-      const billingRequest = await createAttributedBillingRequestEnvelope(
-        attribution,
-        'Unable to preserve title billing attribution'
-      )
+      const billingRequest = createAttributedBillingRequestEnvelope(attribution)
       Object.assign(headers, billingRequest.headers)
     }
 

@@ -8,16 +8,19 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import {
+  type AccountBillingDecision,
+  BILLING_ACCOUNT_DECISION_HEADER,
+  BILLING_ATTRIBUTION_HEADER,
   BILLING_REQUEST_ID_HEADER,
+  type BillingAttributionSnapshot,
   COPILOT_BILLING_PROTOCOL,
   COPILOT_BILLING_PROTOCOL_HEADER,
   type CopilotBillingProtocol,
+  requireAccountBillingDecisionHeader,
+  requireBillingAttributionHeader,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
-import {
-  getCachedAccountBillingDecision,
-  getCachedBillingAttribution,
-} from '@/lib/billing/core/billing-attribution-cache'
+import { getCachedBillingAttribution } from '@/lib/billing/core/billing-attribution-cache'
 import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
@@ -178,6 +181,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       parsed.data.body
     const requestedProtocol = parsed.data.headers?.[COPILOT_BILLING_PROTOCOL_HEADER]
     const billingRequestId = parsed.data.headers?.[BILLING_REQUEST_ID_HEADER]
+    const suppliedAttributionHeader = parsed.data.headers?.[BILLING_ATTRIBUTION_HEADER]
+    const suppliedAccountDecisionHeader = parsed.data.headers?.[BILLING_ACCOUNT_DECISION_HEADER]
     const protocol: CopilotBillingProtocol | undefined =
       requestedProtocol ??
       (isCopilotBillingAttributionV1Enabled ? undefined : COPILOT_BILLING_PROTOCOL.legacy)
@@ -193,7 +198,11 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     if (
       (isModernProtocol &&
         (!billingRequestId || !idempotencyKey || billingRequestId !== idempotencyKey)) ||
-      (protocol === COPILOT_BILLING_PROTOCOL.legacy && billingRequestId)
+      (protocol === COPILOT_BILLING_PROTOCOL.legacy && billingRequestId) ||
+      (isAttributedProtocol && !suppliedAttributionHeader) ||
+      (isDirectProtocol && !suppliedAccountDecisionHeader) ||
+      (isDirectProtocol && Boolean(suppliedAttributionHeader)) ||
+      (!isDirectProtocol && Boolean(suppliedAccountDecisionHeader))
     ) {
       return invalidBillingProtocolResponse(requestId, span)
     }
@@ -217,37 +226,49 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       source,
     })
 
-    const attributionCacheKey = isAttributedProtocol
-      ? billingRequestId
-      : protocol === COPILOT_BILLING_PROTOCOL.legacy
-        ? idempotencyKey
-        : undefined
+    let suppliedBillingAttribution: BillingAttributionSnapshot | undefined
+    let suppliedAccountDecision: AccountBillingDecision | undefined
+    try {
+      if (suppliedAttributionHeader) {
+        if (!workspaceId) {
+          return invalidBillingProtocolResponse(requestId, span)
+        }
+        suppliedBillingAttribution = requireBillingAttributionHeader(req.headers, {
+          actorUserId: userId,
+          workspaceId,
+        })
+      }
+      if (suppliedAccountDecisionHeader) {
+        suppliedAccountDecision = requireAccountBillingDecisionHeader(req.headers)
+      }
+    } catch {
+      return invalidBillingProtocolResponse(requestId, span)
+    }
+
+    const attributionCacheKey =
+      protocol === COPILOT_BILLING_PROTOCOL.legacy ? idempotencyKey : undefined
     const cachedBillingAttribution = attributionCacheKey
       ? await getCachedBillingAttribution(attributionCacheKey)
       : undefined
-    const cachedAccountDecision =
-      isDirectProtocol && billingRequestId
-        ? await getCachedAccountBillingDecision(billingRequestId)
-        : undefined
-    if (isAttributedProtocol && !cachedBillingAttribution) {
+    const billingAttribution = suppliedBillingAttribution ?? cachedBillingAttribution
+    const accountDecision = suppliedAccountDecision
+    if (isAttributedProtocol && !billingAttribution) {
       throw new Error(`Immutable ${protocol} billing attribution is missing`)
     }
-    if (isDirectProtocol && !cachedAccountDecision) {
+    if (isDirectProtocol && !accountDecision) {
       throw new Error(`Immutable ${protocol} account billing decision is missing`)
     }
-    if (cachedAccountDecision && cachedAccountDecision.userId !== userId) {
+    if (accountDecision && accountDecision.userId !== userId) {
       throw new CumulativeUsageContextMismatchError(`update-cost:${idempotencyKey}`, ['actor'])
     }
-    if (cachedBillingAttribution) {
+    if (billingAttribution) {
       const mismatchedFields: CumulativeUsageContextField[] = []
-      if (cachedBillingAttribution.actorUserId !== userId) {
+      if (billingAttribution.actorUserId !== userId) {
         mismatchedFields.push('actor')
       }
       if (
-        (isAttributedProtocol && cachedBillingAttribution.workspaceId !== workspaceId) ||
-        (!isAttributedProtocol &&
-          workspaceId &&
-          cachedBillingAttribution.workspaceId !== workspaceId)
+        (isAttributedProtocol && billingAttribution.workspaceId !== workspaceId) ||
+        (!isAttributedProtocol && workspaceId && billingAttribution.workspaceId !== workspaceId)
       ) {
         mismatchedFields.push('workspace')
       }
@@ -263,17 +284,16 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       ? undefined
       : await resolveAttributableWorkspaceId(
           requestId,
-          workspaceId ?? cachedBillingAttribution?.workspaceId
+          workspaceId ?? billingAttribution?.workspaceId
         )
-    const billingAttribution = cachedBillingAttribution
     const billingContext = billingAttribution
       ? toBillingContext(billingAttribution)
-      : cachedAccountDecision
+      : accountDecision
         ? {
-            billingEntity: cachedAccountDecision.billingEntity,
+            billingEntity: accountDecision.billingEntity,
             billingPeriod: {
-              start: new Date(cachedAccountDecision.billingPeriod.start),
-              end: new Date(cachedAccountDecision.billingPeriod.end),
+              start: new Date(accountDecision.billingPeriod.start),
+              end: new Date(accountDecision.billingPeriod.end),
             },
           }
         : undefined
@@ -330,11 +350,21 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       })
     }
 
+    // Reconcile the payer's ledger-backed threshold after every cumulative
+    // callback, including duplicate retries after a prior settlement failure.
+    // Strict error handling lets Go retry until the committed usage is settled.
+    if (billingContext) {
+      await checkAndBillPayerOverageThreshold(billingContext.billingEntity, {
+        onError: 'throw',
+      })
+    } else {
+      await checkAndBillOverageThreshold(userId, undefined, { onError: 'throw' })
+    }
+
     const duration = Date.now() - startTime
 
-    // Same-or-lower cumulative than already recorded: nothing new to bill. Tell
-    // the caller via 409 (its existing "duplicate" outcome) without re-running
-    // overage billing.
+    // Same-or-lower cumulative than already recorded: nothing new to bill.
+    // Reconciliation has completed, so preserve Go's established 409 outcome.
     if (!billed) {
       logger.info(`[${requestId}] Duplicate/non-increasing cumulative cost; no new charge`, {
         idempotencyKey,
@@ -353,15 +383,6 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
         },
         { status: 409 }
       )
-    }
-
-    // Check if user has hit overage threshold and bill incrementally. Reads the
-    // (now topped-up) ledger total and is idempotent against billedOverage, so
-    // it is safe to run on every flush that records new cost.
-    if (billingContext) {
-      await checkAndBillPayerOverageThreshold(billingContext.billingEntity)
-    } else {
-      await checkAndBillOverageThreshold(userId)
     }
 
     logger.info(`[${requestId}] Cost update completed successfully`, {
@@ -385,7 +406,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
   } catch (error) {
     const duration = Date.now() - startTime
 
-    if (error instanceof CumulativeUsageContextMismatchError) {
+    const isMarkerlessLegacy = !req.headers.get(COPILOT_BILLING_PROTOCOL_HEADER)
+    if (error instanceof CumulativeUsageContextMismatchError && !isMarkerlessLegacy) {
       logger.error(`[${requestId}] Billing context mismatch`, {
         eventKey: error.eventKey,
         mismatchedFields: error.mismatchedFields,

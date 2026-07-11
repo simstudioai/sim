@@ -136,7 +136,7 @@ describe('settings navigation boundaries', () => {
     expect(ORGANIZATION_SETTINGS_ITEMS.some(({ id }) => String(id) === 'api-keys')).toBe(false)
   })
 
-  it('resolves organization legacy links from the routed workspace organization', () => {
+  it('keeps organization legacy links in the unified workspace settings shell', () => {
     expect(
       resolveLegacySettingsHref({
         legacySection: 'sso',
@@ -144,7 +144,7 @@ describe('settings navigation boundaries', () => {
         hostOrganizationId: 'org-b',
         isTargetOrganizationMember: true,
       })
-    ).toBe('/organization/org-b/settings/sso')
+    ).toBe('/workspace/workspace-b/settings/sso')
 
     expect(
       resolveLegacySettingsHref({
@@ -153,10 +153,10 @@ describe('settings navigation boundaries', () => {
         hostOrganizationId: 'org-b',
         isTargetOrganizationMember: false,
       })
-    ).toBe('/organization/org-b/settings/unavailable')
+    ).toBe('/workspace/workspace-b/settings/sso')
   })
 
-  it('redirects legacy aliases to canonical account, organization, and workspace routes', () => {
+  it('normalizes legacy aliases without splitting the settings UI', () => {
     expect(
       resolveLegacySettingsHref({
         legacySection: 'general',
@@ -164,7 +164,7 @@ describe('settings navigation boundaries', () => {
         hostOrganizationId: 'org-b',
         isTargetOrganizationMember: true,
       })
-    ).toBe('/account/settings/general')
+    ).toBe('/workspace/workspace-b/settings/general')
     expect(
       resolveLegacySettingsHref({
         legacySection: 'team',
@@ -172,7 +172,7 @@ describe('settings navigation boundaries', () => {
         hostOrganizationId: 'org-b',
         isTargetOrganizationMember: true,
       })
-    ).toBe('/organization/org-b/settings/members')
+    ).toBe('/workspace/workspace-b/settings/organization')
     expect(
       resolveLegacySettingsHref({
         legacySection: 'apikeys',
@@ -180,7 +180,7 @@ describe('settings navigation boundaries', () => {
         hostOrganizationId: 'org-b',
         isTargetOrganizationMember: true,
       })
-    ).toBe('/workspace/workspace-b/settings/api-keys')
+    ).toBe('/workspace/workspace-b/settings/apikeys')
   })
 
   it.each([

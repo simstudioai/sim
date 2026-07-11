@@ -35,22 +35,24 @@ function getCreateWorkflowOutput(
 }
 
 /**
- * Applies the workflow target returned by create_workflow while leaving the
- * root Copilot lifecycle attribution untouched.
+ * Adopts a workflow returned by create_workflow only when it belongs to the
+ * ambient workspace and the Copilot lifecycle is not already workflow-rooted.
  */
 export function applyCreateWorkflowOutputToContext(
   output: unknown,
   context: ExecutionContext
 ): void {
   const createdWorkflow = getCreateWorkflowOutput(output)
-  if (!createdWorkflow?.workflowId || context.workflowId) {
+  if (
+    !createdWorkflow?.workflowId ||
+    !createdWorkflow.workspaceId ||
+    createdWorkflow.workspaceId !== context.workspaceId ||
+    context.workflowId
+  ) {
     return
   }
 
   context.workflowId = createdWorkflow.workflowId
-  if (createdWorkflow.workspaceId) {
-    context.workspaceId = createdWorkflow.workspaceId
-  }
 }
 
 /**

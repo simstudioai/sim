@@ -68,7 +68,7 @@ function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuPro
 }
 
 interface ApiKeysProps {
-  scope?: Extract<ApiKeyScope, 'personal' | 'workspace'>
+  scope?: ApiKeyScope
 }
 
 export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
@@ -79,6 +79,9 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const workspacePermissions = useUserPermissionsContext()
   const isWorkspaceScope = scope === 'workspace'
   const isPersonalScope = scope === 'personal'
+  const isCombinedScope = scope === 'combined'
+  const showsWorkspaceKeys = isWorkspaceScope || isCombinedScope
+  const showsPersonalKeys = isPersonalScope || isCombinedScope
   const canManageWorkspaceKeys = canMutateWorkspaceSettingsSection('api-keys', workspacePermissions)
 
   const {
@@ -94,7 +97,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const workspaceKeys = apiKeysData?.workspaceKeys ?? EMPTY_KEYS
   const personalKeys = apiKeysData?.personalKeys ?? EMPTY_KEYS
   const conflicts = apiKeysData?.conflicts ?? EMPTY_KEY_NAMES
-  const isLoading = isLoadingKeys || (isWorkspaceScope && isLoadingSettings)
+  const isLoading = isLoadingKeys || (showsWorkspaceKeys && isLoadingSettings)
 
   const allowPersonalApiKeys =
     workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
@@ -104,8 +107,15 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const defaultKeyType = isPersonalScope ? 'personal' : 'workspace'
-  const createButtonDisabled = isLoading || (isWorkspaceScope && !canManageWorkspaceKeys)
+  const defaultKeyType = isPersonalScope
+    ? 'personal'
+    : isCombinedScope && allowPersonalApiKeys
+      ? 'personal'
+      : 'workspace'
+  const createButtonDisabled =
+    isLoading ||
+    (isWorkspaceScope && !canManageWorkspaceKeys) ||
+    (isCombinedScope && !allowPersonalApiKeys && !canManageWorkspaceKeys)
 
   const filteredWorkspaceKeys = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
@@ -138,10 +148,17 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
       setShowDeleteDialog(false)
       setDeleteKey(null)
 
+      const keyType =
+        scope === 'combined'
+          ? workspaceKeys.some((key) => key.id === deleteKey.id)
+            ? 'workspace'
+            : 'personal'
+          : scope
+
       await deleteApiKeyMutation.mutateAsync({
         workspaceId,
         keyId: deleteKey.id,
-        keyType: scope,
+        keyType,
       })
     } catch (error) {
       logger.error('Error deleting API key:', { error })
@@ -176,7 +193,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
           <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-6'>
-            {isWorkspaceScope && !searchTerm.trim() ? (
+            {showsWorkspaceKeys && !searchTerm.trim() ? (
               <SettingsSection label='Workspace'>
                 {workspaceKeys.length === 0 ? (
                   <div className='text-[var(--text-muted)] text-sm'>No workspace API keys yet</div>
@@ -210,7 +227,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                   </div>
                 )}
               </SettingsSection>
-            ) : isWorkspaceScope && filteredWorkspaceKeys.length > 0 ? (
+            ) : showsWorkspaceKeys && filteredWorkspaceKeys.length > 0 ? (
               <SettingsSection label='Workspace'>
                 <div className='flex flex-col gap-2'>
                   {filteredWorkspaceKeys.map(({ key }) => (
@@ -242,7 +259,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
               </SettingsSection>
             ) : null}
 
-            {isPersonalScope && (!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+            {showsPersonalKeys && (!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
               <SettingsSection label='Personal'>
                 <div className='flex flex-col gap-2'>
                   {filteredPersonalKeys.map(({ key }) => {
@@ -295,7 +312,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
           </div>
         )}
 
-        {isWorkspaceScope && !isLoading && canManageWorkspaceKeys && (
+        {showsWorkspaceKeys && !isLoading && canManageWorkspaceKeys && (
           <Tooltip.Provider delayDuration={150}>
             <SettingsSection label='Permissions'>
               <div className='flex items-center justify-between'>
@@ -344,7 +361,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
         onOpenChange={setIsCreateDialogOpen}
         workspaceId={workspaceId}
         existingKeyNames={[...workspaceKeys, ...personalKeys].map((k) => k.name)}
-        allowPersonalApiKeys={isPersonalScope}
+        allowPersonalApiKeys={isPersonalScope || (isCombinedScope && allowPersonalApiKeys)}
         canManageWorkspaceKeys={canManageWorkspaceKeys}
         defaultKeyType={defaultKeyType}
       />

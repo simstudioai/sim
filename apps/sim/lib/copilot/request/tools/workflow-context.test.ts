@@ -96,7 +96,7 @@ describe('create_workflow execution context', () => {
     expect(context.billingAttribution).toBe(billingAttribution)
   })
 
-  it('adopts a cross-workspace workflow without replacing its root billing snapshot', () => {
+  it('does not adopt a cross-workspace workflow', () => {
     const context = createContext()
 
     applyCreateWorkflowOutputToContext(
@@ -106,11 +106,44 @@ describe('create_workflow execution context', () => {
 
     expect(context).toMatchObject({
       userId: 'user-1',
-      workflowId: 'workflow-2',
-      workspaceId: 'workspace-2',
+      workflowId: '',
+      workspaceId: 'workspace-1',
       billingAttribution,
     })
     expect(context.billingAttribution).toBe(billingAttribution)
+  })
+
+  it.each([
+    ['missing workspace scope', { workflowId: 'workflow-2' }],
+    ['non-string workspace scope', { workflowId: 'workflow-2', workspaceId: 2 }],
+    ['missing workflow id', { workspaceId: 'workspace-1' }],
+    ['non-string workflow id', { workflowId: 2, workspaceId: 'workspace-1' }],
+    ['non-object output', 'workflow-2'],
+  ])('does not adopt output with %s', (_case, output) => {
+    const context = createContext()
+
+    applyCreateWorkflowOutputToContext(output, context)
+
+    expect(context).toMatchObject({
+      workflowId: '',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+    })
+  })
+
+  it('does not replace an existing rooted workflow context', () => {
+    const context = { ...createContext(), workflowId: 'workflow-1' }
+
+    applyCreateWorkflowOutputToContext(
+      { workflowId: 'workflow-2', workspaceId: 'workspace-2' },
+      context
+    )
+
+    expect(context).toMatchObject({
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+    })
   })
 
   it('reuses the root snapshot for same-workspace workflow execution', async () => {

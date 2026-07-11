@@ -12,12 +12,11 @@ const {
   mockCheckServerSideUsageLimits,
   mockDeriveBillingContext,
   mockGetHighestPrioritySubscription,
-  mockBillingAttributionsEqual,
-  mockCacheAccountBillingDecisionOrThrow,
-  mockGetCachedBillingAttribution,
   mockRequireBillingAttributionHeader,
   mockRequireBillingRequestIdHeader,
   mockResolveBillingAttribution,
+  mockSerializeAccountBillingDecisionHeader,
+  mockSerializeBillingAttributionHeader,
   mockGetUserEntityPermissions,
   mockGetWorkspaceBillingSettings,
   mockFlags,
@@ -29,12 +28,11 @@ const {
   mockCheckServerSideUsageLimits: vi.fn(),
   mockDeriveBillingContext: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
-  mockBillingAttributionsEqual: vi.fn(),
-  mockCacheAccountBillingDecisionOrThrow: vi.fn(),
-  mockGetCachedBillingAttribution: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockRequireBillingRequestIdHeader: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
+  mockSerializeAccountBillingDecisionHeader: vi.fn(),
+  mockSerializeBillingAttributionHeader: vi.fn(),
   mockGetUserEntityPermissions: vi.fn(),
   mockGetWorkspaceBillingSettings: vi.fn(),
   mockFlags: {
@@ -73,7 +71,7 @@ vi.mock('@sim/db', () => ({
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  billingAttributionsEqual: mockBillingAttributionsEqual,
+  BILLING_ACCOUNT_DECISION_HEADER: 'x-sim-billing-account-decision',
   BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
   BILLING_REQUEST_ID_HEADER: 'x-sim-billing-request-id',
   checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
@@ -86,16 +84,13 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
   requireBillingRequestIdHeader: mockRequireBillingRequestIdHeader,
   resolveBillingAttribution: mockResolveBillingAttribution,
+  serializeAccountBillingDecisionHeader: mockSerializeAccountBillingDecisionHeader,
+  serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
 }))
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkOrgMemberUsageLimit: mockCheckOrgMemberUsageLimit,
   checkServerSideUsageLimits: mockCheckServerSideUsageLimits,
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution-cache', () => ({
-  cacheAccountBillingDecisionOrThrow: mockCacheAccountBillingDecisionOrThrow,
-  getCachedBillingAttribution: mockGetCachedBillingAttribution,
 }))
 
 vi.mock('@/lib/billing/core/plan', () => ({
@@ -150,6 +145,8 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockDbLimit.mockResolvedValue([{ id: 'user-1' }])
     mockResolveBillingAttribution.mockResolvedValue(ATTRIBUTION)
+    mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
+    mockSerializeAccountBillingDecisionHeader.mockReturnValue('serialized-account-decision')
     mockRequireBillingRequestIdHeader.mockImplementation((headers: Headers) => {
       const value = headers.get('x-sim-billing-request-id')
       if (!value) throw new Error('missing billing request ID')
@@ -161,8 +158,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
       }
       return ATTRIBUTION
     })
-    mockGetCachedBillingAttribution.mockResolvedValue(ATTRIBUTION)
-    mockCacheAccountBillingDecisionOrThrow.mockResolvedValue(undefined)
     mockGetHighestPrioritySubscription.mockResolvedValue(ACCOUNT_SUBSCRIPTION)
     mockDeriveBillingContext.mockReturnValue({
       billingEntity: ACCOUNT_BILLING_DECISION.billingEntity,
@@ -171,7 +166,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
         end: new Date(ACCOUNT_BILLING_DECISION.billingPeriod.end),
       },
     })
-    mockBillingAttributionsEqual.mockReturnValue(true)
     mockGetUserEntityPermissions.mockResolvedValue('read')
     mockGetWorkspaceBillingSettings.mockResolvedValue({
       billedAccountUserId: 'owner-1',
@@ -218,18 +212,35 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(res.status).toBe(200)
   })
 
-  it('rejects markerless legacy admission when workspaceId is omitted', async () => {
+  it('keeps old markerless Go admission working when workspaceId is omitted', async () => {
     const res = await POST(request({ userId: 'user-1' }))
-    expect(res.status).toBe(400)
-    expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
+    expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
+    expect(mockCheckOrgMemberUsageLimit).not.toHaveBeenCalled()
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
   })
 
   it('preserves markerless legacy account and member admission', async () => {
     const res = await POST(request({ userId: 'user-1', workspaceId: 'ws-1' }))
     expect(res.status).toBe(200)
+    expect(res.headers.get('x-sim-billing-attribution')).toBeNull()
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
     expect(mockCheckOrgMemberUsageLimit).toHaveBeenCalledWith('user-1', 'ws-1')
     expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('keeps old markerless Go admission compatible with a foreign workspace ID', async () => {
+    const res = await POST(
+      request({ userId: 'user-1', workspaceId: 'local-self-hosted-workspace' })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockCheckOrgMemberUsageLimit).toHaveBeenCalledWith(
+      'user-1',
+      'local-self-hosted-workspace'
+    )
+    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
   })
 
   it('rejects markerless callbacks after the attributed-v1 cutover', async () => {
@@ -251,6 +262,18 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(res.status).toBe(200)
     expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1')
     expect(mockCheckOrgMemberUsageLimit).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(res.headers.get('x-sim-billing-attribution')).toBe('serialized-attribution')
+    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+    })
+  })
+
+  it('requires workspace attribution for explicitly labeled legacy requests', async () => {
+    const res = await POST(request({ userId: 'user-1' }, { 'x-sim-billing-protocol': 'legacy-v0' }))
+
+    expect(res.status).toBe(400)
+    expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
   })
 
   it('uses the exact frozen attribution for attributed-v1 admission', async () => {
@@ -267,9 +290,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
 
     expect(res.status).toBe(200)
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
-    expect(mockGetCachedBillingAttribution).toHaveBeenCalledWith(
-      '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
-    )
     expect(mockRequireBillingAttributionHeader).toHaveBeenCalledWith(expect.anything(), {
       actorUserId: 'user-1',
       workspaceId: 'ws-1',
@@ -315,25 +335,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
   })
 
-  it('fails attributed-v1 closed when the callback alias snapshot differs', async () => {
-    mockBillingAttributionsEqual.mockReturnValueOnce(false)
-
-    const res = await POST(
-      request(
-        { userId: 'user-1', workspaceId: 'ws-1' },
-        {
-          'x-sim-billing-protocol': 'attribution-v1',
-          'x-sim-billing-request-id': '0190c03f-9f7d-4b79-8b58-e7f779fd29e1',
-          'x-sim-billing-attribution': 'serialized-attribution',
-        }
-      )
-    )
-
-    expect(res.status).toBe(400)
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
-  })
-
-  it('admits a Copilot/Chat key against its hosted account while ignoring a local workspace ID', async () => {
+  it('admits a direct-v1 key without Redis while ignoring a local workspace ID', async () => {
     mockGetUserEntityPermissions.mockResolvedValueOnce(null)
     mockGetWorkspaceBillingSettings.mockResolvedValueOnce({
       billedAccountUserId: 'different-owner',
@@ -357,14 +359,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
     expect(mockGetWorkspaceBillingSettings).not.toHaveBeenCalled()
-    expect(mockCacheAccountBillingDecisionOrThrow).toHaveBeenCalledWith(
-      '0190c03f-9f7d-4b79-8b58-e7f779fd29e1',
-      ACCOUNT_BILLING_DECISION,
-      'Unable to preserve direct account billing decision'
-    )
-    expect(mockCheckServerSideUsageLimits.mock.invocationCallOrder[0]).toBeLessThan(
-      mockCacheAccountBillingDecisionOrThrow.mock.invocationCallOrder[0]
-    )
+    expect(res.headers.get('x-sim-billing-account-decision')).toBe('serialized-account-decision')
   })
 
   it('admits direct-v1 account billing when workspaceId is omitted', async () => {
@@ -381,11 +376,6 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(res.status).toBe(200)
     expect(mockCheckServerSideUsageLimits).toHaveBeenCalledWith('user-1', ACCOUNT_SUBSCRIPTION)
     expect(mockCheckOrgMemberUsageLimit).not.toHaveBeenCalled()
-    expect(mockCacheAccountBillingDecisionOrThrow).toHaveBeenCalledWith(
-      '0190c03f-9f7d-4b79-8b58-e7f779fd29e1',
-      ACCOUNT_BILLING_DECISION,
-      'Unable to preserve direct account billing decision'
-    )
   })
 
   it('fails direct-v1 admission closed when its payer cannot be resolved', async () => {
@@ -403,10 +393,9 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
 
     expect(res.status).toBe(500)
     expect(mockCheckServerSideUsageLimits).not.toHaveBeenCalled()
-    expect(mockCacheAccountBillingDecisionOrThrow).not.toHaveBeenCalled()
   })
 
-  it('does not cache a direct-v1 account decision when usage admission returns 402', async () => {
+  it('does not return a direct-v1 account decision when usage admission returns 402', async () => {
     mockCheckServerSideUsageLimits.mockResolvedValueOnce({
       isExceeded: true,
       currentUsage: 200,
@@ -425,7 +414,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
 
     expect(res.status).toBe(402)
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
-    expect(mockCacheAccountBillingDecisionOrThrow).not.toHaveBeenCalled()
+    expect(res.headers.get('x-sim-billing-account-decision')).toBeNull()
   })
 
   it('rejects trusted billing material before parsing for an untrusted caller', async () => {

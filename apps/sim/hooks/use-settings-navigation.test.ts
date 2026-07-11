@@ -33,7 +33,7 @@ const HOST_CONTEXT: WorkspaceHostContext = {
   },
 }
 
-describe('resolveSettingsHref billing context', () => {
+describe('resolveSettingsHref unified settings navigation', () => {
   it('preserves MCP server query parameters for workspace settings', () => {
     expect(
       resolveSettingsHref({
@@ -54,7 +54,7 @@ describe('resolveSettingsHref billing context', () => {
     ).toBe('/workspace/workspace-b/upgrade')
   })
 
-  it('sends host organization admins to the routed organization billing page', () => {
+  it('keeps host organization admins in the unified workspace settings shell', () => {
     expect(
       resolveSettingsHref({
         options: { section: 'billing' },
@@ -69,10 +69,10 @@ describe('resolveSettingsHref billing context', () => {
         },
         viewerUserId: 'admin-b',
       })
-    ).toBe('/organization/org-b/settings/billing')
+    ).toBe('/workspace/workspace-b/settings/billing')
   })
 
-  it('sends the billed owner of a personal workspace to account billing', () => {
+  it('keeps the billed owner of a personal workspace in the unified settings shell', () => {
     expect(
       resolveSettingsHref({
         options: { section: 'billing' },
@@ -92,6 +92,6 @@ describe('resolveSettingsHref billing context', () => {
         },
         viewerUserId: 'owner-b',
       })
-    ).toBe('/account/settings/billing')
+    ).toBe('/workspace/workspace-b/settings/billing')
   })
 })

@@ -13,7 +13,13 @@ const SUMMARY_PERIOD = '30d'
  * plus a link to the full, filterable Credit usage page. Shown to every plan
  * except Enterprise, which manages billing out-of-band.
  */
-export function CreditUsageSection() {
+interface CreditUsageSectionProps {
+  href?: string
+}
+
+export function CreditUsageSection({
+  href = '/account/settings/billing/credit-usage',
+}: CreditUsageSectionProps) {
   const { data: totalCredits, isPending, isError } = useUsageSummary(SUMMARY_PERIOD)
 
   return (
@@ -25,7 +31,7 @@ export function CreditUsageSection() {
           </span>
           <span className='text-[var(--text-muted)] text-caption'>Last 30 days</span>
         </div>
-        <ChipLink href='/account/settings/billing/credit-usage'>View usage logs</ChipLink>
+        <ChipLink href={href}>View usage logs</ChipLink>
       </div>
     </SettingsSection>
   )

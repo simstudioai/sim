@@ -450,34 +450,20 @@ interface ResolveLegacySettingsHrefOptions {
 export function resolveLegacySettingsHref({
   legacySection,
   workspaceId,
-  hostOrganizationId,
-  isTargetOrganizationMember,
 }: ResolveLegacySettingsHrefOptions): string {
   const topLevelHref = getLegacyTopLevelWorkspaceHref(workspaceId, legacySection)
   if (topLevelHref) return topLevelHref
 
   const match = LEGACY_SETTINGS_SECTIONS.find((item) => item.legacySection === legacySection)
-  if (!match) return getWorkspaceSettingsHref(workspaceId, 'teammates')
+  if (!match) return `/workspace/${workspaceId}/settings/general`
 
-  if (match.plane === 'account') {
-    return getAccountSettingsHref(match.section)
-  }
-
-  if (match.plane === 'workspace') {
-    return getWorkspaceSettingsHref(workspaceId, match.section)
-  }
-
-  if (!hostOrganizationId) {
-    return match.section === 'billing'
-      ? getAccountSettingsHref('billing')
-      : getWorkspaceSettingsHref(workspaceId, 'teammates')
-  }
-
-  if (!isTargetOrganizationMember) {
-    return getOrganizationSettingsHref(hostOrganizationId, 'unavailable')
-  }
-
-  return getOrganizationSettingsHref(hostOrganizationId, match.section)
+  const section =
+    legacySection === 'subscription'
+      ? 'billing'
+      : legacySection === 'team'
+        ? 'organization'
+        : legacySection
+  return `/workspace/${workspaceId}/settings/${section}`
 }
 
 export type OrganizationSectionAccess = 'unavailable' | 'view' | 'manage'

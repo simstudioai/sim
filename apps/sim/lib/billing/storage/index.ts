@@ -14,4 +14,5 @@ export {
   decrementStorageUsageInTx,
   incrementStorageUsage,
   incrementStorageUsageForBillingContext,
+  incrementStorageUsageForBillingContextInTx,
 } from './tracking'

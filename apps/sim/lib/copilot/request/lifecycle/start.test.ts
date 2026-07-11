@@ -24,7 +24,6 @@ const {
   cleanupAbortMarker,
   hasAbortMarker,
   releasePendingChatStream,
-  cacheBillingAttribution,
   fetchGo,
   billingFlags,
 } = vi.hoisted(() => ({
@@ -40,7 +39,6 @@ const {
   cleanupAbortMarker: vi.fn(),
   hasAbortMarker: vi.fn(),
   releasePendingChatStream: vi.fn(),
-  cacheBillingAttribution: vi.fn(),
   fetchGo: vi.fn(),
   billingFlags: {
     isHosted: false,
@@ -133,27 +131,6 @@ vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: null,
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution-cache', () => ({
-  cacheBillingAttribution,
-  createAttributedBillingRequestEnvelope: vi.fn(
-    async (attribution: unknown, errorMessage: string) => {
-      const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
-      const cached = await cacheBillingAttribution(billingRequestId, attribution)
-      if (!cached) throw new Error(errorMessage)
-      const serializedAttribution = encodeURIComponent(JSON.stringify(attribution))
-      return {
-        billingRequestId,
-        serializedAttribution,
-        headers: {
-          'x-sim-billing-protocol': 'attribution-v1',
-          'x-sim-billing-request-id': billingRequestId,
-          'x-sim-billing-attribution': serializedAttribution,
-        },
-      }
-    }
-  ),
-}))
-
 vi.mock('@/lib/copilot/request/go/fetch', () => ({
   fetchGo,
 }))
@@ -187,7 +164,6 @@ describe('createSSEStream terminal error handling', () => {
     vi.clearAllMocks()
     billingFlags.isHosted = false
     billingFlags.isCopilotBillingAttributionV1Enabled = false
-    cacheBillingAttribution.mockResolvedValue(true)
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Test title' }), {
         status: 200,
@@ -370,7 +346,6 @@ describe('requestChatTitle billing protocol', () => {
     vi.clearAllMocks()
     billingFlags.isHosted = true
     billingFlags.isCopilotBillingAttributionV1Enabled = true
-    cacheBillingAttribution.mockResolvedValue(true)
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Billing Protocol' }), {
         status: 200,
@@ -389,12 +364,11 @@ describe('requestChatTitle billing protocol', () => {
     })
 
     expect(title).toBe('Billing Protocol')
-    const billingRequestId = cacheBillingAttribution.mock.calls[0]?.[0] as string
+    const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
+    const billingRequestId = headers['x-sim-billing-request-id']
     expect(billingRequestId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     )
-    expect(cacheBillingAttribution).toHaveBeenCalledWith(billingRequestId, BILLING_ATTRIBUTION)
-    const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
     expect(headers).toMatchObject({
       'x-sim-billing-protocol': 'attribution-v1',
       'x-sim-billing-request-id': billingRequestId,
@@ -417,21 +391,5 @@ describe('requestChatTitle billing protocol', () => {
     const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
     expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
     expect(headers['x-sim-billing-request-id']).toBeUndefined()
-    expect(cacheBillingAttribution).not.toHaveBeenCalled()
-  })
-
-  it('does not start title work when its immutable attribution cannot be cached', async () => {
-    cacheBillingAttribution.mockResolvedValueOnce(false)
-
-    const title = await requestChatTitle({
-      message: 'explain billing',
-      model: 'claude-opus-4.8',
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      billingAttribution: BILLING_ATTRIBUTION,
-    })
-
-    expect(title).toBeNull()
-    expect(fetchGo).not.toHaveBeenCalled()
   })
 })

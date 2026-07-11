@@ -10,8 +10,13 @@ import {
 } from '@/components/settings/settings-header'
 
 interface SettingsSectionContextValue {
-  plane: SettingsPlane
+  plane?: SettingsPlane
   section: string
+  meta?: {
+    label: string
+    description: string
+    docsLink?: string
+  }
 }
 
 const SettingsSectionContext = createContext<SettingsSectionContextValue | null>(null)
@@ -23,10 +28,11 @@ interface SettingsSectionProviderProps extends SettingsSectionContextValue {
 export function SettingsSectionProvider({
   plane,
   section,
+  meta,
   children,
 }: SettingsSectionProviderProps) {
   return (
-    <SettingsSectionContext.Provider value={{ plane, section }}>
+    <SettingsSectionContext.Provider value={{ plane, section, meta }}>
       {children}
     </SettingsSectionContext.Provider>
   )
@@ -54,7 +60,9 @@ export function SettingsPanel({
   scrollContainerRef,
 }: SettingsPanelProps) {
   const context = useContext(SettingsSectionContext)
-  const meta = context ? getSettingsSectionMeta(context.plane, context.section) : null
+  const meta =
+    context?.meta ??
+    (context?.plane ? getSettingsSectionMeta(context.plane, context.section) : null)
 
   useSettingsHeader({
     title: title ?? meta?.label,

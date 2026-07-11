@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
-import { isValidUuid } from '@sim/utils/id'
+import { generateId, isValidUuid } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import {
@@ -14,6 +14,8 @@ import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import type { BillingContext, BillingEntity } from '@/lib/billing/core/usage-log'
 import {
+  BILLING_ACCOUNT_DECISION_HEADER,
+  BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
   BILLING_ATTRIBUTION_HEADER,
   BILLING_ATTRIBUTION_HEADER_MAX_BYTES,
   BILLING_REQUEST_ID_HEADER,
@@ -24,6 +26,8 @@ import {
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 export {
+  BILLING_ACCOUNT_DECISION_HEADER,
+  BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
   BILLING_ATTRIBUTION_HEADER,
   BILLING_REQUEST_ID_HEADER,
   COPILOT_BILLING_PROTOCOL,
@@ -62,6 +66,21 @@ export interface BillingAttributionSnapshot {
   readonly billingEntity: Readonly<BillingEntity>
   readonly billingPeriod: Readonly<BillingPeriodSnapshot>
   readonly payerSubscription: Readonly<PayerSubscriptionSnapshot> | null
+}
+
+export interface AttributedBillingRequestEnvelope {
+  billingRequestId: string
+  serializedAttribution: string
+  headers: Record<string, string>
+}
+
+export interface AccountBillingDecision {
+  readonly userId: string
+  readonly billingEntity: BillingEntity
+  readonly billingPeriod: {
+    readonly start: string
+    readonly end: string
+  }
 }
 
 export interface ResolveBillingAttributionParams {
@@ -257,6 +276,29 @@ export function serializeBillingAttributionHeader(attribution: BillingAttributio
 }
 
 /**
+ * Allocates a modern request identity and carries its exact attribution in the
+ * trusted request envelope. Replay durability lives with the envelope, so
+ * modern admission does not depend on Redis.
+ */
+export function createAttributedBillingRequestEnvelope(
+  attribution: BillingAttributionSnapshot
+): AttributedBillingRequestEnvelope {
+  const validatedAttribution = assertBillingAttributionSnapshot(attribution)
+  const billingRequestId = generateId()
+  const serializedAttribution = serializeBillingAttributionHeader(validatedAttribution)
+
+  return {
+    billingRequestId,
+    serializedAttribution,
+    headers: {
+      [COPILOT_BILLING_PROTOCOL_HEADER]: COPILOT_BILLING_PROTOCOL.attributed,
+      [BILLING_REQUEST_ID_HEADER]: billingRequestId,
+      [BILLING_ATTRIBUTION_HEADER]: serializedAttribution,
+    },
+  }
+}
+
+/**
  * Requires the server-generated identity shared by hosted admission and cost
  * callbacks. The UUID is allocated by Sim and is never accepted from a client
  * request body.
@@ -323,6 +365,70 @@ export function billingAttributionsEqual(
     JSON.stringify(assertBillingAttributionSnapshot(left)) ===
     JSON.stringify(assertBillingAttributionSnapshot(right))
   )
+}
+
+function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
+  if (!isRecordLike(value) || !isNonEmptyString(value.userId)) {
+    throw new Error('Account billing decision must contain a user ID')
+  }
+  if (
+    !isRecordLike(value.billingEntity) ||
+    (value.billingEntity.type !== 'user' && value.billingEntity.type !== 'organization') ||
+    !isNonEmptyString(value.billingEntity.id)
+  ) {
+    throw new Error('Account billing decision must contain a billing entity')
+  }
+  if (
+    !isRecordLike(value.billingPeriod) ||
+    !isNonEmptyString(value.billingPeriod.start) ||
+    !isNonEmptyString(value.billingPeriod.end)
+  ) {
+    throw new Error('Account billing decision must contain a valid billing period')
+  }
+  const start = new Date(value.billingPeriod.start)
+  const end = new Date(value.billingPeriod.end)
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
+    throw new Error('Account billing decision must contain a valid billing period')
+  }
+
+  return Object.freeze({
+    userId: value.userId,
+    billingEntity: Object.freeze({
+      type: value.billingEntity.type,
+      id: value.billingEntity.id,
+    }),
+    billingPeriod: Object.freeze({
+      start: start.toISOString(),
+      end: end.toISOString(),
+    }),
+  })
+}
+
+/**
+ * Encodes the immutable direct-account payer selected by trusted Sim
+ * admission. Go stores and returns this value opaquely.
+ */
+export function serializeAccountBillingDecisionHeader(decision: AccountBillingDecision): string {
+  return encodeURIComponent(JSON.stringify(assertAccountBillingDecision(decision)))
+}
+
+/**
+ * Restores and validates a direct-account payer decision from a trusted
+ * internal callback.
+ */
+export function requireAccountBillingDecisionHeader(
+  headers: Pick<Headers, 'get'>
+): AccountBillingDecision {
+  const encoded = headers.get(BILLING_ACCOUNT_DECISION_HEADER)
+  if (!encoded || encoded.length > BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES) {
+    throw new Error('A valid account billing decision header is required')
+  }
+
+  try {
+    return assertAccountBillingDecision(JSON.parse(decodeURIComponent(encoded)))
+  } catch (error) {
+    throw new Error('Account billing decision header is malformed', { cause: error })
+  }
 }
 
 function toUsageSubscription(attribution: BillingAttributionSnapshot) {

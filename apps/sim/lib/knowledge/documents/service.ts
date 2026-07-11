@@ -29,7 +29,7 @@ import {
   decrementStorageUsageForBillingContextInTx,
   decrementStorageUsageInTx,
   incrementStorageUsage,
-  incrementStorageUsageForBillingContext,
+  incrementStorageUsageForBillingContextInTx,
   resolveStorageBillingContext,
   type StorageBillingContext,
 } from '@/lib/billing/storage'
@@ -998,15 +998,10 @@ async function prepareDocumentStorageBilling(
   return { userId: legacyUserId, bytes }
 }
 
-/**
- * Applies the counter increment to the same payer captured by
- * {@link prepareDocumentStorageBilling}.
- */
-async function incrementDocumentStorageUsage(billing: DocumentStorageBilling): Promise<void> {
-  if ('context' in billing) {
-    await incrementStorageUsageForBillingContext(billing.context, billing.bytes)
-    return
-  }
+/** Applies a legacy workspace-less document increment after its insert commits. */
+async function incrementLegacyDocumentStorageUsage(
+  billing: Extract<DocumentStorageBilling, { readonly userId: string }>
+): Promise<void> {
   await incrementStorageUsage(billing.userId, billing.bytes)
 }
 
@@ -1149,12 +1144,20 @@ export async function createDocumentRecords(
         .where(eq(knowledgeBase.id, knowledgeBaseId))
     }
 
+    if (storageBilling && 'context' in storageBilling) {
+      await incrementStorageUsageForBillingContextInTx(
+        tx,
+        storageBilling.context,
+        storageBilling.bytes
+      )
+    }
+
     return returnData
   })
 
-  if (storageBilling) {
+  if (storageBilling && 'userId' in storageBilling) {
     try {
-      await incrementDocumentStorageUsage(storageBilling)
+      await incrementLegacyDocumentStorageUsage(storageBilling)
     } catch (storageError) {
       logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
     }
@@ -1521,11 +1524,19 @@ export async function createSingleDocument(
       .update(knowledgeBase)
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
+
+    if (storageBilling && 'context' in storageBilling) {
+      await incrementStorageUsageForBillingContextInTx(
+        tx,
+        storageBilling.context,
+        storageBilling.bytes
+      )
+    }
   })
 
-  if (storageBilling) {
+  if (storageBilling && 'userId' in storageBilling) {
     try {
-      await incrementDocumentStorageUsage(storageBilling)
+      await incrementLegacyDocumentStorageUsage(storageBilling)
     } catch (storageError) {
       logger.error(`[${requestId}] Failed to update storage tracking:`, storageError)
     }

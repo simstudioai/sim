@@ -6,7 +6,12 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
+import {
+  executeWorkflowBodySchema,
+  executeWorkflowHeadersSchema,
+  executionIdSchema,
+  WORKFLOW_EXECUTION_ID_HEADER,
+} from '@/lib/api/contracts/workflows'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
@@ -20,6 +25,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
@@ -106,6 +112,8 @@ import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/
 const logger = createLogger('WorkflowExecuteAPI')
 const MAX_WORKFLOW_EXECUTE_BODY_BYTES = 10 * 1024 * 1024
 const SERVER_EXECUTION_ID_CLAIM_ATTEMPTS = 3
+const ASYNC_ENQUEUE_ATTEMPTS = 2
+const WORKFLOW_EXECUTION_JOB_ID_PREFIX = 'workflow-execution:'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -273,6 +281,11 @@ type AsyncExecutionParams = {
   callChain?: string[]
 }
 
+interface AsyncExecutionResult {
+  response: NextResponse
+  retainExecutionClaim: boolean
+}
+
 type ValidatedPreprocessContext = {
   actorUserId: string
   workflow: PreprocessExecutionSuccess['workflowRecord']
@@ -309,7 +322,7 @@ function requirePreprocessedExecutionContext(
   }
 }
 
-async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
+async function handleAsyncExecution(params: AsyncExecutionParams): Promise<AsyncExecutionResult> {
   const {
     requestId,
     workflowId,
@@ -352,48 +365,121 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     admissionCompleted: true,
   }
 
+  let jobQueue: Awaited<ReturnType<typeof getJobQueue>>
   try {
-    const jobQueue = await getJobQueue()
-    const jobId = await jobQueue.enqueue('workflow-execution', payload, {
-      metadata: { workflowId, workspaceId, userId, correlation },
+    jobQueue = await getJobQueue()
+  } catch (error) {
+    asyncLogger.error('Failed to initialize async execution queue', {
+      error: toError(error).message,
+    })
+    await releaseExecutionSlot(executionId)
+    return {
+      response: NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 }),
+      retainExecutionClaim: false,
+    }
+  }
+
+  const deterministicJobId = `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`
+  const enqueueOptions = {
+    jobId: deterministicJobId,
+    metadata: { workflowId, workspaceId, userId, correlation },
+  }
+  let jobId: string | undefined
+  let enqueueError: unknown
+  let acceptanceCouldBeUnknown = false
+
+  for (let attempt = 1; attempt <= ASYNC_ENQUEUE_ATTEMPTS; attempt++) {
+    try {
+      jobId = await jobQueue.enqueue('workflow-execution', payload, enqueueOptions)
+      enqueueError = undefined
+      break
+    } catch (error) {
+      enqueueError = error
+      const classifiedError = isAsyncJobEnqueueError(error) ? error : undefined
+      const attemptAcceptance = classifiedError?.acceptance ?? 'unknown'
+      acceptanceCouldBeUnknown ||= attemptAcceptance === 'unknown'
+      asyncLogger.warn('Async workflow enqueue attempt failed', {
+        acceptance: attemptAcceptance,
+        attempt,
+        error: toError(error).message,
+        jobId: deterministicJobId,
+      })
+      if (classifiedError?.retryable === false || attempt === ASYNC_ENQUEUE_ATTEMPTS) {
+        break
+      }
+    }
+  }
+
+  if (!jobId) {
+    const acceptance = acceptanceCouldBeUnknown
+      ? 'unknown'
+      : isAsyncJobEnqueueError(enqueueError)
+        ? enqueueError.acceptance
+        : 'unknown'
+    asyncLogger.error('Failed to queue async execution', {
+      acceptance,
+      error: toError(enqueueError).message,
+      jobId: deterministicJobId,
     })
 
-    asyncLogger.info('Queued async workflow execution', { jobId })
-
-    if (shouldExecuteInline()) {
-      void (async () => {
-        let workerOwnsReservation = false
-        try {
-          await jobQueue.startJob(jobId)
-          workerOwnsReservation = true
-          const output = await executeWorkflowJob(payload)
-          await jobQueue.completeJob(jobId, output)
-        } catch (error) {
-          const errorMessage = toError(error).message
-          asyncLogger.error('Async workflow execution failed', {
-            jobId,
-            error: errorMessage,
-          })
-          /**
-           * Before worker ownership transfers, no LoggingSession exists to
-           * release the route's reservation.
-           */
-          if (!workerOwnsReservation) {
-            await releaseExecutionSlot(executionId)
-          }
-          try {
-            await jobQueue.markJobFailed(jobId, errorMessage)
-          } catch (markFailedError) {
-            asyncLogger.error('Failed to mark job as failed', {
-              jobId,
-              error: toError(markFailedError).message,
-            })
-          }
-        }
-      })()
+    if (acceptance === 'rejected') {
+      await releaseExecutionSlot(executionId)
+      return {
+        response: NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 }),
+        retainExecutionClaim: false,
+      }
     }
 
-    return NextResponse.json(
+    return {
+      response: NextResponse.json(
+        {
+          error: 'Async execution queue acceptance could not be confirmed',
+          code: 'ASYNC_ENQUEUE_AMBIGUOUS',
+          executionId,
+        },
+        { status: 503, headers: { [WORKFLOW_EXECUTION_ID_HEADER]: executionId } }
+      ),
+      retainExecutionClaim: true,
+    }
+  }
+
+  asyncLogger.info('Queued async workflow execution', { jobId })
+
+  if (shouldExecuteInline()) {
+    void (async () => {
+      let workerOwnsReservation = false
+      try {
+        await jobQueue.startJob(jobId)
+        workerOwnsReservation = true
+        const output = await executeWorkflowJob(payload)
+        await jobQueue.completeJob(jobId, output)
+      } catch (error) {
+        const errorMessage = toError(error).message
+        asyncLogger.error('Async workflow execution failed', {
+          jobId,
+          error: errorMessage,
+        })
+        /**
+         * Before worker ownership transfers, no LoggingSession exists to
+         * release the route's reservation.
+         */
+        if (!workerOwnsReservation) {
+          await releaseExecutionSlot(executionId)
+        }
+        try {
+          await jobQueue.markJobFailed(jobId, errorMessage)
+        } catch (markFailedError) {
+          asyncLogger.error('Failed to mark job as failed', {
+            jobId,
+            error: toError(markFailedError).message,
+          })
+        }
+      }
+    })()
+  }
+
+  return {
+    response: NextResponse.json(
       {
         success: true,
         async: true,
@@ -403,13 +489,8 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
         statusUrl: `${getBaseUrl()}/api/jobs/${jobId}`,
       },
       { status: 202 }
-    )
-  } catch (error: any) {
-    asyncLogger.error('Failed to queue async execution', error)
-    // Enqueue failed: no background job will run or finalize a session, so
-    // release the admission slot reserved during preprocessing.
-    await releaseExecutionSlot(executionId)
-    return NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 })
+    ),
+    retainExecutionClaim: true,
   }
 }
 
@@ -578,6 +659,25 @@ async function handleExecutePost(
       )
     }
 
+    const headerValidation = executeWorkflowHeadersSchema.safeParse({
+      [WORKFLOW_EXECUTION_ID_HEADER]: req.headers.get(WORKFLOW_EXECUTION_ID_HEADER) ?? undefined,
+    })
+    if (!headerValidation.success) {
+      reqLogger.warn('Invalid execution ID header', {
+        issues: headerValidation.error.issues,
+      })
+      return NextResponse.json(
+        {
+          error: 'Invalid execution ID header',
+          details: headerValidation.error.issues.map((issue) => ({
+            path: issue.path.join('.'),
+            message: issue.message,
+          })),
+        },
+        { status: 400 }
+      )
+    }
+
     const defaultTriggerType =
       isPublicApiAccess || auth.authType === AuthType.API_KEY ? 'api' : 'manual'
 
@@ -591,7 +691,7 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
-      executionId: requestedExecutionId,
+      executionId: rawBodyExecutionId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
       stopAfterBlockId,
@@ -599,6 +699,27 @@ async function handleExecutePost(
       parentWorkspaceId,
     } = validation.data
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
+    const headerExecutionId = headerValidation.data[WORKFLOW_EXECUTION_ID_HEADER]
+    let legacyBodyExecutionId: string | undefined
+    if (!headerExecutionId && rawBodyExecutionId !== undefined) {
+      const bodyExecutionIdValidation = executionIdSchema.safeParse(rawBodyExecutionId)
+      if (!bodyExecutionIdValidation.success) {
+        reqLogger.warn('Invalid legacy body execution ID', {
+          issues: bodyExecutionIdValidation.error.issues,
+        })
+        return NextResponse.json(
+          {
+            error: 'Invalid request body',
+            details: bodyExecutionIdValidation.error.issues.map((issue) => ({
+              path: 'executionId',
+              message: issue.message,
+            })),
+          },
+          { status: 400 }
+        )
+      }
+      legacyBodyExecutionId = bodyExecutionIdValidation.data
+    }
 
     if (isPublicApiAccess && isClientSession) {
       return NextResponse.json(
@@ -713,7 +834,6 @@ async function handleExecutePost(
               runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
               parentWorkspaceId: _parentWorkspaceId,
-              executionId: _executionId,
               ...rest
             } = body
             return Object.keys(rest).length > 0 ? rest : validatedInput
@@ -757,7 +877,7 @@ async function handleExecutePost(
       )
     }
 
-    const callerProvidedExecutionId = requestedExecutionId
+    const callerProvidedExecutionId = headerExecutionId ?? legacyBodyExecutionId
     executionId = callerProvidedExecutionId ?? generateId()
     reqLogger = reqLogger.withMetadata({ userId, executionId })
 
@@ -948,7 +1068,7 @@ async function handleExecutePost(
     reqLogger.info('Preprocessing passed')
 
     if (isAsyncMode) {
-      const response = await handleAsyncExecution({
+      const asyncResult = await handleAsyncExecution({
         requestId,
         workflowId,
         userId: actorUserId,
@@ -959,10 +1079,8 @@ async function handleExecutePost(
         executionId,
         callChain,
       })
-      if (response.status === 202) {
-        executionIdClaimCommitted = true
-      }
-      return response
+      executionIdClaimCommitted = asyncResult.retainExecutionClaim
+      return asyncResult.response
     }
 
     let cachedWorkflowData: {
@@ -1394,7 +1512,7 @@ async function handleExecutePost(
       await releaseExecutionSlot(executionId)
       return NextResponse.json(
         { error: 'Run buffer temporarily unavailable' },
-        { status: 503, headers: { 'X-Execution-Id': executionId } }
+        { status: 503, headers: { [WORKFLOW_EXECUTION_ID_HEADER]: executionId } }
       )
     }
 
@@ -1963,7 +2081,7 @@ async function handleExecutePost(
     return new NextResponse(stream, {
       headers: {
         ...SSE_HEADERS,
-        'X-Execution-Id': executionId,
+        [WORKFLOW_EXECUTION_ID_HEADER]: executionId,
       },
     })
   } catch (error: any) {

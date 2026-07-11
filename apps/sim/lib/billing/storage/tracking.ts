@@ -5,14 +5,17 @@
  */
 
 import { db } from '@sim/db'
-import { organization, userStats } from '@sim/db/schema'
+import { organization, userStats, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, gte, sql } from 'drizzle-orm'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import type { StorageBillingContext } from '@/lib/billing/storage/context'
+import {
+  resolveStorageBillingContext,
+  type StorageBillingContext,
+} from '@/lib/billing/storage/context'
 import { getLegacyStorageBillingEntity } from '@/lib/billing/storage/entity'
 import {
   getStorageLimitForBillingContext,
@@ -26,6 +29,10 @@ import type { DbOrTx } from '@/lib/db/types'
 const logger = createLogger('StorageTracking')
 
 type StorageCounterMutation = 'increment' | 'decrement'
+
+interface WorkspaceStorageMutationResult {
+  updatedUsage: number
+}
 
 /** Format bytes as a `GB` label for usage-limit emails (2dp usage, whole-number limit). */
 function formatGb(bytes: number, decimals: number): string {
@@ -51,7 +58,8 @@ async function mutateStorageUsage(
   executor: DbOrTx,
   billingEntity: Readonly<BillingEntity>,
   bytes: number,
-  mutation: StorageCounterMutation
+  mutation: StorageCounterMutation,
+  strictDecrement = false
 ): Promise<number | undefined> {
   if (billingEntity.type === 'organization') {
     const storageUsedBytes =
@@ -61,7 +69,11 @@ async function mutateStorageUsage(
     const returned: unknown = await executor
       .update(organization)
       .set({ storageUsedBytes })
-      .where(eq(organization.id, billingEntity.id))
+      .where(
+        mutation === 'decrement' && strictDecrement
+          ? and(eq(organization.id, billingEntity.id), gte(organization.storageUsedBytes, bytes))
+          : eq(organization.id, billingEntity.id)
+      )
       .returning({ storageUsedBytes: organization.storageUsedBytes })
     return readReturnedStorageUsage(returned)
   }
@@ -73,9 +85,109 @@ async function mutateStorageUsage(
   const returned: unknown = await executor
     .update(userStats)
     .set({ storageUsedBytes })
-    .where(eq(userStats.userId, billingEntity.id))
+    .where(
+      mutation === 'decrement' && strictDecrement
+        ? and(eq(userStats.userId, billingEntity.id), gte(userStats.storageUsedBytes, bytes))
+        : eq(userStats.userId, billingEntity.id)
+    )
     .returning({ storageUsedBytes: userStats.storageUsedBytes })
   return readReturnedStorageUsage(returned)
+}
+
+/**
+ * Mutates the durable workspace total and its current routed payer as one
+ * transaction. The workspace row is the serialization point shared with payer
+ * transfers, so an upload/delete is wholly before or wholly after a move.
+ *
+ * The per-workspace counter is authoritative for transfer size. Decrements
+ * apply only the bytes still present in that workspace, making retries
+ * idempotent and preventing either counter from becoming negative.
+ */
+async function mutateWorkspaceStorageUsage(
+  tx: DbOrTx,
+  workspaceId: string,
+  bytes: number,
+  mutation: StorageCounterMutation
+): Promise<WorkspaceStorageMutationResult> {
+  const [workspacePayer] = await tx
+    .select({
+      billedAccountUserId: workspace.billedAccountUserId,
+      organizationId: workspace.organizationId,
+      storageUsedBytes: workspace.storageUsedBytes,
+    })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .for('update')
+    .limit(1)
+
+  if (!workspacePayer) {
+    throw new Error(`Workspace ${workspaceId} not found for storage accounting`)
+  }
+
+  const appliedBytes =
+    mutation === 'increment' ? bytes : Math.min(bytes, workspacePayer.storageUsedBytes)
+  const nextWorkspaceUsage =
+    mutation === 'increment'
+      ? workspacePayer.storageUsedBytes + appliedBytes
+      : workspacePayer.storageUsedBytes - appliedBytes
+  const billingEntity: BillingEntity = workspacePayer.organizationId
+    ? { type: 'organization', id: workspacePayer.organizationId }
+    : { type: 'user', id: workspacePayer.billedAccountUserId }
+
+  if (appliedBytes > 0) {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`workspace-storage-payer:${billingEntity.type}:${billingEntity.id}`}, 0))`
+    )
+    await tx
+      .update(workspace)
+      .set({ storageUsedBytes: nextWorkspaceUsage })
+      .where(eq(workspace.id, workspaceId))
+
+    const updatedUsage = await mutateStorageUsage(
+      tx,
+      billingEntity,
+      appliedBytes,
+      mutation,
+      mutation === 'decrement'
+    )
+    if (updatedUsage === undefined) {
+      throw new Error(
+        `Storage payer ${billingEntity.type}:${billingEntity.id} is missing or below ${appliedBytes} bytes for workspace ${workspaceId}`
+      )
+    }
+
+    return { updatedUsage }
+  }
+
+  const updatedUsage = await readStorageUsageForMutation(tx, billingEntity)
+  return { updatedUsage }
+}
+
+/**
+ * Reads a payer counter on the current transaction for a no-op/idempotent
+ * workspace decrement.
+ */
+async function readStorageUsageForMutation(
+  tx: DbOrTx,
+  billingEntity: Readonly<BillingEntity>
+): Promise<number> {
+  if (billingEntity.type === 'organization') {
+    const [row] = await tx
+      .select({ storageUsedBytes: organization.storageUsedBytes })
+      .from(organization)
+      .where(eq(organization.id, billingEntity.id))
+      .limit(1)
+    if (!row) throw new Error(`Storage payer organization:${billingEntity.id} not found`)
+    return row.storageUsedBytes
+  }
+
+  const [row] = await tx
+    .select({ storageUsedBytes: userStats.storageUsedBytes })
+    .from(userStats)
+    .where(eq(userStats.userId, billingEntity.id))
+    .limit(1)
+  if (!row) throw new Error(`Storage payer user:${billingEntity.id} not found`)
+  return row.storageUsedBytes
 }
 
 /**
@@ -165,7 +277,10 @@ export async function incrementStorageUsageForBillingContext(
 
   let updatedUsage: number | undefined
   try {
-    updatedUsage = await mutateStorageUsage(db, context.billingEntity, bytes, 'increment')
+    const result = await db.transaction((tx) =>
+      mutateWorkspaceStorageUsage(tx, context.workspaceId, bytes, 'increment')
+    )
+    updatedUsage = result.updatedUsage
   } catch (error) {
     logger.error('Error incrementing workspace payer storage usage:', error)
     throw error
@@ -185,7 +300,10 @@ export async function decrementStorageUsageForBillingContext(
 
   let updatedUsage: number | undefined
   try {
-    updatedUsage = await mutateStorageUsage(db, context.billingEntity, bytes, 'decrement')
+    const result = await db.transaction((tx) =>
+      mutateWorkspaceStorageUsage(tx, context.workspaceId, bytes, 'decrement')
+    )
+    updatedUsage = result.updatedUsage
   } catch (error) {
     logger.error('Error decrementing workspace payer storage usage:', error)
     throw error
@@ -208,6 +326,13 @@ export async function incrementStorageUsage(
 ): Promise<void> {
   if (!isBillingEnabled) {
     logger.debug('Billing disabled, skipping storage increment')
+    return
+  }
+  if (bytes <= 0) return
+
+  if (workspaceId) {
+    const context = await resolveStorageBillingContext(workspaceId)
+    await incrementStorageUsageForBillingContext(context, bytes)
     return
   }
 
@@ -250,6 +375,13 @@ export async function decrementStorageUsage(
 ): Promise<void> {
   if (!isBillingEnabled) {
     logger.debug('Billing disabled, skipping storage decrement')
+    return
+  }
+  if (bytes <= 0) return
+
+  if (workspaceId) {
+    const context = await resolveStorageBillingContext(workspaceId)
+    await decrementStorageUsageForBillingContext(context, bytes)
     return
   }
 
@@ -304,5 +436,19 @@ export async function decrementStorageUsageForBillingContextInTx(
   bytes: number
 ): Promise<void> {
   if (!isBillingEnabled || bytes <= 0) return
-  await mutateStorageUsage(tx, context.billingEntity, bytes, 'decrement')
+  await mutateWorkspaceStorageUsage(tx, context.workspaceId, bytes, 'decrement')
+}
+
+/**
+ * Increments one workspace and its current payer inside an existing
+ * transaction. Used when the billable metadata row is inserted in that same
+ * transaction.
+ */
+export async function incrementStorageUsageForBillingContextInTx(
+  tx: DbOrTx,
+  context: StorageBillingContext,
+  bytes: number
+): Promise<void> {
+  if (!isBillingEnabled || bytes <= 0) return
+  await mutateWorkspaceStorageUsage(tx, context.workspaceId, bytes, 'increment')
 }

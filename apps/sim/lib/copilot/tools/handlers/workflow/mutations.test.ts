@@ -343,7 +343,7 @@ describe('executeCreateWorkflow billing attribution', () => {
     expect(resolveBillingAttributionMock).not.toHaveBeenCalled()
   })
 
-  it('creates cross-workspace and gives subsequent execution a child payer snapshot', async () => {
+  it('keeps cross-workspace creation scoped while allowing explicit subsequent execution', async () => {
     const context: ExecutionContext = { ...executionContext, workflowId: '' }
     performCreateWorkflowMock.mockResolvedValue({
       success: true,
@@ -377,13 +377,20 @@ describe('executeCreateWorkflow billing attribution', () => {
     )
     expect(context).toMatchObject({
       userId: 'user-1',
-      workflowId: 'created-workflow',
-      workspaceId: 'workspace-2',
+      workflowId: '',
+      workspaceId: 'workspace-1',
       billingAttribution,
     })
     expect(context.billingAttribution).toBe(billingAttribution)
+    const createOutput = createResult.output as { workflowId: string; workspaceId: string }
+    expect(createOutput).toEqual(
+      expect.objectContaining({ workflowId: 'created-workflow', workspaceId: 'workspace-2' })
+    )
 
-    const runResult = await executeRunWorkflow({ useMockPayload: true }, context)
+    const runResult = await executeRunWorkflow(
+      { workflowId: createOutput.workflowId, useMockPayload: true },
+      context
+    )
 
     expect(runResult.success).toBe(true)
     expect(resolveBillingAttributionMock).toHaveBeenCalledOnce()

@@ -1,11 +1,5 @@
 import { db } from '@sim/db'
-import {
-  member,
-  organization,
-  subscription as subscriptionTable,
-  user,
-  userStats,
-} from '@sim/db/schema'
+import { member, organization, subscription as subscriptionTable, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
@@ -556,63 +550,11 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
           plan: subscription.plan,
         })
 
-        // Bulk version of the per-member transfer in invitation-accept:
-        // catches members whose personal bytes never made it into the
-        // org pool (e.g. org upgraded free → paid after they joined).
-        // `.for('update')` row-locks so concurrent increment/decrement
-        // calls cannot slip between the snapshot SELECT and the
-        // zeroing UPDATE and get silently dropped. Idempotent — zeroed
-        // rows are filtered out.
-        if (isPaid(subscription.plan)) {
-          try {
-            const memberIds = members.map((m) => m.userId)
-            await db.transaction(async (tx) => {
-              const personalStorageRows = await tx
-                .select({
-                  userId: userStats.userId,
-                  bytes: userStats.storageUsedBytes,
-                })
-                .from(userStats)
-                .where(inArray(userStats.userId, memberIds))
-                .for('update')
-
-              const toTransfer = personalStorageRows.filter((r) => (r.bytes ?? 0) > 0)
-              const totalBytes = toTransfer.reduce((acc, r) => acc + (r.bytes ?? 0), 0)
-
-              if (totalBytes === 0) return
-
-              await tx
-                .update(organization)
-                .set({
-                  storageUsedBytes: sql`${organization.storageUsedBytes} + ${totalBytes}`,
-                })
-                .where(eq(organization.id, organizationId))
-
-              await tx
-                .update(userStats)
-                .set({ storageUsedBytes: 0 })
-                .where(
-                  inArray(
-                    userStats.userId,
-                    toTransfer.map((r) => r.userId)
-                  )
-                )
-
-              logger.info('Transferred personal storage bytes to org pool during sync', {
-                organizationId,
-                subscriptionId: subscription.id,
-                memberCount: toTransfer.length,
-                totalBytes,
-              })
-            })
-          } catch (storageError) {
-            logger.error('Failed to transfer personal storage to org pool', {
-              organizationId,
-              subscriptionId: subscription.id,
-              error: storageError,
-            })
-          }
-        }
+        /**
+         * Storage is workspace-routed, not membership-routed. Workspace payer
+         * changes transfer the workspace's own durable byte ledger atomically;
+         * subscription sync must not move an account-wide user counter.
+         */
       }
     }
   } catch (error) {

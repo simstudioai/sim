@@ -536,7 +536,7 @@ describe('preprocessExecution billing attribution', () => {
     )
     expect(mockReserveExecutionSlot).toHaveBeenCalledWith({
       billingEntity: { type: 'organization', id: 'org-1' },
-      executionId: 'execution-1',
+      reservationId: 'execution-1',
       plan: 'team_25000',
       currentUsage: 1,
       limit: 10,
@@ -577,7 +577,7 @@ describe('preprocessExecution billing attribution', () => {
     expect(result).toMatchObject({ success: true })
     expect(mockReserveExecutionSlot).toHaveBeenCalledWith({
       billingEntity: { type: 'organization', id: 'org-1' },
-      executionId: 'execution-1',
+      reservationId: 'execution-1',
       plan: 'team_25000',
       currentUsage: 1,
       limit: 10,
@@ -588,6 +588,24 @@ describe('preprocessExecution billing attribution', () => {
         limit: 3,
       },
     })
+  })
+
+  it('reserves a resume attempt without changing its parent execution identity', async () => {
+    mockReserveExecutionSlot.mockResolvedValueOnce({ reserved: true, created: true })
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      executionId: 'parent-execution-1',
+      reservationId: 'resume-entry-1',
+      billingAttribution: ORGANIZATION_ATTRIBUTION,
+    })
+
+    expect(result).toMatchObject({ success: true })
+    expect(mockReserveExecutionSlot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reservationId: 'resume-entry-1',
+      })
+    )
   })
 
   it.each([

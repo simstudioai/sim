@@ -133,6 +133,7 @@ export interface SessionPausedParams {
 export class LoggingSession {
   private workflowId: string
   private executionId: string
+  private reservationId: string
   private triggerType: ExecutionTrigger['type']
   private requestId?: string
   private trigger?: ExecutionTrigger
@@ -156,10 +157,12 @@ export class LoggingSession {
     workflowId: string,
     executionId: string,
     triggerType: ExecutionTrigger['type'],
-    requestId?: string
+    requestId?: string,
+    reservationId = executionId
   ) {
     this.workflowId = workflowId
     this.executionId = executionId
+    this.reservationId = reservationId
     this.triggerType = triggerType
     this.requestId = requestId
   }
@@ -306,7 +309,7 @@ export class LoggingSession {
      */
     if (params.finalizationPath !== 'paused') {
       try {
-        await releaseExecutionSlot(this.executionId)
+        await releaseExecutionSlot(this.reservationId)
       } catch (error) {
         logger.warn(`Failed to release admission reservation for ${this.executionId}:`, {
           error: toError(error).message,
@@ -1038,7 +1041,7 @@ export class LoggingSession {
       this.requestId,
       this.workflowId
     )
-    await releaseExecutionSlot(this.executionId)
+    await releaseExecutionSlot(this.reservationId)
   }
 
   /**

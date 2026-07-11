@@ -62,10 +62,15 @@ vi.mock('@/app/invite/components', () => ({
   InviteLayout: ({ children }: { children: ReactNode }) => children,
   InviteStatusCard: ({
     actions = [],
+    title,
+    type,
   }: {
     actions?: Array<{ label: string; onClick: () => void }>
+    title: string
+    type: string
   }) => (
     <>
+      <div data-invite-status={type}>{title}</div>
       {actions.map((action) => (
         <button key={action.label} type='button' onClick={action.onClick}>
           {action.label}
@@ -203,5 +208,21 @@ describe('Invite', () => {
 
     expect(mockSetActive).not.toHaveBeenCalled()
     expect(mockSetQueryData).toHaveBeenCalledWith(sessionKeys.detail(), INTERNAL_REFRESHED_SESSION)
+  })
+
+  it('keeps a successful acceptance committed when the session refresh fails', async () => {
+    mockGetSession.mockRejectedValueOnce(new Error('Session refresh failed'))
+
+    await acceptCurrentInvitation()
+    await flush()
+
+    expect(container.textContent).toContain('Welcome!')
+    expect(container.textContent).not.toContain('Invitation Error')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200)
+    })
+
+    expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1')
   })
 })

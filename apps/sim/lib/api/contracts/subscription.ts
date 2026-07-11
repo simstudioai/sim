@@ -2,6 +2,10 @@ import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  BILLING_ACCOUNT_DECISION_HEADER,
+  BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
+  BILLING_ATTRIBUTION_HEADER,
+  BILLING_ATTRIBUTION_HEADER_MAX_BYTES,
   BILLING_REQUEST_ID_HEADER,
   COPILOT_BILLING_PROTOCOL_HEADER,
   COPILOT_BILLING_PROTOCOL_VALUES,
@@ -41,6 +45,11 @@ export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 export const billingUpdateCostHeadersSchema = z.object({
   [COPILOT_BILLING_PROTOCOL_HEADER]: z.enum(COPILOT_BILLING_PROTOCOL_VALUES).optional(),
   [BILLING_REQUEST_ID_HEADER]: z.string().uuid().optional(),
+  [BILLING_ATTRIBUTION_HEADER]: z.string().max(BILLING_ATTRIBUTION_HEADER_MAX_BYTES).optional(),
+  [BILLING_ACCOUNT_DECISION_HEADER]: z
+    .string()
+    .max(BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES)
+    .optional(),
 })
 export type BillingUpdateCostHeaders = z.input<typeof billingUpdateCostHeadersSchema>
 

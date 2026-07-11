@@ -8,6 +8,7 @@ import { and, asc, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -77,6 +78,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         id: pausedExecutions.id,
         executionId: pausedExecutions.executionId,
         workflowId: pausedExecutions.workflowId,
+        automaticResumeRetryCount: pausedExecutions.automaticResumeRetryCount,
         pausePoints: pausedExecutions.pausePoints,
         metadata: sql<unknown>`jsonb_build_object(
           'executorUserId', ${pausedExecutions.metadata}->'executorUserId',
@@ -132,6 +134,7 @@ interface DueRow {
   id: string
   executionId: string
   workflowId: string
+  automaticResumeRetryCount: number
   pausePoints: unknown
   metadata: unknown
 }
@@ -329,7 +332,8 @@ async function recordAutomaticAdmissionWait(
   row: DueRow,
   contextId: string,
   reason: string,
-  now: Date
+  now: Date,
+  retryable: boolean
 ): Promise<string> {
   const boundedReason = normalizeAutomaticResumeWaitingReason(reason)
   try {
@@ -337,7 +341,8 @@ async function recordAutomaticAdmissionWait(
       pausedExecutionId: row.id,
       contextId,
       reason: boundedReason,
-      retryAt: getResumeAdmissionRetryAt(now),
+      retryAt: retryable ? getResumeAdmissionRetryAt(now) : null,
+      retryable,
     })
   } catch (error) {
     logger.warn('Failed to persist automatic resume waiting state', {
@@ -378,8 +383,14 @@ async function dispatchRow(row: PreparedDueRow, now: Date): Promise<RowResult> {
       blockedPoints.length > 0
         ? blockedPoints.map((point) => point.contextId)
         : ['automatic-resume']
+    const waitingReason = await recordAutomaticAdmissionWait(
+      row,
+      contextIds[0] ?? 'automatic-resume',
+      metadataError,
+      now,
+      false
+    )
     for (const contextId of contextIds) {
-      const waitingReason = await recordAutomaticAdmissionWait(row, contextId, metadataError, now)
       failures.push({
         executionId: row.executionId,
         contextId,
@@ -403,7 +414,13 @@ async function dispatchRow(row: PreparedDueRow, now: Date): Promise<RowResult> {
     } catch (error) {
       const message = toError(error).message
       const contextId = queuedPoint?.contextId ?? 'queued-resume'
-      const waitingReason = await recordAutomaticAdmissionWait(row, contextId, message, now)
+      const waitingReason = await recordAutomaticAdmissionWait(
+        row,
+        contextId,
+        message,
+        now,
+        isRetryableInfrastructureError(error)
+      )
       failures.push({
         executionId: row.executionId,
         contextId,
@@ -430,17 +447,20 @@ async function dispatchRow(row: PreparedDueRow, now: Date): Promise<RowResult> {
       billingAttribution,
     })
   } catch (error) {
-    for (const point of duePoints) {
-      if (!point.contextId) continue
-      const waitingReason = await recordAutomaticAdmissionWait(
-        row,
-        point.contextId,
-        toError(error).message,
-        now
-      )
+    const contextIds = duePoints
+      .map((point) => point.contextId)
+      .filter((contextId): contextId is string => Boolean(contextId))
+    const waitingReason = await recordAutomaticAdmissionWait(
+      row,
+      contextIds[0] ?? 'automatic-resume',
+      toError(error).message,
+      now,
+      isRetryableInfrastructureError(error)
+    )
+    for (const contextId of contextIds) {
       failures.push({
         executionId: row.executionId,
-        contextId: point.contextId,
+        contextId,
         error: waitingReason,
       })
     }
@@ -448,17 +468,20 @@ async function dispatchRow(row: PreparedDueRow, now: Date): Promise<RowResult> {
   }
 
   if (!preprocessing.success) {
-    for (const point of duePoints) {
-      if (!point.contextId) continue
-      const waitingReason = await recordAutomaticAdmissionWait(
-        row,
-        point.contextId,
-        preprocessing.error?.message ?? 'Resume admission failed',
-        now
-      )
+    const contextIds = duePoints
+      .map((point) => point.contextId)
+      .filter((contextId): contextId is string => Boolean(contextId))
+    const waitingReason = await recordAutomaticAdmissionWait(
+      row,
+      contextIds[0] ?? 'automatic-resume',
+      preprocessing.error?.message ?? 'Resume admission failed',
+      now,
+      preprocessing.error?.retryable === true
+    )
+    for (const contextId of contextIds) {
       failures.push({
         executionId: row.executionId,
-        contextId: point.contextId,
+        contextId,
         error: waitingReason,
       })
     }

@@ -482,6 +482,7 @@ export const pausedExecutions = pgTable(
     pausePoints: jsonb('pause_points').notNull(),
     totalPauseCount: integer('total_pause_count').notNull(),
     resumedCount: integer('resumed_count').notNull().default(0),
+    automaticResumeRetryCount: integer('automatic_resume_retry_count').notNull().default(0),
     status: text('status').notNull().default('paused'),
     metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
     pausedAt: timestamp('paused_at').notNull().defaultNow(),
@@ -1325,7 +1326,7 @@ export const workspace = pgTable(
      * anchor — `onDelete: 'cascade'` cleans up a user's workspaces on account
      * deletion — and the ownership-transfer target when an owner is removed. For
      * admin checks use explicit `permissions` rows; for the workspace's principal
-     * billing identity use `billedAccountUserId`.
+     * billing identity use `billedAccountUserId`. DO NOT DELETE.
      */
     ownerId: text('owner_id')
       .notNull()
@@ -1337,6 +1338,14 @@ export const workspace = pgTable(
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'no action' }),
+    /**
+     * Durable workspace-first storage ledger.
+     *
+     * Invariant: this non-negative total and the currently routed payer aggregate
+     * change atomically while the workspace row is locked. A payer identity change
+     * moves this entire total old payer -> new payer in the same transaction.
+     */
+    storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
     allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
@@ -1353,6 +1362,10 @@ export const workspace = pgTable(
   (table) => ({
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    nonNegativeStorage: check(
+      'workspace_storage_used_bytes_non_negative',
+      sql`${table.storageUsedBytes} >= 0`
+    ),
     workspaceModeIdx: index('workspace_mode_idx').on(table.workspaceMode),
     forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
       table.forkedFromWorkspaceId

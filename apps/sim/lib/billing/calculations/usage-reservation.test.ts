@@ -32,7 +32,7 @@ const fakeRedis = { eval: evalMock, get: getMock }
 
 const baseParams = {
   billingEntity: { type: 'user' as const, id: 'user-1' },
-  executionId: 'exec-1',
+  reservationId: 'exec-1',
   plan: 'free' as const,
   currentUsage: 0,
   limit: 5,
@@ -119,6 +119,18 @@ describe('usage-reservation', () => {
       )
     })
 
+    it('uses a resume entry reservation id independently from the parent execution id', async () => {
+      evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
+
+      await reserveExecutionSlot({
+        ...baseParams,
+        reservationId: 'resume-entry-1',
+      })
+
+      expect(evalMock.mock.calls[0][8]).toBe('resume-entry-1')
+      expect(evalMock.mock.calls[1][2]).toBe('usage:reservation:resume-entry-1')
+    })
+
     it('passes the free-tier concurrency cap and payer headroom to the atomic script', async () => {
       evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
       await reserveExecutionSlot(baseParams)
@@ -182,8 +194,8 @@ describe('usage-reservation', () => {
       )
 
       const results = await Promise.all([
-        reserveExecutionSlot({ ...memberParams, executionId: 'exec-1' }),
-        reserveExecutionSlot({ ...memberParams, executionId: 'exec-2' }),
+        reserveExecutionSlot({ ...memberParams, reservationId: 'exec-1' }),
+        reserveExecutionSlot({ ...memberParams, reservationId: 'exec-2' }),
       ])
 
       expect(results).toContainEqual({ reserved: true, created: true })
@@ -305,9 +317,9 @@ describe('usage-reservation', () => {
   })
 
   describe('releaseExecutionSlot', () => {
-    async function createDescriptor(): Promise<string> {
+    async function createDescriptor(reservationId = 'exec-1'): Promise<string> {
       evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
-      await reserveExecutionSlot(memberParams)
+      await reserveExecutionSlot({ ...memberParams, reservationId })
       return String(evalMock.mock.calls[1][3])
     }
 
@@ -328,6 +340,21 @@ describe('usage-reservation', () => {
         new Set(['org:org-1'])
       )
       expect(localRelease[0]).not.toContain('usage:')
+    })
+
+    it('keeps a stale attempt release isolated from a newer attempt reservation', async () => {
+      const descriptor = await createDescriptor('resume-entry-old')
+      vi.clearAllMocks()
+      getMock.mockResolvedValueOnce(descriptor)
+      evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
+
+      await releaseExecutionSlot('resume-entry-old')
+
+      expect(getMock).toHaveBeenCalledWith('usage:reservation:resume-entry-old')
+      const localRelease = evalMock.mock.calls[1]
+      expect(localRelease[3]).toContain('resume-entry-old')
+      expect(localRelease.at(-2)).toBe('resume-entry-old')
+      expect(JSON.stringify(evalMock.mock.calls)).not.toContain('resume-entry-new')
     })
 
     it('removes the retained slot exactly once across repeated releases', async () => {

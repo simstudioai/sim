@@ -441,6 +441,24 @@ describe('LoggingSession completion retries', () => {
     ])
   })
 
+  it('releases the attempt reservation while finalizing the parent execution log', async () => {
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    const session = new LoggingSession(
+      'workflow-1',
+      'parent-execution-1',
+      'manual',
+      'req-1',
+      'resume-entry-1'
+    )
+
+    await session.safeComplete()
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: 'parent-execution-1' })
+    )
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('resume-entry-1')
+  })
+
   it('falls back to cost-only logging when paused completion fails', async () => {
     const session = new LoggingSession('workflow-1', 'execution-2', 'api', 'req-1')
 

@@ -62,7 +62,11 @@ function UsageLogRow({ log }: UsageLogRowProps) {
   )
 }
 
-export function CreditUsageView() {
+interface CreditUsageViewProps {
+  backHref?: string
+}
+
+export function CreditUsageView({ backHref = '/account/settings/billing' }: CreditUsageViewProps) {
   const router = useRouter()
   const [{ period, startDate, endDate }, setFilters] = useQueryStates(
     creditUsageParsers,
@@ -149,7 +153,7 @@ export function CreditUsageView() {
       back={{
         text: 'Billing',
         icon: ArrowLeft,
-        onSelect: () => router.push('/account/settings/billing'),
+        onSelect: () => router.push(backHref),
       }}
       actions={[
         {

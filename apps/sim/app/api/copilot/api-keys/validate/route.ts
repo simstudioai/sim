@@ -10,20 +10,19 @@ import {
   checkServerSideUsageLimits,
 } from '@/lib/billing/calculations/usage-monitor'
 import {
+  type AccountBillingDecision,
   type BillingAttributionSnapshot,
-  billingAttributionsEqual,
   checkAttributedUsageLimits,
   requireBillingAttributionHeader,
   requireBillingRequestIdHeader,
+  resolveBillingAttribution,
+  serializeAccountBillingDecisionHeader,
+  serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import {
-  type AccountBillingDecision,
-  cacheAccountBillingDecisionOrThrow,
-  getCachedBillingAttribution,
-} from '@/lib/billing/core/billing-attribution-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
 import {
+  BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ATTRIBUTION_HEADER,
   BILLING_REQUEST_ID_HEADER,
   COPILOT_BILLING_PROTOCOL,
@@ -52,12 +51,12 @@ type AdmissionBillingDecision =
   | {
       kind: 'direct-account'
       userId: string
-      billingRequestId: string
     }
   | {
       kind: 'legacy-account'
       userId: string
-      workspaceId: string
+      workspaceId?: string
+      includeAttribution: boolean
     }
 
 /**
@@ -83,15 +82,11 @@ async function resolveAdmissionBillingDecision(
       return invalidBillingProtocolResponse()
     }
     try {
-      const billingRequestId = requireBillingRequestIdHeader(req.headers)
+      requireBillingRequestIdHeader(req.headers)
       const attribution = requireBillingAttributionHeader(req.headers, {
         actorUserId,
         workspaceId,
       })
-      const cachedAttribution = await getCachedBillingAttribution(billingRequestId)
-      if (!cachedAttribution || !billingAttributionsEqual(cachedAttribution, attribution)) {
-        return invalidBillingProtocolResponse()
-      }
       return { kind: 'attributed', attribution }
     } catch {
       return invalidBillingProtocolResponse()
@@ -103,9 +98,8 @@ async function resolveAdmissionBillingDecision(
       return invalidBillingProtocolResponse()
     }
 
-    let billingRequestId: string
     try {
-      billingRequestId = requireBillingRequestIdHeader(req.headers)
+      requireBillingRequestIdHeader(req.headers)
     } catch {
       return invalidBillingProtocolResponse()
     }
@@ -113,7 +107,6 @@ async function resolveAdmissionBillingDecision(
     return {
       kind: 'direct-account',
       userId: actorUserId,
-      billingRequestId,
     }
   }
 
@@ -128,7 +121,7 @@ async function resolveAdmissionBillingDecision(
   if (hasBillingRequestId || hasBillingAttribution) {
     return invalidBillingProtocolResponse()
   }
-  if (!workspaceId) {
+  if (protocol === COPILOT_BILLING_PROTOCOL.legacy && !workspaceId) {
     return invalidBillingProtocolResponse()
   }
 
@@ -136,6 +129,7 @@ async function resolveAdmissionBillingDecision(
     kind: 'legacy-account',
     userId: actorUserId,
     workspaceId,
+    includeAttribution: protocol === COPILOT_BILLING_PROTOCOL.legacy,
   }
 }
 
@@ -290,7 +284,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
           return new NextResponse(null, { status: 402 })
         }
 
-        if (admission.kind === 'legacy-account' && isHosted) {
+        if (admission.kind === 'legacy-account' && admission.workspaceId && isHosted) {
           const memberCheck = await checkOrgMemberUsageLimit(userId, admission.workspaceId)
           if (memberCheck.isExceeded) {
             logger.info('[API VALIDATION] Per-member org usage limit exceeded', {
@@ -308,20 +302,35 @@ export const POST = withRouteHandler((req: NextRequest) =>
           }
         }
 
-        if (admission.kind === 'direct-account') {
+        const responseHeaders: Record<string, string> = {}
+        if (admission.kind === 'attributed') {
+          const serializedAttribution = req.headers.get(BILLING_ATTRIBUTION_HEADER)
+          if (!serializedAttribution) {
+            throw new Error('Attributed billing material is unavailable')
+          }
+          responseHeaders[BILLING_ATTRIBUTION_HEADER] = serializedAttribution
+        } else if (admission.kind === 'direct-account') {
           if (!usage.accountBillingDecision) {
             throw new Error('Direct account billing decision is unavailable')
           }
-          await cacheAccountBillingDecisionOrThrow(
-            admission.billingRequestId,
-            usage.accountBillingDecision,
-            'Unable to preserve direct account billing decision'
+          responseHeaders[BILLING_ACCOUNT_DECISION_HEADER] = serializeAccountBillingDecisionHeader(
+            usage.accountBillingDecision
           )
+        } else if (admission.includeAttribution) {
+          if (!admission.workspaceId) {
+            throw new Error('Legacy billing attribution requires a workspace')
+          }
+          const attribution = await resolveBillingAttribution({
+            actorUserId: admission.userId,
+            workspaceId: admission.workspaceId,
+          })
+          responseHeaders[BILLING_ATTRIBUTION_HEADER] =
+            serializeBillingAttributionHeader(attribution)
         }
 
         span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.Ok)
         span.setAttribute(TraceAttr.HttpStatusCode, 200)
-        return new NextResponse(null, { status: 200 })
+        return new NextResponse(null, { status: 200, headers: responseHeaders })
       } catch (error) {
         logger.error('Error validating usage limit', { error })
         span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InternalError)

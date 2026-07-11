@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowLeft } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 
 /**
@@ -12,13 +12,14 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
  */
 export default function CreditUsageLoading() {
   const router = useRouter()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
 
   return (
     <SettingsPanel
       back={{
         text: 'Billing',
         icon: ArrowLeft,
-        onSelect: () => router.push('/account/settings/billing'),
+        onSelect: () => router.push(`/workspace/${workspaceId}/settings/billing`),
       }}
       title='Credit usage'
       description='Every credit-consuming event behind your usage.'

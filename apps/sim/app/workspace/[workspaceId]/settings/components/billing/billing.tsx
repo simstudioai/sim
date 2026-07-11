@@ -100,9 +100,10 @@ function formatInvoiceAmount(amountMinor: number, currency: string): string {
 interface BillingProps {
   scope: 'account' | 'organization'
   organizationId?: string
+  creditUsageHref?: string
 }
 
-export function Billing({ scope, organizationId }: BillingProps) {
+export function Billing({ scope, organizationId, creditUsageHref }: BillingProps) {
   const router = useRouter()
   const isOrganizationScope = scope === 'organization'
 
@@ -654,7 +655,9 @@ export function Billing({ scope, organizationId }: BillingProps) {
         </SettingsSection>
       )}
 
-      {!isOrganizationScope && !subscription.isEnterprise && <CreditUsageSection />}
+      {!isOrganizationScope && !subscription.isEnterprise && (
+        <CreditUsageSection href={creditUsageHref} />
+      )}
     </SettingsPanel>
   )
 }

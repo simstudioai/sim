@@ -6,11 +6,13 @@
  */
 
 export const BILLING_PROTOCOL_HEADERS = {
+  accountDecision: 'x-sim-billing-account-decision',
   attribution: 'x-sim-billing-attribution',
   protocol: 'x-sim-billing-protocol',
   requestId: 'x-sim-billing-request-id',
 } as const
 
+export const BILLING_ACCOUNT_DECISION_HEADER = BILLING_PROTOCOL_HEADERS.accountDecision
 export const BILLING_ATTRIBUTION_HEADER = BILLING_PROTOCOL_HEADERS.attribution
 export const COPILOT_BILLING_PROTOCOL_HEADER = BILLING_PROTOCOL_HEADERS.protocol
 export const BILLING_REQUEST_ID_HEADER = BILLING_PROTOCOL_HEADERS.requestId
@@ -31,6 +33,7 @@ export const COPILOT_BILLING_PROTOCOL_VALUES = [
 ] as const
 
 export const BILLING_ATTRIBUTION_HEADER_MAX_BYTES = 8192
+export const BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES = 2048
 
 export const BILLING_CALLBACK_OUTCOME = {
   billingContextMismatch: {

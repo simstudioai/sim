@@ -64,10 +64,13 @@ import {
   billingAttributionsEqual,
   checkAttributedBillingBlocks,
   checkAttributedUsageLimits,
+  createAttributedBillingRequestEnvelope,
+  requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
   requireBillingRequestIdHeader,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
+  serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
@@ -620,5 +623,49 @@ describe('checkAttributedUsageLimits', () => {
       end: new Date('2026-08-01T00:00:00.000Z'),
       start: new Date('2026-07-01T00:00:00.000Z'),
     })
+  })
+})
+
+describe('modern billing envelopes', () => {
+  const attribution = {
+    actorUserId: 'actor-a',
+    billedAccountUserId: 'owner-b',
+    billingEntity: { type: 'organization' as const, id: 'org-b' },
+    billingPeriod: {
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2026-08-01T00:00:00.000Z',
+    },
+    organizationId: 'org-b',
+    payerSubscription: null,
+    workspaceId: 'workspace-b',
+  }
+
+  it('creates a complete attributed-v1 envelope without external storage', () => {
+    const envelope = createAttributedBillingRequestEnvelope(attribution)
+
+    expect(envelope.billingRequestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    )
+    expect(envelope.headers).toEqual({
+      'x-sim-billing-attribution': envelope.serializedAttribution,
+      'x-sim-billing-protocol': 'attribution-v1',
+      'x-sim-billing-request-id': envelope.billingRequestId,
+    })
+    expect(JSON.parse(decodeURIComponent(envelope.serializedAttribution))).toEqual(attribution)
+  })
+
+  it('round-trips a bounded direct-v1 account decision header', () => {
+    const decision = {
+      userId: 'user-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+    }
+    const serialized = serializeAccountBillingDecisionHeader(decision)
+    const headers = new Headers({ 'x-sim-billing-account-decision': serialized })
+
+    expect(requireAccountBillingDecisionHeader(headers)).toEqual(decision)
   })
 })

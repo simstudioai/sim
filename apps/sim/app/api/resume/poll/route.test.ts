@@ -58,6 +58,7 @@ vi.mock('@sim/db/schema', () => ({
     executionSnapshot: 'executionSnapshot',
     status: 'status',
     nextResumeAt: 'nextResumeAt',
+    automaticResumeRetryCount: 'automaticResumeRetryCount',
   },
 }))
 
@@ -143,6 +144,7 @@ function makeDueRow(index: number, metadata: unknown = makeResumeMetadata(index)
     id: `paused-${index}`,
     executionId: `execution-${index}`,
     workflowId: `workflow-${index}`,
+    automaticResumeRetryCount: 0,
     metadata,
     pausePoints: {
       [`context-${index}`]: {
@@ -246,11 +248,37 @@ describe('time-pause resume admission', () => {
       contextId: 'context-1',
       reason: 'Usage admission unavailable',
       retryAt: expect.any(Date),
+      retryable: true,
     })
     expect(setNextResumeAtMock).not.toHaveBeenCalled()
     expect(legacySizeRowsLimitMock).not.toHaveBeenCalled()
     expect(fallbackRowsLimitMock).not.toHaveBeenCalled()
     expect(executionSnapshotFromJsonMock).not.toHaveBeenCalled()
+  })
+
+  it('stops automatic admission immediately for a permanent preflight failure', async () => {
+    dueRowsLimitMock.mockResolvedValueOnce([makeDueRow(1)])
+    preprocessExecutionMock.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Usage limit requires intervention',
+        statusCode: 402,
+        retryable: false,
+      },
+    })
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(200)
+    expect(enqueueOrStartResumeMock).not.toHaveBeenCalled()
+    expect(setAutomaticResumeWaitingMock).toHaveBeenCalledOnce()
+    expect(setAutomaticResumeWaitingMock).toHaveBeenCalledWith({
+      pausedExecutionId: 'paused-1',
+      contextId: 'context-1',
+      reason: 'Usage limit requires intervention',
+      retryAt: null,
+      retryable: false,
+    })
   })
 
   it('preprocesses once when one paused row has multiple due time points', async () => {
@@ -275,6 +303,31 @@ describe('time-pause resume admission', () => {
     expect(response.status).toBe(200)
     expect(preprocessExecutionMock).toHaveBeenCalledTimes(1)
     expect(enqueueOrStartResumeMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('increments admission retry state once for a paused row with multiple due points', async () => {
+    const row = makeDueRow(1)
+    row.pausePoints['context-2'] = {
+      contextId: 'context-2',
+      pauseKind: 'time',
+      resumeAt: '2026-07-01T00:00:00.000Z',
+      resumeStatus: 'paused',
+    }
+    dueRowsLimitMock.mockResolvedValueOnce([row])
+    preprocessExecutionMock.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Usage admission unavailable',
+        statusCode: 503,
+        retryable: true,
+      },
+    })
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(200)
+    expect(setAutomaticResumeWaitingMock).toHaveBeenCalledOnce()
+    expect(enqueueOrStartResumeMock).not.toHaveBeenCalled()
   })
 
   it('retries a preserved queued input without creating a replacement input', async () => {
@@ -377,7 +430,8 @@ describe('time-pause resume admission', () => {
       pausedExecutionId: 'paused-1',
       contextId: 'context-1',
       reason: 'Snapshot JSON is invalid',
-      retryAt: expect.any(Date),
+      retryAt: null,
+      retryable: false,
     })
   })
 
@@ -413,7 +467,8 @@ describe('time-pause resume admission', () => {
         pausedExecutionId: 'paused-1',
         contextId: 'context-1',
         reason: expect.stringContaining('16 MiB automatic-resume safety limit'),
-        retryAt: expect.any(Date),
+        retryAt: null,
+        retryable: false,
       })
     )
   })
