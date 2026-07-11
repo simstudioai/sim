@@ -183,6 +183,9 @@ async function performCreateFileFolder(
     ) {
       return { success: false, error: toError(error).message, errorCode: 'conflict' }
     }
+    if (toError(error).message === 'Target folder not found') {
+      return { success: false, error: 'Target folder not found', errorCode: 'validation' }
+    }
     logger.error('Failed to create file folder', { error })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }
   }
@@ -230,8 +233,16 @@ async function performUpdateFileFolder(
     ) {
       return { success: false, error: toError(error).message, errorCode: 'conflict' }
     }
-    if (toError(error).message === 'Folder not found') {
-      return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+    const message = toError(error).message
+    if (message === 'Folder not found') {
+      return { success: false, error: message, errorCode: 'not_found' }
+    }
+    if (
+      message === 'Folder cannot be its own parent' ||
+      message === 'Target folder not found' ||
+      message === 'Cannot move a folder into one of its descendants'
+    ) {
+      return { success: false, error: message, errorCode: 'validation' }
     }
     logger.error('Failed to update file folder', { error })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }
@@ -603,10 +614,16 @@ async function performRestoreResourceFolder<TCountKey extends 'knowledgeBases' |
     // leaving the folder orphaned under an archived parent.
     let resolvedParentId = raw.parentId
     if (resolvedParentId) {
+      // FOR UPDATE closes the window where a concurrent transaction soft-deletes
+      // this parent between this read and the write below -- without it, this
+      // plain read isn't locked, so the parent could be deleted out from under us
+      // after we've already decided it's active, restoring this folder under a
+      // parent that no longer exists.
       const [parent] = await tx
         .select({ deletedAt: folderTable.deletedAt })
         .from(folderTable)
         .where(eq(folderTable.id, resolvedParentId))
+        .for('update')
         .limit(1)
       if (!parent || parent.deletedAt) resolvedParentId = null
     }
@@ -855,20 +872,6 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
 
   try {
     await db.transaction(async (tx) => {
-      // Re-check each target parent is still active inside the transaction --
-      // assertFolderParentValid above only reads at validation time, so a parent
-      // concurrently soft-deleted before this transaction opens could otherwise
-      // leave an active folder pointing at a deleted one.
-      if (targetParentIds.length > 0) {
-        const activeParents = await tx
-          .select({ id: folderTable.id })
-          .from(folderTable)
-          .where(and(inArray(folderTable.id, targetParentIds), isNull(folderTable.deletedAt)))
-        if (activeParents.length !== targetParentIds.length) {
-          throw new FolderReorderNotFoundError('Parent folder not found')
-        }
-      }
-
       // The route checks lock state before calling this function, but that's a
       // separate round-trip -- an admin could lock a source folder or a target
       // parent in the window between that check and this transaction. Re-check
@@ -909,8 +912,18 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
         frontier = nextFrontier
       }
 
+      // Selecting without an isNull(deletedAt) filter and re-checking it here (rather
+      // than trusting the closure walk above, which reads before this lock is held)
+      // is what makes this race-free: a row can still be soft-deleted by another
+      // transaction right up until this statement acquires FOR UPDATE, but not after
+      // -- so `deletedAt` on a just-locked row is guaranteed accurate for the rest of
+      // this transaction.
       const lockedRows = await tx
-        .select({ id: folderTable.id, locked: folderTable.locked })
+        .select({
+          id: folderTable.id,
+          locked: folderTable.locked,
+          deletedAt: folderTable.deletedAt,
+        })
         .from(folderTable)
         .where(
           and(
@@ -921,7 +934,18 @@ export async function performReorderFolders(params: PerformReorderFoldersParams)
         .orderBy(folderTable.id)
         .for('update')
 
-      if (lockedRows.some((row) => row.locked)) {
+      const activeLockedIds = new Set(
+        lockedRows.filter((row) => !row.deletedAt).map((row) => row.id)
+      )
+      // Re-check every target parent resolved to an active row under this lock --
+      // assertFolderParentValid only reads at validation time, so a parent
+      // concurrently soft-deleted before (or racing) this transaction could
+      // otherwise leave an active folder pointing at a deleted one.
+      if (targetParentIds.some((id) => !activeLockedIds.has(id))) {
+        throw new FolderReorderNotFoundError('Parent folder not found')
+      }
+
+      if (lockedRows.some((row) => !row.deletedAt && row.locked)) {
         throw new ResourceLockedError(resourceType, false, 'Folder is locked')
       }
 

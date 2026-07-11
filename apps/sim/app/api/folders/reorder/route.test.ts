@@ -383,6 +383,49 @@ describe('PUT /api/folders/reorder', () => {
     expect(mockTxUpdate).not.toHaveBeenCalled()
   })
 
+  it('rejects the write when the target parent is concurrently soft-deleted', async () => {
+    // Regression test: assertFolderParentValid only validates the target parent at
+    // request-validation time, using the default (non-tx) db client -- a parent
+    // soft-deleted after that read but before (or during) this transaction must
+    // still be caught. The closure-lock query is the only point where this is
+    // race-free: once FOR UPDATE is held on the parent's row, its deletedAt state
+    // can't change until this transaction resolves, so that's where the final
+    // active check must happen -- not an earlier, unlocked pre-check.
+    mockWhere
+      .mockReturnValueOnce([
+        { id: 'folder-1', workspaceId: 'workspace-123', resourceType: 'workflow' },
+      ])
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([{ id: 'folder-1', workspaceId: 'workspace-123' }])
+      .mockReturnValueOnce({ limit: mockLimit })
+    mockLimit.mockReturnValueOnce([
+      { workspaceId: 'workspace-123', resourceType: 'workflow', deletedAt: null },
+    ])
+
+    queueTxSelectResults(
+      [
+        { id: 'folder-1', parentId: null },
+        { id: 'target-1', parentId: null },
+      ], // closure walk, level 1
+      [
+        { id: 'folder-1', locked: false, deletedAt: null },
+        { id: 'target-1', locked: false, deletedAt: new Date() }, // deleted after validation
+      ]
+    )
+
+    const req = createMockRequest('PUT', {
+      workspaceId: 'workspace-123',
+      updates: [{ id: 'folder-1', sortOrder: 0, parentId: 'target-1' }],
+    })
+
+    const response = await PUT(req)
+
+    expect(response.status).toBe(404)
+    const data = await response.json()
+    expect(data.error).toBe('Parent folder not found')
+    expect(mockTxUpdate).not.toHaveBeenCalled()
+  })
+
   it('rejects a batch that would form a cycle', async () => {
     mockWhere
       .mockReturnValueOnce([

@@ -509,10 +509,16 @@ export async function performRestoreFolder(
 
     let resolvedParentId = existingFolder.parentId
     if (resolvedParentId) {
+      // FOR UPDATE closes the window where a concurrent transaction soft-deletes
+      // this parent between this read and the write below -- without it, this
+      // plain read isn't locked, so the parent could be deleted out from under us
+      // after we've already decided it's active, restoring this folder under a
+      // parent that no longer exists.
       const [parentFolder] = await tx
         .select({ deletedAt: folder.deletedAt })
         .from(folder)
         .where(eq(folder.id, resolvedParentId))
+        .for('update')
 
       if (!parentFolder || parentFolder.deletedAt) {
         resolvedParentId = null
