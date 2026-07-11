@@ -43,6 +43,7 @@ vi.mock('idb-keyval', () => ({
 
 import {
   RECONCILING_REFETCH_INTERVAL_MS,
+  RECONCILING_REFETCH_SLOW_INTERVAL_MS,
   RECONCILING_REFETCH_WINDOW_MS,
   useEditableFileContent,
 } from './use-editable-file-content'
@@ -134,7 +135,7 @@ describe('reconcile refetch polling', () => {
     expect(currentInterval()).toBe(false)
   })
 
-  it('stops polling after the bounded window even if the write never lands', () => {
+  it('degrades to the slow cadence after the fast window — never stops outright while reconciling', () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000_000)
     const BASELINE = '# Doc\n\nstart\n'
@@ -148,8 +149,10 @@ describe('reconcile refetch polling', () => {
     vi.setSystemTime(1_000_000 + RECONCILING_REFETCH_WINDOW_MS - 1)
     expect(currentInterval()).toBe(RECONCILING_REFETCH_INTERVAL_MS)
 
+    // A write landing late (slow job, replica catch-up) must still be picked up automatically —
+    // the poll degrades in rate but the editor can never end up with no recovery path at all.
     vi.setSystemTime(1_000_000 + RECONCILING_REFETCH_WINDOW_MS)
-    expect(currentInterval()).toBe(false)
+    expect(currentInterval()).toBe(RECONCILING_REFETCH_SLOW_INTERVAL_MS)
   })
 
   it('never polls during plain at-rest editing (no stream involved)', () => {

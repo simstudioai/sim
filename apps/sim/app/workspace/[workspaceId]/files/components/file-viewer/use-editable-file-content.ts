@@ -36,12 +36,16 @@ const GENERATED_SOURCE_FILE_TYPES = new Set([
 export const RECONCILING_REFETCH_INTERVAL_MS = 1500
 
 /**
- * Cap on how long the reconcile keeps polling after a stream settles. A write that hasn't landed
- * within this window has almost certainly failed outright; past it the existing
- * `refetchOnWindowFocus: 'always'` remains the recovery path (mirrors the bounded retry on the
- * generated-doc 409 polling in `hooks/queries/workspace-files.ts`).
+ * How long the reconcile polls at the fast cadence after a stream settles. A write that hasn't
+ * landed within this window has almost certainly failed or is badly delayed, so polling degrades
+ * to {@link RECONCILING_REFETCH_SLOW_INTERVAL_MS} — never stopping outright, so the editor can't
+ * end up locked read-only with no automatic recovery (react-query pauses interval refetches in
+ * background tabs by default, so a wedged doc left open does not poll unattended).
  */
 export const RECONCILING_REFETCH_WINDOW_MS = 45_000
+
+/** Slow-poll cadence once the fast window has elapsed without the server content advancing. */
+export const RECONCILING_REFETCH_SLOW_INTERVAL_MS = 15_000
 
 interface UseEditableFileContentOptions {
   file: WorkspaceFileRecord
@@ -156,7 +160,9 @@ export function useEditableFileContent({
   const reconcilingSinceRef = useRef(0)
   const reconcileRefetchInterval = useCallback(() => {
     if (!isReconcilingRef.current) return false
-    if (Date.now() - reconcilingSinceRef.current >= RECONCILING_REFETCH_WINDOW_MS) return false
+    if (Date.now() - reconcilingSinceRef.current >= RECONCILING_REFETCH_WINDOW_MS) {
+      return RECONCILING_REFETCH_SLOW_INTERVAL_MS
+    }
     return RECONCILING_REFETCH_INTERVAL_MS
   }, [])
 

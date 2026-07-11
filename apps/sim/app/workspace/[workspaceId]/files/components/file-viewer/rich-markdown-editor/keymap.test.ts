@@ -236,6 +236,30 @@ describe('empty wrapped-block Backspace', () => {
     editor.destroy()
   })
 
+  it('never NodeSelects a leaf BEFORE the removed bullet either (findFrom textOnly skips atoms)', () => {
+    // `Selection.findFrom($gap, -1, true)` cannot return a NodeSelection: with textOnly,
+    // prosemirror-state's findSelectionIn skips atoms entirely (`!text && isSelectable`). With an
+    // image directly before the emptied bullet and no textblock behind it, the backward search
+    // returns null and the gap-cursor branch takes over — the image is never silently selected.
+    const editor = editorWith({
+      type: 'doc',
+      content: [
+        { type: 'image', attrs: { src: '/api/files/view/wf_img', alt: 'photo' } },
+        { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph' }] }] },
+      ],
+    })
+    editor.commands.setTextSelection(4)
+    expect(editor.state.selection.$from.parent.type.name).toBe('paragraph')
+    pressBackspace(editor)
+
+    expect(blockShape(editor)).toEqual(['image', 'paragraph'])
+    expect(editor.state.selection).not.toBeInstanceOf(NodeSelection)
+
+    pressBackspace(editor)
+    expect(blockShape(editor)).toEqual(['image', 'paragraph'])
+    editor.destroy()
+  })
+
   it('does not crash on Backspace from a gap cursor at the very start of the doc', () => {
     // Depth-0 + offset-0 is the worst case: our old code threw before(0), and TipTap's blockquote
     // handler crashes on $from.node(-1) if the key falls through — so it must be consumed.

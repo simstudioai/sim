@@ -1044,7 +1044,10 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
     routingNumber: { type: 'string', description: 'Bank routing number of the cash account' },
     primary: { type: 'boolean', description: 'Whether the cash account is primary' },
     accountId: { type: 'string', description: 'Account ID of the budget or spend limit' },
-    description: { type: 'string', description: 'Description of the budget or spend limit' },
+    description: {
+      type: 'string',
+      description: 'Description of the budget, spend limit, or transfer',
+    },
     parentBudgetId: { type: 'string', description: 'Parent budget ID' },
     ownerUserIds: { type: 'json', description: 'Owner user IDs of the budget or spend limit' },
     memberUserIds: { type: 'json', description: 'Member user IDs of the spend limit' },
@@ -1052,7 +1055,7 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
     spendType: { type: 'string', description: 'Spend type of the spend limit' },
     startDate: { type: 'string', description: 'Start date of the budget or spend limit' },
     endDate: { type: 'string', description: 'End date of the budget or spend limit' },
-    amount: { type: 'json', description: 'Amount of the budget' },
+    amount: { type: 'json', description: 'Amount of the budget or transfer' },
     spendBudgetStatus: { type: 'string', description: 'Status of the budget' },
     limitType: { type: 'string', description: 'Limit type of the budget' },
     currentPeriodBalance: {
