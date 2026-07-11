@@ -91,20 +91,30 @@ export interface SearchModalState {
    */
   sections: SearchSection[] | null
 
+  /**
+   * Correlation token for the open session. When the palette is opened to
+   * complete a specific action (e.g. an edge drag-release), the opener passes a
+   * token that a selection stamps onto its event, so only that selection — not
+   * an unrelated concurrent add — can consume the pending action. `null` for
+   * ordinary opens.
+   */
+  connectToken: string | null
+
   /** Pre-computed search data. */
   data: SearchData
 
   /**
    * Explicitly set the open state of the modal. Always resets to the full
-   * palette (no section restriction).
+   * palette (no section restriction, no correlation token).
    */
   setOpen: (open: boolean) => void
 
   /**
    * Convenience method to open the modal. Pass `sections` to restrict the
-   * palette to a subset of result groups.
+   * palette to a subset of result groups, and `connectToken` to correlate a
+   * selection with a pending action.
    */
-  open: (options?: { sections?: SearchSection[] }) => void
+  open: (options?: { sections?: SearchSection[]; connectToken?: string }) => void
 
   /**
    * Convenience method to close the modal.

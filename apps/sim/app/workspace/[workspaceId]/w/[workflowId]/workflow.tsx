@@ -209,6 +209,7 @@ interface AddBlockFromToolbarDetail {
   type?: unknown
   enableTriggerMode?: unknown
   presetOperation?: unknown
+  connectToken?: unknown
 }
 
 /**
@@ -539,6 +540,7 @@ const WorkflowContent = React.memo(
       source: { nodeId: string; handleId: string }
       screenX: number
       screenY: number
+      token: string
     } | null>(null)
 
     /** Stores start positions for multi-node drag undo/redo recording. */
@@ -1984,18 +1986,21 @@ const WorkflowContent = React.memo(
           return
         }
 
-        const { type, enableTriggerMode, presetOperation } = event.detail
+        const { type, enableTriggerMode, presetOperation, connectToken } = event.detail
 
         if (typeof type !== 'string' || !type) return
         if (type === 'connectionBlock') return
 
-        // Consume a pending drag-release only while the restricted connect-palette
-        // it opened is still up — never let an unrelated add-block event (toolbar,
-        // sidebar, command list) inherit its position/source.
-        const searchModal = useSearchModalStore.getState()
+        // Consume a pending drag-release only when THIS event is the palette
+        // selection it opened, matched by correlation token. Any other
+        // add-block event (toolbar, sidebar, command list) carries no matching
+        // token and cannot inherit the pending position/source.
+        const pendingRef = pendingConnectRef.current
         const pending =
-          searchModal.isOpen && searchModal.sections ? pendingConnectRef.current : null
-        pendingConnectRef.current = null
+          pendingRef && typeof connectToken === 'string' && connectToken === pendingRef.token
+            ? pendingRef
+            : null
+        if (pending) pendingConnectRef.current = null
 
         let basePosition = getViewportCenter()
         if (pending) {
@@ -3205,13 +3210,16 @@ const WorkflowContent = React.memo(
           // Released on empty canvas: open the command palette and remember the
           // drag origin + drop point so the chosen block lands here, wired from
           // this source handle.
+          const connectToken = generateId()
           pendingConnectRef.current = {
             source: { nodeId: source.nodeId, handleId: source.handleId },
             screenX: clientPos.clientX,
             screenY: clientPos.clientY,
+            token: connectToken,
           }
           useSearchModalStore.getState().open({
             sections: ['blocks', 'tools', 'toolOperations'],
+            connectToken,
           })
         }
 

@@ -351,6 +351,7 @@ export function SearchModal({
           detail: {
             type: block.type,
             enableTriggerMode,
+            connectToken: useSearchModalStore.getState().connectToken,
           },
         })
       )
@@ -368,7 +369,11 @@ export function SearchModal({
     (op: SearchToolOperationItem) => {
       window.dispatchEvent(
         new CustomEvent('add-block-from-toolbar', {
-          detail: { type: op.blockType, presetOperation: op.operationId },
+          detail: {
+            type: op.blockType,
+            presetOperation: op.operationId,
+            connectToken: useSearchModalStore.getState().connectToken,
+          },
         })
       )
       captureEvent(posthogRef.current, 'search_result_selected', {
