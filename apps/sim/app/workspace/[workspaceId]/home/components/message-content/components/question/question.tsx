@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ArrowRight,
   Button,
@@ -52,15 +52,6 @@ const OPTION_ROW_CLASSES =
 /** Ghost icon-button chrome shared by the stepper chevrons and the dismiss X. */
 const ICON_BUTTON_CLASSES = 'relative size-[14px] flex-shrink-0 p-0'
 
-/** Leading number slot matching the suggested follow-ups rows. */
-function RowNumber({ value }: { value: number }) {
-  return (
-    <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-      <span className='text-[var(--text-icon)] text-sm'>{value}</span>
-    </div>
-  )
-}
-
 /**
  * Leading checkbox slot for multi_select rows. Purely presentational — it
  * reuses the emcn Checkbox chrome via its exported variants, but the row
@@ -101,12 +92,12 @@ interface QuestionDisplayProps {
  * Inline renderer for the `<question>` special tag: a chat-inline div with the
  * user input's chrome, the current question's prompt at the top left, dismiss
  * (and a `‹ N of M ›` stepper for multi-step batches) at the top right, and
- * suggested-action option rows beneath, always followed by a "Something else"
- * row that reads as a plain option until clicked and then becomes the focused
- * text box. `single_select` answers and advances on click (or on submitting
- * typed text); `multi_select` rows toggle checkboxes and an option-styled
- * Submit row confirms the step. Answering the last question sends one
- * combined user message and collapses the div to a question/answer recap.
+ * suggested-action option rows beneath, always followed by a custom-answer
+ * text field whose placeholder reads "Something else". `single_select`
+ * answers and advances on click (or on submitting typed text); `multi_select`
+ * rows toggle checkboxes and an option-styled Submit row confirms the step.
+ * Answering the last question sends one combined user message and collapses
+ * the div to a question/answer recap.
  */
 export function QuestionDisplay({
   data,
@@ -114,24 +105,18 @@ export function QuestionDisplay({
   onSelect,
 }: QuestionDisplayProps) {
   const freeTextInputRef = useRef<HTMLInputElement>(null)
+  const freeTextCheckboxRef = useRef<HTMLButtonElement>(null)
   const disabled = !onSelect
   const [phase, setPhase] = useState<QuestionPhase>('active')
   const [step, setStep] = useState(0)
   const [selectedByStep, setSelectedByStep] = useState<string[][]>(() => data.map(() => []))
   const [customByStep, setCustomByStep] = useState<string[]>(() => data.map(() => ''))
   const [freeText, setFreeText] = useState('')
-  // The "Something else" row reads as a plain option until clicked, then
-  // becomes the focused text box (and reverts when left empty).
-  const [freeTextEditing, setFreeTextEditing] = useState(false)
   // multi_select only: whether the typed "Something else" text is included in
   // the answer. Unchecking keeps the text; it just stops counting.
   const [customCheckedByStep, setCustomCheckedByStep] = useState<boolean[]>(() =>
     data.map(() => false)
   )
-
-  useEffect(() => {
-    if (freeTextEditing) freeTextInputRef.current?.focus()
-  }, [freeTextEditing, step])
 
   // The typed text that actually joins a step's answer: multi_select customs
   // only count while checked; single_select customs always count.
@@ -187,7 +172,6 @@ export function QuestionDisplay({
     setStep(next)
     const prefill = customByStep[next] ?? ''
     setFreeText(prefill)
-    setFreeTextEditing(prefill.trim().length > 0)
   }
 
   const finishStep = (selections: string[][], customs: string[]) => {
@@ -195,7 +179,6 @@ export function QuestionDisplay({
       setStep(step + 1)
       const prefill = customs[step + 1] ?? ''
       setFreeText(prefill)
-      setFreeTextEditing(prefill.trim().length > 0)
       return
     }
     setPhase('answered')
@@ -237,6 +220,12 @@ export function QuestionDisplay({
     const next = [...customCheckedByStep]
     next[step] = checked
     setCustomCheckedByStep(next)
+  }
+
+  const toggleCustomChecked = () => {
+    const isChecked = customCheckedByStep[step] ?? false
+    setCustomChecked(!isChecked)
+    if (!isChecked) freeTextInputRef.current?.focus()
   }
 
   /** single_select free-text arrow: the typed text IS the answer. */
@@ -333,11 +322,7 @@ export function QuestionDisplay({
                 isSelected && 'bg-[var(--surface-5)]'
               )}
             >
-              {isMulti ? (
-                <RowCheckbox checked={isSelected} disabled={disabled} />
-              ) : (
-                <RowNumber value={i + 1} />
-              )}
+              {isMulti ? <RowCheckbox checked={isSelected} disabled={disabled} /> : null}
               <span className='min-w-0 flex-1 whitespace-normal break-words text-[var(--text-body)] text-sm'>
                 {option.label}
               </span>
@@ -345,106 +330,80 @@ export function QuestionDisplay({
             </button>
           )
         })}
-        {freeTextEditing ? (
-          <div className={cn(OPTION_ROW_CLASSES, options.length > 0 && 'border-t')}>
-            {isMulti ? (
-              // Checked from the moment the row is clicked into; blur with
-              // nothing typed reverts to the plain option row. A real button
-              // (the editing row is a div, so no nesting hazard) so the box
-              // can be toggled even after typing — unchecking keeps the text,
-              // it just stops counting toward the answer.
-              <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-                <button
-                  type='button'
-                  aria-label='Include "Something else" in the answer'
-                  disabled={disabled}
-                  onClick={() => setCustomChecked(!(customCheckedByStep[step] ?? false))}
-                  data-state={(customCheckedByStep[step] ?? false) ? 'checked' : 'unchecked'}
-                  data-disabled={disabled ? '' : undefined}
-                  className={checkboxVariants({ size: 'sm' })}
-                >
-                  {(customCheckedByStep[step] ?? false) && (
-                    <Check
-                      className={cn(
-                        checkboxIconVariants({ size: 'sm' }),
-                        'text-[var(--surface-2)]'
-                      )}
-                    />
-                  )}
-                </button>
-              </div>
-            ) : (
-              <RowNumber value={options.length + 1} />
-            )}
-            <input
-              ref={freeTextInputRef}
-              type='text'
-              value={freeText}
-              disabled={disabled}
-              onChange={(e) => setFreeText(e.target.value)}
-              onBlur={() => {
-                if (freeText.trim().length === 0) {
-                  setFreeTextEditing(false)
-                  if (isMulti) setCustomChecked(false)
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  e.currentTarget.blur()
-                  return
-                }
-                if (e.key === 'Enter' && canSubmitStep) {
-                  e.preventDefault()
-                  if (isMulti) {
-                    submitMultiStep()
-                  } else {
-                    submitSingleFreeText()
-                  }
-                }
-              }}
-              aria-label={question.prompt}
-              className='min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none disabled:cursor-not-allowed'
-            />
-            {!isMulti && (
+        <div className={cn(OPTION_ROW_CLASSES, options.length > 0 && 'border-t')}>
+          {isMulti && (
+            <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
               <button
+                ref={freeTextCheckboxRef}
                 type='button'
-                aria-label='Submit answer'
-                disabled={!canSubmitStep}
-                onClick={submitSingleFreeText}
-                className='disabled:cursor-default'
+                aria-label='Include "Something else" in the answer'
+                disabled={disabled}
+                onClick={toggleCustomChecked}
+                data-state={(customCheckedByStep[step] ?? false) ? 'checked' : 'unchecked'}
+                data-disabled={disabled ? '' : undefined}
+                className={checkboxVariants({ size: 'sm' })}
               >
-                <ArrowRight
-                  className={cn(
-                    'size-[16px] shrink-0 transition-colors',
-                    canSubmitStep ? 'text-[var(--text-body)]' : 'text-[var(--text-icon)]'
-                  )}
-                />
+                {(customCheckedByStep[step] ?? false) && (
+                  <Check
+                    className={cn(checkboxIconVariants({ size: 'sm' }), 'text-[var(--surface-2)]')}
+                  />
+                )}
               </button>
-            )}
-          </div>
-        ) : (
-          <button
-            type='button'
+            </div>
+          )}
+          <input
+            ref={freeTextInputRef}
+            type='text'
+            value={freeText}
+            placeholder='Something else'
             disabled={disabled}
-            onClick={() => {
-              setFreeTextEditing(true)
+            onFocus={() => {
               if (isMulti) setCustomChecked(true)
             }}
-            className={cn(
-              OPTION_ROW_CLASSES,
-              options.length > 0 && 'border-t',
-              disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]'
-            )}
-          >
-            {isMulti ? (
-              <RowCheckbox checked={false} disabled={disabled} />
-            ) : (
-              <RowNumber value={options.length + 1} />
-            )}
-            <span className='flex-1 truncate text-[var(--text-body)] text-sm'>Something else</span>
-            {!isMulti && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
-          </button>
-        )}
+            onChange={(e) => setFreeText(e.target.value)}
+            onBlur={(event) => {
+              if (
+                isMulti &&
+                event.relatedTarget !== freeTextCheckboxRef.current &&
+                freeText.trim().length === 0
+              ) {
+                setCustomChecked(false)
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.currentTarget.blur()
+                return
+              }
+              if (e.key === 'Enter' && canSubmitStep) {
+                e.preventDefault()
+                if (isMulti) {
+                  submitMultiStep()
+                } else {
+                  submitSingleFreeText()
+                }
+              }
+            }}
+            aria-label={question.prompt}
+            className='min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed'
+          />
+          {!isMulti && (
+            <button
+              type='button'
+              aria-label='Submit answer'
+              disabled={!canSubmitStep}
+              onClick={submitSingleFreeText}
+              className='disabled:cursor-default'
+            >
+              <ArrowRight
+                className={cn(
+                  'size-[16px] shrink-0 transition-colors',
+                  canSubmitStep ? 'text-[var(--text-body)]' : 'text-[var(--text-icon)]'
+                )}
+              />
+            </button>
+          )}
+        </div>
         {isMulti && (
           <button
             type='button'
