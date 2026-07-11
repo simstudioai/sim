@@ -25,6 +25,10 @@ export interface GlobalWorkSummary {
   label: string
   isCurrentMonth: boolean
   attribution: 'estimated'
+  scope:
+    | { type: 'global'; id: null }
+    | { type: 'user'; id: string }
+    | { type: 'organization'; id: string }
   formula: {
     minutesPerUnit: number
     globalAnnualHours: number
@@ -44,6 +48,8 @@ export interface GlobalWorkSummary {
     mothership: number
   }>
 }
+
+export type GlobalWorkFilter = { type: 'user'; id: string } | { type: 'organization'; id: string }
 
 function addMonth(month: string, delta: number): string {
   const [year, monthNumber] = month.split('-').map(Number)
@@ -109,7 +115,11 @@ export function buildZeroFilledGlobalWorkDailySeries(params: {
  * billing snapshot already persisted for billing; older workflows and all
  * Mothership messages fall back to the current/last-known subscription state.
  */
-async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date) {
+async function queryEstimatedGlobalWorkUnits(
+  periodStart: Date,
+  periodEnd: Date,
+  filter?: GlobalWorkFilter
+) {
   // Raw `sql` parameters do not infer a timestamp encoder from the surrounding
   // comparison. Bind through the matching schema columns so postgres.js
   // receives UTC timestamp strings rather than JavaScript Date objects.
@@ -117,6 +127,8 @@ async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date)
   const workflowPeriodEnd = sql.param(periodEnd, workflowExecutionLogs.endedAt)
   const mothershipPeriodStart = sql.param(periodStart, copilotMessages.createdAt)
   const mothershipPeriodEnd = sql.param(periodEnd, copilotMessages.createdAt)
+  const actorUserId = filter?.type === 'user' ? filter.id : null
+  const billingOrganizationId = filter?.type === 'organization' ? filter.id : null
 
   const result = await dbReplica.execute<AggregatedRow>(sql`
     WITH workspace_billing AS (
@@ -127,6 +139,11 @@ async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date)
             THEN w.organization_id
           ELSE w.billed_account_user_id
         END AS billing_entity_id,
+        CASE
+          WHEN w.workspace_mode = 'organization' AND w.organization_id IS NOT NULL
+            THEN 'organization'::text
+          ELSE 'user'::text
+        END AS billing_entity_type,
         COALESCE(org_owner.user_id, w.billed_account_user_id) AS billing_owner_user_id
       FROM workspace w
       LEFT JOIN LATERAL (
@@ -147,6 +164,11 @@ async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date)
           wb.billing_entity_id
         ) AS billing_entity_id,
         COALESCE(
+          wel.execution_data #>> '{billingAttribution,billingEntity,type}',
+          usage_scope.billing_entity_type::text,
+          wb.billing_entity_type
+        ) AS billing_entity_type,
+        COALESCE(
           wel.execution_data #>> '{billingAttribution,billedAccountUserId}',
           wb.billing_owner_user_id
         ) AS billing_owner_user_id,
@@ -164,7 +186,7 @@ async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date)
       FROM workflow_execution_logs wel
       JOIN workspace_billing wb ON wb.workspace_id = wel.workspace_id
       LEFT JOIN LATERAL (
-        SELECT ul.billing_entity_id, ul.user_id
+        SELECT ul.billing_entity_id, ul.billing_entity_type, ul.user_id
         FROM usage_log ul
         WHERE NOT (wel.execution_data ? 'billingAttribution')
           AND ul.execution_id = wel.execution_id
@@ -184,6 +206,7 @@ async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date)
         cm.message_id AS source_event_id,
         cm.created_at AS occurred_at,
         wb.billing_entity_id,
+        wb.billing_entity_type,
         wb.billing_owner_user_id,
         cc.user_id AS actor_user_id,
         false AS has_billing_snapshot,
@@ -213,6 +236,7 @@ async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date)
         source_event_id,
         occurred_at,
         billing_entity_id,
+        billing_entity_type,
         billing_owner_user_id,
         actor_user_id,
         has_billing_snapshot,
@@ -228,6 +252,14 @@ async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date)
       LEFT JOIN "user" billing_owner ON billing_owner.id = su.billing_owner_user_id
       WHERE lower(split_part(COALESCE(actor.email, ''), '@', 2)) NOT IN ('sim.ai', 'simstudio.ai')
         AND lower(split_part(COALESCE(billing_owner.email, ''), '@', 2)) NOT IN ('sim.ai', 'simstudio.ai')
+        AND (${actorUserId}::text IS NULL OR su.actor_user_id = ${actorUserId})
+        AND (
+          ${billingOrganizationId}::text IS NULL
+          OR (
+            su.billing_entity_type = 'organization'
+            AND su.billing_entity_id = ${billingOrganizationId}
+          )
+        )
         AND (
           (
             su.has_billing_snapshot
@@ -282,13 +314,14 @@ async function queryEstimatedGlobalWorkUnits(periodStart: Date, periodEnd: Date)
 
 export async function getGlobalWorkSummary(
   requestedMonth?: string,
-  now = new Date()
+  now = new Date(),
+  filter?: GlobalWorkFilter
 ): Promise<GlobalWorkSummary> {
   const month = requestedMonth ?? getLatestCompletedGlobalWorkMonth(now)
   const currentMonth = zonedWallClock(now, REPORTING_TIME_ZONE).slice(0, 7)
   const isCurrentMonth = month === currentMonth
   const { periodStart, periodEnd } = getGlobalWorkMonthWindow(month)
-  const rows = await queryEstimatedGlobalWorkUnits(periodStart, periodEnd)
+  const rows = await queryEstimatedGlobalWorkUnits(periodStart, periodEnd, filter)
 
   const sourceUnits = { workflow: 0, mothership: 0 }
   const unitsByDate = new Map<string, { workflow: number; mothership: number }>()
@@ -329,6 +362,7 @@ export async function getGlobalWorkSummary(
     label: isCurrentMonth ? 'Month to date · projected annualized' : 'Completed month',
     isCurrentMonth,
     attribution: 'estimated',
+    scope: filter ?? { type: 'global', id: null },
     formula: GLOBAL_WORK_FORMULA,
     units,
     humanEquivalentHours: round(humanEquivalentHours, 2),

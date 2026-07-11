@@ -92,6 +92,7 @@ describe('Global Work Pacific reporting windows', () => {
     const summary = await getGlobalWorkSummary('2026-06', new Date('2026-07-09T12:00:00.000Z'))
 
     expect(summary.attribution).toBe('estimated')
+    expect(summary.scope).toEqual({ type: 'global', id: null })
     expect(summary.formula).toEqual(GLOBAL_WORK_FORMULA)
     expect(summary.units).toBe(12)
     expect(summary.humanEquivalentHours).toBe(1)
@@ -186,5 +187,45 @@ describe('Global Work Pacific reporting windows', () => {
     expect(queryText).toContain("NOT IN ('sim.ai', 'simstudio.ai')")
     expect(queryText).toContain("AT TIME ZONE 'UTC'")
     expect(dialect.sqlToQuery(getCapturedQuery()).params).toContain('America/Los_Angeles')
+  })
+
+  it('filters a user by recorded actor without changing payer eligibility', async () => {
+    execute.mockResolvedValueOnce([])
+
+    const summary = await getGlobalWorkSummary('2026-06', new Date('2026-07-09T12:00:00.000Z'), {
+      type: 'user',
+      id: 'user-1',
+    })
+
+    const query = dialect.sqlToQuery(getCapturedQuery())
+    expect(query.sql).toContain('su.actor_user_id = $')
+    expect(query.params.filter((parameter) => parameter === 'user-1')).toHaveLength(2)
+    expect(summary.scope).toEqual({ type: 'user', id: 'user-1' })
+  })
+
+  it('filters an organization by both billing entity type and ID', async () => {
+    execute.mockResolvedValueOnce([])
+
+    const summary = await getGlobalWorkSummary('2026-06', new Date('2026-07-09T12:00:00.000Z'), {
+      type: 'organization',
+      id: 'org-1',
+    })
+
+    const query = dialect.sqlToQuery(getCapturedQuery())
+    expect(query.sql).toContain("su.billing_entity_type = 'organization'")
+    expect(query.sql).toContain('su.billing_entity_id = $')
+    expect(query.params.filter((parameter) => parameter === 'org-1')).toHaveLength(2)
+    expect(summary.scope).toEqual({ type: 'organization', id: 'org-1' })
+  })
+
+  it('preserves billing entity type across snapshots, usage fallback, and current workspace state', async () => {
+    execute.mockResolvedValueOnce([])
+
+    await getGlobalWorkSummary('2026-06', new Date('2026-07-09T12:00:00.000Z'))
+
+    const queryText = getCapturedQueryText()
+    expect(queryText).toContain("'{billingAttribution,billingEntity,type}'")
+    expect(queryText).toContain('usage_scope.billing_entity_type::text')
+    expect(queryText).toContain('wb.billing_entity_type')
   })
 })

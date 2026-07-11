@@ -22,7 +22,13 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
 
     try {
-      const data = await getGlobalWorkSummary(parsed.data.query.month)
+      const { month, userId, organizationId } = parsed.data.query
+      const filter = userId
+        ? ({ type: 'user', id: userId } as const)
+        : organizationId
+          ? ({ type: 'organization', id: organizationId } as const)
+          : undefined
+      const data = await getGlobalWorkSummary(month, new Date(), filter)
       return NextResponse.json({ data })
     } catch (error) {
       logger.error('Failed to build Global Work summary', { error })

@@ -2,17 +2,25 @@ import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { lastQueryValue } from '@/lib/api/contracts/v1/admin/shared'
 
-export const adminV1GlobalWorkQuerySchema = z.object({
-  month: z
-    .preprocess(
-      lastQueryValue,
-      z
-        .string()
-        .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
-        .optional()
-    )
-    .optional(),
-})
+const optionalIdQuerySchema = z.preprocess(lastQueryValue, z.string().trim().min(1).optional())
+
+export const adminV1GlobalWorkQuerySchema = z
+  .object({
+    month: z
+      .preprocess(
+        lastQueryValue,
+        z
+          .string()
+          .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+          .optional()
+      )
+      .optional(),
+    userId: optionalIdQuerySchema.optional(),
+    organizationId: optionalIdQuerySchema.optional(),
+  })
+  .refine((query) => !(query.userId && query.organizationId), {
+    error: 'Filter by either user or organization, not both',
+  })
 
 export const adminV1GlobalWorkResponseSchema = z.object({
   data: z.object({
@@ -20,6 +28,11 @@ export const adminV1GlobalWorkResponseSchema = z.object({
     label: z.string(),
     isCurrentMonth: z.boolean(),
     attribution: z.literal('estimated'),
+    scope: z.discriminatedUnion('type', [
+      z.object({ type: z.literal('global'), id: z.null() }),
+      z.object({ type: z.literal('user'), id: z.string() }),
+      z.object({ type: z.literal('organization'), id: z.string() }),
+    ]),
     formula: z.object({
       minutesPerUnit: z.number().positive(),
       globalAnnualHours: z.number().positive(),
