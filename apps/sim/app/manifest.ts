@@ -1,10 +1,12 @@
 import type { MetadataRoute } from 'next'
-import { getBrandConfig } from '@/ee/whitelabeling'
+import { getDeploymentEnv } from '@/lib/core/config/env-flags'
+import { getBrandConfig, ICON_SETS } from '@/ee/whitelabeling'
 
 export const dynamic = 'force-dynamic'
 
 export default function manifest(): MetadataRoute.Manifest {
   const brand = getBrandConfig()
+  const icons = ICON_SETS[getDeploymentEnv()]
 
   return {
     name:
@@ -21,26 +23,16 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: brand.theme?.primaryColor || '#33C482',
     orientation: 'portrait-primary',
     // A whitelabeled deployment's install/home-screen icon should be the
-    // tenant's own brand, not Sim's — same precedence as the HTML favicon
-    // slots in generateBrandedMetadata() (ee/whitelabeling/metadata.ts).
+    // tenant's own brand, not Sim's; otherwise it's the same per-environment
+    // set as the HTML favicon slots in generateBrandedMetadata()
+    // (ee/whitelabeling/metadata.ts), so a staging/dev PWA install doesn't
+    // look like prod either.
     icons: brand.faviconUrl
       ? [{ src: brand.faviconUrl, sizes: 'any', type: 'image/png' }]
       : [
-          {
-            src: '/favicon/android-chrome-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/favicon/android-chrome-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-          {
-            src: '/favicon/apple-touch-icon.png',
-            sizes: '180x180',
-            type: 'image/png',
-          },
+          { src: icons.android192, sizes: '192x192', type: 'image/png' },
+          { src: icons.android512, sizes: '512x512', type: 'image/png' },
+          { src: icons.apple, sizes: '180x180', type: 'image/png' },
         ],
     categories: ['productivity', 'developer', 'business'],
     shortcuts: [

@@ -25,32 +25,27 @@ export const viewport: Viewport = {
 }
 
 /**
- * Forces every route under this layout to render dynamically. Every real page
- * in this app already renders dynamically today (session/workspace state), so
- * this changes nothing currently — but it's the difference between "happens
- * to be true" and "guaranteed": {@link generateBrandedMetadata} reads
- * `getDeploymentEnv()` for the favicon set, which depends on `process.env`
- * being populated by `bootstrap.ts`'s runtime secrets load, and
- * `generateMetadata()` alone does not force per-request evaluation — Next
- * still prerenders it at build time for any route that's otherwise static or
- * ISR-eligible. Without this, a future static/ISR page added under this
- * layout would silently get build-time (production-tier) favicon metadata
- * baked in, with no error. Matches the `force-dynamic` already declared on
- * `app/manifest.ts` and `app/api/favicon/route.ts`.
- */
-export const dynamic = 'force-dynamic'
-
-/**
  * Not a static `export const metadata` object: {@link generateBrandedMetadata}
  * reads `getDeploymentEnv()` for the favicon set, which depends on
  * `process.env` being populated by `bootstrap.ts`'s runtime secrets load. A
  * static object is resolved once at module-evaluation time and Next.js treats
- * it as truly constant (eligible for build-time resolution on any
- * statically-rendered route sharing this layout) — `generateMetadata()`
- * forces the same per-request resolution `app/api/favicon/route.ts` already
- * uses. Paired with the `dynamic = 'force-dynamic'` export above, which
- * guarantees that resolution actually happens per-request rather than only
- * "happening to" because every current page is otherwise dynamic.
+ * it as truly constant (eligible for build-time resolution) —
+ * `generateMetadata()` at least makes resolution part of the page's own
+ * render rather than a frozen module-level value.
+ *
+ * Deliberately NOT paired with `export const dynamic = 'force-dynamic'` on
+ * this (root) layout: every `(landing)` marketing page sets its own
+ * `revalidate` and relies on being statically generated /
+ * incrementally revalidated for its Lighthouse/LCP budget (see
+ * `app/(landing)/CLAUDE.md`) — forcing the root layout dynamic would force
+ * the entire marketing site dynamic too, which is a much larger regression
+ * than a favicon staying on its previous tier for up to one revalidate
+ * window after a deploy. The actual workspace app (this feature's real
+ * audience) is already fully dynamic today (session/auth), so
+ * `generateMetadata()` already resolves per-request there without needing
+ * the marker. Marketing pages accept bounded staleness instead: the favicon
+ * self-corrects at the next ISR regeneration, which runs in the live server
+ * process (after `bootstrap.ts` has loaded secrets), not at build time.
  */
 export function generateMetadata(): Metadata {
   return generateBrandedMetadata()
