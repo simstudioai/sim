@@ -61,16 +61,18 @@ describe('MentionChipView', () => {
     const chip = container.querySelector('.mention-chip') as HTMLElement
     expect(chip).not.toBeNull()
 
-    // Any bare (non-descendant-scoped) `text-*` utility on the wrapper itself would regress this
-    // fix — not just the specific old `text-[var(--text-primary)]` class. Rather than enumerate
-    // every Tailwind color-naming scheme (arbitrary value, shade-suffixed, semantic theme tokens
-    // like `text-primary`/`text-muted-foreground`, keywords), flag ANY unscoped `text-*` token:
-    // none is legitimate on this wrapper today, so this can only ever be a color utility slipping
-    // back in. A genuinely new, non-color `text-*` need (e.g. a font-size utility) should fail this
-    // test and force an explicit update, not be silently allowed through.
+    // Any `text-*` utility targeting the wrapper itself — bare, or Tailwind's self-targeting
+    // `[&]:text-*` arbitrary variant (as opposed to a descendant variant like `[&>svg]:text-*`,
+    // which the icon rule below legitimately uses) — would regress this fix, not just the specific
+    // old `text-[var(--text-primary)]` class. Rather than enumerate every Tailwind color-naming
+    // scheme (arbitrary value, shade-suffixed, semantic theme tokens like `text-primary`/
+    // `text-muted-foreground`, keywords), flag ANY such token: none is legitimate on this wrapper
+    // today, so this can only ever be a color utility slipping back in. A genuinely new, non-color
+    // `text-*` need (e.g. a font-size utility) should fail this test and force an explicit update,
+    // not be silently allowed through.
     const ownTextUtilities = chip.className
       .split(/\s+/)
-      .filter((cls) => !cls.startsWith('[&') && cls.startsWith('text-'))
+      .filter((cls) => cls.startsWith('text-') || cls.startsWith('[&]:text-'))
     expect(ownTextUtilities).toEqual([])
 
     // The icon's own monochrome fallback is unrelated and must be untouched by this fix.
