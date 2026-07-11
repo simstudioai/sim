@@ -237,4 +237,34 @@ describe('buildCopilotRequestPayload', () => {
       })
     )
   })
+
+  it('passes entitlements through and omits the field when empty', async () => {
+    const withEntitlements = await buildCopilotRequestPayload(
+      {
+        message: 'publish as a block',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: 'claude-opus-4-8',
+        workspaceId: 'ws-1',
+        entitlements: ['custom-blocks'],
+      },
+      { selectedModel: 'claude-opus-4-8' }
+    )
+    expect(withEntitlements).toEqual(expect.objectContaining({ entitlements: ['custom-blocks'] }))
+
+    const withoutEntitlements = await buildCopilotRequestPayload(
+      {
+        message: 'publish as a block',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: 'claude-opus-4-8',
+        workspaceId: 'ws-1',
+        entitlements: [],
+      },
+      { selectedModel: 'claude-opus-4-8' }
+    )
+    expect(withoutEntitlements).not.toHaveProperty('entitlements')
+  })
 })
