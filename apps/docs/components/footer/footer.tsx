@@ -75,7 +75,7 @@ const INTEGRATION_LINKS: FooterItem[] = [
   { label: 'Gmail', href: '/integrations/gmail' },
   { label: 'Notion', href: '/integrations/notion' },
   { label: 'Salesforce', href: '/integrations/salesforce' },
-  { label: 'Jira', href: `${SIM_SITE_URL}/integrations/jira`, external: true },
+  { label: 'Jira', href: '/integrations/jira' },
   { label: 'Linear', href: '/integrations/linear' },
   { label: 'Supabase', href: '/integrations/supabase' },
   { label: 'Stripe', href: '/integrations/stripe' },
