@@ -311,14 +311,18 @@ async function performRestoreFileFolder(
       return {
         success: false,
         error: 'A folder with this name already exists in this location',
+        errorCode: 'conflict',
       }
     }
     const message = toError(error).message
-    if (message === 'Folder not found' || message === 'Folder is not archived') {
-      return { success: false, error: message }
+    if (message === 'Folder not found') {
+      return { success: false, error: message, errorCode: 'not_found' }
+    }
+    if (message === 'Folder is not archived') {
+      return { success: false, error: message, errorCode: 'validation' }
     }
     logger.error('Failed to restore file folder', { error })
-    return { success: false, error: message }
+    return { success: false, error: 'Internal server error', errorCode: 'internal' }
   }
 }
 

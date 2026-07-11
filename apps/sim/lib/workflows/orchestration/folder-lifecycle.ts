@@ -474,32 +474,30 @@ export async function performRestoreFolder(
 ): Promise<PerformRestoreFolderResult> {
   const { folderId, workspaceId, userId, folderName } = params
 
-  const [existingFolder] = await db
-    .select()
-    .from(folder)
-    .where(and(eq(folder.id, folderId), eq(folder.workspaceId, workspaceId), isWorkflowFolder))
-
-  if (!existingFolder) {
-    return { success: false, error: 'Folder not found', errorCode: 'not_found' }
-  }
-
-  if (!existingFolder.deletedAt) {
-    return { success: true, restoredItems: { folders: 0, workflows: 0 } }
-  }
-
-  // The folder row is soft-deleted, so the generic lock engine (which only reads
-  // active rows) can't see it -- check its own `locked` flag directly.
-  if (existingFolder.locked) {
-    throw new ResourceLockedError('workflow', false, 'Folder is locked')
-  }
-
   const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
     return { success: false, error: 'Cannot restore folder into an archived workspace' }
   }
 
-  const restoredStats = await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    const [existingFolder] = await tx
+      .select()
+      .from(folder)
+      .where(and(eq(folder.id, folderId), eq(folder.workspaceId, workspaceId), isWorkflowFolder))
+
+    if (!existingFolder) return { kind: 'not_found' as const }
+    if (!existingFolder.deletedAt) return { kind: 'not_archived' as const }
+
+    // The folder row is soft-deleted, so the generic lock engine (which only reads
+    // active rows) can't see it -- check its own `locked` flag directly. This read
+    // must happen inside the same transaction as the restore write below (not before
+    // it opens): otherwise a concurrent lock landing between the read and the write
+    // could still resurrect and mutate a folder that is now locked.
+    if (existingFolder.locked) {
+      throw new ResourceLockedError('workflow', false, 'Folder is locked')
+    }
+
     let resolvedParentId = existingFolder.parentId
     if (resolvedParentId) {
       const [parentFolder] = await tx
@@ -520,10 +518,25 @@ export async function performRestoreFolder(
     // TOCTOU window where a concurrent request locks resolvedParentId in between.
     await assertFolderMutable(resolvedParentId, 'workflow', tx)
 
-    return restoreFolderRecursively(folderId, workspaceId, existingFolder.deletedAt!, tx)
+    const stats = await restoreFolderRecursively(
+      folderId,
+      workspaceId,
+      existingFolder.deletedAt,
+      tx
+    )
+    return { kind: 'ok' as const, stats, name: existingFolder.name }
   })
 
-  logger.info('Restored folder and all contents:', { folderId, restoredStats })
+  if (outcome.kind === 'not_found') {
+    return { success: false, error: 'Folder not found', errorCode: 'not_found' }
+  }
+  if (outcome.kind === 'not_archived') {
+    return { success: false, error: 'Folder is not archived', errorCode: 'validation' }
+  }
+
+  const { stats, name } = outcome
+
+  logger.info('Restored folder and all contents:', { folderId, restoredStats: stats })
 
   recordAudit({
     workspaceId,
@@ -531,15 +544,15 @@ export async function performRestoreFolder(
     action: AuditAction.FOLDER_RESTORED,
     resourceType: AuditResourceType.FOLDER,
     resourceId: folderId,
-    resourceName: folderName ?? existingFolder.name,
-    description: `Restored folder "${folderName ?? existingFolder.name}"`,
+    resourceName: folderName ?? name,
+    description: `Restored folder "${folderName ?? name}"`,
     metadata: {
       affected: {
-        workflows: restoredStats.workflows,
-        subfolders: restoredStats.folders - 1,
+        workflows: stats.workflows,
+        subfolders: stats.folders - 1,
       },
     },
   })
 
-  return { success: true, restoredItems: restoredStats }
+  return { success: true, restoredItems: stats }
 }
