@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
+import { parseOptionalJsonBody } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
@@ -40,6 +41,13 @@ const STT_TOKEN_RATE_LIMIT = {
   refillRate: 3,
   refillIntervalMs: 72 * 1000,
 } as const
+
+/**
+ * This body only ever carries an optional chatId/workspaceId string, so a
+ * tight cap keeps an unauthenticated caller from forcing a large in-memory
+ * allocation before the auth checks below run.
+ */
+const MAX_SPEECH_TOKEN_BODY_BYTES = 16 * 1024
 
 function hashVoiceToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -94,8 +102,9 @@ async function validateChatAuth(
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const rawBody = await request.json().catch(() => ({}))
-    const body = speechTokenBodySchema.safeParse(rawBody)
+    const parsedBody = await parseOptionalJsonBody(request, MAX_SPEECH_TOKEN_BODY_BYTES)
+    if (!parsedBody.success) return parsedBody.response
+    const body = speechTokenBodySchema.safeParse(parsedBody.data ?? {})
     const chatId =
       body.success && typeof body.data.chatId === 'string' ? body.data.chatId : undefined
 

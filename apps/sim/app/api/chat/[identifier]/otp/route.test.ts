@@ -529,6 +529,43 @@ describe('Chat OTP API Route', () => {
     })
   })
 
+  describe('PUT - Verify OTP (authType re-check)', () => {
+    beforeEach(() => {
+      mockGetStorageMethod.mockReturnValue('redis')
+      mockRedisGet.mockResolvedValue(`${mockOTP}:0`)
+    })
+
+    it('rejects verification when the chat has switched away from email auth', async () => {
+      mockDbSelect.mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([
+              {
+                id: mockChatId,
+                authType: 'password',
+                password: 'encrypted-password',
+              },
+            ]),
+          }),
+        }),
+      }))
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'PUT',
+        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
+      })
+
+      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'This chat does not use email authentication',
+        400
+      )
+      expect(mockRedisGet).not.toHaveBeenCalled()
+      expect(mockSetChatAuthCookie).not.toHaveBeenCalled()
+    })
+  })
+
   describe('PUT - Verify OTP (Database path)', () => {
     beforeEach(() => {
       mockGetStorageMethod.mockReturnValue('database')

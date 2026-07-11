@@ -4,11 +4,11 @@
  */
 
 import { hexToRgb, toCssColor } from '@/lib/colors'
+import { isAllowedExternalUrl } from '@/lib/core/security/url-safety'
 import type { PlaceholderInfo } from '../model/nodes/base-node'
 import type { TextBody } from '../model/nodes/shape-node'
 import { angleToDeg, emuToPx, pctToDecimal } from '../parser/units'
 import { SafeXmlNode } from '../parser/xml-parser'
-import { isAllowedExternalUrl } from '../utils/url-safety'
 import type { RenderContext } from './render-context'
 import { resolveColor, resolveColorToCss } from './style-resolver'
 

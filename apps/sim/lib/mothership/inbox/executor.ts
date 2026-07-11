@@ -14,6 +14,7 @@ import {
 } from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { chatPubSub } from '@/lib/copilot/chat-status'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
@@ -217,6 +218,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       userSkillTool,
       userPermission,
       billingAttribution,
+      entitlements,
     ] = await Promise.all([
       fetchAttachments(),
       generateWorkspaceContext(ws.id, userId),
@@ -224,6 +226,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       buildUserSkillTool(ws.id),
       getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
       resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
+      computeWorkspaceEntitlements(ws.id, userId),
     ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
 
@@ -246,6 +249,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),
+      ...(entitlements.length > 0 ? { entitlements } : {}),
       ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
     }
 

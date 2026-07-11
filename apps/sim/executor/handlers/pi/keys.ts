@@ -33,7 +33,13 @@ interface ResolvePiModelKeyParams {
 }
 
 /** Providers whose key Sim can store as a workspace BYOK key (read back for cloud). */
-const WORKSPACE_BYOK_PROVIDERS = new Set<string>(['anthropic', 'openai', 'google', 'mistral'])
+const WORKSPACE_BYOK_PROVIDERS = new Set<string>([
+  'anthropic',
+  'openai',
+  'google',
+  'mistral',
+  'xai',
+])
 
 /** Resolves the provider and a usable API key for the selected model. */
 export async function resolvePiModelKey(params: ResolvePiModelKeyParams): Promise<PiKeyResolution> {

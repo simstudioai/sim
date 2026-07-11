@@ -1,6 +1,29 @@
 import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
+import { normalizeLinkHref } from './markdown-fidelity'
 import { parseMarkdownToDoc } from './markdown-parse'
+
+/**
+ * A single link the paste can wrap a selection in: an http(s) URL, a `mailto:` to a real address, a bare
+ * `www.` host, or a bare email. `mailto:` requires an actual `user@host.tld` payload so a crafted value
+ * like `mailto:javascript:…` (no `@`) never matches and falls through to a normal paste.
+ */
+const HTTP_URL = /^https?:\/\/\S+$/i
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MAILTO_URL = /^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/i
+const BARE_WWW = /^www\.\S+\.\S+$/i
+
+/**
+ * If pasted text is a single link, return the href to wrap a selection in — `www.` gets `https://`, a
+ * bare email gets `mailto:`. Returns null for anything else (a multi-word or non-URL paste falls through
+ * to normal insertion). The caller still runs the result through `normalizeLinkHref` for scheme safety.
+ */
+function pastedLinkHref(text: string): string | null {
+  if (HTTP_URL.test(text) || MAILTO_URL.test(text)) return text
+  if (BARE_WWW.test(text)) return `https://${text}`
+  if (EMAIL.test(text)) return `mailto:${text}`
+  return null
+}
 
 /**
  * Structural markdown — strong signals the plain text is genuinely markdown (a link, image, badge,
@@ -143,11 +166,21 @@ export const MarkdownPaste = Extension.create({
       new Plugin({
         props: {
           transformPastedHTML: (html) => stripNonContentHtml(html),
-          handlePaste: (_view, event) => {
+          handlePaste: (view, event) => {
             if (!editor.isEditable) return false
             if (editor.isActive('codeBlock') || editor.isActive('code')) return false
             const text = event.clipboardData?.getData('text/plain')
             if (!text) return false
+            const { selection } = view.state
+            if (
+              !selection.empty &&
+              selection.$from.sameParent(selection.$to) &&
+              selection.$from.parent.inlineContent
+            ) {
+              const href = pastedLinkHref(text.trim())
+              const safeHref = href ? normalizeLinkHref(href) : ''
+              if (safeHref) return editor.commands.setLink({ href: safeHref })
+            }
             const language = parseVscodeLanguage(event.clipboardData?.getData('vscode-editor-data'))
             if (language) {
               return editor.commands.insertContent({

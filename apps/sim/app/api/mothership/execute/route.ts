@@ -9,6 +9,7 @@ import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attr
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
@@ -146,25 +147,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
-    const [workspaceContext, integrationTools, userSkillTool, userPermission, agentContexts] =
-      await Promise.all([
-        generateWorkspaceContext(workspaceId, userId),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        buildUserSkillTool(workspaceId),
-        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-        processContextsServer(
-          agentMentions,
-          userId,
-          lastUserMessage,
-          workspaceId,
-          effectiveChatId
-        ).catch((error) => {
-          reqLogger.warn('Failed to resolve agent contexts for execution', {
-            error: toError(error).message,
-          })
-          return []
-        }),
-      ])
+    const [
+      workspaceContext,
+      integrationTools,
+      userSkillTool,
+      userPermission,
+      entitlements,
+      agentContexts,
+    ] = await Promise.all([
+      generateWorkspaceContext(workspaceId, userId),
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+      buildUserSkillTool(workspaceId),
+      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+      computeWorkspaceEntitlements(workspaceId, userId),
+      processContextsServer(
+        agentMentions,
+        userId,
+        lastUserMessage,
+        workspaceId,
+        effectiveChatId
+      ).catch((error) => {
+        reqLogger.warn('Failed to resolve agent contexts for execution', {
+          error: toError(error).message,
+        })
+        return []
+      }),
+    ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -187,6 +195,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),
+      ...(entitlements.length > 0 ? { entitlements } : {}),
     }
 
     let allowExplicitAbort = true

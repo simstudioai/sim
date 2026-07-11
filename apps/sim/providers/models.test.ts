@@ -218,3 +218,17 @@ describe('zai provider definition', () => {
     expect(getHostedModels()).toContain('glm-4.6')
   })
 })
+
+describe('xai provider definition', () => {
+  const xai = PROVIDER_DEFINITIONS.xai
+
+  it('is registered with grok-4.5 as the default model', () => {
+    expect(xai).toBeDefined()
+    expect(xai.id).toBe('xai')
+    expect(xai.defaultModel).toBe('grok-4.5')
+  })
+
+  it('is included in getHostedModels since Sim provides the xAI key server-side', () => {
+    expect(getHostedModels()).toContain('grok-4.5')
+  })
+})

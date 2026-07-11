@@ -501,3 +501,37 @@ describe('highlight ==mark==', () => {
     expect(markPresent('a == b == c')).toBe(false)
   })
 })
+
+describe('autolink / bare-URL preservation', () => {
+  it('keeps a bare URL bare instead of rewriting it to [url](url)', () => {
+    expect(roundTrip('visit https://sim.ai today').trim()).toBe('visit https://sim.ai today')
+    expect(roundTrip('both https://a.com and https://b.com').trim()).toBe(
+      'both https://a.com and https://b.com'
+    )
+  })
+
+  it('collapses an angle autolink and a bare email to their bare form', () => {
+    expect(roundTrip('see <https://sim.ai> here').trim()).toBe('see https://sim.ai here')
+    expect(roundTrip('mail <a@b.com> now').trim()).toBe('mail a@b.com now')
+  })
+
+  it('preserves explicit and titled links (only bare autolinks collapse)', () => {
+    expect(roundTrip('[Sim](https://sim.ai)').trim()).toBe('[Sim](https://sim.ai)')
+    expect(roundTrip('[https://a.com](https://b.com)').trim()).toBe(
+      '[https://a.com](https://b.com)'
+    )
+    expect(roundTrip('[text](https://x.com "t")').trim()).toBe('[text](https://x.com "t")')
+  })
+
+  it('never collapses a URL that only appears inside code', () => {
+    expect(roundTrip('```\nvisit https://sim.ai\n```').trim()).toBe(
+      '```\nvisit https://sim.ai\n```'
+    )
+    expect(roundTrip('inline `https://sim.ai` code').trim()).toBe('inline `https://sim.ai` code')
+  })
+
+  it('round-trips a bare URL idempotently', () => {
+    const once = roundTrip('go to https://sim.ai now')
+    expect(roundTrip(once)).toBe(once)
+  })
+})

@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
   const mockIsUsingCloudStorage = vi.fn()
   const mockUploadFile = vi.fn()
   const mockUploadExecutionFile = vi.fn()
+  const mockCheckStorageQuota = vi.fn()
   const mockCheckStorageQuotaForBillingContext = vi.fn()
   const mockDecrementStorageUsageForBillingContext = vi.fn()
   const mockIncrementStorageUsageForBillingContext = vi.fn()
@@ -39,6 +40,7 @@ const mocks = vi.hoisted(() => {
     mockIsUsingCloudStorage,
     mockUploadFile,
     mockUploadExecutionFile,
+    mockCheckStorageQuota,
     mockCheckStorageQuotaForBillingContext,
     mockDecrementStorageUsageForBillingContext,
     mockIncrementStorageUsageForBillingContext,
@@ -105,6 +107,7 @@ vi.mock('@/lib/uploads', () => ({
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/billing/storage', () => ({
+  checkStorageQuota: mocks.mockCheckStorageQuota,
   checkStorageQuotaForBillingContext: mocks.mockCheckStorageQuotaForBillingContext,
   decrementStorageUsageForBillingContext: mocks.mockDecrementStorageUsageForBillingContext,
   incrementStorageUsageForBillingContext: mocks.mockIncrementStorageUsageForBillingContext,
@@ -197,6 +200,12 @@ function setupFileApiMocks(
   storageServiceMockFns.mockUploadFile.mockResolvedValue({
     key: 'test-key',
     path: '/test/path',
+  })
+
+  mocks.mockCheckStorageQuota.mockResolvedValue({
+    allowed: true,
+    currentUsage: 0,
+    limit: Number.MAX_SAFE_INTEGER,
   })
 }
 
@@ -684,6 +693,125 @@ describe('File Upload Security Tests', () => {
 
       expect(response.status).toBe(200)
       expect(mocks.mockUploadExecutionFile).toHaveBeenCalled()
+    })
+  })
+
+  describe('Mothership Context Permission Gate', () => {
+    const postMothershipUpload = async (workspaceId: string | null = 'test-workspace-id') => {
+      const formData = new FormData()
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      formData.append('file', file)
+      formData.append('context', 'mothership')
+      if (workspaceId !== null) formData.append('workspaceId', workspaceId)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      return POST(req as unknown as NextRequest)
+    }
+
+    beforeEach(() => {
+      setupFileApiMocks({
+        cloudEnabled: false,
+        storageProvider: 'local',
+      })
+    })
+
+    it('rejects mothership uploads without workspaceId', async () => {
+      const response = await postMothershipUpload(null)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.message).toContain('workspaceId')
+      expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+    })
+
+    it('rejects mothership uploads for a workspace the caller does not belong to', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue(null)
+
+      const response = await postMothershipUpload()
+
+      expect(response.status).toBe(403)
+      const data = await response.json()
+      expect(data.error).toBe('Write or Admin access required for mothership uploads')
+      expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+    })
+
+    it('rejects mothership uploads for a read-only workspace member', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+
+      const response = await postMothershipUpload()
+
+      expect(response.status).toBe(403)
+      expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+    })
+
+    it('rejects mothership uploads over the caller storage quota', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+      mocks.mockCheckStorageQuota.mockResolvedValue({
+        allowed: false,
+        currentUsage: 100,
+        limit: 100,
+        error: 'Storage limit exceeded. Used: 0.00GB, Limit: 0GB',
+      })
+
+      const response = await postMothershipUpload()
+
+      expect(response.status).toBe(413)
+      const data = await response.json()
+      expect(data.error).toContain('Storage limit exceeded')
+      expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+    })
+
+    it('allows mothership uploads for a write-permission workspace member', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      const response = await postMothershipUpload()
+
+      expect(response.status).toBe(200)
+      expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledWith(
+        'test-user-id',
+        'workspace',
+        'test-workspace-id'
+      )
+      expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalled()
+    })
+
+    it('allows mothership uploads for an admin-permission workspace member', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+      const response = await postMothershipUpload()
+
+      expect(response.status).toBe(200)
+      expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalled()
+    })
+
+    it('checks quota once against the combined size of a multi-file batch', async () => {
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      const formData = new FormData()
+      const fileA = new File(['a'.repeat(10)], 'a.pdf', { type: 'application/pdf' })
+      const fileB = new File(['b'.repeat(20)], 'b.pdf', { type: 'application/pdf' })
+      formData.append('file', fileA)
+      formData.append('file', fileB)
+      formData.append('context', 'mothership')
+      formData.append('workspaceId', 'test-workspace-id')
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        headers: { 'content-length': '1024' },
+        body: formData,
+      })
+
+      const response = await POST(req as unknown as NextRequest)
+
+      expect(response.status).toBe(200)
+      expect(mocks.mockCheckStorageQuota).toHaveBeenCalledTimes(1)
+      expect(mocks.mockCheckStorageQuota).toHaveBeenCalledWith('test-user-id', 30)
+      expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledTimes(1)
     })
   })
 
