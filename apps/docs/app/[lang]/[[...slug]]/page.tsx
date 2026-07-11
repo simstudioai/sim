@@ -323,7 +323,7 @@ export async function generateMetadata(props: {
         {
           url: ogImageUrl,
           width: 1200,
-          height: 630,
+          height: 675,
           alt: data.title,
         },
       ],

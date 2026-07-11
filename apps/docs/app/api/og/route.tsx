@@ -5,22 +5,25 @@ import type { NextRequest } from 'next/server'
 export const runtime = 'edge'
 
 const TITLE_FONT_SIZE = {
-  large: 64,
-  medium: 56,
-  small: 48,
+  large: 88,
+  medium: 76,
+  small: 68,
 } as const
 /** Average glyph width as a fraction of font size, for this weight/family — used to pack words into lines. */
-const AVG_CHAR_WIDTH_EM = 0.56
-const TITLE_BOX_WIDTH = 1000
+const AVG_CHAR_WIDTH_EM = 0.5
+const TITLE_BOX_WIDTH = 1020
 const FONT_CACHE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30
-const INK_COLOR = '#3f3f3f'
+// Measured directly off the reference cover template
+// (apps/sim/public/library/best-zapier-alternatives/cover.jpg): #c3c3c3
+// background, median ink #525252, ~26px margin on every edge.
+const INK_COLOR = '#525252'
 const OG_CONTAINER_STYLE = {
   height: '100%',
   width: '100%',
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'space-between',
-  padding: '56px 64px',
+  padding: '26px',
   background: '#c3c3c3',
   fontFamily: 'Season',
 } satisfies CSSProperties
@@ -110,7 +113,7 @@ async function loadSeasonFont(baseUrl: string): Promise<ArrayBuffer> {
 /** "sim" wordmark, no icon — same brandbook workmark geometry as the docs navbar/landing OG cards. */
 function SimWordmark() {
   return (
-    <svg width='100' height='48' viewBox='0 0 800 386' fill='none'>
+    <svg width='118' height='57' viewBox='0 0 800 386' fill='none'>
       <path
         d='M0 293.75h53.4128c0 14.748 5.3413 26.506 16.0239 35.275 10.6826 8.37 25.1238 12.555 43.3233 12.555 19.783 0 35.016-3.786 45.698-11.36 10.683-7.971 16.024-18.534 16.024-31.687 0-9.566-2.967-17.538-8.902-23.915-5.539-6.378-15.826-11.559-30.861-15.545l-51.0389-11.958c-25.7173-6.377-44.9063-16.142-57.5672-29.296-12.2651-13.153-18.39771-30.491-18.39771-52.015 0-17.936 4.55001-33.481 13.64991-46.635 9.4957-13.153 22.3543-23.3169 38.576-30.4914 16.6173-7.1745 35.6086-10.7619 56.9739-10.7619 21.365 0 39.763 3.7866 55.193 11.3598 15.826 7.5731 28.091 18.1355 36.796 31.6875 9.1 13.552 13.847 29.695 14.243 48.428h-53.413c-.395-15.146-5.341-26.904-14.837-35.275-9.495-8.37-22.75-12.555-39.763-12.555-17.4083 0-30.8604 3.786-40.356 11.36-9.4956 7.573-14.2434 17.936-14.2434 31.089 0 19.531 14.2434 32.884 42.7304 40.058l51.039 12.556c24.53 5.58 42.928 14.747 55.193 27.502 12.265 12.356 18.398 29.296 18.398 50.82 0 18.335-4.946 34.477-14.837 48.428-9.891 13.552-23.541 24.114-40.95 31.687-17.013 7.175-37.191 10.762-60.534 10.762-34.0265 0-61.1285-8.37-81.3067-25.111-20.1782-16.74-30.2673-39.061-30.2673-66.962z'
         fill={INK_COLOR}
@@ -130,11 +133,11 @@ function SimWordmark() {
 /** Diagonal "open" arrow, top-right — matches the library/blog cover template. */
 function CornerArrow() {
   return (
-    <svg width='52' height='52' viewBox='0 0 24 24' fill='none'>
+    <svg width='56' height='56' viewBox='0 0 24 24' fill='none'>
       <path
         d='M7 17 17 7M17 7H9M17 7V15'
         stroke={INK_COLOR}
-        strokeWidth={2.25}
+        strokeWidth={3.6}
         strokeLinecap='round'
         strokeLinejoin='round'
       />
@@ -171,7 +174,7 @@ export async function GET(request: NextRequest) {
     </div>,
     {
       width: 1200,
-      height: 630,
+      height: 675,
       fonts: [
         {
           name: 'Season',

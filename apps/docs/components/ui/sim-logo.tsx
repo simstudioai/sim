@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { cn } from '@/lib/utils'
 
 interface SimLogoProps {
@@ -37,6 +38,8 @@ export function SimWordmark({ className }: SimLogoProps) {
  * {@link SimLogoFull}'s icon, at its native square viewBox.
  */
 export function SimLogoIcon({ className }: SimLogoProps) {
+  const gradientId = `sim-logo-icon-gradient-${useId()}`
+
   return (
     <svg
       viewBox='0 0 222 222'
@@ -47,7 +50,7 @@ export function SimLogoIcon({ className }: SimLogoProps) {
     >
       <defs>
         <linearGradient
-          id='sim-logo-icon-gradient'
+          id={gradientId}
           gradientUnits='userSpaceOnUse'
           x1='129.434'
           y1='129.266'
@@ -70,7 +73,7 @@ export function SimLogoIcon({ className }: SimLogoProps) {
       />
       <path
         d='m207.878 129.266h-64.324c-7.798 0-14.12 6.366-14.12 14.221v63.992c0 7.854 6.322 14.22 14.12 14.22h64.324c7.799 0 14.121-6.366 14.121-14.22v-63.992c0-7.855-6.322-14.221-14.121-14.221z'
-        fill='url(#sim-logo-icon-gradient)'
+        fill={`url(#${gradientId})`}
         fillOpacity='0.2'
       />
     </svg>
@@ -83,6 +86,8 @@ export function SimLogoIcon({ className }: SimLogoProps) {
  * The icon stays green (#33C482), text adapts to light/dark mode.
  */
 export function SimLogoFull({ className }: SimLogoProps) {
+  const gradientId = `sim-logo-full-gradient-${useId()}`
+
   return (
     <svg
       viewBox='0 0 71 22'
@@ -93,7 +98,7 @@ export function SimLogoFull({ className }: SimLogoProps) {
     >
       <defs>
         <linearGradient
-          id='sim-logo-full-gradient'
+          id={gradientId}
           gradientUnits='userSpaceOnUse'
           x1='171.406'
           y1='171.18'
@@ -118,7 +123,7 @@ export function SimLogoFull({ className }: SimLogoProps) {
         />
         <path
           d='m275.293 171.18h-85.187c-10.327 0-18.7 8.432-18.7 18.834v84.749c0 10.402 8.373 18.833 18.7 18.833h85.187c10.328 0 18.701-8.431 18.701-18.833v-84.749c0-10.402-8.373-18.834-18.701-18.834z'
-          fill='url(#sim-logo-full-gradient)'
+          fill={`url(#${gradientId})`}
           fillOpacity='0.2'
         />
       </g>
