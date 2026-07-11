@@ -89,6 +89,31 @@ describe('parseQuestionAnswerMessage', () => {
 })
 
 describe('QuestionDisplay', () => {
+  it('renders multi-select recap answers as separate, spaced rows', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: [QUESTIONS[2]],
+          answers: ['EST, PST'],
+        })
+      )
+    })
+
+    const answerContainer = container.querySelector('.gap-1')
+    expect(Array.from(answerContainer?.children ?? []).map((child) => child.textContent)).toEqual([
+      'EST',
+      'PST',
+    ])
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
   it('focuses the free-text input when Something else is clicked', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')
