@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { deploymentEnv } from '@/lib/core/config/env-flags'
+import { getDeploymentEnv } from '@/lib/core/config/env-flags'
 import { getBaseUrl, SITE_URL } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling/branding'
 
@@ -13,14 +13,14 @@ interface FaviconSet {
 }
 
 /**
- * Same "sim" wordmark per {@link deploymentEnv}, background color only —
+ * Same "sim" wordmark per {@link getDeploymentEnv}, background color only —
  * so a dev/staging tab is never mistaken for prod at a glance. Ignored
  * entirely when `brand.faviconUrl` is set (a whitelabeled deployment's own
  * favicon always wins, regardless of which tier it's running on). Kept in
  * sync with `FAVICON_ICO_DESTINATIONS` in `next.config.ts`, which handles
  * the legacy `/favicon.ico` path the same way.
  */
-const ICON_SETS: Record<typeof deploymentEnv, FaviconSet> = {
+const ICON_SETS: Record<ReturnType<typeof getDeploymentEnv>, FaviconSet> = {
   development: {
     svg: '/icon-dev.svg',
     favicon16: '/favicon-dev/favicon-16x16.png',
@@ -52,7 +52,7 @@ const ICON_SETS: Record<typeof deploymentEnv, FaviconSet> = {
  */
 export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metadata {
   const brand = getBrandConfig()
-  const icons = ICON_SETS[deploymentEnv]
+  const icons = ICON_SETS[getDeploymentEnv()]
 
   const defaultTitle = brand.name
   const summaryFull = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders — from startups to Fortune 500 companies. SOC2 compliant.`

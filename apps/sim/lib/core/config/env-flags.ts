@@ -30,28 +30,31 @@ export const isTest = env.NODE_ENV === 'test'
  * AWS Secrets Manager for dev/staging/production, so this reuses it rather
  * than inventing a second one.
  */
-const rawDeploymentEnv =
-  process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
-  process.env.DEPLOYMENT_ENVIRONMENT ||
-  (process.env.APPCONFIG_ENVIRONMENT === 'production'
-    ? 'prod'
-    : process.env.APPCONFIG_ENVIRONMENT) ||
-  env.NODE_ENV ||
-  'development'
+function resolveRawDeploymentEnv(): string {
+  return (
+    process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
+    process.env.DEPLOYMENT_ENVIRONMENT ||
+    (process.env.APPCONFIG_ENVIRONMENT === 'production'
+      ? 'prod'
+      : process.env.APPCONFIG_ENVIRONMENT) ||
+    env.NODE_ENV ||
+    'development'
+  )
+}
 
 /**
  * The deployment tier this build is running in, bucketed from
- * {@link rawDeploymentEnv} to a fixed three-way set for UI-facing branches —
- * currently just per-environment favicons, so it's obvious at a glance which
- * tab is prod vs. a staging/local build. See `ee/whitelabeling/metadata.ts`
- * and `next.config.ts`.
+ * {@link resolveRawDeploymentEnv} to a fixed three-way set for UI-facing
+ * branches — currently just per-environment favicons, so it's obvious at a
+ * glance which tab is prod vs. a staging/local build. See
+ * `ee/whitelabeling/metadata.ts` and `next.config.ts`.
  */
-export const deploymentEnv: 'development' | 'staging' | 'production' =
-  rawDeploymentEnv === 'staging'
-    ? 'staging'
-    : rawDeploymentEnv === 'prod' || rawDeploymentEnv === 'production'
-      ? 'production'
-      : 'development'
+export function getDeploymentEnv(): 'development' | 'staging' | 'production' {
+  const raw = resolveRawDeploymentEnv()
+  if (raw === 'staging') return 'staging'
+  if (raw === 'prod' || raw === 'production') return 'production'
+  return 'development'
+}
 
 /**
  * Is this the hosted version of the application.

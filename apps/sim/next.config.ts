@@ -1,7 +1,7 @@
 import path from 'node:path'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
-import { deploymentEnv, isDev } from './lib/core/config/env-flags'
+import { getDeploymentEnv, isDev } from './lib/core/config/env-flags'
 import {
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
@@ -33,7 +33,7 @@ const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
  * `<link rel="icon">` tags Next renders from `generateBrandedMetadata()`
  * (`ee/whitelabeling/metadata.ts`) use the same per-environment set.
  */
-const FAVICON_ICO_DESTINATIONS: Record<typeof deploymentEnv, string> = {
+const FAVICON_ICO_DESTINATIONS: Record<ReturnType<typeof getDeploymentEnv>, string> = {
   development: '/icon-dev.svg',
   staging: '/icon-staging.svg',
   production: '/icon.svg',
@@ -451,7 +451,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/favicon.ico',
-        destination: FAVICON_ICO_DESTINATIONS[deploymentEnv],
+        destination: FAVICON_ICO_DESTINATIONS[getDeploymentEnv()],
       },
       {
         source: '/r/:shortCode',
