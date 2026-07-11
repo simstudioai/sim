@@ -245,9 +245,16 @@ describe('fuzzyMatch — positions for highlighting', () => {
 describe('filterAndCap', () => {
   const id = (s: string) => s
 
-  it('caps the result set to MAX_RESULTS_PER_GROUP', () => {
+  it('caps an active search to MAX_RESULTS_PER_GROUP', () => {
     const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
     expect(filterAndCap(items, id, 'item')).toHaveLength(MAX_RESULTS_PER_GROUP)
+  })
+
+  it('never caps the empty (browse) state, even above the cap', () => {
+    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
+    const result = filterAndCap(items, id, '')
+    expect(result).toHaveLength(items.length)
+    expect(result).toBe(items)
   })
 
   it('returns every match untrimmed when under the cap', () => {

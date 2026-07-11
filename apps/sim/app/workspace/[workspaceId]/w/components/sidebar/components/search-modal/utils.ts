@@ -259,18 +259,22 @@ export function filterAndSort<T>(items: T[], toValue: (item: T) => string, searc
 }
 
 /**
- * Upper bound on rendered rows per result group. The palette can hold thousands
- * of items (1,000+ tool operations, plus large workspaces), and re-rendering the
- * full set on every keystroke is what stalls the input as results reshuffle.
- * Results are score-sorted, so capping only trims the low-relevance tail while
- * keeping the DOM — and each keystroke's reconciliation — bounded.
+ * Upper bound on rendered rows per result group while searching. Re-rendering an
+ * unbounded, reshuffling match set on every keystroke — the catalog alone is
+ * 1,000+ tool operations — is what stalls the input and drops the next
+ * character. Results are score-sorted, so this only trims the low-relevance tail
+ * of a query.
  */
 export const MAX_RESULTS_PER_GROUP = 50
 
 /**
- * {@link filterAndSort} capped to {@link MAX_RESULTS_PER_GROUP} rows so no single
- * group can flood the DOM and block typing.
+ * {@link filterAndSort}, but bounded to {@link MAX_RESULTS_PER_GROUP} rows *while
+ * searching* so the per-keystroke render can't flood the DOM and block typing.
+ * The empty state is returned in full — capping applies only to the top-ranked
+ * matches of an active query, never to the browsable list, so no result the user
+ * could otherwise see is hidden.
  */
 export function filterAndCap<T>(items: T[], toValue: (item: T) => string, search: string): T[] {
-  return filterAndSort(items, toValue, search).slice(0, MAX_RESULTS_PER_GROUP)
+  const results = filterAndSort(items, toValue, search)
+  return search ? results.slice(0, MAX_RESULTS_PER_GROUP) : results
 }
