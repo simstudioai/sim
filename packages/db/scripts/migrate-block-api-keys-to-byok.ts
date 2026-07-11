@@ -4,6 +4,19 @@
 // Iterates per workspace. Original block-level values are left untouched for safety.
 // Handles both literal keys ("sk-xxx...") and env var references ("{{VAR_NAME}}").
 //
+// Two mapping modes:
+//   --map <blockType>=<providerId>       Dedicated single-provider blocks. The block
+//                                        type unambiguously identifies the provider, so
+//                                        the block's `apiKey` subblock is taken directly
+//                                        (e.g. jina, perplexity).
+//   --model-map <modelPrefix>=<providerId>
+//                                        LLM-family blocks (agent, router, evaluator).
+//                                        These share one model-gated `apiKey` subblock
+//                                        across every LLM provider, so the block type
+//                                        alone is NOT enough — the key is only taken when
+//                                        the block's selected `model` starts with the
+//                                        given prefix (e.g. grok -> xai).
+//
 // Usage:
 //   # Step 1 — Dry run: audit for conflicts + preview inserts (no DB writes)
 //   #   Outputs migrate-byok-workspace-ids.txt for the live run.
@@ -14,6 +27,10 @@
 //   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts \
 //     --map jina=jina --map perplexity=perplexity --map google_books=google_cloud \
 //     --from-file migrate-byok-workspace-ids.txt
+//
+//   # Migrate xAI (grok) keys entered into agent/router/evaluator blocks to BYOK
+//   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts --dry-run \
+//     --model-map grok=xai
 //
 //   # Optionally scope dry run to specific users (repeatable)
 //   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts --dry-run \
@@ -53,12 +70,56 @@ function parseMapArgs(): Record<string, string> {
 }
 
 const BLOCK_TYPE_TO_PROVIDER = parseMapArgs()
-if (Object.keys(BLOCK_TYPE_TO_PROVIDER).length === 0) {
-  console.error('No --map arguments provided. Specify at least one: --map blockType=providerId')
+
+// LLM-family blocks share one model-gated `apiKey` subblock across every provider, so the
+// key is only attributed to a provider when the block's selected `model` matches a prefix.
+const LLM_FAMILY_BLOCK_TYPES = ['agent', 'router', 'evaluator'] as const
+
+function parseModelMapArgs(): Record<string, string> {
+  const mapping: Record<string, string> = {}
+  const args = process.argv.slice(2)
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--model-map' && args[i + 1]) {
+      const [modelPrefix, providerId] = args[i + 1].split('=')
+      if (modelPrefix && providerId) {
+        mapping[modelPrefix.trim().toLowerCase()] = providerId
+      } else {
+        console.error(
+          `Invalid --model-map value: "${args[i + 1]}". Expected format: modelPrefix=providerId`
+        )
+        process.exit(1)
+      }
+      i++
+    }
+  }
+  return mapping
+}
+
+const MODEL_PREFIX_TO_PROVIDER = parseModelMapArgs()
+
+if (
+  Object.keys(BLOCK_TYPE_TO_PROVIDER).length === 0 &&
+  Object.keys(MODEL_PREFIX_TO_PROVIDER).length === 0
+) {
+  console.error('No --map or --model-map arguments provided. Specify at least one.')
   console.error(
-    'Example: --map jina=jina --map perplexity=perplexity --map google_books=google_cloud'
+    'Dedicated blocks: --map jina=jina --map perplexity=perplexity --map google_books=google_cloud'
   )
+  console.error('LLM-family blocks (agent/router/evaluator): --model-map grok=xai')
   process.exit(1)
+}
+
+/**
+ * Resolves an LLM-family block's selected model to a BYOK provider id via the configured
+ * model-prefix map. Mirrors how the app matches models to providers (e.g. grok -> xai).
+ */
+function resolveModelProvider(model: string): string | null {
+  const normalized = model.trim().toLowerCase()
+  if (!normalized) return null
+  for (const [prefix, providerId] of Object.entries(MODEL_PREFIX_TO_PROVIDER)) {
+    if (normalized.startsWith(prefix)) return providerId
+  }
+  return null
 }
 
 function parseUserArgs(): string[] {
@@ -430,6 +491,27 @@ async function processWorkspace(
         }
       }
 
+      if (
+        LLM_FAMILY_BLOCK_TYPES.includes(block.blockType as (typeof LLM_FAMILY_BLOCK_TYPES)[number])
+      ) {
+        const model = subBlocks?.model?.value
+        const apiKeyVal = subBlocks?.apiKey?.value
+        if (typeof model === 'string' && typeof apiKeyVal === 'string' && apiKeyVal.trim()) {
+          const llmProviderId = resolveModelProvider(model)
+          if (llmProviderId) {
+            const refs = providerKeys.get(llmProviderId) ?? []
+            refs.push({
+              rawValue: apiKeyVal,
+              blockName: `${block.blockName} (model "${model}")`,
+              workflowId: block.workflowId,
+              workflowName: block.workflowName,
+              userId: block.userId,
+            })
+            providerKeys.set(llmProviderId, refs)
+          }
+        }
+      }
+
       const toolInputId = TOOL_INPUT_SUBBLOCK_IDS[block.blockType]
       if (toolInputId) {
         const tools = parseToolInputValue(subBlocks?.[toolInputId]?.value)
@@ -601,9 +683,22 @@ async function processWorkspace(
 async function run() {
   console.log(`Mode: ${DRY_RUN ? 'DRY RUN (audit + preview)' : 'LIVE'}`)
   console.log(
-    `Mappings: ${Object.entries(BLOCK_TYPE_TO_PROVIDER)
-      .map(([b, p]) => `${b}=${p}`)
-      .join(', ')}`
+    `Block mappings: ${
+      Object.keys(BLOCK_TYPE_TO_PROVIDER).length > 0
+        ? Object.entries(BLOCK_TYPE_TO_PROVIDER)
+            .map(([b, p]) => `${b}=${p}`)
+            .join(', ')
+        : '(none)'
+    }`
+  )
+  console.log(
+    `Model mappings (agent/router/evaluator): ${
+      Object.keys(MODEL_PREFIX_TO_PROVIDER).length > 0
+        ? Object.entries(MODEL_PREFIX_TO_PROVIDER)
+            .map(([m, p]) => `${m}*=${p}`)
+            .join(', ')
+        : '(none)'
+    }`
   )
   console.log(`Users: ${USER_FILTER.length > 0 ? USER_FILTER.join(', ') : 'all'}`)
   if (FROM_FILE) console.log(`From file: ${FROM_FILE}`)
@@ -616,7 +711,9 @@ async function run() {
     // 1. Get distinct workspace IDs that have matching blocks
     const mappedBlockTypes = Object.keys(BLOCK_TYPE_TO_PROVIDER)
     const agentTypes = Object.keys(TOOL_INPUT_SUBBLOCK_IDS)
-    const allBlockTypes = [...new Set([...mappedBlockTypes, ...agentTypes])]
+    const llmFamilyTypes =
+      Object.keys(MODEL_PREFIX_TO_PROVIDER).length > 0 ? [...LLM_FAMILY_BLOCK_TYPES] : []
+    const allBlockTypes = [...new Set([...mappedBlockTypes, ...agentTypes, ...llmFamilyTypes])]
 
     const userFilter =
       USER_FILTER.length > 0
