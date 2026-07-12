@@ -1112,6 +1112,7 @@ interface ProviderAuthConfig {
    * standard OAuth refresh_token POST.
    */
   refreshStrategy?: 'standard' | 'instagram_long_lived'
+  /**
    * Body param name to use for the client identifier instead of the standard `client_id`.
    * TikTok requires `client_key` instead.
    */
