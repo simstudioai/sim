@@ -20,7 +20,7 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
   name: 'Sim',
   description: 'Talk to Sim',
   longDescription:
-    'The Sim block sends messages to Sim, which has access to subagents, integration tools, memory, and workspace context. Use it to perform complex multi-step reasoning, cross-service queries, or any task that benefits from the full Sim intelligence within a workflow.',
+    'The Sim block sends messages to Sim, which has access to subagents, integration tools, and workspace context. Use it to perform complex multi-step reasoning, cross-service queries, or any task that benefits from the full Sim intelligence within a workflow.',
   bestPractices: `
   - Use for tasks that require multi-step reasoning, tool use, or cross-service coordination.
   - Sim picks its own model and tools internally — you only provide a prompt.
