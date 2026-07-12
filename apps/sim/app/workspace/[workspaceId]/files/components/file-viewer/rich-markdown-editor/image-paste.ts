@@ -13,10 +13,14 @@ export function extractImageFiles(transfer: DataTransfer | null): File[] {
     .filter((file): file is File => file !== null)
 }
 
-// `src` may be double-quoted, single-quoted, or (validly) unquoted per the HTML spec — the browser's
-// own clipboard serialization always quotes it, but other producers of `text/html` are not obligated
-// to.
+/**
+ * Matches `<img>` `src` attribute values: double-quoted, single-quoted, or (validly) unquoted per
+ * the HTML spec — the browser's own clipboard serialization always quotes it, but other producers
+ * of `text/html` are not obligated to.
+ */
 const IMG_SRC_RE = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi
+
+/** Query params under which the inline route addresses a workspace file. */
 const INLINE_ROUTE_QUERY_KEYS = new Set(['key', 'fileId'])
 
 /**
@@ -109,13 +113,28 @@ export function hasHostedImageHtml(
   })
 }
 
+/** Resolves `src` to a full absolute URL against `origin`, or `null` when unparseable. */
+function toAbsoluteUrl(src: string, origin: string): string | null {
+  try {
+    return new URL(src, origin || 'http://placeholder').href
+  } catch {
+    return null
+  }
+}
+
 /**
- * True when `html` contains an `<img>` whose src — normalized origin-relative — equals
+ * True when `html` contains an `<img>` whose src resolves to the same ABSOLUTE URL as
  * `resolvedSrc` (a `resolveImageSrc` output for a node already in this document). This is the
  * "that drop is MY dragged image" check for internal drag-reorder: TipTap's node-view dragstart
  * bypasses ProseMirror's serialization entirely (no PM `text/html`, no `view.dragging`) but
  * NodeSelects the dragged image, and the browser's native enrichment carries the absolute rendered
  * URL of exactly that node.
+ *
+ * Deliberately compares full absolute URLs rather than same-origin paths ({@link toSameOriginPath}):
+ * identity is the question here, not hosted-by-us membership — a doc's image may legitimately have a
+ * cross-origin `src` (a README badge, a CDN image), and dragging THAT node to reorder it must match
+ * too, or it falls into the duplicate-upload path. Relative and absolute spellings of the same URL
+ * still compare equal because both sides resolve against the page origin.
  */
 export function htmlReferencesSrc(
   html: string,
@@ -123,9 +142,9 @@ export function htmlReferencesSrc(
   origin = runtimeOrigin()
 ): boolean {
   if (!html || !resolvedSrc) return false
-  const target = toSameOriginPath(resolvedSrc, origin)
+  const target = toAbsoluteUrl(resolvedSrc, origin)
   if (target === null) return false
-  return extractImgSrcs(html).some((src) => toSameOriginPath(src, origin) === target)
+  return extractImgSrcs(html).some((src) => toAbsoluteUrl(src, origin) === target)
 }
 
 /**
@@ -169,7 +188,9 @@ interface DescendantsDoc {
  * the clipboard/dataTransfer `html`, whose `src` is `resolveImageSrc`'s rewritten *display* URL, not the
  * real persisted one. Inserting a node built from that display URL would bake it into the document,
  * which public share/export/referenced-by-doc tracking don't recognize (they only match the persisted
- * shape) — this lookup avoids ever constructing such a node in the first place.
+ * shape) — this lookup avoids ever constructing such a node in the first place. Both sides of the
+ * comparison are normalized origin-relative ({@link toSameOriginPath}): the clipboard html may carry
+ * the browser's absolute URLs.
  */
 export function findHostedImageAttrs(
   doc: DescendantsDoc,
@@ -177,7 +198,6 @@ export function findHostedImageAttrs(
   resolveImageSrc: (src: string | undefined) => string | undefined,
   origin = runtimeOrigin()
 ): Record<string, unknown> | null {
-  // Normalize both sides origin-relative: the clipboard html may carry the browser's absolute URLs.
   const targets = new Set(
     targetSrcs.map((src) => toSameOriginPath(src, origin)).filter((p): p is string => p !== null)
   )

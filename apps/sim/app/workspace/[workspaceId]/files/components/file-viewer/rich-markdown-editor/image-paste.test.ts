@@ -362,6 +362,17 @@ describe('htmlReferencesSrc (the "this drop is MY dragged image" check)', () => 
     expect(htmlReferencesSrc(`<img src="${RESOLVED}">`, RESOLVED, ORIGIN)).toBe(true)
   })
 
+  // Identity must work for cross-origin srcs too: a doc's image may legitimately point at a CDN or
+  // badge URL, and dragging THAT node to reorder it must still match — under the previous
+  // same-origin-path comparison it fell into the duplicate-upload branch instead.
+  it('matches an external (cross-origin) image against its own exact absolute url', () => {
+    const EXTERNAL = 'https://cdn.example.com/badge.svg'
+    expect(htmlReferencesSrc(`<img src="${EXTERNAL}">`, EXTERNAL, ORIGIN)).toBe(true)
+    expect(
+      htmlReferencesSrc('<img src="https://cdn.example.com/other.svg">', EXTERNAL, ORIGIN)
+    ).toBe(false)
+  })
+
   it('false for a different image, empty html, missing resolved src, or cross-origin', () => {
     expect(htmlReferencesSrc(`<img src="${ORIGIN}/api/other?fileId=wf_b">`, RESOLVED, ORIGIN)).toBe(
       false
