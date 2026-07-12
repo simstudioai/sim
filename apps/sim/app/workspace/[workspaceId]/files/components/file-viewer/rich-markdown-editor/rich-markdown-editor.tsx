@@ -3,6 +3,9 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
 import type { JSONContent } from '@tiptap/core'
+import { Fragment, Slice } from '@tiptap/pm/model'
+import { NodeSelection } from '@tiptap/pm/state'
+import { dropPoint } from '@tiptap/pm/transform'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
@@ -19,6 +22,7 @@ import {
   extractImageFiles,
   extractImgSrcs,
   findHostedImageAttrs,
+  htmlReferencesSrc,
   shouldSkipFileUpload,
 } from './image-paste'
 import {
@@ -216,6 +220,8 @@ export function LoadedRichMarkdownEditor({
   const uploadFile = useUploadWorkspaceFile()
   const editorInstanceRef = useRef<Editor | null>(null)
   const source = useFileContentSource()
+  const resolveImageSrcRef = useRef(source.resolveImageSrc)
+  resolveImageSrcRef.current = source.resolveImageSrc
 
   /**
    * The `/Image` slash command opens this hidden picker; `pendingImagePosRef` holds the caret position
@@ -367,22 +373,52 @@ export function LoadedRichMarkdownEditor({
        * the browser doesn't navigate away from the editor; internal text drags carry no files and fall
        * through to the default behavior.
        *
-       * Dragging an existing image node to reorder it is also an internal drag, but the browser's
-       * native drag-and-drop synthesizes an image `File` into `event.dataTransfer` for a dragged `<img>`
-       * (the same mechanism that lets a user drag a web image out to their desktop) — indistinguishable
-       * from a real external drop by `dataTransfer` files/items alone. When the accompanying `text/html`
-       * shows it's a same-page drag of an already-hosted image, bail out and let ProseMirror's own
-       * default move logic run — it relocates the actual existing node object (`dragging.node`), never
-       * re-parsing html, so (unlike the paste case above) there's no display-vs-persisted src risk here.
-       * Checked from `html`, not `view.dragging`, so a stale `dragging` flag (ProseMirror clears it up
-       * to ~50ms late via `dragend` when a prior internal drag was dropped outside this view) can never
-       * suppress the plain-file swallow guard below for an unrelated drop that happens to land in that
-       * window — this only reacts to what THIS specific drop's `html` actually contains.
+       * Drag-REORDER of an image node is the deceptive case. TipTap's node-view dragstart bypasses
+       * ProseMirror's own drag serialization entirely — no PM `text/html`, no `view.dragging` — but it
+       * DOES NodeSelect the dragged image; what the drop carries instead is the browser's native
+       * enrichment for a dragged `<img>`: an image `File` plus `text/html` whose src is the ABSOLUTE
+       * rendered URL of that exact node. So when the drop's html points at the currently-selected image
+       * node, this drop IS that node being moved, and the move must be performed here: uploading would
+       * duplicate it (the original never moves), and falling through to ProseMirror is no better — with
+       * `view.dragging` unset its default drop PARSES the html into a copy (persisting the display-layer
+       * src, which share/export tracking don't recognize) and never deletes the original.
+       *
+       * PM-serialized drags (a text selection spanning an image, dragged from a textblock) still reach
+       * the `shouldSkipFileUpload` bail below: PM set `view.dragging` for those itself, so its default
+       * move logic is correct there.
        */
       handleDrop: (view, event) => {
         if (!view.editable) return false
         const images = extractImageFiles(event.dataTransfer)
         const html = event.dataTransfer?.getData('text/html') ?? ''
+        const { selection } = view.state
+        // At most one file: Chrome's enrichment adds the dragged image itself as a File, but some
+        // drag transports (e.g. CDP-driven input) carry the html alone — the html-matches-selected-
+        // node check is the authoritative signal either way, and a genuinely external drop can never
+        // reference the currently-selected node's own resolved src.
+        if (
+          images.length <= 1 &&
+          selection instanceof NodeSelection &&
+          selection.node.type.name === 'image' &&
+          htmlReferencesSrc(html, resolveImageSrcRef.current(selection.node.attrs.src))
+        ) {
+          event.preventDefault()
+          const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
+          if (!coords) return true
+          const node = selection.node
+          const tr = view.state.tr
+          // Same shape as ProseMirror's own move: compute the drop point on the pre-delete doc,
+          // delete the source, then map the insert position through that delete.
+          const insertPos =
+            dropPoint(view.state.doc, coords.pos, new Slice(Fragment.from(node), 0, 0)) ??
+            coords.pos
+          tr.delete(selection.from, selection.to)
+          const mapped = tr.mapping.map(insertPos)
+          tr.insert(mapped, node)
+          tr.setSelection(NodeSelection.create(tr.doc, mapped))
+          view.dispatch(tr.scrollIntoView())
+          return true
+        }
         if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
           return false
         }
