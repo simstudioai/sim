@@ -29,6 +29,10 @@ const minimalRegistryAlias: Record<string, string> = useMinimalRegistry
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
+  // Safe here since this repo's source is already fully public on GitHub -
+  // no additional exposure versus Next's default (disabled to avoid leaking
+  // source on the client).
+  productionBrowserSourceMaps: true,
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
     resolveAlias: minimalRegistryAlias,
@@ -188,7 +192,11 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/((?!api/).*\\.(?:svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot))',
+        // `/public`-served assets keep their path across deploys (no content
+        // hash), so a shorter TTL + revalidation window bounds how long a
+        // changed asset can serve stale.
+        source:
+          '/((?!api/|_next/static/).*\\.(?:svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot))',
         headers: [
           {
             key: 'Cache-Control',
@@ -245,13 +253,28 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Block access to sourcemap files (defense in depth)
+      // Block access to sourcemap files (defense in depth). The trailing
+      // `$` this rule previously ended with is not a regex anchor in Next's
+      // `source` matcher (path-to-regexp syntax, not raw regex) - it matched
+      // a literal `$` character, so this rule never actually fired against
+      // real `.map` URLs. Next already anchors the compiled pattern at both
+      // ends, so no trailing anchor is needed here.
+      //
+      // Also bounds `.map` files to a short, revalidated TTL rather than
+      // Next's built-in 1yr immutable default for `_next/static/*` - maps
+      // are content-hashed like their JS, so this isn't about staleness,
+      // it's so a future decision to stop shipping `productionBrowserSourceMaps`
+      // isn't undermined by browsers/edges holding old maps for a year.
       {
-        source: '/(.*)\\.map$',
+        source: '/(.*)\\.map',
         headers: [
           {
             key: 'x-robots-tag',
             value: 'noindex',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
           },
         ],
       },

@@ -52,6 +52,7 @@ export function ContentPostPage({
                 className='h-auto w-full'
                 sizes='(max-width: 768px) 100vw, 450px'
                 priority
+                fetchPriority='high'
                 itemProp='image'
                 unoptimized
               />
