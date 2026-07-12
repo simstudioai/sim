@@ -6,6 +6,7 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import { fileStorageStatusContract } from '@/lib/api/contracts/storage-transfer'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   deleteWorkspaceFileContract,
@@ -298,12 +299,7 @@ export function useStorageInfo(enabled = true) {
 }
 
 async function fetchCloudStorageConfigured(signal?: AbortSignal): Promise<boolean> {
-  // boundary-raw-fetch: tiny status endpoint, no shared contract yet
-  const response = await fetch('/api/files/storage-status', { signal, cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error('Failed to check cloud storage status')
-  }
-  const data = (await response.json()) as { cloudConfigured?: boolean }
+  const data = await requestJson(fileStorageStatusContract, { signal })
   return data.cloudConfigured === true
 }
 
