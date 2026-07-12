@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import * as ipaddr from 'ipaddr.js'
-import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
+import { Agent } from 'undici'
 import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -433,18 +433,21 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
  *
  * The `Agent` is captured for the lifetime of the returned function, so repeated
  * calls (e.g. a provider tool loop) reuse its keep-alive connections.
+ *
+ * Dispatches through the global `fetch` (passing `dispatcher` as an
+ * undici-specific extension) rather than a separately imported `undici` copy of
+ * `fetch`, so the returned `Response` is the same class reference every other
+ * consumer's `instanceof Response` check expects. A separately imported undici
+ * `Response` fails that check across module instances — the caller then treats
+ * the whole `Response` object as if it were already-read body text.
  */
 export function createPinnedFetch(resolvedIP: string): typeof fetch {
   const dispatcher = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
 
   const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)
-    const undiciInput = input as unknown as Parameters<typeof undiciFetch>[0]
-    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
-    const undiciInit: UndiciRequestInit = { ...(init as unknown as UndiciRequestInit), dispatcher }
-    const response = await undiciFetch(undiciInput, undiciInit)
-    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime
-    return response as unknown as Response
+    // `dispatcher` is an undici-specific fetch option Node's global fetch forwards at
+    // runtime, but the DOM RequestInit type doesn't declare it.
+    return fetch(input, { ...init, dispatcher } as RequestInit)
   }
 
   return pinned

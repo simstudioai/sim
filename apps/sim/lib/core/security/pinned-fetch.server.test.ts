@@ -2,9 +2,9 @@
  * @vitest-environment node
  */
 import { envFlagsMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoisted(() => {
+const { mockAgent, mockGlobalFetch, capturedAgentOptions, agentCloses } = vi.hoisted(() => {
   const capturedAgentOptions: unknown[] = []
   const agentCloses: unknown[] = []
   class MockAgent {
@@ -18,13 +18,13 @@ const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoi
   }
   return {
     mockAgent: MockAgent,
-    mockUndiciFetch: vi.fn(),
+    mockGlobalFetch: vi.fn(),
     capturedAgentOptions,
     agentCloses,
   }
 })
 
-vi.mock('undici', () => ({ Agent: mockAgent, fetch: mockUndiciFetch }))
+vi.mock('undici', () => ({ Agent: mockAgent }))
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
@@ -37,7 +37,14 @@ describe('createPinnedFetch', () => {
     vi.clearAllMocks()
     capturedAgentOptions.length = 0
     agentCloses.length = 0
-    mockUndiciFetch.mockResolvedValue(new Response('ok'))
+    mockGlobalFetch.mockResolvedValue(new Response('ok'))
+    // Dispatches through the platform's global fetch (see input-validation.server.ts) so its
+    // returned Response stays instanceof the same Response every consumer checks against.
+    vi.stubGlobal('fetch', mockGlobalFetch)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('builds an undici Agent whose pinned lookup always resolves to the validated IP', async () => {
@@ -75,8 +82,8 @@ describe('createPinnedFetch', () => {
       signal: controller.signal,
     })
 
-    expect(mockUndiciFetch).toHaveBeenCalledTimes(1)
-    const [url, init] = mockUndiciFetch.mock.calls[0]
+    expect(mockGlobalFetch).toHaveBeenCalledTimes(1)
+    const [url, init] = mockGlobalFetch.mock.calls[0]
     expect(url).toBe('https://myresource.openai.azure.com/openai/v1/responses')
     const typedInit = init as RequestInit & { dispatcher?: unknown }
     expect(typedInit.dispatcher).toBeInstanceOf(mockAgent)
@@ -89,7 +96,7 @@ describe('createPinnedFetch', () => {
   it('handles an undefined init by still attaching the dispatcher', async () => {
     const pinned = createPinnedFetch('203.0.113.10')
     await pinned('https://example.com')
-    const init = mockUndiciFetch.mock.calls[0][1] as { dispatcher?: unknown }
+    const init = mockGlobalFetch.mock.calls[0][1] as { dispatcher?: unknown }
     expect(init.dispatcher).toBeInstanceOf(mockAgent)
   })
 
@@ -99,8 +106,8 @@ describe('createPinnedFetch', () => {
     await pinned('https://example.com/b')
 
     expect(capturedAgentOptions).toHaveLength(1)
-    const d1 = (mockUndiciFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
-    const d2 = (mockUndiciFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
+    const d1 = (mockGlobalFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
+    const d2 = (mockGlobalFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
     expect(d1).toBe(d2)
   })
 
@@ -111,13 +118,13 @@ describe('createPinnedFetch', () => {
     await b('https://example.com/b')
 
     expect(capturedAgentOptions).toHaveLength(2)
-    const d1 = (mockUndiciFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
-    const d2 = (mockUndiciFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
+    const d1 = (mockGlobalFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
+    const d2 = (mockGlobalFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
     expect(d1).not.toBe(d2)
   })
 
-  it('returns the response produced by undici fetch', async () => {
-    mockUndiciFetch.mockResolvedValueOnce(new Response('pong', { status: 201 }))
+  it('returns the response produced by the global fetch', async () => {
+    mockGlobalFetch.mockResolvedValueOnce(new Response('pong', { status: 201 }))
     const pinned = createPinnedFetch('203.0.113.10')
     const response = await pinned('https://example.com')
     expect(response.status).toBe(201)
