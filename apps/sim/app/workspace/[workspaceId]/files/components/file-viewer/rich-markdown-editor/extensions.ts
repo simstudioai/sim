@@ -12,6 +12,7 @@ import {
 import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
 import { MarkdownCodeBlock } from './code-block'
+import { Highlight } from './highlight'
 import { MarkdownImage } from './image'
 import { MarkdownLinkInputRule } from './link-input-rule'
 import { MarkdownMention } from './mention/mention-node'
@@ -130,6 +131,7 @@ export function createMarkdownContentExtensions(nodeViews: ContentNodeViews = {}
     }),
     BlockSafeParagraph,
     InlineCode,
+    Highlight,
     codeBlock,
     (nodeViews.image ?? MarkdownImage).configure({ allowBase64: true }),
     nodeViews.mention ?? MarkdownMention,

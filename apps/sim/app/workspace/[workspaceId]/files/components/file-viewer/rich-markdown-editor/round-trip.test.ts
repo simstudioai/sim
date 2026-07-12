@@ -158,6 +158,23 @@ describe('editor markdown round-trip', () => {
     'bold code': '**`x`**',
     'heading strike code': '# ~~`x`~~',
     'table with pipe': '| x \\| y | 2 |\n| --- | --- |\n| a | b |',
+    'bold italic nested': '**bold _italic_ word**',
+    'strike bold nested': '~~**struck bold**~~',
+    'bold code inline': '**bold `code` here**',
+    'triple nested marks': '*i **b ~~s~~** i*',
+    'all marks in heading': '# **b** ~~s~~ *i* `c`',
+    'marks in bullet': '- **a** ~~b~~ `c`',
+    'marks in quote': '> **a** ~~b~~ *c*',
+    'nested list marks': '- **a**\n  - ~~b~~\n    - *c*',
+    'bold link': '[**bold link**](https://x.com)',
+    'link inside bold': '**see [x](https://x.com)**',
+    'table with marks': '| **b** | ~~s~~ | `c` |\n| --- | --- | --- |\n| *i* | a | b |',
+    'bold across code boundary': '**a** `b` **c**',
+    highlight: 'a ==marked== word',
+    'highlight in heading': '# a ==mark== b',
+    'highlight nested in bold': '**bold ==mark== here**',
+    'highlight in list': '- ==a== item',
+    'highlight with interior equals': 'x ==a=b== y',
   }
 
   for (const [name, input] of Object.entries(cases)) {
@@ -433,4 +450,88 @@ describe('consecutive empty paragraphs', () => {
       expect(idempotent).toBe(true)
     }
   )
+})
+
+describe('highlight ==mark==', () => {
+  function markPresent(src: string): boolean {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent(src, { contentType: 'markdown' })
+    const has = JSON.stringify(editor.getJSON()).includes('"type":"highlight"')
+    editor.destroy()
+    editor = null
+    return has
+  }
+
+  it('parses ==text== into a highlight mark, including mid-line and in headings', () => {
+    expect(markPresent('a ==marked== word')).toBe(true)
+    expect(markPresent('# a ==mark== b')).toBe(true)
+    expect(markPresent('**bold ==mark== here**')).toBe(true)
+  })
+
+  it('parses a highlight body containing a lone `=` (so ==a=b== round-trips)', () => {
+    expect(markPresent('x ==a=b== y')).toBe(true)
+  })
+
+  it('strips a highlight whose text contains `==` (unrepresentable), keeping the text', () => {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent('x a==b y', { contentType: 'markdown' })
+    let from = -1
+    let to = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText) {
+        const i = node.text?.indexOf('a==b') ?? -1
+        if (i >= 0) {
+          from = pos + i
+          to = from + 4
+        }
+      }
+    })
+    editor.commands.setTextSelection({ from, to })
+    editor.commands.toggleMark('highlight')
+    const md = postProcessSerializedMarkdown(editor.getMarkdown())
+    expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"highlight"')
+    expect(md).not.toContain('==a==b==')
+    expect(editor.getText().trim()).toBe('x a==b y')
+    editor.destroy()
+    editor = null
+  })
+
+  it('leaves comparison / spaced == operators as literal text', () => {
+    expect(markPresent('if x == y then z')).toBe(false)
+    expect(markPresent('a == b == c')).toBe(false)
+  })
+})
+
+describe('autolink / bare-URL preservation', () => {
+  it('keeps a bare URL bare instead of rewriting it to [url](url)', () => {
+    expect(roundTrip('visit https://sim.ai today').trim()).toBe('visit https://sim.ai today')
+    expect(roundTrip('both https://a.com and https://b.com').trim()).toBe(
+      'both https://a.com and https://b.com'
+    )
+  })
+
+  it('collapses an angle autolink and a bare email to their bare form', () => {
+    expect(roundTrip('see <https://sim.ai> here').trim()).toBe('see https://sim.ai here')
+    expect(roundTrip('mail <a@b.com> now').trim()).toBe('mail a@b.com now')
+  })
+
+  it('preserves explicit and titled links (only bare autolinks collapse)', () => {
+    expect(roundTrip('[Sim](https://sim.ai)').trim()).toBe('[Sim](https://sim.ai)')
+    expect(roundTrip('[https://a.com](https://b.com)').trim()).toBe(
+      '[https://a.com](https://b.com)'
+    )
+    expect(roundTrip('[text](https://x.com "t")').trim()).toBe('[text](https://x.com "t")')
+  })
+
+  it('never collapses a URL that only appears inside code', () => {
+    expect(roundTrip('```\nvisit https://sim.ai\n```').trim()).toBe(
+      '```\nvisit https://sim.ai\n```'
+    )
+    expect(roundTrip('inline `https://sim.ai` code').trim()).toBe('inline `https://sim.ai` code')
+  })
+
+  it('round-trips a bare URL idempotently', () => {
+    const once = roundTrip('go to https://sim.ai now')
+    expect(roundTrip(once)).toBe(once)
+  })
 })

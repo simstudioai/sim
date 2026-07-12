@@ -1,3 +1,4 @@
+import { contextDevHosting } from '@/tools/context_dev/hosting'
 import type {
   ContextDevBrandResponse,
   ContextDevGetBrandByEmailParams,
@@ -22,6 +23,8 @@ export const contextDevGetBrandByEmailTool: ToolConfig<
   description:
     'Retrieve brand data from a work email address. Free/disposable emails are rejected (422).',
   version: '1.0.0',
+
+  hosting: contextDevHosting<ContextDevGetBrandByEmailParams>(),
 
   params: {
     email: {

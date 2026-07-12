@@ -14,13 +14,25 @@ vi.mock('@/lib/oauth/oauth', () => ({
 
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
+const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: mockDecryptSecret,
+  encryptSecret: vi.fn(async (value: string) => ({ encrypted: value, iv: 'iv' })),
+}))
+
 import { db } from '@sim/db'
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  SLACK_CUSTOM_BOT_PROVIDER_ID,
+} from '@/lib/oauth/types'
+import {
   getCredential,
   refreshAccessTokenIfNeeded,
   refreshTokenIfNeeded,
+  resolveServiceAccountToken,
 } from '@/app/api/auth/oauth/utils'
 
 const mockDb = db as any
@@ -260,6 +272,63 @@ describe('OAuth Utils', () => {
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
       expect(token).toBeNull()
+    })
+  })
+
+  describe('resolveServiceAccountToken', () => {
+    it('throws loudly for an unknown provider (never silently attempts Google)', async () => {
+      await expect(resolveServiceAccountToken('cred-1', 'mystery-provider')).rejects.toThrow(
+        /Unsupported service-account provider/
+      )
+    })
+
+    it('returns the decrypted bot token for a custom Slack bot', async () => {
+      mockSelectChain([
+        {
+          type: 'service_account',
+          providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
+          encryptedServiceAccountKey: 'enc',
+        },
+      ])
+      mockDecryptSecret.mockResolvedValueOnce({
+        decrypted: JSON.stringify({ signingSecret: 's', botToken: 'xoxb-tok', teamId: 'T1' }),
+      })
+      const result = await resolveServiceAccountToken('cred-1', SLACK_CUSTOM_BOT_PROVIDER_ID)
+      expect(result.accessToken).toBe('xoxb-tok')
+    })
+
+    it('throws when the Slack bot credential is missing', async () => {
+      mockSelectChain([])
+      await expect(
+        resolveServiceAccountToken('cred-1', SLACK_CUSTOM_BOT_PROVIDER_ID)
+      ).rejects.toThrow(/Slack bot credential not found/)
+    })
+
+    it('returns apiToken + cloudId + domain for Atlassian', async () => {
+      mockSelectChain([{ encryptedServiceAccountKey: 'enc' }])
+      mockDecryptSecret.mockResolvedValueOnce({
+        decrypted: JSON.stringify({
+          type: 'atlassian_service_account',
+          apiToken: 'atk',
+          domain: 'acme.atlassian.net',
+          cloudId: 'cloud-1',
+        }),
+      })
+      const result = await resolveServiceAccountToken(
+        'cred-1',
+        ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
+      )
+      expect(result).toMatchObject({
+        accessToken: 'atk',
+        cloudId: 'cloud-1',
+        domain: 'acme.atlassian.net',
+      })
+    })
+
+    it('requires scopes for a Google service account', async () => {
+      await expect(
+        resolveServiceAccountToken('cred-1', GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID, [])
+      ).rejects.toThrow(/Scopes are required/)
     })
   })
 })

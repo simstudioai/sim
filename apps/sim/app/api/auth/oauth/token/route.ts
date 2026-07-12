@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -10,14 +11,13 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  getAtlassianServiceAccountSecret,
   getCredential,
   getOAuthToken,
-  getServiceAccountToken,
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
+  resolveServiceAccountToken,
 } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -96,6 +96,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
+        recordAudit({
+          actorId: auth.userId,
+          action: AuditAction.CREDENTIAL_ACCESSED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: providerId,
+          description: `Accessed OAuth credential for provider ${providerId}`,
+          metadata: {
+            provider: providerId,
+            credentialType: 'oauth',
+            credentialAccountUserId,
+          },
+          request,
+        })
+        captureServerEvent(auth.userId, 'credential_used', {
+          credential_type: 'oauth',
+          provider_id: providerId,
+        })
+
         return NextResponse.json({ accessToken }, { status: 200 })
       } catch (error) {
         const message = getErrorMessage(error, 'Failed to get OAuth token')
@@ -120,24 +138,51 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
       }
 
+      const saActorId = authz.requesterUserId
+      const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
+      const emitServiceAccountAccess = () => {
+        if (!saActorId) return
+        recordAudit({
+          workspaceId: saWorkspaceId,
+          actorId: saActorId,
+          action: AuditAction.CREDENTIAL_ACCESSED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: resolved.credentialId ?? credentialId,
+          description: `Accessed service account credential for provider ${resolved.providerId ?? 'unknown'}`,
+          metadata: {
+            provider: resolved.providerId,
+            credentialType: 'service_account',
+          },
+          request,
+        })
+        captureServerEvent(
+          saActorId,
+          'credential_used',
+          {
+            credential_type: 'service_account',
+            provider_id: resolved.providerId ?? 'unknown',
+            ...(saWorkspaceId ? { workspace_id: saWorkspaceId } : {}),
+          },
+          saWorkspaceId ? { groups: { workspace: saWorkspaceId } } : undefined
+        )
+      }
+
       try {
-        if (resolved.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
-          const secret = await getAtlassianServiceAccountSecret(resolved.credentialId)
-          return NextResponse.json(
-            {
-              accessToken: secret.apiToken,
-              cloudId: secret.cloudId,
-              domain: secret.domain,
-            },
-            { status: 200 }
-          )
-        }
-        const accessToken = await getServiceAccountToken(
+        const result = await resolveServiceAccountToken(
           resolved.credentialId,
+          resolved.providerId,
           scopes ?? [],
           impersonateEmail
         )
-        return NextResponse.json({ accessToken }, { status: 200 })
+        emitServiceAccountAccess()
+        return NextResponse.json(
+          {
+            accessToken: result.accessToken,
+            cloudId: result.cloudId,
+            domain: result.domain,
+          },
+          { status: 200 }
+        )
       } catch (error) {
         logger.error(`[${requestId}] Service account token error:`, error)
         return NextResponse.json({ error: 'Failed to get service account token' }, { status: 401 })
@@ -165,12 +210,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
+    const oauthActorId = authz.requesterUserId
+    const oauthWorkspaceId = authz.workspaceId ?? null
+
     try {
       const { accessToken } = await refreshTokenIfNeeded(
         requestId,
         credential,
         resolvedCredentialId
       )
+
+      if (oauthActorId) {
+        recordAudit({
+          workspaceId: oauthWorkspaceId,
+          actorId: oauthActorId,
+          action: AuditAction.CREDENTIAL_ACCESSED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: resolvedCredentialId,
+          description: `Accessed OAuth credential for provider ${credential.providerId}`,
+          metadata: {
+            provider: credential.providerId,
+            credentialType: 'oauth',
+          },
+          request,
+        })
+        captureServerEvent(
+          oauthActorId,
+          'credential_used',
+          {
+            credential_type: 'oauth',
+            provider_id: credential.providerId,
+            ...(oauthWorkspaceId ? { workspace_id: oauthWorkspaceId } : {}),
+          },
+          oauthWorkspaceId ? { groups: { workspace: oauthWorkspaceId } } : undefined
+        )
+      }
 
       let instanceUrl: string | undefined
       if (credential.providerId === 'salesforce' && credential.scope) {
@@ -247,12 +321,41 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
+    const actorId = authz.requesterUserId
+    const workspaceId = authz.workspaceId ?? null
+
     try {
       const { accessToken } = await refreshTokenIfNeeded(
         requestId,
         credential,
         resolvedCredentialId
       )
+
+      if (actorId) {
+        recordAudit({
+          workspaceId,
+          actorId,
+          action: AuditAction.CREDENTIAL_ACCESSED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: resolvedCredentialId,
+          description: `Accessed OAuth credential for provider ${credential.providerId}`,
+          metadata: {
+            provider: credential.providerId,
+            credentialType: 'oauth',
+          },
+          request,
+        })
+        captureServerEvent(
+          actorId,
+          'credential_used',
+          {
+            credential_type: 'oauth',
+            provider_id: credential.providerId,
+            ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          },
+          workspaceId ? { groups: { workspace: workspaceId } } : undefined
+        )
+      }
 
       // For Salesforce, extract instanceUrl from the scope field
       let instanceUrl: string | undefined

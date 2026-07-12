@@ -16,11 +16,11 @@ interface SettingsUnsavedGuard {
 
 /**
  * Wires a settings surface's local dirty state into the shared
- * `useSettingsDirtyStore`, so the sidebar's section-switch confirmation and the
- * centralized `beforeunload` both apply without per-page wiring. Also provides
- * an in-view back/close guard (`guardBack` + the shared `UnsavedChangesModal`)
- * for detail sub-views whose "back" is an in-component state change rather than
- * a route navigation.
+ * `useSettingsDirtyStore`, so the sidebar's leave confirmation (section switch,
+ * Back, workspace switch) and the centralized `beforeunload` both apply without
+ * per-page wiring. Also provides an in-view back/close guard (`guardBack` + the
+ * shared `UnsavedChangesModal`) for detail sub-views whose "back" is an
+ * in-component state change rather than a route navigation.
  */
 export function useSettingsUnsavedGuard({
   isDirty,

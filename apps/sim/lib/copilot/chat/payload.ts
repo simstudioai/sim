@@ -3,11 +3,16 @@ import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
+import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot/block-visibility'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
-import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import {
+  filterExposedIntegrationTools,
+  getExposedIntegrationTools,
+} from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -36,6 +41,8 @@ interface BuildPayloadParams {
   workspaceContext?: string
   vfs?: VfsSnapshotV1
   userPermission?: string
+  /** Plan/flag-gated org capabilities (e.g. "custom-blocks") the mothership gates tools/prompts on. */
+  entitlements?: string[]
   userTimezone?: string
   userMetadata?: {
     name?: string
@@ -73,9 +80,12 @@ const integrationToolSchemaCache = new LRUCache<string, IntegrationToolSchemaCac
 function getIntegrationToolSchemaCacheKey(
   userId: string,
   workspaceId: string | undefined,
-  schemaSurface: string
+  schemaSurface: string,
+  visSignature: string
 ): string {
-  return JSON.stringify([userId, workspaceId ?? null, schemaSurface])
+  // The visibility signature keys the entry to the viewer's gated projection —
+  // two users in one workspace with different preview reveals must not share.
+  return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature])
 }
 
 function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
@@ -110,7 +120,13 @@ export async function buildIntegrationToolSchemas(
   workspaceId?: string
 ): Promise<ToolSchema[]> {
   const schemaSurface = options.schemaSurface ?? 'copilot'
-  const cacheKey = getIntegrationToolSchemaCacheKey(userId, workspaceId, schemaSurface)
+  const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
+  const cacheKey = getIntegrationToolSchemaCacheKey(
+    userId,
+    workspaceId,
+    schemaSurface,
+    visibilitySignature(vis)
+  )
   const cached = integrationToolSchemaCache.get(cacheKey)
   if (cached) {
     return cloneToolSchemas(await cached.promise)
@@ -120,7 +136,8 @@ export async function buildIntegrationToolSchemas(
     userId,
     messageId,
     { schemaSurface },
-    workspaceId
+    workspaceId,
+    vis
   ).catch((error) => {
     integrationToolSchemaCache.delete(cacheKey)
     throw error
@@ -137,7 +154,8 @@ async function buildIntegrationToolSchemasUncached(
   userId: string,
   messageId: string | undefined,
   options: Required<BuildIntegrationToolSchemasOptions>,
-  workspaceId?: string
+  workspaceId?: string,
+  vis: BlockVisibilityState | null = null
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
@@ -186,7 +204,8 @@ async function buildIntegrationToolSchemasUncached(
       }
     }
 
-    for (const { toolId, config: toolConfig, service } of getExposedIntegrationTools()) {
+    const exposedTools = filterExposedIntegrationTools(getExposedIntegrationTools(), vis)
+    for (const { toolId, config: toolConfig, service } of exposedTools) {
       try {
         if (allowedIntegrations && toolIdToBlockType) {
           const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
@@ -370,6 +389,7 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.vfs ? { vfs: params.vfs } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
+    ...(params.entitlements?.length ? { entitlements: params.entitlements } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.userMetadata &&
     (params.userMetadata.name || params.userMetadata.email || params.userMetadata.timezone)

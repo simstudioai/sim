@@ -6,6 +6,7 @@ import {
   AnthropicIcon,
   BasetenIcon,
   BrandfetchIcon,
+  ContextDevIcon,
   DatagmaIcon,
   DropcontactIcon,
   EnrowIcon,
@@ -33,6 +34,7 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  xAIIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
 import { MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
@@ -74,6 +76,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'xai',
+    name: 'xAI',
+    icon: xAIIcon,
+    description: 'LLM calls',
+    placeholder: 'xai-...',
   },
   {
     id: 'fireworks',
@@ -123,6 +132,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: ExaAIIcon,
     description: 'AI-powered search and research',
     placeholder: 'Enter your Exa API key',
+  },
+  {
+    id: 'context_dev',
+    name: 'Context.dev',
+    icon: ContextDevIcon,
+    description: 'Web scraping, crawling, search, and brand intelligence',
+    placeholder: 'Enter your Context.dev API key',
   },
   {
     id: 'serper',
@@ -279,6 +295,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'anthropic',
       'google',
       'mistral',
+      'xai',
       'fireworks',
       'together',
       'baseten',
@@ -291,6 +308,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
     ids: [
       'firecrawl',
       'exa',
+      'context_dev',
       'serper',
       'linkup',
       'parallel_ai',

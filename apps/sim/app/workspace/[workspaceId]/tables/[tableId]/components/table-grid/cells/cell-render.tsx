@@ -85,6 +85,12 @@ export function resolveCellRender({
       return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'value', text }
     }
 
+    // Enrichment outputs share an empty blockId, so `runningBlockIds` can never
+    // match them — the group-level `running` status is the only "worker picked
+    // this up" signal an enrichment cell has. Checked after the value so a
+    // rerun keeps showing the previous output until the new result lands.
+    if (isEnrichmentOutput && exec?.status === 'running') return { kind: 'running' }
+
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
       // A `pending` cell whose jobId starts with `paused-` is mid-pause
       // (workflow yielded for human-in-the-loop). Render as Pending rather

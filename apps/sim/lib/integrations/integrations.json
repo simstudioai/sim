@@ -3871,23 +3871,11 @@
           "description": "Retrieve brand data for a public company by its stock ticker symbol."
         },
         {
-          "name": "Get Brand (Simplified)",
-          "description": "Retrieve essential brand data for a domain: title, colors, logos, and backdrops."
-        },
-        {
           "name": "Identify Transaction",
           "description": "Identify the brand behind a raw bank/card transaction descriptor and return its brand data."
-        },
-        {
-          "name": "Prefetch Domain",
-          "description": "Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits)."
-        },
-        {
-          "name": "Prefetch by Email",
-          "description": "Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected."
         }
       ],
-      "operationCount": 22,
+      "operationCount": 19,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -9862,6 +9850,89 @@
       "tags": ["customer-support", "ticketing", "incident-management"]
     },
     {
+      "type": "jupyter",
+      "slug": "jupyter",
+      "name": "Jupyter",
+      "description": "Manage files, notebooks, kernels, and sessions on a Jupyter server",
+      "longDescription": "Integrate a self-hosted Jupyter server into the workflow. Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.",
+      "bgColor": "#FFFFFF",
+      "iconName": "JupyterIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/jupyter",
+      "operations": [
+        {
+          "name": "List Contents",
+          "description": "List files, notebooks, and subdirectories at a path on a Jupyter server"
+        },
+        {
+          "name": "Get Content",
+          "description": "Read a file or notebook from a Jupyter server"
+        },
+        {
+          "name": "Create File",
+          "description": "Create a file, notebook, or directory on a Jupyter server"
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload a file to a Jupyter server"
+        },
+        {
+          "name": "Rename Content",
+          "description": "Rename or move a file, notebook, or directory on a Jupyter server"
+        },
+        {
+          "name": "Delete Content",
+          "description": "Delete a file, notebook, or directory on a Jupyter server"
+        },
+        {
+          "name": "Copy Content",
+          "description": "Duplicate a file or notebook into a directory on a Jupyter server"
+        },
+        {
+          "name": "List Kernels",
+          "description": "List running kernels on a Jupyter server"
+        },
+        {
+          "name": "Start Kernel",
+          "description": "Start a new kernel on a Jupyter server"
+        },
+        {
+          "name": "Stop Kernel",
+          "description": "Shut down a running kernel on a Jupyter server"
+        },
+        {
+          "name": "Restart Kernel",
+          "description": "Restart a running kernel on a Jupyter server"
+        },
+        {
+          "name": "Interrupt Kernel",
+          "description": "Interrupt a running kernel on a Jupyter server"
+        },
+        {
+          "name": "List Kernel Specs",
+          "description": "List available kernel specs (languages/runtimes) on a Jupyter server"
+        },
+        {
+          "name": "List Sessions",
+          "description": "List active sessions (notebook-to-kernel bindings) on a Jupyter server"
+        },
+        {
+          "name": "Create Session",
+          "description": "Create a session that binds a notebook path to a (new or existing) kernel"
+        },
+        {
+          "name": "Delete Session",
+          "description": "Delete a session on a Jupyter server (does not shut down its kernel)"
+        }
+      ],
+      "operationCount": 16,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["automation", "data-analytics"]
+    },
+    {
       "type": "kalshi_v2",
       "slug": "kalshi",
       "name": "Kalshi",
@@ -11809,9 +11880,14 @@
           "id": "microsoftteams_webhook",
           "name": "Microsoft Teams Channel",
           "description": "Trigger workflow from Microsoft Teams channel messages via outgoing webhooks"
+        },
+        {
+          "id": "microsoftteams_chat_subscription",
+          "name": "Microsoft Teams Chat",
+          "description": "Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions"
         }
       ],
-      "triggerCount": 1,
+      "triggerCount": 2,
       "authType": "oauth",
       "oauthServiceId": "microsoft-teams",
       "category": "tools",

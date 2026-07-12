@@ -12,6 +12,7 @@ import {
   sanitizeSubBlocksForDuplicate,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   deriveForkBlockId,
   type ForkBlockIdResolver,
@@ -20,6 +21,7 @@ import {
   applyDependentOverrides,
   collectClearedDependents,
   type NeedsConfigurationField,
+  type SubBlockTransform,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type {
   BlockData,
@@ -32,12 +34,6 @@ import type {
 } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkspaceForkCopyWorkflows')
-
-type SubBlockTransform = (
-  subBlocks: SubBlockRecord,
-  blockType: string,
-  canonicalModes?: Record<string, 'basic' | 'advanced'>
-) => SubBlockRecord
 
 interface ResolveForkFolderMappingParams {
   tx: DbOrTx
@@ -433,13 +429,18 @@ export async function copyWorkflowStateIntoTarget(
     const sourceSubBlocks = (block.subBlocks ?? {}) as unknown as SubBlockRecord
     const sanitizedSource = sanitizeSubBlocksForDuplicate(sourceSubBlocks)
     let subBlocks: SubBlockRecord = sanitizedSource
+    // Tracks the block's live `canonicalModes` through this pass, so a `tool-input` reindex
+    // (a dropped custom-tool/MCP entry shifts later tools' array positions) is visible to every
+    // later step below that resolves a nested tool's basic/advanced mode - not just the final
+    // persisted `updatedData`. Starts as the source value; `transformSubBlocks` may replace it.
+    let activeCanonicalModes: CanonicalModeOverrides | undefined = (
+      block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined
+    )?.canonicalModes
     if (transformSubBlocks) {
-      subBlocks = transformSubBlocks(
-        subBlocks,
-        block.type,
-        (block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined)
-          ?.canonicalModes
-      )
+      subBlocks = transformSubBlocks(subBlocks, block.type, activeCanonicalModes, (next) => {
+        activeCanonicalModes = next
+        updatedData = { ...updatedData, canonicalModes: next } as BlockData
+      })
     }
     if (varIdMapping.size > 0) {
       subBlocks = remapVariableIdsInSubBlocks(subBlocks, varIdMapping)
@@ -448,9 +449,7 @@ export async function copyWorkflowStateIntoTarget(
     // rather than leave them pointing at the source workspace.
     subBlocks = remapWorkflowReferencesInSubBlocks(subBlocks, workflowIdMap, {
       clearUnmapped: true,
-      canonicalModes: (
-        block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined
-      )?.canonicalModes,
+      canonicalModes: activeCanonicalModes,
     })
     subBlocks = remapConditionIdsInSubBlocks(subBlocks, oldBlockId, newBlockId) as SubBlockRecord
 
@@ -477,8 +476,7 @@ export async function copyWorkflowStateIntoTarget(
           block.name,
           targetCurrent,
           subBlocks,
-          (block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined)
-            ?.canonicalModes
+          activeCanonicalModes
         )
       )
     }

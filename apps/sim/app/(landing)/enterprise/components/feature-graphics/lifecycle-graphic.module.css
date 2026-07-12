@@ -1,0 +1,30 @@
+/**
+ * The LifecycleGraphic's only motion: a soft ring pulse blooming from the
+ * live version node every 6s — quiet state confirmation rather than travel,
+ * keeping this tile stiller than the deploy tile beside it. The spine's
+ * connector lines are static (styled in the TSX). Under
+ * prefers-reduced-motion the pulse is removed and the node sits static.
+ */
+
+.livePulse {
+  animation: lifecycle-live-pulse 6s ease-out infinite;
+}
+
+@keyframes lifecycle-live-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .livePulse {
+    animation: none;
+  }
+}

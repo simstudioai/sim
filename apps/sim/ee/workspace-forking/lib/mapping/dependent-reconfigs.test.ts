@@ -369,7 +369,8 @@ describe('collectForkDependentReconfigs', () => {
         blockName: 'Block',
         subBlockKey: 'tools[0].folder',
         selectorKey: 'gmail.labels',
-        title: 'Gmail 1: Label',
+        title: 'Label',
+        toolName: 'Gmail 1',
         currentValue: 'INBOX',
         required: true,
         consumesContextKeys: [],
@@ -410,7 +411,7 @@ describe('collectForkDependentReconfigs', () => {
       return undefined as unknown as BlockConfig
     })
     // Agent block with a nested gmail tool; the dormant basic credential holds a stale id while the
-    // tool-scoped `gmail:credential` override (when present) marks advanced as active.
+    // tool-scoped `0:credential` override (when present) marks advanced as active.
     const agentState = (canonicalModes?: Record<string, 'basic' | 'advanced'>) =>
       ({
         blocks: {
@@ -446,7 +447,7 @@ describe('collectForkDependentReconfigs', () => {
     // verbatim on sync, so its dependents are never cleared and no re-pick is offered.
     const withOverride = collectForkDependentReconfigs(
       [replaceItem],
-      new Map([['wf-src', agentState({ 'gmail:credential': 'advanced' })]]),
+      new Map([['wf-src', agentState({ '0:credential': 'advanced' })]]),
       resolve
     )
     expect(withOverride).toEqual([])
@@ -461,6 +462,95 @@ describe('collectForkDependentReconfigs', () => {
     expect(heuristic[0]).toMatchObject({
       parentSourceId: 'cred-stale',
       subBlockKey: 'tools[0].folder',
+    })
+  })
+
+  it('regression: two same-type nested tools resolve their canonical-mode override independently', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'gmail')
+        return blockWith([
+          {
+            id: 'credential',
+            title: 'Credential',
+            type: 'oauth-input',
+            canonicalParamId: 'credential',
+            mode: 'basic',
+          },
+          {
+            id: 'manualCredential',
+            title: 'Credential ID',
+            type: 'short-input',
+            canonicalParamId: 'credential',
+            mode: 'advanced',
+          },
+          {
+            id: 'folder',
+            title: 'Label',
+            type: 'folder-selector',
+            dependsOn: ['credential'],
+            selectorKey: 'gmail.labels',
+            required: true,
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        {
+          blocks: {
+            'block-1': {
+              id: 'block-1',
+              type: 'agent',
+              name: 'Block',
+              // Tool #0 is scoped to advanced (manual mode passes through - no re-pick, per the
+              // test above); tool #1 is scoped to basic (re-pick offered on its own value). Both
+              // are the SAME tool type ("gmail") and the SAME canonicalId ("credential"), so only
+              // the per-instance index can tell them apart - before the fix both shared the single
+              // `gmail:credential` key, which would have made tool #1 advanced-active too (and
+              // therefore ALSO skipped, dropping the result to zero entries instead of one).
+              data: { canonicalModes: { '0:credential': 'advanced', '1:credential': 'basic' } },
+              subBlocks: {
+                tools: {
+                  value: [
+                    {
+                      type: 'gmail',
+                      title: 'Gmail 1',
+                      params: {
+                        credential: 'cred-0-stale',
+                        manualCredential: 'cred-0-active',
+                        folder: 'INBOX',
+                      },
+                    },
+                    {
+                      type: 'gmail',
+                      title: 'Gmail 2',
+                      params: {
+                        credential: 'cred-1-basic',
+                        manualCredential: 'cred-1-stale',
+                        folder: 'SENT',
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          edges: [],
+          loops: {},
+          parallels: {},
+          variables: {},
+        } as unknown as WorkflowState,
+      ],
+    ])
+
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      parentSourceId: 'cred-1-basic',
+      subBlockKey: 'tools[1].folder',
     })
   })
 
@@ -494,7 +584,11 @@ describe('collectForkDependentReconfigs', () => {
     ])
     const result = collectForkDependentReconfigs([replaceItem], states, resolve)
     expect(result).toHaveLength(1)
-    expect(result[0]).toMatchObject({ subBlockKey: 'tools[0].folder', title: 'Gmail 1: Label' })
+    expect(result[0]).toMatchObject({
+      subBlockKey: 'tools[0].folder',
+      title: 'Label',
+      toolName: 'Gmail 1',
+    })
   })
 
   it('evaluates a nested tool selector condition against the tool-level operation', () => {

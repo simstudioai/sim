@@ -2,6 +2,7 @@ import { setupGlobalFetchMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import {
+  findMissingRequiredCustomBlockInputs,
   remapCustomBlockInputKeys,
   WorkflowBlockHandler,
 } from '@/executor/handlers/workflow/workflow-handler'
@@ -430,5 +431,69 @@ describe('remapCustomBlockInputKeys', () => {
     expect(
       remapCustomBlockInputKeys({ f2: 'not json' }, childBlocks as Record<string, unknown>)
     ).toEqual({ payload: 'not json' })
+  })
+})
+
+describe('findMissingRequiredCustomBlockInputs', () => {
+  const childBlocks = {
+    start: {
+      type: 'start_trigger',
+      subBlocks: {
+        inputFormat: {
+          value: [
+            { id: 'f1', name: 'firstName', type: 'string' },
+            { id: 'f2', name: 'payload', type: 'object' },
+            { name: 'legacyField', type: 'string' },
+          ],
+        },
+      },
+    },
+  } as Record<string, unknown>
+
+  it('flags a required field left empty and reports its display name', () => {
+    expect(findMissingRequiredCustomBlockInputs(['f1'], childBlocks, {})).toEqual(['firstName'])
+    expect(findMissingRequiredCustomBlockInputs(['f1'], childBlocks, { firstName: '' })).toEqual([
+      'firstName',
+    ])
+    expect(findMissingRequiredCustomBlockInputs(['f1'], childBlocks, { firstName: null })).toEqual([
+      'firstName',
+    ])
+  })
+
+  it('passes when the required field has a value', () => {
+    expect(
+      findMissingRequiredCustomBlockInputs(['f1'], childBlocks, { firstName: 'Theodore' })
+    ).toEqual([])
+    expect(findMissingRequiredCustomBlockInputs(['f1'], childBlocks, { firstName: 0 })).toEqual([])
+    expect(findMissingRequiredCustomBlockInputs(['f1'], childBlocks, { firstName: false })).toEqual(
+      []
+    )
+  })
+
+  it('ignores a stale required override whose field was removed from the Start', () => {
+    expect(findMissingRequiredCustomBlockInputs(['removed-field'], childBlocks, {})).toEqual([])
+  })
+
+  it('treats fields without an override as optional', () => {
+    expect(findMissingRequiredCustomBlockInputs(['f1'], childBlocks, { firstName: 'x' })).toEqual(
+      []
+    )
+    expect(findMissingRequiredCustomBlockInputs([], childBlocks, {})).toEqual([])
+  })
+
+  it('keys legacy fields without a stable id by name', () => {
+    expect(findMissingRequiredCustomBlockInputs(['legacyField'], childBlocks, {})).toEqual([
+      'legacyField',
+    ])
+    expect(
+      findMissingRequiredCustomBlockInputs(['legacyField'], childBlocks, { legacyField: 'v' })
+    ).toEqual([])
+  })
+
+  it('reports every missing required field at once', () => {
+    expect(findMissingRequiredCustomBlockInputs(['f1', 'f2'], childBlocks, {})).toEqual([
+      'firstName',
+      'payload',
+    ])
   })
 })

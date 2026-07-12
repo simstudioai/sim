@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 919,
-  zodRoutes: 919,
+  totalRoutes: 927,
+  zodRoutes: 927,
   nonZodRoutes: 0,
 } as const
 
@@ -69,6 +69,11 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
   'apps/sim/app/api/webhooks/outbox/process/route.ts',
   'apps/sim/app/api/webhooks/cleanup/idempotency/route.ts',
+  // Shared Slack app event ingest. The body is an opaque, HMAC-verified Slack
+  // event envelope (varies per event type) read via parseWebhookBody; there is
+  // no client contract to bind — authenticity is enforced by signature.
+  'apps/sim/app/api/webhooks/slack/route.ts',
+  'apps/sim/app/api/webhooks/slack/custom/[credentialId]/route.ts',
   'apps/sim/app/api/resume/poll/route.ts',
   // MCP routes that take only auth context (no client-supplied params/query/body).
   'apps/sim/app/api/mcp/discover/route.ts',

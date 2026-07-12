@@ -89,6 +89,18 @@ export interface PollingConfigContext {
  * Each provider implements only the methods it needs — all methods are optional.
  */
 export interface WebhookProviderHandler {
+  /**
+   * Restrict deliveries to a provider-owned ingress route instead of the generic per-webhook
+   * path route. Use when the provider sends all app events to one callback before target lookup.
+   */
+  ingressMode?: 'path' | 'provider'
+
+  /**
+   * Queue workflow execution through the configured durable backend instead of the low-latency
+   * in-process path. Use for providers whose ingress is acknowledged before target processing.
+   */
+  executionMode?: 'inline' | 'queue'
+
   /** Verify signature/auth. Return NextResponse(401/403) on failure, null on success. */
   verifyAuth?(ctx: AuthContext): Promise<NextResponse | null> | NextResponse | null
 

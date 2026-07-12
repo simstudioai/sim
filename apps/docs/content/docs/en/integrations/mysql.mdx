@@ -10,6 +10,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[MySQL](https://www.mysql.com/) is a widely used open-source relational database system. The MySQL block connects your workflow directly to a MySQL database, letting you read and write data without leaving Sim. It handles the connection details—host, port, database, credentials, and SSL mode—so blocks can query, insert, update, delete, and execute raw SQL against your database.
+
+With the MySQL block, you can:
+
+- **Query data**: Run SELECT statements and get back rows with a row count
+- **Insert, update, and delete records**: Write key-value data to a table or modify existing rows with a WHERE clause
+- **Execute raw SQL**: Run arbitrary SQL statements, such as DDL for creating tables
+- **Introspect the schema**: Retrieve table structures, columns, keys, indexes, and the list of available databases on the server
+
+In Sim, the MySQL block allows your agents to read from and write to a MySQL database as part of a workflow—querying records to feed downstream logic, inserting or updating rows based on agent output, cleaning up data with deletes, running custom SQL for one-off operations, and introspecting the schema to understand table structure before generating queries.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.

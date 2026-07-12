@@ -86,6 +86,10 @@ export const stripeWebhookTrigger: TriggerConfig = {
         { label: 'invoice.voided', id: 'invoice.voided' },
         { label: 'invoice.marked_uncollectible', id: 'invoice.marked_uncollectible' },
         { label: 'invoice.overdue', id: 'invoice.overdue' },
+        {
+          label: 'invoice.payment_attempt_required',
+          id: 'invoice.payment_attempt_required',
+        },
 
         // Products & Prices
         { label: 'product.created', id: 'product.created' },
@@ -149,6 +153,7 @@ export const stripeWebhookTrigger: TriggerConfig = {
 
         // Balance
         { label: 'balance.available', id: 'balance.available' },
+        { label: 'balance_settings.updated', id: 'balance_settings.updated' },
       ],
       placeholder: 'Leave empty to receive all events',
       description:

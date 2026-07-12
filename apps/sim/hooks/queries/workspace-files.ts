@@ -140,12 +140,20 @@ async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Pro
  * Hook to fetch workspace file content as text.
  * `key` (the storage object key) is forwarded into the query key factory so that a new
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
+ *
+ * `refetchInterval` lets a caller poll while waiting for the server content to advance — the
+ * editor's post-stream reconcile (see `use-editable-file-content.ts`) exits only when a fetch
+ * returns content that moved past its baseline, and would otherwise wedge read-only forever if
+ * its single refetch raced the agent's write. The function form is re-evaluated by react-query
+ * after every fetch and options pass, so a condition read through a ref stops the polling as soon
+ * as it flips — no re-render required.
  */
 export function useWorkspaceFileContent(
   workspaceId: string,
   fileId: string,
   key: string,
-  raw?: boolean
+  raw?: boolean,
+  options?: { refetchInterval?: number | false | (() => number | false) }
 ) {
   const source = useFileContentSource()
   return useQuery({
@@ -155,6 +163,7 @@ export function useWorkspaceFileContent(
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
     refetchOnWindowFocus: 'always',
+    refetchInterval: options?.refetchInterval ?? false,
   })
 }
 

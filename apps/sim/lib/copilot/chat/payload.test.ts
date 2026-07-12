@@ -53,7 +53,17 @@ vi.mock('@/tools/utils', () => ({
   stripVersionSuffix: vi.fn((toolId: string) => toolId),
 }))
 
+vi.mock('@/lib/copilot/block-visibility', () => ({
+  getBlockVisibilityForCopilot: vi.fn(async () => ({
+    revealed: new Set<string>(),
+    disabled: new Set<string>(),
+    previewTagged: new Set<string>(),
+  })),
+  visibilitySignature: vi.fn(() => 'vis:none'),
+}))
+
 vi.mock('@/lib/copilot/integration-tools', () => ({
+  filterExposedIntegrationTools: vi.fn((tools: unknown[]) => tools),
   getExposedIntegrationTools: vi.fn(() => [
     {
       toolId: 'gmail_send',
@@ -226,5 +236,35 @@ describe('buildCopilotRequestPayload', () => {
         },
       })
     )
+  })
+
+  it('passes entitlements through and omits the field when empty', async () => {
+    const withEntitlements = await buildCopilotRequestPayload(
+      {
+        message: 'publish as a block',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: 'claude-opus-4-8',
+        workspaceId: 'ws-1',
+        entitlements: ['custom-blocks'],
+      },
+      { selectedModel: 'claude-opus-4-8' }
+    )
+    expect(withEntitlements).toEqual(expect.objectContaining({ entitlements: ['custom-blocks'] }))
+
+    const withoutEntitlements = await buildCopilotRequestPayload(
+      {
+        message: 'publish as a block',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: 'claude-opus-4-8',
+        workspaceId: 'ws-1',
+        entitlements: [],
+      },
+      { selectedModel: 'claude-opus-4-8' }
+    )
+    expect(withoutEntitlements).not.toHaveProperty('entitlements')
   })
 })

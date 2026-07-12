@@ -319,6 +319,7 @@ export const PUT = withRouteHandler(
         workspaceId: workflowData.workspaceId,
         currentName: workflowData.name,
         currentFolderId: workflowData.folderId,
+        currentLocked: workflowData.locked,
         ...updates,
         requestId,
       })

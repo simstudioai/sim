@@ -6,6 +6,7 @@ import {
   BREX_API_BASE,
   buildBrexHeaders,
   parseBrexJson,
+  toBrexDateTime,
 } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -87,8 +88,10 @@ export const brexListExpensesTool: ToolConfig<BrexListExpensesParams, BrexListEx
       appendBrexArrayParam(query, 'user_id[]', params.userIds)
       appendBrexArrayParam(query, 'status[]', params.statuses)
       appendBrexArrayParam(query, 'payment_status[]', params.paymentStatuses)
-      if (params.purchasedAtStart) query.append('purchased_at_start', params.purchasedAtStart)
-      if (params.purchasedAtEnd) query.append('purchased_at_end', params.purchasedAtEnd)
+      if (params.purchasedAtStart)
+        query.append('purchased_at_start', toBrexDateTime(params.purchasedAtStart))
+      if (params.purchasedAtEnd)
+        query.append('purchased_at_end', toBrexDateTime(params.purchasedAtEnd))
       appendBrexPagination(query, params)
       return `${BREX_API_BASE}/v1/expenses?${query.toString()}`
     },

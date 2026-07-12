@@ -1,0 +1,106 @@
+/**
+ * The StandardsGraphic's only motion: the certification seal blooms the
+ * row's shared 6s ring pulse — the same quiet state-confirmation beat as
+ * the lifecycle tile's live node and the access tile's grant node, inked
+ * with the deploy tile's light `--text-muted-inverse` so it reads on the
+ * dark `--text-secondary` tile surface. Removed under
+ * prefers-reduced-motion so the seal sits static.
+ */
+
+.sealPulse {
+  animation: standards-seal-pulse 6s ease-out infinite;
+}
+
+@keyframes standards-seal-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-muted-inverse) 55%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--text-muted-inverse) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-muted-inverse) 0%, transparent);
+  }
+}
+
+/**
+ * Connector draw loop, following the deploy tile's dash vocabulary:
+ * paths normalized to pathLength=1 draw in, hold, then un-draw forward
+ * (dashoffset continues to -1 so the line exits in its direction of
+ * travel) on the same 6s timeline as the seal pulse. The trailing
+ * connector (seal → Open source) runs the identical keyframes
+ * phase-shifted by 0.7s so the two lines read as a stagger.
+ */
+
+.connector {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: standards-connector-draw 6s ease-in-out infinite;
+}
+
+.connectorTrailing {
+  animation-delay: 0.7s;
+}
+
+@keyframes standards-connector-draw {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  16% {
+    stroke-dashoffset: 0;
+  }
+  68% {
+    stroke-dashoffset: 0;
+  }
+  84%,
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+
+/**
+ * Orbital ring sweeps — the deploy tile's white progress sweep bent around
+ * the certificate rings: each ring carries a fixed 50° arc stroked with a
+ * comet gradient (bright at the clockwise leading end, transparent at the
+ * tail) inside a group that rotates around the seal center for a slow,
+ * seamless orbit. Rotation replaced the earlier stroke-dash offset loop
+ * because a dash that wraps the circle's path start renders a seam
+ * artifact (a stray cap segment at the wrap point); a rotating group has
+ * no seam. Both orbits share the 14s period; the outer ring runs half a
+ * revolution out of phase so the two sweeps never align.
+ */
+
+.ringSweep {
+  transform-box: view-box;
+  transform-origin: 160px 112px;
+  animation: standards-ring-orbit 14s linear infinite;
+}
+
+.ringSweepOuter {
+  animation-delay: -7s;
+}
+
+@keyframes standards-ring-orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sealPulse {
+    animation: none;
+  }
+
+  .connector {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .ringSweep {
+    display: none;
+  }
+}

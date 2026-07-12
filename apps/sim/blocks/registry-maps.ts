@@ -157,6 +157,7 @@ import {
   JiraServiceManagementBlock,
   JiraServiceManagementBlockMeta,
 } from '@/blocks/blocks/jira_service_management'
+import { JupyterBlock, JupyterBlockMeta } from '@/blocks/blocks/jupyter'
 import {
   KalshiBlock,
   KalshiBlockMeta,
@@ -272,7 +273,7 @@ import { ShopifyBlock, ShopifyBlockMeta } from '@/blocks/blocks/shopify'
 import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
-import { SlackBlock, SlackBlockMeta } from '@/blocks/blocks/slack'
+import { SlackBlock, SlackBlockMeta, SlackV2Block } from '@/blocks/blocks/slack'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SportmonksBlock, SportmonksBlockMeta } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
@@ -294,6 +295,7 @@ import { TemporalBlock, TemporalBlockMeta } from '@/blocks/blocks/temporal'
 import { TextractBlock, TextractBlockMeta, TextractV2Block } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { ThriveBlock, ThriveBlockMeta } from '@/blocks/blocks/thrive'
+import { TikTokBlock, TikTokBlockMeta } from '@/blocks/blocks/tiktok'
 import { TinybirdBlock, TinybirdBlockMeta } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock, TrelloBlockMeta } from '@/blocks/blocks/trello'
@@ -479,6 +481,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   jina: JinaBlock,
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
+  jupyter: JupyterBlock,
   kalshi: KalshiBlock,
   kalshi_v2: KalshiV2Block,
   ketch: KetchBlock,
@@ -581,6 +584,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   similarweb: SimilarwebBlock,
   sixtyfour: SixtyfourBlock,
   slack: SlackBlock,
+  slack_v2: SlackV2Block,
   smtp: SmtpBlock,
   sportmonks: SportmonksBlock,
   spotify: SpotifyBlock,
@@ -604,6 +608,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   textract_v2: TextractV2Block,
   thinking: ThinkingBlock,
   thrive: ThriveBlock,
+  tiktok: TikTokBlock,
   tinybird: TinybirdBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
@@ -772,6 +777,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   jina: JinaBlockMeta,
   jira: JiraBlockMeta,
   jira_service_management: JiraServiceManagementBlockMeta,
+  jupyter: JupyterBlockMeta,
   kalshi: KalshiBlockMeta,
   kalshi_v2: KalshiV2BlockMeta,
   ketch: KetchBlockMeta,
@@ -871,6 +877,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   temporal: TemporalBlockMeta,
   textract: TextractBlockMeta,
   thrive: ThriveBlockMeta,
+  tiktok: TikTokBlockMeta,
   tinybird: TinybirdBlockMeta,
   trello: TrelloBlockMeta,
   trigger_dev: TriggerDevBlockMeta,

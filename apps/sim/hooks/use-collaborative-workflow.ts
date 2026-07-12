@@ -12,6 +12,7 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
+import { getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
@@ -27,7 +28,6 @@ import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { getSubBlocksDependingOnChange } from '@/blocks/utils'
-import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {
@@ -54,7 +54,11 @@ import type {
   Position,
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
-import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
+import {
+  filterAcyclicEdges,
+  findAllDescendantNodes,
+  isBlockProtected,
+} from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
 
@@ -231,6 +235,11 @@ export function useCollaborativeWorkflow() {
               useWorkflowStore
                 .getState()
                 .setBlockCanonicalMode(payload.id, payload.canonicalId, payload.canonicalMode)
+              break
+            case BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES:
+              useWorkflowStore
+                .getState()
+                .setBlockCanonicalModes(payload.id, payload.data?.canonicalModes ?? {})
               break
           }
         } else if (target === OPERATION_TARGETS.BLOCKS) {
@@ -1023,27 +1032,26 @@ export function useCollaborativeWorkflow() {
       }
 
       const trimmedName = name.trim()
-      const normalizedNewName = normalizeName(trimmedName)
+      const currentBlocks = useWorkflowStore.getState().blocks
+      const siblingNamesById = Object.fromEntries(
+        Object.entries(currentBlocks).map(([blockId, b]) => [blockId, b.name])
+      )
+      const conflict = getWorkflowBlockNameConflict(id, trimmedName, siblingNamesById)
 
-      if (!normalizedNewName) {
+      if (conflict?.reason === 'empty') {
         logger.error('Cannot rename block to empty name')
         toast.error('Block name cannot be empty')
         return { success: false, error: 'Block name cannot be empty' }
       }
 
-      if ((RESERVED_BLOCK_NAMES as readonly string[]).includes(normalizedNewName)) {
+      if (conflict?.reason === 'reserved') {
         logger.error(`Cannot rename block to reserved name: "${trimmedName}"`)
         toast.error(`"${trimmedName}" is a reserved name and cannot be used`)
         return { success: false, error: `"${trimmedName}" is a reserved name` }
       }
 
-      const currentBlocks = useWorkflowStore.getState().blocks
-      const conflictingBlock = Object.entries(currentBlocks).find(
-        ([blockId, block]) => blockId !== id && normalizeName(block.name) === normalizedNewName
-      )
-
-      if (conflictingBlock) {
-        const conflictName = conflictingBlock[1].name
+      if (conflict?.reason === 'duplicate') {
+        const conflictName = currentBlocks[conflict.conflictingBlockId as string].name
         logger.error(`Cannot rename block to "${trimmedName}" - conflicts with "${conflictName}"`)
         toast.error(`Block name "${trimmedName}" already exists`)
         return { success: false, error: `Block name "${trimmedName}" already exists` }
@@ -1277,6 +1285,39 @@ export function useCollaborativeWorkflow() {
     [isBaselineDiffView, activeWorkflowId, addToQueue, session?.user?.id]
   )
 
+  /**
+   * Wholesale-replaces `block.data.canonicalModes`, rather than merging one key like
+   * {@link collaborativeSetBlockCanonicalMode}. Needed to reindex nested tool-input overrides on
+   * reorder/removal: a merge can't atomically drop a now-stale index key, and sequential
+   * per-key sets can clobber each other when two tools swap positions.
+   */
+  const collaborativeSetBlockCanonicalModes = useCallback(
+    (id: string, canonicalModes: Record<string, 'basic' | 'advanced'>) => {
+      if (isBaselineDiffView) {
+        return
+      }
+
+      useWorkflowStore.getState().setBlockCanonicalModes(id, canonicalModes)
+
+      if (!activeWorkflowId) {
+        return
+      }
+
+      const operationId = generateId()
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES,
+          target: OPERATION_TARGETS.BLOCK,
+          payload: { id, data: { canonicalModes } },
+        },
+        workflowId: activeWorkflowId,
+        userId: session?.user?.id || 'unknown',
+      })
+    },
+    [isBaselineDiffView, activeWorkflowId, addToQueue, session?.user?.id]
+  )
+
   const collaborativeBatchToggleBlockHandles = useCallback(
     (ids: string[]) => {
       if (isBaselineDiffView) {
@@ -1385,7 +1426,12 @@ export function useCollaborativeWorkflow() {
       const currentEdges = useWorkflowStore.getState().edges
       const validEdges = filterValidEdges(edges, blocks)
       const newEdges = filterNewEdges(validEdges, currentEdges)
-      if (newEdges.length === 0) return false
+      // Reject cyclic edges here, before they are queued for realtime/DB
+      // persistence — the local store also runs this check, but only after
+      // an unfiltered payload would already be enqueued. Filtering once
+      // here keeps the queued payload and the local store in agreement.
+      const acyclicEdges = filterAcyclicEdges(newEdges, currentEdges)
+      if (acyclicEdges.length === 0) return false
 
       const operationId = generateId()
 
@@ -1394,16 +1440,16 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
           target: OPERATION_TARGETS.EDGES,
-          payload: { edges: newEdges },
+          payload: { edges: acyclicEdges },
         },
         workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
       })
 
-      useWorkflowStore.getState().batchAddEdges(newEdges, { skipValidation: true })
+      useWorkflowStore.getState().batchAddEdges(acyclicEdges, { skipValidation: true })
 
       if (!options?.skipUndoRedo) {
-        newEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
+        acyclicEdges.forEach((edge) => undoRedo.recordAddEdge(edge.id))
       }
 
       return true
@@ -2166,6 +2212,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
     collaborativeSetBlockCanonicalMode,
+    collaborativeSetBlockCanonicalModes,
     collaborativeBatchToggleBlockHandles,
     collaborativeBatchToggleLocked,
     collaborativeBatchAddBlocks,

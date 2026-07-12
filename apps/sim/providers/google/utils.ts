@@ -351,6 +351,47 @@ export function mapToThinkingLevel(level: string): ThinkingLevel {
 }
 
 /**
+ * Per-model thinkingBudget ranges for Gemini 2.5-series models. Unlike Gemini 3.x, these
+ * models reject `thinkingLevel` entirely (Gemini API docs: "Gemini 2.5 series models don't
+ * support thinkingLevel; use thinkingBudget instead") and require a numeric token budget
+ * within each model's own documented range.
+ */
+const GEMINI_25_THINKING_BUDGETS: Record<string, Record<string, number>> = {
+  'gemini-2.5-pro': { low: 2048, medium: 8192, high: 32768 }, // valid range 128-32768, cannot disable
+  'gemini-2.5-flash': { low: 2048, medium: 8192, high: 24576 }, // valid range 0-24576
+  'gemini-2.5-flash-lite': { low: 1024, medium: 8192, high: 24576 }, // valid range 512-24576
+}
+
+/**
+ * Maps a named thinking level to a `thinkingBudget` token count for Gemini 2.5-series models.
+ * Falls back to -1 (dynamic/automatic budget) for any model not in the explicit table above,
+ * rather than guessing a number that could fall outside an unmapped model's valid range.
+ */
+export function mapToThinkingBudget(model: string, level: string): number {
+  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  const budgets = GEMINI_25_THINKING_BUDGETS[normalized]
+  if (!budgets) return -1
+  return budgets[level.toLowerCase()] ?? budgets.high
+}
+
+/**
+ * Gemini 2.5-series models that accept `thinkingBudget: 0` to explicitly disable thinking.
+ * gemini-2.5-pro cannot disable thinking at all (its documented budget floor is 128, not 0),
+ * so it's deliberately excluded here.
+ */
+const GEMINI_25_MODELS_SUPPORTING_DISABLE = new Set(['gemini-2.5-flash', 'gemini-2.5-flash-lite'])
+
+/**
+ * Whether this Gemini 2.5-series model supports explicitly disabling thinking via budget=0.
+ * Omitting thinkingConfig entirely (the 'none' no-op path) falls back to the API's own
+ * dynamic default, which is ON for gemini-2.5-flash — not the same as actually disabling it.
+ */
+export function supportsDisablingGemini25Thinking(model: string): boolean {
+  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  return GEMINI_25_MODELS_SUPPORTING_DISABLE.has(normalized)
+}
+
+/**
  * Result of checking forced tool usage
  */
 export interface ForcedToolResult {

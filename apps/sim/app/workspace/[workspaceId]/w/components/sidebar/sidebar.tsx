@@ -110,6 +110,7 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
@@ -1072,16 +1073,21 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
     fileInputRef.current?.click()
   }
 
+  const requestLeave = useSettingsDirtyStore((s) => s.requestLeave)
+
   const handleWorkspaceSwitch = useCallback(
-    async (workspace: Workspace) => {
+    (workspace: Workspace) => {
       if (workspace.id === workspaceId) {
         setIsWorkspaceMenuOpen(false)
         return
       }
-      await switchWorkspace(workspace)
+      // Close the switcher first so the settings discard dialog (if any) is visible.
       setIsWorkspaceMenuOpen(false)
+      requestLeave(() => {
+        void switchWorkspace(workspace)
+      })
     },
-    [workspaceId, switchWorkspace]
+    [workspaceId, switchWorkspace, requestLeave]
   )
 
   const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {

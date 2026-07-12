@@ -292,14 +292,16 @@ export interface PostHogEventMap {
   }
 
   api_key_created: {
-    workspace_id: string
+    workspace_id?: string
     key_name: string
+    scope?: 'workspace' | 'personal'
     source?: 'settings' | 'deploy_modal'
   }
 
   api_key_revoked: {
-    workspace_id: string
+    workspace_id?: string
     key_name: string
+    scope?: 'workspace' | 'personal'
   }
 
   mcp_server_connected: {
@@ -339,13 +341,15 @@ export interface PostHogEventMap {
   }
 
   environment_updated: {
-    workspace_id: string
+    workspace_id?: string
     key_count: number
+    scope?: 'workspace' | 'personal'
   }
 
   environment_deleted: {
-    workspace_id: string
+    workspace_id?: string
     key_count: number
+    scope?: 'workspace' | 'personal'
   }
 
   seats_provisioned: {
@@ -356,8 +360,8 @@ export interface PostHogEventMap {
   }
 
   copilot_chat_sent: {
-    workflow_id: string
-    workspace_id: string
+    workflow_id?: string
+    workspace_id?: string
     has_file_attachments: boolean
     has_contexts: boolean
     mode: string
@@ -443,7 +447,7 @@ export interface PostHogEventMap {
   }
 
   file_downloaded: {
-    workspace_id: string
+    workspace_id?: string
     is_bulk: boolean
     file_count: number
   }
@@ -652,6 +656,119 @@ export interface PostHogEventMap {
     workspace_id: string
     file_name: string
     file_size: number
+  }
+
+  organization_created: {
+    organization_id: string
+    name?: string
+  }
+
+  /** Org membership lifecycle (distinct from workspace-level membership). */
+  org_member_added: {
+    organization_id: string
+    member_role: string
+  }
+
+  org_member_removed: {
+    organization_id: string
+    is_self_removal: boolean
+  }
+
+  org_member_role_changed: {
+    organization_id: string
+    new_role: string
+  }
+
+  /** Org seat count decreased (member removal / drift reconciliation). */
+  seats_deprovisioned: {
+    organization_id: string
+    previous_seats: number
+    seats: number
+    reason: string
+  }
+
+  /** A workflow's edit-lock was toggled on or off. */
+  workflow_lock_toggled: {
+    workflow_id: string
+    workspace_id?: string
+    locked: boolean
+  }
+
+  workflow_schedule_created: {
+    workflow_id: string
+    workspace_id: string
+  }
+
+  workflow_schedule_deleted: {
+    workflow_id: string
+    workspace_id: string
+  }
+
+  /** A stored credential's plaintext secret was deliberately retrieved via the token API. */
+  credential_used: {
+    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    provider_id: string
+    workspace_id?: string
+  }
+
+  payment_succeeded: {
+    plan: string
+    amount: number
+    currency: string
+    entity_type: 'user' | 'organization'
+    reference_id: string
+  }
+
+  payment_failed: {
+    plan: string
+    amount: number
+    currency: string
+    entity_type: 'user' | 'organization'
+    reference_id: string
+    attempt_count: number
+  }
+
+  overage_billed: {
+    amount: number
+    currency: string
+    entity_type: 'user' | 'organization'
+    reference_id: string
+    settled_via: 'stripe' | 'credits'
+  }
+
+  credits_purchased: {
+    amount: number
+    currency: string
+    entity_type: 'user' | 'organization'
+    reference_id: string
+  }
+
+  charge_disputed: {
+    amount: number
+    currency: string
+    reason: string
+    status: 'opened' | 'closed'
+    entity_type: 'user' | 'organization'
+    reference_id: string
+  }
+
+  plan_converted: {
+    organization_id: string
+    from_plan: string
+    to_plan: string
+  }
+
+  enterprise_subscription_created: {
+    reference_id: string
+    seats: number
+    monthly_price: number
+    currency: string
+  }
+
+  subscription_transferred: {
+    subscription_id: string
+    from_entity: 'user' | 'organization'
+    to_entity: 'user' | 'organization'
   }
 }
 

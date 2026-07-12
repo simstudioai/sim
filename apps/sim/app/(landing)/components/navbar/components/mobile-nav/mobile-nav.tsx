@@ -10,6 +10,7 @@ import {
   NAVBAR_GLASS_SURFACE,
   useNavbarFrost,
 } from '@/app/(landing)/components/navbar/components/navbar-shell'
+import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
 /**
  * Mobile navigation - the `< lg` counterpart to the desktop nav clusters.
@@ -38,7 +39,10 @@ interface MobileNavProps {
  * {@link NAV_MENUS} automatically expands them here as grouped sections too - the
  * sheet mirrors the desktop nav's information architecture with no extra edit.
  */
-const STANDALONE_LINKS = [{ label: 'Pricing', href: '/pricing' }] as const
+const STANDALONE_LINKS = [
+  { label: 'Enterprise', href: '/enterprise' },
+  { label: 'Pricing', href: '/pricing' },
+] as const
 
 /** Shared row chrome for every tappable text link in the sheet. */
 const SHEET_ROW =
@@ -67,7 +71,7 @@ export function MobileNav({ stars }: MobileNavProps) {
 
   return (
     <div className='ml-auto flex items-center gap-2 lg:hidden'>
-      <ChipLink variant='primary' href='/signup' prefetch={false}>
+      <ChipLink variant='primary' href={SIGNUP_HREF} prefetch={false}>
         Sign up
       </ChipLink>
       <button
@@ -151,18 +155,19 @@ export function MobileNav({ stars }: MobileNavProps) {
 
           <div className='mt-3 flex flex-col gap-2'>
             <ChipLink
+              variant='border'
               href='/login'
               fullWidth
               flush
               prefetch={false}
-              className='h-[40px] justify-center border border-[var(--border-1)] [&>span]:flex-none'
+              className='h-[40px] justify-center [&>span]:flex-none'
               onClick={() => setOpen(false)}
             >
               Log in
             </ChipLink>
             <ChipLink
               variant='primary'
-              href='/demo'
+              href={DEMO_HREF}
               fullWidth
               flush
               className='h-[40px] justify-center [&>span]:flex-none'

@@ -1,10 +1,18 @@
 import { JiraIcon } from '@/components/icons'
-import { buildIssueOutputs, jiraSetupInstructions, jiraTriggerOptions } from '@/triggers/jira/utils'
+import { buildTriggerSubBlocks } from '@/triggers'
+import {
+  buildIssueOutputs,
+  buildJiraExtraFields,
+  jiraSetupInstructions,
+  jiraTriggerOptions,
+} from '@/triggers/jira/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
  * Jira Issue Created Trigger
  * Triggers when a new issue is created in Jira
+ *
+ * Primary trigger — includes the dropdown for selecting trigger type.
  */
 export const jiraIssueCreatedTrigger: TriggerConfig = {
   id: 'jira_issue_created',
@@ -14,70 +22,16 @@ export const jiraIssueCreatedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: JiraIcon,
 
-  subBlocks: [
-    {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: jiraTriggerOptions,
-      value: () => 'jira_issue_created',
-      required: true,
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_created',
-      },
-    },
-    {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
-      placeholder: 'Enter a strong secret',
-      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
-      password: true,
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_created',
-      },
-    },
-    {
-      id: 'jqlFilter',
-      title: 'JQL Filter',
-      type: 'long-input',
-      placeholder: 'project = PROJ AND issuetype = Bug',
-      description: 'Filter which issues trigger this workflow using JQL (Jira Query Language)',
-      required: false,
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_created',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: jiraSetupInstructions('jira:issue_created'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_created',
-      },
-    },
-  ],
+  subBlocks: buildTriggerSubBlocks({
+    triggerId: 'jira_issue_created',
+    triggerOptions: jiraTriggerOptions,
+    includeDropdown: true,
+    setupInstructions: jiraSetupInstructions('jira:issue_created'),
+    extraFields: buildJiraExtraFields(
+      'jira_issue_created',
+      'Filter which issues trigger this workflow using JQL (Jira Query Language)'
+    ),
+  }),
 
   outputs: buildIssueOutputs(),
 
