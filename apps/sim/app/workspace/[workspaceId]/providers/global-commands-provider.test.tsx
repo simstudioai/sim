@@ -19,6 +19,11 @@ function RegisterModK({ handler }: { handler: () => void }) {
   return null
 }
 
+function RegisterModKOutsideEditable({ handler }: { handler: () => void }) {
+  useRegisterGlobalCommands([{ id: 'search', shortcut: 'Mod+K', handler, allowInEditable: false }])
+  return null
+}
+
 let container: HTMLDivElement
 let root: Root
 
@@ -83,6 +88,73 @@ describe('GlobalCommandsProvider owned-shortcut yielding', () => {
       </GlobalCommandsProvider>
     )
     ;(container.querySelector('[data-owned-shortcuts]') as HTMLElement).focus()
+    pressModK()
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('GlobalCommandsProvider editable guard', () => {
+  /**
+   * jsdom does not implement `isContentEditable`, so stub the browser's computed
+   * editability on the element the test focuses.
+   */
+  function focusWithEditability(element: HTMLElement, isContentEditable: boolean) {
+    Object.defineProperty(element, 'isContentEditable', { value: isContentEditable })
+    element.focus()
+  }
+
+  it('skips a non-editable command when focus is in an input', () => {
+    const handler = vi.fn()
+    mount(
+      <GlobalCommandsProvider>
+        <RegisterModKOutsideEditable handler={handler} />
+        <input type='text' />
+      </GlobalCommandsProvider>
+    )
+    ;(container.querySelector('input') as HTMLInputElement).focus()
+    pressModK()
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('skips a non-editable command when focus is in a contenteditable element', () => {
+    const handler = vi.fn()
+    mount(
+      <GlobalCommandsProvider>
+        <RegisterModKOutsideEditable handler={handler} />
+        <div contentEditable />
+      </GlobalCommandsProvider>
+    )
+    focusWithEditability(container.querySelector('[contenteditable]') as HTMLElement, true)
+    pressModK()
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('skips a non-editable command when focus is on a descendant of a contenteditable root', () => {
+    const handler = vi.fn()
+    mount(
+      <GlobalCommandsProvider>
+        <RegisterModKOutsideEditable handler={handler} />
+        <div contentEditable>
+          {/* biome-ignore lint/a11y/noNoninteractiveTabindex: focusable stand-in for a node view inside the editor */}
+          <span tabIndex={0} />
+        </div>
+      </GlobalCommandsProvider>
+    )
+    focusWithEditability(container.querySelector('span') as HTMLElement, true)
+    pressModK()
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('fires a non-editable command when focus is in a contenteditable="false" element', () => {
+    const handler = vi.fn()
+    mount(
+      <GlobalCommandsProvider>
+        <RegisterModKOutsideEditable handler={handler} />
+        {/* biome-ignore lint/a11y/noNoninteractiveTabindex: focusable stand-in for a read-only editor */}
+        <div contentEditable={false} tabIndex={0} />
+      </GlobalCommandsProvider>
+    )
+    focusWithEditability(container.querySelector('[contenteditable]') as HTMLElement, false)
     pressModK()
     expect(handler).toHaveBeenCalledTimes(1)
   })

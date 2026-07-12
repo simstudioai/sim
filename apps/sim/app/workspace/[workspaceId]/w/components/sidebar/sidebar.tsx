@@ -120,18 +120,20 @@ export function SidebarTooltip({
   label,
   enabled,
   side = 'right',
+  shortcut,
 }: {
   children: React.ReactElement
   label: string
   enabled: boolean
   side?: 'right' | 'bottom'
+  shortcut?: string
 }) {
   if (!enabled) return children
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
       <Tooltip.Content side={side}>
-        <p>{label}</p>
+        {shortcut ? <Tooltip.Shortcut keys={shortcut}>{label}</Tooltip.Shortcut> : <p>{label}</p>}
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -1234,6 +1236,12 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
           handleCreateWorkflow()
         },
       },
+      {
+        id: 'toggle-sidebar',
+        handler: () => {
+          toggleCollapsed()
+        },
+      },
     ])
   )
 
@@ -1284,7 +1292,12 @@ export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
                 isCollapsed={isCollapsed}
                 onExpandSidebar={toggleCollapsed}
               />
-              <SidebarTooltip label='Collapse sidebar' enabled={!isCollapsed} side='bottom'>
+              <SidebarTooltip
+                label='Collapse sidebar'
+                enabled={!isCollapsed}
+                side='bottom'
+                shortcut={isMac ? '⌘B' : 'Ctrl+B'}
+              >
                 <button
                   type='button'
                   onClick={toggleCollapsed}
