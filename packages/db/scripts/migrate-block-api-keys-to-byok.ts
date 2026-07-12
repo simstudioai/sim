@@ -11,7 +11,7 @@
 //                                        (e.g. jina, perplexity).
 //   --model-map <modelPrefix>=<providerId>
 //                                        LLM-family blocks (agent, router, evaluator,
-//                                        translate, guardrails). These share one model-gated
+//                                        translate, guardrails, pi). These share one model-gated
 //                                        `apiKey` subblock across every LLM provider, so the
 //                                        block type alone is NOT enough — the key is only taken
 //                                        when the block's selected `model` starts with the given
@@ -81,7 +81,14 @@ const BLOCK_TYPE_TO_PROVIDER = parseMapArgs()
 // across every provider, so the key is only attributed to a provider when the block's selected
 // `model` matches a prefix. This is every block whose model dropdown is getModelOptions(); the
 // deprecated `vision` block is excluded — its curated model list offers no grok models.
-const LLM_FAMILY_BLOCK_TYPES = ['agent', 'router', 'evaluator', 'translate', 'guardrails'] as const
+const LLM_FAMILY_BLOCK_TYPES = [
+  'agent',
+  'router',
+  'evaluator',
+  'translate',
+  'guardrails',
+  'pi',
+] as const
 
 function parseModelMapArgs(): Record<string, string> {
   const mapping: Record<string, string> = {}
@@ -143,7 +150,7 @@ function parseRequireKeyPrefixArgs(): Record<string, string> {
     if (args[i] === '--require-key-prefix' && args[i + 1]) {
       const idx = args[i + 1].indexOf('=')
       const providerId = idx >= 0 ? args[i + 1].slice(0, idx).trim() : ''
-      const prefix = idx >= 0 ? args[i + 1].slice(idx + 1) : ''
+      const prefix = idx >= 0 ? args[i + 1].slice(idx + 1).trim() : ''
       if (providerId && prefix) {
         mapping[providerId] = prefix
       } else {
