@@ -397,14 +397,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       mode: 'advanced',
     },
     {
-      id: 'filterCandidateId',
-      title: 'Candidate ID Filter',
-      type: 'short-input',
-      placeholder: 'Filter by candidate UUID',
-      condition: { field: 'operation', value: 'list_applications' },
-      mode: 'advanced',
-    },
-    {
       id: 'createdAfter',
       title: 'Created After',
       type: 'short-input',
@@ -762,9 +754,6 @@ Output only the JSON array, nothing else.`,
         if (params.searchEmail) result.email = params.searchEmail
         if (params.filterStatus) result.status = params.filterStatus
         if (params.filterJobId) result.jobId = params.filterJobId
-        if (params.operation === 'list_applications' && params.filterCandidateId) {
-          result.candidateId = params.filterCandidateId
-        }
         if (params.jobStatus) result.status = params.jobStatus
         if (params.sendNotifications === 'true' || params.sendNotifications === true) {
           result.sendNotifications = true
@@ -853,7 +842,6 @@ Output only the JSON array, nothing else.`,
     sendNotifications: { type: 'boolean', description: 'Send notifications' },
     filterStatus: { type: 'string', description: 'Application status filter' },
     filterJobId: { type: 'string', description: 'Job UUID filter' },
-    filterCandidateId: { type: 'string', description: 'Candidate UUID filter' },
     createdAfter: { type: 'string', description: 'Filter by creation date' },
     openedAfter: { type: 'string', description: 'Filter jobs opened after this timestamp' },
     openedBefore: { type: 'string', description: 'Filter jobs opened before this timestamp' },

@@ -68,4 +68,18 @@ describe('AshbyBlock', () => {
       expect(socialLinks?.wandConfig?.generationType).not.toBe('json-object')
     })
   })
+
+  describe('list_applications candidateId filter', () => {
+    it('has no filterCandidateId subBlock or wiring', () => {
+      // Ashby's application.list endpoint silently ignores a candidateId
+      // body field (confirmed live: passing a nonexistent candidate UUID
+      // still returns unfiltered results) — the correct path for a
+      // candidate's applications is ashby_get_candidate's applicationIds.
+      expect(AshbyBlock.subBlocks.find((s) => s.id === 'filterCandidateId')).toBeUndefined()
+      const result = AshbyBlock.tools.config.params!(
+        buildParams('list_applications', { filterCandidateId: 'some-id' })
+      )
+      expect(result.candidateId).toBeUndefined()
+    })
+  })
 })
