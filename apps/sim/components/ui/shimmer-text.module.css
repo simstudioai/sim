@@ -29,6 +29,8 @@
 @media (prefers-reduced-motion: reduce) {
   .shimmer {
     background-image: none;
+    -webkit-background-clip: initial;
+    background-clip: initial;
     color: var(--shimmer-rest, var(--text-body));
     animation: shimmer-pulse 2.2s ease-in-out infinite;
   }
