@@ -46,16 +46,6 @@ interface GenerateAudioResult {
   _serviceCost?: { service: string; cost: number }
 }
 
-function audioExtFromContentType(contentType: string): string {
-  if (contentType.includes('wav')) return 'wav'
-  if (contentType.includes('mp4') || contentType.includes('m4a')) return 'm4a'
-  if (contentType.includes('ogg')) return 'ogg'
-  if (contentType.includes('flac')) return 'flac'
-  if (contentType.includes('aac')) return 'aac'
-  if (contentType.includes('opus')) return 'opus'
-  return 'mp3'
-}
-
 export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, GenerateAudioResult> = {
   name: GenerateAudio.id,
 
@@ -123,15 +113,14 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         voiceSampleDataUri,
       })
 
-      const ext = audioExtFromContentType(result.contentType)
-      const outputPath = outputFile?.path || `files/generated-audio.${ext}`
-      const mode = outputFile?.mode ?? 'create'
+      const outputPath = outputFile.path
+      const mode = outputFile.mode
 
       assertServerToolNotAborted(context)
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
-        target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
+        target: { path: outputPath, mode, mimeType: outputFile.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,
       })

@@ -94,7 +94,11 @@ describe('media tool path validation', () => {
     mocks.resolveWorkspaceFileReference.mockResolvedValue(null)
 
     const result = await generateAudioServerTool.execute(
-      { prompt: 'Clone this voice', inputs: { files: [{ path: '' }] } },
+      {
+        prompt: 'Clone this voice',
+        inputs: { files: [{ path: '' }] },
+        outputs: { files: [{ path: 'files/voice.mp3' }] },
+      },
       CONTEXT
     )
 
@@ -140,6 +144,34 @@ describe('media tool path validation', () => {
     expect(mocks.runFfmpegOperation).not.toHaveBeenCalled()
   })
 
+  it('ignores unused output declarations for ffmpeg probes', async () => {
+    mocks.resolveWorkspaceFileReference.mockResolvedValue(UPLOAD_RECORD)
+    mocks.runFfmpegOperation.mockResolvedValue({ probe: { duration: 3 } })
+
+    const result = await ffmpegServerTool.execute(
+      {
+        operation: 'probe',
+        inputs: { files: [{ path: 'files/input.mov' }] },
+        outputs: { files: [{ path: 'uploads/unused.json' }] },
+      },
+      CONTEXT
+    )
+
+    expect(result.success).toBe(true)
+    expect(mocks.validateWorkspaceFileWriteTarget).not.toHaveBeenCalled()
+    expect(mocks.writeWorkspaceFileByPath).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing generated-media outputs before calling the provider', async () => {
+    const result = await generateVideoServerTool.execute(
+      { prompt: 'Create a launch video' },
+      CONTEXT
+    )
+
+    expect(result.success).toBe(false)
+    expect(mocks.generateFalVideo).not.toHaveBeenCalled()
+  })
+
   it('passes uploads/ media files to ffmpeg', async () => {
     mocks.resolveChatUpload.mockResolvedValue(UPLOAD_RECORD)
 
@@ -166,6 +198,7 @@ describe('media tool path validation', () => {
       {
         prompt: 'Animate these portraits',
         inputs: { files: [{ path: 'files/one.png' }, { path: 'files/two.png' }] },
+        outputs: { files: [{ path: 'files/output.mp4' }] },
       },
       CONTEXT
     )

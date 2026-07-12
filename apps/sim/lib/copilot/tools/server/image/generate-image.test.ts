@@ -172,7 +172,11 @@ describe('generateImageServerTool', () => {
 
   it('rejects explicitly empty input and output containers before generation', async () => {
     const emptyInputs = await generateImageServerTool.execute(
-      { prompt: 'Edit the supplied image', inputs: {} },
+      {
+        prompt: 'Edit the supplied image',
+        inputs: {},
+        outputs: { files: [{ path: 'files/result.png' }] },
+      },
       CONTEXT
     )
     const emptyOutputs = await generateImageServerTool.execute(

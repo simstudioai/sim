@@ -82,11 +82,14 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
     }
 
     try {
-      const outputFile = await prepareMediaOutput({
-        output: params.outputs,
-        workspaceId,
-        userId: context.userId,
-      })
+      const outputFile =
+        params.operation === 'probe'
+          ? undefined
+          : await prepareMediaOutput({
+              output: params.outputs,
+              workspaceId,
+              userId: context.userId,
+            })
 
       const mediaFiles: MediaFile[] = []
       for (const filePath of inputPaths) {
@@ -127,18 +130,21 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         }
       }
 
-      if (!result.buffer || !result.ext) {
+      if (!result.buffer) {
         return { success: false, message: `ffmpeg ${params.operation} produced no output` }
       }
+      if (!outputFile) {
+        return { success: false, message: `ffmpeg ${params.operation} requires an output file` }
+      }
 
-      const outputPath = outputFile?.path || `files/ffmpeg-${params.operation}.${result.ext}`
-      const mode = outputFile?.mode ?? 'create'
+      const outputPath = outputFile.path
+      const mode = outputFile.mode
 
       assertServerToolNotAborted(context)
       const written = await writeWorkspaceFileByPath({
         workspaceId,
         userId: context.userId,
-        target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
+        target: { path: outputPath, mode, mimeType: outputFile.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType || 'application/octet-stream',
       })

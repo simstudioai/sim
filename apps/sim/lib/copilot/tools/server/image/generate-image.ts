@@ -163,10 +163,9 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         }
       }
 
-      const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png'
-      const resolvedOutputPath = outputFile?.path || `files/generated-image${ext}`
+      const resolvedOutputPath = outputFile.path
       const imageBuffer = Buffer.from(imageBase64, 'base64')
-      const mode = outputFile?.mode ?? 'create'
+      const mode = outputFile.mode
 
       assertServerToolNotAborted(context)
       const written = await writeWorkspaceFileByPath({
@@ -175,7 +174,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         target: {
           path: resolvedOutputPath,
           mode,
-          mimeType: outputFile?.mimeType,
+          mimeType: outputFile.mimeType,
         },
         buffer: imageBuffer,
         inferredMimeType: mimeType,

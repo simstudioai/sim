@@ -23,6 +23,7 @@ vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
 
 import {
   getSingleMediaFileDeclaration,
+  prepareMediaOutput,
   resolveMediaInputFile,
   validateMediaOutputFile,
 } from '@/lib/copilot/tools/server/media/file-paths'
@@ -48,6 +49,20 @@ describe('media file paths', () => {
 
     expect(mocks.resolveChatUpload).toHaveBeenCalledWith('My%20Portrait.png', 'chat-1')
     expect(mocks.resolveWorkspaceFileReference).not.toHaveBeenCalled()
+  })
+
+  it('resolves uploads/ inputs with the read-compatible /content suffix', async () => {
+    mocks.resolveChatUpload.mockResolvedValue(FILE_RECORD)
+
+    await expect(
+      resolveMediaInputFile({
+        workspaceId: 'workspace-1',
+        chatId: 'chat-1',
+        path: 'uploads/My%20Portrait.png/content',
+      })
+    ).resolves.toBe(FILE_RECORD)
+
+    expect(mocks.resolveChatUpload).toHaveBeenCalledWith('My%20Portrait.png', 'chat-1')
   })
 
   it('rejects unresolved inputs instead of dropping them', async () => {
@@ -154,5 +169,16 @@ describe('media file paths', () => {
     expect(() => getSingleMediaFileDeclaration([], 'Output')).toThrow(
       'Output requires exactly one file; received 0'
     )
+  })
+
+  it('requires an explicit output before provider work can begin', async () => {
+    await expect(
+      prepareMediaOutput({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+      })
+    ).rejects.toThrow('Output requires exactly one file; received 0')
+
+    expect(mocks.validateWorkspaceFileWriteTarget).not.toHaveBeenCalled()
   })
 })

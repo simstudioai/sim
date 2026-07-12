@@ -49,8 +49,8 @@ export async function resolveMediaInputFile(args: {
   let file: WorkspaceFileRecord | null
 
   if (path.startsWith(UPLOADS_PREFIX)) {
-    const filename = path.slice(UPLOADS_PREFIX.length)
-    if (!filename || filename.includes('/')) {
+    const filename = path.slice(UPLOADS_PREFIX.length).split('/')[0]
+    if (!filename) {
       throw new Error(`Upload input path must identify a file: ${args.path}`)
     }
     if (!args.chatId) {
@@ -68,7 +68,7 @@ export async function resolveMediaInputFile(args: {
 }
 
 /**
- * Preflight a user-supplied media output through the canonical workspace writer policy.
+ * Preflight a media output through the canonical workspace writer policy.
  */
 export async function validateMediaOutputFile(args: {
   workspaceId: string
@@ -93,10 +93,8 @@ export async function prepareMediaOutput<T extends MediaOutputDeclaration>(args:
   output?: { files?: T[] }
   workspaceId: string
   userId: string
-}): Promise<(T & { mode: WorkspaceFileWriteMode }) | undefined> {
-  if (!args.output) return undefined
-
-  const file = getSingleMediaFileDeclaration(args.output.files, 'Output')
+}): Promise<T & { mode: WorkspaceFileWriteMode }> {
+  const file = getSingleMediaFileDeclaration(args.output?.files, 'Output')
   const output = { ...file, mode: file.mode ?? 'create' }
   await validateMediaOutputFile({
     workspaceId: args.workspaceId,
