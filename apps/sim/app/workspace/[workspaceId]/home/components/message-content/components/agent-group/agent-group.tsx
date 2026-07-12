@@ -23,6 +23,7 @@ export interface NestedAgentGroup {
 
 export type AgentGroupItem =
   | { type: 'text'; content: string }
+  | { type: 'thinking'; content: string }
   | { type: 'tool'; data: ToolCallData }
   | { type: 'agent_group'; group: NestedAgentGroup }
 
@@ -145,6 +146,16 @@ export function AgentGroup({
                           isLaneOpen={item.group.isOpen}
                         />
                       </div>
+                    )
+                  }
+                  if (item.type === 'thinking') {
+                    return (
+                      <span
+                        key={`thinking-${idx}`}
+                        className='pl-6 text-[13px] text-[var(--text-secondary)] italic leading-[18px] opacity-50'
+                      >
+                        {item.content.trim()}
+                      </span>
                     )
                   }
                   return (

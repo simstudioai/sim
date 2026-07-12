@@ -138,6 +138,15 @@ function appendTextItem(group: AgentGroupSegment, content: string): void {
   }
 }
 
+function appendThinkingItem(group: AgentGroupSegment, content: string): void {
+  const lastItem = group.items[group.items.length - 1]
+  if (lastItem?.type === 'thinking') {
+    lastItem.content += content
+  } else {
+    group.items.push({ type: 'thinking', content })
+  }
+}
+
 /**
  * Deterministic span-identity grouping. Every subagent-scoped block carries the
  * stable `spanId` of the run that produced it and a `parentSpanId` linking it to
@@ -244,12 +253,26 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    // Thinking is never rendered — a display-only omission; the reasoning is
-    // still reduced and persisted upstream. This covers subagent lanes too:
-    // reasoning-summary models (OpenAI effort-style) stream a summary on every
-    // tool round, which would otherwise fill the agent card with reasoning
-    // prose. The lane keeps its delegating spinner until real output arrives.
-    if (block.type === 'thinking' || block.type === 'subagent_thinking') continue
+    // Main-agent thinking is not rendered — a display-only omission; the
+    // reasoning is still reduced upstream (and stripped at persistence).
+    if (block.type === 'thinking') continue
+
+    // Subagent thinking renders in the lane as muted reasoning prose so a long
+    // thinking round (extended thinking after a tool result can run for
+    // minutes) reads as visible progress instead of a hung spinner. It does
+    // NOT clear isDelegating: the header spinner keeps signaling activity
+    // until real output or a tool arrives.
+    if (block.type === 'subagent_thinking') {
+      if (!block.content?.trim() || !block.spanId) continue
+      let g = groupsBySpanId.get(block.spanId)
+      // Out-of-order safety: see subagent_text branch below.
+      if (!g && block.subagent) {
+        g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId)
+      }
+      if (!g) continue
+      appendThinkingItem(g, block.content)
+      continue
+    }
 
     if (block.type === 'subagent_text') {
       if (!block.content || !block.spanId) continue
@@ -303,7 +326,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // emits its first content or tool (or ends). The legacy path derived this
       // from the dispatch tool_call, which the span path absorbs, so we set it
       // here. It is cleared in the subagent_text, scoped text, tool_call, and
-      // subagent_end branches (thinking is skipped, so it keeps the spinner).
+      // subagent_end branches (thinking renders but keeps the spinner).
       g.isDelegating = true
       g.isOpen = true
       continue
@@ -482,10 +505,20 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    // Subagent thinking is never rendered (same display-only omission as the
-    // span-tree parser): reasoning-summary models stream a summary every tool
-    // round and would flood the lane with reasoning prose.
-    if (block.type === 'subagent_thinking') continue
+    // Subagent thinking renders in the lane as muted reasoning prose (same
+    // rationale as the span-tree parser); it keeps the delegating spinner.
+    if (block.type === 'subagent_thinking') {
+      if (!block.content?.trim()) continue
+      const g = findGroupForSubagentChunk(block.parentToolCallId)
+      if (!g) continue
+      const lastItem = g.items[g.items.length - 1]
+      if (lastItem?.type === 'thinking') {
+        lastItem.content += block.content
+      } else {
+        g.items.push({ type: 'thinking', content: block.content })
+      }
+      continue
+    }
 
     if (block.type === 'subagent_text') {
       if (!block.content) continue
