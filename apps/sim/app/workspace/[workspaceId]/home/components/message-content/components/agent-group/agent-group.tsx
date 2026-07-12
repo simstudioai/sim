@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent, PillsRing } from '@sim/emcn'
+import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { ShimmerText } from '@/components/ui'
 import type { ToolCallData } from '../../../../types'
 import { getAgentIcon, isToolDone } from '../../utils'
 import { ToolCallItem } from './tool-call-item'
@@ -63,11 +64,7 @@ export function AgentGroup({
   const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
-  // Pure projection of the run's own state: a subagent header spins while it is
-  // delegating with no resolved work yet. A terminal turn closes the lane (its
-  // subagent block is stamped ended), which clears `isDelegating`, so no
-  // transport gating is needed to stop an aborted-before-first-tool spinner.
-  const showDelegatingSpinner = isDelegating && !resolved
+  const isWorking = (isDelegating && !resolved) || (isStreaming && isLaneOpen)
 
   // Expand while the turn is live and any of: the lane is open (the subagent is
   // actively running), this is the current/latest section, or there is unresolved
@@ -89,19 +86,19 @@ export function AgentGroup({
         <button
           type='button'
           onClick={() => setManualExpanded(!expanded)}
-          className='flex cursor-pointer items-center gap-2'
+          className='group/agent flex cursor-pointer items-center gap-2'
         >
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-            {showDelegatingSpinner ? (
-              <PillsRing className='size-[15px] text-[var(--text-icon)]' animate />
-            ) : (
-              <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
-            )}
+            <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
-          <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
+          {isWorking ? (
+            <ShimmerText className='text-sm'>{agentLabel}</ShimmerText>
+          ) : (
+            <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
+          )}
           <ChevronDown
             className={cn(
-              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
+              'h-[7px] w-[9px] text-[var(--text-icon)] opacity-0 transition-[transform,opacity] duration-150 group-hover/agent:opacity-100',
               !expanded && '-rotate-90'
             )}
           />
@@ -109,13 +106,13 @@ export function AgentGroup({
       ) : (
         <div className='flex items-center gap-2'>
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-            {showDelegatingSpinner ? (
-              <PillsRing className='size-[15px] text-[var(--text-icon)]' animate />
-            ) : (
-              <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
-            )}
+            <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
-          <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
+          {isWorking ? (
+            <ShimmerText className='text-sm'>{agentLabel}</ShimmerText>
+          ) : (
+            <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
+          )}
         </div>
       )}
       {hasItems && (
