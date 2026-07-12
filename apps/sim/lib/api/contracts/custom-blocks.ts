@@ -63,13 +63,27 @@ export const listCustomBlocksQuerySchema = z.object({
   workspaceId: workspaceIdSchema,
 })
 
+/**
+ * Icon URLs are rendered as org-wide `<img>` sources, so only https URLs and
+ * internal file-serve paths (what the icon upload UI stores) are accepted —
+ * never data:/blob:/other schemes an admin could smuggle into shared metadata.
+ * Shared with the copilot deploy_custom_block handler's pass-through branch.
+ */
+export function isAllowedCustomBlockIconUrl(value: string): boolean {
+  return value.startsWith('https://') || value.startsWith('/api/files/serve/')
+}
+
+const iconUrlSchema = z.string().min(1).max(2048).refine(isAllowedCustomBlockIconUrl, {
+  message: 'iconUrl must be an https URL or an internal /api/files/serve/ path',
+})
+
 export const publishCustomBlockBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   workflowId: workflowIdSchema,
   name: z.string().min(1, 'Name is required').max(60, 'Name must be 60 characters or fewer'),
   description: z.string().max(280, 'Description must be 280 characters or fewer').default(''),
-  /** Uploaded icon image URL; omit for the default icon. */
-  iconUrl: z.string().min(1).max(2048).optional(),
+  /** Uploaded icon image URL (https or internal serve path); omit for the default icon. */
+  iconUrl: iconUrlSchema.optional(),
   /** Per-input placeholder hints keyed by Start field id; the field set itself is always derived from the deployment. */
   inputs: z.array(inputPlaceholderSchema).max(50).optional(),
   /** Curated outputs; omit/empty to expose the child's whole result. */
@@ -87,8 +101,8 @@ export const updateCustomBlockBodySchema = z
     name: z.string().min(1).max(60).optional(),
     description: z.string().max(280).optional(),
     enabled: z.boolean().optional(),
-    /** A URL sets/replaces the icon; `null` clears it (default icon). */
-    iconUrl: z.string().min(1).max(2048).nullable().optional(),
+    /** A URL (https or internal serve path) sets/replaces the icon; `null` clears it (default icon). */
+    iconUrl: iconUrlSchema.nullable().optional(),
     inputs: z.array(inputPlaceholderSchema).max(50).optional(),
     exposedOutputs: z.array(exposedOutputSchema).max(50).optional(),
   })

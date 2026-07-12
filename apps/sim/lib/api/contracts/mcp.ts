@@ -38,9 +38,14 @@ export const mcpTransportSchema = z.enum(['streamable-http'])
 
 export const mcpAuthTypeSchema = z.enum(['none', 'headers', 'oauth'])
 
+const consecutiveFailuresSchema = z.preprocess(
+  (value) => (typeof value === 'number' ? value : undefined),
+  z.number().default(0)
+)
+
 export const mcpServerStatusConfigSchema = z
   .object({
-    consecutiveFailures: z.number().default(0),
+    consecutiveFailures: consecutiveFailuresSchema,
     lastSuccessfulDiscovery: z.string().nullable().default(null),
   })
   .passthrough()

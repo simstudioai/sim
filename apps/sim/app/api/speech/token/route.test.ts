@@ -138,4 +138,13 @@ describe('POST /api/speech/token — usage attribution', () => {
       workspaceId: 'ws-1',
     })
   })
+
+  it('rejects an oversized body before any auth/billing work runs', async () => {
+    const oversizedBody = { chatId: 'x'.repeat(64 * 1024) }
+    const res = await POST(createMockRequest('POST', oversizedBody))
+
+    expect(res.status).toBe(413)
+    expect(mockGetSession).not.toHaveBeenCalled()
+    expect(mockRecordUsage).not.toHaveBeenCalled()
+  })
 })

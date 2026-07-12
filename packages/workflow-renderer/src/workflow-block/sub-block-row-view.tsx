@@ -1,4 +1,5 @@
 import { cn } from '@sim/emcn'
+import { OverflowSpan } from '../lib/overflow-span'
 
 /**
  * Props for the pure subblock summary row. The container resolves the value —
@@ -22,22 +23,18 @@ export interface SubBlockRowViewProps {
 export function SubBlockRowView({ title, displayValue, isMonospace }: SubBlockRowViewProps) {
   return (
     <div className='flex items-center gap-2'>
-      <span
+      <OverflowSpan
+        value={title}
         className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
-        title={title}
-      >
-        {title}
-      </span>
+      />
       {displayValue !== undefined && (
-        <span
+        <OverflowSpan
+          value={displayValue}
           className={cn(
             'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
             isMonospace && 'font-mono'
           )}
-          title={displayValue}
-        >
-          {displayValue}
-        </span>
+        />
       )}
     </div>
   )

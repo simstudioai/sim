@@ -41,6 +41,8 @@ interface BuildPayloadParams {
   workspaceContext?: string
   vfs?: VfsSnapshotV1
   userPermission?: string
+  /** Plan/flag-gated org capabilities (e.g. "custom-blocks") the mothership gates tools/prompts on. */
+  entitlements?: string[]
   userTimezone?: string
   userMetadata?: {
     name?: string
@@ -387,6 +389,7 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.vfs ? { vfs: params.vfs } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
+    ...(params.entitlements?.length ? { entitlements: params.entitlements } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.userMetadata &&
     (params.userMetadata.name || params.userMetadata.email || params.userMetadata.timezone)

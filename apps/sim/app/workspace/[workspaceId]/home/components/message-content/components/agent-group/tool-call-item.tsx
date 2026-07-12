@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { PillsRing } from '@sim/emcn'
+import { ShimmerText } from '@/components/ui'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon, resolveToolDisplayState } from '../../utils'
@@ -57,10 +57,29 @@ function Hyphen({ className }: { className?: string }) {
   )
 }
 
+function CircleOutline({ className }: { className?: string }) {
+  return (
+    <svg
+      width='16'
+      height='16'
+      viewBox='0 0 16 16'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      className={className}
+    >
+      <circle cx='8' cy='8' r='6.5' stroke='currentColor' strokeWidth='1.25' />
+    </svg>
+  )
+}
+
 function StatusIcon({ status, toolName }: { status: ToolCallStatus; toolName: string }) {
   const display = resolveToolDisplayState(status)
   if (display === 'spinner') {
-    return <PillsRing className='size-[15px] text-[var(--text-tertiary)]' animate />
+    const Icon = getToolIcon(toolName)
+    if (Icon) {
+      return <Icon className='size-[15px] text-[var(--text-tertiary)]' />
+    }
+    return <CircleOutline className='size-[15px] text-[var(--text-tertiary)]' />
   }
   if (display === 'cancelled') {
     return <CircleStop className='size-[15px] text-[var(--text-tertiary)]' />
@@ -112,14 +131,21 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
     return `${verb} ${unescaped}`
   }, [toolName, streamingArgs])
 
+  const isExecuting = resolveToolDisplayState(status) === 'spinner'
+  const title = liveWorkspaceFileTitle || displayTitle
+
   return (
     <div className='flex items-center gap-[8px] pl-[24px]'>
       <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
         <StatusIcon status={status} toolName={toolName} />
       </div>
-      <span className='text-[13px] text-[var(--text-secondary)]'>
-        {liveWorkspaceFileTitle || displayTitle}
-      </span>
+      {isExecuting ? (
+        <ShimmerText className='text-[13px] [--shimmer-rest:var(--text-secondary)]'>
+          {title}
+        </ShimmerText>
+      ) : (
+        <span className='text-[13px] text-[var(--text-secondary)]'>{title}</span>
+      )}
     </div>
   )
 }

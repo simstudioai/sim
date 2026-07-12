@@ -9,6 +9,7 @@ import {
 } from '@/app/(landing)/components/solutions-page/components'
 import { SOLUTIONS_SPACING } from '@/app/(landing)/components/solutions-page/constants'
 import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-page/types'
+import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 import { EnterpriseFeatureGrid } from '@/app/(landing)/enterprise/components/enterprise-feature-grid'
 import { EnterprisePlatformLoop } from '@/app/(landing)/enterprise/components/enterprise-platform-loop'
 import {
@@ -65,6 +66,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         <Image
           fill
           priority
+          fetchPriority='high'
           alt=''
           className='object-cover object-center'
           sizes='(max-width: 1024px) 100vw, 1300px'
@@ -84,7 +86,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       title: 'Build, Deploy, and Manage Enterprise AI Agents in One Workspace',
       subtitle:
         'Build enterprise AI agents, ship to production, and manage every version from one workspace.',
-      cta: { label: 'Start building', href: '/signup' },
+      cta: { label: 'Start building', href: SIGNUP_HREF },
       cards: [
         {
           title: 'Build visually or with code',
@@ -111,7 +113,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       title: 'Governance and Security for Enterprise AI Agents',
       subtitle:
         'Security, approvals, and controls keep enterprise AI agents trusted in production.',
-      cta: { label: 'See security', href: '/demo' },
+      cta: { label: 'See security', href: DEMO_HREF },
       cards: [
         {
           title: 'Control who can do what',
@@ -138,7 +140,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       id: 'deploy',
       title: 'Deploy Enterprise Workflow Agents with Confidence',
       subtitle: 'Stage, observe, and version workflow agents before they reach production.',
-      cta: { label: 'Explore deployment', href: '/signup' },
+      cta: { label: 'Explore deployment', href: SIGNUP_HREF },
       cards: [
         {
           title: 'Stage before you ship',
@@ -162,7 +164,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       title: 'Built for Enterprise Teams',
       subtitle:
         'Built for the teams that own enterprise AI agents across IT, operations, and engineering.',
-      cta: { label: 'Talk to sales', href: '/demo' },
+      cta: { label: 'Talk to sales', href: DEMO_HREF },
       cards: [
         {
           title: 'IT and platform teams',
