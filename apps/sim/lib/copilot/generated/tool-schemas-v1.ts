@@ -1058,72 +1058,27 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         inputs: {
           type: 'object',
-          description:
-            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          description: 'Existing media files to use as generation or composition inputs.',
           properties: {
-            directories: {
-              type: 'array',
-              description:
-                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description:
-                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
-                  },
-                },
-                required: ['path'],
-              },
-            },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description:
+                'One or more media inputs from files/... or uploads/..., in operation order.',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                      'Input VFS path copied verbatim from glob/read, using either persistent "files/..." or chat-scoped "uploads/...".',
                   },
                 },
                 required: ['path'],
               },
-            },
-            tables: {
-              type: 'array',
-              description: 'Workspace tables to mount as CSV files.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description: 'Canonical VFS table path when available.',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description: 'Optional full sandbox path for the mounted CSV.',
-                  },
-                  tableId: {
-                    type: 'string',
-                    description: 'Workspace table ID.',
-                  },
-                },
-              },
+              minItems: 1,
             },
           },
+          required: ['files'],
         },
         loopToVideo: {
           type: 'boolean',
@@ -1154,20 +1109,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         outputs: {
           type: 'object',
           description:
-            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+            'One persistent workspace file to create or overwrite. Chat uploads are read-only inputs and cannot be output targets.',
           properties: {
             files: {
               type: 'array',
               description:
-                'File outputs. Missing parent folders are created automatically for create mode.',
+                'Exactly one file output. Parent folders must already exist for create mode.',
               items: {
                 type: 'object',
                 properties: {
-                  format: {
-                    type: 'string',
-                    description: 'Optional serialization format for returned values.',
-                    enum: ['json', 'csv', 'txt', 'md', 'html'],
-                  },
                   mimeType: {
                     type: 'string',
                     description: 'Optional MIME type override when inference is not enough.',
@@ -1179,18 +1129,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
                     description:
-                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                      'Persistent destination VFS path starting with "files/", e.g. "files/Reports/chart.png". "uploads/" paths are invalid output targets.',
                   },
                 },
                 required: ['path', 'mode'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         position: {
           type: 'string',
@@ -1405,72 +1354,27 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         inputs: {
           type: 'object',
-          description:
-            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          description: 'Existing media files to use as generation or composition inputs.',
           properties: {
-            directories: {
-              type: 'array',
-              description:
-                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description:
-                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
-                  },
-                },
-                required: ['path'],
-              },
-            },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'Exactly one reference voice sample from files/... or uploads/....',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                      'Input VFS path copied verbatim from glob/read, using either persistent "files/..." or chat-scoped "uploads/...".',
                   },
                 },
                 required: ['path'],
               },
-            },
-            tables: {
-              type: 'array',
-              description: 'Workspace tables to mount as CSV files.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description: 'Canonical VFS table path when available.',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description: 'Optional full sandbox path for the mounted CSV.',
-                  },
-                  tableId: {
-                    type: 'string',
-                    description: 'Workspace table ID.',
-                  },
-                },
-              },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         instrumental: {
           type: 'boolean',
@@ -1490,20 +1394,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         outputs: {
           type: 'object',
           description:
-            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+            'One persistent workspace file to create or overwrite. Chat uploads are read-only inputs and cannot be output targets.',
           properties: {
             files: {
               type: 'array',
               description:
-                'File outputs. Missing parent folders are created automatically for create mode.',
+                'Exactly one file output. Parent folders must already exist for create mode.',
               items: {
                 type: 'object',
                 properties: {
-                  format: {
-                    type: 'string',
-                    description: 'Optional serialization format for returned values.',
-                    enum: ['json', 'csv', 'txt', 'md', 'html'],
-                  },
                   mimeType: {
                     type: 'string',
                     description: 'Optional MIME type override when inference is not enough.',
@@ -1515,18 +1414,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
                     description:
-                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                      'Persistent destination VFS path starting with "files/", e.g. "files/Reports/chart.png". "uploads/" paths are invalid output targets.',
                   },
                 },
                 required: ['path', 'mode'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         prompt: {
           type: 'string',
@@ -1558,90 +1456,39 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         inputs: {
           type: 'object',
-          description:
-            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          description: 'Existing media files to use as generation or composition inputs.',
           properties: {
-            directories: {
-              type: 'array',
-              description:
-                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description:
-                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
-                  },
-                },
-                required: ['path'],
-              },
-            },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'One or more reference images to edit, combine, or restyle.',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                      'Input VFS path copied verbatim from glob/read, using either persistent "files/..." or chat-scoped "uploads/...".',
                   },
                 },
                 required: ['path'],
               },
-            },
-            tables: {
-              type: 'array',
-              description: 'Workspace tables to mount as CSV files.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description: 'Canonical VFS table path when available.',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description: 'Optional full sandbox path for the mounted CSV.',
-                  },
-                  tableId: {
-                    type: 'string',
-                    description: 'Workspace table ID.',
-                  },
-                },
-              },
+              minItems: 1,
             },
           },
+          required: ['files'],
         },
         outputs: {
           type: 'object',
           description:
-            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+            'One persistent workspace file to create or overwrite. Chat uploads are read-only inputs and cannot be output targets.',
           properties: {
             files: {
               type: 'array',
               description:
-                'File outputs. Missing parent folders are created automatically for create mode.',
+                'Exactly one file output. Parent folders must already exist for create mode.',
               items: {
                 type: 'object',
                 properties: {
-                  format: {
-                    type: 'string',
-                    description: 'Optional serialization format for returned values.',
-                    enum: ['json', 'csv', 'txt', 'md', 'html'],
-                  },
                   mimeType: {
                     type: 'string',
                     description: 'Optional MIME type override when inference is not enough.',
@@ -1653,18 +1500,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
                     description:
-                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                      'Persistent destination VFS path starting with "files/", e.g. "files/Reports/chart.png". "uploads/" paths are invalid output targets.',
                   },
                 },
                 required: ['path', 'mode'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         prompt: {
           type: 'string',
@@ -1696,72 +1542,27 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         inputs: {
           type: 'object',
-          description:
-            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          description: 'Existing media files to use as generation or composition inputs.',
           properties: {
-            directories: {
-              type: 'array',
-              description:
-                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description:
-                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
-                  },
-                },
-                required: ['path'],
-              },
-            },
             files: {
               type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
+              description: 'Exactly one start-frame image from files/... or uploads/....',
               items: {
                 type: 'object',
                 properties: {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                      'Input VFS path copied verbatim from glob/read, using either persistent "files/..." or chat-scoped "uploads/...".',
                   },
                 },
                 required: ['path'],
               },
-            },
-            tables: {
-              type: 'array',
-              description: 'Workspace tables to mount as CSV files.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description: 'Canonical VFS table path when available.',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description: 'Optional full sandbox path for the mounted CSV.',
-                  },
-                  tableId: {
-                    type: 'string',
-                    description: 'Workspace table ID.',
-                  },
-                },
-              },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         model: {
           type: 'string',
@@ -1787,20 +1588,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         outputs: {
           type: 'object',
           description:
-            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+            'One persistent workspace file to create or overwrite. Chat uploads are read-only inputs and cannot be output targets.',
           properties: {
             files: {
               type: 'array',
               description:
-                'File outputs. Missing parent folders are created automatically for create mode.',
+                'Exactly one file output. Parent folders must already exist for create mode.',
               items: {
                 type: 'object',
                 properties: {
-                  format: {
-                    type: 'string',
-                    description: 'Optional serialization format for returned values.',
-                    enum: ['json', 'csv', 'txt', 'md', 'html'],
-                  },
                   mimeType: {
                     type: 'string',
                     description: 'Optional MIME type override when inference is not enough.',
@@ -1812,18 +1608,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
                     description:
-                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                      'Persistent destination VFS path starting with "files/", e.g. "files/Reports/chart.png". "uploads/" paths are invalid output targets.',
                   },
                 },
                 required: ['path', 'mode'],
               },
+              minItems: 1,
+              maxItems: 1,
             },
           },
+          required: ['files'],
         },
         prompt: {
           type: 'string',
