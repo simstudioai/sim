@@ -47,11 +47,22 @@ describe('AshbyBlock', () => {
       expect(result.socialLinks).toEqual([{ type: 'Twitter', url: 'https://twitter.com/jane' }])
     })
 
-    it('omits the field when the JSON is malformed', () => {
-      const result = AshbyBlock.tools.config.params!(
-        buildParams('update_candidate', { socialLinks: 'not json' })
-      )
-      expect(result.socialLinks).toBeUndefined()
+    it('throws instead of silently dropping the field when the JSON is malformed', () => {
+      // A silent [] here would let the Ashby update proceed without applying
+      // the requested links and with no error shown to the workflow author.
+      expect(() =>
+        AshbyBlock.tools.config.params!(
+          buildParams('update_candidate', { socialLinks: 'not json' })
+        )
+      ).toThrow(/Invalid JSON in Ashby social links/)
+    })
+
+    it('throws when the parsed JSON is not an array', () => {
+      expect(() =>
+        AshbyBlock.tools.config.params!(
+          buildParams('update_candidate', { socialLinks: '{"type":"Twitter"}' })
+        )
+      ).toThrow(/expected a JSON array/)
     })
   })
 
