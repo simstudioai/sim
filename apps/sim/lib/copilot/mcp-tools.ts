@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { ToolSchema } from '@/lib/copilot/chat/payload'
-import { mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { validateMcpToolsAllowed } from '@/ee/access-control/utils/permission-check'
@@ -50,6 +49,7 @@ async function discoverServerTools(
   serverId: string
 ): Promise<McpTool[]> {
   try {
+    const { mcpService } = await import('@/lib/mcp/service')
     return await mcpService.discoverServerTools(userId, serverId, workspaceId)
   } catch (error) {
     logger.warn('Failed to resolve tagged MCP server tools', {
