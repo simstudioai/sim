@@ -22,6 +22,11 @@ Needs a PR number. If none is given and there's no open PR for the current branc
 first (which includes the `origin/staging` sync check — see `.agents/skills/ship/SKILL.md`) to
 create one.
 
+Every `/ship` step reference below points to the numbered steps in `.agents/skills/ship/SKILL.md`
+— the full ship with the sync-check-and-recover, `/cleanup`, `/db-migrate`, and post-push-verify
+gates — not the abbreviated `.claude/commands/ship.md`, whose six steps are numbered differently
+and omit those gates. Follow the full ship for the actions this skill describes.
+
 ## Definition of "clean"
 
 Both must hold:
