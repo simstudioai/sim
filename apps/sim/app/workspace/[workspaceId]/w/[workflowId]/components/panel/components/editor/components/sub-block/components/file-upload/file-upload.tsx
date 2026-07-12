@@ -222,9 +222,11 @@ export function FileUpload({
   const { data: cloudConfigured, isLoading: loadingCloudStatus } = useCloudStorageConfigured(
     requiresCloudStorage && !isPreview
   )
-  // Block new uploads until we know cloud is available (avoid creating unpublishable files).
-  const cloudUploadBlocked =
-    requiresCloudStorage && (loadingCloudStatus || cloudConfigured === false)
+  // Fail closed: block until the status check succeeds with true. Loading, errors, and
+  // explicit false all leave cloudConfigured !== true (avoid Meta-unfetchable files).
+  const cloudUploadBlocked = requiresCloudStorage && cloudConfigured !== true
+  const showCloudStorageWarning =
+    requiresCloudStorage && !loadingCloudStatus && cloudConfigured !== true
 
   const uploadFileMutation = useUploadWorkspaceFile()
   const queryClient = useQueryClient()
@@ -473,6 +475,8 @@ export function FileUpload({
    * Handle selecting an existing workspace file
    */
   const handleSelectWorkspaceFile = (fileId: string) => {
+    if (cloudUploadBlocked) return
+
     const selectedFile = workspaceFiles.find((f) => f.id === fileId)
     if (!selectedFile) return
 
@@ -622,7 +626,8 @@ export function FileUpload({
         return {
           label: file.name,
           value: file.id,
-          disabled: !isAccepted,
+          // When cloud is required, local workspace files are also unpublishable.
+          disabled: !isAccepted || cloudUploadBlocked,
         }
       }),
     ],
@@ -639,7 +644,7 @@ export function FileUpload({
         return {
           label: file.name,
           value: file.id,
-          disabled: !isAccepted,
+          disabled: !isAccepted || cloudUploadBlocked,
         }
       }),
     ],
@@ -703,7 +708,7 @@ export function FileUpload({
         data-testid='file-input-element'
       />
 
-      {requiresCloudStorage && cloudConfigured === false && (
+      {showCloudStorageWarning && (
         <div className='mb-2 text-muted-foreground text-xs'>
           Cloud storage (S3 or Blob) is required for file uploads. Switch to advanced mode and paste
           a public HTTPS URL, or configure S3_BUCKET_NAME / Azure Blob env vars.
