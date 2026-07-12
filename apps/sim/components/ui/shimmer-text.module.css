@@ -27,7 +27,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .shimmer {
+  .shimmer,
+  :global(.dark) .shimmer {
     background-image: none;
     -webkit-background-clip: initial;
     background-clip: initial;
