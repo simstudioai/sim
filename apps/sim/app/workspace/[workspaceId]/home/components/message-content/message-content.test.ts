@@ -231,6 +231,69 @@ describe('parseBlocks span-identity tree', () => {
     expect(nested.group.agentName).toBe('file')
   })
 
+  it('renders subagent thinking as a muted thinking item and keeps the delegating spinner', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      {
+        type: 'subagent_thinking',
+        content: 'reasoning about the fix',
+        spanId: 'S1',
+        subagent: 'workflow',
+        timestamp: 2,
+      },
+    ]
+
+    const segments = parseBlocks(blocks)
+    expect(segments).toHaveLength(1)
+    if (segments[0].type !== 'agent_group') throw new Error('expected workflow group')
+    // Thinking renders in the lane…
+    expect(segments[0].items).toEqual([{ type: 'thinking', content: 'reasoning about the fix' }])
+    // …but does not clear the delegating spinner (no real output yet).
+    expect(segments[0].isDelegating).toBe(true)
+  })
+
+  it('creates the lane on demand when thinking arrives before its subagent start', () => {
+    const blocks: ContentBlock[] = [
+      {
+        type: 'subagent_thinking',
+        content: 'early reasoning',
+        spanId: 'S1',
+        parentSpanId: 'main',
+        subagent: 'workflow',
+        timestamp: 1,
+      },
+      subagentStart('workflow', 'S1', 'main'),
+    ]
+
+    const segments = parseBlocks(blocks)
+    const group = segments.find((s) => s.type === 'agent_group')
+    if (!group || group.type !== 'agent_group') throw new Error('expected workflow group')
+    expect(group.agentName).toBe('workflow')
+    expect(group.items).toEqual([{ type: 'thinking', content: 'early reasoning' }])
+  })
+
+  it('orders thinking before the lane text that follows it', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      {
+        type: 'subagent_thinking',
+        content: 'planning',
+        spanId: 'S1',
+        subagent: 'workflow',
+        timestamp: 2,
+      },
+      { type: 'subagent_text', content: 'done', spanId: 'S1', subagent: 'workflow', timestamp: 3 },
+    ]
+
+    const segments = parseBlocks(blocks)
+    if (segments[0].type !== 'agent_group') throw new Error('expected workflow group')
+    expect(segments[0].items).toEqual([
+      { type: 'thinking', content: 'planning' },
+      { type: 'text', content: 'done' },
+    ])
+    expect(segments[0].isDelegating).toBe(false)
+  })
+
   it('falls back to legacy flat grouping when blocks have no span identity', () => {
     const blocks: ContentBlock[] = [
       { type: 'subagent', content: 'workflow', parentToolCallId: 'tc-1', timestamp: 1 },
@@ -403,5 +466,26 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     if (groups[0].type !== 'agent_group') throw new Error('expected group')
     // The untagged chunk after thinking must NOT merge into the flushed lane.
     expect(groups[0].items).toHaveLength(1)
+  })
+
+  it('renders subagent thinking inside the legacy lane', () => {
+    const blocks: ContentBlock[] = [
+      { type: 'subagent', content: 'workflow', parentToolCallId: 'd1', timestamp: 1 },
+      {
+        type: 'subagent_thinking',
+        content: 'legacy reasoning',
+        parentToolCallId: 'd1',
+        timestamp: 2,
+      },
+      { type: 'subagent_text', content: 'output', parentToolCallId: 'd1', timestamp: 3 },
+    ]
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(1)
+    if (groups[0].type !== 'agent_group') throw new Error('expected group')
+    expect(groups[0].items).toEqual([
+      { type: 'thinking', content: 'legacy reasoning' },
+      { type: 'text', content: 'output' },
+    ])
   })
 })
