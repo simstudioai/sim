@@ -105,8 +105,9 @@ function LoadedRichMarkdownField({
     editorProps: {
       attributes: {
         class: 'rich-markdown-prose rich-markdown-field-prose',
-        // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
-        'data-owned-shortcuts': 'Mod+K',
+        // Claim ⌘K so the bubble-menu link editor wins over the global search palette,
+        // and ⌘B so bold wins over the global sidebar toggle.
+        'data-owned-shortcuts': 'Mod+K,Mod+B',
       },
       handlePaste: (_view, event) => {
         const handler = onPasteTextRef.current

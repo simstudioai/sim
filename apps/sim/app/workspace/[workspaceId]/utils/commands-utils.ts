@@ -17,6 +17,7 @@ export type CommandId =
   | 'clear-terminal-console'
   | 'focus-toolbar-search'
   | 'fit-to-view'
+  | 'toggle-sidebar'
 
 /**
  * Static metadata for a global command.
@@ -91,6 +92,11 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
     id: 'fit-to-view',
     shortcut: 'Mod+Shift+F',
     allowInEditable: false,
+  },
+  'toggle-sidebar': {
+    id: 'toggle-sidebar',
+    shortcut: 'Mod+B',
+    allowInEditable: true,
   },
 }
 

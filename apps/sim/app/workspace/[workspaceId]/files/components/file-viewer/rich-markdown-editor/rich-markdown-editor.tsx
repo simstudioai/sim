@@ -298,7 +298,7 @@ export function LoadedRichMarkdownEditor({
     shouldRerenderOnTransaction: false,
     content: initialContent,
     editorProps: {
-      attributes: { class: 'rich-markdown-prose', 'data-owned-shortcuts': 'Mod+K' },
+      attributes: { class: 'rich-markdown-prose', 'data-owned-shortcuts': 'Mod+K,Mod+B' },
       handleKeyDown: (_view, event) => {
         const isSaveShortcut = (event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === 's'
         if (!isSaveShortcut) return false
