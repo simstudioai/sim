@@ -1,13 +1,14 @@
 'use client'
 
 import * as React from 'react'
+import { cn } from '../../lib/cn'
 import {
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
 } from '../chip-modal/chip-modal'
-import type { ModalSize } from '../modal/modal'
+import { ModalDescription, type ModalSize } from '../modal/modal'
 
 /**
  * A multi-step modal wizard primitive.
@@ -162,13 +163,20 @@ const WizardRoot: React.FC<WizardProps> = ({
       onOpenChange={onOpenChange}
       size={size}
       srTitle={title ?? activeStep?.props.title ?? description ?? 'Multi-step wizard'}
+      // A fixed `height` sizes the whole dialog (matching the legacy Modal). The
+      // scoped `[&>div]` variants stretch ChipModal's inner content column so the
+      // body fills the fixed height instead of leaving a gap; only applied when a
+      // height is set, so other ChipModal consumers are untouched.
+      className={height ? cn(height, '[&>div]:min-h-0 [&>div]:flex-1') : undefined}
     >
       <ChipModalHeader icon={title ? (Icon ?? null) : null} onClose={() => onOpenChange(false)}>
         {title ?? activeStep?.props.title}
       </ChipModalHeader>
 
-      <ChipModalBody className={height}>
-        {description ? <span className='sr-only'>{description}</span> : null}
+      <ChipModalBody>
+        <ModalDescription className='sr-only'>
+          {description ?? 'Multi-step wizard'}
+        </ModalDescription>
         {activeStep}
       </ChipModalBody>
 
