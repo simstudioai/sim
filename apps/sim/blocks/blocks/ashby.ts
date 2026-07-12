@@ -2,6 +2,34 @@ import { AshbyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
+function parseStringListInput(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String)
+  if (typeof value !== 'string') return []
+  const trimmed = value.trim()
+  if (!trimmed) return []
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.map(String)
+    } catch {}
+  }
+  return trimmed
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function parseSocialLinksInput(value: unknown): Array<{ type: string; url: string }> {
+  if (Array.isArray(value)) return value as Array<{ type: string; url: string }>
+  if (typeof value !== 'string' || !value.trim()) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 export const AshbyBlock: BlockConfig = {
   type: 'ashby',
   name: 'Ashby',
@@ -369,14 +397,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       mode: 'advanced',
     },
     {
-      id: 'filterCandidateId',
-      title: 'Candidate ID Filter',
-      type: 'short-input',
-      placeholder: 'Filter by candidate UUID',
-      condition: { field: 'operation', value: 'list_applications' },
-      mode: 'advanced',
-    },
-    {
       id: 'createdAfter',
       title: 'Created After',
       type: 'short-input',
@@ -563,6 +583,13 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       placeholder: 'Comma-separated or JSON array (e.g. ["a@x.com","b@x.com"])',
       condition: { field: 'operation', value: 'create_candidate' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated or JSON array of email addresses based on the user's description.
+Examples:
+- "her work and personal emails" -> ["work@company.com","personal@example.com"]
+Output only the list, nothing else.`,
+      },
     },
     {
       id: 'socialLinks',
@@ -571,6 +598,13 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       placeholder: 'JSON array (e.g. [{"type":"Twitter","url":"https://twitter.com/x"}])',
       condition: { field: 'operation', value: 'update_candidate' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of social link objects ({"type","url"}) based on the user's description.
+Examples:
+- "his Twitter is @jane and portfolio is jane.dev" -> [{"type":"Twitter","url":"https://twitter.com/jane"},{"type":"Portfolio","url":"https://jane.dev"}]
+Output only the JSON array, nothing else.`,
+      },
     },
     {
       id: 'includeArchived',
@@ -720,9 +754,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         if (params.searchEmail) result.email = params.searchEmail
         if (params.filterStatus) result.status = params.filterStatus
         if (params.filterJobId) result.jobId = params.filterJobId
-        if (params.operation === 'list_applications' && params.filterCandidateId) {
-          result.candidateId = params.filterCandidateId
-        }
         if (params.jobStatus) result.status = params.jobStatus
         if (params.sendNotifications === 'true' || params.sendNotifications === true) {
           result.sendNotifications = true
@@ -772,9 +803,14 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           result.applicationId = params.offerApplicationId
         }
         if (params.alternateEmailAddresses) {
-          result.alternateEmailAddresses = params.alternateEmailAddresses
+          const alternateEmailAddresses = parseStringListInput(params.alternateEmailAddresses)
+          if (alternateEmailAddresses.length > 0)
+            result.alternateEmailAddresses = alternateEmailAddresses
         }
-        if (params.socialLinks) result.socialLinks = params.socialLinks
+        if (params.socialLinks) {
+          const socialLinks = parseSocialLinksInput(params.socialLinks)
+          if (socialLinks.length > 0) result.socialLinks = socialLinks
+        }
         return result
       },
     },
@@ -806,7 +842,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     sendNotifications: { type: 'boolean', description: 'Send notifications' },
     filterStatus: { type: 'string', description: 'Application status filter' },
     filterJobId: { type: 'string', description: 'Job UUID filter' },
-    filterCandidateId: { type: 'string', description: 'Candidate UUID filter' },
     createdAfter: { type: 'string', description: 'Filter by creation date' },
     openedAfter: { type: 'string', description: 'Filter jobs opened after this timestamp' },
     openedBefore: { type: 'string', description: 'Filter jobs opened before this timestamp' },
