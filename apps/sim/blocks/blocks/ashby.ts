@@ -22,12 +22,20 @@ function parseStringListInput(value: unknown): string[] {
 function parseSocialLinksInput(value: unknown): Array<{ type: string; url: string }> {
   if (Array.isArray(value)) return value as Array<{ type: string; url: string }>
   if (typeof value !== 'string' || !value.trim()) return []
+  let parsed: unknown
   try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
+    parsed = JSON.parse(value)
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in Ashby social links: ${error instanceof Error ? error.message : String(error)}. Expected a JSON array like [{"type":"Twitter","url":"https://twitter.com/x"}].`
+    )
   }
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      'Invalid Ashby social links: expected a JSON array like [{"type":"Twitter","url":"https://twitter.com/x"}].'
+    )
+  }
+  return parsed
 }
 
 export const AshbyBlock: BlockConfig = {
