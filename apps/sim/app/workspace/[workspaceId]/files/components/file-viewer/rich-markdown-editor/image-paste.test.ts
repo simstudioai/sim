@@ -14,8 +14,10 @@ import {
   extractImgSrcs,
   findHostedImageAttrs,
   hasHostedImageHtml,
+  htmlReferencesSrc,
   isInlineRouteSrc,
   shouldSkipFileUpload,
+  toSameOriginPath,
 } from './image-paste'
 
 // jsdom lacks `elementFromPoint`; the Placeholder extension's viewport tracking calls it on mount.
@@ -286,5 +288,88 @@ describe('findHostedImageAttrs', () => {
       if (node.type.name === 'image') originalAlt = node.attrs.alt
     })
     expect(originalAlt).toBe('photo')
+  })
+})
+
+describe('origin-aware src normalization (browser-native drag/copy enrichment uses ABSOLUTE urls)', () => {
+  const ORIGIN = 'https://www.staging.sim.ai'
+
+  it('toSameOriginPath: relative passes through; same-origin absolute → path+query; cross-origin → null', () => {
+    expect(toSameOriginPath('/api/files/view/wf_a', ORIGIN)).toBe('/api/files/view/wf_a')
+    expect(toSameOriginPath(`${ORIGIN}/api/workspaces/ws-1/files/inline?fileId=wf_a`, ORIGIN)).toBe(
+      '/api/workspaces/ws-1/files/inline?fileId=wf_a'
+    )
+    expect(toSameOriginPath('https://evil.example.com/api/files/view/wf_a', ORIGIN)).toBeNull()
+  })
+
+  it('isInlineRouteSrc accepts the same-origin ABSOLUTE inline route (the real dragged-img src on staging)', () => {
+    expect(isInlineRouteSrc(`${ORIGIN}/api/workspaces/ws-1/files/inline?fileId=wf_a`, ORIGIN)).toBe(
+      true
+    )
+    expect(
+      isInlineRouteSrc(
+        'https://evil.example.com/api/workspaces/ws-1/files/inline?fileId=wf_a',
+        ORIGIN
+      )
+    ).toBe(false)
+  })
+
+  it('hasHostedImageHtml matches absolute same-origin srcs and rejects cross-origin ones', () => {
+    const isHosted = (src: string) => extractEmbeddedFileRef(src) !== null
+    expect(hasHostedImageHtml(`<img src="${ORIGIN}/api/files/view/wf_a">`, isHosted, ORIGIN)).toBe(
+      true
+    )
+    expect(
+      hasHostedImageHtml(
+        `<img src="${ORIGIN}/api/workspaces/ws-1/files/inline?fileId=wf_a">`,
+        isHosted,
+        ORIGIN
+      )
+    ).toBe(true)
+    expect(
+      hasHostedImageHtml(
+        '<img src="https://evil.example.com/api/files/view/wf_a">',
+        isHosted,
+        ORIGIN
+      )
+    ).toBe(false)
+  })
+
+  it('findHostedImageAttrs matches when the clipboard html carries the absolute rendered url', () => {
+    const ws = createWorkspaceFileContentSource('ws-1')
+    const editor = new Editor({
+      extensions: createMarkdownEditorExtensions({ placeholder: '' }),
+      content: {
+        type: 'doc',
+        content: [{ type: 'image', attrs: { src: '/api/files/view/wf_abc', alt: 'photo' } }],
+      },
+    })
+    const absolute = `${ORIGIN}/api/workspaces/ws-1/files/inline?fileId=wf_abc`
+    const match = findHostedImageAttrs(editor.state.doc, [absolute], ws.resolveImageSrc, ORIGIN)
+    expect(match?.src).toBe('/api/files/view/wf_abc')
+  })
+})
+
+describe('htmlReferencesSrc (the "this drop is MY dragged image" check)', () => {
+  const ORIGIN = 'https://www.staging.sim.ai'
+  const RESOLVED = '/api/workspaces/ws-1/files/inline?fileId=wf_a'
+
+  it('true when the html img src is the absolute form of the resolved src', () => {
+    expect(htmlReferencesSrc(`<img src="${ORIGIN}${RESOLVED}">`, RESOLVED, ORIGIN)).toBe(true)
+  })
+
+  it('true for the relative form too (ProseMirror-serialized html)', () => {
+    expect(htmlReferencesSrc(`<img src="${RESOLVED}">`, RESOLVED, ORIGIN)).toBe(true)
+  })
+
+  it('false for a different image, empty html, missing resolved src, or cross-origin', () => {
+    expect(htmlReferencesSrc(`<img src="${ORIGIN}/api/other?fileId=wf_b">`, RESOLVED, ORIGIN)).toBe(
+      false
+    )
+    expect(htmlReferencesSrc('', RESOLVED, ORIGIN)).toBe(false)
+    expect(htmlReferencesSrc(`<img src="${ORIGIN}${RESOLVED}">`, undefined, ORIGIN)).toBe(false)
+    expect(
+      htmlReferencesSrc(`<img src="https://evil.example.com${RESOLVED}">`, RESOLVED, ORIGIN)
+    ).toBe(false)
   })
 })
