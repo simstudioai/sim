@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
+import { resolveWebhookProviderConfig } from '@/lib/webhooks/env-resolver'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 
 const logger = createLogger('WebhookProviderSubscriptions')
@@ -88,6 +89,14 @@ export function shouldRecreateExternalWebhookSubscription({
  * Ask the provider handler to create an external webhook subscription, if that
  * provider supports automatic registration.
  *
+ * `providerConfig` may contain unresolved `{{ENV_VAR}}` references (e.g. an
+ * API key field backed by an environment variable) — these are resolved here
+ * before the provider call so deploy-triggered registration (this function is
+ * also called from the async deployment outbox, not just the interactive
+ * webhook-save route) behaves the same as a manual save. The persisted
+ * `providerConfig` returned to the caller stays unresolved; only the
+ * provider-managed fields from `result.providerConfigUpdates` get merged in.
+ *
  * The returned provider-managed fields are merged back into `providerConfig`
  * by the caller.
  */
@@ -106,8 +115,14 @@ export async function createExternalWebhookSubscription(
     return { updatedProviderConfig: providerConfig, externalSubscriptionCreated: false }
   }
 
+  const resolvedProviderConfig = await resolveWebhookProviderConfig(
+    providerConfig,
+    userId,
+    workflow.workspaceId as string | undefined
+  )
+
   const result = await handler.createSubscription({
-    webhook: webhookData,
+    webhook: { ...webhookData, providerConfig: resolvedProviderConfig },
     workflow,
     userId,
     requestId,
