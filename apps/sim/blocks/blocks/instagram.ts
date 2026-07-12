@@ -121,7 +121,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       required: true,
     },
 
-    // Publish Image — JPEG upload / file ref / public HTTPS URL
+    // Publish Image — JPEG upload / file ref (same basic+advanced pattern as Gmail)
     {
       id: 'imageUpload',
       title: 'Image',
@@ -141,7 +141,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       title: 'Image',
       type: 'short-input',
       canonicalParamId: 'image',
-      placeholder: 'Reference files from previous blocks, or paste a public HTTPS JPEG URL',
+      placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: 'instagram_publish_image' },
       mode: 'advanced',
       required: { field: 'operation', value: 'instagram_publish_image' },
@@ -173,7 +173,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       title: 'Video',
       type: 'short-input',
       canonicalParamId: 'video',
-      placeholder: 'Reference files from previous blocks, or paste a public HTTPS video URL',
+      placeholder: 'Reference files from previous blocks',
       condition: {
         field: 'operation',
         value: ['instagram_publish_video', 'instagram_publish_reel'],
@@ -206,7 +206,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       title: 'Cover Image',
       type: 'short-input',
       canonicalParamId: 'cover',
-      placeholder: 'Reference files from previous blocks, or paste a public HTTPS JPEG URL',
+      placeholder: 'Reference files from previous blocks',
       condition: {
         field: 'operation',
         value: ['instagram_publish_video', 'instagram_publish_reel'],
@@ -235,7 +235,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       title: 'Media',
       type: 'short-input',
       canonicalParamId: 'media',
-      placeholder: 'Reference files from previous blocks, or paste a public HTTPS URL',
+      placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: 'instagram_publish_story' },
       mode: 'advanced',
       required: { field: 'operation', value: 'instagram_publish_story' },
@@ -261,8 +261,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       title: 'Media',
       type: 'long-input',
       canonicalParamId: 'carouselMedia',
-      placeholder:
-        'Reference files from previous blocks, or paste comma-separated public HTTPS URLs (prefix videos with video:)',
+      placeholder: 'Reference files from previous blocks',
       condition: { field: 'operation', value: 'instagram_publish_carousel' },
       mode: 'advanced',
       required: { field: 'operation', value: 'instagram_publish_carousel' },

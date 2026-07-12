@@ -710,8 +710,8 @@ export function FileUpload({
 
       {showCloudStorageWarning && (
         <div className='mb-2 text-muted-foreground text-xs'>
-          Cloud storage (S3 or Blob) is required for file uploads. Switch to advanced mode and paste
-          a public HTTPS URL, or configure S3_BUCKET_NAME / Azure Blob env vars.
+          Cloud storage (S3 or Blob) is required for file uploads. Configure S3_BUCKET_NAME and
+          AWS_REGION, or Azure Blob env vars.
         </div>
       )}
 
