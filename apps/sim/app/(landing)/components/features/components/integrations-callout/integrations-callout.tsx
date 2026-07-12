@@ -18,11 +18,17 @@ import { CalloutFrame } from '@/app/(landing)/components/features/components/cal
  * peek at part of the product rather than a complete miniature, scaling
  * proportionally with the aspect-locked stage. Decorative.
  *
- * `sizes` mirrors the sibling backdrop image's own hint (`FeatureCard`'s
- * `70vw`/`900px` stage width), scaled by this callout's 125% overhang, with an
- * extra `max-width: 1023px` tier for `FeatureCard`'s `max-lg:grid-cols-1`
- * stack (media becomes ~full card width there, not the desktop 2-column
- * remainder) - verified against Lighthouse's measured mobile render width.
+ * `sizes` is derived directly from the section's grid math rather than
+ * approximated, then rounded up to the worst-case (peak render/viewport
+ * ratio) in each tier so the browser never under-fetches:
+ * `callout = 1.25 * (viewport - 2*gutter - 32px card padding - [40px gap +
+ * 386px fixed copy column, desktop only])`, gutter = `px-20`/`max-lg:px-8`/
+ * `max-sm:px-5` from `Features`'s grid, matching `FeatureCard`'s
+ * `max-lg:grid-cols-1` stack. Peak ratios (verified against a static
+ * reproduction of this exact layout rendered at each Tailwind breakpoint):
+ * ~113.3% at the `max-width: 1023px` stacked tier's own upper edge, ~108.6%
+ * at `1460px` (the container's cap, where render width stops growing with
+ * viewport - hence the final tier is a flat px value, not a vw fraction).
  */
 export function IntegrationsCallout() {
   return (
@@ -35,7 +41,7 @@ export function IntegrationsCallout() {
           src='/landing/feature-integrate-ui.png'
           alt=''
           fill
-          sizes='(max-width: 1023px) 110vw, (max-width: 1460px) 87.5vw, 1125px'
+          sizes='(max-width: 1023px) 114vw, (max-width: 1460px) 109vw, 1053px'
           className='object-cover'
         />
       </CalloutFrame>
