@@ -1,8 +1,9 @@
 /**
  * Claude-style text shimmer: the text paints from a gradient with a light band
- * that sweeps across the glyphs via background-clip. Gradient stops and timing
- * match the ThinkingLoader label so every "working" phrase in the app shares
- * one treatment.
+ * that sweeps across the glyphs via background-clip. This is the single source
+ * of truth for the treatment — the ThinkingLoader label composes it. Under
+ * reduced motion the text settles to a solid ink; consumers whose resting text
+ * is not body ink set `--shimmer-rest` to their resting color.
  */
 .shimmer {
   background-image: linear-gradient(90deg, #4a4a4a 40%, #b0b0b0 50%, #4a4a4a 60%);
@@ -27,6 +28,6 @@
   .shimmer {
     animation: none;
     background-image: none;
-    color: var(--text-body);
+    color: var(--shimmer-rest, var(--text-body));
   }
 }

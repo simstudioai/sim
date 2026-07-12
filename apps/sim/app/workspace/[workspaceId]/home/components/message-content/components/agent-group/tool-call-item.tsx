@@ -140,7 +140,9 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
         <StatusIcon status={status} toolName={toolName} />
       </div>
       {isExecuting ? (
-        <ShimmerText className='text-[13px]'>{title}</ShimmerText>
+        <ShimmerText className='text-[13px] [--shimmer-rest:var(--text-secondary)]'>
+          {title}
+        </ShimmerText>
       ) : (
         <span className='text-[13px] text-[var(--text-secondary)]'>{title}</span>
       )}
