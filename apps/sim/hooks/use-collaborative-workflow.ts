@@ -1696,6 +1696,7 @@ export function useCollaborativeWorkflow() {
 
       // Apply locally first (immediate UI feedback)
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
+      useWorkflowStore.getState().syncDynamicHandleSubblockValue(blockId, subblockId, value)
 
       if (isSyntheticToolSubBlockId(subblockId)) return
 
