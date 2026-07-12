@@ -27,14 +27,20 @@ let calEmbedPreloaded = false
  * hidden `?preload=true` iframe so its assets are already cached when the real
  * embed renders on submit. Without this, nothing Cal.com-related starts
  * downloading until the visitor presses Continue, which is why the calendar
- * used to take several seconds to appear. Idempotent — repeat calls no-op.
+ * used to take several seconds to appear. Idempotent — repeat calls no-op
+ * while a warm-up is in flight or done, but a failed embed.js load resets the
+ * flag so a later focus can retry.
  */
 export function preloadCalEmbed(): void {
   if (calEmbedPreloaded) return
   calEmbedPreloaded = true
-  getCalApi({ namespace: CAL_NAMESPACE }).then((cal) => {
-    cal('preload', { calLink: CAL_LINK })
-  })
+  getCalApi({ namespace: CAL_NAMESPACE })
+    .then((cal) => {
+      cal('preload', { calLink: CAL_LINK })
+    })
+    .catch(() => {
+      calEmbedPreloaded = false
+    })
 }
 
 /**

@@ -9,12 +9,17 @@ import { DemoForm, type DemoLead } from '@/app/(landing)/demo/components/demo-fo
 const importScheduler = () => import('@/app/(landing)/demo/components/demo-scheduler')
 
 /**
- * Warm the entire booking path while the visitor fills the form: the scheduler
- * chunk, Cal.com's embed.js, and the booker iframe assets (via the embed's
- * `preload` instruction). Fired on first form focus so none of it competes
- * with initial page load, and finished long before the visitor submits.
+ * Warm the entire booking path while the visitor fills the form: preconnect to
+ * app.cal.com, then load the scheduler chunk, Cal.com's embed.js, and the
+ * booker iframe assets (via the embed's `preload` instruction). Fired on first
+ * form focus so nothing Cal.com-related competes with initial page load — the
+ * connection handshake overlaps the chunk import, and it all finishes long
+ * before the visitor submits.
  */
-const preloadScheduler = () => importScheduler().then((m) => m.preloadCalEmbed())
+function preloadScheduler() {
+  preconnect('https://app.cal.com')
+  return importScheduler().then((m) => m.preloadCalEmbed())
+}
 
 /**
  * Lazy-loaded so the Cal.com embed never enters the initial landing bundle - it
@@ -51,8 +56,6 @@ interface DemoBookingProps {
  * hides/shows.
  */
 export function DemoBooking({ className }: DemoBookingProps) {
-  preconnect('https://app.cal.com')
-
   const [lead, setLead] = useState<DemoLead | null>(null)
   const [formHeight, setFormHeight] = useState<number>()
   const formRef = useRef<HTMLDivElement>(null)
