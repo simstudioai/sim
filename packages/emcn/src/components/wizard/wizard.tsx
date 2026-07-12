@@ -1,23 +1,20 @@
 'use client'
 
 import * as React from 'react'
-import { Button } from '../button/button'
 import {
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  type ModalSize,
-} from '../modal/modal'
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+} from '../chip-modal/chip-modal'
+import type { ModalSize } from '../modal/modal'
 
 /**
  * A multi-step modal wizard primitive.
  *
  * @remarks
- * Wraps the emcn Modal with a shared Back / Next / Done footer and declarative
- * `Wizard.Step` children. Step state is controlled
+ * Wraps the emcn ChipModal with a shared Back / Next / Done footer and
+ * declarative `Wizard.Step` children. Step state is controlled
  * from the outside so the consumer can hydrate from persisted state, reset
  * on close, or jump around imperatively.
  *
@@ -160,42 +157,32 @@ const WizardRoot: React.FC<WizardProps> = ({
   if (total === 0) return null
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size={size} className={height}>
-        <ModalHeader>
-          {title ? (
-            <span className='flex items-center gap-2'>
-              {Icon ? <Icon className='size-[18px]' /> : null}
-              {title}
-            </span>
-          ) : (
-            activeStep?.props.title
-          )}
-        </ModalHeader>
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      size={size}
+      srTitle={title ?? activeStep?.props.title ?? description ?? 'Multi-step wizard'}
+    >
+      <ChipModalHeader icon={title ? (Icon ?? null) : null} onClose={() => onOpenChange(false)}>
+        {title ?? activeStep?.props.title}
+      </ChipModalHeader>
 
-        <ModalBody>
-          <ModalDescription className='sr-only'>
-            {description ?? 'Multi-step wizard'}
-          </ModalDescription>
-          {activeStep}
-        </ModalBody>
+      <ChipModalBody className={height}>
+        {description ? <span className='sr-only'>{description}</span> : null}
+        {activeStep}
+      </ChipModalBody>
 
-        <ModalFooter>
-          <Button variant='default' onClick={handleBack} disabled={clamped === 0}>
-            {backLabel}
-          </Button>
-          {isLast ? (
-            <Button variant='primary' onClick={handleDone}>
-              {doneLabel}
-            </Button>
-          ) : (
-            <Button variant='primary' onClick={handleNext} disabled={!canAdvance}>
-              {nextLabel}
-            </Button>
-          )}
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        hideCancel
+        primaryAdjacentAction={{ label: backLabel, onClick: handleBack, disabled: clamped === 0 }}
+        primaryAction={
+          isLast
+            ? { label: doneLabel, onClick: handleDone }
+            : { label: nextLabel, onClick: handleNext, disabled: !canAdvance }
+        }
+      />
+    </ChipModal>
   )
 }
 
