@@ -96,7 +96,7 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'toggle-sidebar': {
     id: 'toggle-sidebar',
     shortcut: 'Mod+B',
-    allowInEditable: true,
+    allowInEditable: false,
   },
 }
 
