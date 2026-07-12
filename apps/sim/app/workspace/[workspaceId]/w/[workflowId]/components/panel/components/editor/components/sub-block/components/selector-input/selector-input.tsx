@@ -96,6 +96,7 @@ export function SelectorInput({
       previewValue={previewValue ?? null}
       placeholder={subBlock.placeholder || 'Select resource'}
       allowSearch={allowSearch}
+      multiSelect={subBlock.multiSelect}
       onOptionChange={(value) => {
         if (!isPreview) {
           collaborativeSetSubblockValue(blockId, subBlock.id, value)
