@@ -135,6 +135,7 @@ describe('GlobalCommandsProvider editable guard', () => {
       <GlobalCommandsProvider>
         <RegisterModKOutsideEditable handler={handler} />
         <div contentEditable>
+          {/* biome-ignore lint/a11y/noNoninteractiveTabindex: focusable stand-in for a node view inside the editor */}
           <span tabIndex={0} />
         </div>
       </GlobalCommandsProvider>
