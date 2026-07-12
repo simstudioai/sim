@@ -13,7 +13,7 @@ User arguments: $ARGUMENTS
 
 ## Step 1 — Parallel analysis (read-only)
 
-First parse the user's `$ARGUMENTS` into `scope` (everything except a trailing `fix=…`; default: your current changes) and `fix` (default: true). The `fix` value is consumed by Step 3 — it does NOT propagate to these passes, which always run `fix=false`.
+First parse the user's `$ARGUMENTS` into `scope` and `fix`: extract the `fix=true|false` token wherever it appears in the string (start, middle, or end), and treat everything else — with that token removed — as `scope`. Defaults: `scope` = your current changes, `fix` = true. The `fix` value is consumed by Step 3 — it does NOT propagate to these passes, which always run `fix=false`.
 
 Spawn all eight passes concurrently as subagents in a **single message** (multiple Agent tool calls). Each runs its skill on the parsed `scope` with `fix=false` — analysis and proposals ONLY, no edits. Instruct each agent to return its findings as a structured list: for every proposed change, the file path, line range, a one-line description of the change, and the exact before/after so the orchestrator can apply it without re-deriving.
 
@@ -30,17 +30,19 @@ Run these eight in parallel, substituting the parsed `scope` for `<scope>` in ea
 
 ## Step 2 — Converge
 
-Collect all findings. Group them by file. Within each file, detect overlaps — two passes proposing changes to the same region (common: a state pass and an effect pass targeting the same block, or a memo and callback pass on the same component). For each overlap, reconcile into a single coherent change; drop proposals that a sibling pass has made moot.
+Collect all findings into one list, **keeping each proposal tagged with the pass that produced it** — do NOT collapse a file's proposals into a single unlabeled patch, because Step 3 applies in pass order and needs those labels. Detect overlaps where two passes touch the same region (common: a state pass and an effect pass on the same block, or a memo and callback pass on the same component). Reconcile only genuine same-region conflicts, and drop proposals a sibling pass has made moot; a reconciled change inherits the pass label of the earliest pass it belongs to. Non-overlapping proposals stay as-is with their own labels. The output is a per-pass list of surviving changes, not a per-file patch.
 
 ## Step 3 — Sequential apply
 
 If `fix=false`, skip this step — just report the proposals from Step 2.
 
-Otherwise apply the reconciled changes yourself (in the main context, not delegated), file by file, in this dependency order so earlier structural changes settle before later passes build on them:
+Otherwise apply the surviving changes yourself (in the main context, not delegated), iterating **pass by pass** in this dependency order so earlier structural changes settle before later passes build on them:
 
 1. effects → 2. state → 3. memo → 4. callback → 5. React Query → 6. url-state → 7. emcn design → 8. comments
 
-Comments apply last, on purpose: it operates on whatever the earlier structural passes settled the code into, so it never proposes edits to lines a sibling pass is about to delete or rewrite.
+For each pass in turn, apply all of that pass's changes, then move to the next pass. A file touched by several passes is therefore edited once per pass, in this order — not once as a merged patch. This is what makes the ordering real: a single merged-per-file patch would collapse all passes into one edit and lose it.
+
+Comments apply last, on purpose: that pass operates on whatever the earlier structural passes settled the code into, so it never edits lines a sibling pass is about to delete or rewrite.
 
 Re-read each file immediately before editing it (a prior pass in this same run may have changed it). After all edits, run `bun run lint:check` on the touched files.
 
