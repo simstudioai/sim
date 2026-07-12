@@ -94,6 +94,15 @@ describe('GlobalCommandsProvider owned-shortcut yielding', () => {
 })
 
 describe('GlobalCommandsProvider editable guard', () => {
+  /**
+   * jsdom does not implement `isContentEditable`, so stub the browser's computed
+   * editability on the element the test focuses.
+   */
+  function focusWithEditability(element: HTMLElement, isContentEditable: boolean) {
+    Object.defineProperty(element, 'isContentEditable', { value: isContentEditable })
+    element.focus()
+  }
+
   it('skips a non-editable command when focus is in an input', () => {
     const handler = vi.fn()
     mount(
@@ -115,9 +124,24 @@ describe('GlobalCommandsProvider editable guard', () => {
         <div contentEditable />
       </GlobalCommandsProvider>
     )
-    ;(container.querySelector('[contenteditable]') as HTMLElement).focus()
+    focusWithEditability(container.querySelector('[contenteditable]') as HTMLElement, true)
     pressModK()
-    expect(handler).toHaveBeenCalledTimes(0)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('skips a non-editable command when focus is on a descendant of a contenteditable root', () => {
+    const handler = vi.fn()
+    mount(
+      <GlobalCommandsProvider>
+        <RegisterModKOutsideEditable handler={handler} />
+        <div contentEditable>
+          <span tabIndex={0} />
+        </div>
+      </GlobalCommandsProvider>
+    )
+    focusWithEditability(container.querySelector('span') as HTMLElement, true)
+    pressModK()
+    expect(handler).not.toHaveBeenCalled()
   })
 
   it('fires a non-editable command when focus is in a contenteditable="false" element', () => {
@@ -129,7 +153,7 @@ describe('GlobalCommandsProvider editable guard', () => {
         <div contentEditable={false} tabIndex={0} />
       </GlobalCommandsProvider>
     )
-    ;(container.querySelector('[contenteditable]') as HTMLElement).focus()
+    focusWithEditability(container.querySelector('[contenteditable]') as HTMLElement, false)
     pressModK()
     expect(handler).toHaveBeenCalledTimes(1)
   })

@@ -95,14 +95,13 @@ function shortcutSignature(parsed: ParsedShortcut, isMac: boolean): string {
 
 /**
  * Whether `element` is an editable region for the purposes of the editable guard.
- * `contenteditable="false"` (e.g. a rich-text editor in read-only mode) is not editable,
- * so commands with `allowInEditable: false` still fire while such an element has focus.
+ * `isContentEditable` is the browser's computed editability, so focusable descendants of a
+ * `contenteditable` root count as editable, while `contenteditable="false"` (e.g. a rich-text
+ * editor in read-only mode) does not — commands with `allowInEditable: false` still fire there.
  */
 function isEditableElement(element: Element | null): boolean {
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return true
-  if (!(element instanceof HTMLElement)) return false
-  const contentEditable = element.getAttribute('contenteditable')
-  return contentEditable !== null && contentEditable.toLowerCase() !== 'false'
+  return element instanceof HTMLElement && element.isContentEditable
 }
 
 /**
