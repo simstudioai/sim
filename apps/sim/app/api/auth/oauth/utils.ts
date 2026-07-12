@@ -8,6 +8,7 @@ import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { refreshOAuthToken } from '@/lib/oauth'
+import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
@@ -450,6 +451,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       accessTokenExpiresAt: account.accessTokenExpiresAt,
       idToken: account.idToken,
       scope: account.scope,
+      updatedAt: account.updatedAt,
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
@@ -463,19 +465,33 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 
   const credential = connections[0]
 
-  // Determine whether we should refresh: missing token OR expired token
+  // Determine whether we should refresh: missing/expired token, or Instagram
+  // long-lived token nearing expiry (Meta cannot refresh after expiry).
   const now = new Date()
   const tokenExpiry = credential.accessTokenExpiresAt
-  const shouldAttemptRefresh =
+  const accessTokenNeedsRefresh =
     !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
+  const instagramNeedsProactiveRefresh =
+    !!credential.refreshToken &&
+    isInstagramProvider(providerId) &&
+    shouldProactivelyRefreshInstagramToken({
+      accessTokenExpiresAt: credential.accessTokenExpiresAt,
+      updatedAt: credential.updatedAt,
+      now,
+    })
 
-  if (shouldAttemptRefresh) {
-    return performCoalescedRefresh({
+  if (accessTokenNeedsRefresh || instagramNeedsProactiveRefresh) {
+    const fresh = await performCoalescedRefresh({
       accountId: credential.id,
       providerId,
       refreshToken: credential.refreshToken!,
       userId,
     })
+    if (fresh) return fresh
+    if (!accessTokenNeedsRefresh && credential.accessToken) {
+      return credential.accessToken
+    }
+    return null
   }
 
   if (!credential.accessToken) {
@@ -550,7 +566,18 @@ export async function refreshAccessTokenIfNeeded(
     refreshTokenExpiresAt &&
     refreshTokenExpiresAt <= proactiveRefreshThreshold
 
-  const shouldRefresh = accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh
+  // Instagram long-lived tokens can only be refreshed while still valid.
+  const instagramNeedsProactiveRefresh =
+    !!credential.refreshToken &&
+    isInstagramProvider(credential.providerId) &&
+    shouldProactivelyRefreshInstagramToken({
+      accessTokenExpiresAt,
+      updatedAt: credential.updatedAt,
+      now,
+    })
+
+  const shouldRefresh =
+    accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh || instagramNeedsProactiveRefresh
 
   const accessToken = credential.accessToken
 
@@ -567,8 +594,8 @@ export async function refreshAccessTokenIfNeeded(
     })
     if (fresh) return fresh
 
-    // If refresh was only triggered proactively (Microsoft refresh-token aging),
-    // the still-valid access token is a fine fallback.
+    // If refresh was only triggered proactively (Microsoft refresh-token aging /
+    // Instagram long-lived nearing expiry), the still-valid access token is fine.
     if (!accessTokenNeedsRefresh && accessToken) {
       logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
       return accessToken
@@ -616,7 +643,18 @@ export async function refreshTokenIfNeeded(
     refreshTokenExpiresAt &&
     refreshTokenExpiresAt <= proactiveRefreshThreshold
 
-  const shouldRefresh = accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh
+  // Instagram long-lived tokens can only be refreshed while still valid.
+  const instagramNeedsProactiveRefresh =
+    !!credential.refreshToken &&
+    isInstagramProvider(credential.providerId) &&
+    shouldProactivelyRefreshInstagramToken({
+      accessTokenExpiresAt,
+      updatedAt: credential.updatedAt,
+      now,
+    })
+
+  const shouldRefresh =
+    accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh || instagramNeedsProactiveRefresh
 
   // If token appears valid and present, return it directly
   if (!shouldRefresh) {
