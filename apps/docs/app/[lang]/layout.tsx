@@ -110,6 +110,12 @@ export default async function Layout({ children, params }: LayoutProps) {
               collapsible: false,
               footer: null,
               banner: null,
+              // The sidebar renders every page in the doc tree as a link at
+              // once, so Next's default viewport-prefetch behavior fires an
+              // RSC payload fetch for every one of them on initial load -
+              // dozens of concurrent requests competing with the actual
+              // page's own content for bandwidth on a real connection.
+              prefetch: false,
               components: {
                 Item: SidebarItem,
                 Folder: SidebarFolder,
