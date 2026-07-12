@@ -112,7 +112,7 @@ describe('GlobalCommandsProvider editable guard', () => {
     mount(
       <GlobalCommandsProvider>
         <RegisterModKOutsideEditable handler={handler} />
-        <div contentEditable tabIndex={0} />
+        <div contentEditable />
       </GlobalCommandsProvider>
     )
     ;(container.querySelector('[contenteditable]') as HTMLElement).focus()
