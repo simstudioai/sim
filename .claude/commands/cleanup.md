@@ -44,7 +44,13 @@ For each pass in turn, apply all of that pass's changes, then move to the next p
 
 Comments apply last, on purpose: that pass operates on whatever the earlier structural passes settled the code into, so it never edits lines a sibling pass is about to delete or rewrite.
 
-Re-read each file immediately before editing it (a prior pass in this same run may have changed it). After all edits, run `bun run lint:check` on the touched files.
+**Treat every Step 1 proposal as snapshot-relative, not authoritative.** All passes analyzed the *original* files in parallel, so a proposal's line ranges and before/after text describe the code as it was *before* any edits — once an earlier pass has run, a later pass's snippet may no longer match. So for each change, before applying:
+
+1. Re-read the file and locate the target by its **content** (the proposal's `old_string` snippet), not by its line number — line numbers from Step 1 are only a hint for where to look, since earlier edits shift them.
+2. If the `old_string` still matches verbatim, apply it — a content-anchored edit is safe even if its line moved.
+3. If it no longer matches (an earlier pass altered that region), do **not** force the stale patch. Re-derive the change from the current code by re-applying that pass's rule to the construct, or drop it if a prior pass already made it moot. Never apply a proposal against text it wasn't computed from.
+
+After all edits, run `bun run lint:check` on the touched files.
 
 ## Step 4 — Summary
 
