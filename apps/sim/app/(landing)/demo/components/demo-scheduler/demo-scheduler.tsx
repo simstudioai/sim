@@ -19,6 +19,24 @@ interface DemoSchedulerProps {
   lead: DemoLead
 }
 
+let calEmbedPreloaded = false
+
+/**
+ * Warm the Cal.com embed before the scheduler mounts. Loads `embed.js` and
+ * issues the embed's `preload` instruction, which fetches the booker in a
+ * hidden `?preload=true` iframe so its assets are already cached when the real
+ * embed renders on submit. Without this, nothing Cal.com-related starts
+ * downloading until the visitor presses Continue, which is why the calendar
+ * used to take several seconds to appear. Idempotent — repeat calls no-op.
+ */
+export function preloadCalEmbed(): void {
+  if (calEmbedPreloaded) return
+  calEmbedPreloaded = true
+  getCalApi({ namespace: CAL_NAMESPACE }).then((cal) => {
+    cal('preload', { calLink: CAL_LINK })
+  })
+}
+
 /**
  * Step 2 of the booking card - the Cal.com scheduler, prefilled from the form's
  * {@link DemoLead}. Rendered inside the card chrome owned by {@link DemoBooking}

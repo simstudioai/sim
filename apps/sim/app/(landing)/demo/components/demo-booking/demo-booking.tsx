@@ -3,9 +3,18 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import { chipBorderShadowRing, cn } from '@sim/emcn'
 import dynamic from 'next/dynamic'
+import { preconnect } from 'react-dom'
 import { DemoForm, type DemoLead } from '@/app/(landing)/demo/components/demo-form'
 
 const importScheduler = () => import('@/app/(landing)/demo/components/demo-scheduler')
+
+/**
+ * Warm the entire booking path while the visitor fills the form: the scheduler
+ * chunk, Cal.com's embed.js, and the booker iframe assets (via the embed's
+ * `preload` instruction). Fired on first form focus so none of it competes
+ * with initial page load, and finished long before the visitor submits.
+ */
+const preloadScheduler = () => importScheduler().then((m) => m.preloadCalEmbed())
 
 /**
  * Lazy-loaded so the Cal.com embed never enters the initial landing bundle - it
@@ -42,6 +51,8 @@ interface DemoBookingProps {
  * hides/shows.
  */
 export function DemoBooking({ className }: DemoBookingProps) {
+  preconnect('https://app.cal.com')
+
   const [lead, setLead] = useState<DemoLead | null>(null)
   const [formHeight, setFormHeight] = useState<number>()
   const formRef = useRef<HTMLDivElement>(null)
@@ -75,7 +86,7 @@ export function DemoBooking({ className }: DemoBookingProps) {
         <div
           className='w-full min-w-0 shrink-0'
           inert={showScheduler}
-          onFocusCapture={() => void importScheduler()}
+          onFocusCapture={() => void preloadScheduler()}
         >
           <div ref={formRef} className='p-6 max-sm:p-5'>
             <DemoForm onComplete={setLead} />
