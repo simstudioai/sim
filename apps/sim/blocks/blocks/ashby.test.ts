@@ -54,4 +54,18 @@ describe('AshbyBlock', () => {
       expect(result.socialLinks).toBeUndefined()
     })
   })
+
+  describe('wandConfig on array-shaped fields', () => {
+    it('does not request object-wrapped output for alternateEmailAddresses or socialLinks', () => {
+      // generationType 'json-object' makes the wand API append "the response
+      // must start with { and end with }", which conflicts with these fields'
+      // array-or-comma-separated parsers (parseStringListInput/parseSocialLinksInput).
+      const alternateEmailAddresses = AshbyBlock.subBlocks.find(
+        (s) => s.id === 'alternateEmailAddresses'
+      )
+      const socialLinks = AshbyBlock.subBlocks.find((s) => s.id === 'socialLinks')
+      expect(alternateEmailAddresses?.wandConfig?.generationType).not.toBe('json-object')
+      expect(socialLinks?.wandConfig?.generationType).not.toBe('json-object')
+    })
+  })
 })

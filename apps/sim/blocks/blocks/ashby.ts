@@ -597,7 +597,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
 Examples:
 - "her work and personal emails" -> ["work@company.com","personal@example.com"]
 Output only the list, nothing else.`,
-        generationType: 'json-object',
       },
     },
     {
@@ -613,7 +612,6 @@ Output only the list, nothing else.`,
 Examples:
 - "his Twitter is @jane and portfolio is jane.dev" -> [{"type":"Twitter","url":"https://twitter.com/jane"},{"type":"Portfolio","url":"https://jane.dev"}]
 Output only the JSON array, nothing else.`,
-        generationType: 'json-object',
       },
     },
     {
