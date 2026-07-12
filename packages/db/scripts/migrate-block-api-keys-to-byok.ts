@@ -168,6 +168,13 @@ function parseRequireKeyPrefixArgs(): Record<string, string> {
 
 const REQUIRED_KEY_PREFIX = parseRequireKeyPrefixArgs()
 
+// Longest prefix first so the most specific mapping wins when prefixes overlap
+// (e.g. grok-4=other beats grok=xai for "grok-4-fast"), making resolution deterministic
+// regardless of --model-map argument order.
+const MODEL_PREFIX_ENTRIES = Object.entries(MODEL_PREFIX_TO_PROVIDER).sort(
+  (a, b) => b[0].length - a[0].length
+)
+
 /**
  * Resolves an LLM-family block's selected model to a BYOK provider id via the configured
  * model-prefix map. Mirrors how the app matches models to providers (e.g. grok -> xai).
@@ -175,7 +182,7 @@ const REQUIRED_KEY_PREFIX = parseRequireKeyPrefixArgs()
 function resolveModelProvider(model: string): string | null {
   const normalized = model.trim().toLowerCase()
   if (!normalized) return null
-  for (const [prefix, providerId] of Object.entries(MODEL_PREFIX_TO_PROVIDER)) {
+  for (const [prefix, providerId] of MODEL_PREFIX_ENTRIES) {
     if (normalized.startsWith(prefix)) return providerId
   }
   return null
