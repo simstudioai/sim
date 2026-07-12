@@ -6,6 +6,8 @@ description: A weekly workflow that pulls Stripe and Sheets data, reconciles the
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_REPORT_ROLLUP_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Use case" title="Scheduled Report Rollup" className="mt-2" />
 
@@ -40,4 +42,16 @@ Let the Monday number assemble itself. A schedule fires each week, pulls the cha
 
 A **Schedule trigger** fires every Monday at 7:00. The workflow pulls charges from the **Stripe API** and reads the tracking tab with **Google Sheets**. A **Function** block reconciles the two sources and computes this week's number and the delta. A **Table** block inserts the row, so every week's result is queryable later, and a **Slack message** posts the digest to the channel. Every run is recorded in the [logs](/logs-debugging).
 
+Here is the machine the video builds:
+
+<WorkflowPreview workflow={AV_REPORT_ROLLUP_WORKFLOW} height={340} />
+
 This composes [workflows](/academy/workflows/intro) and [tables](/academy/tables/intro): the foundations, composed.
+
+## How it works
+
+The **Schedule** trigger fires weekly, Monday at 7:00, and fans out to both sources at once: two edges leave the trigger, so **Stripe** lists the week's charges while **Sheets** reads the tracking tab in parallel. Neither source waits on the other.
+
+The **Reconcile** function is where the two lanes meet. A [Function block](/academy/workflows/intro) runs plain code, which is the right tool here: matching charges to tracked rows and computing a delta is deterministic logic, not judgment, so no agent is involved and the result is the same every week.
+
+**Record** inserts the reconciled numbers into the weekly_reports [table](/academy/tables/intro) before anything is posted. That ordering is deliberate: the table is the durable record, so every past week stays queryable even if the Slack message scrolls away. **Digest** then posts the summary to #finance, and Monday's report is waiting before anyone asks for it.

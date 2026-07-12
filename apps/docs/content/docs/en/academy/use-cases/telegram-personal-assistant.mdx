@@ -6,6 +6,11 @@ description: An assistant you text like a friend, it reads your inbox, checks yo
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import {
+  AV_MORNING_BRIEF_WORKFLOW,
+  AV_TELEGRAM_ASSISTANT_WORKFLOW,
+} from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Use case" title="Telegram Personal Assistant" className="mt-2" />
 
@@ -40,4 +45,20 @@ Build an assistant you message like a friend. Each Telegram text, a question abo
 
 A **Telegram trigger** starts the workflow on each incoming message. A **Router** block reads the request and picks a lane: an **Agent** that reads Gmail, an **Agent** that checks Google Calendar, or an **Agent** that researches the web with Exa. Whichever lane runs, the answer goes back as a reply in the same Telegram thread. A second **Schedule trigger** fires daily at 7:00, a brief agent gathers the day's context, and a **Telegram send** delivers it before you ask. Every run is recorded in the [logs](/logs-debugging).
 
+Here is the assistant the video builds:
+
+<WorkflowPreview workflow={AV_TELEGRAM_ASSISTANT_WORKFLOW} height={380} />
+
 This pulls together [workflows](/academy/workflows/intro) and [agents](/academy/agents/intro) into one system: the foundations, composed.
+
+## How it works
+
+The **Telegram Trigger** fires on each message you send the bot and carries the chat id, which is how the reply finds its way back to the same conversation.
+
+The **Router** is the block that makes this an assistant instead of a chain: it reads the request and picks exactly one lane. "Did anything come in from the landlord?" goes to **Email**, "what's on Thursday?" goes to **Calendar**, and "find me a standing desk under $400" goes to **Research**. Unlike a Condition, which tests a value you name, a [Router](/academy/workflows/intro) uses a model to read intent, which is the right tool when the input is free-form language.
+
+Each lane is a small [agent](/academy/agents/intro) with exactly the tools its job needs: Gmail for the email lane, Google Calendar for the calendar lane, Exa search for the research lane. Narrow agents with few tools are easier to steer than one agent with everything. Whichever lane runs, **Reply** sends the answer back to the trigger's chat id.
+
+The assistant also speaks first. A second workflow, on a **Schedule** trigger at 7:00, runs a **Brief** agent that reads the inbox and the calendar, and **Send** delivers the morning summary before you ask:
+
+<WorkflowPreview workflow={AV_MORNING_BRIEF_WORKFLOW} />

@@ -6,6 +6,8 @@ description: An agent that watches a Slack channel, classifies incoming IT reque
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_IT_TRIAGE_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Use case" title="Slack IT Triage Bot" className="mt-2" />
 
@@ -40,4 +42,18 @@ Build an agent that lives in a Slack channel: it reads each incoming IT request,
 
 A **Slack trigger** starts the workflow on each new message. An **Agent** block classifies the request and decides the path: a **knowledge-base search** drafts an answer for common questions, while anything it can't resolve is routed to a human or filed as a ticket. Every run is recorded in the [logs](/logs-debugging).
 
+Here is the machine the video builds:
+
+<WorkflowPreview workflow={AV_IT_TRIAGE_WORKFLOW} height={340} />
+
 This pulls together [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [knowledge bases](/academy/knowledge-bases/intro) into one system: the foundations, composed.
+
+## How it works
+
+The **IT Help Trigger** fires on every message posted in the channel, and it hands the workflow more than the text: the sender, the channel, and the message timestamp all arrive as outputs the later blocks can reference. That timestamp matters at the end.
+
+The **Triage** agent classifies the request, and its Response Format is the lesson: instead of prose, it is forced to return a structured object with a `category` field that is either `answerable` or `escalate`. A structured decision is something the next block can branch on; free text is not. The [Agent block](/academy/agents/intro) page covers structured outputs in depth.
+
+The **Answerable?** condition reads `<triage.category>` and picks the path. On the answerable side, the **Knowledge** block searches the IT Docs [knowledge base](/academy/knowledge-bases/intro) and returns the top 3 chunks, the **Answer** agent writes a reply grounded in those chunks, and the **Reply** block posts it back to Slack with the trigger's Thread TS, so the answer lands in the same thread as the question instead of as a new channel message.
+
+Everything else takes the other branch: **Escalate** posts the request to #it-escalations, where a human picks it up. The bot never guesses on requests it was not built to answer.

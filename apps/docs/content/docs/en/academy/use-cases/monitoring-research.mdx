@@ -6,6 +6,8 @@ description: A scheduled agent that watches sources you care about, researches w
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_MORNING_WATCH_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Use case" title="Monitoring & Automated Research" className="mt-2" />
 
@@ -40,4 +42,18 @@ Build a system that runs on a schedule, checks the sources you care about, resea
 
 A **Schedule trigger** kicks the workflow off. An **Agent** block with search tools gathers and reads sources, synthesizes what changed, and a final step delivers it: a Slack message, or a saved report [file](/academy/files/intro).
 
+Here is the machine the video builds:
+
+<WorkflowPreview workflow={AV_MORNING_WATCH_WORKFLOW} />
+
 This composes [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [files](/academy/files/intro).
+
+## How it works
+
+The **Schedule** trigger fires every morning at 7:00, no message and no click. Scheduled workflows are the pattern for anything that should happen whether or not you remember it; the [triggers video](/academy/workflows/intro) covers how a trigger replaces the manual Start.
+
+The **Research** agent carries the tools: Exa for search and Firecrawl for reading pages. The agent decides what to search for and which results to open, calling the tools as many times as the question needs. That loop, model decides, tool runs, model reads the result, is [tool calling](/academy/agents/intro), and it is what makes this a researcher instead of a summarizer of whatever one query returned.
+
+The **Digest** agent is a separate block on purpose. Research and writing are different jobs: the first agent gathers with wide instructions, the second condenses with strict ones. Splitting them keeps each prompt short and each output predictable.
+
+**Post** delivers the digest to #market-watch. Swap this one block to change where the report lands: an email, a saved [file](/academy/files/intro), a [table](/academy/tables/intro) row per day.

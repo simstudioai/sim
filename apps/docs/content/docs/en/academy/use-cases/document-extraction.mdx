@@ -6,6 +6,8 @@ description: A pipeline that takes incoming documents, extracts the fields you c
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_DOC_EXTRACTION_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Use case" title="Document Intake & Extraction" className="mt-2" />
 
@@ -40,4 +42,16 @@ Turn a pile of unstructured documents, invoices, contracts, forms, into structur
 
 A **file** comes in, an **Agent** block extracts the fields into a [structured output](/academy/agents/intro) so the shape is predictable, and a **Table** block writes the row. Run it across a batch and a folder of documents becomes a queryable table.
 
+Here is the machine the video builds:
+
+<WorkflowPreview workflow={AV_DOC_EXTRACTION_WORKFLOW} />
+
 This composes [files](/academy/files/intro), [agents](/academy/agents/intro), and [tables](/academy/tables/intro).
+
+## How it works
+
+The **Gmail Email Trigger** polls the inbox and fires on each new email, with Include Attachments enabled so the invoice PDF arrives as part of the trigger's output. No one forwards anything; the inbox itself is the intake queue.
+
+The **Extract** agent reads the attachment and its Response Format is what makes the whole machine reliable: it must return `vendor`, `amount`, and `due_date` as named fields, not a paragraph that mentions them. Structured output turns each field into a root-level reference, so the next block can write `<extract.vendor>` and `<extract.amount>` directly instead of parsing prose. That is the difference between a demo and a pipeline.
+
+**Save Row** inserts those fields into the Invoices [table](/academy/tables/intro). Because the agent's output shape is fixed, the mapping from fields to columns never drifts, and every email that arrives becomes one more queryable row.

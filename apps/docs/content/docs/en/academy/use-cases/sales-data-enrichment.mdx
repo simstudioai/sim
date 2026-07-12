@@ -6,6 +6,8 @@ description: A table-backed system that takes thin lead records, enriches them i
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_LEAD_ENRICHMENT_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Use case" title="Sales Data Management & Enrichment" className="mt-2" />
 
@@ -40,4 +42,16 @@ Run your sales pipeline as data. Start with thin lead records in a table, enrich
 
 Leads live in a **table**. A **workflow column** runs per row: it enriches the record, an **Agent** block scores the fit, and the results are written straight back into the table. The table becomes both the queue and the record.
 
+Here is the workflow behind the column:
+
+<WorkflowPreview workflow={AV_LEAD_ENRICHMENT_WORKFLOW} />
+
 This is [tables](/academy/tables/intro) and [agents](/academy/agents/intro) composed into a pipeline that operates at scale.
+
+## How it works
+
+Notice what the workflow is not: there is no loop, no batch logic, no list handling. It is a plain chain built for exactly one lead, because the multiplicity lives in the [table](/academy/tables/intro), not the workflow. The table's workflow column runs this chain once per row, and fifty leads means fifty parallel runs of the same three blocks.
+
+The **Start** block declares the input: a company and a contact. When the table invokes the workflow, each row's cells fill these fields, so `<start.company>` inside the workflow always means this row's company.
+
+The **Research** agent carries Exa and Firecrawl as [tools](/academy/agents/intro) and gathers what is public about the company: what it does, how big it is, what it runs on. The **Score** agent then reads the research and grades the fit. Its output flows back into the row's result columns, which is what turns the table from a list of names into a ranked queue your team can sort.

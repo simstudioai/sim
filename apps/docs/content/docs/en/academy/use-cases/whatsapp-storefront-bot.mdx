@@ -6,6 +6,8 @@ description: A shop that answers at any hour, a WhatsApp bot that replies from y
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 import { VideoChapters } from '@/components/ui/video-chapters'
+import { WorkflowPreview } from '@/components/workflow-preview'
+import { AV_STOREFRONT_BOT_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
 <VideoPlaceholder eyebrow="Use case" title="WhatsApp Storefront Bot" className="mt-2" />
 
@@ -40,4 +42,18 @@ Build a shop that answers at any hour. Each customer message on WhatsApp is chec
 
 A **WhatsApp trigger** starts the workflow on each customer message. A **Condition** block checks it first: refunds and complaints route straight to the owner's **Slack**, everything else continues. A **knowledge-base search** pulls the relevant FAQ entries, and an **Agent** block with [conversation memory](/academy/agents/memory) keyed to the sender writes the reply, so each answer is cited and each thread remembers its history. The **WhatsApp reply** goes back in the same conversation.
 
+Here is the machine the video builds:
+
+<WorkflowPreview workflow={AV_STOREFRONT_BOT_WORKFLOW} height={340} />
+
 This pulls together [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [knowledge bases](/academy/knowledge-bases/intro) into one system: the foundations, composed.
+
+## How it works
+
+The **WhatsApp Trigger** fires on every customer message and carries the sender's number as an output, which the rest of the workflow uses twice: once to key the memory, once to address the reply.
+
+The **Refund?** condition runs before any AI does. Refunds and complaints are the messages a bot should not handle, so they route straight to **Alert Owner**, a Slack post in the owner's channel. Putting the guardrail first means the sensitive cases never even reach the agent; the [Condition block](/academy/workflows/intro) is the cheapest safety mechanism in the whole machine.
+
+Everything else flows to **Knowledge**, which searches the Shop FAQ [knowledge base](/academy/knowledge-bases/intro) with the customer's message as the query. The **Answer** agent writes a reply grounded in those FAQ chunks, and its Memory is set to Conversation keyed to the sender's number, so the third message in a thread is answered with the first two in context. Each customer gets their own thread of [memory](/academy/agents/memory); no two conversations mix.
+
+**Reply** sends the answer back over WhatsApp to the same number, and to the customer it is just the shop texting back.
