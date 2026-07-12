@@ -1,6 +1,6 @@
 ---
 description: Commit, push, and open a PR to staging in one shot
-argument-hint: [optional context or scope notes]
+argument-hint: "[optional context or scope notes]"
 ---
 
 # Ship Command
