@@ -2,6 +2,34 @@ import { AshbyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
+function parseStringListInput(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String)
+  if (typeof value !== 'string') return []
+  const trimmed = value.trim()
+  if (!trimmed) return []
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.map(String)
+    } catch {}
+  }
+  return trimmed
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function parseSocialLinksInput(value: unknown): Array<{ type: string; url: string }> {
+  if (Array.isArray(value)) return value as Array<{ type: string; url: string }>
+  if (typeof value !== 'string' || !value.trim()) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 export const AshbyBlock: BlockConfig = {
   type: 'ashby',
   name: 'Ashby',
@@ -563,6 +591,14 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       placeholder: 'Comma-separated or JSON array (e.g. ["a@x.com","b@x.com"])',
       condition: { field: 'operation', value: 'create_candidate' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated or JSON array of email addresses based on the user's description.
+Examples:
+- "her work and personal emails" -> ["work@company.com","personal@example.com"]
+Output only the list, nothing else.`,
+        generationType: 'json-object',
+      },
     },
     {
       id: 'socialLinks',
@@ -571,6 +607,14 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       placeholder: 'JSON array (e.g. [{"type":"Twitter","url":"https://twitter.com/x"}])',
       condition: { field: 'operation', value: 'update_candidate' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of social link objects ({"type","url"}) based on the user's description.
+Examples:
+- "his Twitter is @jane and portfolio is jane.dev" -> [{"type":"Twitter","url":"https://twitter.com/jane"},{"type":"Portfolio","url":"https://jane.dev"}]
+Output only the JSON array, nothing else.`,
+        generationType: 'json-object',
+      },
     },
     {
       id: 'includeArchived',
@@ -772,9 +816,14 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           result.applicationId = params.offerApplicationId
         }
         if (params.alternateEmailAddresses) {
-          result.alternateEmailAddresses = params.alternateEmailAddresses
+          const alternateEmailAddresses = parseStringListInput(params.alternateEmailAddresses)
+          if (alternateEmailAddresses.length > 0)
+            result.alternateEmailAddresses = alternateEmailAddresses
         }
-        if (params.socialLinks) result.socialLinks = params.socialLinks
+        if (params.socialLinks) {
+          const socialLinks = parseSocialLinksInput(params.socialLinks)
+          if (socialLinks.length > 0) result.socialLinks = socialLinks
+        }
         return result
       },
     },
