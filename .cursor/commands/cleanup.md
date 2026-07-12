@@ -25,7 +25,7 @@ Run these eight in parallel, substituting the parsed `scope` for `<scope>` in ea
 
 ## Step 2 — Converge
 
-Collect all findings into one list, **keeping each proposal tagged with the pass that produced it** — do NOT collapse a file's proposals into a single unlabeled patch, because Step 3 applies in pass order and needs those labels. Detect overlaps where two passes touch the same region (common: a state pass and an effect pass on the same block, or a memo and callback pass on the same component). Reconcile only genuine same-region conflicts, and drop proposals a sibling pass has made moot; a reconciled change inherits the pass label of the earliest pass it belongs to. Non-overlapping proposals stay as-is with their own labels. The output is a per-pass list of surviving changes, not a per-file patch.
+Collect all findings into one list, **keeping each proposal tagged with the pass that produced it** — do NOT collapse a file's proposals into a single unlabeled patch, because Step 3 applies in pass order and needs those labels. Detect overlaps where two passes touch the same region (common: a state pass and an effect pass on the same block, or a memo and callback pass on the same component). Reconcile only genuine same-region conflicts, and drop proposals a sibling pass has made moot; a reconciled change inherits the pass label of whichever of its passes comes first in the Step 3 dependency order (effects → state → memo → callback → React Query → url-state → emcn → comments), so it is applied at the earliest safe point. Non-overlapping proposals stay as-is with their own labels. The output is a per-pass list of surviving changes, not a per-file patch.
 
 ## Step 3 — Sequential apply
 
