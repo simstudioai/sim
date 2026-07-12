@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { AshbyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
@@ -27,7 +28,7 @@ function parseSocialLinksInput(value: unknown): Array<{ type: string; url: strin
     parsed = JSON.parse(value)
   } catch (error) {
     throw new Error(
-      `Invalid JSON in Ashby social links: ${error instanceof Error ? error.message : String(error)}. Expected a JSON array like [{"type":"Twitter","url":"https://twitter.com/x"}].`
+      `Invalid JSON in Ashby social links: ${getErrorMessage(error)}. Expected a JSON array like [{"type":"Twitter","url":"https://twitter.com/x"}].`
     )
   }
   if (!Array.isArray(parsed)) {
