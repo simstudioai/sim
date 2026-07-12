@@ -92,23 +92,14 @@
   white-space: nowrap;
 }
 
-/* Claude-style shimmer: the text paints from a gradient with a light band
-   that sweeps across the glyphs via background-clip. */
+/* The sweeping-band treatment itself (gradient, timing, dark mode, reduced
+   motion) is owned by the shared shimmer-text module; this class only adds the
+   loader-scaled font sizing. Canonical normal weight per emcn rules: body text
+   is 400, never medium. */
 .label {
+  composes: shimmer from "./shimmer-text.module.css";
   font-size: var(--tl-label-size, 14px);
-  /* Canonical normal weight (per emcn rules: body text is 400, never medium).
-     Reads light and clean under the shimmer gradient on light surfaces. */
   font-weight: 400;
-  background-image: linear-gradient(90deg, #4a4a4a 40%, #b0b0b0 50%, #4a4a4a 60%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: label-shimmer 2.2s linear infinite;
-}
-
-:global(.dark) .label {
-  background-image: linear-gradient(90deg, #b9b9b9 40%, #f8f8f8 50%, #b9b9b9 60%);
 }
 
 /* Static label (shimmer off): the phrase in solid body ink, no gradient sweep. */
@@ -116,12 +107,6 @@
   font-size: var(--tl-label-size, 14px);
   font-weight: 400;
   color: var(--text-body);
-}
-
-@keyframes label-shimmer {
-  to {
-    background-position: 200% 0;
-  }
 }
 
 /* Phrase crossfade — the incoming phrase rises and fades in while the outgoing
@@ -366,7 +351,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .frame *,
-  .label,
   .labelIn {
     animation: none;
   }
