@@ -74,6 +74,29 @@ describe('createExternalWebhookSubscription', () => {
     expect(result.updatedProviderConfig.externalId).toBe('ext-1')
   })
 
+  it('falls back to personal-only env resolution when workspaceId is not a string', async () => {
+    const createSubscription = vi.fn().mockResolvedValue({
+      providerConfigUpdates: { externalId: 'ext-1' },
+    })
+    mockGetProviderHandler.mockReturnValue({ createSubscription })
+
+    const webhookData = {
+      provider: 'ashby',
+      providerConfig: { apiKey: '{{ASHBY_API_KEY}}', triggerId: 'ashby_application_submit' },
+    }
+    const workflow = { id: 'wf-1', workspaceId: null }
+
+    await createExternalWebhookSubscription(
+      {} as NextRequest,
+      webhookData,
+      workflow,
+      'user-1',
+      'req-1'
+    )
+
+    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-1', undefined)
+  })
+
   it('skips resolution and provider call entirely when the provider has no createSubscription', async () => {
     mockGetProviderHandler.mockReturnValue({})
 

@@ -115,10 +115,12 @@ export async function createExternalWebhookSubscription(
     return { updatedProviderConfig: providerConfig, externalSubscriptionCreated: false }
   }
 
+  const workspaceId = typeof workflow.workspaceId === 'string' ? workflow.workspaceId : undefined
+
   const resolvedProviderConfig = await resolveWebhookProviderConfig(
     providerConfig,
     userId,
-    workflow.workspaceId as string | undefined
+    workspaceId
   )
 
   const result = await handler.createSubscription({
