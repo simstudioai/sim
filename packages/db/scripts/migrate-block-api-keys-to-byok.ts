@@ -11,7 +11,7 @@
 //                                        (e.g. jina, perplexity).
 //   --model-map <modelPrefix>=<providerId>
 //                                        LLM-family blocks (agent, router, evaluator,
-//                                        translate, guardrails, pi). These share one model-gated
+//                                        translate, guardrails, pi, router_v2). These share one
 //                                        `apiKey` subblock across every LLM provider, so the
 //                                        block type alone is NOT enough — the key is only taken
 //                                        when the block's selected `model` starts with the given
@@ -62,7 +62,7 @@ function parseMapArgs(): Record<string, string> {
     if (args[i] === '--map' && args[i + 1]) {
       const [blockType, providerId] = args[i + 1].split('=')
       if (blockType?.trim() && providerId?.trim()) {
-        mapping[blockType.trim()] = providerId.trim()
+        mapping[blockType.trim()] = providerId.trim().toLowerCase()
       } else {
         console.error(
           `Invalid --map value: "${args[i + 1]}". Expected format: blockType=providerId`
@@ -84,6 +84,7 @@ const BLOCK_TYPE_TO_PROVIDER = parseMapArgs()
 const LLM_FAMILY_BLOCK_TYPES = [
   'agent',
   'router',
+  'router_v2',
   'evaluator',
   'translate',
   'guardrails',
@@ -97,7 +98,7 @@ function parseModelMapArgs(): Record<string, string> {
     if (args[i] === '--model-map' && args[i + 1]) {
       const [modelPrefix, providerId] = args[i + 1].split('=')
       if (modelPrefix?.trim() && providerId?.trim()) {
-        mapping[modelPrefix.trim().toLowerCase()] = providerId.trim()
+        mapping[modelPrefix.trim().toLowerCase()] = providerId.trim().toLowerCase()
       } else {
         console.error(
           `Invalid --model-map value: "${args[i + 1]}". Expected format: modelPrefix=providerId`
@@ -152,7 +153,7 @@ function parseRequireKeyPrefixArgs(): Record<string, string> {
       const providerId = idx >= 0 ? args[i + 1].slice(0, idx).trim() : ''
       const prefix = idx >= 0 ? args[i + 1].slice(idx + 1).trim() : ''
       if (providerId && prefix) {
-        mapping[providerId] = prefix
+        mapping[providerId.toLowerCase()] = prefix
       } else {
         console.error(
           `Invalid --require-key-prefix value: "${args[i + 1]}". Expected format: providerId=prefix`
