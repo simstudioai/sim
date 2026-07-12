@@ -1,6 +1,6 @@
 ---
 description: Analyze and fix useCallback anti-patterns in your code
-argument-hint: [scope] [fix=true|false]
+argument-hint: "[scope] [fix=true|false]"
 ---
 
 # You Might Not Need a Callback
