@@ -13,9 +13,11 @@ User arguments: $ARGUMENTS
 
 ## Step 1 — Parallel analysis (read-only)
 
-Spawn all eight passes concurrently as subagents in a **single message** (multiple Agent tool calls). Each runs its skill on the specified scope with `fix=false` — analysis and proposals ONLY, no edits. Instruct each agent to return its findings as a structured list: for every proposed change, the file path, line range, a one-line description of the change, and the exact before/after so the orchestrator can apply it without re-deriving.
+First parse the user's `$ARGUMENTS` into `scope` (everything except a trailing `fix=…`; default: your current changes) and `fix` (default: true). The `fix` value is consumed by Step 3 — it does NOT propagate to these passes, which always run `fix=false`.
 
-Run these eight in parallel:
+Spawn all eight passes concurrently as subagents in a **single message** (multiple Agent tool calls). Each runs its skill on the parsed `scope` with `fix=false` — analysis and proposals ONLY, no edits. Instruct each agent to return its findings as a structured list: for every proposed change, the file path, line range, a one-line description of the change, and the exact before/after so the orchestrator can apply it without re-deriving.
+
+Run these eight in parallel, substituting the parsed `scope` for `<scope>` in each invocation (pass the real scope text, never the literal `<scope>`):
 
 1. `/you-might-not-need-an-effect <scope> fix=false`
 2. `/you-might-not-need-a-memo <scope> fix=false`
