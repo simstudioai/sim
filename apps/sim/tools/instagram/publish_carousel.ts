@@ -2,6 +2,7 @@ import type {
   InstagramPublishCarouselParams,
   InstagramPublishResponse,
 } from '@/tools/instagram/types'
+import { createPublishTransform, PUBLISH_OUTPUTS } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramPublishCarouselTool: ToolConfig<
@@ -60,24 +61,7 @@ export const instagramPublishCarouselTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    if (!response.ok || data.success === false) {
-      return {
-        success: false,
-        output: data.output || { containerId: null, mediaId: null, statusCode: null },
-        error: data.error || 'Failed to publish carousel',
-      }
-    }
-    return {
-      success: true,
-      output: data.output || { containerId: null, mediaId: null, statusCode: null },
-    }
-  },
+  transformResponse: createPublishTransform('Failed to publish carousel'),
 
-  outputs: {
-    containerId: { type: 'string', description: 'Carousel container id', optional: true },
-    mediaId: { type: 'string', description: 'Published media id', optional: true },
-    statusCode: { type: 'string', description: 'Final status', optional: true },
-  },
+  outputs: PUBLISH_OUTPUTS,
 }

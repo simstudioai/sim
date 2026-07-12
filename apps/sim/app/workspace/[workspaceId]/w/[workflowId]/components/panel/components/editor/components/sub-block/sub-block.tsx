@@ -904,6 +904,7 @@ function SubBlockComponent({
             acceptedTypes={config.acceptedTypes || '*'}
             multiple={config.multiple === true}
             maxSize={config.maxSize}
+            requiresCloudStorage={config.requiresCloudStorage === true}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}

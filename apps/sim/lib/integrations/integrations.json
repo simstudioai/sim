@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10",
+  "updatedAt": "2026-07-12",
   "integrations": [
     {
       "type": "onepassword",
@@ -8936,7 +8936,7 @@
       "name": "Instagram",
       "description": "Publish content, moderate comments, and manage Instagram DMs",
       "longDescription": "Integrate Instagram into workflows. Publish images, videos, Reels, stories, and carousels; moderate comments; send DMs; and pull account or media insights.",
-      "bgColor": "#E4405F",
+      "bgColor": "radial-gradient(circle at 28% 96%, #fa8f21 9%, #d82d7e 55%, #8c3aaa 100%)",
       "iconName": "InstagramIcon",
       "docsUrl": "https://docs.sim.ai/integrations/instagram",
       "operations": [

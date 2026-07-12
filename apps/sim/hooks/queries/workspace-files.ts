@@ -52,12 +52,15 @@ export const workspaceFilesKeys = {
       ...(storageKey ? [storageKey] : []),
     ] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
+  cloudConfigured: () => [...workspaceFilesKeys.all, 'cloudConfigured'] as const,
 }
 
 export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
 export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
+/** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
+export const CLOUD_STORAGE_CONFIGURED_STALE_TIME = Number.POSITIVE_INFINITY
 
 /**
  * Storage info type
@@ -282,6 +285,30 @@ export function useStorageInfo(enabled = true) {
     enabled,
     retry: false, // Don't retry on 404
     staleTime: WORKSPACE_STORAGE_INFO_STALE_TIME, // 1 minute - storage info doesn't change often
+  })
+}
+
+async function fetchCloudStorageConfigured(signal?: AbortSignal): Promise<boolean> {
+  // boundary-raw-fetch: tiny status endpoint, no shared contract yet
+  const response = await fetch('/api/files/storage-status', { signal, cache: 'no-store' })
+  if (!response.ok) {
+    throw new Error('Failed to check cloud storage status')
+  }
+  const data = (await response.json()) as { cloudConfigured?: boolean }
+  return data.cloudConfigured === true
+}
+
+/**
+ * Whether S3 or Azure Blob is configured. Used by file uploads that need a
+ * publicly fetchable HTTPS URL (e.g. Instagram publish).
+ */
+export function useCloudStorageConfigured(enabled = true) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.cloudConfigured(),
+    queryFn: ({ signal }) => fetchCloudStorageConfigured(signal),
+    enabled,
+    retry: false,
+    staleTime: CLOUD_STORAGE_CONFIGURED_STALE_TIME,
   })
 }
 

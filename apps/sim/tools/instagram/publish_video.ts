@@ -1,4 +1,5 @@
 import type { InstagramPublishResponse, InstagramPublishVideoParams } from '@/tools/instagram/types'
+import { createPublishTransform, PUBLISH_OUTPUTS } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramPublishVideoTool: ToolConfig<
@@ -64,24 +65,7 @@ export const instagramPublishVideoTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
-    const data = await response.json()
-    if (!response.ok || data.success === false) {
-      return {
-        success: false,
-        output: data.output || { containerId: null, mediaId: null, statusCode: null },
-        error: data.error || 'Failed to publish video',
-      }
-    }
-    return {
-      success: true,
-      output: data.output || { containerId: null, mediaId: null, statusCode: null },
-    }
-  },
+  transformResponse: createPublishTransform('Failed to publish video'),
 
-  outputs: {
-    containerId: { type: 'string', description: 'Media container id', optional: true },
-    mediaId: { type: 'string', description: 'Published media id', optional: true },
-    statusCode: { type: 'string', description: 'Final container status', optional: true },
-  },
+  outputs: PUBLISH_OUTPUTS,
 }

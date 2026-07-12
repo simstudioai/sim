@@ -22,7 +22,7 @@ const JPEG_EXT = new Set(['jpg', 'jpeg'])
 const VIDEO_EXT = new Set(['mp4', 'mov'])
 
 const CLOUD_STORAGE_REQUIRED_MESSAGE =
-  'Cloud storage is required to publish uploaded Instagram media. Configure S3 or Blob storage, or paste a public HTTPS URL instead.'
+  'Cloud storage is required to publish uploaded Instagram media. Configure S3_BUCKET_NAME and AWS_REGION (or Azure Blob AZURE_STORAGE_* vars), or paste a public HTTPS URL instead.'
 
 export type InstagramMediaRole = 'image' | 'video' | 'cover' | 'story' | 'carousel'
 

@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="instagram"
-  color="#E4405F"
+  color="radial-gradient(circle at 28% 96%, #fa8f21 9%, #d82d7e 55%, #8c3aaa 100%)"
 />
 
 ## Usage Instructions
@@ -52,7 +52,6 @@ List recent media on the Instagram professional account
 | `igUserId` | string | No | Instagram professional account user id \(defaults to /me\) |
 | `limit` | number | No | Max number of media items to return \(default 25, max 100\) |
 | `after` | string | No | Pagination cursor from a previous list_media response |
-| `fields` | string | No | Comma-separated media fields to request |
 
 #### Output
 
@@ -70,7 +69,6 @@ Get details for a specific Instagram media object
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `mediaId` | string | Yes | Instagram media id |
-| `fields` | string | No | Comma-separated fields to request |
 
 #### Output
 
@@ -121,9 +119,47 @@ Create and publish a single JPEG image post from an uploaded file or public HTTP
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `userId` | string | Instagram professional account user_id |
+| `id` | string | Graph object or message id |
+| `username` | string | Instagram username |
+| `name` | string | Display name |
+| `accountType` | string | Business or Media_Creator |
+| `profilePictureUrl` | string | Profile picture URL |
+| `followersCount` | number | Follower count |
+| `followsCount` | number | Following count |
+| `mediaCount` | number | Media count |
+| `media` | json | List of media objects \(id, caption, mediaType, mediaProductType, mediaUrl, permalink, timestamp, likeCount, commentsCount\) |
+| `caption` | string | Media caption text |
+| `mediaType` | string | IMAGE, VIDEO, or CAROUSEL_ALBUM |
+| `mediaProductType` | string | Feed, Reels, or Stories product type |
+| `mediaUrl` | string | CDN media URL when available |
+| `permalink` | string | Permalink to the post |
+| `timestamp` | string | ISO timestamp |
+| `likeCount` | number | Like count |
+| `commentsCount` | number | Comments count |
+| `children` | json | Carousel child media ids |
+| `stories` | json | Active stories \(id, mediaType, mediaUrl, timestamp\) |
 | `containerId` | string | Media container id |
 | `mediaId` | string | Published media id |
-| `statusCode` | string | Final container status |
+| `statusCode` | string | Container status \(EXPIRED, ERROR, FINISHED, IN_PROGRESS, or PUBLISHED\) |
+| `status` | string | Detailed container status message |
+| `quotaUsage` | number | Publishes used in the current window |
+| `config` | json | Publishing quota config \(quotaTotal, quotaDuration\) |
+| `comments` | json | Comments \(id, text, username, timestamp, likeCount, hidden\) |
+| `success` | boolean | Whether the operation succeeded |
+| `conversations` | json | Conversations \(id, updatedTime\) |
+| `conversationId` | string | Conversation id |
+| `messages` | json | Message references \(id, createdTime\); use Get Message for sender, recipient, and text |
+| `createdTime` | string | Message created timestamp |
+| `fromId` | string | Sender Instagram-scoped id |
+| `fromUsername` | string | Sender username |
+| `toId` | string | Recipient id |
+| `message` | string | Message text |
+| `messageId` | string | Sent or retrieved message id |
+| `recipientId` | string | DM recipient id |
+| `insights` | json | Insight metrics \(name, period, title, description, values, totalValue\) |
+| `nextCursor` | string | Pagination cursor for the next page |
+| `error` | string | Error message if the operation failed |
 
 ### `instagram_publish_video`
 
@@ -142,9 +178,47 @@ Create and publish a feed video from an uploaded file or public HTTPS URL (publi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `userId` | string | Instagram professional account user_id |
+| `id` | string | Graph object or message id |
+| `username` | string | Instagram username |
+| `name` | string | Display name |
+| `accountType` | string | Business or Media_Creator |
+| `profilePictureUrl` | string | Profile picture URL |
+| `followersCount` | number | Follower count |
+| `followsCount` | number | Following count |
+| `mediaCount` | number | Media count |
+| `media` | json | List of media objects \(id, caption, mediaType, mediaProductType, mediaUrl, permalink, timestamp, likeCount, commentsCount\) |
+| `caption` | string | Media caption text |
+| `mediaType` | string | IMAGE, VIDEO, or CAROUSEL_ALBUM |
+| `mediaProductType` | string | Feed, Reels, or Stories product type |
+| `mediaUrl` | string | CDN media URL when available |
+| `permalink` | string | Permalink to the post |
+| `timestamp` | string | ISO timestamp |
+| `likeCount` | number | Like count |
+| `commentsCount` | number | Comments count |
+| `children` | json | Carousel child media ids |
+| `stories` | json | Active stories \(id, mediaType, mediaUrl, timestamp\) |
 | `containerId` | string | Media container id |
 | `mediaId` | string | Published media id |
-| `statusCode` | string | Final container status |
+| `statusCode` | string | Container status \(EXPIRED, ERROR, FINISHED, IN_PROGRESS, or PUBLISHED\) |
+| `status` | string | Detailed container status message |
+| `quotaUsage` | number | Publishes used in the current window |
+| `config` | json | Publishing quota config \(quotaTotal, quotaDuration\) |
+| `comments` | json | Comments \(id, text, username, timestamp, likeCount, hidden\) |
+| `success` | boolean | Whether the operation succeeded |
+| `conversations` | json | Conversations \(id, updatedTime\) |
+| `conversationId` | string | Conversation id |
+| `messages` | json | Message references \(id, createdTime\); use Get Message for sender, recipient, and text |
+| `createdTime` | string | Message created timestamp |
+| `fromId` | string | Sender Instagram-scoped id |
+| `fromUsername` | string | Sender username |
+| `toId` | string | Recipient id |
+| `message` | string | Message text |
+| `messageId` | string | Sent or retrieved message id |
+| `recipientId` | string | DM recipient id |
+| `insights` | json | Insight metrics \(name, period, title, description, values, totalValue\) |
+| `nextCursor` | string | Pagination cursor for the next page |
+| `error` | string | Error message if the operation failed |
 
 ### `instagram_publish_reel`
 
@@ -165,9 +239,47 @@ Create and publish a Reel from an uploaded video file or public HTTPS URL (polls
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `userId` | string | Instagram professional account user_id |
+| `id` | string | Graph object or message id |
+| `username` | string | Instagram username |
+| `name` | string | Display name |
+| `accountType` | string | Business or Media_Creator |
+| `profilePictureUrl` | string | Profile picture URL |
+| `followersCount` | number | Follower count |
+| `followsCount` | number | Following count |
+| `mediaCount` | number | Media count |
+| `media` | json | List of media objects \(id, caption, mediaType, mediaProductType, mediaUrl, permalink, timestamp, likeCount, commentsCount\) |
+| `caption` | string | Media caption text |
+| `mediaType` | string | IMAGE, VIDEO, or CAROUSEL_ALBUM |
+| `mediaProductType` | string | Feed, Reels, or Stories product type |
+| `mediaUrl` | string | CDN media URL when available |
+| `permalink` | string | Permalink to the post |
+| `timestamp` | string | ISO timestamp |
+| `likeCount` | number | Like count |
+| `commentsCount` | number | Comments count |
+| `children` | json | Carousel child media ids |
+| `stories` | json | Active stories \(id, mediaType, mediaUrl, timestamp\) |
 | `containerId` | string | Media container id |
 | `mediaId` | string | Published media id |
-| `statusCode` | string | Final container status |
+| `statusCode` | string | Container status \(EXPIRED, ERROR, FINISHED, IN_PROGRESS, or PUBLISHED\) |
+| `status` | string | Detailed container status message |
+| `quotaUsage` | number | Publishes used in the current window |
+| `config` | json | Publishing quota config \(quotaTotal, quotaDuration\) |
+| `comments` | json | Comments \(id, text, username, timestamp, likeCount, hidden\) |
+| `success` | boolean | Whether the operation succeeded |
+| `conversations` | json | Conversations \(id, updatedTime\) |
+| `conversationId` | string | Conversation id |
+| `messages` | json | Message references \(id, createdTime\); use Get Message for sender, recipient, and text |
+| `createdTime` | string | Message created timestamp |
+| `fromId` | string | Sender Instagram-scoped id |
+| `fromUsername` | string | Sender username |
+| `toId` | string | Recipient id |
+| `message` | string | Message text |
+| `messageId` | string | Sent or retrieved message id |
+| `recipientId` | string | DM recipient id |
+| `insights` | json | Insight metrics \(name, period, title, description, values, totalValue\) |
+| `nextCursor` | string | Pagination cursor for the next page |
+| `error` | string | Error message if the operation failed |
 
 ### `instagram_publish_story`
 
@@ -184,9 +296,47 @@ Publish an image or video story from an uploaded file or public HTTPS URL
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `userId` | string | Instagram professional account user_id |
+| `id` | string | Graph object or message id |
+| `username` | string | Instagram username |
+| `name` | string | Display name |
+| `accountType` | string | Business or Media_Creator |
+| `profilePictureUrl` | string | Profile picture URL |
+| `followersCount` | number | Follower count |
+| `followsCount` | number | Following count |
+| `mediaCount` | number | Media count |
+| `media` | json | List of media objects \(id, caption, mediaType, mediaProductType, mediaUrl, permalink, timestamp, likeCount, commentsCount\) |
+| `caption` | string | Media caption text |
+| `mediaType` | string | IMAGE, VIDEO, or CAROUSEL_ALBUM |
+| `mediaProductType` | string | Feed, Reels, or Stories product type |
+| `mediaUrl` | string | CDN media URL when available |
+| `permalink` | string | Permalink to the post |
+| `timestamp` | string | ISO timestamp |
+| `likeCount` | number | Like count |
+| `commentsCount` | number | Comments count |
+| `children` | json | Carousel child media ids |
+| `stories` | json | Active stories \(id, mediaType, mediaUrl, timestamp\) |
 | `containerId` | string | Media container id |
 | `mediaId` | string | Published media id |
-| `statusCode` | string | Final container status |
+| `statusCode` | string | Container status \(EXPIRED, ERROR, FINISHED, IN_PROGRESS, or PUBLISHED\) |
+| `status` | string | Detailed container status message |
+| `quotaUsage` | number | Publishes used in the current window |
+| `config` | json | Publishing quota config \(quotaTotal, quotaDuration\) |
+| `comments` | json | Comments \(id, text, username, timestamp, likeCount, hidden\) |
+| `success` | boolean | Whether the operation succeeded |
+| `conversations` | json | Conversations \(id, updatedTime\) |
+| `conversationId` | string | Conversation id |
+| `messages` | json | Message references \(id, createdTime\); use Get Message for sender, recipient, and text |
+| `createdTime` | string | Message created timestamp |
+| `fromId` | string | Sender Instagram-scoped id |
+| `fromUsername` | string | Sender username |
+| `toId` | string | Recipient id |
+| `message` | string | Message text |
+| `messageId` | string | Sent or retrieved message id |
+| `recipientId` | string | DM recipient id |
+| `insights` | json | Insight metrics \(name, period, title, description, values, totalValue\) |
+| `nextCursor` | string | Pagination cursor for the next page |
+| `error` | string | Error message if the operation failed |
 
 ### `instagram_publish_carousel`
 
@@ -204,9 +354,47 @@ Publish a carousel of 2-10 images/videos from uploaded files or public HTTPS URL
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `containerId` | string | Carousel container id |
+| `userId` | string | Instagram professional account user_id |
+| `id` | string | Graph object or message id |
+| `username` | string | Instagram username |
+| `name` | string | Display name |
+| `accountType` | string | Business or Media_Creator |
+| `profilePictureUrl` | string | Profile picture URL |
+| `followersCount` | number | Follower count |
+| `followsCount` | number | Following count |
+| `mediaCount` | number | Media count |
+| `media` | json | List of media objects \(id, caption, mediaType, mediaProductType, mediaUrl, permalink, timestamp, likeCount, commentsCount\) |
+| `caption` | string | Media caption text |
+| `mediaType` | string | IMAGE, VIDEO, or CAROUSEL_ALBUM |
+| `mediaProductType` | string | Feed, Reels, or Stories product type |
+| `mediaUrl` | string | CDN media URL when available |
+| `permalink` | string | Permalink to the post |
+| `timestamp` | string | ISO timestamp |
+| `likeCount` | number | Like count |
+| `commentsCount` | number | Comments count |
+| `children` | json | Carousel child media ids |
+| `stories` | json | Active stories \(id, mediaType, mediaUrl, timestamp\) |
+| `containerId` | string | Media container id |
 | `mediaId` | string | Published media id |
-| `statusCode` | string | Final status |
+| `statusCode` | string | Container status \(EXPIRED, ERROR, FINISHED, IN_PROGRESS, or PUBLISHED\) |
+| `status` | string | Detailed container status message |
+| `quotaUsage` | number | Publishes used in the current window |
+| `config` | json | Publishing quota config \(quotaTotal, quotaDuration\) |
+| `comments` | json | Comments \(id, text, username, timestamp, likeCount, hidden\) |
+| `success` | boolean | Whether the operation succeeded |
+| `conversations` | json | Conversations \(id, updatedTime\) |
+| `conversationId` | string | Conversation id |
+| `messages` | json | Message references \(id, createdTime\); use Get Message for sender, recipient, and text |
+| `createdTime` | string | Message created timestamp |
+| `fromId` | string | Sender Instagram-scoped id |
+| `fromUsername` | string | Sender username |
+| `toId` | string | Recipient id |
+| `message` | string | Message text |
+| `messageId` | string | Sent or retrieved message id |
+| `recipientId` | string | DM recipient id |
+| `insights` | json | Insight metrics \(name, period, title, description, values, totalValue\) |
+| `nextCursor` | string | Pagination cursor for the next page |
+| `error` | string | Error message if the operation failed |
 
 ### `instagram_get_container_status`
 

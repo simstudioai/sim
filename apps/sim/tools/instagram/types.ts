@@ -26,7 +26,6 @@ export interface InstagramGetProfileResponse extends ToolResponse {
 export interface InstagramListMediaParams extends InstagramAccessParams {
   limit?: number
   after?: string
-  fields?: string
 }
 
 export interface InstagramListMediaResponse extends ToolResponse {
@@ -49,7 +48,6 @@ export interface InstagramListMediaResponse extends ToolResponse {
 export interface InstagramGetMediaParams {
   accessToken: string
   mediaId: string
-  fields?: string
 }
 
 export interface InstagramGetMediaResponse extends ToolResponse {

@@ -2,7 +2,7 @@ import type {
   InstagramSendTextMessageParams,
   InstagramSendTextMessageResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
+import { graphUrl, idString, jsonBearerHeaders, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramSendTextMessageTool: ToolConfig<
@@ -53,7 +53,7 @@ export const instagramSendTextMessageTool: ToolConfig<
       return graphUrl(path)
     },
     method: 'POST',
-    headers: (params) => bearerHeaders(params.accessToken),
+    headers: (params) => jsonBearerHeaders(params.accessToken),
     body: (params) => ({
       recipient: { id: params.recipientId.trim() },
       message: { text: params.message },
@@ -64,7 +64,7 @@ export const instagramSendTextMessageTool: ToolConfig<
     if (!response.ok) {
       return {
         success: false,
-        output: { messageId: null, recipientId: params?.recipientId.trim() ?? null },
+        output: { messageId: null, recipientId: params?.recipientId?.trim() ?? null },
         error: await readGraphError(response),
       }
     }
@@ -77,7 +77,7 @@ export const instagramSendTextMessageTool: ToolConfig<
       success: true,
       output: {
         messageId: idString(data.message_id),
-        recipientId: idString(data.recipient_id) ?? params?.recipientId.trim() ?? null,
+        recipientId: idString(data.recipient_id) ?? params?.recipientId?.trim() ?? null,
       },
     }
   },

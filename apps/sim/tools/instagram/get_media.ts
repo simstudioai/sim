@@ -2,7 +2,7 @@ import type { InstagramGetMediaParams, InstagramGetMediaResponse } from '@/tools
 import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const DEFAULT_FIELDS =
+const MEDIA_FIELDS =
   'id,caption,media_type,media_product_type,media_url,permalink,timestamp,like_count,comments_count,children{id}'
 
 export const instagramGetMediaTool: ToolConfig<InstagramGetMediaParams, InstagramGetMediaResponse> =
@@ -30,17 +30,10 @@ export const instagramGetMediaTool: ToolConfig<InstagramGetMediaParams, Instagra
         visibility: 'user-or-llm',
         description: 'Instagram media id',
       },
-      fields: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description: 'Comma-separated fields to request',
-      },
     },
 
     request: {
-      url: (params) =>
-        graphUrl(`/${params.mediaId.trim()}`, { fields: params.fields || DEFAULT_FIELDS }),
+      url: (params) => graphUrl(`/${params.mediaId.trim()}`, { fields: MEDIA_FIELDS }),
       method: 'GET',
       headers: (params) => bearerHeaders(params.accessToken),
     },

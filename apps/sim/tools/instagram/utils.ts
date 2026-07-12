@@ -1,7 +1,16 @@
 import { sleep } from '@sim/utils/helpers'
 import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram'
+import type { InstagramPublishResponse } from '@/tools/instagram/types'
+import type { ToolConfig } from '@/tools/types'
 
 export function bearerHeaders(accessToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  }
+}
+
+/** For the messaging endpoints, which take a JSON body (publish endpoints are form-encoded). */
+export function jsonBearerHeaders(accessToken: string): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
     'Content-Type': 'application/json',
@@ -185,6 +194,28 @@ export async function publishMediaContainer(
     throw new Error('Publish media response missing id')
   }
   return id
+}
+
+/** Shared output schema for the five publish tools (image, video, reel, story, carousel). */
+export const PUBLISH_OUTPUTS: ToolConfig['outputs'] = {
+  containerId: { type: 'string', description: 'Media container id', optional: true },
+  mediaId: { type: 'string', description: 'Published media id', optional: true },
+  statusCode: { type: 'string', description: 'Final container status', optional: true },
+}
+
+/**
+ * Shared transformResponse for the publish tools, which all proxy through
+ * internal API routes returning `{ success, output, error }`.
+ */
+export function createPublishTransform(fallbackError: string) {
+  return async (response: Response): Promise<InstagramPublishResponse> => {
+    const data = await response.json()
+    const output = data.output || { containerId: null, mediaId: null, statusCode: null }
+    if (!response.ok || data.success === false) {
+      return { success: false, output, error: data.error || fallbackError }
+    }
+    return { success: true, output }
+  }
 }
 
 export function parseCommaSeparated(value?: string): string[] {

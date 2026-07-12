@@ -2,7 +2,7 @@ import type { InstagramListMediaParams, InstagramListMediaResponse } from '@/too
 import { bearerHeaders, clampGraphLimit, graphUrl, readGraphError } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const DEFAULT_MEDIA_FIELDS =
+const MEDIA_FIELDS =
   'id,caption,media_type,media_product_type,media_url,permalink,timestamp,like_count,comments_count'
 
 export const instagramListMediaTool: ToolConfig<
@@ -44,19 +44,13 @@ export const instagramListMediaTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Pagination cursor from a previous list_media response',
     },
-    fields: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Comma-separated media fields to request',
-    },
   },
 
   request: {
     url: (params) => {
       const path = params.igUserId?.trim() ? `/${params.igUserId.trim()}/media` : '/me/media'
       return graphUrl(path, {
-        fields: params.fields || DEFAULT_MEDIA_FIELDS,
+        fields: MEDIA_FIELDS,
         limit: String(clampGraphLimit(params.limit)),
         after: params.after?.trim() || undefined,
       })

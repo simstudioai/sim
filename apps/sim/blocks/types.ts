@@ -375,6 +375,11 @@ export interface SubBlockConfig {
   acceptedTypes?: string
   multiple?: boolean
   maxSize?: number
+  /**
+   * When true, FileUpload checks for S3/Blob and warns / disables new uploads if missing.
+   * Used by providers (e.g. Instagram) that need a Meta-fetchable public HTTPS URL.
+   */
+  requiresCloudStorage?: boolean
   // Slider-specific properties
   step?: number
   integer?: boolean
