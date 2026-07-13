@@ -392,6 +392,47 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockListTools).toHaveBeenCalledTimes(1)
   })
 
+  it('treats an OAuth redirect during aggregate discovery as authorization pending', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mockConnect.mockRejectedValueOnce(
+      new McpOauthRedirectRequired('https://mcp-a.example.com/authorize')
+    )
+
+    await expect(mcpService.discoverTools(USER_ID, WORKSPACE_ID)).resolves.toEqual([])
+    expect(mockDbUpdateSet).toHaveBeenCalledTimes(1)
+    expect(mockDbUpdateSet).toHaveBeenCalledWith({
+      connectionStatus: 'disconnected',
+      lastError: null,
+      updatedAt: expect.any(Date),
+    })
+
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+    const tools = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+
+    expect(tools.map((item) => item.name)).toEqual(['a1'])
+    expect(mockListTools).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports an OAuth redirect as a disconnected server summary without a hard error', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mockConnect.mockRejectedValueOnce(
+      new McpOauthRedirectRequired('https://mcp-a.example.com/authorize')
+    )
+
+    await expect(mcpService.getServerSummaries(USER_ID, WORKSPACE_ID)).resolves.toEqual([
+      {
+        id: 'mcp-a',
+        name: 'A',
+        url: 'https://mcp-a.example.com/mcp',
+        transport: 'streamable-http',
+        status: 'disconnected',
+        toolCount: 0,
+        lastSeen: undefined,
+        error: undefined,
+      },
+    ])
+  })
+
   it('verifies a server with a force-refreshed live tools handshake', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a'), tool('a2', 'mcp-a')])

@@ -541,10 +541,7 @@ class McpService {
               await client.disconnect()
             }
           } catch (error) {
-            if (
-              error instanceof McpOauthAuthorizationRequiredError ||
-              error instanceof UnauthorizedError
-            ) {
+            if (isMcpAuthorizationRequired(error)) {
               return { kind: 'oauth-pending' }
             }
             return {
@@ -809,10 +806,7 @@ class McpService {
             error: undefined,
           })
         } catch (error) {
-          if (
-            error instanceof McpOauthAuthorizationRequiredError ||
-            error instanceof UnauthorizedError
-          ) {
+          if (isMcpAuthorizationRequired(error)) {
             summaries.push({
               id: config.id,
               name: config.name,
