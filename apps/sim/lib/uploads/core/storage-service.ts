@@ -90,7 +90,16 @@ async function insertFileMetadataHelper(
  * Upload a file to the configured storage provider with context-aware configuration
  */
 export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> {
-  const { file, fileName, contentType, context, preserveKey, customKey, metadata } = options
+  const {
+    file,
+    fileName,
+    contentType,
+    context,
+    preserveKey,
+    customKey,
+    metadata,
+    persistMetadata = true,
+  } = options
 
   logger.info(`Uploading file to ${context} storage: ${fileName}`)
 
@@ -110,7 +119,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       metadata
     )
 
-    if (metadata) {
+    if (metadata && persistMetadata) {
       await insertFileMetadataHelper(
         uploadResult.key,
         metadata,
@@ -136,7 +145,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       metadata
     )
 
-    if (metadata) {
+    if (metadata && persistMetadata) {
       await insertFileMetadataHelper(
         uploadResult.key,
         metadata,
@@ -162,7 +171,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
 
   await writeFile(filesystemPath, file)
 
-  if (metadata) {
+  if (metadata && persistMetadata) {
     await insertFileMetadataHelper(
       storageKey,
       metadata,

@@ -1,11 +1,28 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFindUpload } = vi.hoisted(() => ({
+const {
+  mockCheckStorageQuotaForBillingContext,
+  mockFindUpload,
+  mockHasCloudStorage,
+  mockHeadObject,
+  mockIncrementStorageUsageForBillingContextInTx,
+  mockMaybeNotifyStorageLimitForBillingContext,
+  mockResolveStorageBillingContext,
+} = vi.hoisted(() => ({
+  mockCheckStorageQuotaForBillingContext: vi.fn(),
   mockFindUpload: vi.fn(),
+  mockHasCloudStorage: vi.fn(),
+  mockHeadObject: vi.fn(),
+  mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
+  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
 }))
+
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/tools/handlers/upload-file-reader', () => ({
   findMothershipUploadRowByChatAndName: mockFindUpload,
@@ -19,8 +36,20 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: vi.fn(),
 }))
 
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  hasCloudStorage: mockHasCloudStorage,
+  headObject: mockHeadObject,
+}))
+
+vi.mock('@/lib/billing/storage', () => ({
+  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
+  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
+  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
+}))
+
 vi.mock('@/lib/copilot/vfs/path-utils', () => ({
-  canonicalWorkspaceFilePath: vi.fn(),
+  canonicalWorkspaceFilePath: vi.fn(() => 'files/report.txt'),
 }))
 
 vi.mock('@/lib/workflows/operations/import-export', () => ({ parseWorkflowJson: vi.fn() }))
@@ -38,8 +67,36 @@ const context = {
   workflowId: 'wf-1',
 } as ExecutionContext
 
+const STORAGE_CONTEXT = {
+  workspaceId: 'ws-1',
+  billedAccountUserId: 'workspace-owner',
+  billingEntity: { type: 'organization' as const, id: 'workspace-org' },
+  plan: 'team_25000',
+  customStorageLimitGB: null,
+}
+
+const mothershipRow = {
+  id: 'file-1',
+  key: 'mothership/file-1',
+  userId: 'user-1',
+  workspaceId: 'ws-1',
+  folderId: null,
+  context: 'mothership',
+  chatId: 'chat-1',
+  originalName: 'upload.txt',
+  displayName: 'report.txt',
+  contentType: 'text/plain',
+  size: 100,
+  deletedAt: null,
+  uploadedAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
+}
+
 describe('executeMaterializeFile - unsupported operation', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
 
   it('rejects the table operation and points to the table subagent', async () => {
     const result = await executeMaterializeFile(
@@ -63,5 +120,126 @@ describe('executeMaterializeFile - unsupported operation', () => {
     expect(result.error).toContain('Unsupported materialize_file operation "knowledge_base"')
     expect(result.error).toContain('knowledge subagent')
     expect(mockFindUpload).not.toHaveBeenCalled()
+  })
+})
+
+describe('executeMaterializeFile - save storage transition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockFindUpload.mockResolvedValue(mothershipRow)
+    mockHeadObject.mockResolvedValue({ size: 250, contentType: 'text/plain' })
+    mockHasCloudStorage.mockReturnValue(true)
+    mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
+    mockCheckStorageQuotaForBillingContext.mockResolvedValue({ allowed: true })
+    mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(1_250)
+    mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'file-1', originalName: 'report.txt' }])
+  })
+
+  it('HEADs before the transaction and accounts the verified object size', async () => {
+    let transactionOpen = false
+    mockHeadObject.mockImplementationOnce(async () => {
+      expect(transactionOpen).toBe(false)
+      return { size: 250, contentType: 'text/plain' }
+    })
+    dbChainMockFns.transaction.mockImplementationOnce(
+      async (callback: (tx: typeof dbChainMock.db) => unknown) => {
+        transactionOpen = true
+        try {
+          return await callback(dbChainMock.db)
+        } finally {
+          transactionOpen = false
+        }
+      }
+    )
+    mockIncrementStorageUsageForBillingContextInTx.mockImplementationOnce(
+      async (_tx, _billingContext, bytes) => {
+        expect(transactionOpen).toBe(true)
+        expect(bytes).toBe(250)
+        return 1_250
+      }
+    )
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockHeadObject).toHaveBeenCalledWith('mothership/file-1', 'mothership')
+    expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 250)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ context: 'workspace', chatId: null, size: 250 })
+    )
+    expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(
+      STORAGE_CONTEXT,
+      1_250
+    )
+  })
+
+  it('treats a lost conditional transition as a replay no-op', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
+  })
+
+  it('leaves the mothership row untouched when pre-admission rejects quota', async () => {
+    mockCheckStorageQuotaForBillingContext.mockResolvedValueOnce({
+      allowed: false,
+      error: 'Storage limit exceeded',
+    })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+  })
+
+  it('fails atomically when the in-transaction quota recheck rejects', async () => {
+    mockIncrementStorageUsageForBillingContextInTx.mockRejectedValueOnce(
+      new Error('Storage limit exceeded')
+    )
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      STORAGE_CONTEXT,
+      250
+    )
+    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
+  })
+
+  it('fails on a stale payer instead of charging a new payer', async () => {
+    mockIncrementStorageUsageForBillingContextInTx.mockRejectedValueOnce(
+      new Error('Storage payer changed for workspace ws-1')
+    )
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('report.txt')
+    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
   })
 })

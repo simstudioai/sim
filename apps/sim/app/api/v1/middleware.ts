@@ -6,7 +6,10 @@ import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
+import {
+  getWorkspaceBilledAccountUserId,
+  getWorkspaceBillingSettings,
+} from '@/lib/workspaces/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('V1Middleware')
@@ -191,6 +194,21 @@ export async function checkWorkspaceScope(
   }
 
   return null
+}
+
+/**
+ * Resolves the usage actor for a workspace-scoped v1 request. Personal keys
+ * identify their human owner; shared workspace keys use the billed account as
+ * the explicit system actor because the credential does not identify a human.
+ */
+export async function resolveWorkspaceRequestActor(
+  rateLimit: RateLimitResult,
+  workspaceId: string
+): Promise<string | null> {
+  if (rateLimit.keyType === 'workspace') {
+    return getWorkspaceBilledAccountUserId(workspaceId)
+  }
+  return rateLimit.userId ?? null
 }
 
 /**

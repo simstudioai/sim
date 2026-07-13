@@ -8,24 +8,41 @@ import {
   envFlagsMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  ADMISSION_ERROR_CODE,
+  ADMISSION_RETRY_AFTER_SECONDS,
+} from '@/lib/core/admission/transient-failure'
+
+type WebhookRecord = typeof webhook.$inferSelect
+type WorkflowRecord = typeof workflow.$inferSelect
+type WebhookLookupRow = {
+  webhook: Pick<WebhookRecord, 'id' | 'workflowId' | 'path' | 'createdAt'>
+  workflow: Pick<WorkflowRecord, 'id'>
+}
 
 const {
   mockGenerateId,
+  mockAdmissionRelease,
   mockEnqueue,
   mockGetJobQueue,
+  mockReleaseExecutionSlot,
   mockProviderHandler,
   mockShouldExecuteInline,
   mockWebhookLookupResult,
 } = vi.hoisted(() => ({
   mockGenerateId: vi.fn(),
+  mockAdmissionRelease: vi.fn(),
   mockEnqueue: vi.fn(),
   mockGetJobQueue: vi.fn(),
+  mockReleaseExecutionSlot: vi.fn(),
   mockProviderHandler: { current: {} as Record<string, unknown> },
   mockShouldExecuteInline: vi.fn(),
-  mockWebhookLookupResult: { rows: [] as Array<{ webhook: any; workflow: any }> },
+  mockWebhookLookupResult: { rows: [] as WebhookLookupRow[] },
 }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
@@ -65,10 +82,18 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
   checkTeamPlan: vi.fn().mockReturnValue(true),
 }))
 
+vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
+  releaseExecutionSlot: mockReleaseExecutionSlot,
+}))
+
 vi.mock('@/lib/core/async-jobs', () => ({
   getInlineJobQueue: vi.fn(),
   getJobQueue: mockGetJobQueue,
   shouldExecuteInline: mockShouldExecuteInline,
+}))
+
+vi.mock('@/lib/core/admission/gate', () => ({
+  tryAdmit: vi.fn(() => ({ release: mockAdmissionRelease })),
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
@@ -82,6 +107,7 @@ vi.mock('@/lib/environment/utils', () => ({
 }))
 
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/webhooks/pending-verification', () => ({
   getPendingWebhookVerification: vi.fn(),
@@ -126,10 +152,13 @@ vi.mock('@/triggers/jira/utils', () => ({
   isJiraEventMatch: vi.fn().mockReturnValue(true),
 }))
 
-import { dispatchResolvedWebhookTarget, findAllWebhooksForPath } from '@/lib/webhooks/processor'
-
-type WebhookRecord = typeof webhook.$inferSelect
-type WorkflowRecord = typeof workflow.$inferSelect
+import {
+  checkWebhookPreprocessing,
+  dispatchResolvedWebhookTarget,
+  findAllWebhooksForPath,
+  handleWebhookEventFilter,
+  processPolledWebhookEvent,
+} from '@/lib/webhooks/processor'
 
 function makeWebhookRecord(overrides: Partial<WebhookRecord>): WebhookRecord {
   const now = new Date('2026-01-01T00:00:00.000Z')
@@ -174,6 +203,19 @@ function makeWorkflowRecord(overrides: Partial<WorkflowRecord>): WorkflowRecord 
     archivedAt: null,
     ...overrides,
   }
+}
+
+const billingAttribution = {
+  actorUserId: 'actor-user-1',
+  workspaceId: 'workspace-1',
+  organizationId: null,
+  billedAccountUserId: 'actor-user-1',
+  billingEntity: { type: 'user' as const, id: 'actor-user-1' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
 }
 
 describe('findAllWebhooksForPath cross-tenant collision', () => {
@@ -239,18 +281,143 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
   })
 })
 
+describe('handleWebhookEventFilter', () => {
+  it('returns an ignore response when a provider event does not match', async () => {
+    mockProviderHandler.current = {
+      matchEvent: vi.fn().mockResolvedValue(false),
+    }
+
+    const response = await handleWebhookEventFilter(
+      makeWebhookRecord({ provider: 'gmail' }),
+      makeWorkflowRecord({}),
+      { event: 'message.received' },
+      createMockRequest('POST', { event: 'message.received' }),
+      'request-1'
+    )
+
+    expect(response?.status).toBe(200)
+    await expect(response?.json()).resolves.toMatchObject({
+      message: 'Event type does not match trigger configuration. Ignoring.',
+    })
+  })
+})
+
+describe('webhook admission failures', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGenerateId.mockReturnValue('generated-execution-id')
+  })
+
+  it.each([
+    {
+      statusCode: 429,
+      code: ADMISSION_ERROR_CODE.RESERVATION_CONCURRENCY,
+      cause: undefined,
+    },
+    {
+      statusCode: 503,
+      code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
+      cause: { code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE },
+    },
+  ])(
+    'returns stable retry semantics for transient generic admission $statusCode',
+    async ({ statusCode, code, cause }) => {
+      mockPreprocessExecution.mockResolvedValueOnce({
+        success: false,
+        error: {
+          message: 'Admission temporarily unavailable',
+          statusCode,
+          code,
+          retryable: true,
+          ...(cause ? { cause } : {}),
+        },
+      })
+
+      const result = await checkWebhookPreprocessing(
+        makeWorkflowRecord({}),
+        makeWebhookRecord({ path: 'incoming', provider: 'generic' }),
+        'request-1'
+      )
+
+      expect(result.transientAdmissionFailure).toMatchObject({ statusCode, code })
+      expect(result.error?.status).toBe(statusCode)
+      expect(result.error?.headers.get('Retry-After')).toBe(String(ADMISSION_RETRY_AFTER_SECONDS))
+      await expect(result.error?.json()).resolves.toMatchObject({
+        error: 'Admission temporarily unavailable',
+        code,
+        retryable: true,
+        retryAfterSeconds: ADMISSION_RETRY_AFTER_SECONDS,
+      })
+    }
+  )
+
+  it.each([
+    { statusCode: 402, retryable: true },
+    { statusCode: 403, retryable: true },
+    { statusCode: 429, retryable: true, code: 'RATE_LIMIT_EXCEEDED' },
+  ])(
+    'does not add retry semantics to a $statusCode failure',
+    async ({ statusCode, retryable, code }) => {
+      mockPreprocessExecution.mockResolvedValueOnce({
+        success: false,
+        error: {
+          message: 'Admission denied',
+          statusCode,
+          retryable,
+          ...(code ? { code } : {}),
+        },
+      })
+
+      const result = await checkWebhookPreprocessing(
+        makeWorkflowRecord({}),
+        makeWebhookRecord({ path: 'incoming', provider: 'generic' }),
+        'request-1'
+      )
+
+      expect(result.transientAdmissionFailure).toBeUndefined()
+      expect(result.error?.status).toBe(statusCode)
+      expect(result.error?.headers.get('Retry-After')).toBeNull()
+      await expect(result.error?.json()).resolves.toEqual({ error: 'Admission denied' })
+    }
+  )
+})
+
 describe('webhook processor execution identity', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockPreprocessExecution.mockResolvedValue({
       success: true,
       actorUserId: 'actor-user-1',
+      billingAttribution,
     })
     mockEnqueue.mockResolvedValue('job-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockProviderHandler.current = {}
     mockShouldExecuteInline.mockReturnValue(false)
     mockGenerateId.mockReturnValue('generated-execution-id')
+    workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
+  })
+
+  it('normalizes nullable persisted metadata in preprocessing correlation', async () => {
+    const result = await checkWebhookPreprocessing(
+      makeWorkflowRecord({ workspaceId: null }),
+      makeWebhookRecord({ path: null, provider: null }),
+      'request-1'
+    )
+
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: undefined,
+        triggerData: {
+          correlation: expect.objectContaining({
+            path: undefined,
+            provider: undefined,
+          }),
+        },
+      })
+    )
+    expect(result.correlation?.path).toBeUndefined()
+    expect(result.correlation?.provider).toBeUndefined()
   })
 
   it('reuses preprocessing execution identity when queueing a polling webhook', async () => {
@@ -296,6 +463,128 @@ describe('webhook processor execution identity', () => {
         }),
       })
     )
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('releases the reservation when enqueue fails before ownership transfer', async () => {
+    mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const result = await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({
+        path: 'incoming/gmail',
+        provider: 'gmail',
+        blockId: 'block-1',
+      }),
+      makeWorkflowRecord({}),
+      { event: 'message.received' },
+      createMockRequest('POST', { event: 'message.received' }),
+      {
+        requestId: 'request-1',
+        path: 'incoming/gmail',
+      }
+    )
+
+    expect(result.response.status).toBe(500)
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledOnce()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('generated-execution-id')
+  })
+})
+
+describe('polled webhook reservation ownership', () => {
+  const foundWebhook = {
+    id: 'webhook-1',
+    workflowId: 'workflow-1',
+    path: 'incoming/gmail',
+    provider: 'gmail',
+    providerConfig: {},
+    blockId: 'block-1',
+  }
+  const foundWorkflow = {
+    id: 'workflow-1',
+    userId: 'owner-1',
+    workspaceId: 'workspace-1',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGenerateId.mockReturnValue('generated-execution-id')
+    mockPreprocessExecution.mockResolvedValue({
+      success: true,
+      actorUserId: 'actor-user-1',
+      billingAttribution,
+    })
+    mockEnqueue.mockResolvedValue('job-1')
+    mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
+    mockShouldExecuteInline.mockReturnValue(false)
+    workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
+  })
+
+  it('checks for a missing trigger block before reserving a slot', async () => {
+    workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValueOnce(false)
+
+    const result = await processPolledWebhookEvent(
+      makeWebhookRecord(foundWebhook),
+      makeWorkflowRecord(foundWorkflow),
+      { event: 'message.received' },
+      'request-1'
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      statusCode: 404,
+      error: 'Trigger block not found in deployment',
+    })
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('releases the reservation when polled webhook enqueue fails', async () => {
+    mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const result = await processPolledWebhookEvent(
+      makeWebhookRecord(foundWebhook),
+      makeWorkflowRecord(foundWorkflow),
+      { event: 'message.received' },
+      'request-1'
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      statusCode: 500,
+      error: 'Internal server error',
+    })
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('generated-execution-id')
+  })
+
+  it('propagates transient admission status without enqueueing or inline retry', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Usage admission unavailable',
+        statusCode: 503,
+        code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
+        retryable: true,
+        cause: { code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE },
+      },
+    })
+
+    const result = await processPolledWebhookEvent(
+      makeWebhookRecord(foundWebhook),
+      makeWorkflowRecord(foundWorkflow),
+      { event: 'message.received' },
+      'request-1'
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      statusCode: 503,
+      error: 'Usage admission unavailable',
+      code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
+      retryable: true,
+      retryAfterSeconds: ADMISSION_RETRY_AFTER_SECONDS,
+    })
+    expect(mockPreprocessExecution).toHaveBeenCalledOnce()
+    expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
   it('routes queue-mode providers through the durable job backend', async () => {

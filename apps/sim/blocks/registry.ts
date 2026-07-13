@@ -183,6 +183,8 @@ export function getAllBlockMeta(): Record<string, BlockMeta> {
 export interface ScopedBlockTemplate extends BlockTemplate {
   /** Block types (base form) to render alongside the viewing block in the icon cluster. */
   otherBlockTypes: readonly string[]
+  /** Whether the viewing block owns this template, vs matching only via `alsoIntegrations`. */
+  isOwner: boolean
 }
 
 /**
@@ -208,7 +210,7 @@ export function getTemplatesForBlock(type: string): ScopedBlockTemplate[] {
         const alsoBase = stripVersionSuffix(also)
         if (alsoBase !== base && !others.includes(alsoBase)) others.push(alsoBase)
       }
-      collected.push({ ...template, otherBlockTypes: others })
+      collected.push({ ...template, otherBlockTypes: others, isOwner: isOwnerMatch })
     }
   }
   return collected

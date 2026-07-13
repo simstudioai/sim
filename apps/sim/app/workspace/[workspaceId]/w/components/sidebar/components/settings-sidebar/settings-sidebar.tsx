@@ -6,9 +6,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { getUserRole } from '@/lib/workspaces/organization'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
@@ -26,8 +26,6 @@ import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-av
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useInboxConfig } from '@/hooks/queries/inbox'
-import { useOrganizations } from '@/hooks/queries/organization'
-import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
@@ -60,36 +58,25 @@ export function SettingsSidebar({
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
 
   const { data: session } = useSession()
-  const { data: organizationsData } = useOrganizations()
+  const hostContext = useWorkspaceHostContext()
   const { data: generalSettings } = useGeneralSettings()
-  const { data: subscriptionData } = useSubscriptionData({
-    enabled: isBillingEnabled,
-    staleTime: 5 * 60 * 1000,
-  })
   const { data: inboxConfig } = useInboxConfig(workspaceId)
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders({
     enabled: !isHosted,
   })
 
-  const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
-  // Mirrors the fork EE gate: the WORKSPACE's plan (not the viewer's) plus
-  // workspace admin - matching the Forks page's own gate and the server check.
   const forkingAvailable = useForkingAvailable(workspaceId)
   const { canAdmin: canAdminWorkspace } = useUserPermissionsContext()
 
-  const userEmail = session?.user?.email
   const userId = session?.user?.id
 
-  const userRole = getUserRole(activeOrganization, userEmail)
-  const isOwner = userRole === 'owner'
-  const isAdmin = userRole === 'admin'
-  const isOrgAdminOrOwner = isOwner || isAdmin
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const isOrgAdminOrOwner = hostContext.viewer.isHostOrganizationAdmin
+  const subscriptionAccess = getSubscriptionAccessState(hostContext.ownerBilling)
   const inboxEntitled = inboxConfig?.entitled ?? false
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
-  const isEnterprisePlan = isEnterprise(subscriptionData?.data?.plan)
+  const isEnterprisePlan = subscriptionAccess.isEnterprise
 
   const isSuperUser = session?.user?.role === 'admin'
 
@@ -102,6 +89,10 @@ export function SettingsSidebar({
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
       if (item.hideWhenBillingDisabled && !isBillingEnabled) {
+        return false
+      }
+
+      if (item.id === 'billing' && !canManageWorkspaceBilling(hostContext, userId)) {
         return false
       }
 
@@ -175,6 +166,8 @@ export function SettingsSidebar({
     hasEnterprisePlan,
     isEnterprisePlan,
     subscriptionAccess.hasUsableMaxAccess,
+    hostContext,
+    userId,
     isOrgAdminOrOwner,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
@@ -206,7 +199,6 @@ export function SettingsSidebar({
           void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
           break
         case 'billing':
-          prefetchSubscriptionData(queryClient)
           void import('@/app/workspace/[workspaceId]/settings/components/billing/billing')
           break
       }

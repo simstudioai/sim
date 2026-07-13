@@ -17,6 +17,7 @@ import {
 } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 // Hoisted mock state - these are available to vi.mock factories
 const {
@@ -364,6 +365,19 @@ function setupFetchMock(config: MockFetchResponse = {}) {
   return mockFetch
 }
 
+const TEST_BILLING_ATTRIBUTION: BillingAttributionSnapshot = {
+  actorUserId: 'test-user',
+  workspaceId: 'workspace-456',
+  organizationId: null,
+  billedAccountUserId: 'test-user',
+  billingEntity: { type: 'user', id: 'test-user' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+}
+
 /**
  * Creates a mock execution context with workspaceId for tool tests.
  */
@@ -380,6 +394,11 @@ function createToolExecutionContext(overrides?: Partial<ExecutionContext>): Exec
     ...ctx,
     workspaceId: 'workspace-456',
     ...overrides,
+    metadata: {
+      ...ctx.metadata,
+      ...overrides?.metadata,
+      billingAttribution: overrides?.metadata?.billingAttribution ?? TEST_BILLING_ATTRIBUTION,
+    },
   } as ExecutionContext
 }
 

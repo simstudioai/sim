@@ -9,7 +9,6 @@ import {
   getOrganizationBillingData,
   isOrganizationOwnerOrAdmin,
 } from '@/lib/billing/core/organization'
-import { isUserMemberOfOrganization } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedUsageAPI')
@@ -58,8 +57,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      const membership = await isUserMemberOfOrganization(session.user.id, organizationId)
-      if (!membership.isMember) {
+      const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId)
+      if (!hasPermission) {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
       }
 

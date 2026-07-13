@@ -561,13 +561,20 @@ export interface UpdateRowData {
    */
   executionsPatch?: Record<string, RowExecutionMetadata | null>
   /**
-   * Optional SQL-level guard: the update is a no-op if the row's
-   * `executions[groupId]` already shows `cancelled` for the same
-   * `executionId`. The cell task passes this so a `running` partial-write
-   * landing after a stop click can't clobber the authoritative `cancelled`
+   * Optional SQL-level guard: the update is a no-op when another execution
+   * owns the cell or the current state is already `cancelled`. The cell task
+   * passes this so stale or late partial writes cannot clobber authoritative
    * state. `updateRow` returns `null` when the guard rejects the write.
    */
-  cancellationGuard?: { groupId: string; executionId: string }
+  cancellationGuard?: {
+    groupId: string
+    executionId: string
+    /**
+     * A queued scheduler stamp may claim a different execution while still
+     * rejecting a late same-execution stamp after the worker advanced.
+     */
+    allowNewExecution?: boolean
+  }
   /**
    * The member who performed this write. Billed and usage-gated for any
    * enrichment the write triggers (auto-fire or dependency-cascade re-run), so

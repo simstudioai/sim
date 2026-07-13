@@ -23,17 +23,17 @@ import { IdempotencyService } from '@/lib/core/idempotency/service'
  * Stripe's next retry runs from scratch — without it, one transient
  * failure would poison the key for the whole TTL window.
  *
- * TTL of 7 days is slightly longer than Stripe's 3-day retry horizon so
- * late retries still dedupe against completed work. Rows past their TTL
- * are handled two ways: `atomicallyClaimDb` reclaims stale rows inline
- * via `ON CONFLICT DO UPDATE WHERE created_at < expired_before` (so
- * correctness does not depend on cleanup running), and the external
- * cleanup cron (scheduled from the infra repo) hits
+ * Completed results live for 7 days, slightly longer than Stripe's 3-day
+ * retry horizon. An `in-progress` claim has a separate 10-minute lease, so a
+ * worker crash cannot block every Stripe retry for the full result TTL.
+ * `atomicallyClaimDb` reclaims stale claims inline (correctness does not
+ * depend on cleanup running), and the external cleanup cron hits
  * `/api/webhooks/cleanup/idempotency` to bound table size.
  */
 export const stripeWebhookIdempotency = new IdempotencyService({
   namespace: 'stripe-webhook',
   ttlSeconds: 60 * 60 * 24 * 7,
+  inProgressTtlSeconds: 60 * 10,
   retryFailures: true,
   forceStorage: 'database',
 })

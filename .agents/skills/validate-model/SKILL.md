@@ -1,6 +1,7 @@
 ---
 name: validate-model
-description: Validate a model entry (or every model in a provider) in `apps/sim/providers/models.ts` against the provider's live API docs, reporting pricing and capability drift, dead capability flags, hosting/billing intent, and any field that cannot be verified. Use when auditing or repairing model entries under `apps/sim/providers/models.ts`.
+description: Validate a model entry (or every model in a provider) in apps/sim/providers/models.ts against the provider's live API docs (no hallucination — reports what cannot be verified)
+argument-hint: <provider> [model-id]
 ---
 
 # Validate Model Skill
@@ -34,7 +35,7 @@ Capture per model: `id`, full `pricing`, full `capabilities`, `contextWindow`, `
 
 ## Step 2: Live-fetch authoritative sources
 
-Use the canonical provider URL table in the `add-model` skill (`.claude/commands/add-model.md`, or its mirror `.agents/skills/add-model/SKILL.md`), Step 1, as the single source of truth — fetch the models index, pricing, and reasoning/parameter caveats pages listed there for the target provider. If you update one table, update the other in the same change.
+Use the canonical provider URL table in the `add-model` skill (`.agents/skills/add-model/SKILL.md`), Step 1, as the single source of truth — fetch the models index, pricing, and reasoning/parameter caveats pages listed there for the target provider.
 
 Secondary cross-check (use at least one): OpenRouter, Artificial Analysis, CloudPrice.
 

@@ -42,8 +42,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       keys.map(async (key) => {
         const displayFormat = await getApiKeyDisplayFormat(key.key)
         return {
-          ...key,
-          key: key.key,
+          id: key.id,
+          name: key.name,
+          createdAt: key.createdAt,
+          lastUsed: key.lastUsed,
+          expiresAt: key.expiresAt,
           displayKey: displayFormat,
         }
       })

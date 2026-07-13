@@ -12,8 +12,26 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockAcquireOrganizationMutationLock, mockAssertNoUnresolvedEnterpriseIssuance } =
+  vi.hoisted(() => ({
+    mockAcquireOrganizationMutationLock: vi.fn(),
+    mockAssertNoUnresolvedEnterpriseIssuance: vi.fn(),
+  }))
+
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/auth', () => authMock)
+
+vi.mock('@/lib/billing/enterprise-outbox', () => {
+  class EnterpriseIssuanceInProgressError extends Error {}
+  return {
+    EnterpriseIssuanceInProgressError,
+    assertNoUnresolvedEnterpriseIssuance: mockAssertNoUnresolvedEnterpriseIssuance,
+  }
+})
+
+vi.mock('@/lib/billing/organizations/membership', () => ({
+  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
+}))
 
 vi.mock('@/lib/billing/plan-helpers', () => ({
   isOrgPlan: (plan: string) => plan === 'team' || plan === 'enterprise',
@@ -82,6 +100,32 @@ describe('POST /api/users/me/subscription/[id]/transfer', () => {
     })
     expect(dbChainMockFns.update).toHaveBeenCalled()
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ referenceId: 'org-1' })
+    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(expect.anything(), 'org-1')
+    expect(mockAssertNoUnresolvedEnterpriseIssuance).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1'
+    )
+  })
+
+  it('rejects an entitlement transfer while Enterprise issuance is unresolved', async () => {
+    const { EnterpriseIssuanceInProgressError } = await import('@/lib/billing/enterprise-outbox')
+    dbChainMockFns.for
+      .mockResolvedValueOnce([
+        { id: 'sub-1', referenceId: 'user-1', plan: 'team', status: 'active' },
+      ])
+      .mockResolvedValueOnce([{ id: 'org-1' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ role: 'owner' }])
+    mockAssertNoUnresolvedEnterpriseIssuance.mockRejectedValueOnce(
+      new EnterpriseIssuanceInProgressError()
+    )
+
+    const response = await makeRequest({ organizationId: 'org-1' })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Organization has an unfinished Enterprise issuance',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('treats an already-transferred organization subscription as a successful no-op', async () => {

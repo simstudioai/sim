@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 
@@ -153,17 +154,30 @@ export const PATCH = withRouteHandler(
             { status: 400 }
           )
         }
-
-        updateData.billedAccountUserId = candidateId
       }
 
-      if (Object.keys(updateData).length === 0) {
+      if (Object.keys(updateData).length === 0 && billedAccountUserId === undefined) {
         return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 })
       }
 
       updateData.updatedAt = new Date()
 
-      await db.update(workspace).set(updateData).where(eq(workspace.id, workspaceId))
+      if (billedAccountUserId !== undefined) {
+        await db.transaction(async (tx) => {
+          await changeWorkspaceStoragePayerInTx(tx, {
+            workspaceId,
+            organizationId: existingWorkspace.organizationId,
+            billedAccountUserId,
+            expectedCurrentPayer: {
+              organizationId: existingWorkspace.organizationId,
+              billedAccountUserId: existingWorkspace.billedAccountUserId,
+            },
+          })
+          await tx.update(workspace).set(updateData).where(eq(workspace.id, workspaceId))
+        })
+      } else {
+        await db.update(workspace).set(updateData).where(eq(workspace.id, workspaceId))
+      }
 
       const updatedWorkspace = await db
         .select()

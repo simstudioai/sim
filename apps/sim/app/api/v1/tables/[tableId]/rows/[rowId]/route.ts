@@ -25,6 +25,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  resolveWorkspaceRequestActor,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableRowAPI')
@@ -126,6 +127,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
 
     const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
+    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
+    if (!actorUserId) {
+      throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
+    }
 
     const result = await checkAccess(tableId, userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -144,7 +149,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
         rowId,
         data: rowDataNameToId(validated.data as RowData, idByName),
         workspaceId: validated.workspaceId,
-        actorUserId: userId,
+        actorUserId,
       },
       table,
       requestId

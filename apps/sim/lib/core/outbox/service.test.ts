@@ -59,7 +59,8 @@ const { state, mockDb } = vi.hoisted(() => {
         row.set.status === 'completed' ||
         row.set.status === 'dead_letter' ||
         (row.set.status === 'pending' && 'attempts' in row.set && 'availableAt' in row.set) ||
-        (!('status' in row.set) && 'attempts' in row.set && 'lockedAt' in row.set)
+        (!('status' in row.set) && 'attempts' in row.set && 'lockedAt' in row.set) ||
+        'payload' in row.set
       ) {
         return state.leaseHeld ? [{ id: 'evt-1' }] : []
       }
@@ -125,6 +126,7 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((col, val) => ({ _op: 'eq', col, val })),
   inArray: vi.fn((col, vals) => ({ _op: 'inArray', col, vals })),
   lte: vi.fn((col, val) => ({ _op: 'lte', col, val })),
+  sql: vi.fn(() => ({ _op: 'sql' })),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -236,6 +238,42 @@ describe('processOutboxEvents — handler success and retry', () => {
     expect(handlerCalls).toEqual([{ payload: { foo: 'bar' }, eventId: 'evt-1', attempts: 0 }])
     const completeUpdate = state.updates.find((u) => u.set.status === 'completed')
     expect(completeUpdate).toBeDefined()
+    expect(completeUpdate?.set.lastError).toBeNull()
+  })
+
+  it('checkpoints payload fields only while the processing lease is held', async () => {
+    const handler = vi.fn(
+      async (
+        _payload: unknown,
+        ctx: { checkpointPayload: (patch: Record<string, unknown>) => Promise<void> }
+      ) => {
+        await ctx.checkpointPayload({ stripeProgress: { customerId: 'cus_1' } })
+      }
+    )
+    state.claimedRows = [makePendingRow()]
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.processed).toBe(1)
+    expect(state.updates.some((update) => 'payload' in update.set)).toBe(true)
+  })
+
+  it('stops a handler whose payload checkpoint loses the processing lease', async () => {
+    const handler = vi.fn(
+      async (
+        _payload: unknown,
+        ctx: { checkpointPayload: (patch: Record<string, unknown>) => Promise<void> }
+      ) => {
+        await ctx.checkpointPayload({ stripeProgress: { customerId: 'cus_1' } })
+      }
+    )
+    state.claimedRows = [makePendingRow()]
+    state.leaseHeld = false
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.leaseLost).toBe(1)
+    expect(result.processed).toBe(0)
   })
 
   it('schedules retry with exponential backoff on handler failure below maxAttempts', async () => {

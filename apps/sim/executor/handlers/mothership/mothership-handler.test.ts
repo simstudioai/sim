@@ -6,6 +6,19 @@ import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothershi
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
+const BILLING_ATTRIBUTION = {
+  actorUserId: 'user-1',
+  workspaceId: 'workspace-1',
+  organizationId: 'organization-1',
+  billedAccountUserId: 'owner-1',
+  billingEntity: { type: 'organization', id: 'organization-1' },
+  billingPeriod: {
+    start: '2026-07-01T00:00:00.000Z',
+    end: '2026-08-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+} as const
+
 const {
   mockBuildAuthHeaders,
   mockBuildAPIUrl,
@@ -119,7 +132,7 @@ describe('MothershipBlockHandler', () => {
       userId: 'user-1',
       blockStates: new Map(),
       blockLogs: [],
-      metadata: { duration: 0 },
+      metadata: { duration: 0, billingAttribution: BILLING_ATTRIBUTION },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopExecutions: new Map(),
@@ -193,6 +206,7 @@ describe('MothershipBlockHandler', () => {
     expect(options.headers).toMatchObject({
       Accept: 'application/x-ndjson',
       'X-Mothership-Execute-Stream': 'ndjson',
+      'x-sim-billing-attribution': expect.any(String),
     })
 
     const body = JSON.parse(String(options.body))
@@ -206,6 +220,15 @@ describe('MothershipBlockHandler', () => {
       workflowId: 'workflow-1',
       executionId: 'execution-1',
     })
+  })
+
+  it('rejects execution before the internal request when billing attribution is missing', async () => {
+    context.metadata.billingAttribution = undefined
+
+    await expect(
+      handler.execute(context, block, { prompt: 'Hello from workflow' })
+    ).rejects.toThrow('Billing attribution is required for Mothership execution')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('uses a provided conversation ID as the mothership chat ID', async () => {

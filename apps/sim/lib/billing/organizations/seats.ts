@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray } from 'drizzle-orm'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'
-import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -74,7 +74,7 @@ export async function reconcileOrganizationSeats({
       .where(
         and(
           eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
         )
       )
       .for('update')

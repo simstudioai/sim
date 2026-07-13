@@ -1,6 +1,6 @@
 ---
 description: Analyze and fix URL/query-param state anti-patterns — manual useSearchParams reads, hand-built query mutations, view-state trapped in useState, and objects in the URL
-argument-hint: [scope] [fix=true|false]
+argument-hint: "[scope] [fix=true|false]"
 ---
 
 # You Might Not Need URL State

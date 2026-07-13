@@ -2,7 +2,8 @@
 
 import { Chip } from '@sim/emcn'
 import { ArrowRight } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   InboxEnableToggle,
@@ -12,14 +13,16 @@ import {
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useInboxConfig } from '@/hooks/queries/inbox'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 export function Inbox() {
   const params = useParams()
-  const router = useRouter()
+  const { navigateToSettings } = useSettingsNavigation()
   const workspaceId = params.workspaceId as string
 
   const { data: config, isLoading } = useInboxConfig(workspaceId)
-  const { canAdmin } = useUserPermissionsContext()
+  const workspacePermissions = useUserPermissionsContext()
+  const canAdmin = canMutateWorkspaceSettingsSection('inbox', workspacePermissions)
 
   if (isLoading) {
     return null
@@ -47,13 +50,15 @@ export function Inbox() {
                   work on your behalf.
                 </p>
               </div>
-              <Chip
-                variant='primary'
-                rightIcon={ArrowRight}
-                onClick={() => router.push(`/workspace/${workspaceId}/settings/billing`)}
-              >
-                Upgrade to Max
-              </Chip>
+              {canAdmin && (
+                <Chip
+                  variant='primary'
+                  rightIcon={ArrowRight}
+                  onClick={() => navigateToSettings({ section: 'billing' })}
+                >
+                  Upgrade to Max
+                </Chip>
+              )}
             </div>
           </div>
         </div>
@@ -63,11 +68,11 @@ export function Inbox() {
 
   return (
     <SettingsPanel>
-      <InboxEnableToggle />
+      {canAdmin && <InboxEnableToggle />}
 
       {config?.enabled && (
         <>
-          <InboxSettingsTab />
+          {canAdmin && <InboxSettingsTab />}
 
           <SettingsSection label='Inbox'>
             <p className='mb-3 text-[var(--text-muted)] text-caption'>

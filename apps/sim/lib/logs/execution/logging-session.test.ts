@@ -39,10 +39,12 @@ const {
   completeWorkflowExecutionMock,
   startWorkflowExecutionMock,
   loadWorkflowStateForExecutionMock,
+  releaseExecutionSlotMock,
 } = vi.hoisted(() => ({
   completeWorkflowExecutionMock: vi.fn(),
   startWorkflowExecutionMock: vi.fn(),
   loadWorkflowStateForExecutionMock: vi.fn(),
+  releaseExecutionSlotMock: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -64,6 +66,10 @@ vi.mock('@/lib/logs/execution/logger', () => ({
     startWorkflowExecution: startWorkflowExecutionMock,
     completeWorkflowExecution: completeWorkflowExecutionMock,
   },
+}))
+
+vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
+  releaseExecutionSlot: releaseExecutionSlotMock,
 }))
 
 const {
@@ -125,6 +131,45 @@ describe('LoggingSession start snapshots', () => {
       loops: {},
       parallels: {},
     })
+  })
+
+  it('prefers the explicit actor over a legacy session user', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-actor', 'api', 'req-actor')
+
+    await session.start({
+      userId: 'legacy-session-user',
+      actorUserId: 'authenticated-actor',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(startWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ actorUserId: 'authenticated-actor' })
+    )
+  })
+
+  it('does not create a log when hydrating a persisted execution for completion', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-existing', 'manual', 'req-existing')
+
+    await session.start({
+      userId: 'user-1',
+      actorUserId: 'user-1',
+      billingAttribution: {
+        actorUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        organizationId: 'org-1',
+        billedAccountUserId: 'owner-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: '2026-08-01T00:00:00.000Z',
+        },
+        payerSubscription: null,
+      },
+      workspaceId: 'workspace-1',
+      skipLogCreation: true,
+    })
+
+    expect(startWorkflowExecutionMock).not.toHaveBeenCalled()
   })
 
   it('uses the executed workflow state override for execution snapshots', async () => {
@@ -374,6 +419,44 @@ describe('LoggingSession completion retries', () => {
     ).resolves.toBeUndefined()
 
     expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('releases success, failure, and cancellation but defers paused release', async () => {
+    completeWorkflowExecutionMock.mockResolvedValue({})
+
+    const completed = new LoggingSession('workflow-1', 'execution-complete', 'api', 'req-1')
+    const failed = new LoggingSession('workflow-1', 'execution-failed', 'api', 'req-1')
+    const cancelled = new LoggingSession('workflow-1', 'execution-cancelled', 'api', 'req-1')
+    const paused = new LoggingSession('workflow-1', 'execution-paused', 'api', 'req-1')
+
+    await completed.safeComplete()
+    await failed.safeCompleteWithError({ error: { message: 'failed' } })
+    await cancelled.safeCompleteWithCancellation()
+    await paused.safeCompleteWithPause()
+
+    expect(releaseExecutionSlotMock.mock.calls.map(([executionId]) => executionId)).toEqual([
+      'execution-complete',
+      'execution-failed',
+      'execution-cancelled',
+    ])
+  })
+
+  it('releases the attempt reservation while finalizing the parent execution log', async () => {
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    const session = new LoggingSession(
+      'workflow-1',
+      'parent-execution-1',
+      'manual',
+      'req-1',
+      'resume-entry-1'
+    )
+
+    await session.safeComplete()
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ executionId: 'parent-execution-1' })
+    )
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('resume-entry-1')
   })
 
   it('falls back to cost-only logging when paused completion fails', async () => {
@@ -654,6 +737,7 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
     await session.markAsFailed('something went wrong')
 
     expect(updateWhereSpy).toHaveBeenCalledTimes(1)
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('exec-42')
   })
 
   it('uses the provided errorMessage in the SQL set', async () => {

@@ -10,14 +10,22 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIncrementStorageUsage } = vi.hoisted(() => ({
-  mockIncrementStorageUsage: vi.fn(),
+const {
+  mockIncrementStorageUsageInTx,
+  mockDecrementStorageUsageInTx,
+  mockResolveStorageBillingContext,
+} = vi.hoisted(() => ({
+  mockIncrementStorageUsageInTx: vi.fn(),
+  mockDecrementStorageUsageInTx: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/billing/storage', () => ({
-  incrementStorageUsage: mockIncrementStorageUsage,
+  decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageInTx,
+  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
 }))
 
 import type { DbOrTx } from '@/lib/db/types'
@@ -48,6 +56,7 @@ const sourceDoc = {
   storageKey: 'kb/source-key',
   fileUrl: '/api/files/serve/kb%2Fsource-key',
   filename: 'report.pdf',
+  fileSize: 321,
   mimeType: 'application/pdf',
 }
 
@@ -55,11 +64,23 @@ describe('copyForkResourceContent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'activated-document' }])
+    dbChainMockFns.for.mockResolvedValue([{ workspaceId: 'child-ws' }])
+    storageServiceMockFns.mockHeadObject.mockResolvedValue(null)
     storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('blob-bytes'))
     storageServiceMockFns.mockUploadFile.mockResolvedValue({
       key: 'kb/child-key',
       path: '/api/files/serve/kb/child-key',
     })
+    mockResolveStorageBillingContext.mockResolvedValue({
+      workspaceId: 'child-ws',
+      billedAccountUserId: 'target-payer',
+      billingEntity: { type: 'user', id: 'target-payer' },
+      plan: 'pro',
+      customStorageLimitGB: null,
+    })
+    mockIncrementStorageUsageInTx.mockResolvedValue(321)
+    mockDecrementStorageUsageInTx.mockResolvedValue(undefined)
   })
 
   it('rewrites in-workspace resource URLs nested in copied table cell data', async () => {
@@ -122,10 +143,7 @@ describe('copyForkResourceContent', () => {
     })
   })
 
-  it('#1 never touches storage accounting for copied KB document blobs (mirrors the KB upload path)', async () => {
-    // The normal KB upload path never increments `storage_used_bytes` (and embeddings are
-    // uncounted DB rows), so a fork-copied KB blob must not be charged either - copied KB
-    // bytes are only headroom-checked pre-fork, exactly like the multipart-initiate check.
+  it('charges each copied KB blob by exact document bytes in the metadata activation transaction', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc])
 
     const result = await copyForkResourceContent({
@@ -137,7 +155,86 @@ describe('copyForkResourceContent', () => {
 
     expect(result.copied).toBe(1)
     expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
-    expect(mockIncrementStorageUsage).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ persistMetadata: false })
+    )
+    expect(mockResolveStorageBillingContext).toHaveBeenCalledWith('child-ws')
+    expect(mockIncrementStorageUsageInTx).toHaveBeenCalledTimes(1)
+    expect(mockIncrementStorageUsageInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        workspaceId: 'child-ws',
+        billedAccountUserId: 'target-payer',
+      }),
+      321
+    )
+    expect(storageServiceMockFns.mockUploadFile.mock.invocationCallOrder[0]).toBeLessThan(
+      mockIncrementStorageUsageInTx.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does not resolve KB billing context for an empty document page', async () => {
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
+  })
+
+  it('does not resolve KB billing context when the page is fully finalized from a prior attempt', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([{ id: 'child-doc-1' }])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          {
+            sourceId: 'src-kb',
+            childId: 'child-kb',
+            documentIdMap: { 'doc-1': 'child-doc-1' },
+          },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
+
+  it('keeps finalization authoritative when another attempt activates after the page replay guard', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'child-doc-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          {
+            sourceId: 'src-kb',
+            childId: 'child-kb',
+            documentIdMap: { 'doc-1': 'child-doc-1' },
+          },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
+    expect(mockResolveStorageBillingContext).toHaveBeenCalledTimes(1)
+    expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
   })
 
   it('#4 re-reads a copied skill body post-commit and rewrites it via db.update (never from payload)', async () => {
@@ -207,6 +304,25 @@ describe('copyForkResourceContent', () => {
     ])
   })
 
+  it('surfaces rollback failure instead of reporting an ordinary KB resource failure', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([sourceDoc])
+    dbChainMockFns.values.mockImplementationOnce(() => {
+      throw new Error('insert failed')
+    })
+    mockDecrementStorageUsageInTx.mockRejectedValueOnce(new Error('rollback failed'))
+
+    await expect(
+      copyForkResourceContent({
+        contentPlan: basePlan({
+          knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+        }),
+        requestId: 'test',
+      })
+    ).rejects.toThrow(
+      'Copied knowledge base child-kb failed and its storage rollback also failed: rollback failed'
+    )
+  })
+
   it('U-docs: fills a document copied into an existing target KB (blob re-key + placeholder update)', async () => {
     const result = await copyForkResourceContent({
       contentPlan: basePlan({
@@ -216,6 +332,8 @@ describe('copyForkResourceContent', () => {
             childDocId: 'child-doc-1',
             childKnowledgeBaseId: 'existing-target-kb',
             storageKey: 'kb/source-key',
+            fileUrl: '/api/files/serve/kb%2Fsource-key',
+            fileSize: 321,
             filename: 'report.pdf',
             mimeType: 'application/pdf',
           },
@@ -245,6 +363,8 @@ describe('copyForkResourceContent', () => {
             childDocId: 'child-doc-1',
             childKnowledgeBaseId: 'existing-target-kb',
             storageKey: 'kb/source-key',
+            fileUrl: '/api/files/serve/kb%2Fsource-key',
+            fileSize: 321,
             filename: 'report.pdf',
             mimeType: 'application/pdf',
           },
@@ -256,6 +376,31 @@ describe('copyForkResourceContent', () => {
     expect(result.copied).toBe(0)
     expect(result.failed).toBe(1)
     expect(result.failures).toEqual([{ kind: 'knowledge-document', childId: 'child-doc-1' }])
+  })
+
+  it('U-docs: refuses to charge when the target knowledge base moved workspaces', async () => {
+    dbChainMockFns.for.mockResolvedValueOnce([{ workspaceId: 'other-workspace' }])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        documents: [
+          {
+            sourceDocId: 'doc-1',
+            childDocId: 'child-doc-1',
+            childKnowledgeBaseId: 'existing-target-kb',
+            storageKey: 'kb/source-key',
+            fileUrl: '/api/files/serve/kb%2Fsource-key',
+            fileSize: 321,
+            filename: 'report.pdf',
+            mimeType: 'application/pdf',
+          },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result.failures).toEqual([{ kind: 'knowledge-document', childId: 'child-doc-1' }])
+    expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
   })
 })
 
@@ -564,6 +709,8 @@ describe('planForkMappedKbDocumentCopies', () => {
     id,
     knowledgeBaseId,
     storageKey: `kb/${id}`,
+    fileUrl: `/api/files/serve/kb%2F${id}`,
+    fileSize: 123,
     filename: `${id}.pdf`,
     mimeType: 'application/pdf',
     connectorId: 'connector-1',
@@ -609,7 +756,9 @@ describe('planForkMappedKbDocumentCopies', () => {
       knowledgeBaseId: 'target-kb',
       connectorId: null,
       deletedAt: null,
-      archivedAt: null,
+      archivedAt: expect.any(Date),
+      storageKey: null,
+      fileSize: 0,
     })
     expect(result.mappingEntries).toEqual([
       { resourceType: 'knowledge_document', parentResourceId: 'doc-1', childResourceId: childId },
@@ -620,6 +769,8 @@ describe('planForkMappedKbDocumentCopies', () => {
         childDocId: childId,
         childKnowledgeBaseId: 'target-kb',
         storageKey: 'kb/doc-1',
+        fileUrl: '/api/files/serve/kb%2Fdoc-1',
+        fileSize: 123,
         filename: 'doc-1.pdf',
         mimeType: 'application/pdf',
       },

@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => {
   const mockUploadFile = vi.fn()
   const mockUploadExecutionFile = vi.fn()
   const mockCheckStorageQuota = vi.fn()
+  const mockCheckStorageQuotaForBillingContext = vi.fn()
+  const mockDecrementStorageUsageForBillingContext = vi.fn()
+  const mockIncrementStorageUsageForBillingContext = vi.fn()
+  const mockResolveStorageBillingContext = vi.fn()
 
   return {
     mockVerifyFileAccess,
@@ -37,6 +41,10 @@ const mocks = vi.hoisted(() => {
     mockUploadFile,
     mockUploadExecutionFile,
     mockCheckStorageQuota,
+    mockCheckStorageQuotaForBillingContext,
+    mockDecrementStorageUsageForBillingContext,
+    mockIncrementStorageUsageForBillingContext,
+    mockResolveStorageBillingContext,
   }
 })
 
@@ -98,6 +106,14 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
+vi.mock('@/lib/billing/storage', () => ({
+  checkStorageQuota: mocks.mockCheckStorageQuota,
+  checkStorageQuotaForBillingContext: mocks.mockCheckStorageQuotaForBillingContext,
+  decrementStorageUsageForBillingContext: mocks.mockDecrementStorageUsageForBillingContext,
+  incrementStorageUsageForBillingContext: mocks.mockIncrementStorageUsageForBillingContext,
+  resolveStorageBillingContext: mocks.mockResolveStorageBillingContext,
+}))
+
 vi.mock('@/lib/uploads/shared/types', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/uploads/shared/types')>()
   return {
@@ -108,10 +124,6 @@ vi.mock('@/lib/uploads/shared/types', async (importOriginal) => {
 
 vi.mock('@/lib/uploads/setup.server', () => ({
   UPLOAD_DIR_SERVER: '/tmp/test-uploads',
-}))
-
-vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuota: mocks.mockCheckStorageQuota,
 }))
 
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
@@ -299,6 +311,38 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('key')
 
     expect(uploadWorkspaceFile).toHaveBeenCalled()
+  })
+
+  it('uploads a direct mothership attachment without workspace storage accounting', async () => {
+    setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+
+    const response = await POST(
+      createUploadRequest(createMockFormData([createMockFile('attachment.txt')], 'mothership'))
+    )
+
+    expect(response.status).toBe(200)
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ context: 'mothership' })
+    )
+    expect(mocks.mockCheckStorageQuotaForBillingContext).not.toHaveBeenCalled()
+    expect(mocks.mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(mocks.mockIncrementStorageUsageForBillingContext).not.toHaveBeenCalled()
+    expect(mocks.mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
+  })
+
+  it('does not mutate storage counters when a direct mothership upload fails', async () => {
+    setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+    storageServiceMockFns.mockUploadFile.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    const response = await POST(
+      createUploadRequest(createMockFormData([createMockFile('attachment.txt')], 'mothership'))
+    )
+
+    expect(response.status).toBe(500)
+    expect(mocks.mockCheckStorageQuotaForBillingContext).not.toHaveBeenCalled()
+    expect(mocks.mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(mocks.mockIncrementStorageUsageForBillingContext).not.toHaveBeenCalled()
+    expect(mocks.mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
   })
 
   it('should handle multiple file uploads', async () => {

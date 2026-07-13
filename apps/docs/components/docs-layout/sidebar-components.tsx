@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from 'react'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
+import { useSidebar } from 'fumadocs-ui/components/sidebar/base'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { i18n } from '@/lib/i18n'
@@ -66,11 +67,13 @@ const FOLDER_ACTIVE = 'lg:bg-[var(--surface-active)] lg:text-[var(--text-body)]'
 
 export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
+  const { prefetch } = useSidebar()
   const active = isActive(item.url, pathname, false)
 
   return (
     <Link
       href={item.url}
+      prefetch={prefetch}
       data-active={active}
       className={cn(
         ITEM_BASE,
@@ -97,6 +100,7 @@ function isApiReferenceFolder(node: Folder): boolean {
 
 export function SidebarFolder({ item, children }: { item: Folder; children: ReactNode }) {
   const pathname = usePathname()
+  const { prefetch } = useSidebar()
   const hasActiveChild = checkHasActiveChild(item, pathname)
   const isApiRef = isApiReferenceFolder(item)
   const isOnApiRefPage = stripLangPrefix(pathname).startsWith('/api-reference')
@@ -111,6 +115,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
     return (
       <Link
         href={item.index.url}
+        prefetch={prefetch}
         data-active={active}
         className={cn(
           ITEM_BASE,
@@ -133,6 +138,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
           <>
             <Link
               href={item.index.url}
+              prefetch={prefetch}
               data-active={active}
               className={cn(
                 'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',

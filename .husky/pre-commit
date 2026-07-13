@@ -1,1 +1,8 @@
 bunx lint-staged
+
+# Regenerate skill command projections when a canonical .agents/skills source is staged,
+# so .claude/commands and .cursor/commands never drift from it. CI's skills:check is the backstop.
+if git diff --cached --name-only | grep -q '^\.agents/skills/.*/SKILL\.md$'; then
+  bun run skills:sync
+  git add .claude/commands .cursor/commands
+fi

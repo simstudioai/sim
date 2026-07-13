@@ -30,7 +30,7 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
         required: true,
         visibility: 'user-or-llm',
         description:
-          'Deal properties as JSON object. Must include dealname (e.g., {"dealname": "New Deal", "amount": "5000", "dealstage": "appointmentscheduled"})',
+          'Deal properties as JSON object. Should include dealname and dealstage, plus pipeline when the account has multiple pipelines (e.g., {"dealname": "New Deal", "amount": "5000", "dealstage": "appointmentscheduled"})',
       },
       associations: {
         type: 'array',

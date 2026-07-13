@@ -34,7 +34,7 @@ export function ContentPostPage({
   const Article = post.Content
 
   return (
-    <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/TechArticle'>
+    <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/BlogPosting'>
       <JsonLd data={graphJsonLd} />
       <header className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
         <div className='mb-6'>
@@ -66,7 +66,10 @@ export function ContentPostPage({
               >
                 {post.title}
               </h1>
-              <p className='mt-4 text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg'>
+              <p
+                className='mt-4 text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg'
+                itemProp='description'
+              >
                 {post.description}
               </p>
             </div>

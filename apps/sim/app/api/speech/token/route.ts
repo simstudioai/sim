@@ -9,14 +9,21 @@ import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
 import { parseOptionalJsonBody } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
+  resolveBillingAttribution,
+  resolveSystemBillingAttribution,
+  toBillingContext,
+} from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
+import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('SpeechTokenAPI')
@@ -101,31 +108,36 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const chatId =
       body.success && typeof body.data.chatId === 'string' ? body.data.chatId : undefined
 
-    let billingUserId: string | undefined
+    let actorUserId: string | undefined
     let workspaceId: string | undefined
+    let billingAttribution: BillingAttributionSnapshot | undefined
 
     if (chatId) {
       const chatAuth = await validateChatAuth(request, chatId)
       if (!chatAuth.valid) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
-      // A deployed chat is used by anonymous end-users, so the cost belongs to the
-      // workspace's billed account (the deployment's payer) — matching how the
-      // chat's workflow execution bills. Fall back to the chat owner only when no
-      // billed account resolves.
+      /**
+       * Anonymous deployed chats have no human request actor, so resolve the
+       * system actor and immutable workspace payer together.
+       */
       workspaceId = chatAuth.workspaceId ?? undefined
-      const billedAccountUserId = workspaceId
-        ? await getWorkspaceBilledAccountUserId(workspaceId)
-        : null
-      billingUserId = billedAccountUserId ?? chatAuth.ownerId
+      if (workspaceId) {
+        billingAttribution = await resolveSystemBillingAttribution(workspaceId)
+        actorUserId = billingAttribution.actorUserId
+      } else {
+        actorUserId = chatAuth.ownerId
+      }
     } else {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
-      billingUserId = session.user.id
-      // Editor voice: only attribute to a workspace the caller actually belongs to,
-      // so a client-supplied id can't misattribute (or dodge) per-member usage.
+      actorUserId = session.user.id
+      /**
+       * Editor voice accepts only a workspace the caller belongs to, preventing
+       * client-supplied IDs from misattributing or bypassing member usage.
+       */
       const requestedWorkspaceId =
         body.success && typeof body.data.workspaceId === 'string'
           ? body.data.workspaceId
@@ -134,17 +146,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const permission = await verifyWorkspaceMembership(session.user.id, requestedWorkspaceId)
         if (permission) workspaceId = requestedWorkspaceId
       }
-      // Editor voice is always workspace-scoped; require an attributable workspace
-      // so per-member usage can't be skipped and the cost stamped workspace-less.
+      /**
+       * Editor voice is workspace-scoped so every charge has a payer and member
+       * cap attribution.
+       */
       if (!workspaceId) {
         return NextResponse.json({ error: 'Workspace context is required.' }, { status: 400 })
       }
     }
 
+    if (!billingAttribution && actorUserId && workspaceId) {
+      billingAttribution = await resolveBillingAttribution({
+        actorUserId,
+        workspaceId,
+      })
+    }
+
     if (isBillingEnabled) {
       const rateLimitKey = chatId
         ? `stt-token:chat:${chatId}:${getClientIp(request)}`
-        : `stt-token:user:${billingUserId}`
+        : `stt-token:user:${actorUserId}`
 
       const rateCheck = await rateLimiter.checkRateLimitDirect(rateLimitKey, STT_TOKEN_RATE_LIMIT)
       if (!rateCheck.allowed) {
@@ -160,8 +181,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    if (billingUserId) {
-      const usageCheck = await checkActorUsageLimits(billingUserId, workspaceId)
+    if (actorUserId) {
+      const usageCheck = billingAttribution
+        ? await checkAttributedUsageLimits(billingAttribution)
+        : await checkActorUsageLimits(actorUserId)
       if (usageCheck.isExceeded) {
         return NextResponse.json(
           {
@@ -197,25 +220,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const data = await response.json()
 
-    if (billingUserId) {
+    if (actorUserId) {
       const maxMinutes = chatId ? CHAT_SESSION_MAX_MINUTES : WORKSPACE_SESSION_MAX_MINUTES
       const sessionCost = VOICE_SESSION_COST_PER_MIN * maxMinutes
 
-      await recordUsage({
-        userId: billingUserId,
-        workspaceId,
-        entries: [
-          {
-            category: 'fixed',
-            source: 'voice-input',
-            description: `Voice input session (${maxMinutes} min)`,
-            cost: sessionCost * getCostMultiplier(),
-            sourceReference: `voice-input:${hashVoiceToken(data.token)}`,
-          },
-        ],
-      }).catch((err) => {
+      try {
+        await recordUsage({
+          userId: actorUserId,
+          workspaceId,
+          ...(billingAttribution ? toBillingContext(billingAttribution) : {}),
+          entries: [
+            {
+              category: 'fixed',
+              source: 'voice-input',
+              description: `Voice input session (${maxMinutes} min)`,
+              cost: sessionCost * getCostMultiplier(),
+              sourceReference: `voice-input:${hashVoiceToken(data.token)}`,
+            },
+          ],
+        })
+        if (billingAttribution) {
+          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+        }
+      } catch (err) {
         logger.warn('Failed to record voice input usage, continuing:', err)
-      })
+      }
     }
 
     return NextResponse.json({ token: data.token })

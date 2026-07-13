@@ -15,6 +15,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
@@ -237,12 +238,46 @@ export function buildPendingRuns(
  *  trigger.dev to avoid a multi-second dispatcher cold-start. */
 export async function buildEnqueueItems(
   pendingRuns: WorkflowGroupCellPayload[]
-): Promise<Array<{ payload: WorkflowGroupCellPayload; options: EnqueueOptions }>> {
+): Promise<Array<{ payload: QueuedWorkflowGroupCellPayload; options: EnqueueOptions }>> {
+  if (pendingRuns.length === 0) return []
+
+  const {
+    assertBillingAttributionSnapshot,
+    resolveBillingAttribution,
+    resolveSystemBillingAttribution,
+  } = await import('@/lib/billing/core/billing-attribution')
+  const attributions = new Map<string, Promise<BillingAttributionSnapshot>>()
+  const hydratedRuns = await Promise.all(
+    pendingRuns.map(async (runOpts) => {
+      if (runOpts.billingAttribution) {
+        return {
+          ...runOpts,
+          billingAttribution: assertBillingAttributionSnapshot(runOpts.billingAttribution),
+        }
+      }
+
+      const attributionKey = runOpts.triggeredByUserId
+        ? `actor:${runOpts.workspaceId}:${runOpts.triggeredByUserId}`
+        : `system:${runOpts.workspaceId}`
+      let attribution = attributions.get(attributionKey)
+      if (!attribution) {
+        attribution = runOpts.triggeredByUserId
+          ? resolveBillingAttribution({
+              actorUserId: runOpts.triggeredByUserId,
+              workspaceId: runOpts.workspaceId,
+            })
+          : resolveSystemBillingAttribution(runOpts.workspaceId)
+        attributions.set(attributionKey, attribution)
+      }
+
+      return { ...runOpts, billingAttribution: await attribution }
+    })
+  )
   const runner = isTriggerDevEnabled
     ? undefined
     : ((await import('@/background/workflow-column-execution'))
         .executeWorkflowGroupCellJob as EnqueueOptions['runner'])
-  return pendingRuns.map((runOpts) => ({
+  return hydratedRuns.map((runOpts) => ({
     payload: runOpts,
     options: {
       metadata: {
@@ -337,6 +372,8 @@ export interface WorkflowGroupCellPayload {
   enrichmentId?: string
   workspaceId: string
   executionId: string
+  /** Immutable actor/payer decision captured before the cell is queued. */
+  billingAttribution?: BillingAttributionSnapshot
   /** Owning dispatch, set by `dispatcherStep`. Lets the cell halt its dispatch
    *  on a hard stop (e.g. usage limit). Absent for cascade/auto-fire payloads
    *  that aren't driven by a dispatch. */
@@ -345,6 +382,13 @@ export interface WorkflowGroupCellPayload {
    *  auto-fire (row writes, CSV import) → billing falls back to the workspace
    *  billed account. */
   triggeredByUserId?: string
+}
+
+export type QueuedWorkflowGroupCellPayload = Omit<
+  WorkflowGroupCellPayload,
+  'billingAttribution'
+> & {
+  billingAttribution: BillingAttributionSnapshot
 }
 
 /** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */

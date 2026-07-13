@@ -7,11 +7,18 @@ import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
+  toBillingContext,
+} from '@/lib/billing/core/billing-attribution'
+import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { retryTableAdmission } from '@/lib/table/admission-retry'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { getColumnId } from '@/lib/table/column-keys'
 import { isExecCancelled } from '@/lib/table/deps'
@@ -22,12 +29,32 @@ import type {
   TableDefinition,
   WorkflowGroup,
 } from '@/lib/table/types'
-import type { WorkflowGroupCellPayload } from '@/lib/table/workflow-columns'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import type {
+  QueuedWorkflowGroupCellPayload,
+  WorkflowGroupCellPayload,
+} from '@/lib/table/workflow-columns'
 
 export type { WorkflowGroupCellPayload }
 
 const logger = createLogger('TriggerWorkflowGroupCell')
+
+function requirePayloadBillingAttribution(
+  payload: WorkflowGroupCellPayload
+): BillingAttributionSnapshot {
+  if (!payload.billingAttribution) {
+    throw new Error('Billing attribution is required for queued table execution')
+  }
+  const attribution = assertBillingAttributionSnapshot(payload.billingAttribution)
+  if (attribution.workspaceId !== payload.workspaceId) {
+    throw new Error(
+      `Billing attribution workspace mismatch: expected ${payload.workspaceId}, received ${attribution.workspaceId}`
+    )
+  }
+  if (payload.triggeredByUserId && attribution.actorUserId !== payload.triggeredByUserId) {
+    throw new Error('Billing attribution actor does not match the table trigger actor')
+  }
+  return attribution
+}
 
 /** Max rate-limit retry attempts per cell before giving up and writing a
  *  re-runnable error. With `backoffWithJitter` (base 500ms, max 30s) this is
@@ -47,7 +74,7 @@ const RATE_LIMIT_MAX_ATTEMPTS = 6
  *  lock, NOT a queue re-enqueue or a timed poll, and it loops only while a
  *  runnable group exists. */
 export async function executeWorkflowGroupCellJob(
-  payload: WorkflowGroupCellPayload,
+  payload: QueuedWorkflowGroupCellPayload,
   signal?: AbortSignal
 ) {
   const { tableId, rowId, workspaceId } = payload
@@ -102,7 +129,7 @@ export async function executeWorkflowGroupCellJob(
  *  cascade become visible to the eligibility check. The resume worker must
  *  already hold the row's cascade lock before calling. */
 export async function runRowCascadeLoop(
-  payload: WorkflowGroupCellPayload,
+  payload: QueuedWorkflowGroupCellPayload,
   signal?: AbortSignal
 ): Promise<'blocked' | undefined> {
   const { tableId, rowId, workspaceId } = payload
@@ -163,13 +190,14 @@ export async function runRowCascadeLoop(
  *  takes over) and `'blocked'` for a hard stop (usage limit — dispatch halted,
  *  cell left unmarked). `'completed' | 'error'` keep the loop running. */
 async function runWorkflowAndWriteTerminal(
-  payload: WorkflowGroupCellPayload,
+  payload: QueuedWorkflowGroupCellPayload,
   signal: AbortSignal | undefined,
   table: TableDefinition,
   group: WorkflowGroup
 ): Promise<'completed' | 'error' | 'paused' | 'blocked'> {
   const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId, dispatchId } =
     payload
+  const billingAttribution = requirePayloadBillingAttribution(payload)
   // Read from the live `group`, not the payload: in a cascade the payload is the
   // first group's snapshot, so a downstream group with a different version must
   // use its own setting (same reason `workflowId` is re-derived per iteration).
@@ -182,13 +210,16 @@ async function runWorkflowAndWriteTerminal(
     const { loadWorkflowFromNormalizedTables, loadDeployedWorkflowState } = await import(
       '@/lib/workflows/persistence/utils'
     )
-    const { writeWorkflowGroupState, markWorkflowGroupPickedUp, buildOutputsByBlockId } =
+    const { createWorkflowCellProgressWriter, writeWorkflowGroupState, markWorkflowGroupPickedUp } =
       await import('@/lib/table/cell-write')
     const { stashCellContextForResume } = await import('@/lib/table/workflow-columns')
 
-    const cellCtx = { tableId, rowId, workspaceId, groupId, executionId, requestId }
-    const writeState = (executionState: RowExecutionMetadata, dataPatch?: RowData) =>
-      writeWorkflowGroupState(cellCtx, { executionState, dataPatch })
+    const cellCtx = { tableId, rowId, workspaceId, groupId, executionId, requestId, table }
+    const writeState = (
+      executionState: RowExecutionMetadata,
+      dataPatch?: RowData,
+      eventOutputs?: RowData
+    ) => writeWorkflowGroupState(cellCtx, { executionState, dataPatch, eventOutputs })
 
     /** Pre-execution cancellation guard: a cell cancelled while it sat in the
      *  queue (e.g. trigger.dev concurrency backlog) must not run once it
@@ -232,30 +263,13 @@ async function runWorkflowAndWriteTerminal(
 
       if (cancelledBeforeRun(row.executions?.[groupId])) return 'error'
 
-      // Resolve the billing/enforcement actor: the user who triggered the run,
-      // else the workspace billed account (automated/auto-fire). Enrichment must
-      // never run unattributed — if neither resolves, fail the cell rather than
-      // running free and ungated.
-      const enrichmentActorUserId =
-        payload.triggeredByUserId ?? (await getWorkspaceBilledAccountUserId(workspaceId))
-      if (!enrichmentActorUserId) {
-        logger.error(
-          `No billing actor for enrichment — failing cell (table=${tableId} row=${rowId} group=${groupId})`
-        )
-        await writeState({
-          status: 'error',
-          executionId,
-          jobId: null,
-          workflowId: statusId,
-          error: 'Unable to resolve a billing account for this enrichment.',
-        })
-        return 'error'
-      }
+      const enrichmentBillingAttribution = billingAttribution
 
-      // Gate per-member + pooled usage before incurring hosted-key cost. Mirrors
-      // the workflow-group gate below: clear the cell's pre-stamp and signal the
-      // client to upgrade rather than marking the cell errored.
-      const usage = await checkActorUsageLimits(enrichmentActorUserId, workspaceId)
+      /**
+       * Gate the exact workspace payer and member cap before hosted-key cost.
+       * A denial clears the cell pre-stamp and surfaces the upgrade state.
+       */
+      const usage = await checkAttributedUsageLimits(enrichmentBillingAttribution)
       if (usage.isExceeded) {
         logger.warn(
           `Usage limit reached — halting enrichment (table=${tableId} row=${rowId} group=${groupId})`
@@ -373,16 +387,18 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        // Bill the run's actor (triggerer, else workspace billed account) for any
-        // hosted-key cost the providers incurred. Billing failures must not error
-        // an otherwise-successful cell.
+        /**
+         * Record the triggerer or system fallback as actor while charging the
+         * exact workspace payer. Billing failures do not fail a successful cell.
+         */
         if (cost > 0) {
           try {
             const { recordUsage } = await import('@/lib/billing/core/usage-log')
             await recordUsage({
-              userId: enrichmentActorUserId,
+              userId: enrichmentBillingAttribution.actorUserId,
               workspaceId,
               executionId,
+              ...toBillingContext(enrichmentBillingAttribution),
               entries: [
                 {
                   category: 'fixed',
@@ -394,6 +410,7 @@ async function runWorkflowAndWriteTerminal(
                 },
               ],
             })
+            await checkAndBillPayerOverageThreshold(enrichmentBillingAttribution.billingEntity)
           } catch (billingErr) {
             logger.error('Failed to record enrichment usage', {
               enrichmentId: enrichment.id,
@@ -437,9 +454,7 @@ async function runWorkflowAndWriteTerminal(
       }
     }
 
-    const blockErrors: Record<string, string> = {}
-    let writeChain: Promise<void> = Promise.resolve()
-    let terminalWritten = false
+    let progressWriter: ReturnType<typeof createWorkflowCellProgressWriter> | null = null
 
     try {
       const [workflowRecord] = await db
@@ -513,20 +528,33 @@ async function runWorkflowAndWriteTerminal(
       // auto-fire from their own write) so the gate + cost land on their per-member
       // meter — mirroring the enrichment branch. Falls back to the workspace billed
       // account for genuinely actor-less runs.
-      const preprocess = await preprocessExecution({
-        workflowId,
-        executionId,
-        requestId,
-        workspaceId,
-        workflowRecord,
-        userId: payload.triggeredByUserId ?? workflowRecord.userId,
-        useAuthenticatedUserAsActor: Boolean(payload.triggeredByUserId),
-        triggerType: 'workflow',
-        checkDeployment: false,
-        checkRateLimit: false,
-        skipConcurrencyReservation: true,
-        logPreprocessingErrors: false,
-      })
+      const preprocess = await retryTableAdmission(
+        () =>
+          preprocessExecution({
+            workflowId,
+            executionId,
+            requestId,
+            workspaceId,
+            workflowRecord,
+            userId: payload.triggeredByUserId ?? workflowRecord.userId,
+            useAuthenticatedUserAsActor: Boolean(payload.triggeredByUserId),
+            triggerType: 'workflow',
+            checkDeployment: false,
+            checkRateLimit: false,
+            skipConcurrencyReservation: true,
+            logPreprocessingErrors: false,
+            billingAttribution,
+          }),
+        {
+          signal,
+          onRetry: ({ attempt, failure, nextAttempt, waitMs }) => {
+            logger.warn(
+              `Transient admission failure — waiting ${waitMs}ms before retry ${nextAttempt} (table=${tableId} row=${rowId} group=${groupId})`,
+              { attempt, failure: failure.kind }
+            )
+          },
+        }
+      )
       if (!preprocess.success) {
         // Usage/quota exhausted: retrying won't help. Halt the dispatch without
         // marking any cell, and signal the client to upgrade.
@@ -591,7 +619,7 @@ async function runWorkflowAndWriteTerminal(
         if (signal?.aborted) return 'error'
         const rl = await rateLimiter.checkRateLimitWithSubscription(
           actorUserId,
-          preprocess.userSubscription ?? null,
+          preprocess.actorSubscription ?? null,
           'workflow',
           true
         )
@@ -675,76 +703,30 @@ async function runWorkflowAndWriteTerminal(
         timestamp: new Date().toISOString(),
       }
 
-      const { pluckByPath } = await import('@/lib/table/pluck')
-      const outputsByBlockId = buildOutputsByBlockId(group)
-
-      const accumulatedData: RowData = {}
-      const runningBlockIds = new Set<string>()
-
-      const schedulePartialWrite = () => {
-        if (terminalWritten) return
-        const dataSnapshot: RowData = { ...accumulatedData }
-        const blockErrorsSnapshot = { ...blockErrors }
-        const runningSnapshot = Array.from(runningBlockIds)
-        writeChain = writeChain
-          .then(async () => {
-            if (signal?.aborted) return
-            if (terminalWritten) return
-            await writeState(
-              {
-                status: 'running',
-                executionId,
-                jobId: null,
-                workflowId,
-                error: null,
-                runningBlockIds: runningSnapshot,
-                blockErrors: blockErrorsSnapshot,
-              },
-              dataSnapshot
-            )
-          })
-          .catch((err) => {
-            logger.warn(
-              `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId})`,
-              { cause: describeError(err), retryable: isRetryableInfrastructureError(err) }
-            )
-          })
-      }
-
-      const onBlockStart = async (blockId: string): Promise<void> => {
-        if (!outputsByBlockId.has(blockId)) return
-        runningBlockIds.add(blockId)
-        schedulePartialWrite()
-      }
-
-      const onBlockComplete = async (blockId: string, output: unknown): Promise<void> => {
-        const outputs = outputsByBlockId.get(blockId)
-        if (!outputs) return
-
-        const blockResult =
-          output && typeof output === 'object' && 'output' in (output as object)
-            ? (output as { output: unknown }).output
-            : output
-
-        const blockErrorMessage =
-          blockResult &&
-          typeof blockResult === 'object' &&
-          typeof (blockResult as { error?: unknown }).error === 'string'
-            ? (blockResult as { error: string }).error
-            : null
-
-        if (blockErrorMessage) {
-          blockErrors[blockId] = blockErrorMessage
-        } else {
-          for (const out of outputs) {
-            const plucked = pluckByPath(blockResult, out.path)
-            if (plucked === undefined) continue
-            accumulatedData[out.columnName] = plucked as RowData[string]
-          }
-        }
-        runningBlockIds.delete(blockId)
-        schedulePartialWrite()
-      }
+      progressWriter = createWorkflowCellProgressWriter({
+        group,
+        signal,
+        writeProgress: ({ dataPatch, eventOutputs, runningBlockIds, blockErrors }) =>
+          writeState(
+            {
+              status: 'running',
+              executionId,
+              jobId: null,
+              workflowId,
+              error: null,
+              runningBlockIds,
+              blockErrors,
+            },
+            dataPatch,
+            eventOutputs
+          ),
+        onWriteError: (err) => {
+          logger.warn(
+            `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId})`,
+            { cause: describeError(err), retryable: isRetryableInfrastructureError(err) }
+          )
+        },
+      })
 
       // Enforce the per-plan execution timeout (from preprocessing), combined
       // with the existing cancel signal so either a timeout or a Stop aborts.
@@ -777,8 +759,9 @@ async function runWorkflowAndWriteTerminal(
             // state loaded above for start-block / output-block resolution.
             useDraftState: deploymentMode !== 'deployed',
             abortSignal,
-            onBlockStart,
-            onBlockComplete,
+            onBlockStart: progressWriter.onBlockStart,
+            onBlockComplete: progressWriter.onBlockComplete,
+            billingAttribution: preprocess.billingAttribution,
           },
           executionId
         )
@@ -786,8 +769,10 @@ async function runWorkflowAndWriteTerminal(
         timeoutController.cleanup()
       }
 
-      terminalWritten = true
-      await writeChain.catch(() => {})
+      await progressWriter.finish()
+      const eventOutputs = progressWriter.getEventOutputs()
+      const pendingDataPatch = progressWriter.getPendingDataPatch()
+      const blockErrors = progressWriter.getBlockErrors()
 
       if (result.status === 'paused') {
         await writeState(
@@ -800,7 +785,8 @@ async function runWorkflowAndWriteTerminal(
             runningBlockIds: [],
             blockErrors,
           },
-          accumulatedData
+          pendingDataPatch,
+          eventOutputs
         )
         await stashCellContextForResume({
           executionId,
@@ -824,7 +810,8 @@ async function runWorkflowAndWriteTerminal(
           runningBlockIds: [],
           blockErrors,
         },
-        accumulatedData
+        pendingDataPatch,
+        eventOutputs
       )
       return result.success ? 'completed' : 'error'
     } catch (err) {
@@ -838,8 +825,7 @@ async function runWorkflowAndWriteTerminal(
           retryable: isRetryableInfrastructureError(err),
         }
       )
-      terminalWritten = true
-      await writeChain.catch(() => {})
+      await progressWriter?.finish()
       try {
         await writeState({
           status: 'error',
@@ -848,7 +834,7 @@ async function runWorkflowAndWriteTerminal(
           workflowId,
           error: message,
           runningBlockIds: [],
-          blockErrors,
+          blockErrors: progressWriter?.getBlockErrors() ?? {},
         })
       } catch (writeErr) {
         logger.error('Also failed to write error state', {
@@ -872,6 +858,6 @@ export const workflowGroupCellTask = task({
     name: 'workflow-group-cell',
     concurrencyLimit: 20,
   },
-  run: (payload: WorkflowGroupCellPayload, { signal }) =>
+  run: (payload: QueuedWorkflowGroupCellPayload, { signal }) =>
     executeWorkflowGroupCellJob(payload, signal),
 })

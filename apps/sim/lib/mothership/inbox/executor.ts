@@ -4,6 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
@@ -153,6 +154,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
         message: titleInput,
         model: 'claude-opus-4-8',
         userId,
+        workspaceId: ws.id,
       })
         .then(async (title) => {
           if (title && chatId) {
@@ -215,6 +217,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       integrationTools,
       userSkillTool,
       userPermission,
+      billingAttribution,
       entitlements,
     ] = await Promise.all([
       fetchAttachments(),
@@ -222,6 +225,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
       buildUserSkillTool(ws.id),
       getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
+      resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
       computeWorkspaceEntitlements(ws.id, userId),
     ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
@@ -256,6 +260,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       goRoute: '/api/mothership/execute',
       autoExecuteTools: true,
       interactive: false,
+      billingAttribution,
     })
 
     const cleanContent = stripThinkingTags(result.content || '')

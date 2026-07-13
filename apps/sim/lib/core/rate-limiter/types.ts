@@ -46,7 +46,7 @@ function getRateLimitForPlan(plan: SubscriptionPlan, type: RateLimitConfigKey): 
     free: {
       sync: env.RATE_LIMIT_FREE_SYNC,
       async: env.RATE_LIMIT_FREE_ASYNC,
-      apiEndpoint: undefined,
+      apiEndpoint: env.RATE_LIMIT_FREE_API_ENDPOINT,
     },
     pro: { sync: env.RATE_LIMIT_PRO_SYNC, async: env.RATE_LIMIT_PRO_ASYNC, apiEndpoint: undefined },
     team: {
@@ -88,13 +88,31 @@ export const RATE_LIMITS: Record<SubscriptionPlan, RateLimitConfig> = {
   },
 }
 
+/** Effectively-unlimited bucket used when billing-disabled deployments opt out of a limit. */
+const UNLIMITED_RATE_LIMIT: TokenBucketConfig = createBucketConfig(MANUAL_EXECUTION_LIMIT, 1)
+
+function freeRateLimitOverride(type: RateLimitConfigKey): string | undefined {
+  const overrides: Record<RateLimitConfigKey, string | undefined> = {
+    sync: env.RATE_LIMIT_FREE_SYNC,
+    async: env.RATE_LIMIT_FREE_ASYNC,
+    apiEndpoint: env.RATE_LIMIT_FREE_API_ENDPOINT,
+  }
+  return overrides[type]
+}
+
+/**
+ * Billing-enabled deployments enforce per-plan limits. Billing-disabled
+ * deployments are unlimited unless the operator explicitly set the free-tier
+ * env var for that counter, which opts back into enforcement at that rate.
+ */
 export function getRateLimit(
   plan: SubscriptionPlan | string | undefined,
   type: RateLimitCounterType
 ): TokenBucketConfig {
   const key = toConfigKey(type)
   if (!isBillingEnabled) {
-    return RATE_LIMITS.free[key]
+    const override = Number.parseInt(freeRateLimitOverride(key) || '')
+    return Number.isFinite(override) && override > 0 ? RATE_LIMITS.free[key] : UNLIMITED_RATE_LIMIT
   }
   return RATE_LIMITS[getPlanTypeForLimits(plan)][key]
 }

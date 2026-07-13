@@ -1,3 +1,6 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
+
 /**
  * The app-facing session shape derived from the Better Auth client response.
  * Lives here (the module that produces it) so both the `useSessionQuery` hook
@@ -22,21 +25,46 @@ export type AppSession = {
   }
 } | null
 
+interface BetterAuthErrorEnvelope {
+  data: null
+  error: {
+    message?: string
+    status: number
+    statusText: string
+  }
+}
+
+function isBetterAuthErrorEnvelope(result: unknown): result is BetterAuthErrorEnvelope {
+  if (!isRecordLike(result) || result.data !== null || !isRecordLike(result.error)) {
+    return false
+  }
+
+  return (
+    typeof result.error.status === 'number' &&
+    typeof result.error.statusText === 'string' &&
+    (result.error.message === undefined || typeof result.error.message === 'string')
+  )
+}
+
 export function extractSessionDataFromAuthClientResult(result: unknown): unknown | null {
-  if (!result || typeof result !== 'object') {
+  if (isBetterAuthErrorEnvelope(result)) {
+    const fallback =
+      result.error.statusText || `Better Auth session request failed (${result.error.status})`
+    throw new Error(getErrorMessage(result.error.message, fallback))
+  }
+
+  if (!isRecordLike(result)) {
     return null
   }
 
-  const record = result as Record<string, unknown>
-
   // Expected shape from better-auth client: { data: <session> }
-  if ('data' in record) {
-    return (record as { data?: unknown }).data ?? null
+  if ('data' in result) {
+    return result.data ?? null
   }
 
   // Fallback for raw session payloads: { user, session }
-  if ('user' in record) {
-    return record
+  if ('user' in result) {
+    return result
   }
 
   return null

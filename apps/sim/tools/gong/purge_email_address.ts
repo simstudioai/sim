@@ -35,8 +35,12 @@ export const purgeEmailAddressTool: ToolConfig<
 
   request: {
     url: (params) => {
+      const emailAddress = params.emailAddress.trim()
+      if (!emailAddress.includes('@')) {
+        throw new Error('emailAddress must be a valid email address')
+      }
       const url = new URL('https://api.gong.io/v2/data-privacy/erase-data-for-email-address')
-      url.searchParams.set('emailAddress', params.emailAddress.trim())
+      url.searchParams.set('emailAddress', emailAddress)
       return url.toString()
     },
     method: 'POST',

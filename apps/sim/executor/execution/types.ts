@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { NodeMetadata } from '@/executor/dag/types'
 import type {
@@ -16,6 +17,8 @@ export interface ExecutionMetadata {
   workflowId: string
   workspaceId: string
   userId: string
+  /** Immutable actor/payer decision captured before execution. */
+  billingAttribution?: BillingAttributionSnapshot
   sessionUserId?: string
   workflowUserId?: string
   triggerType: string
