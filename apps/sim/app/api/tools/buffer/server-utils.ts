@@ -185,7 +185,7 @@ async function executePostMutation(options: ExecutePostMutationOptions): Promise
     return NextResponse.json({ success: false, error: message }, { status: 502 })
   }
 
-  if (result?.__typename !== 'PostActionSuccess') {
+  if (result?.__typename !== 'PostActionSuccess' || !result.post) {
     const message = result?.message || 'Buffer rejected the post'
     logger.warn(`[${requestId}] Buffer rejected post mutation`, {
       typename: result?.__typename,
