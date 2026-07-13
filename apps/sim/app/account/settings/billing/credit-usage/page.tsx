@@ -6,7 +6,7 @@ import { getSession } from '@/lib/auth'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { CreditUsageView } from '@/app/workspace/[workspaceId]/settings/billing/credit-usage/credit-usage-view'
-import CreditUsageLoading from '@/app/workspace/[workspaceId]/settings/billing/credit-usage/loading'
+import { CreditUsageLoading } from '@/app/workspace/[workspaceId]/settings/billing/credit-usage/loading'
 
 export const metadata: Metadata = {
   title: 'Credit usage - Account settings',
@@ -20,7 +20,7 @@ export default async function AccountCreditUsagePage() {
   if (isEnterprise(subscription?.plan)) redirect(getAccountSettingsHref('billing'))
 
   return (
-    <Suspense fallback={<CreditUsageLoading />}>
+    <Suspense fallback={<CreditUsageLoading backHref={getAccountSettingsHref('billing')} />}>
       <CreditUsageView />
     </Suspense>
   )

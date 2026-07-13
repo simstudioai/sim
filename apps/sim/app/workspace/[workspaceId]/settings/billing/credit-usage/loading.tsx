@@ -4,25 +4,33 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 
+interface CreditUsageLoadingProps {
+  backHref: string
+}
+
 /**
- * Route-level loading fallback (Next.js convention) and the `Suspense`
- * fallback in `page.tsx` — `CreditUsageView` reads `useSearchParams` via
- * nuqs, so it must suspend behind a boundary. Rendering the real chrome
- * here means a suspend never flashes a blank frame.
+ * Shared credit-usage loading chrome with an explicit navigation destination.
  */
-export default function CreditUsageLoading() {
+export function CreditUsageLoading({ backHref }: CreditUsageLoadingProps) {
   const router = useRouter()
-  const { workspaceId } = useParams<{ workspaceId: string }>()
 
   return (
     <SettingsPanel
       back={{
         text: 'Billing',
         icon: ArrowLeft,
-        onSelect: () => router.push(`/workspace/${workspaceId}/settings/billing`),
+        onSelect: () => router.push(backHref),
       }}
       title='Credit usage'
       description='Every credit-consuming event behind your usage.'
     />
   )
+}
+
+/**
+ * Workspace route-level loading fallback used by Next.js and `page.tsx`.
+ */
+export default function WorkspaceCreditUsageLoading() {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  return <CreditUsageLoading backHref={`/workspace/${workspaceId}/settings/billing`} />
 }
