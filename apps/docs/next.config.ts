@@ -5,9 +5,6 @@ const withMDX = createMDX()
 
 const config: NextConfig = {
   reactStrictMode: true,
-  // Safe here since this repo's source is already fully public on GitHub -
-  // no additional exposure versus Next's default (disabled to avoid leaking
-  // source on the client).
   productionBrowserSourceMaps: true,
   transpilePackages: ['@sim/emcn', '@sim/workflow-renderer'],
   images: {

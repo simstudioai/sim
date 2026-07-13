@@ -36,12 +36,6 @@ export function Video({
     const el = videoRef.current
     if (!el) return
 
-    // `autoPlay` forces browsers to fetch the full file immediately on mount
-    // regardless of `preload` - gate the actual load behind the viewport so a
-    // page with several of these doesn't pull down every video up front.
-    // Fall back to eager loading where IntersectionObserver isn't available
-    // (older browsers, some embedded webviews) rather than leave the video
-    // permanently source-less.
     if (typeof IntersectionObserver === 'undefined') {
       setIsInView(true)
       return
