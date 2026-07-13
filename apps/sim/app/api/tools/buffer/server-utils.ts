@@ -1,6 +1,10 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 import {
@@ -12,6 +16,8 @@ import {
 } from '@/tools/buffer/types'
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi']
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+const MEDIA_PROBE_TIMEOUT_MS = 5000
 
 const CREATE_POST_MUTATION = `
   mutation CreatePost($input: CreatePostInput!) {
@@ -59,14 +65,52 @@ interface ResolvedMediaAsset {
 }
 
 /**
- * Returns true when the media should be attached as a video asset, based on
- * the file's MIME type or, failing that, the URL/file extension.
+ * Classifies media by extension: 'video', 'image', or null when the
+ * path/URL has no recognizable media extension.
  */
-function isVideoMedia(mimeType: string | undefined, pathOrName: string): boolean {
-  if (mimeType?.startsWith('video/')) return true
-  if (mimeType?.startsWith('image/')) return false
+function mediaKindFromExtension(pathOrName: string): 'image' | 'video' | null {
   const lowered = pathOrName.toLowerCase().split('?')[0]
-  return VIDEO_EXTENSIONS.some((extension) => lowered.endsWith(extension))
+  if (VIDEO_EXTENSIONS.some((extension) => lowered.endsWith(extension))) return 'video'
+  if (IMAGE_EXTENSIONS.some((extension) => lowered.endsWith(extension))) return 'image'
+  return null
+}
+
+/**
+ * Determines whether media should be attached as a video or image asset.
+ * Prefers the file's MIME type, then the path/URL extension, and for
+ * extensionless URLs falls back to a DNS-pinned HEAD probe of the resolved
+ * URL's Content-Type. Defaults to image when nothing is conclusive.
+ */
+async function resolveMediaKind(
+  mimeType: string | undefined,
+  pathOrName: string,
+  fileUrl: string,
+  requestId: string,
+  logger: Logger
+): Promise<'image' | 'video'> {
+  if (mimeType?.startsWith('video/')) return 'video'
+  if (mimeType?.startsWith('image/')) return 'image'
+
+  const extensionKind = mediaKindFromExtension(pathOrName)
+  if (extensionKind) return extensionKind
+
+  try {
+    const validation = await validateUrlWithDNS(fileUrl, 'media')
+    if (validation.isValid && validation.resolvedIP) {
+      const probe = await secureFetchWithPinnedIP(fileUrl, validation.resolvedIP, {
+        method: 'HEAD',
+        timeout: MEDIA_PROBE_TIMEOUT_MS,
+      })
+      const contentType = probe.headers.get('content-type') || ''
+      if (contentType.startsWith('video/')) return 'video'
+      if (contentType.startsWith('image/')) return 'image'
+    }
+  } catch (error) {
+    logger.warn(`[${requestId}] Media content-type probe failed, defaulting to image`, {
+      error: getErrorMessage(error, 'probe failed'),
+    })
+  }
+  return 'image'
 }
 
 /**
@@ -99,7 +143,8 @@ export async function resolveMediaAsset(
 
   const mimeType = isFileInput ? media.type : undefined
   const pathOrName = isFileInput ? media.name || '' : media
-  if (isVideoMedia(mimeType, pathOrName)) {
+  const kind = await resolveMediaKind(mimeType, pathOrName, resolution.fileUrl, requestId, logger)
+  if (kind === 'video') {
     return { asset: { video: { url: resolution.fileUrl } } }
   }
 
