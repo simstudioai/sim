@@ -25,7 +25,8 @@ export const getLogsTool: ToolConfig<GongGetLogsParams, GongGetLogsResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Type of logs requested, as defined in the Gong logs documentation',
+      description:
+        'Type of logs requested: AccessLog, UserActivityLog, UserCallPlay, ExternallySharedCallAccess, or ExternallySharedCallPlay',
     },
     fromDateTime: {
       type: 'string',

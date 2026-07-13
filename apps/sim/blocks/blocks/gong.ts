@@ -551,9 +551,8 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       id: 'folderId',
       title: 'Folder ID',
       type: 'short-input',
-      placeholder: 'Enter the library folder ID',
+      placeholder: 'Library folder ID (optional)',
       condition: { field: 'operation', value: 'get_folder_content' },
-      required: { field: 'operation', value: 'get_folder_content' },
     },
 
     // Workspace ID (shared by multiple operations)
@@ -593,10 +592,7 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       title: 'Flow ID',
       type: 'short-input',
       placeholder: 'Enter the Gong Engage flow ID',
-      condition: {
-        field: 'operation',
-        value: ['assign_flow_prospects', 'unassign_flow_prospects'],
-      },
+      condition: { field: 'operation', value: 'assign_flow_prospects' },
       required: { field: 'operation', value: 'assign_flow_prospects' },
     },
     {
@@ -606,6 +602,13 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       placeholder: 'CRM contact or lead ID to unassign',
       condition: { field: 'operation', value: 'unassign_flow_prospects' },
       required: { field: 'operation', value: 'unassign_flow_prospects' },
+    },
+    {
+      id: 'unassignFlowId',
+      title: 'Flow ID',
+      type: 'short-input',
+      placeholder: 'Specific flow to unassign from (omit for all flows)',
+      condition: { field: 'operation', value: 'unassign_flow_prospects' },
     },
     {
       id: 'unassignedByUserEmail',
@@ -822,8 +825,15 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     {
       id: 'logType',
       title: 'Log Type',
-      type: 'short-input',
-      placeholder: 'Type of logs to retrieve',
+      type: 'dropdown',
+      options: [
+        { label: 'Access Log', id: 'AccessLog' },
+        { label: 'User Activity Log', id: 'UserActivityLog' },
+        { label: 'User Call Play', id: 'UserCallPlay' },
+        { label: 'Externally Shared Call Access', id: 'ExternallySharedCallAccess' },
+        { label: 'Externally Shared Call Play', id: 'ExternallySharedCallPlay' },
+      ],
+      value: () => 'UserActivityLog',
       condition: { field: 'operation', value: 'get_logs' },
       required: { field: 'operation', value: 'get_logs' },
     },
@@ -993,6 +1003,9 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           if (params.logsFromDateTime) result.fromDateTime = params.logsFromDateTime
           if (params.logsToDateTime) result.toDateTime = params.logsToDateTime
         }
+        if (operation === 'unassign_flow_prospects') {
+          result.flowId = params.unassignFlowId || undefined
+        }
         return result
       },
     },
@@ -1019,6 +1032,18 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     toDateTime: { type: 'string', description: 'End date/time in ISO-8601 format (list calls)' },
     callId: { type: 'string', description: 'Gong call ID' },
     callIds: { type: 'string', description: 'Comma-separated call IDs' },
+    transcriptFromDateTime: {
+      type: 'string',
+      description: 'Start date/time in ISO-8601 format (transcripts and extensive calls)',
+    },
+    transcriptToDateTime: {
+      type: 'string',
+      description: 'End date/time in ISO-8601 format (transcripts and extensive calls)',
+    },
+    includeAvatars: {
+      type: 'string',
+      description: 'Whether to include user avatar URLs (true/false)',
+    },
     userId: { type: 'string', description: 'Gong user ID' },
     userIds: { type: 'string', description: 'Comma-separated user IDs' },
     aggregationPeriod: {
@@ -1040,6 +1065,29 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     folderId: { type: 'string', description: 'Library folder ID' },
     workspaceId: { type: 'string', description: 'Gong workspace ID' },
     managerId: { type: 'string', description: 'Manager user ID for coaching' },
+    coachingWorkspaceId: { type: 'string', description: 'Gong workspace ID (coaching)' },
+    coachingFromDate: {
+      type: 'string',
+      description: 'Start date/time in ISO-8601 format (coaching)',
+    },
+    coachingToDate: { type: 'string', description: 'End date/time in ISO-8601 format (coaching)' },
+    entityWorkspaceId: {
+      type: 'string',
+      description: 'Gong workspace ID (ask anything and briefs)',
+    },
+    entityFromDateTime: {
+      type: 'string',
+      description: 'Start date/time in ISO-8601 format for custom-range questions and briefs',
+    },
+    entityToDateTime: {
+      type: 'string',
+      description: 'End date/time in ISO-8601 format for custom-range questions and briefs',
+    },
+    logsFromDateTime: {
+      type: 'string',
+      description: 'Start date/time in ISO-8601 format (logs)',
+    },
+    logsToDateTime: { type: 'string', description: 'End date/time in ISO-8601 format (logs)' },
     flowOwnerEmail: {
       type: 'string',
       description: 'Email of a Gong user to retrieve personal and company flows',
@@ -1047,6 +1095,10 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     flowId: { type: 'string', description: 'Gong Engage flow ID' },
     crmProspectsIds: { type: 'string', description: 'Comma-separated CRM prospect IDs' },
     crmProspectId: { type: 'string', description: 'Single CRM prospect ID to unassign' },
+    unassignFlowId: {
+      type: 'string',
+      description: 'Specific flow ID to unassign from (omit to unassign from all flows)',
+    },
     unassignedByUserEmail: {
       type: 'string',
       description: 'Email of the Gong user requesting the unassignment',
@@ -1096,7 +1148,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     callId: { type: 'string', description: 'Gong call ID of the created call' },
     url: { type: 'string', description: 'URL to the call in the Gong web app' },
     id: { type: 'string', description: 'Gong ID of the returned call or user' },
-    title: { type: 'string', description: 'Call title' },
+    title: { type: 'string', description: 'Call title or user job title' },
     scheduled: { type: 'string', description: 'Scheduled call time (ISO-8601)' },
     started: { type: 'string', description: 'Recording start time (ISO-8601)' },
     duration: { type: 'number', description: 'Call duration in seconds' },

@@ -450,7 +450,7 @@ export interface GongListLibraryFoldersResponse extends ToolResponse {
 
 /** Get Folder Content */
 export interface GongGetFolderContentParams extends GongBaseParams {
-  folderId: string
+  folderId?: string
 }
 
 interface GongFolderCallSnippet {
@@ -540,7 +540,6 @@ interface GongTracker {
   saidAtInterval: number | null
   saidAtUnit: string | null
   saidInTopics: string[]
-  saidInCallParts: string[]
   filterQuery: string | null
   created: string | null
   creatorUserId: string | null

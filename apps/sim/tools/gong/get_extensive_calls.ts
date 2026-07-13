@@ -337,23 +337,13 @@ export const getExtensiveCallsTool: ToolConfig<
             properties: {
               interactionStats: {
                 type: 'array',
-                description: 'Interaction stats per user',
+                description:
+                  'Interaction stat measurements (Longest Monologue, Interactivity, Patience, etc.)',
                 items: {
                   type: 'object',
                   properties: {
-                    userId: { type: 'string', description: 'Gong user ID' },
-                    userEmailAddress: { type: 'string', description: 'User email' },
-                    personInteractionStats: {
-                      type: 'array',
-                      description: 'Stats list (Longest Monologue, Interactivity, Patience, etc.)',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          name: { type: 'string', description: 'Stat name' },
-                          value: { type: 'number', description: 'Stat value' },
-                        },
-                      },
-                    },
+                    name: { type: 'string', description: 'Stat name' },
+                    value: { type: 'number', description: 'Stat value' },
                   },
                 },
               },

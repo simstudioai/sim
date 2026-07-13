@@ -89,6 +89,7 @@ export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsRespons
     requestId: {
       type: 'string',
       description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
     },
     flows: {
       type: 'array',
@@ -118,14 +119,17 @@ export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsRespons
     totalRecords: {
       type: 'number',
       description: 'Total number of flow records available',
+      optional: true,
     },
     currentPageSize: {
       type: 'number',
       description: 'Number of records returned in the current page',
+      optional: true,
     },
     currentPageNumber: {
       type: 'number',
       description: 'Current page number',
+      optional: true,
     },
     cursor: {
       type: 'string',

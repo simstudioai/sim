@@ -26,16 +26,16 @@ export const getFolderContentTool: ToolConfig<
     },
     folderId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The library folder ID to retrieve content for',
+      description: 'The library folder ID to retrieve content for (up to 20 digits)',
     },
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/library/folder-content')
-      url.searchParams.set('folderId', params.folderId.trim())
+      if (params.folderId?.trim()) url.searchParams.set('folderId', params.folderId.trim())
       return url.toString()
     },
     method: 'GET',

@@ -84,9 +84,10 @@ export const askAnythingTool: ToolConfig<GongAskAnythingParams, GongAskAnythingR
       url.searchParams.set('crmEntityId', params.crmEntityId.trim())
       url.searchParams.set('timePeriod', timePeriod)
       url.searchParams.set('question', params.question.trim())
-      if (params.fromDateTime?.trim())
-        url.searchParams.set('fromDateTime', params.fromDateTime.trim())
-      if (params.toDateTime?.trim()) url.searchParams.set('toDateTime', params.toDateTime.trim())
+      if (timePeriod === 'CUSTOM_RANGE') {
+        url.searchParams.set('fromDateTime', params.fromDateTime?.trim() ?? '')
+        url.searchParams.set('toDateTime', params.toDateTime?.trim() ?? '')
+      }
       return url.toString()
     },
     method: 'GET',

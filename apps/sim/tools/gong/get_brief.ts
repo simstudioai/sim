@@ -84,9 +84,10 @@ export const getBriefTool: ToolConfig<GongGetBriefParams, GongGetBriefResponse> 
       url.searchParams.set('crmEntityType', params.crmEntityType.trim().toUpperCase())
       url.searchParams.set('crmEntityId', params.crmEntityId.trim())
       url.searchParams.set('timePeriod', timePeriod)
-      if (params.fromDateTime?.trim())
-        url.searchParams.set('fromDateTime', params.fromDateTime.trim())
-      if (params.toDateTime?.trim()) url.searchParams.set('toDateTime', params.toDateTime.trim())
+      if (timePeriod === 'CUSTOM_RANGE') {
+        url.searchParams.set('fromDateTime', params.fromDateTime?.trim() ?? '')
+        url.searchParams.set('toDateTime', params.toDateTime?.trim() ?? '')
+      }
       return url.toString()
     },
     method: 'GET',
@@ -151,6 +152,10 @@ export const getBriefTool: ToolConfig<GongGetBriefParams, GongGetBriefResponse> 
             type: 'array',
             description: 'Evidence from web search results used to generate this section',
             items: { type: 'object' },
+          },
+          mcpResult: {
+            type: 'object',
+            description: 'Result from an MCP data source used to generate this section',
           },
         },
       },

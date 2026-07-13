@@ -58,4 +58,4 @@ export const gongGetBriefTool = getBriefTool
 export const gongUnassignFlowProspectsTool = unassignFlowProspectsTool
 export const gongGetLogsTool = getLogsTool
 
-export * from './types'
+export * from '@/tools/gong/types'

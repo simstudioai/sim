@@ -115,6 +115,7 @@ export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingR
     requestId: {
       type: 'string',
       description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
     },
     coachingData: {
       type: 'array',
