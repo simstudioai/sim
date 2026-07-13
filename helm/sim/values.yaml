@@ -327,8 +327,8 @@ app:
 
     # Billing concurrency limits (in-flight executions per billing account)
     BILLING_CONCURRENCY_LIMIT_FREE: "10"
-    BILLING_CONCURRENCY_LIMIT_PRO: "50"
-    BILLING_CONCURRENCY_LIMIT_TEAM: "200"                 # Max and team plans
+    BILLING_CONCURRENCY_LIMIT_PRO: "50"                   # Pro tier (Pro and Pro for Teams)
+    BILLING_CONCURRENCY_LIMIT_TEAM: "200"                 # Max tier (Max and Max for Teams)
     BILLING_CONCURRENCY_LIMIT_ENTERPRISE: "1000"          # Default; Enterprise subscription metadata can override
 
     # Execution Timeouts (seconds) — sync timeouts apply to synchronous API calls

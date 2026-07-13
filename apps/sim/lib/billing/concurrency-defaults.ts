@@ -2,7 +2,8 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 
 /**
  * Hosted product defaults for in-flight workflow executions per billing
- * account. Max and team plans share the `team` limit category.
+ * account. Buckets follow the paid tier: `pro` covers Pro and Pro for Teams,
+ * and `team` is the Max tier covering Max and Max for Teams.
  */
 export const DEFAULT_BILLING_CONCURRENCY_LIMITS = {
   free: 10,

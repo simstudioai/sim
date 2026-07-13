@@ -8,7 +8,13 @@ import { createLogger } from '@sim/logger'
 import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
-import { getTablePlanLimits, type PlanName, type TablePlanLimits } from '@/lib/table/constants'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import {
+  getBillingDisabledTableLimits,
+  getTablePlanLimits,
+  type PlanName,
+  type TablePlanLimits,
+} from '@/lib/table/constants'
 
 const logger = createLogger('TableBilling')
 
@@ -115,6 +121,10 @@ export function invalidateWorkspaceTableLimitsCache(workspaceId: string): void {
  * @returns Table limits based on the workspace's billing plan
  */
 export async function getWorkspaceTableLimits(workspaceId: string): Promise<TablePlanLimits> {
+  if (!isBillingEnabled) {
+    return getBillingDisabledTableLimits()
+  }
+
   const cached = limitsCache.get(workspaceId)
   if (cached) {
     if (cached.expiresAt > Date.now()) return cached.limits

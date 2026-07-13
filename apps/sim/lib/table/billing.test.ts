@@ -3,12 +3,19 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveWorkspaceBillingPayer, mockGetPlanTypeForLimits, mockGetTablePlanLimits } =
-  vi.hoisted(() => ({
-    mockResolveWorkspaceBillingPayer: vi.fn(),
-    mockGetPlanTypeForLimits: vi.fn(),
-    mockGetTablePlanLimits: vi.fn(),
-  }))
+const {
+  mockFlags,
+  mockResolveWorkspaceBillingPayer,
+  mockGetPlanTypeForLimits,
+  mockGetBillingDisabledTableLimits,
+  mockGetTablePlanLimits,
+} = vi.hoisted(() => ({
+  mockFlags: { isBillingEnabled: true },
+  mockResolveWorkspaceBillingPayer: vi.fn(),
+  mockGetPlanTypeForLimits: vi.fn(),
+  mockGetBillingDisabledTableLimits: vi.fn(),
+  mockGetTablePlanLimits: vi.fn(),
+}))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveWorkspaceBillingPayer: mockResolveWorkspaceBillingPayer,
@@ -16,7 +23,13 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/billing/plan-helpers', () => ({
   getPlanTypeForLimits: mockGetPlanTypeForLimits,
 }))
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isBillingEnabled() {
+    return mockFlags.isBillingEnabled
+  },
+}))
 vi.mock('@/lib/table/constants', () => ({
+  getBillingDisabledTableLimits: mockGetBillingDisabledTableLimits,
   getTablePlanLimits: mockGetTablePlanLimits,
 }))
 
@@ -43,7 +56,12 @@ const nextWorkspaceId = () => `ws-${++wsCounter}`
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockFlags.isBillingEnabled = true
   mockGetTablePlanLimits.mockReturnValue(LIMITS)
+  mockGetBillingDisabledTableLimits.mockReturnValue({
+    maxTables: Number.MAX_SAFE_INTEGER,
+    maxRowsPerTable: Number.MAX_SAFE_INTEGER,
+  })
   mockResolveWorkspaceBillingPayer.mockResolvedValue({
     billedAccountUserId: 'billed-user',
     organizationId: 'org-1',
@@ -75,6 +93,21 @@ describe('getWorkspaceTableLimits', () => {
     expect(await getWorkspaceTableLimits(ws)).toEqual(LIMITS.free)
     // The fallback is never cached, so the next call re-attempts and resolves the real plan.
     expect(await getWorkspaceTableLimits(ws)).toEqual(LIMITS.pro)
+  })
+
+  it('bypasses billing plan resolution entirely when billing is disabled', async () => {
+    mockFlags.isBillingEnabled = false
+    mockGetBillingDisabledTableLimits.mockReturnValue({
+      maxTables: Number.MAX_SAFE_INTEGER,
+      maxRowsPerTable: 12345,
+    })
+
+    expect(await getWorkspaceTableLimits(nextWorkspaceId())).toEqual({
+      maxTables: Number.MAX_SAFE_INTEGER,
+      maxRowsPerTable: 12345,
+    })
+    expect(mockResolveWorkspaceBillingPayer).not.toHaveBeenCalled()
+    expect(mockGetTablePlanLimits).not.toHaveBeenCalled()
   })
 
   it('stays bounded under a burst of distinct all-fresh workspaces', async () => {

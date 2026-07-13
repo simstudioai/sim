@@ -52,8 +52,10 @@ describe('usage reservation environment overrides', () => {
 
   it.each([
     ['free', '11'],
-    ['pro', '55'],
-    ['team', '222'],
+    ['pro_6000', '55'],
+    ['team_6000', '55'],
+    ['pro_25000', '222'],
+    ['team_25000', '222'],
     ['enterprise', '1111'],
   ] as const)('uses the %s plan override', async (plan, expected) => {
     await reserveExecutionSlot({
