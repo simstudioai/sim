@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockTransaction,
   mockSelectRows,
-  mockCheckStorageQuota,
   mockFilterForkableChatFiles,
   mockListForkableChatFiles,
   mockPlanChatFileCopies,
@@ -24,7 +23,6 @@ const {
 } = vi.hoisted(() => ({
   mockTransaction: vi.fn(),
   mockSelectRows: vi.fn(),
-  mockCheckStorageQuota: vi.fn(),
   // Real (pure) cut semantics so tests drive selection through row.messageId:
   // rows with a NULL/undefined messageId are kept in every fork.
   mockFilterForkableChatFiles: vi.fn(
@@ -88,10 +86,6 @@ vi.mock('@/lib/copilot/resources/persistence', () => ({
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
-
-vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuota: mockCheckStorageQuota,
-}))
 
 vi.mock('@/lib/copilot/chat/fork-chat-files', () => ({
   filterForkableChatFiles: mockFilterForkableChatFiles,
@@ -218,7 +212,6 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     })
     mockSelectRows.mockResolvedValue([parentRow])
     mockListForkableChatFiles.mockResolvedValue([])
-    mockCheckStorageQuota.mockResolvedValue({ allowed: true })
     mockLoadCopilotChatMessages.mockResolvedValue(threeMessages)
     mockPlanChatFileCopies.mockResolvedValue({
       idMap: new Map(),
@@ -316,42 +309,6 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(appended[1].map((m: { id: string }) => m.id)).toEqual(['msg-1', 'msg-2'])
   })
 
-  it('fails up front with the quota error when copied bytes would exceed the limit', async () => {
-    mockListForkableChatFiles.mockResolvedValue([
-      { size: 600, workspaceId: 'ws-1' },
-      { size: 400, workspaceId: 'ws-1' },
-    ])
-    mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
-
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-
-    expect(res.status).toBe(400)
-    expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 1000)
-    expect(mockTransaction).not.toHaveBeenCalled()
-    expect(mockExecuteChatFileBlobCopies).not.toHaveBeenCalled()
-  })
-
-  it('excludes uncopyable rows (no workspaceId) from the quota sum', async () => {
-    // planChatFileCopies skips workspaceId-less legacy rows, so their bytes
-    // must not count against the gate.
-    mockListForkableChatFiles.mockResolvedValue([{ size: 600, workspaceId: 'ws-1' }, { size: 400 }])
-
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-
-    expect(res.status).toBe(200)
-    expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 600)
-  })
-
-  it('skips the quota check entirely when no chat-owned rows are in the cut', async () => {
-    // The chat owns one file, but it was born after the fork point.
-    mockListForkableChatFiles.mockResolvedValue([
-      { id: 'wf_late', size: 500, context: 'mothership', messageId: 'msg-3' },
-    ])
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-    expect(res.status).toBe(200)
-    expect(mockCheckStorageQuota).not.toHaveBeenCalled()
-  })
-
   it('forks the chat: copies kept uploads, rewrites references, clones agent state', async () => {
     const blobTasks = [
       {
@@ -378,17 +335,12 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(body.success).toBe(true)
     expect(typeof body.id).toBe('string')
 
-    expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 100)
-
     // The real rewriter runs: the kept message's view-URL points at the copy.
     const appended = mockAppendCopilotChatMessages.mock.calls[0]
     expect(appended[0]).toBe(body.id)
     expect(appended[1][0].content).toBe(`See ![cat](/api/files/view/${NEW_FILE_ID})`)
 
-    expect(mockExecuteChatFileBlobCopies).toHaveBeenCalledWith(blobTasks, {
-      userId: 'user-1',
-      workspaceId: 'ws-1',
-    })
+    expect(mockExecuteChatFileBlobCopies).toHaveBeenCalledWith(blobTasks)
 
     const goCall = mockFetchGo.mock.calls[0]
     expect(goCall[0]).toBe('http://mothership.test/api/chats/fork')

@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
-import { incrementStorageUsage } from '@/lib/billing/storage'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -156,15 +155,13 @@ export async function planChatFileCopies(params: {
  * missing) rather than failing the whole fork. Runs a bounded worker pool
  * ({@link CHAT_BLOB_COPY_CONCURRENCY}) — media-heavy chats must not pay 2N
  * serial storage round-trips, but unbounded fan-out would buffer every file
- * in memory at once. Each successfully copied file increments the
- * storage-usage counter by its actual byte length. Failed tasks' copy-row ids
- * are returned so the caller can delete the dead rows (row exists, blob
- * doesn't) instead of leaving them listed in the VFS and resources with
- * nothing behind them.
+ * in memory at once. Mothership files remain excluded from workspace storage
+ * accounting. Failed tasks' copy-row ids are returned so the caller can delete
+ * the dead rows (row exists, blob doesn't) instead of leaving them listed in
+ * the VFS and resources with nothing behind them.
  */
 export async function executeChatFileBlobCopies(
-  blobTasks: ChatBlobCopyTask[],
-  params: { userId: string; workspaceId?: string }
+  blobTasks: ChatBlobCopyTask[]
 ): Promise<{ copied: number; failed: number; failedCopyIds: string[] }> {
   let copied = 0
   const failedCopyIds: string[] = []
@@ -193,20 +190,6 @@ export async function executeChatFileBlobCopies(
         preserveKey: true,
       })
       copied += 1
-      try {
-        // Forked bytes COUNT against the storage quota, deliberately diverging
-        // from the workspace-fork copy path
-        // (lib/workspaces/fork/copy/copy-files.ts), which copies blobs without
-        // counting them. A chat fork stores a second physical copy of every
-        // kept upload, so the counter must reflect it. Do not "fix" this back
-        // to the workspace-fork precedent.
-        await incrementStorageUsage(params.userId, buffer.length, params.workspaceId)
-      } catch (error) {
-        logger.error('Failed to update storage tracking for forked chat file', {
-          targetKey: task.targetKey,
-          error: getErrorMessage(error),
-        })
-      }
     } catch (error) {
       failedCopyIds.push(task.copyId)
       logger.warn('Failed to copy chat file blob during fork', {
