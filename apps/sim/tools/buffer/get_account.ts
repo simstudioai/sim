@@ -51,6 +51,9 @@ export const bufferGetAccountTool: ToolConfig<BufferGetAccountParams, BufferAcco
   transformResponse: async (response: Response) => {
     const data = await parseBufferGraphQLResponse(response)
     const account = data.account
+    if (!account) {
+      throw new Error('Buffer account not found — check that the API key is valid')
+    }
     return {
       success: true,
       output: {
