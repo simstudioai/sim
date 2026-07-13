@@ -83,25 +83,11 @@ export async function resolveFileInputToUrl(
       }
     }
 
-    let fileUrl = userFile.url || ''
-
-    // Handle internal URLs
-    if (fileUrl && isInternalFileUrl(fileUrl)) {
-      const resolution = await resolveInternalFileUrl(
-        fileUrl,
-        userId,
-        requestId,
-        logger,
-        presignExpirySeconds
-      )
-      if (resolution.error) {
-        return { error: resolution.error }
-      }
-      fileUrl = resolution.fileUrl || ''
-    }
-
-    // Generate presigned URL if we have a key but no URL
-    if (!fileUrl && userFile.key) {
+    // A stored file always gets a freshly minted presigned URL scoped to the
+    // requested expiry — an embedded url (internal serve path or a previously
+    // minted presigned link) may be stale, shorter-lived than required, or
+    // point at a different object than the verified key.
+    if (userFile.key) {
       const context = resolveTrustedFileContext(userFile.key, userFile.context)
       const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context, false)
 
@@ -114,11 +100,30 @@ export async function resolveFileInputToUrl(
         return { error: { status: 404, message: 'File not found' } }
       }
 
-      fileUrl = await StorageService.generatePresignedDownloadUrl(
+      const fileUrl = await StorageService.generatePresignedDownloadUrl(
         userFile.key,
         context,
         presignExpirySeconds
       )
+      return { fileUrl }
+    }
+
+    let fileUrl = userFile.url || ''
+
+    // Without a key, the schema guarantees the url references an uploaded
+    // file, so resolve the internal serve path to a presigned URL.
+    if (fileUrl && isInternalFileUrl(fileUrl)) {
+      const resolution = await resolveInternalFileUrl(
+        fileUrl,
+        userId,
+        requestId,
+        logger,
+        presignExpirySeconds
+      )
+      if (resolution.error) {
+        return { error: resolution.error }
+      }
+      fileUrl = resolution.fileUrl || ''
     }
 
     return { fileUrl }
