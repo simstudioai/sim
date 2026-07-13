@@ -2,6 +2,17 @@ import { FlintIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+/**
+ * Coerces the publish switch value to an explicit boolean, preserving an
+ * explicit false so Flint never falls back to its server-side default.
+ * Returns undefined only when the value was never set.
+ */
+function coercePublish(value: unknown): boolean | undefined {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return undefined
+}
+
 export const FlintBlock: BlockConfig = {
   type: 'flint',
   name: 'Flint',
@@ -129,14 +140,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         const base: Record<string, unknown> = { apiKey: params.apiKey }
 
         switch (params.operation) {
-          case 'flint_create_task':
-            return {
-              ...base,
-              siteId: params.siteId,
-              prompt: params.prompt,
-              callbackUrl: params.callbackUrl || undefined,
-              publish: params.publish === true || params.publish === 'true' ? true : undefined,
-            }
           case 'flint_generate_pages':
             return {
               ...base,
@@ -144,12 +147,18 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
               templatePageSlug: params.templatePageSlug,
               items: params.items,
               callbackUrl: params.callbackUrl || undefined,
-              publish: params.publish === true || params.publish === 'true' ? true : undefined,
+              publish: coercePublish(params.publish),
             }
           case 'flint_get_task':
             return { ...base, taskId: params.taskId }
           default:
-            return base
+            return {
+              ...base,
+              siteId: params.siteId,
+              prompt: params.prompt,
+              callbackUrl: params.callbackUrl || undefined,
+              publish: coercePublish(params.publish),
+            }
         }
       },
     },
