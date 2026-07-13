@@ -392,6 +392,18 @@ import {
 } from '@/tools/brightdata'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import {
+  bufferCreateIdeaTool,
+  bufferCreatePostTool,
+  bufferDeletePostTool,
+  bufferEditPostTool,
+  bufferGetAccountTool,
+  bufferGetChannelsTool,
+  bufferGetIdeaGroupsTool,
+  bufferGetIdeasTool,
+  bufferGetPostsTool,
+  bufferGetPostTool,
+} from '@/tools/buffer'
+import {
   calcomCancelBookingTool,
   calcomConfirmBookingTool,
   calcomCreateBookingTool,
@@ -4734,6 +4746,16 @@ export const tools: Record<string, ToolConfig> = {
   box_sign_cancel_request: boxSignCancelRequestTool,
   box_sign_resend_request: boxSignResendRequestTool,
   browser_use_run_task: browserUseRunTaskTool,
+  buffer_create_idea: bufferCreateIdeaTool,
+  buffer_create_post: bufferCreatePostTool,
+  buffer_delete_post: bufferDeletePostTool,
+  buffer_edit_post: bufferEditPostTool,
+  buffer_get_account: bufferGetAccountTool,
+  buffer_get_channels: bufferGetChannelsTool,
+  buffer_get_idea_groups: bufferGetIdeaGroupsTool,
+  buffer_get_ideas: bufferGetIdeasTool,
+  buffer_get_post: bufferGetPostTool,
+  buffer_get_posts: bufferGetPostsTool,
   openai_embeddings: openAIEmbeddingsTool,
   http_request: httpRequestTool,
   webhook_request: webhookRequestTool,

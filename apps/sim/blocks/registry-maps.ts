@@ -24,6 +24,7 @@ import { BrandfetchBlock, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch
 import { BrexBlock, BrexBlockMeta } from '@/blocks/blocks/brex'
 import { BrightDataBlock, BrightDataBlockMeta } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock, BrowserUseBlockMeta } from '@/blocks/blocks/browser_use'
+import { BufferBlock, BufferBlockMeta } from '@/blocks/blocks/buffer'
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
@@ -362,6 +363,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   brex: BrexBlock,
   brightdata: BrightDataBlock,
   browser_use: BrowserUseBlock,
+  buffer: BufferBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
   chat_trigger: ChatTriggerBlock,
@@ -680,6 +682,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   brex: BrexBlockMeta,
   brightdata: BrightDataBlockMeta,
   browser_use: BrowserUseBlockMeta,
+  buffer: BufferBlockMeta,
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
   circleback: CirclebackBlockMeta,

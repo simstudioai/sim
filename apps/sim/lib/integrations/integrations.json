@@ -2604,6 +2604,65 @@
       "tags": ["web-scraping", "automation", "agentic"]
     },
     {
+      "type": "buffer",
+      "slug": "buffer",
+      "name": "Buffer",
+      "description": "Schedule and publish social media posts across connected channels",
+      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channels, and capture content ideas using the Buffer API.",
+      "bgColor": "#FFFFFF",
+      "iconName": "BufferIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/buffer",
+      "operations": [
+        {
+          "name": "Create Post",
+          "description": "Create a post in Buffer for a channel — add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft, optionally with an image or video attachment"
+        },
+        {
+          "name": "Edit Post",
+          "description": "Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments"
+        },
+        {
+          "name": "Get Posts",
+          "description": "List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)"
+        },
+        {
+          "name": "Get Post",
+          "description": "Get a single Buffer post by ID, including its status, schedule, and media"
+        },
+        {
+          "name": "Delete Post",
+          "description": "Delete a Buffer post by ID"
+        },
+        {
+          "name": "Get Channels",
+          "description": "List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)"
+        },
+        {
+          "name": "Create Idea",
+          "description": "Save a content idea to a Buffer organization for later drafting and scheduling"
+        },
+        {
+          "name": "Get Ideas",
+          "description": "List content ideas saved in a Buffer organization"
+        },
+        {
+          "name": "Get Idea Groups",
+          "description": "List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas"
+        },
+        {
+          "name": "Get Account",
+          "description": "Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)"
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["marketing", "scheduling", "automation"]
+    },
+    {
       "type": "calcom",
       "slug": "cal-com",
       "name": "Cal.com",

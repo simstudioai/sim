@@ -2533,6 +2533,24 @@ l57 -85 -48 -124 c-203 -517 -79 -930 346 -1155 159 -85 441 -71 585 28 l111
   )
 }
 
+export function BufferIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 86.7 97.9'
+      fill='currentColor'
+      role='img'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M0,22.3L43.1,0l43.6,22.3L43.1,44.8L0,22.3z M43.1,83.1l-29.4-16L0,74.5l43.1,23.4l43.6-23.4l-13.9-7.4 L43.1,83.1z M13.7,42l29.4,14.5L72.9,42l13.9,6.8L43.1,69.9L0,48.7L13.7,42z'
+      />
+    </svg>
+  )
+}
+
 export function Mem0Icon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
