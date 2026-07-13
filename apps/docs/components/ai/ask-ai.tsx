@@ -6,6 +6,14 @@ import dynamic from 'next/dynamic'
 
 const AskAIPanel = dynamic(() => import('./ask-ai-panel').then((m) => m.AskAIPanel), {
   ssr: false,
+  loading: () => (
+    <div
+      aria-hidden
+      className='fixed right-4 bottom-4 z-50 flex size-11 items-center justify-center rounded-full border border-[var(--border-1)] bg-[var(--surface-5)] shadow-[var(--shadow-medium)] dark:bg-[var(--surface-4)]'
+    >
+      <MessageCircle className='size-[16px] animate-pulse text-[var(--text-icon)]' />
+    </div>
+  ),
 })
 
 interface AskAIProps {
