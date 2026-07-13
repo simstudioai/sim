@@ -275,6 +275,24 @@ describe('POST /api/files/multipart action=initiate quota enforcement', () => {
     expect(mockInitiateS3MultipartUpload).toHaveBeenCalled()
   })
 
+  it('keeps mothership chat uploads outside workspace storage quotas', async () => {
+    mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
+
+    const res = await makeInitiateRequest({
+      fileName: 'conversation.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 99999,
+      workspaceId: 'ws-1',
+      context: 'mothership',
+    })
+
+    const response = await POST(res)
+    expect(response.status).toBe(200)
+    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(mockCheckStorageQuota).not.toHaveBeenCalled()
+    expect(mockInitiateS3MultipartUpload).toHaveBeenCalled()
+  })
+
   it.each(['og-images', 'profile-pictures', 'workspace-logos', 'logs'])(
     'rejects quota-exempt context %s — not allowed via the multipart endpoint',
     async (context) => {

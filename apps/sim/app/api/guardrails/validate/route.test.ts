@@ -266,4 +266,47 @@ describe('POST /api/guardrails/validate', () => {
       })
     )
   })
+
+  it('rejects invalid internal billing attribution as a protocol error', async () => {
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'internal_jwt',
+    })
+    mockRequireBillingAttributionHeader.mockImplementationOnce(() => {
+      throw new Error('Billing attribution header is required')
+    })
+
+    const res = await POST(
+      createMockRequest('POST', {
+        validationType: 'hallucination',
+        input: 'test input',
+        knowledgeBaseId: 'kb-1',
+        model: 'gpt-4o',
+        workflowId: 'wf-1',
+      })
+    )
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toEqual({ error: 'Invalid billing attribution' })
+    expect(mockValidateHallucination).not.toHaveBeenCalled()
+  })
+
+  it('surfaces workspace billing resolution failures as infrastructure errors', async () => {
+    mockResolveBillingAttribution.mockRejectedValueOnce(new Error('Database unavailable'))
+
+    const res = await POST(
+      createMockRequest('POST', {
+        validationType: 'hallucination',
+        input: 'test input',
+        knowledgeBaseId: 'kb-1',
+        model: 'gpt-4o',
+        workflowId: 'wf-1',
+      })
+    )
+
+    expect(res.status).toBe(500)
+    await expect(res.json()).resolves.toEqual({ error: 'Failed to resolve billing attribution' })
+    expect(mockValidateHallucination).not.toHaveBeenCalled()
+  })
 })

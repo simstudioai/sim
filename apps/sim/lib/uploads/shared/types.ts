@@ -26,16 +26,16 @@ export type StorageContext =
 /**
  * Contexts exempt from storage quota checks. Includes system-internal contexts
  * (`logs` — written by the execution pipeline, not user-initiated) and small
- * metadata assets (`profile-pictures`, `workspace-logos`, `og-images`). All
- * other contexts are user-driven uploads and must pass quota validation.
+ * metadata assets (`profile-pictures`, `workspace-logos`, `og-images`).
+ * Mothership chat attachments are also exempt because they are not counted as
+ * durable workspace-file storage.
  *
- * Note: every quota-exempt context is excluded from `ALLOWED_UPLOAD_CONTEXTS`
- * in the multipart endpoint, so none are reachable there — the exemption applies
- * only to the single-part upload paths (presigned/FormData) those small assets
- * actually use. The multipart endpoint therefore only ever serves
- * quota-enforced contexts.
+ * The small-asset and system contexts are excluded from the multipart endpoint.
+ * Mothership remains available there for large chat attachments while retaining
+ * the same quota exemption as its single-part upload path.
  */
 export const QUOTA_EXEMPT_STORAGE_CONTEXTS = new Set<StorageContext>([
+  'mothership',
   'profile-pictures',
   'workspace-logos',
   'og-images',

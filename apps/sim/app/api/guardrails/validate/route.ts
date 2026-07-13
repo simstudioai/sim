@@ -166,16 +166,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       resolvedWorkspaceId = authorization.workflow.workspaceId
-      billingAttribution =
-        auth.authType === AuthType.INTERNAL_JWT
-          ? requireBillingAttributionHeader(request.headers, {
-              actorUserId: auth.userId,
-              workspaceId: resolvedWorkspaceId,
-            })
-          : await resolveBillingAttribution({
-              actorUserId: auth.userId,
-              workspaceId: resolvedWorkspaceId,
-            })
+      try {
+        billingAttribution =
+          auth.authType === AuthType.INTERNAL_JWT
+            ? requireBillingAttributionHeader(request.headers, {
+                actorUserId: auth.userId,
+                workspaceId: resolvedWorkspaceId,
+              })
+            : await resolveBillingAttribution({
+                actorUserId: auth.userId,
+                workspaceId: resolvedWorkspaceId,
+              })
+      } catch (error) {
+        const isInternalRequest = auth.authType === AuthType.INTERNAL_JWT
+        logger.error(`[${requestId}] Failed to establish billing attribution`, { error })
+        return NextResponse.json(
+          {
+            error: isInternalRequest
+              ? 'Invalid billing attribution'
+              : 'Failed to resolve billing attribution',
+          },
+          { status: isInternalRequest ? 400 : 500 }
+        )
+      }
 
       try {
         await assertPermissionsAllowed({
