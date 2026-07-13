@@ -1,0 +1,308 @@
+---
+title: Buffer
+description: Schedule and publish social media posts across connected channels
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="buffer"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channels, and capture content ideas using the Buffer API.
+
+
+
+## Actions
+
+### `buffer_create_post`
+
+Create a post in Buffer for a channel — add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft, optionally with an image or video attachment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `channelId` | string | Yes | Channel to create the post for \(find it with the Get Channels operation\) |
+| `text` | string | No | Text content of the post \(required unless media is attached\) |
+| `mode` | string | Yes | How to share the post: addToQueue, shareNext, shareNow, or customScheduled \(requires dueAt\) |
+| `schedulingType` | string | Yes | How the post publishes: automatic \(Buffer publishes it\) or notification \(you get a mobile reminder\) |
+| `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
+| `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
+| `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL |
+| `mediaAltText` | string | No | Alt text for an attached image |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `post` | object | The created post |
+|   ↳ `id` | string | Post ID |
+|   ↳ `text` | string | Post text content |
+|   ↳ `status` | string | Post status \(draft, needs_approval, scheduled, sending, sent, error\) |
+|   ↳ `via` | string | How the post was created \(buffer, network, api\) |
+|   ↳ `channelId` | string | Channel the post belongs to |
+|   ↳ `channelService` | string | Social network of the channel |
+|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
+|   ↳ `shareMode` | string | Share mode used for the post |
+|   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
+|   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
+|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
+|   ↳ `externalLink` | string | Link to the published post on the social network |
+|   ↳ `error` | object | Publishing error details when the post failed |
+|     ↳ `message` | string | Error message |
+|     ↳ `supportUrl` | string | Support article URL |
+|     ↳ `rawError` | string | Raw error from the network |
+|   ↳ `assets` | array | Media attached to the post |
+|     ↳ `id` | string | Asset ID |
+|     ↳ `type` | string | Asset type |
+|     ↳ `mimeType` | string | MIME type of the asset |
+|     ↳ `source` | string | Source URL of the asset |
+|     ↳ `thumbnail` | string | Thumbnail URL of the asset |
+
+### `buffer_edit_post`
+
+Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `postId` | string | Yes | ID of the post to edit |
+| `text` | string | No | New text content of the post |
+| `mode` | string | Yes | How to share the post: addToQueue, shareNext, shareNow, or customScheduled \(requires dueAt\) |
+| `schedulingType` | string | Yes | How the post publishes: automatic \(Buffer publishes it\) or notification \(you get a mobile reminder\) |
+| `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
+| `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
+| `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Replaces existing attachments |
+| `mediaAltText` | string | No | Alt text for an attached image |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `post` | object | The updated post |
+|   ↳ `id` | string | Post ID |
+|   ↳ `text` | string | Post text content |
+|   ↳ `status` | string | Post status \(draft, needs_approval, scheduled, sending, sent, error\) |
+|   ↳ `via` | string | How the post was created \(buffer, network, api\) |
+|   ↳ `channelId` | string | Channel the post belongs to |
+|   ↳ `channelService` | string | Social network of the channel |
+|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
+|   ↳ `shareMode` | string | Share mode used for the post |
+|   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
+|   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
+|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
+|   ↳ `externalLink` | string | Link to the published post on the social network |
+|   ↳ `error` | object | Publishing error details when the post failed |
+|     ↳ `message` | string | Error message |
+|     ↳ `supportUrl` | string | Support article URL |
+|     ↳ `rawError` | string | Raw error from the network |
+|   ↳ `assets` | array | Media attached to the post |
+|     ↳ `id` | string | Asset ID |
+|     ↳ `type` | string | Asset type |
+|     ↳ `mimeType` | string | MIME type of the asset |
+|     ↳ `source` | string | Source URL of the asset |
+|     ↳ `thumbnail` | string | Thumbnail URL of the asset |
+
+### `buffer_get_posts`
+
+List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
+| `channelIds` | string | No | Comma-separated channel IDs to filter by |
+| `status` | string | No | Comma-separated statuses to filter by: draft, needs_approval, scheduled, sending, sent, error |
+| `limit` | number | No | Maximum number of posts to return \(default 20\) |
+| `after` | string | No | Pagination cursor from a previous page \(pageInfo.endCursor\) |
+| `sortBy` | string | No | Field to sort by: dueAt or createdAt \(default dueAt\) |
+| `sortDirection` | string | No | Sort direction: asc or desc \(default asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `posts` | array | Posts matching the filters |
+|   ↳ `id` | string | Post ID |
+|   ↳ `text` | string | Post text content |
+|   ↳ `status` | string | Post status \(draft, needs_approval, scheduled, sending, sent, error\) |
+|   ↳ `via` | string | How the post was created \(buffer, network, api\) |
+|   ↳ `channelId` | string | Channel the post belongs to |
+|   ↳ `channelService` | string | Social network of the channel |
+|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
+|   ↳ `shareMode` | string | Share mode used for the post |
+|   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
+|   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
+|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
+|   ↳ `externalLink` | string | Link to the published post on the social network |
+|   ↳ `error` | object | Publishing error details when the post failed |
+|     ↳ `message` | string | Error message |
+|     ↳ `supportUrl` | string | Support article URL |
+|     ↳ `rawError` | string | Raw error from the network |
+|   ↳ `assets` | array | Media attached to the post |
+|     ↳ `id` | string | Asset ID |
+|     ↳ `type` | string | Asset type |
+|     ↳ `mimeType` | string | MIME type of the asset |
+|     ↳ `source` | string | Source URL of the asset |
+|     ↳ `thumbnail` | string | Thumbnail URL of the asset |
+| `pageInfo` | object | Pagination info for fetching the next page |
+|   ↳ `hasNextPage` | boolean | Whether more results are available |
+|   ↳ `endCursor` | string | Cursor to pass as "after" for the next page |
+
+### `buffer_get_post`
+
+Get a single Buffer post by ID, including its status, schedule, and media
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `postId` | string | Yes | ID of the post to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `post` | object | The requested post |
+|   ↳ `id` | string | Post ID |
+|   ↳ `text` | string | Post text content |
+|   ↳ `status` | string | Post status \(draft, needs_approval, scheduled, sending, sent, error\) |
+|   ↳ `via` | string | How the post was created \(buffer, network, api\) |
+|   ↳ `channelId` | string | Channel the post belongs to |
+|   ↳ `channelService` | string | Social network of the channel |
+|   ↳ `schedulingType` | string | How the post publishes \(automatic or notification\) |
+|   ↳ `shareMode` | string | Share mode used for the post |
+|   ↳ `isCustomScheduled` | boolean | Whether the post has a custom schedule |
+|   ↳ `sharedNow` | boolean | Whether the post was shared immediately |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `dueAt` | string | Scheduled publish time \(ISO 8601\) |
+|   ↳ `sentAt` | string | Publish timestamp \(ISO 8601\) |
+|   ↳ `externalLink` | string | Link to the published post on the social network |
+|   ↳ `error` | object | Publishing error details when the post failed |
+|     ↳ `message` | string | Error message |
+|     ↳ `supportUrl` | string | Support article URL |
+|     ↳ `rawError` | string | Raw error from the network |
+|   ↳ `assets` | array | Media attached to the post |
+|     ↳ `id` | string | Asset ID |
+|     ↳ `type` | string | Asset type |
+|     ↳ `mimeType` | string | MIME type of the asset |
+|     ↳ `source` | string | Source URL of the asset |
+|     ↳ `thumbnail` | string | Thumbnail URL of the asset |
+
+### `buffer_delete_post`
+
+Delete a Buffer post by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `postId` | string | Yes | ID of the post to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the post was deleted |
+| `id` | string | ID of the deleted post |
+
+### `buffer_get_channels`
+
+List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channels` | array | Channels connected to the organization |
+|   ↳ `id` | string | Channel ID |
+|   ↳ `name` | string | Channel name |
+|   ↳ `displayName` | string | Channel display name |
+|   ↳ `service` | string | Social network \(instagram, linkedin, twitter, ...\) |
+|   ↳ `serviceId` | string | ID of the account on the social network |
+|   ↳ `avatar` | string | Channel avatar URL |
+|   ↳ `timezone` | string | Channel timezone |
+|   ↳ `type` | string | Channel type \(page, profile, business, ...\) |
+|   ↳ `isQueuePaused` | boolean | Whether the posting queue is paused |
+|   ↳ `isDisconnected` | boolean | Whether the channel needs reconnection |
+|   ↳ `organizationId` | string | Organization the channel belongs to |
+
+### `buffer_create_idea`
+
+Save a content idea to a Buffer organization for later drafting and scheduling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
+| `text` | string | Yes | Text content of the idea |
+| `title` | string | No | Optional title for the idea |
+| `groupId` | string | No | Optional idea group \(board column\) to place the idea in |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `idea` | object | The created idea |
+|   ↳ `id` | string | Idea ID |
+|   ↳ `organizationId` | string | Organization the idea belongs to |
+|   ↳ `groupId` | string | Idea group ID |
+|   ↳ `title` | string | Idea title |
+|   ↳ `text` | string | Idea text content |
+
+### `buffer_get_account`
+
+Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The authenticated Buffer account |
+|   ↳ `id` | string | Account ID |
+|   ↳ `email` | string | Account email |
+|   ↳ `name` | string | Account holder name |
+|   ↳ `timezone` | string | Account timezone |
+|   ↳ `organizations` | array | Organizations the account belongs to |
+|     ↳ `id` | string | Organization ID |
+|     ↳ `name` | string | Organization name |
+|     ↳ `channelCount` | number | Number of connected channels |
+|     ↳ `ownerEmail` | string | Email of the organization owner |
+
+
