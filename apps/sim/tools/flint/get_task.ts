@@ -54,6 +54,9 @@ export const flintGetTaskTool: ToolConfig<FlintGetTaskParams, FlintGetTaskRespon
 
   transformResponse: async (response) => {
     const data = await response.json()
+    if (!data?.taskId) {
+      throw new Error(data?.error || 'Flint did not return a task ID')
+    }
     return {
       success: true,
       output: {
