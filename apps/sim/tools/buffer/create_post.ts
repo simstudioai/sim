@@ -62,7 +62,14 @@ export const bufferCreatePostTool: ToolConfig<BufferCreatePostParams, BufferPost
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL',
+        'Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Buffer downloads the media at publish time; uploaded files are shared via a link valid for 7 days, so use a public URL for posts scheduled further out',
+    },
+    mediaType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Force the attachment type when it cannot be detected from the file or URL: image or video (default auto)',
     },
     mediaAltText: {
       type: 'string',
@@ -85,6 +92,7 @@ export const bufferCreatePostTool: ToolConfig<BufferCreatePostParams, BufferPost
       dueAt: params.dueAt,
       saveToDraft: params.saveToDraft,
       media: params.media,
+      mediaType: params.mediaType,
       mediaAltText: params.mediaAltText,
     }),
   },

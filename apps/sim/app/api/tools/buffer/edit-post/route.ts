@@ -56,6 +56,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       dueAt: body.dueAt,
       saveToDraft: body.saveToDraft,
       media: body.media,
+      mediaType: body.mediaType,
       mediaAltText: body.mediaAltText,
       userId: authResult.userId,
       requestId,

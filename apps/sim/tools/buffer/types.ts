@@ -389,6 +389,7 @@ export interface BufferCreatePostParams extends BufferBaseParams {
   dueAt?: string
   saveToDraft?: boolean
   media?: unknown
+  mediaType?: 'auto' | 'image' | 'video'
   mediaAltText?: string
 }
 
@@ -400,6 +401,7 @@ export interface BufferEditPostParams extends BufferBaseParams {
   dueAt?: string
   saveToDraft?: boolean
   media?: unknown
+  mediaType?: 'auto' | 'image' | 'video'
   mediaAltText?: string
 }
 
