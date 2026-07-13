@@ -25,8 +25,8 @@ export function buildPostGraphJsonLd(post: ContentMeta) {
   return buildPostGraphJsonLdGeneric(post, BLOG_SECTION)
 }
 
-export function buildCollectionPageJsonLd() {
-  return buildCollectionPageJsonLdGeneric(BLOG_SECTION)
+export function buildCollectionPageJsonLd(posts: ContentMeta[]) {
+  return buildCollectionPageJsonLdGeneric(BLOG_SECTION, posts)
 }
 
 export function buildIndexMetadata(input: { tag?: string; pageNum: number }) {

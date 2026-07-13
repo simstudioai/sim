@@ -35,7 +35,7 @@ export default async function LibraryIndex({
       posts={posts}
       page={pageNum}
       tag={tag}
-      collectionJsonLd={buildCollectionPageJsonLd()}
+      collectionJsonLd={buildCollectionPageJsonLd(posts)}
     />
   )
 }

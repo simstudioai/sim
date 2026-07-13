@@ -73,16 +73,25 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
   }
 }
 
+/**
+ * Google's Article rich-result eligibility only recognizes `Article`,
+ * `NewsArticle`, and `BlogPosting` — a bare `TechArticle` type is not in that
+ * allowlist, so it silently loses rich-result eligibility. `BlogPosting` is
+ * therefore always included; `TechArticle` is layered on via a multi-type
+ * `@type` array (the standard schema.org way to say "this is both") only for
+ * posts that are genuinely technical/developer content (`post.technical`) —
+ * general announcements (funding, company news) get `BlogPosting` alone.
+ */
 export function buildArticleJsonLd(post: ContentMeta) {
   return {
-    '@type': 'TechArticle',
+    '@type': post.technical ? ['BlogPosting', 'TechArticle'] : 'BlogPosting',
     url: post.canonical,
     headline: post.title,
     description: post.description,
     image: [
       {
         '@type': 'ImageObject',
-        url: post.ogImage,
+        url: post.ogImage.startsWith('http') ? post.ogImage : `${SITE_URL}${post.ogImage}`,
         width: post.ogImageWidth ?? 1200,
         height: post.ogImageHeight ?? 630,
         caption: post.ogAlt || post.title,
@@ -91,7 +100,7 @@ export function buildArticleJsonLd(post: ContentMeta) {
     datePublished: post.date,
     dateModified: post.updated ?? post.date,
     wordCount: post.wordCount,
-    proficiencyLevel: 'Beginner',
+    ...(post.technical ? { proficiencyLevel: 'Beginner' } : {}),
     author: (post.authors && post.authors.length > 0 ? post.authors : [post.author]).map((a) => ({
       '@type': 'Person',
       name: a.name,
@@ -340,7 +349,17 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
   }
 }
 
-export function buildCollectionPageJsonLd(section: ContentSection) {
+/**
+ * `mainEntity` lists the section's real, currently-published posts (sourced
+ * from the same `getAllPostMeta()` list the index page renders from — never
+ * a hardcoded list) so the collection's JSON-LD stays in sync with what's
+ * actually on the page.
+ */
+export function buildCollectionPageJsonLd(section: ContentSection, posts: ContentMeta[]) {
+  const dateSorted = [...posts].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  )
+
   return {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
@@ -361,6 +380,28 @@ export function buildCollectionPageJsonLd(section: ContentSection) {
       '@type': 'WebSite',
       name: 'Sim',
       url: SITE_URL,
+    },
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: dateSorted.map((post, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        url: post.canonical,
+        item: {
+          '@type': 'BlogPosting',
+          headline: post.title,
+          description: post.description,
+          url: post.canonical,
+          datePublished: post.date,
+          dateModified: post.updated ?? post.date,
+          image: post.ogImage.startsWith('http') ? post.ogImage : `${SITE_URL}${post.ogImage}`,
+          author: {
+            '@type': 'Person',
+            name: post.author.name,
+            ...(post.author.url ? { url: post.author.url } : {}),
+          },
+        },
+      })),
     },
   }
 }

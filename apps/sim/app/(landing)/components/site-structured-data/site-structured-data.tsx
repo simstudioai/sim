@@ -22,6 +22,7 @@ const SITE_JSON_LD = {
         caption: 'Sim Logo',
       },
       image: { '@id': `${SITE_URL}#logo` },
+      brand: { '@type': 'Brand', name: 'Sim' },
       sameAs: [
         'https://x.com/simdotai',
         'https://github.com/simstudioai/sim',
@@ -31,6 +32,7 @@ const SITE_JSON_LD = {
       contactPoint: {
         '@type': 'ContactPoint',
         contactType: 'customer support',
+        url: `${SITE_URL}/contact`,
         availableLanguage: ['en'],
       },
     },

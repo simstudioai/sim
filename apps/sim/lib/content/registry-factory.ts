@@ -161,6 +161,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
           wordCount,
           draft: fm.draft,
           featured: fm.featured ?? false,
+          technical: fm.technical,
         }
       })
     )

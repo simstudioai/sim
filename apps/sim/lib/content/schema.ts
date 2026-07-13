@@ -42,6 +42,13 @@ export const ContentFrontmatterSchema = z
     canonical: z.string().url(),
     draft: z.boolean().default(false),
     featured: z.boolean().default(false),
+    /**
+     * Whether this post covers technical/developer content (architecture,
+     * implementation, how-tos). Drives whether `TechArticle` is included
+     * alongside `BlogPosting` in the post's JSON-LD `@type` — general
+     * announcements (funding, company news) should set this to `false`.
+     */
+    technical: z.boolean().default(true),
   })
   .strict()
 
@@ -70,6 +77,7 @@ export interface ContentMeta {
   canonical: string
   draft: boolean
   featured: boolean
+  technical: boolean
 }
 
 export interface ContentPost extends ContentMeta {
