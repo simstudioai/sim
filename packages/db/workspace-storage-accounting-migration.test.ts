@@ -63,11 +63,18 @@ describe('workspace storage accounting migration', () => {
     expect(migration).not.toContain('subtract_workspace_storage_on_delete')
   })
 
-  it('journals the consolidated migration as the latest entry', () => {
+  it('keeps the consolidated migration at 260 before the dev migration', () => {
     const journal = JSON.parse(
       readFileSync(new URL('./migrations/meta/_journal.json', import.meta.url), 'utf8')
     ) as { entries: Array<{ idx: number; tag: string }> }
-    const lastEntry = journal.entries[journal.entries.length - 1]
-    expect(lastEntry).toMatchObject({ idx: 260, tag: '0260_unknown_sinister_six' })
+    const migrationIndex = journal.entries.findIndex((entry) => entry.idx === 260)
+    expect(journal.entries[migrationIndex]).toMatchObject({
+      idx: 260,
+      tag: '0260_unknown_sinister_six',
+    })
+    expect(journal.entries[migrationIndex + 1]).toMatchObject({
+      idx: 261,
+      tag: '0261_lucky_wild_child',
+    })
   })
 })
