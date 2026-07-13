@@ -33,7 +33,7 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 | `schedulingType` | string | No | How the post publishes: automatic \(Buffer publishes it, default\) or notification \(you get a mobile reminder\) |
 | `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
 | `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
-| `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL |
+| `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Buffer downloads the media at publish time; uploaded files are shared via a link valid for 7 days, so use a public URL for posts scheduled further out |
 | `mediaType` | string | No | Force the attachment type when it cannot be detected from the file or URL: image or video \(default auto\) |
 | `mediaAltText` | string | No | Alt text for an attached image |
 
@@ -83,7 +83,7 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 | `schedulingType` | string | No | How the post publishes: automatic \(Buffer publishes it, default\) or notification \(you get a mobile reminder\) |
 | `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
 | `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
-| `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Replaces existing attachments |
+| `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Buffer downloads the media at publish time; uploaded files are shared via a link valid for 7 days, so use a public URL for posts scheduled further out. Replaces existing attachments |
 | `mediaType` | string | No | Force the attachment type when it cannot be detected from the file or URL: image or video \(default auto\) |
 | `mediaAltText` | string | No | Alt text for an attached image |
 

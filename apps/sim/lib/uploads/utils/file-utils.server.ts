@@ -49,6 +49,12 @@ export interface ResolveFileInputOptions {
   userId: string
   requestId: string
   logger: Logger
+  /**
+   * Expiry for presigned URLs minted for stored files, in seconds.
+   * Defaults to 5 minutes; raise it only when the external service fetches
+   * the URL later than the current request (e.g. scheduled publishing).
+   */
+  presignExpirySeconds?: number
 }
 
 /**
@@ -62,7 +68,7 @@ export interface ResolveFileInputOptions {
 export async function resolveFileInputToUrl(
   options: ResolveFileInputOptions
 ): Promise<FileResolutionResult> {
-  const { file, filePath, userId, requestId, logger } = options
+  const { file, filePath, userId, requestId, logger, presignExpirySeconds = 5 * 60 } = options
 
   if (file) {
     let userFile: UserFile
@@ -81,7 +87,13 @@ export async function resolveFileInputToUrl(
 
     // Handle internal URLs
     if (fileUrl && isInternalFileUrl(fileUrl)) {
-      const resolution = await resolveInternalFileUrl(fileUrl, userId, requestId, logger)
+      const resolution = await resolveInternalFileUrl(
+        fileUrl,
+        userId,
+        requestId,
+        logger,
+        presignExpirySeconds
+      )
       if (resolution.error) {
         return { error: resolution.error }
       }
@@ -102,7 +114,11 @@ export async function resolveFileInputToUrl(
         return { error: { status: 404, message: 'File not found' } }
       }
 
-      fileUrl = await StorageService.generatePresignedDownloadUrl(userFile.key, context, 5 * 60)
+      fileUrl = await StorageService.generatePresignedDownloadUrl(
+        userFile.key,
+        context,
+        presignExpirySeconds
+      )
     }
 
     return { fileUrl }
@@ -112,7 +128,13 @@ export async function resolveFileInputToUrl(
     let fileUrl = filePath
 
     if (isInternalFileUrl(filePath)) {
-      const resolution = await resolveInternalFileUrl(filePath, userId, requestId, logger)
+      const resolution = await resolveInternalFileUrl(
+        filePath,
+        userId,
+        requestId,
+        logger,
+        presignExpirySeconds
+      )
       if (resolution.error) {
         return { error: resolution.error }
       }
@@ -227,7 +249,8 @@ export async function resolveInternalFileUrl(
   filePath: string,
   userId: string,
   requestId: string,
-  logger: Logger
+  logger: Logger,
+  presignExpirySeconds = 5 * 60
 ): Promise<{ fileUrl?: string; error?: { status: number; message: string } }> {
   if (!isInternalFileUrl(filePath)) {
     return { fileUrl: filePath }
@@ -247,7 +270,11 @@ export async function resolveInternalFileUrl(
       return { error: { status: 404, message: 'File not found' } }
     }
 
-    const fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
+    const fileUrl = await StorageService.generatePresignedDownloadUrl(
+      storageKey,
+      context,
+      presignExpirySeconds
+    )
     logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
     return { fileUrl }
   } catch (error) {

@@ -62,7 +62,7 @@ export const bufferEditPostTool: ToolConfig<BufferEditPostParams, BufferPostResp
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Replaces existing attachments',
+        'Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Buffer downloads the media at publish time; uploaded files are shared via a link valid for 7 days, so use a public URL for posts scheduled further out. Replaces existing attachments',
     },
     mediaType: {
       type: 'string',

@@ -18,6 +18,12 @@ import {
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi']
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
 const MEDIA_PROBE_TIMEOUT_MS = 5000
+/**
+ * Buffer fetches asset URLs at publish time, which for queued or scheduled
+ * posts can be days after createPost. Presign stored files for the S3 maximum
+ * of 7 days so scheduled posts within that window can still be published.
+ */
+const MEDIA_PRESIGN_EXPIRY_SECONDS = 7 * 24 * 60 * 60
 
 const CREATE_POST_MUTATION = `
   mutation CreatePost($input: CreatePostInput!) {
@@ -133,6 +139,7 @@ export async function resolveMediaAsset(
     userId,
     requestId,
     logger,
+    presignExpirySeconds: MEDIA_PRESIGN_EXPIRY_SECONDS,
   })
   if (resolution.error || !resolution.fileUrl) {
     return {
