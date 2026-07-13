@@ -50,8 +50,8 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
       images: [
         {
           url: post.ogImage.startsWith('http') ? post.ogImage : `${baseUrl}${post.ogImage}`,
-          width: 1200,
-          height: 630,
+          width: post.ogImageWidth ?? 1200,
+          height: post.ogImageHeight ?? 630,
           alt: post.ogAlt || post.title,
         },
       ],
@@ -83,8 +83,8 @@ export function buildArticleJsonLd(post: ContentMeta) {
       {
         '@type': 'ImageObject',
         url: post.ogImage,
-        width: 1200,
-        height: 630,
+        width: post.ogImageWidth ?? 1200,
+        height: post.ogImageHeight ?? 630,
         caption: post.ogAlt || post.title,
       },
     ],
