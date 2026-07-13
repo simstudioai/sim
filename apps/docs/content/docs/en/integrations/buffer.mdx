@@ -34,6 +34,7 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 | `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
 | `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
 | `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL |
+| `mediaType` | string | No | Force the attachment type when it cannot be detected from the file or URL: image or video \(default auto\) |
 | `mediaAltText` | string | No | Alt text for an attached image |
 
 #### Output
@@ -83,6 +84,7 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 | `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
 | `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
 | `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Replaces existing attachments |
+| `mediaType` | string | No | Force the attachment type when it cannot be detected from the file or URL: image or video \(default auto\) |
 | `mediaAltText` | string | No | Alt text for an attached image |
 
 #### Output

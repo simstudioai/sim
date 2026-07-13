@@ -53,6 +53,7 @@ const EDIT_POST_MUTATION = `
 
 interface ResolveMediaAssetOptions {
   media: RawFileInput | string
+  mediaType?: 'auto' | 'image' | 'video' | null
   mediaAltText?: string | null
   userId: string
   requestId: string
@@ -79,7 +80,8 @@ function mediaKindFromExtension(pathOrName: string): 'image' | 'video' | null {
  * Determines whether media should be attached as a video or image asset.
  * Prefers the file's MIME type, then the path/URL extension, and for
  * extensionless URLs falls back to a DNS-pinned HEAD probe of the resolved
- * URL's Content-Type. Defaults to image when nothing is conclusive.
+ * URL's Content-Type. Returns null when nothing is conclusive so the caller
+ * can ask for an explicit media type instead of guessing.
  */
 async function resolveMediaKind(
   mimeType: string | undefined,
@@ -87,7 +89,7 @@ async function resolveMediaKind(
   fileUrl: string,
   requestId: string,
   logger: Logger
-): Promise<'image' | 'video'> {
+): Promise<'image' | 'video' | null> {
   if (mimeType?.startsWith('video/')) return 'video'
   if (mimeType?.startsWith('image/')) return 'image'
 
@@ -106,11 +108,11 @@ async function resolveMediaKind(
       if (contentType.startsWith('image/')) return 'image'
     }
   } catch (error) {
-    logger.warn(`[${requestId}] Media content-type probe failed, defaulting to image`, {
+    logger.warn(`[${requestId}] Media content-type probe was inconclusive`, {
       error: getErrorMessage(error, 'probe failed'),
     })
   }
-  return 'image'
+  return null
 }
 
 /**
@@ -122,7 +124,7 @@ async function resolveMediaKind(
 export async function resolveMediaAsset(
   options: ResolveMediaAssetOptions
 ): Promise<ResolvedMediaAsset> {
-  const { media, mediaAltText, userId, requestId, logger } = options
+  const { media, mediaType, mediaAltText, userId, requestId, logger } = options
 
   const isFileInput = typeof media === 'object'
   const resolution = await resolveFileInputToUrl({
@@ -143,7 +145,22 @@ export async function resolveMediaAsset(
 
   const mimeType = isFileInput ? media.type : undefined
   const pathOrName = isFileInput ? media.name || '' : media
-  const kind = await resolveMediaKind(mimeType, pathOrName, resolution.fileUrl, requestId, logger)
+  const kind =
+    mediaType === 'image' || mediaType === 'video'
+      ? mediaType
+      : await resolveMediaKind(mimeType, pathOrName, resolution.fileUrl, requestId, logger)
+  if (!kind) {
+    return {
+      errorResponse: NextResponse.json(
+        {
+          success: false,
+          error:
+            'Could not determine whether the media is an image or a video. Set mediaType to "image" or "video".',
+        },
+        { status: 400 }
+      ),
+    }
+  }
   if (kind === 'video') {
     return { asset: { video: { url: resolution.fileUrl } } }
   }
@@ -210,6 +227,7 @@ interface ForwardPostMutationOptions {
   dueAt?: string | null
   saveToDraft?: boolean | null
   media?: RawFileInput | string | null
+  mediaType?: 'auto' | 'image' | 'video' | null
   mediaAltText?: string | null
   userId: string
   requestId: string
@@ -224,7 +242,8 @@ interface ForwardPostMutationOptions {
 export async function forwardPostMutation(
   options: ForwardPostMutationOptions
 ): Promise<NextResponse> {
-  const { apiKey, postId, channelId, media, mediaAltText, userId, requestId, logger } = options
+  const { apiKey, postId, channelId, media, mediaType, mediaAltText, userId, requestId, logger } =
+    options
 
   const input: Record<string, unknown> = {
     mode: options.mode,
@@ -243,6 +262,7 @@ export async function forwardPostMutation(
   if (media) {
     const { asset, errorResponse } = await resolveMediaAsset({
       media,
+      mediaType,
       mediaAltText,
       userId,
       requestId,

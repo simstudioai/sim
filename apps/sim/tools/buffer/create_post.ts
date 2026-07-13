@@ -64,6 +64,13 @@ export const bufferCreatePostTool: ToolConfig<BufferCreatePostParams, BufferPost
       description:
         'Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL',
     },
+    mediaType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Force the attachment type when it cannot be detected from the file or URL: image or video (default auto)',
+    },
     mediaAltText: {
       type: 'string',
       required: false,
@@ -85,6 +92,7 @@ export const bufferCreatePostTool: ToolConfig<BufferCreatePostParams, BufferPost
       dueAt: params.dueAt,
       saveToDraft: params.saveToDraft,
       media: params.media,
+      mediaType: params.mediaType,
       mediaAltText: params.mediaAltText,
     }),
   },
