@@ -19,6 +19,7 @@ import {
 import {
   getOrCreateOauthRow,
   loadPreregisteredClient,
+  McpOauthRedirectRequired,
   SimMcpOauthProvider,
   withMcpOauthRefreshLock,
 } from '@/lib/mcp/oauth'
@@ -44,6 +45,14 @@ import { MCP_CLIENT_CONSTANTS, MCP_CONSTANTS } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpService')
 const MAX_VERIFICATION_ERROR_LENGTH = 200
+
+function isMcpAuthorizationRequired(error: unknown): boolean {
+  return (
+    error instanceof McpOauthAuthorizationRequiredError ||
+    error instanceof McpOauthRedirectRequired ||
+    error instanceof UnauthorizedError
+  )
+}
 
 function serverCacheKey(workspaceId: string, serverId: string): string {
   return `workspace:${workspaceId}:server:${serverId}`
@@ -395,7 +404,7 @@ class McpService {
     serverId: string,
     error: unknown
   ): Promise<void> {
-    if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
+    if (isMcpAuthorizationRequired(error)) {
       return
     }
     try {
@@ -426,6 +435,21 @@ class McpService {
     }
   }
 
+  private async updateServerAuthorizationRequiredStatus(serverId: string): Promise<void> {
+    try {
+      await db
+        .update(mcpServers)
+        .set({
+          connectionStatus: 'disconnected',
+          lastError: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(mcpServers.id, serverId))
+    } catch (error) {
+      logger.error(`Failed to update authorization-required status for ${serverId}:`, error)
+    }
+  }
+
   async verifyServerConnection(
     userId: string,
     serverId: string,
@@ -439,13 +463,24 @@ class McpService {
         requiresAuthorization: false,
       }
     } catch (error) {
-      const message = getErrorMessage(error, 'Connection failed').split('\n')[0]
+      const message = truncate(
+        getErrorMessage(error, 'Connection failed').split('\n')[0],
+        MAX_VERIFICATION_ERROR_LENGTH,
+        ''
+      )
+      const requiresAuthorization = isMcpAuthorizationRequired(error)
+
+      if (requiresAuthorization) {
+        await this.updateServerAuthorizationRequiredStatus(serverId)
+      } else {
+        await this.updateServerStatus(serverId, workspaceId, false, message)
+      }
+
       return {
         verified: false,
         toolCount: 0,
-        requiresAuthorization:
-          error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError,
-        error: truncate(message, MAX_VERIFICATION_ERROR_LENGTH, ''),
+        requiresAuthorization,
+        error: message,
       }
     }
   }

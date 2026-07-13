@@ -14,10 +14,22 @@ const {
   mockValidateSsrf,
   mockIsDomainAllowed,
   mockCacheAdapter,
+  mockDbUpdateSet,
+  MockMcpOauthRedirectRequired,
+  mockGetOrCreateOauthRow,
+  mockLoadPreregisteredClient,
+  mockWithMcpOauthRefreshLock,
 } = vi.hoisted(() => {
   const mockListTools = vi.fn()
   const mockConnect = vi.fn()
   const mockDisconnect = vi.fn()
+  class MockMcpOauthRedirectRequired extends Error {
+    constructor(public readonly authorizationUrl: string) {
+      super('MCP OAuth redirect required')
+      this.name = 'McpOauthRedirectRequired'
+    }
+  }
+  const mockDbUpdateSet = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
   // In-memory cache adapter so the service never touches the real Redis the
   // local .env points at (unreachable in CI/sandbox → hangs). Honors TTL via
   // an expiry timestamp so negative-cache assertions behave like production.
@@ -67,6 +79,11 @@ const {
     mockValidateDomain: vi.fn(),
     mockValidateSsrf: vi.fn(),
     mockIsDomainAllowed: vi.fn(() => true),
+    mockDbUpdateSet,
+    MockMcpOauthRedirectRequired,
+    mockGetOrCreateOauthRow: vi.fn(),
+    mockLoadPreregisteredClient: vi.fn(),
+    mockWithMcpOauthRefreshLock: vi.fn(),
   }
 })
 
@@ -80,13 +97,12 @@ vi.mock('@sim/db', () => {
     })
     return thenable
   }
-  const setter = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
   return {
     db: {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({ where }),
       }),
-      update: vi.fn().mockReturnValue({ set: setter }),
+      update: vi.fn().mockReturnValue({ set: mockDbUpdateSet }),
       insert: vi.fn(),
       delete: vi.fn(),
     },
@@ -108,10 +124,11 @@ vi.mock('@/lib/mcp/domain-check', () => ({
 }))
 
 vi.mock('@/lib/mcp/oauth', () => ({
-  getOrCreateOauthRow: vi.fn(),
-  loadPreregisteredClient: vi.fn(),
+  getOrCreateOauthRow: mockGetOrCreateOauthRow,
+  loadPreregisteredClient: mockLoadPreregisteredClient,
+  McpOauthRedirectRequired: MockMcpOauthRedirectRequired,
   SimMcpOauthProvider: vi.fn(),
-  withMcpOauthRefreshLock: vi.fn(),
+  withMcpOauthRefreshLock: mockWithMcpOauthRefreshLock,
 }))
 
 vi.mock('@/lib/mcp/resolve-config', () => ({
@@ -123,6 +140,7 @@ vi.mock('@/lib/mcp/storage', () => ({
   getMcpCacheType: () => 'memory',
 }))
 
+import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 
@@ -170,6 +188,13 @@ describe('McpService.discoverTools per-server caching', () => {
     mockValidateDomain.mockImplementation(() => undefined)
     mockResolveEnvVars.mockImplementation((config: { url: string }) =>
       Promise.resolve({ config: { ...config, url: config.url }, missingVars: [] })
+    )
+    mockGetOrCreateOauthRow.mockResolvedValue({
+      tokens: { access_token: 'access-token', token_type: 'bearer' },
+    })
+    mockLoadPreregisteredClient.mockResolvedValue(undefined)
+    mockWithMcpOauthRefreshLock.mockImplementation((_serverId: string, callback: () => unknown) =>
+      callback()
     )
     mockConnect.mockResolvedValue(undefined)
     mockDisconnect.mockResolvedValue(undefined)
@@ -392,5 +417,43 @@ describe('McpService.discoverTools per-server caching', () => {
       requiresAuthorization: false,
       error: 'Request timed out',
     })
+    expect(mockDbUpdateSet).toHaveBeenCalledWith({
+      connectionStatus: 'disconnected',
+      lastError: 'Request timed out',
+      statusConfig: {
+        consecutiveFailures: 1,
+        lastSuccessfulDiscovery: null,
+      },
+      updatedAt: expect.any(Date),
+    })
+  })
+
+  it('treats an OAuth redirect as authorization-required without poisoning status or cache', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mockConnect.mockRejectedValueOnce(
+      new McpOauthRedirectRequired('https://mcp-a.example.com/authorize')
+    )
+
+    await expect(
+      mcpService.verifyServerConnection(USER_ID, 'mcp-a', WORKSPACE_ID)
+    ).resolves.toEqual({
+      verified: false,
+      toolCount: 0,
+      requiresAuthorization: true,
+      error: 'MCP OAuth redirect required',
+    })
+    expect(mockDbUpdateSet).toHaveBeenCalledTimes(1)
+    expect(mockDbUpdateSet).toHaveBeenCalledWith({
+      connectionStatus: 'disconnected',
+      lastError: null,
+      updatedAt: expect.any(Date),
+    })
+
+    mockListTools.mockClear()
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
+
+    expect(tools.map((item) => item.name)).toEqual(['a1'])
+    expect(mockListTools).toHaveBeenCalledTimes(1)
   })
 })
