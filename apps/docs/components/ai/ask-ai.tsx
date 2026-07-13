@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import dynamic from 'next/dynamic'
 import { MessageCircle } from 'lucide-react'
+import dynamic from 'next/dynamic'
 
 const AskAIPanel = dynamic(() => import('./ask-ai-panel').then((m) => m.AskAIPanel), {
   ssr: false,

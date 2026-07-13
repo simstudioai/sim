@@ -180,7 +180,9 @@ export function AskAIPanel({ locale, open, onClose }: AskAIPanelProps) {
         })}
 
         {error && (
-          <p className='text-[var(--text-muted)] text-sm'>Something went wrong. Please try again.</p>
+          <p className='text-[var(--text-muted)] text-sm'>
+            Something went wrong. Please try again.
+          </p>
         )}
       </div>
 
