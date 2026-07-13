@@ -96,9 +96,8 @@ Each page object must have exactly these fields:
 - "context": Content details the agent should use to fill in the template
 
 The array must contain between 1 and 10 items.
-Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+Return ONLY the raw JSON array starting with [ and ending with ] - no explanations, no markdown code blocks.`,
         placeholder: 'Describe the pages you want to generate...',
-        generationType: 'json-object',
       },
     },
     {
