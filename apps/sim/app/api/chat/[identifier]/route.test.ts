@@ -10,6 +10,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   loggingSessionMock,
+  loggingSessionMockFns,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
@@ -69,11 +70,13 @@ const {
   mockSetChatAuthCookie,
   mockValidateAuthToken,
   mockAssertChatEmbedAllowed,
+  mockProcessChatFiles,
 } = vi.hoisted(() => ({
   mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
   mockSetChatAuthCookie: vi.fn(),
   mockValidateAuthToken: vi.fn().mockReturnValue(false),
   mockAssertChatEmbedAllowed: vi.fn().mockResolvedValue(null),
+  mockProcessChatFiles: vi.fn(),
 }))
 
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
@@ -102,6 +105,12 @@ vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
+
+vi.mock('@/lib/uploads', () => ({
+  ChatFiles: {
+    processChatFiles: mockProcessChatFiles,
+  },
+}))
 
 vi.mock('@/lib/workflows/streaming/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
@@ -168,6 +177,12 @@ describe('Chat Identifier API Route', () => {
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
       success: true,
       actorUserId: 'test-user-id',
+      billingAttribution: {
+        actorUserId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+        billingEntity: { type: 'organization', id: 'test-organization-id' },
+        payerSubscription: null,
+      },
       workflowRecord: {
         id: 'test-workflow-id',
         userId: 'test-user-id',
@@ -179,6 +194,7 @@ describe('Chat Identifier API Route', () => {
 
     mockValidateChatAuth.mockResolvedValue({ authorized: true })
     mockValidateAuthToken.mockReturnValue(false)
+    mockProcessChatFiles.mockResolvedValue([])
     mockCreateErrorResponse.mockImplementation((message: string, status: number, code?: string) => {
       return new Response(
         JSON.stringify({
@@ -472,6 +488,33 @@ describe('Chat Identifier API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Execution failed')
+    })
+
+    it('does not charge the workspace when chat file preprocessing fails', async () => {
+      mockProcessChatFiles.mockRejectedValueOnce(new Error('Upload failed'))
+
+      const req = createMockNextRequest('POST', {
+        input: 'Analyze this file',
+        files: [
+          {
+            name: 'document.txt',
+            type: 'text/plain',
+            size: 4,
+            data: 'data',
+          },
+        ],
+      })
+      const params = Promise.resolve({ identifier: 'test-chat' })
+
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(500)
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          traceSpans: [],
+          skipCost: true,
+        })
+      )
     })
 
     it('should handle invalid JSON in request body', async () => {

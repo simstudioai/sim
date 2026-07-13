@@ -257,6 +257,7 @@ export const POST = withRouteHandler(
                 stackTrace: fileError.stack,
               },
               traceSpans: [],
+              skipCost: true,
             })
 
             throw fileError

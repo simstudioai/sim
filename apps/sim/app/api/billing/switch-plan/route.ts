@@ -80,10 +80,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 
-    const billingStatus = await getEffectiveBillingStatus(
-      hostContext?.workspace.billedAccountUserId ?? userId
-    )
-    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) {
+    const billingBlocked = hostContext
+      ? hostContext.ownerBilling.billingBlocked
+      : (await getEffectiveBillingStatus(userId)).billingBlocked
+    if (!hasUsableSubscriptionAccess(sub.status, billingBlocked)) {
       return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
     }
 
