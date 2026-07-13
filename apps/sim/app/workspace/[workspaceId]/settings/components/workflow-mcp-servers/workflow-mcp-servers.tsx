@@ -924,6 +924,9 @@ export function WorkflowMcpServers() {
         workspaceId,
         serverId: serverToDelete.id,
       })
+      if (selectedServerId === serverToDelete.id) {
+        void setSelectedServerId(null, { history: 'replace' })
+      }
     } catch (err) {
       logger.error('Failed to delete server:', err)
     } finally {
