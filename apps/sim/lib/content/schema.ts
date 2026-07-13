@@ -58,6 +58,10 @@ export interface ContentMeta {
   readingTime?: number
   tags: string[]
   ogImage: string
+  /** Intrinsic pixel width of a local `ogImage`, probed at scan time; absent for remote or unreadable images. */
+  ogImageWidth?: number
+  /** Intrinsic pixel height of a local `ogImage`, probed at scan time; absent for remote or unreadable images. */
+  ogImageHeight?: number
   ogAlt?: string
   about?: string[]
   timeRequired?: string
