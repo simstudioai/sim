@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn, getAssetUrl } from '@/lib/utils'
 import { Lightbox } from './lightbox'
 
@@ -30,6 +30,29 @@ export function Video({
   const videoRef = useRef<HTMLVideoElement>(null)
   const startTimeRef = useRef(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
+  const [isInView, setIsInView] = useState(false)
+
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el) return
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsInView(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const openLightbox = () => {
     startTimeRef.current = videoRef.current?.currentTime ?? 0
@@ -39,17 +62,18 @@ export function Video({
   const video = (
     <video
       ref={videoRef}
-      autoPlay={autoPlay}
+      autoPlay={isInView && autoPlay}
       loop={loop}
       muted={muted}
       playsInline={playsInline}
+      preload='none'
       width={width}
       height={height}
       className={cn(
         className,
         enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-[0.97]'
       )}
-      src={getAssetUrl(src)}
+      src={isInView ? getAssetUrl(src) : undefined}
     />
   )
 

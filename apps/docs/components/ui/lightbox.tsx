@@ -16,6 +16,7 @@ export function Lightbox({ isOpen, onClose, src, alt, type, startTime }: Lightbo
   const overlayRef = useRef<HTMLDivElement>(null)
   const mediaButtonRef = useRef<HTMLButtonElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
   const closeLightbox = useEffectEvent(onClose)
 
   useEffect(() => {
@@ -24,6 +25,11 @@ export function Lightbox({ isOpen, onClose, src, alt, type, startTime }: Lightbo
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeLightbox()
+        return
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault()
+        mediaButtonRef.current?.focus()
       }
     }
 
@@ -35,6 +41,7 @@ export function Lightbox({ isOpen, onClose, src, alt, type, startTime }: Lightbo
 
     const previousOverflow = document.body.style.overflow
 
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null
     document.addEventListener('keydown', handleKeyDown)
     document.addEventListener('click', handleClickOutside)
     document.body.style.overflow = 'hidden'
@@ -44,6 +51,7 @@ export function Lightbox({ isOpen, onClose, src, alt, type, startTime }: Lightbo
       document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('click', handleClickOutside)
       document.body.style.overflow = previousOverflow
+      previouslyFocusedRef.current?.focus()
     }
   }, [isOpen])
 

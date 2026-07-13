@@ -74,6 +74,7 @@ export function Navbar() {
               <Link
                 key={tab.label}
                 href={tab.href}
+                aria-current={isActive ? 'page' : undefined}
                 {...(tab.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 className={cn(
                   '-mb-px relative flex items-center border-b text-[14px] tracking-[-0.01em] transition-colors',

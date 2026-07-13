@@ -89,7 +89,7 @@ export function StructuredData({
     },
     featureList: [
       'AI workspace for teams',
-      'Mothership — natural language agent creation',
+      'Chat — natural language agent creation',
       'Visual workflow builder',
       '1,000+ integrations',
       'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
@@ -115,7 +115,7 @@ export function StructuredData({
           }}
         />
       )}
-      {url === baseUrl && (
+      {(url === baseUrl || url === `${baseUrl}/`) && (
         <script
           type='application/ld+json'
           dangerouslySetInnerHTML={{
