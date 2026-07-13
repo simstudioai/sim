@@ -182,10 +182,8 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    // Any upward user input detaches auto-stick. A subsequent downward scroll
-    // reaching the bottom re-attaches it — the move must be downward, else the
-    // scroll event a small upward flick produces (still within the threshold)
-    // would instantly undo the detach.
+    // Upward user input detaches auto-stick; a downward scroll reaching the
+    // bottom re-attaches it (a small upward flick can't re-stick itself).
     const handleWheel = (e: WheelEvent) => {
       if (e.deltaY < 0) stickToBottomRef.current = false
     }

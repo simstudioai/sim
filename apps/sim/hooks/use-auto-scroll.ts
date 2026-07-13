@@ -165,11 +165,9 @@ export function useAutoScroll(
      * a virtualizer re-pinning content on a row-size shrink, has neither and must not
      * be mistaken for the user scrolling away.
      *
-     * Re-attach additionally requires a *downward* move once detached. A small
-     * upward wheel/touch flick from the pinned position lands still within
-     * {@link REATTACH_THRESHOLD} of the bottom, so a proximity-only check would
-     * re-attach on the very scroll event the flick produced — undoing the detach
-     * one event after it happened and letting the chase drag the user back down.
+     * Re-attach also requires a downward move once detached — a small upward
+     * flick still lands within {@link REATTACH_THRESHOLD}, and would otherwise
+     * re-stick on its own scroll event.
      */
     const onScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el
