@@ -350,21 +350,36 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
 }
 
 /**
- * `mainEntity` lists the section's real, currently-published posts (sourced
- * from the same `getAllPostMeta()` list the index page renders from — never
- * a hardcoded list) so the collection's JSON-LD stays in sync with what's
- * actually on the page.
+ * `mainEntity` lists exactly the posts passed in, in the given order - the
+ * caller (currently `selectVisiblePosts`) is responsible for sourcing them
+ * from the same `getAllPostMeta()` list the index page renders from and for
+ * ordering them to match the visible layout (e.g. featured-row-first), so
+ * this function never re-sorts and can't diverge from what's on the page.
+ *
+ * `tag`/`page` describe which filtered/paginated variant `posts` came from,
+ * so `url` reflects the actual page these `posts` are visible on rather than
+ * always the bare section index - the same variant is `noindex`ed (see
+ * `buildIndexMetadata`), but the graph still shouldn't attribute a partial
+ * list to the unfiltered collection URL.
  */
-export function buildCollectionPageJsonLd(section: ContentSection, posts: ContentMeta[]) {
-  const dateSorted = [...posts].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  )
+export function buildCollectionPageJsonLd(
+  section: ContentSection,
+  posts: ContentMeta[],
+  { tag, page }: { tag?: string; page?: number } = {}
+) {
+  const params = [
+    page && page > 1 ? `page=${page}` : null,
+    tag ? `tag=${encodeURIComponent(tag)}` : null,
+  ]
+    .filter(Boolean)
+    .join('&')
+  const url = `${SITE_URL}${section.basePath}${params ? `?${params}` : ''}`
 
   return {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: `Sim ${section.name}`,
-    url: `${SITE_URL}${section.basePath}`,
+    url,
     description: section.description,
     publisher: {
       '@type': 'Organization',
@@ -383,7 +398,7 @@ export function buildCollectionPageJsonLd(section: ContentSection, posts: Conten
     },
     mainEntity: {
       '@type': 'ItemList',
-      itemListElement: dateSorted.map((post, index) => ({
+      itemListElement: posts.map((post, index) => ({
         '@type': 'ListItem',
         position: index + 1,
         url: post.canonical,

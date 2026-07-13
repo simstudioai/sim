@@ -37,7 +37,8 @@ export default async function BlogIndex({
       page={pageNum}
       tag={tag}
       collectionJsonLd={buildCollectionPageJsonLd(
-        selectVisiblePosts(posts, { tag, page: pageNum })
+        selectVisiblePosts(posts, { tag, page: pageNum }),
+        { tag, page: pageNum }
       )}
     />
   )
