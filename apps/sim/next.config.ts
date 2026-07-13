@@ -455,6 +455,25 @@ const nextConfig: NextConfig = {
       })
     }
 
+    /**
+     * The comparison route was renamed from `/comparison` to `/comparisons`
+     * for naming consistency with `/integrations/[slug]` (plural category,
+     * singular item). Preserve previously indexed URLs for the hub page and
+     * every competitor detail page.
+     */
+    redirects.push(
+      {
+        source: '/comparison',
+        destination: '/comparisons',
+        permanent: true,
+      },
+      {
+        source: '/comparison/:path*',
+        destination: '/comparisons/:path*',
+        permanent: true,
+      }
+    )
+
     return redirects
   },
   async rewrites() {

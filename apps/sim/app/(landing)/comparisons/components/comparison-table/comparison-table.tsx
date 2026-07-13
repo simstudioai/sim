@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import type { CompetitorProfile } from '@/lib/compare/data'
-import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparison/comparison-sections'
-import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparison/components/brand-icon-tile'
-import { FactValue } from '@/app/(landing)/comparison/components/fact-value'
+import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparisons/comparison-sections'
+import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
+import { FactValue } from '@/app/(landing)/comparisons/components/fact-value'
 
 export interface ComparisonTableProps {
   sim: CompetitorProfile

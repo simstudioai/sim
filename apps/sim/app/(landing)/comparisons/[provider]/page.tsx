@@ -4,10 +4,10 @@ import type { CompetitorProfile } from '@/lib/compare/data'
 import { simProfile } from '@/lib/compare/data'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
-import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparison/comparison-sections'
-import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparison/components/brand-icon-tile'
-import { ComparisonCards } from '@/app/(landing)/comparison/components/comparison-cards'
-import { ComparisonTable } from '@/app/(landing)/comparison/components/comparison-table'
+import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparisons/comparison-sections'
+import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
+import { ComparisonCards } from '@/app/(landing)/comparisons/components/comparison-cards'
+import { ComparisonTable } from '@/app/(landing)/comparisons/components/comparison-table'
 import {
   ALL_COMPETITORS,
   buildBottomLine,
@@ -15,7 +15,7 @@ import {
   getCompetitorBySlug,
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
-} from '@/app/(landing)/comparison/utils'
+} from '@/app/(landing)/comparisons/utils'
 import { BackLink } from '@/app/(landing)/components'
 import { Cta } from '@/app/(landing)/components/cta/cta'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
@@ -57,7 +57,7 @@ export async function generateMetadata({
   return buildLandingMetadata({
     title: `Sim vs ${competitor.name} | Sim, the AI Workspace`,
     description: `Compare Sim, the open-source AI workspace, to ${competitor.name} on platform, AI, integrations, pricing, security, and support. Sourced and dated facts.`,
-    path: `/comparison/${competitor.id}`,
+    path: `/comparisons/${competitor.id}`,
     keywords: [
       `Sim vs ${competitor.name}`,
       `${competitor.name} alternative`,
@@ -91,12 +91,12 @@ export default async function ComparisonProviderPage({
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
-      { '@type': 'ListItem', position: 2, name: 'Comparison', item: `${baseUrl}/comparison` },
+      { '@type': 'ListItem', position: 2, name: 'Comparisons', item: `${baseUrl}/comparisons` },
       {
         '@type': 'ListItem',
         position: 3,
         name: `Sim vs ${competitor.name}`,
-        item: `${baseUrl}/comparison/${competitor.id}`,
+        item: `${baseUrl}/comparisons/${competitor.id}`,
       },
     ],
   }
@@ -110,7 +110,7 @@ export default async function ComparisonProviderPage({
     '@type': 'ItemList',
     name: `Sim vs ${competitor.name}`,
     description: `Feature and pricing comparison between Sim and ${competitor.name}.`,
-    url: `${baseUrl}/comparison/${competitor.id}`,
+    url: `${baseUrl}/comparisons/${competitor.id}`,
     dateModified: latestVerified.toISOString().slice(0, 10),
     numberOfItems: 2,
     itemListElement: [
@@ -163,7 +163,7 @@ export default async function ComparisonProviderPage({
       <main id='main-content' className='bg-[var(--bg)]'>
         <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
           <div className='mb-6'>
-            <BackLink href='/comparison' label='Back to comparisons' />
+            <BackLink href='/comparisons' label='Back to comparisons' />
           </div>
 
           <div className='flex flex-col gap-4'>

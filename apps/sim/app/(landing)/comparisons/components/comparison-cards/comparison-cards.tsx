@@ -1,5 +1,5 @@
 import type { FactSource } from '@/lib/compare/data'
-import { SourceLink } from '@/app/(landing)/comparison/components/source-info'
+import { SourceLink } from '@/app/(landing)/comparisons/components/source-info'
 
 interface ComparisonCardItem {
   title: string
