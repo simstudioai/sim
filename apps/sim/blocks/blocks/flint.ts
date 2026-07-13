@@ -80,6 +80,7 @@ export const FlintBlock: BlockConfig = {
       id: 'items',
       title: 'Pages (JSON)',
       type: 'code',
+      language: 'json',
       placeholder: `[
   {
     "targetPageSlug": "/case-studies/acme-corp",
