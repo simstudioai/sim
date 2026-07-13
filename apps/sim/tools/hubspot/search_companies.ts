@@ -61,7 +61,7 @@ export const hubspotSearchCompaniesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (max 100)',
+      description: 'Maximum number of results to return (max 200, default 10)',
     },
     after: {
       type: 'string',
