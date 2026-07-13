@@ -32,6 +32,8 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
         { label: 'Delete Post', id: 'delete_post' },
         { label: 'Get Channels', id: 'get_channels' },
         { label: 'Create Idea', id: 'create_idea' },
+        { label: 'Get Ideas', id: 'get_ideas' },
+        { label: 'Get Idea Groups', id: 'get_idea_groups' },
         { label: 'Get Account', id: 'get_account' },
       ],
       value: () => 'create_post',
@@ -62,8 +64,14 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
       title: 'Organization ID',
       type: 'short-input',
       placeholder: 'Find organization IDs with the Get Account operation',
-      condition: { field: 'operation', value: ['get_posts', 'get_channels', 'create_idea'] },
-      required: { field: 'operation', value: ['get_posts', 'get_channels', 'create_idea'] },
+      condition: {
+        field: 'operation',
+        value: ['get_posts', 'get_channels', 'create_idea', 'get_ideas', 'get_idea_groups'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_posts', 'get_channels', 'create_idea', 'get_ideas', 'get_idea_groups'],
+      },
     },
 
     // Post / idea content
@@ -181,9 +189,9 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Maximum posts to return (default 20)',
+      placeholder: 'Maximum results to return (default 20)',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'get_posts' },
+      condition: { field: 'operation', value: ['get_posts', 'get_ideas'] },
     },
     {
       id: 'after',
@@ -191,7 +199,7 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
       type: 'short-input',
       placeholder: 'pageInfo.endCursor from a previous page',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'get_posts' },
+      condition: { field: 'operation', value: ['get_posts', 'get_ideas'] },
     },
     {
       id: 'sortBy',
@@ -255,6 +263,8 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
       'buffer_delete_post',
       'buffer_get_channels',
       'buffer_create_idea',
+      'buffer_get_ideas',
+      'buffer_get_idea_groups',
       'buffer_get_account',
     ],
     config: {
@@ -280,11 +290,15 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
         const normalizedMedia = normalizeFileInput(media, { single: true })
         if (normalizedMedia) {
           result.media = normalizedMedia
-        } else if (typeof media === 'string') {
+        } else if (typeof media === 'string' && media.trim() !== '') {
           const trimmed = media.trim()
-          const looksLikeJson =
-            trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed === 'null'
-          if (trimmed !== '' && !looksLikeJson) result.media = trimmed
+          let parsesAsJson = true
+          try {
+            JSON.parse(trimmed)
+          } catch {
+            parsesAsJson = false
+          }
+          if (!parsesAsJson) result.media = trimmed
         }
 
         return result
@@ -325,6 +339,8 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
     channels: { type: 'json', description: 'List of connected channels' },
     account: { type: 'json', description: 'Account details with organizations' },
     idea: { type: 'json', description: 'The created idea' },
+    ideas: { type: 'json', description: 'List of content ideas' },
+    ideaGroups: { type: 'json', description: 'List of idea groups (board columns)' },
     deleted: { type: 'boolean', description: 'Whether the post was deleted' },
     id: { type: 'string', description: 'ID of the deleted post' },
   },
@@ -443,7 +459,7 @@ export const BufferBlockMeta = {
       description:
         "Save a content idea to Buffer's ideas board for later drafting. Use when inspiration arrives before it is ready to schedule.",
       content:
-        "# Capture Content Idea\n\nSave rough content to Buffer's ideas board.\n\n## Steps\n1. Use Get Account to find the organization ID if unknown.\n2. Use Create Idea with the organization ID and the idea text; add a short title so it is easy to scan on the board.\n3. Optionally place it in a specific idea group (board column) with the group ID.\n\n## Output\nReturn the idea id and title, and confirm it is saved on the ideas board ready to be drafted into posts.",
+        "# Capture Content Idea\n\nSave rough content to Buffer's ideas board.\n\n## Steps\n1. Use Get Account to find the organization ID if unknown.\n2. Use Create Idea with the organization ID and the idea text; add a short title so it is easy to scan on the board.\n3. Optionally place it in a specific idea group (board column) — use Get Idea Groups to find the group ID.\n\n## Output\nReturn the idea id and title, and confirm it is saved on the ideas board ready to be drafted into posts.",
     },
   ],
 } as const satisfies BlockMeta

@@ -1,34 +1,25 @@
 import {
   BUFFER_API_URL,
+  BUFFER_IDEA_SELECTION,
   type BufferCreateIdeaParams,
-  type BufferIdea,
   type BufferIdeaResponse,
   bufferHeaders,
   IDEA_OUTPUT_PROPERTIES,
+  mapBufferIdea,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
 import type { ToolConfig } from '@/tools/types'
-
-const IDEA_SELECTION = `
-  id
-  organizationId
-  groupId
-  content {
-    title
-    text
-  }
-`
 
 const CREATE_IDEA_MUTATION = `
   mutation CreateIdea($input: CreateIdeaInput!) {
     createIdea(input: $input) {
       __typename
       ... on Idea {
-        ${IDEA_SELECTION}
+        ${BUFFER_IDEA_SELECTION}
       }
       ... on IdeaResponse {
         idea {
-          ${IDEA_SELECTION}
+          ${BUFFER_IDEA_SELECTION}
         }
       }
       ... on MutationError {
@@ -37,19 +28,6 @@ const CREATE_IDEA_MUTATION = `
     }
   }
 `
-
-/**
- * Maps a raw GraphQL Idea node onto the stable output shape.
- */
-function mapIdea(idea: Record<string, any>): BufferIdea {
-  return {
-    id: idea.id,
-    organizationId: idea.organizationId ?? '',
-    groupId: idea.groupId ?? null,
-    title: idea.content?.title ?? null,
-    text: idea.content?.text ?? null,
-  }
-}
 
 export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdeaResponse> = {
   id: 'buffer_create_idea',
@@ -121,7 +99,7 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
     return {
       success: true,
       output: {
-        idea: mapIdea(idea),
+        idea: mapBufferIdea(idea),
       },
     }
   },

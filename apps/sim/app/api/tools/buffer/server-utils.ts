@@ -69,7 +69,7 @@ interface ResolvedMediaAsset {
  * path/URL has no recognizable media extension.
  */
 function mediaKindFromExtension(pathOrName: string): 'image' | 'video' | null {
-  const lowered = pathOrName.toLowerCase().split('?')[0]
+  const lowered = pathOrName.toLowerCase().split(/[?#]/)[0]
   if (VIDEO_EXTENSIONS.some((extension) => lowered.endsWith(extension))) return 'video'
   if (IMAGE_EXTENSIONS.some((extension) => lowered.endsWith(extension))) return 'image'
   return null

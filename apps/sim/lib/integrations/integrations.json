@@ -2642,11 +2642,19 @@
           "description": "Save a content idea to a Buffer organization for later drafting and scheduling"
         },
         {
+          "name": "Get Ideas",
+          "description": "List content ideas saved in a Buffer organization"
+        },
+        {
+          "name": "Get Idea Groups",
+          "description": "List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas"
+        },
+        {
           "name": "Get Account",
           "description": "Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 10,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

@@ -398,6 +398,8 @@ import {
   bufferEditPostTool,
   bufferGetAccountTool,
   bufferGetChannelsTool,
+  bufferGetIdeaGroupsTool,
+  bufferGetIdeasTool,
   bufferGetPostsTool,
   bufferGetPostTool,
 } from '@/tools/buffer'
@@ -4734,6 +4736,8 @@ export const tools: Record<string, ToolConfig> = {
   buffer_edit_post: bufferEditPostTool,
   buffer_get_account: bufferGetAccountTool,
   buffer_get_channels: bufferGetChannelsTool,
+  buffer_get_idea_groups: bufferGetIdeaGroupsTool,
+  buffer_get_ideas: bufferGetIdeasTool,
   buffer_get_post: bufferGetPostTool,
   buffer_get_posts: bufferGetPostsTool,
   openai_embeddings: openAIEmbeddingsTool,

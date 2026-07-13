@@ -30,7 +30,7 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 | `channelId` | string | Yes | Channel to create the post for \(find it with the Get Channels operation\) |
 | `text` | string | No | Text content of the post \(required unless media is attached\) |
 | `mode` | string | Yes | How to share the post: addToQueue, shareNext, shareNow, or customScheduled \(requires dueAt\) |
-| `schedulingType` | string | Yes | How the post publishes: automatic \(Buffer publishes it\) or notification \(you get a mobile reminder\) |
+| `schedulingType` | string | No | How the post publishes: automatic \(Buffer publishes it, default\) or notification \(you get a mobile reminder\) |
 | `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
 | `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
 | `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL |
@@ -79,7 +79,7 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 | `postId` | string | Yes | ID of the post to edit |
 | `text` | string | No | New text content of the post |
 | `mode` | string | Yes | How to share the post: addToQueue, shareNext, shareNow, or customScheduled \(requires dueAt\) |
-| `schedulingType` | string | Yes | How the post publishes: automatic \(Buffer publishes it\) or notification \(you get a mobile reminder\) |
+| `schedulingType` | string | No | How the post publishes: automatic \(Buffer publishes it, default\) or notification \(you get a mobile reminder\) |
 | `dueAt` | string | No | Publish time as an ISO 8601 timestamp \(required when mode is customScheduled\) |
 | `saveToDraft` | boolean | No | Save the post as a draft instead of scheduling it |
 | `media` | file | No | Image or video to attach — an uploaded file, a file reference from a previous block, or a publicly accessible URL. Replaces existing attachments |
@@ -279,6 +279,53 @@ Save a content idea to a Buffer organization for later drafting and scheduling
 |   ↳ `groupId` | string | Idea group ID |
 |   ↳ `title` | string | Idea title |
 |   ↳ `text` | string | Idea text content |
+
+### `buffer_get_ideas`
+
+List content ideas saved in a Buffer organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
+| `limit` | number | No | Maximum number of ideas to return \(default 20\) |
+| `after` | string | No | Pagination cursor from a previous page \(pageInfo.endCursor\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ideas` | array | Content ideas in the organization |
+|   ↳ `id` | string | Idea ID |
+|   ↳ `organizationId` | string | Organization the idea belongs to |
+|   ↳ `groupId` | string | Idea group ID |
+|   ↳ `title` | string | Idea title |
+|   ↳ `text` | string | Idea text content |
+| `pageInfo` | object | Pagination info for fetching the next page |
+|   ↳ `hasNextPage` | boolean | Whether more results are available |
+|   ↳ `endCursor` | string | Cursor to pass as "after" for the next page |
+
+### `buffer_get_idea_groups`
+
+List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Buffer API key |
+| `organizationId` | string | Yes | Buffer organization ID \(find it with the Get Account operation\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ideaGroups` | array | Idea groups \(board columns\) in the organization |
+|   ↳ `id` | string | Idea group ID |
+|   ↳ `name` | string | Idea group name |
+|   ↳ `isLocked` | boolean | Whether the group is locked |
 
 ### `buffer_get_account`
 

@@ -168,6 +168,12 @@ export interface BufferIdea {
   text: string | null
 }
 
+export interface BufferIdeaGroup {
+  id: string
+  name: string
+  isLocked: boolean
+}
+
 export interface BufferPageInfo {
   hasNextPage: boolean
   endCursor: string | null
@@ -176,6 +182,30 @@ export interface BufferPageInfo {
 // endregion
 
 // region Response mappers
+
+/** GraphQL selection set shared by every operation that returns an Idea. */
+export const BUFFER_IDEA_SELECTION = `
+  id
+  organizationId
+  groupId
+  content {
+    title
+    text
+  }
+`
+
+/**
+ * Maps a raw GraphQL Idea node onto the stable output shape.
+ */
+export function mapBufferIdea(idea: Record<string, any>): BufferIdea {
+  return {
+    id: idea.id,
+    organizationId: idea.organizationId ?? '',
+    groupId: idea.groupId ?? null,
+    title: idea.content?.title ?? null,
+    text: idea.content?.text ?? null,
+  }
+}
 
 /**
  * Maps a raw GraphQL Post node onto the stable output shape.
@@ -332,6 +362,12 @@ export const IDEA_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
   text: { type: 'string', nullable: true, description: 'Idea text content' },
 }
 
+export const IDEA_GROUP_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Idea group ID' },
+  name: { type: 'string', description: 'Idea group name' },
+  isLocked: { type: 'boolean', description: 'Whether the group is locked' },
+}
+
 export const PAGE_INFO_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
   hasNextPage: { type: 'boolean', description: 'Whether more results are available' },
   endCursor: {
@@ -398,6 +434,16 @@ export interface BufferCreateIdeaParams extends BufferBaseParams {
   groupId?: string
 }
 
+export interface BufferGetIdeasParams extends BufferBaseParams {
+  organizationId: string
+  limit?: number
+  after?: string
+}
+
+export interface BufferGetIdeaGroupsParams extends BufferBaseParams {
+  organizationId: string
+}
+
 // endregion
 
 // region Tool responses
@@ -437,6 +483,19 @@ export interface BufferAccountResponse extends ToolResponse {
 export interface BufferIdeaResponse extends ToolResponse {
   output: {
     idea: BufferIdea
+  }
+}
+
+export interface BufferIdeasResponse extends ToolResponse {
+  output: {
+    ideas: BufferIdea[]
+    pageInfo: BufferPageInfo
+  }
+}
+
+export interface BufferIdeaGroupsResponse extends ToolResponse {
+  output: {
+    ideaGroups: BufferIdeaGroup[]
   }
 }
 
