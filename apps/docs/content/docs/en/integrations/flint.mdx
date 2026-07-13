@@ -1,0 +1,85 @@
+---
+title: Flint
+description: Run background agent tasks on your Flint sites
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="flint"
+  color="#F6F54F"
+/>
+
+## Usage Instructions
+
+Create background agent tasks that modify your Flint sites from natural-language prompts, generate batches of pages from a template, and check task status and results.
+
+
+
+## Actions
+
+### `flint_create_task`
+
+Start a background Flint agent task that modifies a site from a natural-language prompt.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | ID of the Flint site the agent should modify |
+| `prompt` | string | Yes | Natural-language instructions for the agent \(e.g., "Add a new About page with a team section"\) |
+| `callbackUrl` | string | No | HTTPS webhook URL that Flint will POST to when the task completes or fails |
+| `publish` | boolean | No | Whether to automatically publish the changes when the task completes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | Identifier of the created background task |
+| `status` | string | Initial task status \(running\) |
+| `createdAt` | string | ISO 8601 timestamp when the task was created |
+
+### `flint_generate_pages`
+
+Start a background Flint agent task that generates up to 10 pages from a template page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Yes | ID of the Flint site the agent should modify |
+| `templatePageSlug` | string | Yes | Slug of the existing template page to generate from \(e.g., /case-studies/template\) |
+| `items` | json | Yes | JSON array of 1-10 pages to generate. Each item requires targetPageSlug \(slug for the new page\) and context \(content details the agent should use\). |
+| `callbackUrl` | string | No | HTTPS webhook URL that Flint will POST to when the task completes or fails |
+| `publish` | boolean | No | Whether to automatically publish the generated pages when the task completes |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | Identifier of the created background task |
+| `status` | string | Initial task status \(running\) |
+| `createdAt` | string | ISO 8601 timestamp when the task was created |
+
+### `flint_get_task`
+
+Get the status and results of a background Flint agent task.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | Identifier of the task returned when it was created \(e.g., bg-...\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | Identifier of the task |
+| `status` | string | Task status: running, completed, or failed |
+| `pagesCreated` | array | Pages created by the task \(populated when completed\) |
+| `pagesModified` | array | Pages modified by the task \(populated when completed\) |
+| `pagesDeleted` | array | Pages deleted by the task \(populated when completed\) |
+| `errorMessage` | string | Error message when the task failed |
+
+

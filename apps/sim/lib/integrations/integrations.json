@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-11",
+  "updatedAt": "2026-07-13",
   "integrations": [
     {
       "type": "onepassword",
@@ -5728,6 +5728,37 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["meeting", "note-taking"]
+    },
+    {
+      "type": "flint",
+      "slug": "flint",
+      "name": "Flint",
+      "description": "Run background agent tasks on your Flint sites",
+      "longDescription": "Create background agent tasks that modify your Flint sites from natural-language prompts, generate batches of pages from a template, and check task status and results.",
+      "bgColor": "#F6F54F",
+      "iconName": "FlintIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/flint",
+      "operations": [
+        {
+          "name": "Create Task",
+          "description": "Start a background Flint agent task that modifies a site from a natural-language prompt."
+        },
+        {
+          "name": "Generate Pages",
+          "description": "Start a background Flint agent task that generates up to 10 pages from a template page."
+        },
+        {
+          "name": "Get Task",
+          "description": "Get the status and results of a background Flint agent task."
+        }
+      ],
+      "operationCount": 3,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["automation", "seo", "agentic"]
     },
     {
       "type": "gamma",

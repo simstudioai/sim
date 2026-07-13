@@ -6859,6 +6859,22 @@ export function JiraServiceManagementIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function FlintIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='374 415 519 617' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path d='M374 1004.46L679.798 1031.21V833.875L374 847.451V1004.46Z' fill='currentColor' />
+      <path
+        d='M374 567.086V676.084L803.573 606.042V764.423L892.518 750.061V415L374 567.086Z'
+        fill='currentColor'
+      />
+      <path
+        d='M374 831.711L695.54 817.349V894.67L787.634 891.719V624.536L374 692.217V831.711Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function FirefliesIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const g1 = `fireflies_g1_${id}`
