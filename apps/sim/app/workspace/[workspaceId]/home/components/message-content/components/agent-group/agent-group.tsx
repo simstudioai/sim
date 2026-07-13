@@ -155,7 +155,7 @@ export function AgentGroup({
                     return (
                       <span
                         key={`thinking-${idx}`}
-                        className='pl-6 text-[13px] text-[var(--text-secondary)] italic leading-[18px] opacity-50'
+                        className='pl-6 text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-50'
                       >
                         {item.content.trim()}
                       </span>
