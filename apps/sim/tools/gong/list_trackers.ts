@@ -74,11 +74,19 @@ export const listTrackersTool: ToolConfig<GongListTrackersParams, GongListTracke
     }))
     return {
       success: true,
-      output: { trackers },
+      output: {
+        requestId: data.requestId ?? null,
+        trackers,
+      },
     }
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     trackers: {
       type: 'array',
       description: 'List of keyword tracker definitions',

@@ -1,14 +1,17 @@
 import { aggregateActivityTool } from '@/tools/gong/aggregate_activity'
 import { aggregateByPeriodTool } from '@/tools/gong/aggregate_by_period'
 import { answeredScorecardsTool } from '@/tools/gong/answered_scorecards'
+import { askAnythingTool } from '@/tools/gong/ask_anything'
 import { assignFlowProspectsTool } from '@/tools/gong/assign_flow_prospects'
 import { createCallTool } from '@/tools/gong/create_call'
 import { dayByDayActivityTool } from '@/tools/gong/day_by_day_activity'
+import { getBriefTool } from '@/tools/gong/get_brief'
 import { getCallTool } from '@/tools/gong/get_call'
 import { getCallTranscriptTool } from '@/tools/gong/get_call_transcript'
 import { getCoachingTool } from '@/tools/gong/get_coaching'
 import { getExtensiveCallsTool } from '@/tools/gong/get_extensive_calls'
 import { getFolderContentTool } from '@/tools/gong/get_folder_content'
+import { getLogsTool } from '@/tools/gong/get_logs'
 import { getProspectFlowsTool } from '@/tools/gong/get_prospect_flows'
 import { getUserTool } from '@/tools/gong/get_user'
 import { interactionStatsTool } from '@/tools/gong/interaction_stats'
@@ -23,6 +26,7 @@ import { lookupEmailTool } from '@/tools/gong/lookup_email'
 import { lookupPhoneTool } from '@/tools/gong/lookup_phone'
 import { purgeEmailAddressTool } from '@/tools/gong/purge_email_address'
 import { purgePhoneNumberTool } from '@/tools/gong/purge_phone_number'
+import { unassignFlowProspectsTool } from '@/tools/gong/unassign_flow_prospects'
 
 export const gongListCallsTool = listCallsTool
 export const gongCreateCallTool = createCallTool
@@ -49,5 +53,9 @@ export const gongPurgeEmailAddressTool = purgeEmailAddressTool
 export const gongPurgePhoneNumberTool = purgePhoneNumberTool
 export const gongAssignFlowProspectsTool = assignFlowProspectsTool
 export const gongGetProspectFlowsTool = getProspectFlowsTool
+export const gongAskAnythingTool = askAnythingTool
+export const gongGetBriefTool = getBriefTool
+export const gongUnassignFlowProspectsTool = unassignFlowProspectsTool
+export const gongGetLogsTool = getLogsTool
 
 export * from './types'

@@ -46,8 +46,8 @@ export const listFlowsTool: ToolConfig<GongListFlowsParams, GongListFlowsRespons
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/flows')
-      url.searchParams.set('flowEmailOwner', params.flowOwnerEmail.trim())
-      if (params.workspaceId) url.searchParams.set('workspaceId', params.workspaceId.trim())
+      url.searchParams.set('flowOwnerEmail', params.flowOwnerEmail.trim())
+      if (params.workspaceId?.trim()) url.searchParams.set('workspaceId', params.workspaceId.trim())
       if (params.cursor?.trim()) url.searchParams.set('cursor', params.cursor.trim())
       return url.toString()
     },

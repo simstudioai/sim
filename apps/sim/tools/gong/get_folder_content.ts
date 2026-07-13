@@ -67,6 +67,7 @@ export const getFolderContentTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         folderId: data.id ?? null,
         folderName: data.name ?? null,
         createdBy: data.createdBy ?? null,
@@ -77,6 +78,11 @@ export const getFolderContentTool: ToolConfig<
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     folderId: {
       type: 'string',
       description: "Gong's unique numeric identifier for the folder",

@@ -21,7 +21,7 @@ export interface GongCreateCallParams extends GongBaseParams {
   primaryUser: string
   parties: unknown
   direction: string
-  downloadMediaUrl: string
+  downloadMediaUrl?: string
   title?: string
   workspaceId?: string
   disposition?: string
@@ -34,7 +34,6 @@ export interface GongCreateCallResponse extends ToolResponse {
   output: {
     callId: string
     requestId: string
-    url: string | null
   }
 }
 
@@ -79,7 +78,7 @@ export interface GongListCallsResponse extends ToolResponse {
     requestId: string | null
     calls: GongCallBasic[]
     cursor: string | null
-    totalRecords: number
+    totalRecords: number | null
     currentPageSize: number | null
     currentPageNumber: number | null
   }
@@ -91,7 +90,7 @@ export interface GongGetCallParams extends GongBaseParams {
 }
 
 export interface GongGetCallResponse extends ToolResponse {
-  output: GongCallBasic
+  output: GongCallBasic & { requestId: string | null }
 }
 
 /** Get Call Transcript */
@@ -122,6 +121,7 @@ interface GongCallTranscript {
 
 export interface GongGetCallTranscriptResponse extends ToolResponse {
   output: {
+    requestId: string | null
     callTranscripts: GongCallTranscript[]
     cursor: string | null
   }
@@ -148,6 +148,7 @@ interface GongExtensiveCall {
 
 export interface GongGetExtensiveCallsResponse extends ToolResponse {
   output: {
+    requestId: string | null
     calls: GongExtensiveCall[]
     cursor: string | null
   }
@@ -211,6 +212,7 @@ export interface GongGetUserParams extends GongBaseParams {
 
 export interface GongGetUserResponse extends ToolResponse {
   output: {
+    requestId: string | null
     id: string
     emailAddress: string | null
     created: string | null
@@ -260,6 +262,7 @@ interface GongUserActivity {
 
 export interface GongAggregateActivityResponse extends ToolResponse {
   output: {
+    requestId: string | null
     usersActivity: GongUserActivity[]
     timeZone: string | null
     fromDateTime: string | null
@@ -289,6 +292,7 @@ export interface GongInteractionStatsParams extends GongBaseParams {
 
 export interface GongInteractionStatsResponse extends ToolResponse {
   output: {
+    requestId: string | null
     peopleInteractionStats: GongUserInteractionStats[]
     timeZone: string | null
     fromDateTime: string | null
@@ -400,6 +404,7 @@ interface GongScorecardAnswer {
   score: number | null
   answerText: string | null
   notApplicable: boolean | null
+  selectedOptions: string[] | null
 }
 
 interface GongAnsweredScorecard {
@@ -417,6 +422,7 @@ interface GongAnsweredScorecard {
 
 export interface GongAnsweredScorecardsResponse extends ToolResponse {
   output: {
+    requestId: string | null
     answeredScorecards: GongAnsweredScorecard[]
     cursor: string | null
   }
@@ -437,6 +443,7 @@ interface GongLibraryFolder {
 
 export interface GongListLibraryFoldersResponse extends ToolResponse {
   output: {
+    requestId: string | null
     folders: GongLibraryFolder[]
   }
 }
@@ -463,6 +470,7 @@ interface GongFolderCall {
 
 export interface GongGetFolderContentResponse extends ToolResponse {
   output: {
+    requestId: string | null
     folderId: string | null
     folderName: string | null
     createdBy: string | null
@@ -474,29 +482,38 @@ export interface GongGetFolderContentResponse extends ToolResponse {
 /** List Scorecards */
 export interface GongListScorecardsParams extends GongBaseParams {}
 
+interface GongScorecardQuestionOption {
+  id: number
+  text: string
+}
+
 interface GongScorecardQuestion {
-  questionId: string
+  questionId: number | null
+  questionRevisionId: number | null
   questionText: string
-  questionRevisionId: string | null
   isOverall: boolean
-  created: string | null
-  updated: string | null
-  updaterUserId: string | null
+  questionType: string | null
+  answerGuide: string | null
+  minRange: number | null
+  maxRange: number | null
+  answerOptions: GongScorecardQuestionOption[]
 }
 
 interface GongScorecard {
-  scorecardId: string
+  scorecardId: number | null
   scorecardName: string
-  workspaceId: string | null
+  workspaceId: number | null
   enabled: boolean
-  updaterUserId: string | null
+  updaterUserId: number | null
   created: string | null
   updated: string | null
+  reviewMethod: string | null
   questions: GongScorecardQuestion[]
 }
 
 export interface GongListScorecardsResponse extends ToolResponse {
   output: {
+    requestId: string | null
     scorecards: GongScorecard[]
   }
 }
@@ -533,6 +550,7 @@ interface GongTracker {
 
 export interface GongListTrackersResponse extends ToolResponse {
   output: {
+    requestId: string | null
     trackers: GongTracker[]
   }
 }
@@ -548,6 +566,7 @@ interface GongWorkspace {
 
 export interface GongListWorkspacesResponse extends ToolResponse {
   output: {
+    requestId: string | null
     workspaces: GongWorkspace[]
   }
 }
@@ -765,6 +784,97 @@ export interface GongGetProspectFlowsResponse extends ToolResponse {
   }
 }
 
+/** Ask Anything */
+export interface GongAskAnythingParams extends GongBaseParams {
+  workspaceId: string
+  crmEntityType: string
+  crmEntityId: string
+  question: string
+  timePeriod: string
+  fromDateTime?: string
+  toDateTime?: string
+}
+
+interface GongAnswerSection {
+  answerItems: string[]
+  callFindings: Record<string, unknown>[]
+  emailFindings: Record<string, unknown>[]
+}
+
+export interface GongAskAnythingResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    numOfCallsSearched: number | null
+    numOfEmailsSearched: number | null
+    answer: GongAnswerSection[]
+  }
+}
+
+/** Get Brief */
+export interface GongGetBriefParams extends GongBaseParams {
+  workspaceId: string
+  briefName: string
+  crmEntityType: string
+  crmEntityId: string
+  timePeriod: string
+  fromDateTime?: string
+  toDateTime?: string
+}
+
+export interface GongGetBriefResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    numOfCallsSearched: number | null
+    numOfEmailsSearched: number | null
+    briefSections: Record<string, unknown>[]
+  }
+}
+
+/** Unassign Flow Prospects */
+export interface GongUnassignFlowProspectsParams extends GongBaseParams {
+  crmProspectId: string
+  flowId?: string
+  unassignedByUserEmail?: string
+}
+
+export interface GongUnassignFlowProspectsResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    unassignedFlowInstanceIds: string[]
+  }
+}
+
+/** Get Logs */
+export interface GongGetLogsParams extends GongBaseParams {
+  logType: string
+  fromDateTime: string
+  toDateTime?: string
+  cursor?: string
+}
+
+interface GongLogEntry {
+  userId: string | null
+  userEmailAddress: string | null
+  userFullName: string | null
+  impersonatorUserId: string | null
+  impersonatorEmailAddress: string | null
+  impersonatorFullName: string | null
+  impersonatorCompanyId: string | null
+  eventTime: string | null
+  logRecord: Record<string, unknown> | null
+}
+
+export interface GongGetLogsResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    logEntries: GongLogEntry[]
+    cursor: string | null
+    totalRecords: number | null
+    currentPageSize: number | null
+    currentPageNumber: number | null
+  }
+}
+
 /** Union type for all Gong responses */
 export type GongResponse =
   | GongListCallsResponse
@@ -792,3 +902,7 @@ export type GongResponse =
   | GongPurgePhoneNumberResponse
   | GongAssignFlowProspectsResponse
   | GongGetProspectFlowsResponse
+  | GongAskAnythingResponse
+  | GongGetBriefResponse
+  | GongUnassignFlowProspectsResponse
+  | GongGetLogsResponse

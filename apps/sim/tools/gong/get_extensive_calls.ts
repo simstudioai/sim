@@ -121,6 +121,7 @@ export const getExtensiveCallsTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         calls: data.calls ?? [],
         cursor: data.records?.cursor ?? null,
       },
@@ -128,6 +129,11 @@ export const getExtensiveCallsTool: ToolConfig<
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     calls: {
       type: 'array',
       description:
