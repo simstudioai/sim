@@ -40,9 +40,6 @@ export interface FileResolutionResult {
   }
 }
 
-/** Default presigned download URL lifetime (5 minutes). */
-const DEFAULT_PRESIGNED_DOWNLOAD_TTL_SECONDS = 5 * 60
-
 /**
  * Options for resolving file input to a URL
  */
@@ -53,45 +50,11 @@ export interface ResolveFileInputOptions {
   requestId: string
   logger: Logger
   /**
-   * Presigned download URL TTL in seconds. Defaults to 5 minutes.
+   * Expiry for presigned URLs minted for stored files, in seconds.
+   * Defaults to 5 minutes; raise it only when the external service fetches
+   * the URL later than the current request (e.g. scheduled publishing).
    */
-  ttlSeconds?: number
-  /**
-   * When true and the file has a storage key, always mint a fresh presigned URL
-   * from the key (instead of reusing an existing non-internal URL). Use this when
-   * a third party must fetch the file over a longer window (e.g. Instagram/Meta).
-   */
-  preferKeyPresign?: boolean
-}
-
-async function presignFromStorageKey(
-  key: string,
-  contextHint: string | undefined,
-  userId: string,
-  requestId: string,
-  logger: Logger,
-  ttlSeconds: number
-): Promise<FileResolutionResult> {
-  const context = resolveTrustedFileContext(key, contextHint)
-  const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
-
-  if (!hasAccess) {
-    logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
-      userId,
-      key,
-      context,
-    })
-    return { error: { status: 404, message: 'File not found' } }
-  }
-
-  try {
-    const fileUrl = await StorageService.generatePresignedDownloadUrl(key, context, ttlSeconds)
-    logger.info(`[${requestId}] Generated presigned URL for ${context} file`, { ttlSeconds })
-    return { fileUrl }
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
-    return { error: { status: 500, message: 'Failed to generate file access URL' } }
-  }
+  presignExpirySeconds?: number
 }
 
 /**
@@ -105,15 +68,7 @@ async function presignFromStorageKey(
 export async function resolveFileInputToUrl(
   options: ResolveFileInputOptions
 ): Promise<FileResolutionResult> {
-  const {
-    file,
-    filePath,
-    userId,
-    requestId,
-    logger,
-    ttlSeconds = DEFAULT_PRESIGNED_DOWNLOAD_TTL_SECONDS,
-    preferKeyPresign = false,
-  } = options
+  const { file, filePath, userId, requestId, logger, presignExpirySeconds = 5 * 60 } = options
 
   if (file) {
     let userFile: UserFile
@@ -128,44 +83,47 @@ export async function resolveFileInputToUrl(
       }
     }
 
-    if (preferKeyPresign && userFile.key) {
-      return presignFromStorageKey(
+    // A stored file always gets a freshly minted presigned URL scoped to the
+    // requested expiry — an embedded url (internal serve path or a previously
+    // minted presigned link) may be stale, shorter-lived than required, or
+    // point at a different object than the verified key.
+    if (userFile.key) {
+      const context = resolveTrustedFileContext(userFile.key, userFile.context)
+      const hasAccess = await verifyFileAccess(userFile.key, userId, undefined, context, false)
+
+      if (!hasAccess) {
+        logger.warn(`[${requestId}] Unauthorized presigned URL generation attempt`, {
+          userId,
+          key: userFile.key,
+          context,
+        })
+        return { error: { status: 404, message: 'File not found' } }
+      }
+
+      const fileUrl = await StorageService.generatePresignedDownloadUrl(
         userFile.key,
-        userFile.context,
-        userId,
-        requestId,
-        logger,
-        ttlSeconds
+        context,
+        presignExpirySeconds
       )
+      return { fileUrl }
     }
 
     let fileUrl = userFile.url || ''
 
-    // Handle internal URLs
+    // Without a key, the schema guarantees the url references an uploaded
+    // file, so resolve the internal serve path to a presigned URL.
     if (fileUrl && isInternalFileUrl(fileUrl)) {
       const resolution = await resolveInternalFileUrl(
         fileUrl,
         userId,
         requestId,
         logger,
-        ttlSeconds
+        presignExpirySeconds
       )
       if (resolution.error) {
         return { error: resolution.error }
       }
       fileUrl = resolution.fileUrl || ''
-    }
-
-    // Generate presigned URL if we have a key but no URL
-    if (!fileUrl && userFile.key) {
-      return presignFromStorageKey(
-        userFile.key,
-        userFile.context,
-        userId,
-        requestId,
-        logger,
-        ttlSeconds
-      )
     }
 
     return { fileUrl }
@@ -180,7 +138,7 @@ export async function resolveFileInputToUrl(
         userId,
         requestId,
         logger,
-        ttlSeconds
+        presignExpirySeconds
       )
       if (resolution.error) {
         return { error: resolution.error }
@@ -297,7 +255,7 @@ export async function resolveInternalFileUrl(
   userId: string,
   requestId: string,
   logger: Logger,
-  ttlSeconds: number = DEFAULT_PRESIGNED_DOWNLOAD_TTL_SECONDS
+  presignExpirySeconds = 5 * 60
 ): Promise<{ fileUrl?: string; error?: { status: number; message: string } }> {
   if (!isInternalFileUrl(filePath)) {
     return { fileUrl: filePath }
@@ -320,9 +278,9 @@ export async function resolveInternalFileUrl(
     const fileUrl = await StorageService.generatePresignedDownloadUrl(
       storageKey,
       context,
-      ttlSeconds
+      presignExpirySeconds
     )
-    logger.info(`[${requestId}] Generated presigned URL for ${context} file`, { ttlSeconds })
+    logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
     return { fileUrl }
   } catch (error) {
     logger.error(`[${requestId}] Failed to generate presigned URL:`, error)

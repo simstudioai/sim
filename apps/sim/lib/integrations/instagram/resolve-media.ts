@@ -266,8 +266,7 @@ export async function resolveInstagramMedia(
     userId,
     requestId,
     logger,
-    ttlSeconds: INSTAGRAM_MEDIA_URL_TTL_SECONDS,
-    preferKeyPresign: true,
+    presignExpirySeconds: INSTAGRAM_MEDIA_URL_TTL_SECONDS,
   })
 
   if (resolution.error || !resolution.fileUrl) {

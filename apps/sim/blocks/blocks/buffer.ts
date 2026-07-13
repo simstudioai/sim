@@ -141,6 +141,19 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
       condition: { field: 'operation', value: POST_EDIT_OPS },
     },
     {
+      id: 'mediaType',
+      title: 'Media Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto-detect', id: 'auto' },
+        { label: 'Image', id: 'image' },
+        { label: 'Video', id: 'video' },
+      ],
+      value: () => 'auto',
+      mode: 'advanced',
+      condition: { field: 'operation', value: POST_EDIT_OPS },
+    },
+    {
       id: 'mediaAltText',
       title: 'Media Alt Text',
       type: 'short-input',
@@ -321,6 +334,10 @@ export const BufferBlock: BlockConfig<BufferPostResponse> = {
     dueAt: { type: 'string', description: 'Publish time (ISO 8601)' },
     saveToDraft: { type: 'boolean', description: 'Save the post as a draft' },
     media: { type: 'string', description: 'Image or video attachment (file or public URL)' },
+    mediaType: {
+      type: 'string',
+      description: 'Attachment type override: auto, image, or video',
+    },
     mediaAltText: { type: 'string', description: 'Alt text for an attached image' },
     channelIds: { type: 'string', description: 'Comma-separated channel IDs filter' },
     status: { type: 'string', description: 'Comma-separated post status filter' },

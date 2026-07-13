@@ -62,6 +62,7 @@ const postSharedFields = {
     .nullable(),
   saveToDraft: z.boolean().optional().nullable(),
   media: FileInputSchema.optional().nullable(),
+  mediaType: z.enum(['auto', 'image', 'video']).default('auto'),
   mediaAltText: z.string().max(1000, 'mediaAltText is too long').optional().nullable(),
 }
 

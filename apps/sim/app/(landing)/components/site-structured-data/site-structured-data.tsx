@@ -9,9 +9,19 @@ const SITE_JSON_LD = {
       '@id': `${SITE_URL}#organization`,
       name: 'Sim',
       alternateName: 'Sim Studio',
+      legalName: 'Sim, Inc',
       description:
         'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
       url: SITE_URL,
+      foundingDate: '2025',
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: '80 Langton St',
+        addressLocality: 'San Francisco',
+        addressRegion: 'CA',
+        postalCode: '94103',
+        addressCountry: 'US',
+      },
       logo: {
         '@type': 'ImageObject',
         '@id': `${SITE_URL}#logo`,
@@ -61,7 +71,8 @@ const SITE_JSON_LD = {
  * fragment) - every per-page emitter (platform, solutions, pricing, home) points
  * `isPartOf`/`publisher`/`about` at these exact ids, so the graph resolves.
  *
- * Maintenance: `sameAs` must match the Footer social links.
+ * Maintenance: `sameAs` must match the Footer social links. `legalName`
+ * matches the entity named throughout `apps/sim/app/(landing)/terms`.
  */
 export function SiteStructuredData() {
   return <JsonLd data={SITE_JSON_LD} />
