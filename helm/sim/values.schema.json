@@ -332,6 +332,22 @@
               "type": "string",
               "description": "Enterprise tier async API executions per minute"
             },
+            "BILLING_CONCURRENCY_LIMIT_FREE": {
+              "type": "string",
+              "description": "In-flight executions per free billing account"
+            },
+            "BILLING_CONCURRENCY_LIMIT_PRO": {
+              "type": "string",
+              "description": "In-flight executions per Pro billing account"
+            },
+            "BILLING_CONCURRENCY_LIMIT_TEAM": {
+              "type": "string",
+              "description": "In-flight executions per Max or team billing account"
+            },
+            "BILLING_CONCURRENCY_LIMIT_ENTERPRISE": {
+              "type": "string",
+              "description": "Default in-flight executions per Enterprise billing account"
+            },
             "MANUAL_EXECUTION_LIMIT": {
               "type": "string",
               "description": "Manual execution bypass value"

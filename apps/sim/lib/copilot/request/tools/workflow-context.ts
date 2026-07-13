@@ -158,6 +158,7 @@ export async function prepareWorkflowExecutionAdmission(
     billingEntity: billingAttribution.billingEntity,
     executionId: childExecutionId,
     plan: billingAttribution.payerSubscription?.plan,
+    enterpriseConcurrencyLimit: billingAttribution.payerSubscription?.enterpriseConcurrencyLimit,
     currentUsage: payerUsage.currentUsage,
     limit: payerUsage.limit,
     ...(billingAttribution.organizationId &&

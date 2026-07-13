@@ -82,6 +82,10 @@ export const env = createEnv({
     STRIPE_ENTERPRISE_PRICE_ID:            z.string().min(1).optional(),           // Stripe price ID for enterprise tier
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
+    BILLING_CONCURRENCY_LIMIT_FREE:         z.string().optional(),                  // In-flight executions per free billing account
+    BILLING_CONCURRENCY_LIMIT_PRO:          z.string().optional(),                  // In-flight executions per Pro billing account
+    BILLING_CONCURRENCY_LIMIT_TEAM:         z.string().optional(),                  // In-flight executions per Max/team billing account
+    BILLING_CONCURRENCY_LIMIT_ENTERPRISE:   z.string().optional(),                  // In-flight executions per Enterprise billing account (metadata-overridable)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
     FREE_API_DEPLOYMENT_GATE_ENABLED:      z.boolean().optional(),                 // Block free-plan accounts from programmatic execution (API/MCP/A2A/generic webhooks/chat embeds). Requires BILLING_ENABLED. Off by default for dark rollout
     TABLE_SNAPSHOT_CACHE:                  z.boolean().optional(),                 // Mount tables into sandboxes by reference via a version-keyed CSV snapshot in object storage instead of draining the whole table into web-process heap

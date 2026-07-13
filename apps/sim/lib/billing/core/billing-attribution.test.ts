@@ -275,6 +275,31 @@ describe('resolveBillingAttribution', () => {
     expect(JSON.stringify(attribution)).not.toContain('stripe-subscription')
   })
 
+  it('carries only the normalized Enterprise concurrency metadata needed by admission', async () => {
+    mockLimit.mockResolvedValue([
+      {
+        billedAccountUserId: 'owner-b',
+        organizationId: 'org-b',
+      },
+    ])
+    mockGetOrganizationSubscription.mockResolvedValue({
+      ...ORG_SUBSCRIPTION,
+      plan: 'enterprise',
+      metadata: { concurrencyLimit: '1250', secret: 'must-not-cross-boundary' },
+    })
+
+    const attribution = await resolveBillingAttribution({
+      actorUserId: 'actor-a',
+      workspaceId: 'workspace-b',
+    })
+
+    expect(attribution.payerSubscription).toMatchObject({
+      plan: 'enterprise',
+      enterpriseConcurrencyLimit: 1250,
+    })
+    expect(JSON.stringify(attribution)).not.toContain('must-not-cross-boundary')
+  })
+
   it('rejects a subscription that does not belong to the exact workspace payer', async () => {
     mockLimit.mockResolvedValue([
       {

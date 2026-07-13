@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import {
   ADMISSION_ERROR_DESCRIPTOR,
   type ReservationDenialReason,
@@ -11,7 +11,6 @@ import {
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getExecutionReservationTtlMs } from '@/lib/core/execution-limits'
-import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 
 const logger = createLogger('UsageReservation')
 
@@ -27,13 +26,6 @@ const logger = createLogger('UsageReservation')
  * executions per billing entity bounds the worst-case overshoot to roughly this
  * many executions' worth of spend.
  */
-const MAX_CONCURRENT_EXECUTIONS: Record<SubscriptionPlan, number> = {
-  free: 15,
-  pro: 75,
-  team: 150,
-  enterprise: 300,
-}
-
 /**
  * The guaranteed $0.005 base charge reserved per active execution. This is not
  * an estimate of final model or tool spend; it only closes the concurrent race
@@ -42,14 +34,12 @@ const MAX_CONCURRENT_EXECUTIONS: Record<SubscriptionPlan, number> = {
 const RESERVED_BASE_EXECUTION_CHARGE = BASE_EXECUTION_CHARGE
 
 /**
- * Identifiers are bounded before becoming Redis keys or pointer data. With the
- * 300-entry enterprise ceiling, one payer can hold at most 300 owner keys, 300
- * pointer keys, 300 member keys, one payer key, and 600 total sorted-set
- * entries. Each generated key is below 450 bytes and each pointer below 512
- * bytes: at most 901 keys and under 626 KiB of application-controlled
- * key/member/value/score bytes per payer, excluding bounded Redis object
- * overhead. Absolute TTLs bound crash remnants; pause paths explicitly release
- * them.
+ * Identifiers are bounded before becoming Redis keys or pointer data. The
+ * configured payer ceiling bounds owner, pointer, member, and sorted-set
+ * cardinality; the hosted Enterprise default is 1,000 and a subscription
+ * metadata override can intentionally replace it. Each generated key is below
+ * 450 bytes and each pointer below 512 bytes. Absolute TTLs bound crash
+ * remnants; pause paths explicitly release them.
  */
 const MAX_IDENTIFIER_LENGTH = 128
 const MAX_POINTER_BYTES = 512
@@ -70,10 +60,10 @@ const RESERVE_DUPLICATE = 5
  * share the payer hash tag, so Redis Cluster executes the script in one slot.
  *
  * The script performs only constant-size scalar work plus sorted-set operations
- * over at most `maxConcurrency` entries (300). No Lua collection grows with
- * traffic. Base-charge slots have no floor: zero remaining guaranteed-minimum
- * charges is a headroom rejection, while duplicate reservation ids remain
- * idempotent.
+ * over at most the configured `maxConcurrency` entries. No Lua collection
+ * grows with traffic. Base-charge slots have no floor: zero remaining
+ * guaranteed-minimum charges is a headroom rejection, while duplicate
+ * reservation ids remain idempotent.
  */
 const RESERVE_SCRIPT = `
 local now = tonumber(ARGV[1])
@@ -230,10 +220,6 @@ export function resolveBillingEntityKey(billingEntity: BillingEntity): string {
   return `${billingEntity.type === 'organization' ? 'org' : 'user'}:${id}`
 }
 
-function getMaxConcurrentExecutions(plan: string | null | undefined): number {
-  return MAX_CONCURRENT_EXECUTIONS[getPlanTypeForLimits(plan) as SubscriptionPlan]
-}
-
 function requireBoundedIdentifier(value: string, label: string): string {
   if (
     typeof value !== 'string' ||
@@ -373,6 +359,8 @@ async function rollbackCreatedReservation(params: {
 interface ReserveExecutionSlotBaseParams {
   billingEntity: BillingEntity
   plan: string | null | undefined
+  /** Optional positive Enterprise subscription metadata override. */
+  enterpriseConcurrencyLimit?: number | null
   /** Recorded usage for the billing entity at admission time (dollars). */
   currentUsage: number
   /** The entity's usage cap (dollars). */
@@ -443,7 +431,7 @@ export async function reserveExecutionSlot(
   const keys = buildLocalKeys(descriptor, reservationId)
   const keyArgs = localKeyArguments(keys)
   const pointerKey = `${POINTER_KEY_PREFIX}${reservationId}`
-  const maxConcurrency = getMaxConcurrentExecutions(plan)
+  const maxConcurrency = getBillingConcurrencyLimit(plan, params.enterpriseConcurrencyLimit)
   const currentUsage = requireUsageNumber(params.currentUsage, 'payer current usage')
   const limit = requireUsageNumber(params.limit, 'payer limit')
   const payerHeadroom = Math.max(0, limit - currentUsage)

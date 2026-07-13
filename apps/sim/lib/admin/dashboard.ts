@@ -29,6 +29,8 @@ import {
   getOrganizationUsageLimitFallbackDollars,
   getTeamOrganizationEconomics,
 } from '@/lib/admin/organization-economics'
+import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
+import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -190,6 +192,13 @@ function buildDashboardOrganizationSummary({
     latestSubscription?.plan === 'enterprise'
       ? Math.max(0, Math.round(metadataNumber(metadata, 'seats') ?? 0))
       : memberCount
+  const concurrencyLimit =
+    latestSubscription?.plan === 'enterprise'
+      ? getBillingConcurrencyLimit(
+          latestSubscription.plan,
+          parseBillingConcurrencyLimit(metadata.concurrencyLimit)
+        )
+      : null
 
   return {
     id: org.id,
@@ -202,6 +211,7 @@ function buildDashboardOrganizationSummary({
     memberCount,
     externalCollaboratorCount,
     seats,
+    concurrencyLimit,
     includedMonthlyDollars,
     usageLimitDollars,
     effectiveUsageLimitDollars,
@@ -547,7 +557,11 @@ export async function updateDashboardEnterpriseSeats(
 
 export async function updateDashboardOrganizationLimits(
   organizationId: string,
-  values: { includedMonthlyDollars?: number; usageLimitDollars?: number },
+  values: {
+    includedMonthlyDollars?: number
+    usageLimitDollars?: number
+    concurrencyLimit?: number | null
+  },
   actor: AdminMutationActor
 ) {
   await db.transaction(async (tx) => {
@@ -574,6 +588,9 @@ export async function updateDashboardOrganizationLimits(
     if (values.includedMonthlyDollars !== undefined && subscriptionRow?.plan !== 'enterprise') {
       throw new Error('Included allowance is editable only for Enterprise organizations')
     }
+    if (values.concurrencyLimit !== undefined && subscriptionRow?.plan !== 'enterprise') {
+      throw new Error('Concurrency is editable only for Enterprise organizations')
+    }
 
     if (subscriptionRow?.plan === 'enterprise') {
       if (!hasPaidSubscriptionStatus(subscriptionRow.status)) {
@@ -598,6 +615,9 @@ export async function updateDashboardOrganizationLimits(
             ...current,
             includedMonthlyCredits: included,
             usageLimitCredits: configuredUsageLimit,
+            ...(values.concurrencyLimit !== undefined
+              ? { concurrencyLimit: values.concurrencyLimit }
+              : {}),
           }
         },
       })
@@ -650,7 +670,7 @@ export async function updateDashboardOrganizationLimits(
     action: AuditAction.ORGANIZATION_UPDATED,
     resourceType: AuditResourceType.ORGANIZATION,
     resourceId: organizationId,
-    description: 'Admin updated organization credit limits',
+    description: 'Admin updated organization limits',
     metadata: values,
   })
 }

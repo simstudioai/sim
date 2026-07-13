@@ -19,6 +19,26 @@ tests:
           content:
             name: BETTER_AUTH_URL
             value: http://localhost:3000
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BILLING_CONCURRENCY_LIMIT_FREE
+            value: "10"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BILLING_CONCURRENCY_LIMIT_PRO
+            value: "50"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BILLING_CONCURRENCY_LIMIT_TEAM
+            value: "200"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BILLING_CONCURRENCY_LIMIT_ENTERPRISE
+            value: "1000"
 
   - it: inline mode renders localhost envDefaults on the realtime pod
     template: deployment-realtime.yaml

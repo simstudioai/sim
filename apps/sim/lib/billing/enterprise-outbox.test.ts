@@ -35,7 +35,7 @@ import {
 const payload = {
   version: 1 as const,
   request: {
-    requestKey: 'enterprise-v2:owner-1:org-1:10000:20000:20000:5',
+    requestKey: 'enterprise-v2:owner-1:org-1:10000:20000:20000:5:1250',
     ownerUserId: 'owner-1',
     organizationId: 'org-1',
     requestedByEmail: 'admin@sim.ai',
@@ -44,6 +44,8 @@ const payload = {
     includedMonthlyCredits: 20000,
     usageLimitCredits: 20000,
     seats: 5,
+    concurrencyLimit: 1250,
+    pausePaymentCollection: false,
   },
   retryRevision: 0,
   stripeProgress: {},
@@ -60,6 +62,7 @@ function stripeSubscription(
     collectionMethod?: string
     daysUntilDue?: number
     metadata?: Record<string, string>
+    pauseCollection?: { behavior: 'keep_as_draft'; resumes_at: number | null } | null
   } = {}
 ): Stripe.Subscription {
   const price = {
@@ -74,12 +77,14 @@ function stripeSubscription(
   return {
     collection_method: options.collectionMethod ?? 'send_invoice',
     days_until_due: options.daysUntilDue ?? 30,
+    pause_collection: options.pauseCollection ?? null,
     items: { data: Array.from({ length: options.itemCount ?? 1 }, () => item) },
     metadata: {
       invoiceAmountCents: '10000',
       includedMonthlyCredits: '20000',
       usageLimitCredits: '20000',
       seats: '5',
+      concurrencyLimit: '1250',
       ...options.metadata,
     },
   } as unknown as Stripe.Subscription
@@ -119,6 +124,20 @@ describe('Enterprise outbox operation state', () => {
       }).success
     ).toBe(false)
   })
+
+  it('keeps pre-concurrency Enterprise outbox payloads valid', () => {
+    const {
+      concurrencyLimit: _concurrencyLimit,
+      pausePaymentCollection: _pausePaymentCollection,
+      ...legacyRequest
+    } = payload.request
+    const parsed = enterpriseProvisionPayloadSchema.safeParse({
+      ...payload,
+      request: legacyRequest,
+    })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.request.pausePaymentCollection).toBe(false)
+  })
 })
 
 describe('Enterprise issuance Stripe-term correlation', () => {
@@ -126,6 +145,30 @@ describe('Enterprise issuance Stripe-term correlation', () => {
     expect(
       enterpriseOperationMatchesStripeSubscription(payload, stripeSubscription(), 'org-1')
     ).toBe(true)
+  })
+
+  it('accepts an indefinitely draft-paused subscription only when requested', () => {
+    const pausedPayload = {
+      ...payload,
+      request: {
+        ...payload.request,
+        requestKey: 'enterprise-v2:owner-1:org-1:10000:20000:20000:5:1250:draft-collection',
+        pausePaymentCollection: true,
+      },
+    }
+    const pausedSubscription = stripeSubscription({
+      pauseCollection: { behavior: 'keep_as_draft', resumes_at: null },
+    })
+
+    expect(
+      enterpriseOperationMatchesStripeSubscription(pausedPayload, pausedSubscription, 'org-1')
+    ).toBe(true)
+    expect(
+      enterpriseOperationMatchesStripeSubscription(pausedPayload, stripeSubscription(), 'org-1')
+    ).toBe(false)
+    expect(enterpriseOperationMatchesStripeSubscription(payload, pausedSubscription, 'org-1')).toBe(
+      false
+    )
   })
 
   it.each([
@@ -139,6 +182,7 @@ describe('Enterprise issuance Stripe-term correlation', () => {
     ['wrong due terms', { daysUntilDue: 14 }],
     ['wrong credits', { metadata: { includedMonthlyCredits: '999' } }],
     ['wrong seats', { metadata: { seats: '6' } }],
+    ['wrong concurrency', { metadata: { concurrencyLimit: '999' } }],
   ] as const)('rejects %s', (_name, options) => {
     expect(
       enterpriseOperationMatchesStripeSubscription(payload, stripeSubscription(options), 'org-1')

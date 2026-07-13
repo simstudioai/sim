@@ -334,6 +334,17 @@ Team and Enterprise plans unlock shared workspaces that belong to your organizat
 
 Max (individual) shares the same rate limits as team plans. Team plans (Pro or Max for Teams) use the Max-tier rate limits.
 
+### Concurrent Executions
+
+| Plan | Concurrent Executions |
+|------|-----------------------|
+| **Free** | 10 |
+| **Pro** | 50 |
+| **Max** | 200 |
+| **Enterprise** | 1,000 by default (customizable) |
+
+The concurrency limit applies per billing account. For organization-based plans, the limit is shared by all workspaces, members, and API keys under that organization. An admitted async execution holds a slot while queued and running; synchronous executions hold one while running. Workflow-in-workflow blocks execute inside the parent run and do not consume another concurrency slot. Team plans use the Max limit.
+
 ### File Storage
 
 | Plan | Storage |

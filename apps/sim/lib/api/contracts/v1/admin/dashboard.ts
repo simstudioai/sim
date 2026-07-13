@@ -7,6 +7,7 @@ import {
   adminV1QueryStringSchema,
   adminV1SingleResponseSchema,
 } from '@/lib/api/contracts/v1/admin/shared'
+import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
 
 const dollarAmountSchema = z
   .number()
@@ -40,6 +41,8 @@ export const adminDashboardProvisioningSchema = z.object({
   includedMonthlyDollars: creditAlignedDollarAmountSchema,
   usageLimitDollars: creditAlignedDollarAmountSchema,
   seats: z.number().int().positive(),
+  concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT),
+  pausePaymentCollection: z.boolean(),
   stripeSubscriptionId: z.string().nullable(),
   error: z.string().nullable(),
   createdAt: z.string(),
@@ -57,6 +60,7 @@ export const adminDashboardOrganizationSummarySchema = z.object({
   memberCount: z.number().int().min(0),
   externalCollaboratorCount: z.number().int().min(0),
   seats: z.number().int().min(0),
+  concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).nullable(),
   includedMonthlyDollars: dollarAmountSchema,
   usageLimitDollars: dollarAmountSchema,
   effectiveUsageLimitDollars: dollarAmountSchema,
@@ -111,6 +115,8 @@ export const adminDashboardIssueEnterpriseBodySchema = z.object({
   includedMonthlyDollars: creditAlignedDollarAmountSchema,
   usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
   seats: z.number().int().positive().max(100_000),
+  concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).optional(),
+  pausePaymentCollection: z.boolean().optional(),
 })
 
 export const adminDashboardSeatsBodySchema = z.object({
@@ -121,9 +127,19 @@ export const adminDashboardLimitsBodySchema = z
   .object({
     includedMonthlyDollars: creditAlignedDollarAmountSchema.optional(),
     usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
+    concurrencyLimit: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_BILLING_CONCURRENCY_LIMIT)
+      .nullable()
+      .optional(),
   })
   .refine(
-    (value) => value.includedMonthlyDollars !== undefined || value.usageLimitDollars !== undefined,
+    (value) =>
+      value.includedMonthlyDollars !== undefined ||
+      value.usageLimitDollars !== undefined ||
+      value.concurrencyLimit !== undefined,
     { error: 'At least one limit must be provided' }
   )
 
