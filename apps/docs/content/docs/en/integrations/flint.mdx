@@ -10,6 +10,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#F6F54F"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Flint](https://www.flint.com/) is an AI website platform where background agents build and update your site for you. Through the Agent Tasks API, you can programmatically kick off site changes from a natural-language prompt, generate batches of pages from a template, and monitor each task until it completes.
+
+**Why Flint?**
+- **Agent-Driven Site Changes:** Describe the change in plain language — "Add a new About page with a team section" — and a background agent makes it happen.
+- **Programmatic Page Generation:** Generate up to 10 pages per task from an existing template page, each with its own slug and content context — ideal for case studies, location pages, and programmatic SEO.
+- **Controlled Publishing:** Every task can either publish automatically on completion or leave changes unpublished for review.
+- **Full Task Visibility:** Poll any task for its status and get back the created, modified, and deleted pages with preview, edit, and published URLs.
+
+**Using Flint in Sim**
+
+Sim's Flint integration connects your workflows directly to the Flint Agent Tasks API using an API key from your Flint team settings. Three operations cover the full task lifecycle: Create Task starts a prompt-driven site change, Generate Pages fans a template out into a batch of new pages, and Get Task reports status and results.
+
+**Key benefits of using Flint in Sim:**
+- **Content pipelines:** Read rows from a table or spreadsheet and generate a landing page per row from a Flint template.
+- **Event-driven site updates:** Trigger site changes from Slack requests, closed-won deals, or new GitHub releases.
+- **Safe review workflows:** Leave publishing off, collect preview URLs from Get Task, and publish only after approval.
+- **Reliable monitoring:** Poll task status on a schedule, write published URLs back to your data, and alert on failed tasks with their error messages.
+
+Whether you're scaling programmatic SEO, keeping marketing pages in sync with your business systems, or automating site maintenance, Flint in Sim turns your website into something your workflows can edit. Configure your API key, pick an operation, and let the agent do the work.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Create background agent tasks that modify your Flint sites from natural-language prompts, generate batches of pages from a template, and check task status and results.
