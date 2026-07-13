@@ -6,7 +6,6 @@ import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { checkStorageQuota } from '@/lib/billing/storage'
 import {
   executeChatFileBlobCopies,
   filterForkableChatFiles,
@@ -49,11 +48,11 @@ const logger = createLogger('ForkChatAPI')
  * at-or-before the fork point (a file travels iff the user message that
  * carried it is kept). Resources and copilot-side state are copied.
  *
- * Every copied file gets a fresh row id and storage key, bytes are physically
- * copied and counted against the storage quota, and every in-transcript file
- * reference is re-pointed at the copies so the new chat survives deletion of
- * the source chat. File resources whose chat-owned file was NOT copied
- * (uploads born after the cut) are dropped from the new chat's resources
+ * Every copied file gets a fresh row id and storage key, and every
+ * in-transcript file reference is re-pointed at the copies so the new chat
+ * survives deletion of the source chat. Mothership files remain excluded from
+ * workspace storage accounting. File resources whose chat-owned file was NOT
+ * copied (uploads born after the cut) are dropped from the new chat's resources
  * rather than left as ghosts pointing at the source chat's files.
  */
 export const POST = withRouteHandler(
@@ -111,19 +110,6 @@ export const POST = withRouteHandler(
         chatOwnedFiles,
         new Set(forkedMessages.map((m) => m.id))
       )
-      // Sum only rows the plan will actually copy — planChatFileCopies skips
-      // rows with no workspaceId, so counting their bytes could reject a fork
-      // whose real copies fit within quota.
-      const totalFileBytes = sourceFiles.reduce(
-        (sum, row) => (row.workspaceId ? sum + row.size : sum),
-        0
-      )
-      if (totalFileBytes > 0) {
-        const quotaCheck = await checkStorageQuota(userId, totalFileBytes)
-        if (!quotaCheck.allowed) {
-          return createBadRequestResponse(quotaCheck.error || 'Storage limit exceeded')
-        }
-      }
 
       // Resources are stored as a jsonb array on the chat row. They carry no
       // timestamps, so they can't be timeline-cut like messages — instead,
@@ -202,10 +188,7 @@ export const POST = withRouteHandler(
       }
       const newChat = result.row
 
-      const { copied, failed, failedCopyIds } = await executeChatFileBlobCopies(result.blobTasks, {
-        userId,
-        workspaceId: parent.workspaceId ?? undefined,
-      })
+      const { copied, failed, failedCopyIds } = await executeChatFileBlobCopies(result.blobTasks)
       if (failed > 0) {
         // A failed blob copy leaves a committed row with no bytes behind it.
         // Cleanly absent beats present-but-broken: hard-delete the dead rows

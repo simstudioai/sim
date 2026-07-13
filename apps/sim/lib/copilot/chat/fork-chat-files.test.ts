@@ -3,14 +3,11 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateKey, mockDownloadFile, mockUploadFile, mockIncrementStorageUsage } = vi.hoisted(
-  () => ({
-    mockGenerateKey: vi.fn(),
-    mockDownloadFile: vi.fn(),
-    mockUploadFile: vi.fn(),
-    mockIncrementStorageUsage: vi.fn(),
-  })
-)
+const { mockGenerateKey, mockDownloadFile, mockUploadFile } = vi.hoisted(() => ({
+  mockGenerateKey: vi.fn(),
+  mockDownloadFile: vi.fn(),
+  mockUploadFile: vi.fn(),
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   generateWorkspaceFileKey: mockGenerateKey,
@@ -19,10 +16,6 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFile: mockDownloadFile,
   uploadFile: mockUploadFile,
-}))
-
-vi.mock('@/lib/billing/storage', () => ({
-  incrementStorageUsage: mockIncrementStorageUsage,
 }))
 
 import {
@@ -141,14 +134,10 @@ describe('executeChatFileBlobCopies', () => {
     vi.clearAllMocks()
     mockDownloadFile.mockResolvedValue(Buffer.from('0123456789'))
     mockUploadFile.mockResolvedValue(undefined)
-    mockIncrementStorageUsage.mockResolvedValue(undefined)
   })
 
-  it('copies bytes to the new key and counts them against the storage quota', async () => {
-    const result = await executeChatFileBlobCopies([task], {
-      userId: 'user-1',
-      workspaceId: 'ws-1',
-    })
+  it('copies bytes to the new key without workspace storage accounting', async () => {
+    const result = await executeChatFileBlobCopies([task])
 
     expect(result).toEqual({ copied: 1, failed: 0, failedCopyIds: [] })
     expect(mockUploadFile).toHaveBeenCalledWith(
@@ -159,23 +148,18 @@ describe('executeChatFileBlobCopies', () => {
     )
     // No `metadata` in the upload call — passing it would insert a second row.
     expect(mockUploadFile.mock.calls[0][0].metadata).toBeUndefined()
-    expect(mockIncrementStorageUsage).toHaveBeenCalledWith('user-1', 10, 'ws-1')
   })
 
-  it('is best-effort: a failed download skips the file, counts nothing, and reports its copy id', async () => {
+  it('is best-effort: a failed download skips the file and reports its copy id', async () => {
     mockDownloadFile.mockRejectedValueOnce(new Error('blob missing'))
 
-    const result = await executeChatFileBlobCopies(
-      [task, { ...task, copyId: 'wf_copy2', targetKey: 'workspace/ws-1/3-cat.png' }],
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-      }
-    )
+    const result = await executeChatFileBlobCopies([
+      task,
+      { ...task, copyId: 'wf_copy2', targetKey: 'workspace/ws-1/3-cat.png' },
+    ])
 
     // The first task's download failed — its copy id comes back for row cleanup.
     expect(result).toEqual({ copied: 1, failed: 1, failedCopyIds: ['wf_copy'] })
-    expect(mockIncrementStorageUsage).toHaveBeenCalledTimes(1)
   })
 
   it('copies every task even when the batch exceeds the concurrency bound', async () => {
@@ -185,7 +169,7 @@ describe('executeChatFileBlobCopies', () => {
       targetKey: `workspace/ws-1/${i}-cat.png`,
     }))
 
-    const result = await executeChatFileBlobCopies(tasks, { userId: 'user-1' })
+    const result = await executeChatFileBlobCopies(tasks)
 
     expect(result.copied).toBe(9)
     expect(mockUploadFile).toHaveBeenCalledTimes(9)
