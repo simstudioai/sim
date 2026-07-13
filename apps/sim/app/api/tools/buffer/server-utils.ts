@@ -22,6 +22,11 @@ const MEDIA_PROBE_TIMEOUT_MS = 5000
  * Buffer fetches asset URLs at publish time, which for queued or scheduled
  * posts can be days after createPost. Presign stored files for the S3 maximum
  * of 7 days so scheduled posts within that window can still be published.
+ * The effective lifetime is additionally bounded by the signing credentials:
+ * Sim's storage clients sign with static keys (AWS_ACCESS_KEY_ID /
+ * AWS_SECRET_ACCESS_KEY), which support the full 7 days; deployments signing
+ * with temporary session credentials cap every presigned URL at the session
+ * lifetime platform-wide.
  */
 const MEDIA_PRESIGN_EXPIRY_SECONDS = 7 * 24 * 60 * 60
 
