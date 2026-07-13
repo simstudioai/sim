@@ -34,6 +34,12 @@ const baseUrl = SITE_URL
  * many hundreds of templates, ballooning this page's HTML/RSC payload well
  * past Googlebot's 2MB crawl limit. Cap to a bounded, still-generous set,
  * consistent with the related-integrations section's own cap below.
+ *
+ * `getTemplatesForBlock` returns matches in registry insertion order, not
+ * relevance - templates owned by the viewing integration (or marked
+ * `featured`) are sorted first so the cap can't hide them behind
+ * `alsoIntegrations` matches from unrelated blocks that happen to iterate
+ * earlier in the registry.
  */
 const MAX_TEMPLATES_SHOWN = 12
 
@@ -388,7 +394,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     integration,
     relatedIntegrations.map((i) => i.name)
   )
-  const matchingTemplates = getTemplatesForBlock(integration.type).slice(0, MAX_TEMPLATES_SHOWN)
+  const matchingTemplates = getTemplatesForBlock(integration.type)
+    .sort(
+      (a, b) =>
+        Number(b.isOwner) - Number(a.isOwner) ||
+        Number(b.featured ?? false) - Number(a.featured ?? false)
+    )
+    .slice(0, MAX_TEMPLATES_SHOWN)
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',

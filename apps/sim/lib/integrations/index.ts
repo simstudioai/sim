@@ -70,14 +70,22 @@ export const POPULAR_WORKFLOWS: readonly PopularWorkflow[] = (() => {
 /**
  * Projects a full `Integration` down to the fields the `/integrations`
  * catalog grid renders and searches by, replacing the full `operations`/
- * `triggers` arrays with a single precomputed, lowercased `searchText` blob
- * (name, description, operation names, trigger names). See
- * {@link IntegrationSummary} for why this exists.
+ * `triggers` arrays with a precomputed, lowercased `searchFields` index
+ * (name, description, every operation's name and description, every
+ * trigger's name) - the exact same fields the original per-field search
+ * over `Integration[]` matched against. See {@link IntegrationSummary} for
+ * why this exists.
  */
 export function toIntegrationSummary(integration: Integration): IntegrationSummary {
-  const searchParts = [integration.name, integration.description]
-  for (const op of integration.operations) searchParts.push(op.name)
-  for (const trigger of integration.triggers) searchParts.push(trigger.name)
+  const searchFields = [
+    integration.name.toLowerCase(),
+    integration.description.toLowerCase(),
+    ...integration.operations.flatMap((op) => [
+      op.name.toLowerCase(),
+      op.description.toLowerCase(),
+    ]),
+    ...integration.triggers.map((t) => t.name.toLowerCase()),
+  ]
 
   return {
     type: integration.type,
@@ -86,7 +94,7 @@ export function toIntegrationSummary(integration: Integration): IntegrationSumma
     description: integration.description,
     bgColor: integration.bgColor,
     integrationType: integration.integrationType,
-    searchText: searchParts.join(' ').toLowerCase(),
+    searchFields,
   }
 }
 

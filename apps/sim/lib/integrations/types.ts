@@ -69,12 +69,18 @@ export interface Integration {
 
 /**
  * The fields the `/integrations` catalog grid actually renders and searches
- * by, plus a single precomputed `searchText` blob (name, description,
- * operation names, trigger names) in place of the full `operations`/
- * `triggers` arrays. Shipping the full `Integration[]` to that page's client
- * component embeds every integration's complete operation descriptions in
- * the initial HTML/RSC payload - this cuts that embedded payload by ~75%
- * while preserving name/description/operation-name/trigger-name search.
+ * by, plus a precomputed, lowercased `searchFields` index (name, description,
+ * every operation's name and description, every trigger's name) in place of
+ * the full `operations`/`triggers` arrays. Shipping the full `Integration[]`
+ * to that page's client component embeds every integration's complete field
+ * set - including data the grid never renders (`tags`, `docsUrl`,
+ * `landingContent`, ...) - in the initial HTML/RSC payload.
+ *
+ * `searchFields` stays an array, one entry per source field, rather than a
+ * single joined string: matching must still require the query to fall
+ * entirely within one field (as the original per-field `Integration[]`
+ * search did), not span a field boundary a single concatenated string would
+ * silently allow.
  */
 export interface IntegrationSummary {
   type: Integration['type']
@@ -83,5 +89,5 @@ export interface IntegrationSummary {
   description: Integration['description']
   bgColor: Integration['bgColor']
   integrationType: Integration['integrationType']
-  searchText: string
+  searchFields: readonly string[]
 }

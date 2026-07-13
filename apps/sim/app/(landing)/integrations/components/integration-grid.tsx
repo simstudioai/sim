@@ -52,7 +52,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
       integrations.filter((i) => {
         if (activeCategory && i.integrationType !== activeCategory) return false
         if (!q) return true
-        return i.searchText.includes(q)
+        return i.searchFields.some((field) => field.includes(q))
       }),
     [integrations, q, activeCategory]
   )
