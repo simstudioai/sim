@@ -34,11 +34,7 @@ export function ContentPostPage({
   const Article = post.Content
 
   return (
-    <article
-      className='w-full bg-[var(--bg)]'
-      itemScope
-      itemType={`https://schema.org/${post.technical ? 'TechArticle' : 'BlogPosting'}`}
-    >
+    <article className='w-full bg-[var(--bg)]' itemScope itemType='https://schema.org/BlogPosting'>
       <JsonLd data={graphJsonLd} />
       <header className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
         <div className='mb-6'>
