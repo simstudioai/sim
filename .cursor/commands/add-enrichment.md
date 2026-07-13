@@ -1,9 +1,3 @@
----
-name: add-enrichment
-description: Add a code-defined table enrichment (registry entry) under `apps/sim/enrichments/` backed by an ordered provider cascade, ensuring every provider tool it calls has hosted-key support. Use when adding a per-row table enrichment that fills cells via existing Sim tools.
-argument-hint: <enrichment-name>
----
-
 # Adding a Table Enrichment
 
 Enrichments are code-defined entries in `apps/sim/enrichments/` that run **directly per table row** (no workflow). Each enrichment declares inputs, outputs, and an ordered list of **providers**; the cascade runner tries providers in order and the first non-empty result fills the cell. Each provider calls one existing Sim tool via `executeTool`, which injects the workspace's BYOK key or a **hosted key** and bills usage automatically.

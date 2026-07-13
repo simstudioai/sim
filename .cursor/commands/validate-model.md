@@ -1,8 +1,3 @@
----
-description: Validate a model entry (or every model in a provider) in apps/sim/providers/models.ts against the provider's live API docs (no hallucination — reports what cannot be verified)
-argument-hint: <provider> [model-id]
----
-
 # Validate Model Skill
 
 You audit one or more model entries in `apps/sim/providers/models.ts` against the provider's official live API docs. **Hallucinated pricing and capabilities are the #1 failure mode in this file.** Every numeric and capability claim must be re-derived from a live web fetch in this session — not from memory, not from training data, not from the user's marketing email.

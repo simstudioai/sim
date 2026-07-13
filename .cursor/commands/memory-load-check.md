@@ -1,7 +1,3 @@
----
-description: Review PRs and diffs for unbounded memory loading, concurrency explosions, oversized payload materialization, and missing pagination or byte caps. Use when reviewing cleanup jobs, background jobs, data imports/exports, file parsing, API fan-out, workflow execution payloads, large arrays/files, or any change that reads many rows, files, responses, logs, or external API pages into process memory.
----
-
 # Memory Load Check
 
 Use this skill when a PR or diff could load unbounded data into a Node/Bun process, especially in cron routes, background tasks, API routes, workflow execution, file parsing, cleanup jobs, migrations, import/export flows, and external API integrations.

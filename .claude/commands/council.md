@@ -1,5 +1,5 @@
 ---
-description: Spawn task agents to explore a given area of interest in the codebase
+description: Spawn parallel task agents to explore a given area of the codebase from multiple angles, then use their findings to answer the question or build a plan. Use when a task needs broad fan-out exploration across many files before acting.
 argument-hint: <area-of-interest>
 ---
 

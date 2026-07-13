@@ -1,7 +1,3 @@
----
-description: Author or review a Drizzle DB migration for zero-downtime safety — expand/contract phasing, backward-compatibility with the deployed app version, and writing the `-- migration-safe` acknowledgment the check:migrations lint requires. Use when adding/editing files under `packages/db/migrations/` or changing `packages/db/schema.ts`.
----
-
 # DB Migrate Skill
 
 You make schema changes that survive a deploy without downtime. The `check:migrations` lint (`scripts/check-migrations-safety.ts`) is the deterministic gate; you are the judgment that decides whether a flagged change is actually safe and writes the annotation that satisfies it.

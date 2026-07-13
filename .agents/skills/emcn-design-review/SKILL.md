@@ -1,6 +1,7 @@
 ---
 name: emcn-design-review
 description: Review UI code for alignment with the emcn design system — components, tokens, patterns, and conventions
+argument-hint: [scope] [fix=true|false]
 ---
 
 # EMCN Design Review

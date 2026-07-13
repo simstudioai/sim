@@ -1,6 +1,7 @@
 ---
 name: add-hosted-key
 description: Add hosted API key support to a tool so Sim provides the key (metered and billed to the workspace) when a user has not brought their own. Use when adding a `hosting` config to a tool under `apps/sim/tools/{service}/`.
+argument-hint: <service-name>
 ---
 
 # Adding Hosted Key Support to a Tool
@@ -11,7 +12,7 @@ When a tool has hosted key support, Sim provides its own API key if the user has
 
 | Step | What | Where |
 |------|------|-------|
-| 1 | Register BYOK provider ID | `tools/types.ts`, `app/api/workspaces/[id]/byok-keys/route.ts` |
+| 1 | Register BYOK provider ID | `tools/types.ts`, `lib/api/contracts/byok-keys.ts` |
 | 2 | Research the API's pricing and rate limits | API docs / pricing page (before writing any code) |
 | 3 | Add `hosting` config to the tool | `tools/{service}/{action}.ts` |
 | 4 | Hide API key field when hosted | `blocks/blocks/{service}.ts` |
@@ -30,10 +31,15 @@ export type BYOKProviderId =
   | 'your_service'
 ```
 
-Then add it to `VALID_PROVIDERS` in `app/api/workspaces/[id]/byok-keys/route.ts`:
+Then add the same provider id to the `byokProviderIdSchema` enum in `lib/api/contracts/byok-keys.ts` (this is what the byok-keys route validates against):
 
 ```typescript
-const VALID_PROVIDERS = ['openai', 'anthropic', 'google', 'mistral', 'your_service'] as const
+export const byokProviderIdSchema = z.enum([
+  'openai',
+  'anthropic',
+  // ...existing providers
+  'your_service',
+])
 ```
 
 ## Step 2: Research the API's Pricing Model and Rate Limits
@@ -230,7 +236,7 @@ Both subblocks share the same `id: 'apiKey'`, so the same value flows to the too
 To exclude multiple operations, use an array: `{ field: 'operation', value: ['op_a', 'op_b'] }`.
 
 **Reference implementations:**
-- **Exa** (`blocks/blocks/exa.ts`): `research` operation excluded from hosting — lines 309-329
+- **Exa** (`blocks/blocks/exa.ts`): `exa_research` operation excluded from hosting — duplicate `apiKey` pair around lines ~348-365
 - **Google Maps** (`blocks/blocks/google_maps.ts`): `speed_limits` operation excluded from hosting (deprecated Roads API)
 
 ## Step 5: Add to the BYOK Settings UI
@@ -284,7 +290,7 @@ This summary helps reviewers verify that the pricing and rate limiting are well-
 ## Checklist
 
 - [ ] Provider added to `BYOKProviderId` in `tools/types.ts`
-- [ ] Provider added to `VALID_PROVIDERS` in the BYOK keys API route
+- [ ] Provider added to `byokProviderIdSchema` enum in `lib/api/contracts/byok-keys.ts`
 - [ ] API pricing docs researched — understand per-unit cost and whether the API reports cost in responses
 - [ ] API rate limits researched — understand RPM/TPM limits, per-key vs per-account, and plan tiers
 - [ ] `hosting` config added to the tool with `envKeyPrefix`, `apiKeyParam`, `byokProviderId`, `pricing`, and `rateLimit`
@@ -294,3 +300,5 @@ This summary helps reviewers verify that the pricing and rate limiting are well-
 - [ ] Provider entry added to the BYOK settings UI with icon and description
 - [ ] Env vars documented: `{PREFIX}_COUNT` and `{PREFIX}_1..N`
 - [ ] Pricing and throttling summary provided to reviewer
+</content>
+</invoke>

@@ -1,6 +1,7 @@
 ---
 name: you-might-not-need-state
 description: Analyze and fix unnecessary useState, derived state, and server-state-in-local-state anti-patterns
+argument-hint: [scope] [fix=true|false]
 ---
 
 # You Might Not Need State

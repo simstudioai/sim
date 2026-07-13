@@ -1,5 +1,5 @@
 ---
-description: Add a knowledge base connector for syncing documents from an external source
+description: Add or update a Sim knowledge base connector for syncing documents from an external source, including auth mode, config fields, pagination, document mapping, tags, and registry wiring. Use when working in `apps/sim/connectors/{service}/` or adding a new external document source.
 argument-hint: <service-name> [api-docs-url]
 ---
 
@@ -14,6 +14,21 @@ When the user asks you to create a connector:
 2. Determine the auth mode: **OAuth** (if Sim already has an OAuth provider for the service) or **API key** (if the service uses API key / Bearer token auth)
 3. Create the connector directory: a client-safe `meta.ts` (declarative metadata) plus the runtime module that spreads it
 4. Register it in BOTH the server registry and the client-safe meta registry
+
+## Hard Rule: No Guessed Response Or Document Schemas
+
+If the service docs do not clearly show the document list response, document fetch response, pagination shape, or metadata fields, you MUST tell the user instead of guessing.
+
+- Do NOT invent document fields
+- Do NOT guess pagination cursors or next-page fields
+- Do NOT infer metadata/tag mappings from unrelated endpoints
+- Do NOT fabricate `ExternalDocument` content structure from partial docs
+
+If the source schema is unknown, do one of these instead:
+1. Ask the user for sample API responses
+2. Ask the user for test credentials so you can verify live payloads
+3. Implement only the documented parts of the connector
+4. Leave the connector incomplete and explicitly say which fields remain unknown
 
 ## Directory Structure
 
@@ -115,6 +130,8 @@ export const {service}Connector: ConnectorConfig = {
   },
 }
 ```
+
+Only map fields in `listDocuments`, `getDocument`, `validateConfig`, and `mapTags` when the source payload shape is documented or live-verified. If not, tell the user and stop rather than guessing.
 
 ### API key connector example
 
@@ -606,3 +623,4 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
 - [ ] Icon exists in `components/icons.tsx` (or asked user to provide SVG)
 - [ ] Registered the full connector in `connectors/registry.server.ts`
 - [ ] Registered the meta in `connectors/registry.ts` (same alphabetical-by-id ordering as registry.server.ts)
+</content>

@@ -1,6 +1,7 @@
 ---
 name: council
 description: Spawn parallel task agents to explore a given area of the codebase from multiple angles, then use their findings to answer the question or build a plan. Use when a task needs broad fan-out exploration across many files before acting.
+argument-hint: <area-of-interest>
 # No agents/openai.yaml by design: council is a meta/exploration utility (like cleanup, ship, you-might-not-need-*), not a service-integration builder, so it intentionally ships no standalone agent card.
 ---
 

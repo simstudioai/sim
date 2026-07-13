@@ -1,8 +1,9 @@
-# Babysit Command
+# Babysit PRs
 
 Owns a PR end-to-end through review: ship it, wait for the automatic review round, and if it
 isn't already clean, drive fix → reply → resolve → re-review cycles until Greptile reports 5/5
-and there are zero open comment threads.
+and there are zero open comment threads. Designed to be run under `/loop` (no fixed interval —
+let it self-pace on review latency) so it survives across multiple wakeups in the same session.
 
 ## When to use
 
@@ -13,7 +14,7 @@ and there are zero open comment threads.
 ## Inputs
 
 Needs a PR number. If none is given and there's no open PR for the current branch, run `/ship`
-first (which includes the `origin/staging` sync check — see `.cursor/commands/ship.md`) to
+first (which includes the `origin/staging` sync check — see `.agents/skills/ship/SKILL.md`) to
 create one.
 
 ## Definition of "clean"
@@ -79,19 +80,17 @@ round. Always check both conditions freshly after every push.
    cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
    review fixes on top of undetected drift is how an oversized PR happens even after the branch
-   was fixed once. Then run the repo's pre-ship checks — not just lint/typecheck/boundary-
-   validation, but also the conditional `/cleanup` (UI changes) and `/db-migrate`
-   (schema/migration changes) gates from `.agents/skills/ship/SKILL.md` steps 4 and 5 (Cursor's
-   own 7-step `ship.md` doesn't carry those steps, but a review-fix round is still a code change
-   and can trip either gate just as easily as the original commit did).
+   was fixed once. Then run the repo's pre-ship checks the same way `/ship` does before
+   committing — not just lint/typecheck/boundary-validation, but also the conditional `/cleanup`
+   (if this round's fix touched UI code) and `/db-migrate` (if it touched schema/migrations)
+   gates from `/ship` steps 4 and 5. A review-fix round is still a code change and can trip
+   either gate just as easily as the original commit did.
 
 6. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 5's
    sync check rewrote history, which includes a plain `git rebase origin/staging` that completed
    with no conflicts, not only the cherry-pick rebuild path; both rewrite commits already
    published to the remote, so a plain `git push` can be rejected either way — then run `/ship`
-   step 7's post-push verify — not just before
-   the first push, every push in the loop (the Cursor `/ship` has 7 steps; the Claude Code skill
-   version's equivalent is step 9 — see `.agents/skills/babysit/SKILL.md` if working from that copy):
+   step 9's post-push verify — not just before the first push, every push in the loop:
    ```bash
    git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
@@ -110,8 +109,10 @@ round. Always check both conditions freshly after every push.
    gh pr comment <n> --body "@cursor review"
    ```
 
-8. **Wait for the new round**, then go back to step 1. Never busy-poll in a sleep loop — pace the
-   wait to roughly how long Greptile/Cursor take (1–3 minutes).
+8. **Wait for the new round**, then go back to step 1. Pace the wait with `ScheduleWakeup` using
+   a fallback delay of ~250–300s (Greptile/Cursor typically take 1–3 minutes) — never busy-poll
+   in a sleep loop. Pass the same `/loop babysit PR <n>` prompt on each wakeup so the loop
+   resumes correctly.
 
 9. **Stop conditions**: clean state reached (see above), or the same unresolved finding survives
    two consecutive rounds with no new information (surface it to the user instead of looping

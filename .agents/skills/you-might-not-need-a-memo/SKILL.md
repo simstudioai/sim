@@ -1,6 +1,7 @@
 ---
 name: you-might-not-need-a-memo
 description: Analyze and fix useMemo/React.memo anti-patterns in your code
+argument-hint: [scope] [fix=true|false]
 ---
 
 # You Might Not Need a Memo

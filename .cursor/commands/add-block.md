@@ -9,6 +9,20 @@ When the user asks you to create a block:
 2. Configure all subBlocks with proper types, conditions, and dependencies
 3. Wire up tools correctly
 
+## Hard Rule: No Guessed Tool Outputs
+
+Blocks depend on tool outputs. If the underlying tool response schema is not documented or live-verified, you MUST tell the user instead of guessing block outputs.
+
+- Do NOT invent block outputs for undocumented tool responses
+- Do NOT describe unknown JSON shapes as if they were confirmed
+- Do NOT wire fields into the block just because they seem likely to exist
+
+If the tool outputs are not known, do one of these instead:
+1. Ask the user for sample tool responses
+2. Ask the user for test credentials so the tool responses can be verified
+3. Limit the block to operations whose outputs are documented
+4. Leave uncertain outputs out and explicitly tell the user what remains unknown
+
 ## Block Configuration Structure
 
 ```typescript
@@ -22,7 +36,7 @@ export const {ServiceName}Block: BlockConfig = {
   name: '{Service Name}',               // Human readable
   description: 'Brief description',     // One sentence
   longDescription: 'Detailed description for docs',
-  docsLink: 'https://docs.sim.ai/tools/{service}',
+  docsLink: 'https://docs.sim.ai/integrations/{service}',
   category: 'tools',                    // 'tools' | 'blocks' | 'triggers'
   integrationType: IntegrationType.X,   // Primary category (see IntegrationType enum)
   tags: ['oauth', 'api'],              // Cross-cutting tags (see IntegrationTag type)
@@ -424,7 +438,7 @@ Maps multiple UI fields to a single serialized parameter:
 
 **Critical constraints:**
 - `canonicalParamId` must NOT match any other subblock's `id` in the same block (causes conflicts)
-- `canonicalParamId` must be unique per block (only one basic/advanced pair per canonicalParamId)
+- A `canonicalParamId` links exactly one basic/advanced pair for a single logical parameter. Do NOT reuse the same `canonicalParamId` for different parameters, even under mutually-exclusive conditions/operations
 - ONLY use `canonicalParamId` to link basic/advanced mode alternatives for the same logical parameter
 - Do NOT use it for any other purpose
 
@@ -514,7 +528,10 @@ tools: {
 Block outputs only support:
 - `type` - The data type ('string', 'number', 'boolean', 'json', 'array')
 - `description` - Human readable description
-- Nested object structure (for complex types)
+- `condition` - Optional visibility condition
+- `hiddenFromDisplay` - Optional flag to hide from the output display
+
+**Nested object/`properties` outputs are tool-output-only and will fail TypeScript at build time on block outputs.** For complex shapes use `type: 'json'` and describe the inner fields in the `description` string.
 
 ```typescript
 outputs: {
@@ -537,7 +554,7 @@ outputs: {
 
 ### Typed JSON Outputs
 
-When using `type: 'json'` and you know the object shape in advance, **describe the inner fields in the description** so downstream blocks know what properties are available. For well-known, stable objects, use nested output definitions instead:
+When using `type: 'json'` and you know the object shape in advance, **describe the inner fields in the description** so downstream blocks know what properties are available. Block outputs have no nested `properties` form — always keep the output flat and put the shape in the `description`:
 
 ```typescript
 outputs: {
@@ -549,26 +566,12 @@ outputs: {
     type: 'json',
     description: 'Zone plan information (id, name, price, currency, frequency, is_subscribed)',
   },
-
-  // BEST: Use nested output definition when the shape is stable and well-known
-  plan: {
-    id: { type: 'string', description: 'Plan identifier' },
-    name: { type: 'string', description: 'Plan name' },
-    price: { type: 'number', description: 'Plan price' },
-    currency: { type: 'string', description: 'Price currency' },
-  },
 }
 ```
 
-Use the nested pattern when:
-- The object has a small, stable set of fields (< 10)
-- Downstream blocks will commonly access specific properties
-- The API response shape is well-documented and unlikely to change
+Nested object outputs (`plan: { id: { type: 'string' }, ... }`) are a **tool-output** feature only — `OutputFieldDefinition` for blocks does not allow them and they fail TypeScript at build time.
 
-Use `type: 'json'` with a descriptive string when:
-- The object has many fields or a dynamic shape
-- It represents a list/array of items
-- The shape varies by operation
+If the output shape is unknown because the underlying tool response is undocumented, you MUST tell the user and stop. Unknown is not the same as variable. Never guess block outputs.
 
 ## V2 Block Pattern
 
@@ -637,7 +640,7 @@ export const ServiceBlock: BlockConfig = {
   name: 'Service',
   description: 'Integrate with Service API',
   longDescription: 'Full description for documentation...',
-  docsLink: 'https://docs.sim.ai/tools/service',
+  docsLink: 'https://docs.sim.ai/integrations/service',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
   tags: ['oauth', 'api'],
@@ -740,6 +743,13 @@ Please provide the SVG and I'll convert it to a React component.
 You can usually find this in the service's brand/press kit page, or copy it from their website.
 ```
 
+When converting the SVG: a **monochrome** logo (single white or black mark) must
+use `fill='currentColor'`, never a hardcoded `#fff`/`#000000`. Block icons render
+both inside their `bgColor` tile and "bare" on a neutral page (the home Suggested
+actions list) in light and dark mode; a hardcoded white/black mark goes invisible
+bare on the matching background. Multi-color brand logos keep their own fills.
+Verify with `bun run check:bare-icons`.
+
 ## Advanced Mode for Optional Fields
 
 Optional fields that are rarely used should be set to `mode: 'advanced'` so they don't clutter the basic UI. This includes:
@@ -805,6 +815,7 @@ import type { BlockMeta } from '@/blocks/types'
 
 export const {Service}BlockMeta = {
   tags: ['tag1', 'tag2'],                  // IntegrationTag[]
+  url: 'https://{service}.com',            // external service homepage (verify it resolves) — NOT docs.sim.ai
   templates: [
     {
       icon: {Service}Icon,
@@ -856,6 +867,7 @@ Derive templates from the service's real use cases. Each prompt should name a co
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`
 - [ ] Timestamps and complex inputs have `wandConfig` enabled
 - [ ] Exported `{Service}BlockMeta` with at least 7 templates
+- [ ] `url` set on `{Service}BlockMeta` to the external service's verified homepage (omit only for first-party blocks with no external service)
 - [ ] `skills` added to `{Service}BlockMeta`, each grounded in `tools.access` and sourced from a real online use case (not invented)
 
 ## Final Validation (Required)
@@ -870,3 +882,5 @@ After creating the block, you MUST validate it against every tool it references:
    - Type coercions in `tools.config.params` for any params that need conversion (Number(), Boolean(), JSON.parse())
 3. **Verify block outputs** cover the key fields returned by all tools
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it
+5. **Verify `{Service}BlockMeta` is exported** with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
+</content>
