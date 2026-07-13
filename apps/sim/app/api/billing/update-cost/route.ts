@@ -22,7 +22,6 @@ import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
   recordCumulativeUsage,
-  recordUsage,
 } from '@/lib/billing/core/usage-log'
 import {
   checkAndBillOverageThreshold,
@@ -293,57 +292,30 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       workspaceId: resolvedWorkspaceId,
     })
 
-    // Go sends the request's CUMULATIVE cost, possibly more than once (a
-    // mid-loop provider-error flush, then the recovered terminal flush, plus
-    // abort-race duplicates). Record it as a monotonic top-up: one ledger row
-    // per request holds the MAX cumulative and we bill only the delta, so
-    // partial + complete flushes converge to the true total exactly once — no
-    // under-billing on recovery, no over-billing on duplicates. When there is
-    // no idempotency key (shouldn't happen for real requests) we fall back to a
-    // plain append so cost is never silently dropped.
-    let billed = true
-    if (idempotencyKey) {
-      const result = await recordCumulativeUsage({
-        userId,
-        workspaceId: resolvedWorkspaceId,
-        ...billingContext,
-        source,
-        model,
-        cost,
-        eventKey: `update-cost:${idempotencyKey}`,
-        metadata: { inputTokens, outputTokens },
-      })
-      billed = result.billed
-      logger.info(`[${requestId}] Cumulative cost top-up`, {
-        userId,
-        source,
-        cumulativeCost: cost,
-        billedDelta: result.delta,
-        newTotal: result.total,
-        billed: result.billed,
-      })
-    } else {
-      await recordUsage({
-        userId,
-        workspaceId: resolvedWorkspaceId,
-        ...billingContext,
-        entries: [
-          {
-            category: 'model',
-            source,
-            description: model,
-            cost,
-            sourceReference: requestId,
-            metadata: { inputTokens, outputTokens },
-          },
-        ],
-      })
-      logger.info(`[${requestId}] Recorded usage (no idempotency key)`, {
-        userId,
-        addedCost: cost,
-        source,
-      })
-    }
+    /**
+     * Go sends cumulative cost across partial, terminal, and retry flushes.
+     * Every accepted callback has a stable key, so the maximum cumulative cost
+     * converges on one ledger event without underbilling or double-billing.
+     */
+    const result = await recordCumulativeUsage({
+      userId,
+      workspaceId: resolvedWorkspaceId,
+      ...billingContext,
+      source,
+      model,
+      cost,
+      eventKey: `update-cost:${idempotencyKey}`,
+      metadata: { inputTokens, outputTokens },
+    })
+    const billed = result.billed
+    logger.info(`[${requestId}] Cumulative cost top-up`, {
+      userId,
+      source,
+      cumulativeCost: cost,
+      billedDelta: result.delta,
+      newTotal: result.total,
+      billed: result.billed,
+    })
 
     // Reconcile the payer's ledger-backed threshold after every cumulative
     // callback, including duplicate retries after a prior settlement failure.

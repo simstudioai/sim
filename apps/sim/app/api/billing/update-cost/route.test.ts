@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckInternalApiKey,
-  mockRecordUsage,
   mockRecordCumulativeUsage,
   mockCheckAndBillOverageThreshold,
   mockCheckAndBillPayerOverageThreshold,
@@ -19,7 +18,6 @@ const {
   billingState,
 } = vi.hoisted(() => ({
   mockCheckInternalApiKey: vi.fn(),
-  mockRecordUsage: vi.fn(),
   mockRecordCumulativeUsage: vi.fn(),
   mockCheckAndBillOverageThreshold: vi.fn(),
   mockCheckAndBillPayerOverageThreshold: vi.fn(),
@@ -59,7 +57,6 @@ vi.mock('@/lib/copilot/request/otel', () => ({
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
   CumulativeUsageContextMismatchError: MockCumulativeUsageContextMismatchError,
-  recordUsage: mockRecordUsage,
   recordCumulativeUsage: mockRecordCumulativeUsage,
 }))
 
@@ -150,13 +147,21 @@ const OLD_GO_OPAQUE_WORKSPACE_UPDATE_COST_BODY = {
   workspaceId: 'local-self-hosted-workspace',
 } as const
 
+const KEYLESS_UPDATE_COST_BODY = {
+  userId: 'user-1',
+  cost: 0.5,
+  model: 'gpt',
+  inputTokens: 1,
+  outputTokens: 2,
+  source: 'copilot',
+} as const
+
 describe('POST /api/billing/update-cost — workspaceId attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     billingState.isBillingEnabled = true
     billingState.isCopilotBillingProtocolRequired = false
     mockCheckInternalApiKey.mockReturnValue({ success: true })
-    mockRecordUsage.mockResolvedValue(undefined)
     mockRecordCumulativeUsage.mockResolvedValue({ billed: true, delta: 0.5, total: 0.5 })
     mockCheckAndBillOverageThreshold.mockResolvedValue(undefined)
     mockCheckAndBillPayerOverageThreshold.mockResolvedValue(undefined)
@@ -191,7 +196,6 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
       error: 'Invalid internal API key',
     })
     expect(mockCheckInternalApiKey).toHaveBeenCalledTimes(1)
-    expect(mockRecordUsage).not.toHaveBeenCalled()
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
@@ -218,7 +222,6 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
       data: { billingEnabled: false },
     })
     expect(mockCheckInternalApiKey).toHaveBeenCalledTimes(1)
-    expect(mockRecordUsage).not.toHaveBeenCalled()
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
@@ -230,6 +233,17 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(
       billingUpdateCostBodySchema.safeParse(OLD_GO_OPAQUE_WORKSPACE_UPDATE_COST_BODY).success
     ).toBe(true)
+  })
+
+  it('rejects billing-enabled callbacks without a stable idempotency key', async () => {
+    const res = await POST(
+      createMockRequest('POST', KEYLESS_UPDATE_COST_BODY, { 'x-api-key': 'internal' })
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
+    expect(mockCheckAndBillOverageThreshold).not.toHaveBeenCalled()
+    expect(mockCheckAndBillPayerOverageThreshold).not.toHaveBeenCalled()
   })
 
   it('bills the routed workspace payer for the exact markerless hosted callback', async () => {
@@ -565,7 +579,6 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
       code: 'DUPLICATE_BILLING_EVENT',
     })
     expect(mockRecordCumulativeUsage).toHaveBeenCalledTimes(2)
-    expect(mockRecordUsage).not.toHaveBeenCalled()
     expect(mockResolveLegacyV0BillingAttribution).toHaveBeenCalledTimes(2)
     expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledTimes(2)
     expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenNthCalledWith(

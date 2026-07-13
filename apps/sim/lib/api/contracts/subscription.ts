@@ -29,7 +29,7 @@ export const billingUpdateCostBodySchema = z.object({
   source: z
     .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
     .default('copilot'),
-  idempotencyKey: z.string().min(1).optional(),
+  idempotencyKey: z.string().min(1, 'Idempotency key is required'),
   /**
    * Originating workspace, used for org-workspace cost attribution on hosted
    * Sim. The value remains optional because self-hosted/headless callers may
