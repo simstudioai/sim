@@ -9,11 +9,17 @@ import {
 import { createLogger, runWithRequestContext } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { backoffWithJitter } from '@sim/utils/retry'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { and, eq, isNull, type SQL, sql } from 'drizzle-orm'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import {
+  assertBillingAttributionSnapshot,
+  BILLING_ATTRIBUTION_HEADER,
+  type BillingAttributionSnapshot,
+  resolveBillingAttribution,
+  serializeBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
+import { classifyTransientAdmissionFailure } from '@/lib/core/admission/transient-failure'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import {
   describeRetryableInfrastructureError,
@@ -37,10 +43,9 @@ import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import {
   SCHEDULE_EXECUTION_CONCURRENCY_LIMIT,
   SCHEDULE_EXECUTION_QUEUE_NAME,
-  SCHEDULE_INFRA_RETRY_BASE_MS,
   SCHEDULE_INFRA_RETRY_MAX_ATTEMPTS,
-  SCHEDULE_INFRA_RETRY_MAX_MS,
 } from '@/lib/workflows/schedules/execution-limits'
+import { calculateScheduleInfraRetryDelayMs } from '@/lib/workflows/schedules/retry'
 import {
   type BlockState,
   calculateNextRunTime as calculateNextTime,
@@ -223,15 +228,7 @@ async function retryScheduleAfterInfraFailure({
     return
   }
 
-  const retryDelayMs = Math.min(
-    SCHEDULE_INFRA_RETRY_MAX_MS,
-    Math.round(
-      backoffWithJitter(retryAttempt, null, {
-        baseMs: SCHEDULE_INFRA_RETRY_BASE_MS,
-        maxMs: SCHEDULE_INFRA_RETRY_MAX_MS,
-      })
-    )
-  )
+  const retryDelayMs = calculateScheduleInfraRetryDelayMs(retryAttempt)
   const nextRetryAt = new Date(now.getTime() + retryDelayMs)
   const failureCause = cause ?? describeRetryableInfrastructureError(error)
   const errorMessage = message ?? (error ? toError(error).message : undefined)
@@ -340,6 +337,7 @@ async function runWorkflowExecution({
   correlation,
   workflowRecord,
   actorUserId,
+  billingAttribution,
   loggingSession,
   requestId,
   executionId,
@@ -349,6 +347,7 @@ async function runWorkflowExecution({
   correlation: AsyncExecutionCorrelation
   workflowRecord: WorkflowRecord
   actorUserId: string
+  billingAttribution: BillingAttributionSnapshot
   loggingSession: LoggingSession
   requestId: string
   executionId: string
@@ -409,6 +408,7 @@ async function runWorkflowExecution({
       workflowId: payload.workflowId,
       workspaceId,
       userId: actorUserId,
+      billingAttribution,
       sessionUserId: undefined,
       workflowUserId: workflowRecord.userId,
       triggerType: 'schedule',
@@ -562,7 +562,8 @@ async function runWorkflowExecution({
 export type ScheduleExecutionPayload = {
   scheduleId: string
   workflowId: string
-  workspaceId?: string
+  workspaceId: string
+  billingAttribution: BillingAttributionSnapshot
   executionId?: string
   requestId?: string
   correlation?: AsyncExecutionCorrelation
@@ -603,6 +604,10 @@ function calculateNextRunTime(
 }
 
 export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
+  const payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
+  if (payloadBillingAttribution.workspaceId !== payload.workspaceId) {
+    throw new Error('Schedule job billing attribution does not match its workspace')
+  }
   const correlation = buildScheduleCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
@@ -727,10 +732,24 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         checkDeployment: true,
         loggingSession,
         triggerData: { correlation },
+        billingAttribution: payloadBillingAttribution,
       })
 
       if (!preprocessResult.success) {
-        const statusCode = preprocessResult.error?.statusCode || 500
+        const preprocessingError = preprocessResult.error
+        const statusCode = preprocessingError.statusCode
+        const transientAdmissionFailure = classifyTransientAdmissionFailure(preprocessingError)
+
+        if (transientAdmissionFailure) {
+          await retryScheduleAfterInfraFailure({
+            payload,
+            requestId,
+            claimedAt,
+            message: preprocessingError.message,
+            cause: preprocessingError.cause,
+          })
+          return
+        }
 
         switch (statusCode) {
           case 401: {
@@ -752,7 +771,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
           case 403: {
             logger.warn(
-              `[${requestId}] Authorization error during preprocessing, disabling schedule: ${preprocessResult.error?.message}`
+              `[${requestId}] Authorization error during preprocessing, disabling schedule: ${preprocessingError.message}`
             )
             await updateClaimedSchedule(
               {
@@ -821,18 +840,18 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
           }
 
           default: {
-            if (statusCode >= 500 && preprocessResult.error?.retryable) {
+            if (statusCode >= 500 && preprocessingError.retryable) {
               await retryScheduleAfterInfraFailure({
                 payload,
                 requestId,
                 claimedAt,
-                message: preprocessResult.error.message,
-                cause: preprocessResult.error.cause,
+                message: preprocessingError.message,
+                cause: preprocessingError.cause,
               })
               return
             }
 
-            logger.error(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`)
+            logger.error(`[${requestId}] Preprocessing failed: ${preprocessingError.message}`)
             const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
 
             await updateClaimedSchedule(
@@ -844,8 +863,8 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         }
       }
 
-      const { actorUserId, workflowRecord } = preprocessResult
-      if (!actorUserId || !workflowRecord) {
+      const { actorUserId, billingAttribution, workflowRecord } = preprocessResult
+      if (!actorUserId || !billingAttribution || !workflowRecord) {
         logger.error(`[${requestId}] Missing required preprocessing data`)
         await releaseClaim(
           now,
@@ -866,10 +885,11 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
           correlation,
           workflowRecord,
           actorUserId,
+          billingAttribution,
           loggingSession,
           requestId,
           executionId,
-          asyncTimeout: preprocessResult.executionTimeout?.async,
+          asyncTimeout: preprocessResult.executionTimeout.async,
         })
 
         if (executionResult.status === 'retryable_setup_failure') {
@@ -1231,10 +1251,17 @@ export async function executeJobInline(payload: JobExecutionPayload) {
   const promptText = buildJobPrompt(jobRecord)
 
   try {
-    const userSubscription = await getHighestPrioritySubscription(jobRecord.sourceUserId)
-    const mothershipJobTimeoutMs = getExecutionTimeout(userSubscription?.plan, 'sync')
+    const billingAttribution = await resolveBillingAttribution({
+      actorUserId: jobRecord.sourceUserId,
+      workspaceId: jobRecord.sourceWorkspaceId,
+    })
+    const mothershipJobTimeoutMs = getExecutionTimeout(
+      billingAttribution.payerSubscription?.plan,
+      'sync'
+    )
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(jobRecord.sourceUserId)
+    headers[BILLING_ATTRIBUTION_HEADER] = serializeBillingAttributionHeader(billingAttribution)
 
     const body = {
       messages: [{ role: 'user', content: promptText }],

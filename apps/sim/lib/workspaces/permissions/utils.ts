@@ -10,6 +10,7 @@ import {
 } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { HttpError } from '@/lib/core/utils/http-error'
+import type { DbOrTx } from '@/lib/db/types'
 import { getOrgAdminWorkspaceRows } from '@/lib/workspaces/utils'
 
 export type { PermissionType }
@@ -83,10 +84,10 @@ export async function getWorkspaceById(
  */
 export async function getWorkspaceWithOwner(
   workspaceId: string,
-  options?: { includeArchived?: boolean }
+  options?: { includeArchived?: boolean; executor?: DbOrTx; forUpdate?: boolean }
 ): Promise<WorkspaceWithOwner | null> {
-  const { includeArchived = false } = options ?? {}
-  const [ws] = await db
+  const { includeArchived = false, executor = db, forUpdate = false } = options ?? {}
+  const query = executor
     .select({
       id: workspace.id,
       name: workspace.name,
@@ -102,7 +103,7 @@ export async function getWorkspaceWithOwner(
         ? eq(workspace.id, workspaceId)
         : and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt))
     )
-    .limit(1)
+  const [ws] = forUpdate ? await query.for('update').limit(1) : await query.limit(1)
 
   return ws || null
 }
@@ -246,6 +247,7 @@ export async function getUserEntityPermissions(
  * the UI tag matches how the member actually joined.
  *
  * @param workspaceId - The ID of the workspace to retrieve user permissions for.
+ * @param resolvedWorkspace - An already-authorized workspace row that avoids a duplicate lookup.
  * @returns A promise that resolves to an array of user objects, each containing user details and their permission type.
  */
 export type MemberRoleSource = 'owner' | 'explicit' | 'org-admin'
@@ -266,9 +268,10 @@ export interface WorkspaceMemberWithRole {
 }
 
 export async function getUsersWithPermissions(
-  workspaceId: string
+  workspaceId: string,
+  resolvedWorkspace?: WorkspaceWithOwner
 ): Promise<WorkspaceMemberWithRole[]> {
-  const ws = await getWorkspaceWithOwner(workspaceId)
+  const ws = resolvedWorkspace ?? (await getWorkspaceWithOwner(workspaceId))
   if (!ws) return []
 
   const explicitRows = await db
@@ -392,6 +395,30 @@ export interface WorkspacePermissionsForViewer {
 }
 
 /**
+ * Builds the workspace-permissions payload after the caller has already
+ * authorized the viewer against the same workspace resource.
+ *
+ * This avoids repeating the workspace and effective-permission reads in
+ * server-render prefetch paths. Callers must pass the permission returned by
+ * {@link checkWorkspaceAccess}; API boundaries should use
+ * {@link getWorkspacePermissionsForViewer} instead.
+ */
+export async function getWorkspacePermissionsForAuthorizedViewer(
+  workspaceId: string,
+  userId: string,
+  permission: PermissionType,
+  resolvedWorkspace?: WorkspaceWithOwner
+): Promise<WorkspacePermissionsForViewer> {
+  const users = await getUsersWithPermissions(workspaceId, resolvedWorkspace)
+
+  return {
+    users,
+    total: users.length,
+    viewer: { userId, isAdmin: permission === 'admin', permissionType: permission },
+  }
+}
+
+/**
  * Builds the workspace permissions payload for a viewer: the full member list plus
  * the viewer's own resolved permission. Shared by `GET /api/workspaces/[id]/permissions`
  * and the sidebar prefetch so the two never drift.
@@ -410,13 +437,7 @@ export async function getWorkspacePermissionsForViewer(
   const permission = await getEffectiveWorkspacePermission(userId, ws)
   if (permission === null) return null
 
-  const users = await getUsersWithPermissions(workspaceId)
-
-  return {
-    users,
-    total: users.length,
-    viewer: { userId, isAdmin: permission === 'admin', permissionType: permission },
-  }
+  return getWorkspacePermissionsForAuthorizedViewer(workspaceId, userId, permission, ws)
 }
 
 /**

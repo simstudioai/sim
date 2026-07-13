@@ -24,7 +24,9 @@ interface UseWorkspaceManagementProps {
 
 /**
  * Manages workspace operations including fetching, switching, creating, deleting, and leaving workspaces.
- * Handles workspace validation, URL synchronization, and recency-based ordering.
+ * Handles URL synchronization and recency-based ordering. Route access is
+ * validated by the workspace layout so a denied deep link is never replaced by
+ * an unrelated fallback workspace.
  *
  * @param props.workspaceId - The current workspace ID from the URL
  * @param props.sessionUserId - The current user's session ID
@@ -37,11 +39,9 @@ export function useWorkspaceManagement({
   const router = useRouter()
   const switchToWorkspace = useWorkflowRegistry((state) => state.switchToWorkspace)
 
-  const {
-    data: workspaces = [],
-    isLoading: isWorkspacesLoading,
-    isFetching: isWorkspacesFetching,
-  } = useWorkspacesQuery(Boolean(sessionUserId))
+  const { data: workspaces = [], isLoading: isWorkspacesLoading } = useWorkspacesQuery(
+    Boolean(sessionUserId)
+  )
   const { data: workspaceCreationPolicy = null } = useWorkspaceCreationPolicy(
     Boolean(sessionUserId)
   )
@@ -54,7 +54,6 @@ export function useWorkspaceManagement({
   const workspaceIdRef = useRef<string>(workspaceId)
   const workspacesRef = useRef<Workspace[]>(workspaces)
   const routerRef = useRef<ReturnType<typeof useRouter>>(router)
-  const hasValidatedRef = useRef<boolean>(false)
   const lastTouchedRef = useRef<string | null>(null)
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -107,28 +106,6 @@ export function useWorkspaceManagement({
 
   const activeWorkspaceRef = useRef<Workspace | null>(activeWorkspace)
   activeWorkspaceRef.current = activeWorkspace
-
-  useEffect(() => {
-    if (isWorkspacesLoading || hasValidatedRef.current || !workspaces.length) {
-      return
-    }
-
-    const currentWorkspaceId = workspaceIdRef.current
-    const matchingWorkspace = workspaces.find((w) => w.id === currentWorkspaceId)
-
-    if (!matchingWorkspace) {
-      if (isWorkspacesFetching) {
-        return
-      }
-      logger.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
-      const sorted = WorkspaceRecencyStorage.sortByRecency(workspaces)
-      const fallbackWorkspace = sorted[0]
-      logger.info(`Redirecting to fallback workspace: ${fallbackWorkspace.id}`)
-      routerRef.current?.push(`/workspace/${fallbackWorkspace.id}/home`)
-    }
-
-    hasValidatedRef.current = true
-  }, [workspaces, isWorkspacesLoading, isWorkspacesFetching])
 
   const updateWorkspace = useCallback(
     async (
@@ -200,7 +177,6 @@ export function useWorkspaceManagement({
           activeWorkspaceRef.current?.id === workspaceToDelete.id
 
         if (isDeletingCurrentWorkspace) {
-          hasValidatedRef.current = false
           const remainingWorkspaces = WorkspaceRecencyStorage.sortByRecency(
             workspacesRef.current.filter((w) => w.id !== workspaceToDelete.id)
           )
@@ -239,7 +215,6 @@ export function useWorkspaceManagement({
           activeWorkspaceRef.current?.id === workspaceToLeave.id
 
         if (isLeavingCurrentWorkspace) {
-          hasValidatedRef.current = false
           const remainingWorkspaces = WorkspaceRecencyStorage.sortByRecency(
             workspacesRef.current.filter((w) => w.id !== workspaceToLeave.id)
           )

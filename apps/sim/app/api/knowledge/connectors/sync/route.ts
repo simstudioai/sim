@@ -4,10 +4,11 @@ import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, isNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
+import { dispatchSync } from '@/lib/knowledge/connectors/queue'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +70,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const dueConnectors = await db
       .select({
         id: knowledgeConnector.id,
+        workspaceId: knowledgeBase.workspaceId,
       })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeConnector.knowledgeBaseId, knowledgeBase.id))
@@ -94,11 +96,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    await mapWithConcurrency(dueConnectors, DISPATCH_CONCURRENCY, (connector) =>
-      dispatchSync(connector.id, { requestId }).catch((error) => {
+    await mapWithConcurrency(dueConnectors, DISPATCH_CONCURRENCY, async (connector) => {
+      try {
+        if (!connector.workspaceId) {
+          throw new Error(`Connector ${connector.id} is missing workspace billing context`)
+        }
+        const billingAttribution = await resolveSystemBillingAttribution(connector.workspaceId)
+        await dispatchSync(connector.id, { billingAttribution, requestId })
+      } catch (error) {
         logger.error(`[${requestId}] Failed to dispatch sync for connector ${connector.id}`, error)
-      })
-    )
+      }
+    })
 
     return NextResponse.json({
       success: true,

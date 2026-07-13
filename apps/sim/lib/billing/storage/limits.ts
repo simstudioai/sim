@@ -12,19 +12,49 @@ import {
 } from '@sim/db/constants'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { getPlanTypeForLimits, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
-import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import type { StorageBillingContext } from '@/lib/billing/storage/context'
+import { getLegacyStorageBillingEntity } from '@/lib/billing/storage/entity'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('StorageLimits')
 
-/** Resolve the highest-priority subscription via a deferred import (avoids a static cycle). */
-async function resolveSub(userId: string): Promise<HighestPrioritySubscription | null> {
+type StorageLimits = ReturnType<typeof getStorageLimits>
+
+interface StorageLimitResolutionInput {
+  plan: string | null
+  scope: BillingEntity['type']
+  customStorageLimitGB: number | null
+  limits: StorageLimits
+}
+
+interface StorageQuotaSnapshot {
+  currentUsage: number
+  limit: number
+}
+
+interface StorageQuotaResult extends StorageQuotaSnapshot {
+  allowed: boolean
+  error?: string
+}
+
+type SubscriptionErrorBehavior = 'return-null' | 'throw'
+
+/**
+ * Resolves the highest-priority subscription via a deferred import to avoid a
+ * static cycle.
+ */
+async function resolveSub(
+  userId: string,
+  onError: SubscriptionErrorBehavior = 'return-null'
+): Promise<HighestPrioritySubscription | null> {
   const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
-  return getHighestPrioritySubscription(userId)
+  return getHighestPrioritySubscription(userId, { onError })
 }
 
 /**
@@ -32,6 +62,106 @@ async function resolveSub(userId: string): Promise<HighestPrioritySubscription |
  */
 function gbToBytes(gb: number): number {
   return gb * 1024 * 1024 * 1024
+}
+
+/**
+ * Normalizes a positive finite custom storage limit.
+ */
+function normalizeCustomStorageLimitGB(value: unknown): number | null {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim().length > 0
+        ? Number(value)
+        : Number.NaN
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+/**
+ * Reads the organization subscription metadata key used by pooled storage.
+ */
+function readCustomStorageLimitGB(metadata: unknown): number | null {
+  return isRecordLike(metadata)
+    ? normalizeCustomStorageLimitGB(metadata.customStorageLimitGB)
+    : null
+}
+
+/**
+ * Resolves a storage cap solely from normalized plan, scope, custom-limit, and
+ * configured-limit inputs.
+ */
+function resolveStorageLimit({
+  plan,
+  scope,
+  customStorageLimitGB,
+  limits,
+}: StorageLimitResolutionInput): number {
+  if (!plan || isFree(plan)) return limits.free
+
+  if (scope === 'organization') {
+    if (customStorageLimitGB !== null) return gbToBytes(customStorageLimitGB)
+    return isEnterprise(plan) ? limits.enterpriseDefault : limits.team
+  }
+
+  const effectivePlan = getPlanTypeForLimits(plan)
+  if (effectivePlan === 'pro') return limits.pro
+  if (effectivePlan === 'team') return limits.team
+  return limits.free
+}
+
+/**
+ * Normalizes a legacy subscription into the shared limit resolver input.
+ */
+function resolveLegacyStorageLimit(
+  subscription: HighestPrioritySubscription | null,
+  billingEntity: Readonly<BillingEntity>
+): number {
+  return resolveStorageLimit({
+    plan: subscription?.plan ?? null,
+    scope: billingEntity.type,
+    customStorageLimitGB:
+      billingEntity.type === 'organization'
+        ? readCustomStorageLimitGB(subscription?.metadata)
+        : null,
+    limits: getStorageLimits(),
+  })
+}
+
+/**
+ * Evaluates quota behavior from resolved values without performing I/O.
+ */
+function evaluateStorageQuota(
+  billingEnabled: boolean,
+  additionalBytes: number,
+  snapshot: StorageQuotaSnapshot | null
+): StorageQuotaResult {
+  if (!billingEnabled) {
+    return {
+      allowed: true,
+      currentUsage: 0,
+      limit: Number.MAX_SAFE_INTEGER,
+    }
+  }
+
+  if (!snapshot) {
+    return {
+      allowed: false,
+      currentUsage: 0,
+      limit: 0,
+      error: 'Failed to check storage quota',
+    }
+  }
+
+  const newUsage = snapshot.currentUsage + additionalBytes
+  const allowed = newUsage <= snapshot.limit
+  return {
+    allowed,
+    currentUsage: snapshot.currentUsage,
+    limit: snapshot.limit,
+    error: allowed
+      ? undefined
+      : `Storage limit exceeded. Used: ${(newUsage / 1024 ** 3).toFixed(2)}GB, Limit: ${(snapshot.limit / 1024 ** 3).toFixed(0)}GB`,
+  }
 }
 
 /**
@@ -58,26 +188,16 @@ export function getStorageLimits() {
 }
 
 /**
- * Get storage limit for a specific plan
- * Returns limit in bytes
+ * Gets the storage limit for an immutable workspace payer without resolving an
+ * actor subscription.
  */
-export function getStorageLimitForPlan(plan: string, metadata?: any): number {
-  const limits = getStorageLimits()
-
-  if (isEnterprise(plan)) {
-    if (metadata?.storageLimitGB) {
-      return gbToBytes(Number.parseInt(metadata.storageLimitGB))
-    }
-    return limits.enterpriseDefault
-  }
-
-  const effectivePlan = getPlanTypeForLimits(plan)
-  const limitByPlan: Record<'free' | 'pro' | 'team', number> = {
-    free: limits.free,
-    pro: limits.pro,
-    team: limits.team,
-  }
-  return limitByPlan[effectivePlan as 'free' | 'pro' | 'team'] ?? limits.free
+export function getStorageLimitForBillingContext(context: StorageBillingContext): number {
+  return resolveStorageLimit({
+    plan: context.plan,
+    scope: context.billingEntity.type,
+    customStorageLimitGB: context.customStorageLimitGB || null,
+    limits: getStorageLimits(),
+  })
 }
 
 /**
@@ -94,33 +214,33 @@ export async function getUserStorageLimit(
 ): Promise<number> {
   try {
     const sub = prefetchedSub === undefined ? await resolveSub(userId) : prefetchedSub
-
-    const limits = getStorageLimits()
-
-    if (!sub || isFree(sub.plan)) {
-      return limits.free
-    }
-
-    if (isOrgScopedSubscription(sub, userId)) {
-      const metadata = sub.metadata as { customStorageLimitGB?: number } | null
-      if (metadata?.customStorageLimitGB) {
-        return metadata.customStorageLimitGB * 1024 * 1024 * 1024
-      }
-      return isEnterprise(sub.plan) ? limits.enterpriseDefault : limits.team
-    }
-
-    // Personally-scoped plans use the per-plan default storage cap.
-    const effectivePlan = getPlanTypeForLimits(sub.plan)
-    const limitByPlan: Record<'free' | 'pro' | 'team', number> = {
-      free: limits.free,
-      pro: limits.pro,
-      team: limits.team,
-    }
-    return limitByPlan[effectivePlan as 'free' | 'pro' | 'team'] ?? limits.free
+    const billingEntity = getLegacyStorageBillingEntity(userId, sub)
+    return resolveLegacyStorageLimit(sub, billingEntity)
   } catch (error) {
     logger.error('Error getting user storage limit:', error)
     return getStorageLimits().free
   }
+}
+
+/**
+ * Reads one user or organization storage counter.
+ */
+async function readStorageUsageForEntity(billingEntity: Readonly<BillingEntity>): Promise<number> {
+  if (billingEntity.type === 'organization') {
+    const [record] = await db
+      .select({ storageUsedBytes: organization.storageUsedBytes })
+      .from(organization)
+      .where(eq(organization.id, billingEntity.id))
+      .limit(1)
+    return record?.storageUsedBytes ?? 0
+  }
+
+  const [record] = await db
+    .select({ storageUsedBytes: userStats.storageUsedBytes })
+    .from(userStats)
+    .where(eq(userStats.userId, billingEntity.id))
+    .limit(1)
+  return record?.storageUsedBytes ?? 0
 }
 
 /**
@@ -135,26 +255,7 @@ export async function getUserStorageUsage(
 ): Promise<number> {
   try {
     const sub = prefetchedSub === undefined ? await resolveSub(userId) : prefetchedSub
-
-    // Org-scoped subs share pooled `organization.storageUsedBytes`;
-    // personal plans use `userStats`.
-    if (isOrgScopedSubscription(sub, userId) && sub) {
-      const orgRecord = await db
-        .select({ storageUsedBytes: organization.storageUsedBytes })
-        .from(organization)
-        .where(eq(organization.id, sub.referenceId))
-        .limit(1)
-
-      return orgRecord.length > 0 ? orgRecord[0].storageUsedBytes || 0 : 0
-    }
-
-    const stats = await db
-      .select({ storageUsedBytes: userStats.storageUsedBytes })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    return stats.length > 0 ? stats[0].storageUsedBytes || 0 : 0
+    return await readStorageUsageForEntity(getLegacyStorageBillingEntity(userId, sub))
   } catch (error) {
     logger.error('Error getting user storage usage:', error)
     return 0
@@ -162,45 +263,88 @@ export async function getUserStorageUsage(
 }
 
 /**
- * Check if user has storage quota available
- * Always allows uploads when billing is disabled
+ * Reads the exact workspace payer's storage counter.
+ */
+export async function getStorageUsageForBillingContext(
+  context: StorageBillingContext
+): Promise<number> {
+  try {
+    return await readStorageUsageForEntity(context.billingEntity)
+  } catch (error) {
+    logger.error('Error getting workspace payer storage usage:', error)
+    return 0
+  }
+}
+
+/**
+ * Resolves the legacy user/subscription quota snapshot once.
+ */
+async function resolveUserStorageQuota(userId: string): Promise<StorageQuotaSnapshot> {
+  const sub = await resolveSub(userId, 'throw')
+  const billingEntity = getLegacyStorageBillingEntity(userId, sub)
+  return {
+    currentUsage: await readStorageUsageForEntity(billingEntity),
+    limit: resolveLegacyStorageLimit(sub, billingEntity),
+  }
+}
+
+/**
+ * Resolves an immutable workspace payer quota snapshot.
+ */
+async function resolveBillingContextStorageQuota(
+  context: StorageBillingContext
+): Promise<StorageQuotaSnapshot> {
+  return {
+    currentUsage: await readStorageUsageForEntity(context.billingEntity),
+    limit: getStorageLimitForBillingContext(context),
+  }
+}
+
+/**
+ * Applies shared quota behavior around a context-specific resolver.
+ */
+async function checkStorageQuotaWithResolver(
+  additionalBytes: number,
+  resolveSnapshot: () => Promise<StorageQuotaSnapshot>,
+  logResolutionError: (error: unknown) => void
+): Promise<StorageQuotaResult> {
+  if (!isBillingEnabled) {
+    return evaluateStorageQuota(false, additionalBytes, null)
+  }
+
+  try {
+    return evaluateStorageQuota(true, additionalBytes, await resolveSnapshot())
+  } catch (error) {
+    logResolutionError(error)
+    return evaluateStorageQuota(true, additionalBytes, null)
+  }
+}
+
+/**
+ * Check if user has storage quota available.
+ * Always allows uploads when billing is disabled.
  */
 export async function checkStorageQuota(
   userId: string,
   additionalBytes: number
-): Promise<{ allowed: boolean; currentUsage: number; limit: number; error?: string }> {
-  if (!isBillingEnabled) {
-    return {
-      allowed: true,
-      currentUsage: 0,
-      limit: Number.MAX_SAFE_INTEGER,
-    }
-  }
+): Promise<StorageQuotaResult> {
+  return checkStorageQuotaWithResolver(
+    additionalBytes,
+    () => resolveUserStorageQuota(userId),
+    (error) => logger.error('Error checking storage quota:', error)
+  )
+}
 
-  try {
-    const [currentUsage, limit] = await Promise.all([
-      getUserStorageUsage(userId),
-      getUserStorageLimit(userId),
-    ])
-
-    const newUsage = currentUsage + additionalBytes
-    const allowed = newUsage <= limit
-
-    return {
-      allowed,
-      currentUsage,
-      limit,
-      error: allowed
-        ? undefined
-        : `Storage limit exceeded. Used: ${(newUsage / (1024 * 1024 * 1024)).toFixed(2)}GB, Limit: ${(limit / (1024 * 1024 * 1024)).toFixed(0)}GB`,
-    }
-  } catch (error) {
-    logger.error('Error checking storage quota:', error)
-    return {
-      allowed: false,
-      currentUsage: 0,
-      limit: 0,
-      error: 'Failed to check storage quota',
-    }
-  }
+/**
+ * Checks storage quota against a workspace-selected immutable payer.
+ */
+export async function checkStorageQuotaForBillingContext(
+  context: StorageBillingContext,
+  additionalBytes: number
+): Promise<StorageQuotaResult> {
+  return checkStorageQuotaWithResolver(
+    additionalBytes,
+    () => resolveBillingContextStorageQuota(context),
+    (error) => logger.error('Error checking workspace payer storage quota:', error)
+  )
 }

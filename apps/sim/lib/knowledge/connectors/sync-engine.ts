@@ -12,20 +12,18 @@ import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
-import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+} from '@/lib/billing/core/billing-attribution'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
-import {
-  hardDeleteDocuments,
-  isTriggerAvailable,
-  processDocumentsWithQueue,
-} from '@/lib/knowledge/documents/service'
+import { hardDeleteDocuments, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { knowledgeConnectorSync } from '@/background/knowledge-connector-sync'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
@@ -262,84 +260,6 @@ export function resolveTagMapping(
 }
 
 /**
- * Dispatch a connector sync using the configured background execution backend.
- */
-export async function dispatchSync(
-  connectorId: string,
-  options?: { fullSync?: boolean; requestId?: string }
-): Promise<void> {
-  const requestId = options?.requestId ?? generateId()
-
-  if (isTriggerAvailable()) {
-    const connectorRows = await db
-      .select({
-        knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
-        connectorArchivedAt: knowledgeConnector.archivedAt,
-        connectorDeletedAt: knowledgeConnector.deletedAt,
-        workspaceId: knowledgeBase.workspaceId,
-        userId: knowledgeBase.userId,
-        kbDeletedAt: knowledgeBase.deletedAt,
-      })
-      .from(knowledgeConnector)
-      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
-      .where(eq(knowledgeConnector.id, connectorId))
-      .limit(1)
-
-    const row = connectorRows[0]
-    if (!row) {
-      logger.warn(`Skipping sync dispatch: connector not found`, { connectorId, requestId })
-      return
-    }
-    if (row.kbDeletedAt) {
-      logger.warn(`Skipping sync dispatch: knowledge base is deleted`, {
-        connectorId,
-        knowledgeBaseId: row.knowledgeBaseId,
-        requestId,
-      })
-      await db
-        .update(knowledgeConnector)
-        .set({
-          status: 'error',
-          nextSyncAt: null,
-          lastSyncError: 'Knowledge base deleted',
-          updatedAt: new Date(),
-        })
-        .where(eq(knowledgeConnector.id, connectorId))
-      return
-    }
-    if (row.connectorArchivedAt || row.connectorDeletedAt) {
-      logger.warn(`Skipping sync dispatch: connector is archived or deleted`, {
-        connectorId,
-        requestId,
-      })
-      return
-    }
-
-    const tags = [`connectorId:${connectorId}`]
-    if (row.knowledgeBaseId) tags.push(`knowledgeBaseId:${row.knowledgeBaseId}`)
-    if (row.workspaceId) tags.push(`workspaceId:${row.workspaceId}`)
-    if (row.userId) tags.push(`userId:${row.userId}`)
-
-    await knowledgeConnectorSync.trigger(
-      {
-        connectorId,
-        fullSync: options?.fullSync,
-        requestId,
-      },
-      { tags, region: await resolveTriggerRegion() }
-    )
-    logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
-  } else {
-    executeSync(connectorId, { fullSync: options?.fullSync }).catch((error) => {
-      logger.error(`Sync failed for connector ${connectorId}`, {
-        error: toError(error).message,
-        requestId,
-      })
-    })
-  }
-}
-
-/**
  * Resolves an access token for a connector based on its auth mode.
  * OAuth connectors refresh via the credential system; API key connectors
  * decrypt the key stored in the dedicated `encryptedApiKey` column.
@@ -388,8 +308,9 @@ async function resolveAccessToken(
  */
 export async function executeSync(
   connectorId: string,
-  options?: { fullSync?: boolean }
+  options: { billingAttribution: BillingAttributionSnapshot; fullSync?: boolean }
 ): Promise<SyncResult> {
+  const billingAttribution = assertBillingAttributionSnapshot(options?.billingAttribution)
   const result: SyncResult = {
     docsAdded: 0,
     docsUpdated: 0,
@@ -448,6 +369,16 @@ export async function executeSync(
   // Resolved once per sync and threaded into add/updateDocument so every synced
   // kb/ object records a trusted ownership binding without an N+1 KB lookup.
   const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRows[0].workspaceId, userId }
+  if (!kbOwner.workspaceId) {
+    throw new Error(
+      `Knowledge base ${connector.knowledgeBaseId} is missing workspace billing context`
+    )
+  }
+  if (billingAttribution.workspaceId !== kbOwner.workspaceId) {
+    throw new Error(
+      `Connector sync billing attribution does not match knowledge base workspace ${kbOwner.workspaceId}`
+    )
+  }
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
   const lockResult = await db
@@ -805,7 +736,13 @@ export async function executeSync(
 
       if (batchDocs.length > 0) {
         try {
-          await processDocumentsWithQueue(batchDocs, connector.knowledgeBaseId, {}, generateId())
+          await processDocumentsWithQueue(
+            batchDocs,
+            connector.knowledgeBaseId,
+            {},
+            generateId(),
+            billingAttribution
+          )
         } catch (error) {
           logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
             connectorId,
@@ -916,7 +853,8 @@ export async function executeSync(
           })),
           connector.knowledgeBaseId,
           {},
-          generateId()
+          generateId(),
+          billingAttribution
         )
       } catch (error) {
         logger.warn('Failed to enqueue stuck documents for reprocessing', {

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
 import {
   type AppSession,
@@ -15,6 +15,24 @@ export const sessionKeys = {
 async function fetchSession(signal?: AbortSignal): Promise<AppSession> {
   const res = await client.getSession({ fetchOptions: { signal } })
   return extractSessionDataFromAuthClientResult(res) as AppSession
+}
+
+/**
+ * Refreshes the canonical session cache from server truth.
+ *
+ * Better Auth's cookie cache may still contain the pre-mutation session, so
+ * mutation flows that can change session fields must bypass it before updating
+ * the shared React Query entry.
+ */
+export async function refreshSessionQuery(queryClient: QueryClient): Promise<AppSession> {
+  await queryClient.cancelQueries({ queryKey: sessionKeys.detail() })
+
+  const res = await client.getSession({ query: { disableCookieCache: true } })
+  const fresh = extractSessionDataFromAuthClientResult(res) as AppSession
+
+  queryClient.setQueryData(sessionKeys.detail(), fresh)
+
+  return fresh
 }
 
 /**

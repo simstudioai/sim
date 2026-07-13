@@ -58,6 +58,7 @@ import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
 } from '@/lib/copilot/request/tools/tables'
+import { applyCreateWorkflowOutputToContext } from '@/lib/copilot/request/tools/workflow-context'
 import {
   type ExecutionContext,
   isTerminalToolCallStatus,
@@ -160,25 +161,6 @@ function buildCompletionSignal(input: {
     status: input.status,
     ...(input.message !== undefined ? { message: input.message } : {}),
     ...(input.data !== undefined ? { data: input.data } : {}),
-  }
-}
-
-function getCreateWorkflowOutput(
-  output: unknown
-): { workflowId?: string; workspaceId?: string } | undefined {
-  if (!isRecordLike(output)) {
-    return undefined
-  }
-
-  const workflowId = typeof output.workflowId === 'string' ? output.workflowId : undefined
-  const workspaceId = typeof output.workspaceId === 'string' ? output.workspaceId : undefined
-  if (!workflowId && !workspaceId) {
-    return undefined
-  }
-
-  return {
-    ...(workflowId ? { workflowId } : {}),
-    ...(workspaceId ? { workspaceId } : {}),
   }
 }
 
@@ -688,19 +670,8 @@ async function executeToolAndReportInner(
       })
     }
 
-    // If create_workflow was successful, update the execution context with the new workflowId.
-    // This ensures subsequent tools in the same stream have access to the workflowId.
-    const createWorkflowOutput = getCreateWorkflowOutput(result.output)
-    if (
-      toolCall.name === CreateWorkflow.id &&
-      result.success &&
-      createWorkflowOutput?.workflowId &&
-      !execContext.workflowId
-    ) {
-      execContext.workflowId = createWorkflowOutput.workflowId
-      if (createWorkflowOutput.workspaceId) {
-        execContext.workspaceId = createWorkflowOutput.workspaceId
-      }
+    if (toolCall.name === CreateWorkflow.id && result.success) {
+      applyCreateWorkflowOutputToContext(result.output, execContext)
     }
 
     const terminalStatus = result.success

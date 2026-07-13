@@ -1,8 +1,18 @@
-export { checkStorageQuota, getUserStorageLimit, getUserStorageUsage } from './limits'
+export { resolveStorageBillingContext, type StorageBillingContext } from './context'
 export {
+  checkStorageQuota,
+  checkStorageQuotaForBillingContext,
+  getStorageLimitForBillingContext,
+  getStorageUsageForBillingContext,
+  getUserStorageLimit,
+  getUserStorageUsage,
+} from './limits'
+export {
+  applyStorageUsageDeltasInTx,
   checkAndIncrementStorageUsageInTx,
-  decrementStorageUsage,
-  decrementStorageUsageInTx,
-  incrementStorageUsage,
-  maybeNotifyStorageLimit,
+  decrementStorageUsageForBillingContextInTx,
+  incrementStorageUsageForBillingContextInTx,
+  type LegacyStorageUsageDelta,
+  maybeNotifyStorageLimitForBillingContext,
+  type WorkspaceStorageUsageDelta,
 } from './tracking'

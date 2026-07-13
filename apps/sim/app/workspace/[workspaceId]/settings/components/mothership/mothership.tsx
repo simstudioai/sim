@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Badge, Button, ChipInput, ChipSelect, cn, Label, Skeleton } from '@sim/emcn'
 import { formatDateTime } from '@sim/utils/formatting'
-import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
 import {
@@ -165,8 +164,8 @@ export function Mothership() {
 }
 
 function ByokTab() {
-  const params = useParams()
-  const workspaceId = (params?.workspaceId as string) || ''
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
+  const workspaceId = targetWorkspaceId.trim()
 
   const { data, isLoading } = useMothershipByokKeys(workspaceId)
   const upsert = useUpsertMothershipByok()
@@ -178,21 +177,38 @@ function ByokTab() {
   )
 
   return (
-    <BYOKKeyManager
-      providers={ENTERPRISE_BYOK_PROVIDERS}
-      configuredProviderIds={configuredProviderIds}
-      isLoading={isLoading}
-      isSaving={upsert.isPending}
-      isDeleting={del.isPending}
-      showSearch={false}
-      description="Store a customer-provided Anthropic or OpenAI key for this workspace. It is encrypted at rest in the mothership and used only for this workspace's enterprise requests."
-      onSave={async (provider, apiKey) => {
-        await upsert.mutateAsync({ workspaceId, provider, apiKey })
-      }}
-      onDelete={async (provider) => {
-        await del.mutateAsync({ workspaceId, provider })
-      }}
-    />
+    <div className='flex flex-col gap-4'>
+      <div className='flex items-center gap-2'>
+        <Label className='text-[var(--text-secondary)] text-sm'>Target workspace</Label>
+        <ChipInput
+          value={targetWorkspaceId}
+          onChange={(event) => setTargetWorkspaceId(event.target.value)}
+          placeholder='Workspace ID'
+          className='w-[280px]'
+        />
+      </div>
+      {workspaceId ? (
+        <BYOKKeyManager
+          providers={ENTERPRISE_BYOK_PROVIDERS}
+          configuredProviderIds={configuredProviderIds}
+          isLoading={isLoading}
+          isSaving={upsert.isPending}
+          isDeleting={del.isPending}
+          showSearch={false}
+          description="Store a customer-provided Anthropic or OpenAI key for this workspace. It is encrypted at rest in the mothership and used only for this workspace's enterprise requests."
+          onSave={async (provider, apiKey) => {
+            await upsert.mutateAsync({ workspaceId, provider, apiKey })
+          }}
+          onDelete={async (provider) => {
+            await del.mutateAsync({ workspaceId, provider })
+          }}
+        />
+      ) : (
+        <SettingsEmptyState variant='inline'>
+          Enter a workspace ID to manage its Mothership BYOK keys.
+        </SettingsEmptyState>
+      )}
+    </div>
   )
 }
 

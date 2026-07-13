@@ -1,13 +1,40 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
+import {
+  assertConnectorSyncPayload,
+  type ConnectorSyncPayload,
+} from '@/lib/knowledge/connectors/queue'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 
 const logger = createLogger('TriggerKnowledgeConnectorSync')
 
-export type ConnectorSyncPayload = {
-  connectorId: string
-  fullSync?: boolean
-  requestId: string
+export async function executeConnectorSyncJob(payload: unknown) {
+  const { connectorId, fullSync, requestId, billingAttribution } =
+    assertConnectorSyncPayload(payload)
+
+  logger.info(`[${requestId}] Starting connector sync: ${connectorId}`)
+
+  try {
+    const result = await executeSync(connectorId, { billingAttribution, fullSync })
+
+    logger.info(`[${requestId}] Connector sync completed`, {
+      connectorId,
+      added: result.docsAdded,
+      updated: result.docsUpdated,
+      deleted: result.docsDeleted,
+      unchanged: result.docsUnchanged,
+      failed: result.docsFailed,
+    })
+
+    return {
+      success: !result.error,
+      connectorId,
+      ...result,
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Connector sync failed: ${connectorId}`, error)
+    throw error
+  }
 }
 
 export const knowledgeConnectorSync = task({
@@ -24,31 +51,5 @@ export const knowledgeConnectorSync = task({
     concurrencyLimit: 5,
     name: 'connector-sync-queue',
   },
-  run: async (payload: ConnectorSyncPayload) => {
-    const { connectorId, fullSync, requestId } = payload
-
-    logger.info(`[${requestId}] Starting connector sync: ${connectorId}`)
-
-    try {
-      const result = await executeSync(connectorId, { fullSync })
-
-      logger.info(`[${requestId}] Connector sync completed`, {
-        connectorId,
-        added: result.docsAdded,
-        updated: result.docsUpdated,
-        deleted: result.docsDeleted,
-        unchanged: result.docsUnchanged,
-        failed: result.docsFailed,
-      })
-
-      return {
-        success: !result.error,
-        connectorId,
-        ...result,
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Connector sync failed: ${connectorId}`, error)
-      throw error
-    }
-  },
+  run: async (payload: ConnectorSyncPayload) => executeConnectorSyncJob(payload),
 })

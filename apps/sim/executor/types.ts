@@ -1,3 +1,4 @@
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import type { BlockOutput } from '@/blocks/types'
@@ -69,6 +70,7 @@ export interface PausePoint {
   response: any
   registeredAt: string
   resumeStatus: ResumeStatus
+  automaticResumeWaitingReason?: string
   snapshotReady: boolean
   parallelScope?: ParallelPauseScope
   loopScope?: LoopPauseScope
@@ -264,6 +266,8 @@ interface ExecutionMetadata {
   requestId?: string
   workflowId?: string
   workspaceId?: string
+  /** Immutable actor/payer decision captured before execution. */
+  billingAttribution?: BillingAttributionSnapshot
   startTime?: string
   endTime?: string
   duration: number

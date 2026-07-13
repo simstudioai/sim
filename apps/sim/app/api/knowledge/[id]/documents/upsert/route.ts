@@ -9,8 +9,13 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { upsertKnowledgeDocumentContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkAttributedUsageLimits,
+  requireBillingAttributionHeader,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createDocumentRecords,
@@ -73,12 +78,26 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      // Gate usage before any create/delete so an over-limit upsert is rejected up
-      // front and never deletes the existing (already-indexed) document. Runs even
-      // for legacy KBs with no workspace — the uploader's pooled/frozen status is
-      // still enforced (per-member is skipped when there's no org workspace).
+      /**
+       * Gate the workspace payer and uploader before mutation so an over-limit
+       * upsert cannot delete an indexed document. Workspace-less legacy KBs
+       * retain account-only enforcement.
+       */
       const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
-      const usage = await checkActorUsageLimits(userId, kbWorkspaceId)
+      const billingAttribution = kbWorkspaceId
+        ? auth.authType === AuthType.INTERNAL_JWT
+          ? requireBillingAttributionHeader(req.headers, {
+              actorUserId: userId,
+              workspaceId: kbWorkspaceId,
+            })
+          : await resolveBillingAttribution({
+              actorUserId: userId,
+              workspaceId: kbWorkspaceId,
+            })
+        : undefined
+      const usage = billingAttribution
+        ? await checkAttributedUsageLimits(billingAttribution)
+        : await checkActorUsageLimits(userId)
       if (usage.isExceeded) {
         return NextResponse.json(
           {
@@ -175,7 +194,8 @@ export const POST = withRouteHandler(
         createdDocuments,
         knowledgeBaseId,
         validatedData.processingOptions ?? {},
-        requestId
+        requestId,
+        billingAttribution
       ).catch((error: unknown) => {
         logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
       })

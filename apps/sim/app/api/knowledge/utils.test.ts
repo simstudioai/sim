@@ -26,6 +26,33 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('user1'),
 }))
 
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  assertBillingAttributionSnapshot: vi.fn((value) => value),
+  checkAttributedUsageLimits: vi.fn().mockResolvedValue({
+    isExceeded: false,
+    payerUsage: { currentUsage: 0, limit: 100 },
+  }),
+  resolveBillingAttribution: vi.fn().mockResolvedValue({
+    actorUserId: 'billing-user-1',
+    billedAccountUserId: 'billing-user-1',
+    billingEntity: { type: 'user', id: 'billing-user-1' },
+    billingPeriod: {
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2026-08-01T00:00:00.000Z',
+    },
+    organizationId: null,
+    payerSubscription: null,
+    workspaceId: 'workspace1',
+  }),
+  toBillingContext: vi.fn(() => ({
+    billingEntity: { type: 'user', id: 'billing-user-1' },
+    billingPeriod: {
+      start: new Date('2026-07-01T00:00:00.000Z'),
+      end: new Date('2026-08-01T00:00:00.000Z'),
+    },
+  })),
+}))
+
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
   processDocument: vi.fn().mockResolvedValue({
     chunks: [
@@ -256,7 +283,19 @@ describe('Knowledge Utils', () => {
           fileSize: 10,
           mimeType: 'text/plain',
         },
-        {}
+        {},
+        {
+          actorUserId: 'billing-user-1',
+          billedAccountUserId: 'billing-user-1',
+          billingEntity: { type: 'user', id: 'billing-user-1' },
+          billingPeriod: {
+            start: '2026-07-01T00:00:00.000Z',
+            end: '2026-08-01T00:00:00.000Z',
+          },
+          organizationId: null,
+          payerSubscription: null,
+          workspaceId: 'workspace1',
+        }
       )
 
       // Embeddings are inserted first, then the document counter update. A

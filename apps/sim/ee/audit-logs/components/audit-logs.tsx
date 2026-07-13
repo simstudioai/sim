@@ -223,7 +223,11 @@ function toActivityEntry(entry: EnterpriseAuditLogEntry): ActivityLogEntry {
   }
 }
 
-export function AuditLogs() {
+interface AuditLogsProps {
+  organizationId: string
+}
+
+export function AuditLogs({ organizationId }: AuditLogsProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
   const [timeRange, setTimeRange] = useState<TimeRange>('Past 30 days')
   const [customStartDate, setCustomStartDate] = useState('')
@@ -273,7 +277,7 @@ export function AuditLogs() {
     hasNextPage,
     fetchNextPage,
     refetch,
-  } = useAuditLogs(filters)
+  } = useAuditLogs(organizationId, filters)
 
   const allEntries = useMemo(() => {
     if (!data?.pages) return []
@@ -342,6 +346,7 @@ export function AuditLogs() {
     setIsExporting(true)
     try {
       const params = new URLSearchParams()
+      params.set('organizationId', organizationId)
       if (filters.search) params.set('search', filters.search)
       if (filters.resourceType) params.set('resourceType', filters.resourceType)
       if (filters.startDate) params.set('startDate', filters.startDate)

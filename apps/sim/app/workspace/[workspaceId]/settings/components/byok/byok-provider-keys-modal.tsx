@@ -14,6 +14,7 @@ interface BYOKProviderKeysModalProps {
   keys: BYOKManagerKey[]
   /** Maximum keys allowed per provider; disables adding once reached. */
   maxKeys: number
+  readOnly?: boolean
   onAddKey: () => void
   onUpdateKey: (key: BYOKManagerKey) => void
   onDeleteKey: (key: BYOKManagerKey) => void
@@ -31,6 +32,7 @@ export function BYOKProviderKeysModal({
   provider,
   keys,
   maxKeys,
+  readOnly = false,
   onAddKey,
   onUpdateKey,
   onDeleteKey,
@@ -57,10 +59,12 @@ export function BYOKProviderKeysModal({
                   {key.maskedKey}
                 </span>
               </div>
-              <div className='flex flex-shrink-0 items-center gap-2'>
-                <Chip onClick={() => onUpdateKey(key)}>Update</Chip>
-                <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>
-              </div>
+              {!readOnly && (
+                <div className='flex flex-shrink-0 items-center gap-2'>
+                  <Chip onClick={() => onUpdateKey(key)}>Update</Chip>
+                  <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -72,11 +76,16 @@ export function BYOKProviderKeysModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={close}
-        primaryAction={{
-          label: 'Add Key',
-          onClick: onAddKey,
-          disabled: atCapacity,
-        }}
+        hideCancel={readOnly}
+        primaryAction={
+          readOnly
+            ? { label: 'Close', onClick: close }
+            : {
+                label: 'Add Key',
+                onClick: onAddKey,
+                disabled: atCapacity,
+              }
+        }
       />
     </ChipModal>
   )

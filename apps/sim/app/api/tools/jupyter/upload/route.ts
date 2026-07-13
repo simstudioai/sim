@@ -129,7 +129,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const uploaded = parseJupyterContentModel(await response.json())
+    const uploadedValue: unknown = await response.json()
+    const uploaded = parseJupyterContentModel(uploadedValue)
     if (!uploaded) {
       logger.error(`[${requestId}] Jupyter returned an invalid upload response`)
       return NextResponse.json(
