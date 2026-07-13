@@ -51,7 +51,7 @@ Comments apply last, on purpose: that pass operates on whatever the earlier stru
 2. If the `old_string` still matches verbatim, apply it — a content-anchored edit is safe even if its line moved.
 3. If it no longer matches (an earlier pass altered that region), do **not** force the stale patch. Re-derive the change from the current code by re-applying that pass's rule to the construct, or drop it if a prior pass already made it moot. Never apply a proposal against text it wasn't computed from.
 
-After all edits, run `bun run lint:check` on the touched files.
+After all edits, run `bun run lint:check` (it runs `turbo run lint:check` across the repo — there is no per-file target, so run the full check).
 
 ## Step 4 — Summary
 

@@ -299,5 +299,3 @@ This summary helps reviewers verify that the pricing and rate limiting are well-
 - [ ] Provider entry added to the BYOK settings UI with icon and description
 - [ ] Env vars documented: `{PREFIX}_COUNT` and `{PREFIX}_1..N`
 - [ ] Pricing and throttling summary provided to reviewer
-</content>
-</invoke>

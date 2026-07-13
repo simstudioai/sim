@@ -623,4 +623,3 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
 - [ ] Icon exists in `components/icons.tsx` (or asked user to provide SVG)
 - [ ] Registered the full connector in `connectors/registry.server.ts`
 - [ ] Registered the meta in `connectors/registry.ts` (same alphabetical-by-id ordering as registry.server.ts)
-</content>
