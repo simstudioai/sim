@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { isAllowedCustomBlockIconUrl } from '@/lib/api/contracts/custom-blocks'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { canonicalizeVfsPath, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
@@ -42,7 +43,14 @@ async function resolveIconUrl(
 ): Promise<string | undefined> {
   const value = raw?.trim()
   if (!value) return undefined
-  if (!value.startsWith('files/')) return value
+  if (!value.startsWith('files/')) {
+    if (!isAllowedCustomBlockIconUrl(value)) {
+      throw new CustomBlockValidationError(
+        'iconUrl must be an https URL, an internal /api/files/serve/ path, or a workspace file path (files/...)'
+      )
+    }
+    return value
+  }
 
   const canonical = canonicalizeVfsPath(value)
   const files = await listWorkspaceFiles(workspaceId, { hydrateFolderPaths: true })

@@ -16,13 +16,11 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { ArrowRight, Plus } from 'lucide-react'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
-import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import {
   emptyPiiStages,
@@ -38,7 +36,6 @@ import {
   type PiiStagePolicy,
   type PiiStages,
 } from '@/lib/guardrails/pii-entities'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -50,7 +47,6 @@ import {
   useOrganizationRetention,
   useUpdateOrganizationRetention,
 } from '@/ee/data-retention/hooks/data-retention'
-import { useOrganizations } from '@/hooks/queries/organization'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('DataRetentionSettings')
@@ -616,13 +612,11 @@ function PolicyDetail({
   )
 }
 
-export function DataRetentionSettings() {
-  const { data: session, isPending: sessionPending } = useSession()
-  const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
+interface DataRetentionSettingsProps {
+  organizationId: string
+}
 
-  const activeOrganization = orgsData?.activeOrganization
-  const orgId = activeOrganization?.id
-
+export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
   const { data, isLoading: retentionLoading } = useOrganizationRetention(orgId)
   const updateMutation = useUpdateOrganizationRetention()
   const { data: workspaces } = useWorkspacesQuery(Boolean(orgId))
@@ -632,9 +626,6 @@ export function DataRetentionSettings() {
   const workspaceName = (id: string) =>
     workspaceOptions.find((w) => w.value === id)?.label ?? 'Unknown workspace'
 
-  const userEmail = session?.user?.email
-  const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = isOrgAdminRole(userRole)
   const piiEnabled = Boolean(data?.piiRedactionEnabled)
   const piiGranularEnabled = Boolean(data?.piiGranularRedactionEnabled)
 
@@ -891,17 +882,7 @@ export function DataRetentionSettings() {
     }
   }
 
-  if (sessionPending || orgsLoading || (orgId && retentionLoading)) {
-    return null
-  }
-
-  if (!orgId) {
-    return (
-      <SettingsEmptyState>
-        Data retention is configured per organization. Join or create an organization to continue.
-      </SettingsEmptyState>
-    )
-  }
+  if (retentionLoading) return null
 
   if (!data) {
     return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
@@ -910,14 +891,6 @@ export function DataRetentionSettings() {
   if (isBillingEnabled && !data.isEnterprise) {
     return (
       <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
-    )
-  }
-
-  if (!canManage) {
-    return (
-      <SettingsEmptyState>
-        Only organization owners and admins can configure data retention settings.
-      </SettingsEmptyState>
     )
   }
 

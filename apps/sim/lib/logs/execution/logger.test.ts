@@ -34,15 +34,50 @@ vi.mock('@sim/db', () => {
 
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => ({
+  getHighestPriorityPersonalSubscription: vi.fn(() => Promise.resolve(null)),
   getHighestPrioritySubscription: vi.fn(() => Promise.resolve(null)),
 }))
 
-vi.mock('@/lib/billing/core/usage', () => ({
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: vi.fn(
+    ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
+      Promise.resolve({
+        actorUserId,
+        workspaceId,
+        billedAccountUserId: 'payer-1',
+        organizationId: 'org-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: {
+          start: '2024-01-01T00:00:00.000Z',
+          end: '2024-02-01T00:00:00.000Z',
+        },
+        payerSubscription: null,
+      })
+  ),
+  toBillingContext: vi.fn((attribution) => ({
+    billingEntity: attribution.billingEntity,
+    billingPeriod: {
+      start: new Date(attribution.billingPeriod.start),
+      end: new Date(attribution.billingPeriod.end),
+    },
+  })),
+}))
+
+vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkUsageStatus: vi.fn(() =>
     Promise.resolve({
-      usageData: { limit: 100, percentUsed: 50, currentUsage: 50 },
+      limit: 100,
+      percentUsed: 50,
+      currentUsage: 50,
+      isExceeded: false,
+      isWarning: false,
+      scope: 'user',
+      organizationId: null,
     })
   ),
+}))
+
+vi.mock('@/lib/billing/core/usage', () => ({
   getOrgUsageLimit: vi.fn(() => Promise.resolve({ limit: 1000 })),
   maybeSendUsageThresholdEmail: vi.fn(() => Promise.resolve()),
 }))
@@ -58,6 +93,7 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
+  checkAndBillPayerOverageThreshold: vi.fn(() => Promise.resolve()),
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
@@ -202,6 +238,35 @@ describe('ExecutionLogger', () => {
       expect(completedData.completionFailure).toBe('fallback failure')
       expect(completedData.hasTraceSpans).toBe(false)
       expect(completedData.traceSpanCount).toBe(0)
+    })
+
+    test('preserves completion-provided billing attribution when the start row is legacy', () => {
+      const loggerInstance = new ExecutionLogger() as any
+      const billingAttribution = {
+        actorUserId: 'external-actor',
+        workspaceId: 'workspace-123',
+        organizationId: 'org-123',
+        billedAccountUserId: 'owner-123',
+        billingEntity: { type: 'organization', id: 'org-123' },
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: '2026-08-01T00:00:00.000Z',
+        },
+        payerSubscription: null,
+      }
+
+      const completedData = loggerInstance.buildCompletedExecutionData({
+        existingExecutionData: {},
+        billingAttribution,
+        traceSpans: [],
+        finalOutput: {},
+        executionCost: {
+          tokens: { input: 0, output: 0, total: 0 },
+          models: {},
+        },
+      })
+
+      expect(completedData.billingAttribution).toEqual(billingAttribution)
     })
 
     test('summarizes oversized execution data before storage', () => {
@@ -495,6 +560,13 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     charges: {},
     ...overrides,
   })
+  const billingContext = {
+    billingEntity: { type: 'organization' as const, id: 'org-1' },
+    billingPeriod: {
+      start: new Date('2026-07-01T00:00:00.000Z'),
+      end: new Date('2026-08-01T00:00:00.000Z'),
+    },
+  }
 
   // db.select() is called twice in recordExecutionUsage: first the workflow row
   // (terminated by .limit), then the already-billed usage_log rows (terminated
@@ -519,7 +591,14 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     billedRows: Array<Record<string, unknown>>
   ) => {
     mockDb(billedRows)
-    return logger.recordExecutionUsage('workflow-1', summary, 'api', 'exec-1', 'user-1')
+    return logger.recordExecutionUsage(
+      'workflow-1',
+      summary,
+      'api',
+      'exec-1',
+      'user-1',
+      billingContext
+    )
   }
 
   const lastEntries = () => vi.mocked(recordUsage).mock.calls[0][0].entries
@@ -541,13 +620,67 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
 
     expect(recordUsage).toHaveBeenCalledTimes(1)
     expect(lastEntries()).toEqual([
-      expect.objectContaining({ category: 'fixed', description: 'execution_fee', cost: 0.005 }),
-      expect.objectContaining({ category: 'model', description: 'gpt-4o', cost: 1 }),
+      expect.objectContaining({
+        category: 'fixed',
+        source: 'workflow',
+        description: 'execution_fee',
+        cost: 0.005,
+      }),
+      expect.objectContaining({
+        category: 'model',
+        source: 'workflow',
+        description: 'gpt-4o',
+        cost: 1,
+      }),
     ])
     // Returns the amount recorded at this boundary (drives threshold-email math).
     expect(recorded).toBeCloseTo(1.005, 8)
     // cost_total is refined to the exact ledger sum inside the locked tx.
     expect(txUpdateMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('leaves Mothership model spend to cumulative update-cost while ledgering ordinary models', async () => {
+    const setCostTotalMock = vi.fn(() => ({ where: () => Promise.resolve() }))
+    txUpdateMock.mockImplementationOnce(() => ({ set: setCostTotalMock }))
+
+    const recorded = await run(
+      costSummary({
+        totalCost: 1.505,
+        models: {
+          mothership: {
+            total: 0.5,
+            input: 0.2,
+            output: 0.3,
+            tokens: { input: 200, output: 300, total: 500 },
+          },
+          'gpt-4o': {
+            total: 1,
+            input: 0.4,
+            output: 0.6,
+            tokens: { input: 400, output: 600, total: 1000 },
+          },
+        },
+        workflowLedgerModels: {
+          'gpt-4o': {
+            total: 1,
+            input: 0.4,
+            output: 0.6,
+            tokens: { input: 400, output: 600, total: 1000 },
+          },
+        },
+      }),
+      []
+    )
+
+    expect(lastEntries()).toEqual([
+      expect.objectContaining({ category: 'fixed', description: 'execution_fee', cost: 0.005 }),
+      expect.objectContaining({ category: 'model', description: 'gpt-4o', cost: 1 }),
+    ])
+    expect(lastEntries()).not.toContainEqual(
+      expect.objectContaining({ category: 'model', description: 'mothership' })
+    )
+    expect(recorded).toBeCloseTo(1.005, 8)
+    expect(setCostTotalMock).toHaveBeenCalledWith({ costTotal: '1.505' })
   })
 
   test('resume records only the increment over what is already billed', async () => {
@@ -625,6 +758,21 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
       billingEntity: { type: 'user', id: 'user-1' },
       billingPeriod: billingContext.billingPeriod,
     })
+  })
+
+  test('does not derive an actor payer when workspace billing context is missing', async () => {
+    mockDb([])
+
+    const recorded = await (logger as any).recordExecutionUsage(
+      'workflow-1',
+      costSummary(),
+      'api',
+      'exec-1',
+      'user-1'
+    )
+
+    expect(recorded).toBe(0)
+    expect(recordUsage).not.toHaveBeenCalled()
   })
 
   test('retry with everything already billed records nothing (idempotent)', async () => {

@@ -92,6 +92,7 @@ export const interactionStatsTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         peopleInteractionStats,
         timeZone: data.timeZone ?? null,
         fromDateTime: data.fromDateTime ?? null,
@@ -102,6 +103,11 @@ export const interactionStatsTool: ToolConfig<
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     peopleInteractionStats: {
       type: 'array',
       description:

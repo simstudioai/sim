@@ -110,6 +110,7 @@ export default async function Layout({ children, params }: LayoutProps) {
               collapsible: false,
               footer: null,
               banner: null,
+              prefetch: false,
               components: {
                 Item: SidebarItem,
                 Folder: SidebarFolder,

@@ -7,6 +7,8 @@ import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { eq } from 'drizzle-orm'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import { prepareWorkflowExecutionAdmission } from '@/lib/copilot/request/tools/workflow-context'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
   buildVfsFolderPathMap,
@@ -16,7 +18,11 @@ import {
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
-import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
+import {
+  type ExecuteWorkflowOptions,
+  executeWorkflow,
+  type WorkflowInfo,
+} from '@/lib/workflows/executor/execute-workflow'
 import {
   getExecutionInputForWorkflow,
   getExecutionStateForWorkflow,
@@ -78,6 +84,42 @@ function buildExecutionOutput(
       logs: stripBinaryFields(result.logs),
     },
     error: result.success ? undefined : result.error || 'Workflow execution failed',
+  }
+}
+
+async function executeCopilotWorkflowTarget(params: {
+  workflow: WorkflowInfo
+  input: unknown
+  context: ExecutionContext
+  options: Omit<ExecuteWorkflowOptions, 'billingAttribution'>
+}) {
+  const childExecutionId = generateId()
+  if (!params.workflow.workspaceId) {
+    throw new Error(`Workflow ${params.workflow.id} has no workspaceId`)
+  }
+  const admission = await prepareWorkflowExecutionAdmission(
+    params.context,
+    params.workflow.workspaceId,
+    childExecutionId
+  )
+
+  try {
+    return await executeWorkflow(
+      params.workflow,
+      generateRequestId(),
+      params.input,
+      params.context.userId,
+      {
+        ...params.options,
+        billingAttribution: admission.billingAttribution,
+      },
+      childExecutionId
+    )
+  } catch (error) {
+    if (admission.targetReservation) {
+      await releaseExecutionSlot(childExecutionId)
+    }
+    throw error
   }
 }
 
@@ -479,24 +521,22 @@ export async function executeRunWorkflow(
     if ('error' in prepared) {
       return { success: false, error: prepared.error }
     }
-
-    const result = await executeWorkflow(
-      {
+    const result = await executeCopilotWorkflowTarget({
+      workflow: {
         id: workflowRecord.id,
         userId: workflowRecord.userId,
         workspaceId: workflowRecord.workspaceId,
         variables: workflowRecord.variables || {},
       },
-      generateRequestId(),
-      prepared.input,
-      context.userId,
-      {
+      input: prepared.input,
+      context,
+      options: {
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
         triggerBlockId: prepared.triggerBlockId,
-      }
-    )
+      },
+    })
 
     return buildExecutionOutput(result)
   } catch (error) {
@@ -792,25 +832,23 @@ export async function executeRunWorkflowUntilBlock(
     if ('error' in prepared) {
       return { success: false, error: prepared.error }
     }
-
-    const result = await executeWorkflow(
-      {
+    const result = await executeCopilotWorkflowTarget({
+      workflow: {
         id: workflowRecord.id,
         userId: workflowRecord.userId,
         workspaceId: workflowRecord.workspaceId,
         variables: workflowRecord.variables || {},
       },
-      generateRequestId(),
-      prepared.input,
-      context.userId,
-      {
+      input: prepared.input,
+      context,
+      options: {
         enabled: true,
         useDraftState,
         stopAfterBlockId: params.stopAfterBlockId,
         workflowTriggerType: 'copilot',
         triggerBlockId: prepared.triggerBlockId,
-      }
-    )
+      },
+    })
 
     return buildExecutionOutput(result, { stoppedAfterBlockId: params.stopAfterBlockId })
   } catch (error) {
@@ -893,17 +931,16 @@ export async function executeRunFromBlock(
     )
     const useDraftState = !params.useDeployedState
 
-    const result = await executeWorkflow(
-      {
+    const result = await executeCopilotWorkflowTarget({
+      workflow: {
         id: workflowRecord.id,
         userId: workflowRecord.userId,
         workspaceId: workflowRecord.workspaceId,
         variables: workflowRecord.variables || {},
       },
-      generateRequestId(),
-      resolveRunWorkflowInput(params),
-      context.userId,
-      {
+      input: resolveRunWorkflowInput(params),
+      context,
+      options: {
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
@@ -912,8 +949,8 @@ export async function executeRunFromBlock(
           sourceSnapshot: sourceSnapshot.snapshot,
           sourceExecutionId: sourceSnapshot.executionId,
         },
-      }
-    )
+      },
+    })
 
     return buildExecutionOutput(result, { startBlockId: params.startBlockId })
   } catch (error) {
@@ -1425,17 +1462,16 @@ export async function executeRunBlock(
     )
     const useDraftState = !params.useDeployedState
 
-    const result = await executeWorkflow(
-      {
+    const result = await executeCopilotWorkflowTarget({
+      workflow: {
         id: workflowRecord.id,
         userId: workflowRecord.userId,
         workspaceId: workflowRecord.workspaceId,
         variables: workflowRecord.variables || {},
       },
-      generateRequestId(),
-      resolveRunWorkflowInput(params),
-      context.userId,
-      {
+      input: resolveRunWorkflowInput(params),
+      context,
+      options: {
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
@@ -1445,8 +1481,8 @@ export async function executeRunBlock(
           sourceExecutionId: sourceSnapshot.executionId,
         },
         stopAfterBlockId: params.blockId,
-      }
-    )
+      },
+    })
 
     return buildExecutionOutput(result, { blockId: params.blockId })
   } catch (error) {

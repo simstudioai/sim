@@ -104,6 +104,19 @@ describe('reconcileOrganizationSeats', () => {
     )
   })
 
+  it('reconciles a past-due Team subscription because it remains entitled', async () => {
+    queryQueue.value = [[{ ...teamSub, status: 'past_due' }], [{ value: 2 }]]
+
+    const result = await reconcileOrganizationSeats({
+      organizationId: 'org-1',
+      reason: 'member-accepted-invite',
+    })
+
+    expect(result.changed).toBe(true)
+    expect(setMock).toHaveBeenCalledWith({ seats: 2 })
+    expect(enqueueMock).toHaveBeenCalledOnce()
+  })
+
   it('still records the seat audit when the post-commit usage-limit sync fails', async () => {
     queryQueue.value = [[teamSub], [{ value: 2 }]]
     mockSyncSubscriptionUsageLimits.mockRejectedValueOnce(new Error('sync unavailable'))

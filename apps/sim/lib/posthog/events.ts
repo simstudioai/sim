@@ -374,6 +374,7 @@ export interface PostHogEventMap {
   }
 
   settings_tab_viewed: {
+    plane: 'account' | 'organization' | 'workspace'
     section: string
   }
 

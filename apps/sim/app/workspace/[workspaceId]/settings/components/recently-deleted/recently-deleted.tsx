@@ -7,9 +7,11 @@ import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { debounce, useQueryStates } from 'nuqs'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   DEFAULT_RECENTLY_DELETED_SORT_COLUMN,
   DEFAULT_RECENTLY_DELETED_SORT_DIRECTION,
@@ -155,6 +157,8 @@ export function RecentlyDeleted() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
+  const workspacePermissions = useUserPermissionsContext()
+  const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
   const [
     { tab: activeTab, sort: sortColumn, dir: sortDirection, search: urlSearchTerm },
     setRecentlyDeletedFilters,
@@ -477,7 +481,7 @@ export function RecentlyDeleted() {
                   </>
                 }
                 trailing={
-                  isRestoring ? (
+                  !canEdit ? null : isRestoring ? (
                     <Chip variant='primary' disabled className='shrink-0'>
                       Restoring...
                     </Chip>

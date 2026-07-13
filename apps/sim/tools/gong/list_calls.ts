@@ -97,7 +97,7 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
         requestId: data.requestId ?? null,
         calls,
         cursor: data.records?.cursor ?? null,
-        totalRecords: data.records?.totalRecords ?? calls.length,
+        totalRecords: data.records?.totalRecords ?? null,
         currentPageSize: data.records?.currentPageSize ?? null,
         currentPageNumber: data.records?.currentPageNumber ?? null,
       },
@@ -153,6 +153,7 @@ export const listCallsTool: ToolConfig<GongListCallsParams, GongListCallsRespons
     totalRecords: {
       type: 'number',
       description: 'Total number of records matching the filter',
+      optional: true,
     },
     currentPageSize: {
       type: 'number',

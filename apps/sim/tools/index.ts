@@ -4,6 +4,11 @@ import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  type BillingAttributionSnapshot,
+  serializeBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
@@ -52,6 +57,7 @@ interface ToolExecutionScope {
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
+  billingAttribution?: BillingAttributionSnapshot
 }
 
 function resolveToolScope(
@@ -73,6 +79,8 @@ function resolveToolScope(
     copilotToolExecution: (executionContext?.copilotToolExecution ?? ctx?.copilotToolExecution) as
       | boolean
       | undefined,
+    billingAttribution: (executionContext?.metadata.billingAttribution ??
+      ctx?.billingAttribution) as BillingAttributionSnapshot | undefined,
   }
 }
 
@@ -999,6 +1007,12 @@ export async function executeTool(
 
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
+    if (scope.billingAttribution) {
+      contextParams._context = {
+        ...(contextParams._context as Record<string, unknown> | undefined),
+        billingAttribution: scope.billingAttribution,
+      }
+    }
 
     // Validate the tool and its parameters
     validateRequiredParametersAfterMerge(toolId, tool, contextParams)
@@ -1574,6 +1588,12 @@ async function executeToolRequest(
       toolId,
       params._context?.userId
     )
+    if (isInternalRoute && params._context?.billingAttribution) {
+      headers.set(
+        BILLING_ATTRIBUTION_HEADER,
+        serializeBillingAttributionHeader(params._context.billingAttribution)
+      )
+    }
 
     const shouldPropagateCallChain = isInternalRoute || isSelfOriginUrl(fullUrl)
     if (shouldPropagateCallChain) {
@@ -2037,12 +2057,29 @@ async function executeMcpTool(
     if (mcpScope.callChain && mcpScope.callChain.length > 0) {
       headers[SIM_VIA_HEADER] = serializeCallChain(mcpScope.callChain)
     }
+    if (mcpScope.billingAttribution) {
+      headers[BILLING_ATTRIBUTION_HEADER] = serializeBillingAttributionHeader(
+        mcpScope.billingAttribution
+      )
+    }
 
     if (!mcpScope.workspaceId) {
       return {
         success: false,
         output: {},
         error: `Missing workspaceId in execution context for MCP tool ${toolName}`,
+        timing: {
+          startTime: actualStartTime,
+          endTime: new Date().toISOString(),
+          duration: Date.now() - new Date(actualStartTime).getTime(),
+        },
+      }
+    }
+    if (!mcpScope.billingAttribution) {
+      return {
+        success: false,
+        output: {},
+        error: `Missing billing attribution in execution context for MCP tool ${toolName}`,
         timing: {
           startTime: actualStartTime,
           endTime: new Date().toISOString(),

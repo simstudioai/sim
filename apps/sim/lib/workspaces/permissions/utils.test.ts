@@ -152,6 +152,22 @@ describe('Permission Utils', () => {
       expect(result).toEqual([])
     })
 
+    it('reuses a resolved workspace without querying it again', async () => {
+      mockSelectSequence([[]])
+
+      const result = await getUsersWithPermissions('workspace123', {
+        id: 'workspace123',
+        name: 'Workspace',
+        ownerId: 'owner-user',
+        organizationId: null,
+        workspaceMode: 'personal',
+        billedAccountUserId: 'owner-user',
+      })
+
+      expect(result).toEqual([])
+      expect(mockDb.select).toHaveBeenCalledTimes(1)
+    })
+
     it('should return users with their explicit permissions for a personal workspace', async () => {
       mockSelectSequence([
         [{ id: 'workspace456', ownerId: 'owner-user', organizationId: null }],

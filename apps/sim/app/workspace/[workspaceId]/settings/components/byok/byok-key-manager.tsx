@@ -59,6 +59,7 @@ interface BYOKKeyManagerBaseProps {
   isLoading: boolean
   isSaving?: boolean
   isDeleting?: boolean
+  readOnly?: boolean
   /** Labeled provider groups. When omitted, renders a single flat list. */
   sections?: BYOKProviderSection[]
   /** Optional subtitle shown above the provider list. */
@@ -131,6 +132,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
     isLoading,
     isSaving = false,
     isDeleting = false,
+    readOnly = false,
     sections,
     description,
     showSearch = true,
@@ -248,6 +250,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
   const renderActions = (provider: BYOKManagerProvider) => {
     if (!hasStoredKey(provider.id)) {
+      if (readOnly) return null
       return (
         <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
           Add Key
@@ -262,11 +265,14 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           <span className='text-[var(--text-muted)] text-caption'>
             {keyCount} {keyCount === 1 ? 'key' : 'keys'}
           </span>
-          <Chip onClick={() => setManagingProviderId(provider.id)}>Manage</Chip>
+          <Chip onClick={() => setManagingProviderId(provider.id)}>
+            {readOnly ? 'View' : 'Manage'}
+          </Chip>
         </div>
       )
     }
 
+    if (readOnly) return null
     return (
       <div className='flex flex-shrink-0 items-center gap-2'>
         <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
@@ -350,6 +356,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
           provider={managingMeta}
           keys={managingProviderId ? getProviderKeys(managingProviderId) : NO_KEYS}
           maxKeys={props.maxKeysPerProvider}
+          readOnly={readOnly}
           onAddKey={() => managingProviderId && openEditModal(managingProviderId)}
           onUpdateKey={(key) => managingProviderId && openEditModal(managingProviderId, key)}
           onDeleteKey={(key) => managingProviderId && openDeleteConfirm(managingProviderId, key.id)}

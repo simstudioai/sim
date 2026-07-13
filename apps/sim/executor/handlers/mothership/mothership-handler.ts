@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  serializeBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
 import {
@@ -349,6 +353,12 @@ export class MothershipBlockHandler implements BlockHandler {
     const headers = await buildAuthHeaders(ctx.userId)
     headers.Accept = 'application/x-ndjson'
     headers[MOTHERSHIP_EXECUTE_STREAM_HEADER] = MOTHERSHIP_EXECUTE_STREAM_VALUE
+    if (!ctx.metadata.billingAttribution) {
+      throw new Error('Billing attribution is required for Mothership execution')
+    }
+    headers[BILLING_ATTRIBUTION_HEADER] = serializeBillingAttributionHeader(
+      ctx.metadata.billingAttribution
+    )
 
     const body: Record<string, unknown> = {
       messages,

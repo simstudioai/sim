@@ -7,6 +7,11 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+} from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
@@ -227,6 +232,7 @@ export type WebhookExecutionPayload = {
   webhookId: string
   workflowId: string
   userId: string
+  billingAttribution: BillingAttributionSnapshot
   executionId?: string
   requestId?: string
   correlation?: AsyncExecutionCorrelation
@@ -235,26 +241,30 @@ export type WebhookExecutionPayload = {
   headers: Record<string, string>
   path: string
   blockId?: string
-  workspaceId?: string
+  workspaceId: string
   credentialId?: string
   /** Epoch ms when the webhook HTTP request was first received (for dispatch-latency metrics). */
   webhookReceivedAt?: number
   /** Epoch ms of the originating provider interaction (e.g. Slack x-slack-request-timestamp). */
   triggerTimestampMs?: number
-  /**
-   * Billing actor resolved by the webhook route, set ONLY for in-process inline
-   * execution that runs microseconds after resolution. The background pass reuses
-   * it to skip the redundant billed-account lookup. Deliberately absent on queued
-   * (Trigger.dev) and persisted payloads — a deferred run could outlive a
-   * billed-account change, so it re-resolves the current actor instead.
-   */
-  resolvedActorUserId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   const correlation = buildWebhookCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
+  try {
+    const payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
+    if (
+      payloadBillingAttribution.actorUserId !== payload.userId ||
+      payloadBillingAttribution.workspaceId !== payload.workspaceId
+    ) {
+      throw new Error('Webhook job billing attribution does not match its actor and workspace')
+    }
+  } catch (error) {
+    await releaseExecutionSlot(executionId)
+    throw error
+  }
 
   return runWithRequestContext({ requestId }, async () => {
     logger.info(`[${requestId}] Starting webhook execution`, {
@@ -272,15 +282,26 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
       payload.provider
     )
 
+    let operationStarted = false
     const runOperation = async () => {
+      operationStarted = true
       return await executeWebhookJobInternal(payload, correlation)
     }
 
-    return await webhookIdempotency.executeWithIdempotency(
-      payload.provider,
-      idempotencyKey,
-      runOperation
-    )
+    try {
+      const result = await webhookIdempotency.executeWithIdempotency(
+        payload.provider,
+        idempotencyKey,
+        runOperation
+      )
+      if (!operationStarted) {
+        await releaseExecutionSlot(executionId)
+      }
+      return result
+    } catch (error) {
+      await releaseExecutionSlot(executionId)
+      throw error
+    }
   })
 }
 
@@ -375,20 +396,14 @@ async function executeWebhookJobInternal(
     skipUsageLimits: true,
     workspaceId: payload.workspaceId,
     loggingSession,
-    /**
-     * Reuse the route-resolved actor only for inline execution (set on the
-     * in-process payload). When absent — queued/Trigger.dev runs — preprocessing
-     * re-resolves the current billed account. Either way the ban and
-     * archived-workflow gates run fresh against the resolved actor.
-     */
-    resolvedActorUserId: payload.resolvedActorUserId,
+    billingAttribution: payload.billingAttribution,
   })
 
   if (!preprocessResult.success) {
     throw new Error(preprocessResult.error?.message || 'Preprocessing failed in background job')
   }
 
-  const { workflowRecord, executionTimeout } = preprocessResult
+  const { actorUserId, billingAttribution, workflowRecord, executionTimeout } = preprocessResult
   if (!workflowRecord) {
     throw new Error(`Workflow ${payload.workflowId} not found during preprocessing`)
   }
@@ -471,7 +486,9 @@ async function executeWebhookJobInternal(
 
     if (skipMessage) {
       await loggingSession.safeStart({
-        userId: payload.userId,
+        userId: actorUserId,
+        actorUserId,
+        billingAttribution,
         workspaceId,
         variables: {},
         triggerData: {
@@ -563,7 +580,8 @@ async function executeWebhookJobInternal(
       executionId,
       workflowId: payload.workflowId,
       workspaceId,
-      userId: payload.userId,
+      userId: actorUserId!,
+      billingAttribution,
       sessionUserId: undefined,
       workflowUserId: workflowRecord.userId,
       triggerType: payload.provider || 'webhook',
@@ -677,7 +695,9 @@ async function executeWebhookJobInternal(
 
     try {
       await loggingSession.safeStart({
-        userId: payload.userId,
+        userId: actorUserId,
+        actorUserId,
+        billingAttribution,
         workspaceId,
         variables: {},
         triggerData: {

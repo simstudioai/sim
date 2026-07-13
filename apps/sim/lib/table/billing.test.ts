@@ -4,27 +4,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetWorkspaceBilledAccountUserId,
-  mockGetHighestPrioritySubscription,
+  mockFlags,
+  mockResolveWorkspaceBillingPayer,
   mockGetPlanTypeForLimits,
+  mockGetBillingDisabledTableLimits,
   mockGetTablePlanLimits,
 } = vi.hoisted(() => ({
-  mockGetWorkspaceBilledAccountUserId: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
+  mockFlags: { isBillingEnabled: true },
+  mockResolveWorkspaceBillingPayer: vi.fn(),
   mockGetPlanTypeForLimits: vi.fn(),
+  mockGetBillingDisabledTableLimits: vi.fn(),
   mockGetTablePlanLimits: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveWorkspaceBillingPayer: mockResolveWorkspaceBillingPayer,
 }))
 vi.mock('@/lib/billing/plan-helpers', () => ({
   getPlanTypeForLimits: mockGetPlanTypeForLimits,
 }))
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isBillingEnabled() {
+    return mockFlags.isBillingEnabled
+  },
+}))
 vi.mock('@/lib/table/constants', () => ({
+  getBillingDisabledTableLimits: mockGetBillingDisabledTableLimits,
   getTablePlanLimits: mockGetTablePlanLimits,
 }))
 
@@ -51,9 +56,17 @@ const nextWorkspaceId = () => `ws-${++wsCounter}`
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockFlags.isBillingEnabled = true
   mockGetTablePlanLimits.mockReturnValue(LIMITS)
-  mockGetWorkspaceBilledAccountUserId.mockResolvedValue('billed-user')
-  mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro' })
+  mockGetBillingDisabledTableLimits.mockReturnValue({
+    maxTables: Number.MAX_SAFE_INTEGER,
+    maxRowsPerTable: Number.MAX_SAFE_INTEGER,
+  })
+  mockResolveWorkspaceBillingPayer.mockResolvedValue({
+    billedAccountUserId: 'billed-user',
+    organizationId: 'org-1',
+    payerSubscription: { plan: 'pro' },
+  })
   mockGetPlanTypeForLimits.mockReturnValue('pro')
 })
 
@@ -66,20 +79,35 @@ describe('getWorkspaceTableLimits', () => {
     const ws = nextWorkspaceId()
     await getWorkspaceTableLimits(ws)
     await getWorkspaceTableLimits(ws)
-    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+    expect(mockResolveWorkspaceBillingPayer).toHaveBeenCalledTimes(1)
   })
 
   it('returns free-tier limits when the workspace has no billed account', async () => {
-    mockGetWorkspaceBilledAccountUserId.mockResolvedValueOnce(null)
+    mockResolveWorkspaceBillingPayer.mockResolvedValueOnce(null)
     expect(await getWorkspaceTableLimits(nextWorkspaceId())).toEqual(LIMITS.free)
   })
 
   it('falls back to free tier without caching when the lookup throws', async () => {
     const ws = nextWorkspaceId()
-    mockGetWorkspaceBilledAccountUserId.mockRejectedValueOnce(new Error('db down'))
+    mockResolveWorkspaceBillingPayer.mockRejectedValueOnce(new Error('db down'))
     expect(await getWorkspaceTableLimits(ws)).toEqual(LIMITS.free)
     // The fallback is never cached, so the next call re-attempts and resolves the real plan.
     expect(await getWorkspaceTableLimits(ws)).toEqual(LIMITS.pro)
+  })
+
+  it('bypasses billing plan resolution entirely when billing is disabled', async () => {
+    mockFlags.isBillingEnabled = false
+    mockGetBillingDisabledTableLimits.mockReturnValue({
+      maxTables: Number.MAX_SAFE_INTEGER,
+      maxRowsPerTable: 12345,
+    })
+
+    expect(await getWorkspaceTableLimits(nextWorkspaceId())).toEqual({
+      maxTables: Number.MAX_SAFE_INTEGER,
+      maxRowsPerTable: 12345,
+    })
+    expect(mockResolveWorkspaceBillingPayer).not.toHaveBeenCalled()
+    expect(mockGetTablePlanLimits).not.toHaveBeenCalled()
   })
 
   it('stays bounded under a burst of distinct all-fresh workspaces', async () => {
@@ -89,9 +117,9 @@ describe('getWorkspaceTableLimits', () => {
       await getWorkspaceTableLimits(`burst-${i}`)
     }
     // Re-resolving an early (evicted) workspace must re-hit the billing lookup.
-    mockGetWorkspaceBilledAccountUserId.mockClear()
+    mockResolveWorkspaceBillingPayer.mockClear()
     await getWorkspaceTableLimits('burst-0')
-    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+    expect(mockResolveWorkspaceBillingPayer).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -161,30 +189,30 @@ describe('assertRowCapacity', () => {
 })
 
 describe('notifyTableRowUsage — edge-crossing gate', () => {
-  beforeEach(() => mockGetWorkspaceBilledAccountUserId.mockClear())
+  beforeEach(() => mockResolveWorkspaceBillingPayer.mockClear())
 
   it('fires when an insert crosses UP into the warn band (limit 5000)', () => {
     notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 3990, addedRows: 20, limit: 5000 })
-    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+    expect(mockResolveWorkspaceBillingPayer).toHaveBeenCalledTimes(1)
   })
 
   it('fires when an insert crosses UP into the reached band', () => {
     notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 4990, addedRows: 20, limit: 5000 })
-    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+    expect(mockResolveWorkspaceBillingPayer).toHaveBeenCalledTimes(1)
   })
 
   it('does NOT fire when already above the band (no crossing)', () => {
     notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 4200, addedRows: 100, limit: 5000 })
-    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceBillingPayer).not.toHaveBeenCalled()
   })
 
   it('does NOT fire well below the band', () => {
     notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 100, addedRows: 10, limit: 5000 })
-    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceBillingPayer).not.toHaveBeenCalled()
   })
 
   it('does NOT fire for unlimited plans', () => {
     notifyTableRowUsage({ workspaceId: 'ws', currentRowCount: 0, addedRows: 10_000, limit: -1 })
-    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceBillingPayer).not.toHaveBeenCalled()
   })
 })

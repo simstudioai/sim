@@ -28,6 +28,22 @@ const allIntegrations = INTEGRATIONS
 const INTEGRATION_COUNT = allIntegrations.length
 const baseUrl = SITE_URL
 
+/**
+ * High-connectivity integrations (e.g. Slack, used as a notification target
+ * across hundreds of unrelated templates via `alsoIntegrations`) can match
+ * many hundreds of templates, ballooning this page's HTML/RSC payload well
+ * past Googlebot's 2MB crawl limit. Cap to a bounded, still-generous set,
+ * consistent with the related-integrations section's own cap below.
+ *
+ * `getTemplatesForBlock` returns matches in registry insertion order, not
+ * relevance - sorted `featured` first, then owned-by-the-viewing-integration,
+ * so the cap can't hide a curated `featured` template (owned or reached via
+ * `alsoIntegrations`) behind a larger pile of non-featured owned templates,
+ * nor behind unrelated `alsoIntegrations` matches that happen to iterate
+ * earlier in the registry.
+ */
+const MAX_TEMPLATES_SHOWN = 12
+
 /** Fast O(1) lookups - avoids repeated linear scans inside render loops. */
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
@@ -380,6 +396,12 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     relatedIntegrations.map((i) => i.name)
   )
   const matchingTemplates = getTemplatesForBlock(integration.type)
+    .sort(
+      (a, b) =>
+        Number(b.featured ?? false) - Number(a.featured ?? false) ||
+        Number(b.isOwner) - Number(a.isOwner)
+    )
+    .slice(0, MAX_TEMPLATES_SHOWN)
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',

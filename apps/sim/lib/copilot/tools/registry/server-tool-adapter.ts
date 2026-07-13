@@ -17,6 +17,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
       const result = await routeExecution(toolId, enrichedParams, {
         userId: context.userId,
         workspaceId: context.workspaceId,
+        billingAttribution: context.billingAttribution,
         userPermission: context.userPermission ?? undefined,
         chatId: context.chatId,
         messageId: context.messageId,

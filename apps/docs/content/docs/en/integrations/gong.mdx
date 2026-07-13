@@ -98,7 +98,7 @@ Upload call metadata to Gong and let Gong pull the media from a URL.
 | `primaryUser` | string | Yes | Gong user ID for the call's host or owner |
 | `parties` | json | Yes | Array of call parties, with at least the primary user included |
 | `direction` | string | Yes | Call direction: Inbound, Outbound, Conference, or Unknown |
-| `downloadMediaUrl` | string | Yes | URL where Gong can download the call media file |
+| `downloadMediaUrl` | string | No | URL where Gong can download the call media file. If omitted, the call is created without media and Gong waits for a separate media upload. |
 | `title` | string | No | Human-readable call title |
 | `workspaceId` | string | No | Optional Gong workspace ID |
 | `disposition` | string | No | Optional call disposition |
@@ -112,7 +112,6 @@ Upload call metadata to Gong and let Gong pull the media from a URL.
 | --------- | ---- | ----------- |
 | `callId` | string | Gong's unique numeric identifier for the created call |
 | `requestId` | string | Gong request reference ID for troubleshooting |
-| `url` | string | URL to the created call in the Gong web app |
 
 ### `gong_get_call`
 
@@ -130,6 +129,7 @@ Retrieve detailed data for a specific call from Gong.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `id` | string | Gong's unique numeric identifier for the call |
 | `title` | string | Call title |
 | `url` | string | URL to the call in the Gong web app |
@@ -171,6 +171,7 @@ Retrieve transcripts of calls from Gong by call IDs or date range.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `callTranscripts` | array | List of call transcripts with speaker turns and sentences |
 |   ↳ `callId` | string | Gong's unique numeric identifier for the call |
 |   ↳ `transcript` | array | List of monologues in the call |
@@ -203,6 +204,7 @@ Retrieve detailed call data including trackers, topics, highlights, and AI spotl
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `calls` | array | List of detailed call objects with metadata, content, interaction stats, and collaboration data |
 |   ↳ `metaData` | object | Call metadata \(same fields as CallBasicData\) |
 |     ↳ `id` | string | Call ID |
@@ -272,12 +274,9 @@ Retrieve detailed call data including trackers, topics, highlights, and AI spotl
 |     ↳ `highlights` | array | AI-generated highlights including next steps, action items, and key moments |
 |       ↳ `title` | string | Title of the highlight |
 |   ↳ `interaction` | object | Interaction statistics |
-|     ↳ `interactionStats` | array | Interaction stats per user |
-|       ↳ `userId` | string | Gong user ID |
-|       ↳ `userEmailAddress` | string | User email |
-|       ↳ `personInteractionStats` | array | Stats list \(Longest Monologue, Interactivity, Patience, etc.\) |
-|         ↳ `name` | string | Stat name |
-|         ↳ `value` | number | Stat value |
+|     ↳ `interactionStats` | array | Interaction stat measurements \(Longest Monologue, Interactivity, Patience, etc.\) |
+|       ↳ `name` | string | Stat name |
+|       ↳ `value` | number | Stat value |
 |     ↳ `speakers` | array | Talk duration per speaker |
 |       ↳ `id` | string | Participant ID |
 |       ↳ `userId` | string | Gong user ID |
@@ -368,6 +367,7 @@ Retrieve details for a specific user from Gong.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `id` | string | Unique numeric user ID \(up to 20 digits\) |
 | `emailAddress` | string | User email address |
 | `created` | string | User creation timestamp \(ISO-8601\) |
@@ -413,6 +413,7 @@ Retrieve aggregated activity statistics for users by date range from Gong.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `usersActivity` | array | Aggregated activity statistics per user |
 |   ↳ `userId` | string | Gong's unique numeric identifier for the user |
 |   ↳ `userEmailAddress` | string | Email address of the Gong user |
@@ -542,6 +543,7 @@ Retrieve interaction statistics for users by date range from Gong. Only includes
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `peopleInteractionStats` | array | Interaction statistics per user. Applicable stat names: 'Longest Monologue', 'Longest Customer Story', 'Interactivity', 'Patience', 'Question Rate'. |
 |   ↳ `userId` | string | Gong's unique numeric identifier for the user |
 |   ↳ `userEmailAddress` | string | Email address of the Gong user |
@@ -575,6 +577,7 @@ Retrieve answered scorecards for reviewed users or by date range from Gong.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `answeredScorecards` | array | List of answered scorecards with scores and answers |
 |   ↳ `answeredScorecardId` | number | Identifier of the answered scorecard |
 |   ↳ `scorecardId` | number | Identifier of the scorecard |
@@ -589,9 +592,10 @@ Retrieve answered scorecards for reviewed users or by date range from Gong.
 |     ↳ `questionId` | number | Identifier of the question |
 |     ↳ `questionRevisionId` | number | Identifier of the revision version of the question |
 |     ↳ `isOverall` | boolean | Whether this is the overall question |
-|     ↳ `score` | number | Score between 1 to 5 if answered, null otherwise |
+|     ↳ `score` | number | Score between 1 to 50 if answered, null otherwise |
 |     ↳ `answerText` | string | The answer's text if answered, null otherwise |
 |     ↳ `notApplicable` | boolean | Whether the question is not applicable to this call |
+|     ↳ `selectedOptions` | array | Identifiers of the options selected for select-type questions, null otherwise |
 | `cursor` | string | Pagination cursor for the next page |
 
 ### `gong_list_library_folders`
@@ -610,6 +614,7 @@ Retrieve library folders from Gong.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `folders` | array | List of library folders with id, name, and parent relationships |
 |   ↳ `id` | string | Gong unique numeric identifier for the folder |
 |   ↳ `name` | string | Display name of the folder |
@@ -627,12 +632,13 @@ Retrieve the list of calls in a specific library folder from Gong.
 | --------- | ---- | -------- | ----------- |
 | `accessKey` | string | Yes | Gong API Access Key |
 | `accessKeySecret` | string | Yes | Gong API Access Key Secret |
-| `folderId` | string | Yes | The library folder ID to retrieve content for |
+| `folderId` | string | No | The library folder ID to retrieve content for \(up to 20 digits\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `folderId` | string | Gong's unique numeric identifier for the folder |
 | `folderName` | string | Display name of the folder |
 | `createdBy` | string | Gong's unique numeric identifier for the user who added the folder |
@@ -663,22 +669,28 @@ Retrieve scorecard definitions from Gong settings.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `scorecards` | array | List of scorecard definitions with questions |
-|   ↳ `scorecardId` | string | Unique identifier for the scorecard |
+|   ↳ `scorecardId` | number | Unique identifier for the scorecard |
 |   ↳ `scorecardName` | string | Display name of the scorecard |
-|   ↳ `workspaceId` | string | Workspace identifier associated with this scorecard |
+|   ↳ `workspaceId` | number | Workspace identifier associated with this scorecard |
 |   ↳ `enabled` | boolean | Whether the scorecard is active |
-|   ↳ `updaterUserId` | string | ID of the user who last modified the scorecard |
+|   ↳ `updaterUserId` | number | ID of the user who last modified the scorecard |
 |   ↳ `created` | string | Creation timestamp in ISO-8601 format |
 |   ↳ `updated` | string | Last update timestamp in ISO-8601 format |
+|   ↳ `reviewMethod` | string | Review method configured for the scorecard |
 |   ↳ `questions` | array | List of questions in the scorecard |
-|     ↳ `questionId` | string | Unique identifier for the question |
+|     ↳ `questionId` | number | Unique identifier for the question |
+|     ↳ `questionRevisionId` | number | Identifier for the specific revision of the question |
 |     ↳ `questionText` | string | The text content of the question |
-|     ↳ `questionRevisionId` | string | Identifier for the specific revision of the question |
 |     ↳ `isOverall` | boolean | Whether this is the primary overall question |
-|     ↳ `created` | string | Question creation timestamp in ISO-8601 format |
-|     ↳ `updated` | string | Question last update timestamp in ISO-8601 format |
-|     ↳ `updaterUserId` | string | ID of the user who last modified the question |
+|     ↳ `questionType` | string | The type of the question \(e.g. range or select\) |
+|     ↳ `answerGuide` | string | Guidance text describing how to answer the question |
+|     ↳ `minRange` | number | Minimum score for range-type questions |
+|     ↳ `maxRange` | number | Maximum score for range-type questions |
+|     ↳ `answerOptions` | array | Selectable options for select-type questions |
+|       ↳ `id` | number | Identifier of the option |
+|       ↳ `text` | string | Display text of the option |
 
 ### `gong_list_trackers`
 
@@ -696,6 +708,7 @@ Retrieve smart tracker and keyword tracker definitions from Gong settings.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `trackers` | array | List of keyword tracker definitions |
 |   ↳ `trackerId` | string | Unique identifier for the tracker |
 |   ↳ `trackerName` | string | Display name of the tracker |
@@ -710,7 +723,6 @@ Retrieve smart tracker and keyword tracker definitions from Gong settings.
 |   ↳ `saidAtInterval` | number | Duration to search \(in minutes or percentage\) |
 |   ↳ `saidAtUnit` | string | Unit for saidAtInterval |
 |   ↳ `saidInTopics` | array | Topics where keywords should be detected |
-|   ↳ `saidInCallParts` | array | Specific call segments to monitor |
 |   ↳ `filterQuery` | string | JSON-formatted call filtering criteria |
 |   ↳ `created` | string | Creation timestamp in ISO-8601 format |
 |   ↳ `creatorUserId` | string | ID of the user who created the tracker \(null for built-in trackers\) |
@@ -732,6 +744,7 @@ List all company workspaces in Gong.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
 | `workspaces` | array | List of Gong workspaces |
 |   ↳ `id` | string | Gong unique numeric identifier for the workspace |
 |   ↳ `name` | string | Display name of the workspace |
@@ -805,6 +818,27 @@ Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow.
 |   ↳ `errorCode` | string | Failure reason: InvalidArgument, InvalidState, or UnexpectedError |
 |   ↳ `errorMessage` | string | Human-readable failure message |
 
+### `gong_unassign_flow_prospects`
+
+Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospect from all flows they are assigned to.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `crmProspectId` | string | Yes | The CRM ID of the prospect to unassign |
+| `flowId` | string | No | The ID of the flow to unassign the prospect from. If omitted, the prospect is removed from all flows they are assigned to. |
+| `unassignedByUserEmail` | string | No | Email address of the Gong user requesting to remove the prospect from the flow |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `unassignedFlowInstanceIds` | array | IDs of the flow instances the prospect was successfully removed from |
+
 ### `gong_get_prospect_flows`
 
 Get the Gong Engage flows currently assigned to the given CRM prospects.
@@ -869,6 +903,104 @@ Retrieve coaching metrics for a manager from Gong.
 |       ↳ `lastName` | string | Last name of the Gong user |
 |       ↳ `title` | string | Job title of the Gong user |
 |     ↳ `metrics` | json | A map of metric names to arrays of string values representing coaching metrics |
+
+### `gong_ask_anything`
+
+Ask a natural-language question about a CRM account, deal, contact, or lead. Gong answers from up to 60 calls and 500 emails associated with the entity. Consumes Gong credits.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `workspaceId` | string | Yes | Gong workspace ID the entity belongs to |
+| `crmEntityType` | string | Yes | Type of the CRM entity: ACCOUNT, CONTACT, DEAL, or LEAD |
+| `crmEntityId` | string | Yes | The CRM ID of the entity the question is asked about |
+| `question` | string | Yes | The natural-language question to ask about the entity |
+| `timePeriod` | string | Yes | Time period of conversations to consider: LAST_7DAYS, LAST_30DAYS, LAST_90DAYS, LAST_90_DAYS_SINCE_LAST_ACTIVITY, LAST_YEAR_SINCE_LAST_ACTIVITY, LAST_YEAR, THIS_WEEK, THIS_MONTH, THIS_YEAR, THIS_QUARTER, CUSTOM_RANGE, or ALL_CONVERSATIONS |
+| `fromDateTime` | string | No | Start date/time \(UTC, ISO-8601\) for calls and emails to include. Required when timePeriod is CUSTOM_RANGE. |
+| `toDateTime` | string | No | End date/time \(UTC, ISO-8601\) for calls and emails to include. Required when timePeriod is CUSTOM_RANGE. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `numOfCallsSearched` | number | Number of calls used to generate the answer |
+| `numOfEmailsSearched` | number | Number of emails used to generate the answer |
+| `answer` | array | Sections of the generated answer with supporting evidence |
+|   ↳ `answerItems` | array | Text items that make up this part of the answer |
+|   ↳ `callFindings` | array | Evidence from calls used to generate this answer item |
+|   ↳ `emailFindings` | array | Evidence from emails used to generate this answer item |
+
+### `gong_get_brief`
+
+Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, contact, or lead. Consumes Gong credits.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `workspaceId` | string | Yes | Gong workspace ID the entity belongs to |
+| `briefName` | string | Yes | Name of the brief to generate, as configured in Gong Agent Studio &gt; AI Briefer |
+| `crmEntityType` | string | Yes | Type of the CRM entity: ACCOUNT, CONTACT, DEAL, or LEAD |
+| `crmEntityId` | string | Yes | The CRM ID of the entity to generate the brief for |
+| `timePeriod` | string | Yes | Time period of conversations to consider: LAST_7DAYS, LAST_30DAYS, LAST_90DAYS, LAST_90_DAYS_SINCE_LAST_ACTIVITY, LAST_YEAR_SINCE_LAST_ACTIVITY, LAST_YEAR, THIS_WEEK, THIS_MONTH, THIS_YEAR, THIS_QUARTER, CUSTOM_RANGE, or ALL_CONVERSATIONS |
+| `fromDateTime` | string | No | Start date/time \(UTC, ISO-8601\) for calls and emails to include. Required when timePeriod is CUSTOM_RANGE. |
+| `toDateTime` | string | No | End date/time \(UTC, ISO-8601\) for calls and emails to include. Required when timePeriod is CUSTOM_RANGE. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `numOfCallsSearched` | number | Number of calls used to generate the brief |
+| `numOfEmailsSearched` | number | Number of emails used to generate the brief |
+| `briefSections` | array | Sections of the generated brief |
+|   ↳ `title` | string | Section title |
+|   ↳ `sectionSummary` | array | The content displayed for this section |
+|   ↳ `briefSectionType` | string | The section type, which determines the source of the data |
+|   ↳ `conversationFindings` | object | Evidence from calls and emails used to generate this section |
+|   ↳ `webFindings` | array | Evidence from web search results used to generate this section |
+|   ↳ `mcpResult` | object | Result from an MCP data source used to generate this section |
+
+### `gong_get_logs`
+
+Retrieve Gong log entries of a specific type within a time range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `logType` | string | Yes | Type of logs requested: AccessLog, UserActivityLog, UserCallPlay, ExternallySharedCallAccess, or ExternallySharedCallPlay |
+| `fromDateTime` | string | Yes | Time from which to retrieve log records, in ISO-8601 format \(e.g., '2024-01-01T00:00:00Z'\) |
+| `toDateTime` | string | No | Time until which to retrieve log records, in ISO-8601 format. Defaults to the latest available logs when omitted. |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `logEntries` | array | Log entries matching the requested type and time range |
+|   ↳ `userId` | string | Gong's unique numeric identifier for the user, if available |
+|   ↳ `userEmailAddress` | string | Email address of the user, if available |
+|   ↳ `userFullName` | string | Full name of the user, if available |
+|   ↳ `impersonatorUserId` | string | Gong's unique numeric identifier for the impersonating user, if any |
+|   ↳ `impersonatorEmailAddress` | string | Email address of the impersonating user, if any |
+|   ↳ `impersonatorFullName` | string | Full name of the impersonating user, if any |
+|   ↳ `impersonatorCompanyId` | string | Gong's unique numeric identifier for the impersonating user's company |
+|   ↳ `eventTime` | string | Time of the event in ISO-8601 format |
+|   ↳ `logRecord` | object | Log fields and associated values, populated dynamically per log type |
+| `cursor` | string | Pagination cursor for the next page |
+| `totalRecords` | number | Total number of records matching the filter |
+| `currentPageSize` | number | Number of records in the current page |
+| `currentPageNumber` | number | Current page number |
 
 ### `gong_lookup_email`
 

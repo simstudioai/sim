@@ -736,9 +736,12 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
-          'assistant:write',
-          'app_mentions:read',
-          'im:history',
+          // TODO: Re-add once Slack app review approves these. Requesting a scope
+          // the app is not yet approved for makes Slack reject the entire
+          // authorization with "unapproved permissions requested", breaking connect.
+          // 'assistant:write',
+          // 'app_mentions:read',
+          // 'im:history',
           'im:write',
           'im:read',
           'users:read',
@@ -749,7 +752,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'canvases:write',
           'reactions:write',
           'reactions:read',
-          'pins:read',
+          // TODO: Add 'pins:read' once Slack app review is approved
         ],
       },
     },

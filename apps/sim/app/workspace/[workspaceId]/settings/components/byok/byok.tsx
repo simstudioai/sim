@@ -37,7 +37,9 @@ import {
   xAIIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   BYOKKeyManager,
   type BYOKManagerKey,
@@ -341,6 +343,8 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
 export function BYOK() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
+  const workspacePermissions = useUserPermissionsContext()
+  const canManage = canMutateWorkspaceSettingsSection('byok', workspacePermissions)
 
   const { data, isLoading } = useBYOKKeys(workspaceId)
   const upsertKey = useUpsertBYOKKey()
@@ -367,6 +371,7 @@ export function BYOK() {
         isLoading={isLoading}
         isSaving={upsertKey.isPending}
         isDeleting={deleteKey.isPending}
+        readOnly={!canManage}
         onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
           await upsertKey.mutateAsync({
             workspaceId,

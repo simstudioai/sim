@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getBYOKKey } from '@/lib/api-key/byok'
+import {
+  type BillingAttributionSnapshot,
+  toBillingContext,
+} from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
+import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
@@ -422,8 +427,17 @@ export async function recordSearchEmbeddingUsage(params: {
   query: string
   isBYOK: boolean
   sourceReference: string
+  billingAttribution?: BillingAttributionSnapshot
 }): Promise<void> {
-  const { userId, workspaceId, embeddingModel, query, isBYOK, sourceReference } = params
+  const {
+    userId,
+    workspaceId,
+    embeddingModel,
+    query,
+    isBYOK,
+    sourceReference,
+    billingAttribution: providedBillingAttribution,
+  } = params
   if (isBYOK || !workspaceId) return
   try {
     const { count } = estimateTokenCount(
@@ -432,9 +446,20 @@ export async function recordSearchEmbeddingUsage(params: {
     )
     const cost = calculateCost(embeddingModel, count, 0, false)
     if (!cost || cost.total <= 0) return
+    if (!providedBillingAttribution) {
+      throw new Error('Billing attribution is required for workspace search embedding usage')
+    }
+    const billingAttribution = providedBillingAttribution
+    if (
+      billingAttribution.workspaceId !== workspaceId ||
+      billingAttribution.actorUserId !== userId
+    ) {
+      throw new Error('Search embedding billing attribution does not match its actor and workspace')
+    }
     await recordUsage({
-      userId,
+      userId: billingAttribution.actorUserId,
       workspaceId,
+      ...toBillingContext(billingAttribution),
       entries: [
         {
           category: 'model',
@@ -445,6 +470,7 @@ export async function recordSearchEmbeddingUsage(params: {
         },
       ],
     })
+    await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
   } catch (error) {
     logger.warn('Failed to record search embedding usage', { error: getErrorMessage(error) })
   }

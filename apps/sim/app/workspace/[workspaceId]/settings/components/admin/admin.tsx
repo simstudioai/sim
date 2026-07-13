@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Badge, Button, ChipInput, ChipSelect, cn, Label, Search, Switch } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
@@ -33,8 +32,6 @@ const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] 
 ]
 
 export function Admin() {
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
   const { data: session } = useSession()
 
   const { data: settings } = useGeneralSettings()
@@ -47,6 +44,7 @@ export function Admin() {
   const impersonateUser = useImpersonateUser()
 
   const [workflowId, setWorkflowId] = useState('')
+  const [targetWorkspaceId, setTargetWorkspaceId] = useState('')
 
   const [{ q: searchQuery, offset: usersOffset }, setAdminParams] = useQueryStates(
     adminParsers,
@@ -95,14 +93,6 @@ export function Admin() {
     }
   }
 
-  const handleImport = () => {
-    if (!workflowId.trim()) return
-    importWorkflow.mutate(
-      { workflowId: workflowId.trim(), targetWorkspaceId: workspaceId },
-      { onSuccess: () => setWorkflowId('') }
-    )
-  }
-
   const handleImpersonate = (userId: string) => {
     setImpersonationGuardError(null)
     if (session?.user?.role !== 'admin') {
@@ -121,6 +111,21 @@ export function Admin() {
         },
         onSuccess: () => {
           window.location.assign('/workspace')
+        },
+      }
+    )
+  }
+
+  const handleImport = () => {
+    const sourceId = workflowId.trim()
+    const targetId = targetWorkspaceId.trim()
+    if (!sourceId || !targetId) return
+    importWorkflow.mutate(
+      { workflowId: sourceId, targetWorkspaceId: targetId },
+      {
+        onSuccess: () => {
+          setWorkflowId('')
+          setTargetWorkspaceId('')
         },
       }
     )
@@ -191,22 +196,31 @@ export function Admin() {
 
       <div className='flex flex-col gap-2'>
         <p className='text-[var(--text-secondary)] text-sm'>
-          Import a workflow by ID along with its associated copilot chats.
+          Import a workflow and its copilot chats into a target workspace.
         </p>
         <div className='flex gap-2'>
           <ChipInput
             value={workflowId}
-            onChange={(e) => {
-              setWorkflowId(e.target.value)
+            onChange={(event) => {
+              setWorkflowId(event.target.value)
               importWorkflow.reset()
             }}
-            placeholder='Enter workflow ID'
+            placeholder='Source workflow ID'
+            disabled={importWorkflow.isPending}
+          />
+          <ChipInput
+            value={targetWorkspaceId}
+            onChange={(event) => {
+              setTargetWorkspaceId(event.target.value)
+              importWorkflow.reset()
+            }}
+            placeholder='Target workspace ID'
             disabled={importWorkflow.isPending}
           />
           <Button
             variant='primary'
             onClick={handleImport}
-            disabled={importWorkflow.isPending || !workflowId.trim()}
+            disabled={importWorkflow.isPending || !workflowId.trim() || !targetWorkspaceId.trim()}
           >
             {importWorkflow.isPending ? 'Importing...' : 'Import'}
           </Button>

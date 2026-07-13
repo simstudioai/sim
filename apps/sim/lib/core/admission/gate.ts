@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('AdmissionGate')
@@ -40,16 +41,19 @@ export function tryAdmit(): AdmissionTicket | null {
  * Returns a 429 response for requests rejected by the admission gate.
  */
 export function admissionRejectedResponse(): NextResponse {
+  const descriptor = ADMISSION_ERROR_DESCRIPTOR.GATE_CAPACITY
   logger.warn('Admission gate rejecting request', { inflight, maxInflight: MAX_INFLIGHT })
   return NextResponse.json(
     {
       error: 'Too many requests',
       message: 'Server is at capacity. Please retry shortly.',
-      retryAfterSeconds: 5,
+      code: descriptor.code,
+      retryable: descriptor.retryable,
+      retryAfterSeconds: descriptor.retryAfterSeconds,
     },
     {
-      status: 429,
-      headers: { 'Retry-After': '5' },
+      status: descriptor.statusCode,
+      headers: { 'Retry-After': String(descriptor.retryAfterSeconds) },
     }
   )
 }

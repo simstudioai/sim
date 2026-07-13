@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { eq, lt } from 'drizzle-orm'
+import { and, eq, lt, or, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
@@ -14,6 +14,13 @@ const logger = createLogger('IdempotencyService')
 
 export interface IdempotencyConfig {
   ttlSeconds?: number
+  /**
+   * How long an unfinished atomic claim is considered live. Defaults to the
+   * result TTL for backwards compatibility. Set this shorter for webhook
+   * handlers so a process crash cannot poison the key beyond the provider's
+   * retry window while completed results remain deduplicated for longer.
+   */
+  inProgressTtlSeconds?: number
   namespace?: string
   /** When true, failed keys are deleted rather than stored so the operation is retried on the next attempt. */
   retryFailures?: boolean
@@ -84,6 +91,7 @@ export class IdempotencyService {
   constructor(config: IdempotencyConfig = {}) {
     this.config = {
       ttlSeconds: config.ttlSeconds ?? DEFAULT_TTL,
+      inProgressTtlSeconds: config.inProgressTtlSeconds ?? config.ttlSeconds ?? DEFAULT_TTL,
       namespace: config.namespace ?? 'default',
       retryFailures: config.retryFailures ?? false,
       storeResultBody: config.storeResultBody ?? true,
@@ -218,7 +226,7 @@ export class IdempotencyService {
       redisKey,
       JSON.stringify(inProgressResult),
       'EX',
-      this.config.ttlSeconds,
+      this.config.inProgressTtlSeconds,
       'NX'
     )
 
@@ -248,11 +256,11 @@ export class IdempotencyService {
   ): Promise<AtomicClaimResult> {
     const now = new Date()
     const expiredBefore = new Date(now.getTime() - this.config.ttlSeconds * 1000)
+    const staleClaimBefore = new Date(now.getTime() - this.config.inProgressTtlSeconds * 1000)
 
-    // `ON CONFLICT DO UPDATE WHERE created_at < expiredBefore` steals the
-    // claim when the existing row has outlived the TTL (e.g. a prior
-    // holder crashed mid-operation and never wrote `completed`/`failed`
-    // or released the key). RETURNING yields a row in two cases:
+    // `ON CONFLICT DO UPDATE` steals a completed/failed row only after the
+    // normal result TTL, but reclaims a crashed `in-progress` holder after the
+    // shorter processing lease. RETURNING yields a row in two cases:
     //   (1) fresh INSERT — no prior row existed;
     //   (2) UPDATE of an expired row — WHERE matched.
     // An empty RETURNING means conflict with an unexpired row; the
@@ -270,7 +278,13 @@ export class IdempotencyService {
           result: inProgressResult,
           createdAt: now,
         },
-        setWhere: lt(idempotencyKey.createdAt, expiredBefore),
+        setWhere: or(
+          lt(idempotencyKey.createdAt, expiredBefore),
+          and(
+            sql`${idempotencyKey.result} ->> 'status' = 'in-progress'`,
+            lt(idempotencyKey.createdAt, staleClaimBefore)
+          )
+        ),
       })
       .returning({ key: idempotencyKey.key })
 

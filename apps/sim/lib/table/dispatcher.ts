@@ -23,7 +23,13 @@ import { isExecCancelledAfter } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
 import { type DbExecutor, withSeqscanOff } from '@/lib/table/planner'
 import { buildFilterClause } from '@/lib/table/sql'
-import type { Filter, RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
+import type {
+  Filter,
+  RowExecutionMetadata,
+  RowExecutions,
+  TableDefinition,
+  TableRow,
+} from '@/lib/table/types'
 import {
   buildEnqueueItems,
   buildPendingRuns,
@@ -521,7 +527,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   }
 
   if (windowRuns.length > 0) {
-    await stampQueuedForBatch(windowRuns)
+    await stampQueuedForBatch(windowRuns, table)
 
     // Backend-agnostic batch dispatch: trigger.dev wraps `batchTriggerAndWait`
     // (CRIU-checkpointed wait); database backend calls the cell-task runner
@@ -641,18 +647,24 @@ async function completeDispatch(dispatch: DispatchRow, cursor: number): Promise<
  *  executionId) once it acquires the row's cascade lock — if another
  *  cell-task already holds the lock, this task bails and the pending stamp
  *  is later reconciled by whoever owns the cascade. */
-async function stampQueuedForBatch(pendingRuns: WorkflowGroupCellPayload[]): Promise<void> {
+async function stampQueuedForBatch(
+  pendingRuns: WorkflowGroupCellPayload[],
+  table: TableDefinition
+): Promise<void> {
   await Promise.allSettled(
     pendingRuns.map((runOpts) =>
-      writeWorkflowGroupState(runOpts, {
-        executionState: {
-          status: 'pending',
-          executionId: null,
-          jobId: null,
-          workflowId: runOpts.workflowId,
-          error: null,
-        },
-      })
+      writeWorkflowGroupState(
+        { ...runOpts, table },
+        {
+          executionState: {
+            status: 'pending',
+            executionId: null,
+            jobId: null,
+            workflowId: runOpts.workflowId,
+            error: null,
+          },
+        }
+      )
     )
   )
 }
