@@ -930,7 +930,7 @@ export interface HubSpotGetUsersParams {
 export interface HubSpotListContactsResponse extends ToolResponse {
   output: {
     contacts: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: {
       totalReturned: number
       hasMore: boolean
@@ -1006,7 +1006,7 @@ export interface HubSpotSearchContactsResponse extends ToolResponse {
   output: {
     contacts: HubSpotContact[]
     total: number
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: {
       totalReturned: number
       hasMore: boolean
@@ -1040,7 +1040,7 @@ export type HubSpotListCompaniesParams = HubSpotListContactsParams
 export type HubSpotListCompaniesResponse = Omit<HubSpotListContactsResponse, 'output'> & {
   output: {
     companies: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: {
       totalReturned: number
       hasMore: boolean
@@ -1048,7 +1048,9 @@ export type HubSpotListCompaniesResponse = Omit<HubSpotListContactsResponse, 'ou
     success: boolean
   }
 }
-export type HubSpotGetCompanyParams = HubSpotGetContactParams & { companyId: string }
+export type HubSpotGetCompanyParams = Omit<HubSpotGetContactParams, 'contactId'> & {
+  companyId: string
+}
 export type HubSpotGetCompanyResponse = Omit<HubSpotGetContactResponse, 'output'> & {
   output: {
     company: HubSpotContact
@@ -1064,7 +1066,9 @@ export type HubSpotCreateCompanyResponse = Omit<HubSpotCreateContactResponse, 'o
     success: boolean
   }
 }
-export type HubSpotUpdateCompanyParams = HubSpotUpdateContactParams & { companyId: string }
+export type HubSpotUpdateCompanyParams = Omit<HubSpotUpdateContactParams, 'contactId'> & {
+  companyId: string
+}
 export type HubSpotUpdateCompanyResponse = Omit<HubSpotUpdateContactResponse, 'output'> & {
   output: {
     company: HubSpotContact
@@ -1077,7 +1081,7 @@ export interface HubSpotSearchCompaniesResponse extends ToolResponse {
   output: {
     companies: HubSpotContact[]
     total: number
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: {
       totalReturned: number
       hasMore: boolean
@@ -1092,7 +1096,7 @@ export type HubSpotListDealsParams = HubSpotListContactsParams
 export type HubSpotListDealsResponse = Omit<HubSpotListContactsResponse, 'output'> & {
   output: {
     deals: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1116,7 +1120,7 @@ export interface HubSpotSearchDealsResponse extends ToolResponse {
   output: {
     deals: HubSpotContact[]
     total: number
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1128,7 +1132,7 @@ export type HubSpotListTicketsParams = HubSpotListContactsParams
 export type HubSpotListTicketsResponse = ToolResponse & {
   output: {
     tickets: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1154,7 +1158,7 @@ export interface HubSpotSearchTicketsResponse extends ToolResponse {
   output: {
     tickets: HubSpotContact[]
     total: number
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1166,7 +1170,7 @@ export type HubSpotListLineItemsParams = HubSpotListContactsParams
 export type HubSpotListLineItemsResponse = ToolResponse & {
   output: {
     lineItems: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1194,7 +1198,7 @@ export type HubSpotListQuotesParams = HubSpotListContactsParams
 export type HubSpotListQuotesResponse = ToolResponse & {
   output: {
     quotes: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1212,7 +1216,7 @@ export type HubSpotListAppointmentsParams = HubSpotListContactsParams
 export type HubSpotListAppointmentsResponse = ToolResponse & {
   output: {
     appointments: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1240,7 +1244,7 @@ export type HubSpotListCartsParams = HubSpotListContactsParams
 export type HubSpotListCartsResponse = ToolResponse & {
   output: {
     carts: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1275,7 +1279,7 @@ export interface HubSpotListOwnersParams {
 export interface HubSpotListOwnersResponse extends ToolResponse {
   output: {
     owners: HubSpotOwner[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1311,7 +1315,7 @@ export interface HubSpotListMarketingEventsParams {
 export interface HubSpotListMarketingEventsResponse extends ToolResponse {
   output: {
     events: HubSpotMarketingEvent[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1351,7 +1355,7 @@ export interface HubSpotListListsParams {
 export interface HubSpotListListsResponse extends ToolResponse {
   output: {
     lists: HubSpotList[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; total: number | null; hasMore: boolean }
     success: boolean
   }
@@ -1399,7 +1403,7 @@ export type HubSpotListNotesParams = HubSpotListContactsParams
 export type HubSpotListNotesResponse = ToolResponse & {
   output: {
     notes: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1409,7 +1413,7 @@ export interface HubSpotSearchNotesResponse extends ToolResponse {
   output: {
     notes: HubSpotContact[]
     total: number
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1429,7 +1433,7 @@ export type HubSpotListEmailsParams = HubSpotListContactsParams
 export type HubSpotListEmailsResponse = ToolResponse & {
   output: {
     emails: HubSpotContact[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1439,7 +1443,7 @@ export interface HubSpotSearchEmailsResponse extends ToolResponse {
   output: {
     emails: HubSpotContact[]
     total: number
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1506,7 +1510,7 @@ export interface HubSpotListAssociationsParams {
 export interface HubSpotListAssociationsResponse extends ToolResponse {
   output: {
     results: HubSpotAssociatedObject[]
-    paging?: HubSpotPaging
+    paging: HubSpotPaging | null
     metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
@@ -1527,6 +1531,163 @@ export interface HubSpotCreateAssociationResponse extends ToolResponse {
     fromObjectId: string
     toObjectId: string
     labels: string[]
+    success: boolean
+  }
+}
+
+export interface HubSpotDeleteAssociationParams {
+  accessToken: string
+  objectType: string
+  objectId: string
+  toObjectType: string
+  toObjectId: string
+}
+
+export interface HubSpotDeleteAssociationResponse extends ToolResponse {
+  output: {
+    fromObjectId: string
+    toObjectId: string
+    deleted: boolean
+    success: boolean
+  }
+}
+
+export interface HubSpotAssociationLabel {
+  category: string
+  typeId: number
+  label: string | null
+}
+
+export interface HubSpotGetAssociationLabelsParams {
+  accessToken: string
+  objectType: string
+  toObjectType: string
+}
+
+export interface HubSpotGetAssociationLabelsResponse extends ToolResponse {
+  output: {
+    labels: HubSpotAssociationLabel[]
+    success: boolean
+  }
+}
+
+// Record deletion (archive)
+export interface HubSpotDeleteContactParams {
+  accessToken: string
+  contactId: string
+}
+
+export interface HubSpotDeleteContactResponse extends ToolResponse {
+  output: { contactId: string; deleted: boolean; success: boolean }
+}
+
+export interface HubSpotDeleteCompanyParams {
+  accessToken: string
+  companyId: string
+}
+
+export interface HubSpotDeleteCompanyResponse extends ToolResponse {
+  output: { companyId: string; deleted: boolean; success: boolean }
+}
+
+export interface HubSpotDeleteDealParams {
+  accessToken: string
+  dealId: string
+}
+
+export interface HubSpotDeleteDealResponse extends ToolResponse {
+  output: { dealId: string; deleted: boolean; success: boolean }
+}
+
+export interface HubSpotDeleteTicketParams {
+  accessToken: string
+  ticketId: string
+}
+
+export interface HubSpotDeleteTicketResponse extends ToolResponse {
+  output: { ticketId: string; deleted: boolean; success: boolean }
+}
+
+export interface HubSpotDeleteLineItemParams {
+  accessToken: string
+  lineItemId: string
+}
+
+export interface HubSpotDeleteLineItemResponse extends ToolResponse {
+  output: { lineItemId: string; deleted: boolean; success: boolean }
+}
+
+// List memberships
+export interface HubSpotListMembership {
+  recordId: string
+  membershipTimestamp?: string
+}
+
+export interface HubSpotAddListMembershipsParams {
+  accessToken: string
+  listId: string
+  recordIds: string[] | string
+}
+
+export interface HubSpotAddListMembershipsResponse extends ToolResponse {
+  output: {
+    recordIdsAdded: string[]
+    recordIdsMissing: string[]
+    success: boolean
+  }
+}
+
+export interface HubSpotRemoveListMembershipsParams {
+  accessToken: string
+  listId: string
+  recordIds: string[] | string
+}
+
+export interface HubSpotRemoveListMembershipsResponse extends ToolResponse {
+  output: {
+    recordIdsRemoved: string[]
+    recordIdsMissing: string[]
+    success: boolean
+  }
+}
+
+export interface HubSpotGetListMembershipsParams {
+  accessToken: string
+  listId: string
+  limit?: string
+  after?: string
+}
+
+export interface HubSpotGetListMembershipsResponse extends ToolResponse {
+  output: {
+    memberships: HubSpotListMembership[]
+    paging: HubSpotPaging | null
+    metadata: { totalReturned: number; hasMore: boolean }
+    success: boolean
+  }
+}
+
+// Search line items / quotes
+export type HubSpotSearchLineItemsParams = HubSpotSearchContactsParams
+
+export interface HubSpotSearchLineItemsResponse extends ToolResponse {
+  output: {
+    lineItems: HubSpotLineItem[]
+    total: number
+    paging: HubSpotPaging | null
+    metadata: { totalReturned: number; hasMore: boolean }
+    success: boolean
+  }
+}
+
+export type HubSpotSearchQuotesParams = HubSpotSearchContactsParams
+
+export interface HubSpotSearchQuotesResponse extends ToolResponse {
+  output: {
+    quotes: HubSpotQuote[]
+    total: number
+    paging: HubSpotPaging | null
+    metadata: { totalReturned: number; hasMore: boolean }
     success: boolean
   }
 }
@@ -1583,3 +1744,15 @@ export type HubSpotResponse =
   | HubSpotGetPropertiesResponse
   | HubSpotListAssociationsResponse
   | HubSpotCreateAssociationResponse
+  | HubSpotDeleteAssociationResponse
+  | HubSpotGetAssociationLabelsResponse
+  | HubSpotDeleteContactResponse
+  | HubSpotDeleteCompanyResponse
+  | HubSpotDeleteDealResponse
+  | HubSpotDeleteTicketResponse
+  | HubSpotDeleteLineItemResponse
+  | HubSpotAddListMembershipsResponse
+  | HubSpotRemoveListMembershipsResponse
+  | HubSpotGetListMembershipsResponse
+  | HubSpotSearchLineItemsResponse
+  | HubSpotSearchQuotesResponse

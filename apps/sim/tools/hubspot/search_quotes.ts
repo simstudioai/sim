@@ -1,17 +1,17 @@
 import { createLogger } from '@sim/logger'
-import type { HubSpotSearchNotesParams, HubSpotSearchNotesResponse } from '@/tools/hubspot/types'
-import { METADATA_OUTPUT, NOTES_ARRAY_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotSearchQuotesParams, HubSpotSearchQuotesResponse } from '@/tools/hubspot/types'
+import { METADATA_OUTPUT, PAGING_OUTPUT, QUOTES_ARRAY_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotSearchNotes')
+const logger = createLogger('HubSpotSearchQuotes')
 
-export const hubspotSearchNotesTool: ToolConfig<
-  HubSpotSearchNotesParams,
-  HubSpotSearchNotesResponse
+export const hubspotSearchQuotesTool: ToolConfig<
+  HubSpotSearchQuotesParams,
+  HubSpotSearchQuotesResponse
 > = {
-  id: 'hubspot_search_notes',
-  name: 'Search Notes in HubSpot',
-  description: 'Search for notes in HubSpot using filters, sorting, and queries',
+  id: 'hubspot_search_quotes',
+  name: 'Search Quotes in HubSpot',
+  description: 'Search for quotes in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
 
   oauth: {
@@ -31,7 +31,7 @@ export const hubspotSearchNotesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "CONTAINS_TOKEN", "GT"), and "value"',
+        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"), and "value"',
     },
     sorts: {
       type: 'array',
@@ -44,14 +44,14 @@ export const hubspotSearchNotesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search query string to match against note text fields',
+      description: 'Search query string to match against quote title and other text fields',
     },
     properties: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of HubSpot property names to return (e.g., ["hs_note_body", "hs_timestamp", "hubspot_owner_id"])',
+        'Array of HubSpot property names to return (e.g., ["hs_title", "hs_expiration_date"])',
     },
     limit: {
       type: 'number',
@@ -68,86 +68,69 @@ export const hubspotSearchNotesTool: ToolConfig<
   },
 
   request: {
-    url: () => 'https://api.hubapi.com/crm/v3/objects/notes/search',
+    url: () => 'https://api.hubapi.com/crm/v3/objects/quotes/search',
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
-
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
       }
     },
     body: (params) => {
-      const body: any = {}
-
+      const body: Record<string, unknown> = {}
       if (params.filterGroups) {
-        let parsedFilterGroups = params.filterGroups
-        if (typeof params.filterGroups === 'string') {
+        let parsed = params.filterGroups
+        if (typeof parsed === 'string') {
           try {
-            parsedFilterGroups = JSON.parse(params.filterGroups)
+            parsed = JSON.parse(parsed)
           } catch (e) {
             throw new Error(`Invalid JSON for filterGroups: ${(e as Error).message}`)
           }
         }
-        if (Array.isArray(parsedFilterGroups) && parsedFilterGroups.length > 0) {
-          body.filterGroups = parsedFilterGroups
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) body.filterGroups = parsed
       }
       if (params.sorts) {
-        let parsedSorts = params.sorts
-        if (typeof params.sorts === 'string') {
+        let parsed = params.sorts
+        if (typeof parsed === 'string') {
           try {
-            parsedSorts = JSON.parse(params.sorts)
+            parsed = JSON.parse(parsed)
           } catch (e) {
             throw new Error(`Invalid JSON for sorts: ${(e as Error).message}`)
           }
         }
-        if (Array.isArray(parsedSorts) && parsedSorts.length > 0) {
-          body.sorts = parsedSorts
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) body.sorts = parsed
       }
-      if (params.query) {
-        body.query = params.query
-      }
+      if (params.query) body.query = params.query
       if (params.properties) {
-        let parsedProperties = params.properties
-        if (typeof params.properties === 'string') {
+        let parsed = params.properties
+        if (typeof parsed === 'string') {
           try {
-            parsedProperties = JSON.parse(params.properties)
+            parsed = JSON.parse(parsed)
           } catch (e) {
             throw new Error(`Invalid JSON for properties: ${(e as Error).message}`)
           }
         }
-        if (Array.isArray(parsedProperties) && parsedProperties.length > 0) {
-          body.properties = parsedProperties
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) body.properties = parsed
       }
-      if (params.limit) {
-        body.limit = params.limit
-      }
-      if (params.after) {
-        body.after = params.after
-      }
-
+      if (params.limit) body.limit = params.limit
+      if (params.after) body.after = params.after
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to search notes in HubSpot')
+      throw new Error(data.message || 'Failed to search quotes in HubSpot')
     }
-
     return {
       success: true,
       output: {
-        notes: data.results || [],
+        quotes: data.results || [],
         total: data.total ?? 0,
         paging: data.paging ?? null,
         metadata: {
@@ -160,8 +143,8 @@ export const hubspotSearchNotesTool: ToolConfig<
   },
 
   outputs: {
-    notes: NOTES_ARRAY_OUTPUT,
-    total: { type: 'number', description: 'Total number of matching notes', optional: true },
+    quotes: QUOTES_ARRAY_OUTPUT,
+    total: { type: 'number', description: 'Total number of matching quotes', optional: true },
     paging: PAGING_OUTPUT,
     metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },
