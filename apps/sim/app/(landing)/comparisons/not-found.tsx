@@ -18,7 +18,7 @@ export default function ComparisonNotFound() {
       <p className='text-[var(--text-muted)] text-lg'>
         The comparison you&apos;re looking for doesn&apos;t exist or has been moved.
       </p>
-      <ChipLink variant='primary' href='/comparison' className='mt-3'>
+      <ChipLink variant='primary' href='/comparisons' className='mt-3'>
         Browse comparisons
       </ChipLink>
     </main>

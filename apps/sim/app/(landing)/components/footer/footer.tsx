@@ -41,7 +41,7 @@ const PRODUCT_LINKS: FooterItem[] = [
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
-  { label: 'Compare', href: '/comparison' },
+  { label: 'Compare', href: '/comparisons' },
   { label: 'Careers', href: '/careers' },
   { label: 'Changelog', href: '/changelog' },
   { label: 'Contact', href: '/contact' },
