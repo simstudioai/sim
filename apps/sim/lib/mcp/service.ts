@@ -594,20 +594,7 @@ class McpService {
         if (outcome.kind === 'oauth-pending') {
           // Mark disconnected so the UI surfaces the re-auth button.
           logger.info(`[${requestId}] Skipping server ${server.name}: OAuth authorization pending`)
-          deferredSideEffects.push(
-            db
-              .update(mcpServers)
-              .set({
-                connectionStatus: 'disconnected',
-                lastError: null,
-                updatedAt: new Date(),
-              })
-              .where(eq(mcpServers.id, server.id))
-              .then(() => undefined)
-              .catch((err) => {
-                logger.warn(`[${requestId}] Failed to mark server ${server.id} disconnected:`, err)
-              })
-          )
+          deferredSideEffects.push(this.updateServerAuthorizationRequiredStatus(server.id))
           return
         }
         if (outcome.kind === 'unhealthy') {

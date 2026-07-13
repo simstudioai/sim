@@ -167,12 +167,9 @@ export async function executeManageMcpTool(
         return { success: false, error: `MCP server not found: ${params.serverId}` }
       }
 
-      const changesConnection = ['url', 'transport', 'headers', 'timeout', 'enabled'].some(
-        (key) => config[key as keyof ManageMcpToolConfig] !== undefined
-      )
       const verification = !result.server.enabled
         ? skippedVerification('server_disabled')
-        : changesConnection
+        : result.connectionChanged
           ? await mcpService.verifyServerConnection(context.userId, params.serverId, workspaceId)
           : skippedVerification('connection_unchanged')
 

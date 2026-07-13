@@ -4,6 +4,7 @@ import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
@@ -84,6 +85,30 @@ export interface PerformMcpServerResult {
   server?: typeof mcpServers.$inferSelect
   updated?: boolean
   authType?: McpAuthType
+  connectionChanged?: boolean
+}
+
+export function hasMcpServerConnectionChanged(
+  currentServer: Pick<
+    typeof mcpServers.$inferSelect,
+    'url' | 'transport' | 'headers' | 'timeout' | 'retries' | 'enabled' | 'authType'
+  >,
+  updates: Pick<
+    PerformUpdateMcpServerParams,
+    'url' | 'transport' | 'headers' | 'timeout' | 'retries' | 'enabled' | 'authType'
+  >,
+  oauthCredentialsChanged = false
+): boolean {
+  return (
+    oauthCredentialsChanged ||
+    (updates.url !== undefined && updates.url !== currentServer.url) ||
+    (updates.transport !== undefined && updates.transport !== currentServer.transport) ||
+    (updates.headers !== undefined && !isEqual(updates.headers, currentServer.headers ?? {})) ||
+    (updates.timeout !== undefined && updates.timeout !== currentServer.timeout) ||
+    (updates.retries !== undefined && updates.retries !== currentServer.retries) ||
+    (updates.enabled !== undefined && updates.enabled !== currentServer.enabled) ||
+    (updates.authType !== undefined && updates.authType !== currentServer.authType)
+  )
 }
 
 type ValidateMcpServerUrlResult =
@@ -316,6 +341,11 @@ export async function performUpdateMcpServer(
     const [currentServer] = await db
       .select({
         url: mcpServers.url,
+        transport: mcpServers.transport,
+        headers: mcpServers.headers,
+        timeout: mcpServers.timeout,
+        retries: mcpServers.retries,
+        enabled: mcpServers.enabled,
         authType: mcpServers.authType,
         oauthClientId: mcpServers.oauthClientId,
         oauthClientSecret: mcpServers.oauthClientSecret,
@@ -349,6 +379,11 @@ export async function performUpdateMcpServer(
       currentClientId: currentServer.oauthClientId,
       currentEncryptedClientSecret: currentServer.oauthClientSecret,
     })
+    const connectionChanged = hasMcpServerConnectionChanged(
+      currentServer,
+      { ...params, authType: updateData.authType as McpAuthType | undefined },
+      credsChanged
+    )
     const shouldClearOauth = urlChanged || credsChanged
     const resolvedAuthType = (updateData.authType ?? currentServer.authType) as McpAuthType
     if (shouldClearOauth && resolvedAuthType === 'oauth') {
@@ -381,15 +416,7 @@ export async function performUpdateMcpServer(
 
     if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
-    const shouldClearCache =
-      urlChanged ||
-      credsChanged ||
-      params.enabled !== undefined ||
-      params.headers !== undefined ||
-      params.timeout !== undefined ||
-      params.retries !== undefined
-
-    if (shouldClearCache) await mcpService.clearCache(params.workspaceId)
+    if (connectionChanged) await mcpService.clearCache(params.workspaceId)
 
     recordAudit({
       workspaceId: params.workspaceId,
@@ -410,7 +437,7 @@ export async function performUpdateMcpServer(
       request: params.request,
     })
 
-    return { success: true, server }
+    return { success: true, server, connectionChanged }
   } catch (error) {
     logger.error('Failed to update MCP server', { error })
     return { success: false, error: 'Failed to update MCP server', errorCode: 'internal' }

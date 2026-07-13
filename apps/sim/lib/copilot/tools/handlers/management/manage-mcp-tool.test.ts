@@ -149,6 +149,7 @@ describe('executeManageMcpTool verification', () => {
     mockUpdateMcpServer.mockResolvedValue({
       success: true,
       server: { id: 'mcp-1', name: 'Memory', enabled: true },
+      connectionChanged: true,
     })
     mockVerifyServerConnection.mockResolvedValue({
       verified: true,
@@ -177,6 +178,7 @@ describe('executeManageMcpTool verification', () => {
     mockUpdateMcpServer.mockResolvedValue({
       success: true,
       server: { id: 'mcp-1', name: 'Renamed Memory', enabled: true },
+      connectionChanged: false,
     })
 
     const result = await executeManageMcpTool(
@@ -195,6 +197,91 @@ describe('executeManageMcpTool verification', () => {
           verified: false,
           skipped: true,
           reason: 'connection_unchanged',
+        }),
+      })
+    )
+  })
+
+  it('skips verification when an edit echoes unchanged connection config', async () => {
+    mockUpdateMcpServer.mockResolvedValue({
+      success: true,
+      server: { id: 'mcp-1', name: 'Renamed Memory', enabled: true },
+      connectionChanged: false,
+    })
+
+    const result = await executeManageMcpTool(
+      {
+        operation: 'edit',
+        serverId: 'mcp-1',
+        config: {
+          name: 'Renamed Memory',
+          url: 'https://memory.example.com/mcp',
+          transport: 'streamable-http',
+          headers: { Authorization: 'Bearer {{MEMORY_KEY}}' },
+          timeout: 30000,
+          enabled: true,
+        },
+      },
+      context
+    )
+
+    expect(mockVerifyServerConnection).not.toHaveBeenCalled()
+    expect(result.output).toEqual(
+      expect.objectContaining({
+        verification: expect.objectContaining({
+          skipped: true,
+          reason: 'connection_unchanged',
+        }),
+      })
+    )
+  })
+
+  it('re-verifies a server when an edit re-enables it', async () => {
+    mockUpdateMcpServer.mockResolvedValue({
+      success: true,
+      server: { id: 'mcp-1', name: 'Memory', enabled: true },
+      connectionChanged: true,
+    })
+    mockVerifyServerConnection.mockResolvedValue({
+      verified: true,
+      toolCount: 2,
+      requiresAuthorization: false,
+    })
+
+    await executeManageMcpTool(
+      {
+        operation: 'edit',
+        serverId: 'mcp-1',
+        config: { enabled: true },
+      },
+      context
+    )
+
+    expect(mockVerifyServerConnection).toHaveBeenCalledWith('user-1', 'mcp-1', 'workspace-1')
+  })
+
+  it('skips verification when the edited server is disabled', async () => {
+    mockUpdateMcpServer.mockResolvedValue({
+      success: true,
+      server: { id: 'mcp-1', name: 'Memory', enabled: false },
+      connectionChanged: true,
+    })
+
+    const result = await executeManageMcpTool(
+      {
+        operation: 'edit',
+        serverId: 'mcp-1',
+        config: { url: 'https://new-memory.example.com/mcp', enabled: false },
+      },
+      context
+    )
+
+    expect(mockVerifyServerConnection).not.toHaveBeenCalled()
+    expect(result.output).toEqual(
+      expect.objectContaining({
+        verification: expect.objectContaining({
+          skipped: true,
+          reason: 'server_disabled',
         }),
       })
     )
