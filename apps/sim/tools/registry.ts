@@ -1036,6 +1036,7 @@ import {
   firefliesListUsersTool,
   firefliesUploadAudioTool,
 } from '@/tools/fireflies'
+import { flintCreateTaskTool, flintGeneratePagesTool, flintGetTaskTool } from '@/tools/flint'
 import { functionExecuteTool } from '@/tools/function'
 import {
   gammaCheckStatusTool,
@@ -4804,6 +4805,9 @@ export const tools: Record<string, ToolConfig> = {
   fireflies_create_bite: firefliesCreateBiteTool,
   fireflies_list_bites: firefliesListBitesTool,
   fireflies_list_contacts: firefliesListContactsTool,
+  flint_create_task: flintCreateTaskTool,
+  flint_generate_pages: flintGeneratePagesTool,
+  flint_get_task: flintGetTaskTool,
   gong_aggregate_activity: gongAggregateActivityTool,
   gong_aggregate_by_period: gongAggregateByPeriodTool,
   gong_answered_scorecards: gongAnsweredScorecardsTool,
