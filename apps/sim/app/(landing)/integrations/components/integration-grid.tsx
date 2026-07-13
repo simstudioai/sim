@@ -3,7 +3,11 @@
 import { useMemo } from 'react'
 import { ChipInput, Search } from '@sim/emcn'
 import { debounce, useQueryStates } from 'nuqs'
-import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
+import {
+  blockTypeToIconMap,
+  formatIntegrationType,
+  type IntegrationSummary,
+} from '@/lib/integrations'
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
 import {
   integrationsParsers,
@@ -19,7 +23,7 @@ const PILL_ACTIVE = 'bg-[var(--surface-active)]' as const
 const PILL_INACTIVE = 'hover:bg-[var(--surface-hover)]' as const
 
 interface IntegrationGridProps {
-  integrations: readonly Integration[]
+  integrations: readonly IntegrationSummary[]
 }
 
 export function IntegrationGrid({ integrations }: IntegrationGridProps) {
@@ -29,30 +33,17 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
   )
   const activeCategory = category || null
 
-  // Category facets and a per-integration lowercased search index, derived once
-  // from the (stable) integration list instead of rebuilt on every keystroke.
-  // The index keeps each searchable field as its own entry so matching stays
-  // identical to a per-field `includes` (no cross-field boundary matches).
-  const { availableCategories, searchIndex } = useMemo(() => {
+  /** Category facets, derived once from the (stable) integration list. */
+  const availableCategories = useMemo(() => {
     const counts = new Map<string, number>()
-    const searchIndex = new Map<string, string[]>()
     for (const i of integrations) {
       if (i.integrationType) {
         counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
       }
-      searchIndex.set(i.type, [
-        i.name.toLowerCase(),
-        i.description.toLowerCase(),
-        ...i.operations.flatMap((op) => [op.name.toLowerCase(), op.description.toLowerCase()]),
-        ...i.triggers.map((t) => t.name.toLowerCase()),
-      ])
     }
-    return {
-      availableCategories: Array.from(counts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([key]) => key),
-      searchIndex,
-    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([key]) => key)
   }, [integrations])
 
   const q = query.trim().toLowerCase()
@@ -61,9 +52,9 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
       integrations.filter((i) => {
         if (activeCategory && i.integrationType !== activeCategory) return false
         if (!q) return true
-        return searchIndex.get(i.type)?.some((field) => field.includes(q)) ?? false
+        return i.searchText.includes(q)
       }),
-    [integrations, searchIndex, q, activeCategory]
+    [integrations, q, activeCategory]
   )
 
   return (

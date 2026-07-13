@@ -14,7 +14,7 @@
 
 import { stripVersionSuffix } from '@sim/utils/string'
 import integrationsJson from '@/lib/integrations/integrations.json'
-import type { Integration } from '@/lib/integrations/types'
+import type { Integration, IntegrationSummary } from '@/lib/integrations/types'
 import { getAllBlockMeta } from '@/blocks/registry'
 
 /** All integrations surfaced in the catalog, ordered by `scripts/generate-docs.ts`. */
@@ -67,13 +67,36 @@ export const POPULAR_WORKFLOWS: readonly PopularWorkflow[] = (() => {
   return pairs
 })()
 
+/**
+ * Projects a full `Integration` down to the fields the `/integrations`
+ * catalog grid renders and searches by, replacing the full `operations`/
+ * `triggers` arrays with a single precomputed, lowercased `searchText` blob
+ * (name, description, operation names, trigger names). See
+ * {@link IntegrationSummary} for why this exists.
+ */
+export function toIntegrationSummary(integration: Integration): IntegrationSummary {
+  const searchParts = [integration.name, integration.description]
+  for (const op of integration.operations) searchParts.push(op.name)
+  for (const trigger of integration.triggers) searchParts.push(trigger.name)
+
+  return {
+    type: integration.type,
+    slug: integration.slug,
+    name: integration.name,
+    description: integration.description,
+    bgColor: integration.bgColor,
+    integrationType: integration.integrationType,
+    searchText: searchParts.join(' ').toLowerCase(),
+  }
+}
+
 export { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 export {
   type OAuthServiceMatch,
   resolveOAuthServiceForIntegration,
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations/oauth-service'
-export type { AuthType, FAQItem, Integration } from '@/lib/integrations/types'
+export type { AuthType, FAQItem, Integration, IntegrationSummary } from '@/lib/integrations/types'
 export { getAllBlockMeta, getBlockMeta, getTemplatesForBlock } from '@/blocks/registry'
 export type { BlockMeta, BlockTemplate } from '@/blocks/types'
 export { formatIntegrationType } from '@/blocks/types'

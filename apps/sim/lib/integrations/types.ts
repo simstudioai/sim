@@ -66,3 +66,22 @@ export interface Integration {
   /** Hand-authored landing content baked in at generation time (see `landing-content.ts`). */
   landingContent?: IntegrationLandingContent
 }
+
+/**
+ * The fields the `/integrations` catalog grid actually renders and searches
+ * by, plus a single precomputed `searchText` blob (name, description,
+ * operation names, trigger names) in place of the full `operations`/
+ * `triggers` arrays. Shipping the full `Integration[]` to that page's client
+ * component embeds every integration's complete operation descriptions in
+ * the initial HTML/RSC payload - this cuts that embedded payload by ~75%
+ * while preserving name/description/operation-name/trigger-name search.
+ */
+export interface IntegrationSummary {
+  type: Integration['type']
+  slug: string
+  name: Integration['name']
+  description: Integration['description']
+  bgColor: Integration['bgColor']
+  integrationType: Integration['integrationType']
+  searchText: string
+}
