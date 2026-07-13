@@ -24,12 +24,21 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Plus, Server } from 'lucide-react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
+import { debounce, useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  mcpServerIdParam,
+  mcpServerIdUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import {
+  settingsSearchParam,
+  settingsSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -871,7 +880,6 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
 export function WorkflowMcpServers() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const searchParams = useSearchParams()
   const workspacePermissions = useUserPermissionsContext()
   const canAdmin = canMutateWorkspaceSettingsSection('workflow-mcp-servers', workspacePermissions)
 
@@ -879,11 +887,16 @@ export function WorkflowMcpServers() {
   const { data: deployedWorkflows = [] } = useDeployedWorkflows(workspaceId)
   const deleteServerMutation = useDeleteWorkflowMcpServer()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useQueryState(settingsSearchParam.key, {
+    ...settingsSearchParam.parser,
+    ...settingsSearchUrlKeys,
+    limitUrlUpdates: debounce(300),
+  })
   const [showAddModal, setShowAddModal] = useState(false)
-  const [selectedServerId, setSelectedServerId] = useState<string | null>(() =>
-    searchParams.get('mcpServerId')
-  )
+  const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
+    ...mcpServerIdParam.parser,
+    ...mcpServerIdUrlKeys,
+  })
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
 
@@ -953,7 +966,7 @@ export function WorkflowMcpServers() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          onChange: (value) => void setSearchTerm(value),
           placeholder: 'Search servers...',
         }}
         actions={actions}

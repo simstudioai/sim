@@ -1,22 +1,29 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Chip, ChipConfirmModal, ChipInput, Search } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useQueryState } from 'nuqs'
+import { debounce, useQueryState } from 'nuqs'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
-import { skillIdParam, skillIdUrlKeys } from '@/app/workspace/[workspaceId]/skills/search-params'
+import {
+  skillIdParam,
+  skillIdUrlKeys,
+  skillSearchParam,
+  skillSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/skills/search-params'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
 
 const logger = createLogger('SkillsSettings')
 
 const SKILLS_LABEL = 'Skills'
+
+const SEARCH_DEBOUNCE_MS = 300 as const
 
 interface SkillItemProps {
   name: string
@@ -67,7 +74,10 @@ export function Skills() {
   const { data: skills = [], isLoading, error } = useSkills(workspaceId)
   const deleteSkillMutation = useDeleteSkill()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTermParam] = useQueryState(skillSearchParam.key, {
+    ...skillSearchParam.parser,
+    ...skillSearchUrlKeys,
+  })
   const [editingSkillId, setEditingSkillId] = useQueryState(skillIdParam.key, {
     ...skillIdParam.parser,
     ...skillIdUrlKeys,
@@ -75,6 +85,23 @@ export function Skills() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. Filtering below is cheap in-memory over a small list,
+   * so it reads the instant value too. Clearing writes immediately so the
+   * param drops out without lingering.
+   */
+  const setSearchTerm = useCallback(
+    (value: string) => {
+      const next = value.length > 0 ? value : null
+      setSearchTermParam(
+        next,
+        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+      )
+    },
+    [setSearchTermParam]
+  )
 
   /** Derive the skill being edited from the loaded list — never store the object in the URL. */
   const editingSkill = editingSkillId ? (skills.find((s) => s.id === editingSkillId) ?? null) : null

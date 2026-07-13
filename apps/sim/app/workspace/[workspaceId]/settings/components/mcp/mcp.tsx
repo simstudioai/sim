@@ -7,7 +7,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useQueryState } from 'nuqs'
+import { debounce, useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
@@ -24,6 +24,10 @@ import {
   mcpServerIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import {
+  settingsSearchParam,
+  settingsSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -187,7 +191,11 @@ export function MCP() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useQueryState(settingsSearchParam.key, {
+    ...settingsSearchParam.parser,
+    ...settingsSearchUrlKeys,
+    limitUrlUpdates: debounce(300),
+  })
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
   const { connectingServers: connectingOauthServers, startOauthForServer } = useMcpOauthPopup({
     workspaceId,
@@ -617,7 +625,7 @@ export function MCP() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          onChange: (value) => void setSearchTerm(value),
           placeholder: 'Search MCPs...',
         }}
         actions={

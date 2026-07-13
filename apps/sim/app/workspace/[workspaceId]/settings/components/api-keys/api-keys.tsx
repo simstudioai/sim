@@ -6,10 +6,15 @@ import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { debounce, useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import {
+  settingsSearchParam,
+  settingsSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -105,7 +110,11 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useQueryState(settingsSearchParam.key, {
+    ...settingsSearchParam.parser,
+    ...settingsSearchUrlKeys,
+    limitUrlUpdates: debounce(300),
+  })
 
   const defaultKeyType = isPersonalScope
     ? 'personal'
@@ -184,7 +193,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          onChange: (value) => void setSearchTerm(value),
           placeholder: 'Search API keys...',
         }}
         actions={actions}

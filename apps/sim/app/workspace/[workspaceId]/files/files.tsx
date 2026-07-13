@@ -22,7 +22,7 @@ import { Download, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
-import { useQueryStates } from 'nuqs'
+import { debounce, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
@@ -75,7 +75,14 @@ import {
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
-import { filesParsers, filesUrlKeys } from '@/app/workspace/[workspaceId]/files/search-params'
+import {
+  FILE_SORT_COLUMNS,
+  type FileSortColumn,
+  filesFilterParsers,
+  filesFilterUrlKeys,
+  filesParsers,
+  filesUrlKeys,
+} from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
@@ -103,6 +110,9 @@ type FileResourceItem =
   | { kind: 'folder'; id: string; folder: WorkspaceFileFolderApi }
 
 const logger = createLogger('Files')
+
+/** Debounce window for `search` URL writes and filtering; the input itself stays instant. */
+const SEARCH_DEBOUNCE_MS = 200 as const
 
 const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_DOCUMENT_EXTENSIONS,
@@ -244,15 +254,61 @@ export function Files() {
   })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
-  const [inputValue, setInputValue] = useState('')
-  const debouncedSearchTerm = useDebounce(inputValue, 200)
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
-  const [typeFilter, setTypeFilter] = useState<string[]>([])
-  const [sizeFilter, setSizeFilter] = useState<string[]>([])
-  const [uploadedByFilter, setUploadedByFilter] = useState<string[]>([])
+  const [
+    {
+      search: urlSearchTerm,
+      sort: sortColumn,
+      dir: sortDirection,
+      type: typeFilter,
+      size: sizeFilter,
+      uploadedBy: uploadedByFilter,
+    },
+    setFileFilters,
+  ] = useQueryStates(filesFilterParsers, filesFilterUrlKeys)
+
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The in-memory filter below still reads a debounced value
+   * so it doesn't recompute on every keystroke.
+   */
+  const setSearchTerm = useCallback(
+    (value: string) => {
+      const next = value.length > 0 ? value : null
+      setFileFilters(
+        { search: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+      )
+    },
+    [setFileFilters]
+  )
+  const debouncedSearchTerm = useDebounce(urlSearchTerm, SEARCH_DEBOUNCE_MS)
+
+  /**
+   * `sort`/`dir` are nullable in the URL because "no active sort" is distinct
+   * from an explicit updated/desc selection: with no sort, files fall back to
+   * updated/desc but folders to name/asc, while an explicit sort orders both
+   * sections by the chosen column.
+   */
+  const activeSort = useMemo(
+    () =>
+      sortColumn !== null && sortDirection !== null
+        ? { column: sortColumn, direction: sortDirection }
+        : null,
+    [sortColumn, sortDirection]
+  )
+
+  const setTypeFilter = useCallback(
+    (next: string[]) => setFileFilters({ type: next }),
+    [setFileFilters]
+  )
+  const setSizeFilter = useCallback(
+    (next: string[]) => setFileFilters({ size: next }),
+    [setFileFilters]
+  )
+  const setUploadedByFilter = useCallback(
+    (next: string[]) => setFileFilters({ uploadedBy: next }),
+    [setFileFilters]
+  )
 
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -1523,9 +1579,9 @@ export function Files() {
   }, [canEdit, uploading])
 
   const searchConfig: SearchConfig = {
-    value: inputValue,
-    onChange: setInputValue,
-    onClearAll: () => setInputValue(''),
+    value: urlSearchTerm,
+    onChange: setSearchTerm,
+    onClearAll: () => setSearchTerm(''),
     placeholder: 'Search files...',
   }
 
@@ -1689,10 +1745,13 @@ export function Files() {
         { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      onSort: (column, direction) => {
+        if (!(FILE_SORT_COLUMNS as readonly string[]).includes(column)) return
+        setFileFilters({ sort: column as FileSortColumn, dir: direction })
+      },
+      onClear: () => setFileFilters({ sort: null, dir: null }),
     }),
-    [activeSort]
+    [activeSort, setFileFilters]
   )
 
   const hasActiveFilters =

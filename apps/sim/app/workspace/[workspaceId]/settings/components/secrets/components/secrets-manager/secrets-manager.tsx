@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import {
   clearPendingCredentialCreateRequest,
@@ -16,6 +17,10 @@ import {
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import {
+  settingsSearchParam,
+  settingsSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/search-params'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
@@ -362,7 +367,11 @@ export function SecretsManager() {
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
     createEmptyEnvVar(),
   ])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useQueryState(settingsSearchParam.key, {
+    ...settingsSearchParam.parser,
+    ...settingsSearchUrlKeys,
+    limitUrlUpdates: debounce(300),
+  })
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
@@ -951,7 +960,7 @@ export function SecretsManager() {
         scrollContainerRef={scrollContainerRef}
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          onChange: (value) => void setSearchTerm(value),
           placeholder: 'Search secrets...',
         }}
         actions={[

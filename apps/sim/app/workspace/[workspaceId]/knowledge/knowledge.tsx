@@ -6,6 +6,7 @@ import { Button, ChipDropdown, Plus, Tooltip } from '@sim/emcn'
 import { Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { debounce, useQueryStates } from 'nuqs'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type {
   FilterTag,
@@ -30,6 +31,14 @@ import {
   KnowledgeBaseContextMenu,
   KnowledgeListContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  DEFAULT_KNOWLEDGE_SORT_COLUMN,
+  DEFAULT_KNOWLEDGE_SORT_DIRECTION,
+  KNOWLEDGE_SORT_COLUMNS,
+  type KnowledgeSortColumn,
+  knowledgeParsers,
+  knowledgeUrlKeys,
+} from '@/app/workspace/[workspaceId]/knowledge/search-params'
 import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -41,6 +50,9 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Knowledge')
+
+/** Debounce window for `search` URL writes; the input itself stays instant. */
+const SEARCH_DEBOUNCE_MS = 300 as const
 
 interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
   docCount?: number
@@ -143,16 +155,60 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
-  const [connectorFilter, setConnectorFilter] = useState<string[]>([])
-  const [contentFilter, setContentFilter] = useState<string[]>([])
-  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
+  const [
+    {
+      search: urlSearchQuery,
+      sort: sortColumn,
+      dir: sortDirection,
+      connector: connectorFilter,
+      content: contentFilter,
+      owner: ownerFilter,
+    },
+    setKnowledgeFilters,
+  ] = useQueryStates(knowledgeParsers, knowledgeUrlKeys)
 
-  const [searchInputValue, setSearchInputValue] = useState('')
-  const debouncedSearchQuery = useDebounce(searchInputValue, 300)
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The in-memory filter below still reads a debounced
+   * value so it doesn't recompute on every keystroke.
+   */
+  const setSearchQuery = useCallback(
+    (value: string) => {
+      const next = value.length > 0 ? value : null
+      setKnowledgeFilters(
+        { search: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+      )
+    },
+    [setKnowledgeFilters]
+  )
+  const debouncedSearchQuery = useDebounce(urlSearchQuery, SEARCH_DEBOUNCE_MS)
+
+  /**
+   * The resolved sort is exposed to the sort menu only when it differs from the
+   * default, mirroring the prior `null`-means-default semantics.
+   */
+  const activeSort = useMemo(
+    () =>
+      sortColumn === DEFAULT_KNOWLEDGE_SORT_COLUMN &&
+      sortDirection === DEFAULT_KNOWLEDGE_SORT_DIRECTION
+        ? null
+        : { column: sortColumn, direction: sortDirection },
+    [sortColumn, sortDirection]
+  )
+
+  const setConnectorFilter = useCallback(
+    (next: string[]) => setKnowledgeFilters({ connector: next }),
+    [setKnowledgeFilters]
+  )
+  const setContentFilter = useCallback(
+    (next: string[]) => setKnowledgeFilters({ content: next }),
+    [setKnowledgeFilters]
+  )
+  const setOwnerFilter = useCallback(
+    (next: string[]) => setKnowledgeFilters({ owner: next }),
+    [setKnowledgeFilters]
+  )
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
@@ -402,12 +458,12 @@ export function Knowledge() {
 
   const searchConfig: SearchConfig = useMemo(
     () => ({
-      value: searchInputValue,
-      onChange: setSearchInputValue,
-      onClearAll: () => setSearchInputValue(''),
+      value: urlSearchQuery,
+      onChange: setSearchQuery,
+      onClearAll: () => setSearchQuery(''),
       placeholder: 'Search knowledge bases...',
     }),
-    [searchInputValue]
+    [urlSearchQuery, setSearchQuery]
   )
 
   const sortConfig: SortConfig = useMemo(
@@ -422,10 +478,19 @@ export function Knowledge() {
         { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      onSort: (column, direction) => {
+        const sort = (KNOWLEDGE_SORT_COLUMNS as readonly string[]).includes(column)
+          ? (column as KnowledgeSortColumn)
+          : DEFAULT_KNOWLEDGE_SORT_COLUMN
+        setKnowledgeFilters({ sort, dir: direction })
+      },
+      onClear: () =>
+        setKnowledgeFilters({
+          sort: DEFAULT_KNOWLEDGE_SORT_COLUMN,
+          dir: DEFAULT_KNOWLEDGE_SORT_DIRECTION,
+        }),
     }),
-    [activeSort]
+    [activeSort, setKnowledgeFilters]
   )
 
   const memberOptions: ChipDropdownOption[] = useMemo(
