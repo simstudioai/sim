@@ -36,9 +36,10 @@ const baseUrl = SITE_URL
  * consistent with the related-integrations section's own cap below.
  *
  * `getTemplatesForBlock` returns matches in registry insertion order, not
- * relevance - templates owned by the viewing integration (or marked
- * `featured`) are sorted first so the cap can't hide them behind
- * `alsoIntegrations` matches from unrelated blocks that happen to iterate
+ * relevance - sorted `featured` first, then owned-by-the-viewing-integration,
+ * so the cap can't hide a curated `featured` template (owned or reached via
+ * `alsoIntegrations`) behind a larger pile of non-featured owned templates,
+ * nor behind unrelated `alsoIntegrations` matches that happen to iterate
  * earlier in the registry.
  */
 const MAX_TEMPLATES_SHOWN = 12
@@ -397,8 +398,8 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   const matchingTemplates = getTemplatesForBlock(integration.type)
     .sort(
       (a, b) =>
-        Number(b.isOwner) - Number(a.isOwner) ||
-        Number(b.featured ?? false) - Number(a.featured ?? false)
+        Number(b.featured ?? false) - Number(a.featured ?? false) ||
+        Number(b.isOwner) - Number(a.isOwner)
     )
     .slice(0, MAX_TEMPLATES_SHOWN)
 
