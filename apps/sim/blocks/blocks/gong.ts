@@ -771,9 +771,17 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       id: 'entityFromDateTime',
       title: 'From Date/Time',
       type: 'short-input',
-      placeholder: '2024-01-01T00:00:00Z (required for custom range)',
-      condition: { field: 'operation', value: ['ask_anything', 'get_brief'] },
-      mode: 'advanced',
+      placeholder: '2024-01-01T00:00:00Z',
+      condition: {
+        field: 'operation',
+        value: ['ask_anything', 'get_brief'],
+        and: { field: 'timePeriod', value: 'CUSTOM_RANGE' },
+      },
+      required: {
+        field: 'operation',
+        value: ['ask_anything', 'get_brief'],
+        and: { field: 'timePeriod', value: 'CUSTOM_RANGE' },
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -788,9 +796,17 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       id: 'entityToDateTime',
       title: 'To Date/Time',
       type: 'short-input',
-      placeholder: '2024-01-31T23:59:59Z (required for custom range)',
-      condition: { field: 'operation', value: ['ask_anything', 'get_brief'] },
-      mode: 'advanced',
+      placeholder: '2024-01-31T23:59:59Z',
+      condition: {
+        field: 'operation',
+        value: ['ask_anything', 'get_brief'],
+        and: { field: 'timePeriod', value: 'CUSTOM_RANGE' },
+      },
+      required: {
+        field: 'operation',
+        value: ['ask_anything', 'get_brief'],
+        and: { field: 'timePeriod', value: 'CUSTOM_RANGE' },
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -945,23 +961,38 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       tool: (params) => `gong_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        // Map operation-specific subBlock IDs to tool param names
-        if (params.transcriptFromDateTime) result.fromDateTime = params.transcriptFromDateTime
-        if (params.transcriptToDateTime) result.toDateTime = params.transcriptToDateTime
-        if (params.statsFromDate) result.fromDate = params.statsFromDate
-        if (params.statsToDate) result.toDate = params.statsToDate
-        if (params.callFromDate) result.callFromDate = params.callFromDate
-        if (params.callToDate) result.callToDate = params.callToDate
-        if (params.reviewFromDate) result.reviewFromDate = params.reviewFromDate
-        if (params.reviewToDate) result.reviewToDate = params.reviewToDate
-        if (params.coachingWorkspaceId) result.workspaceId = params.coachingWorkspaceId
-        if (params.coachingFromDate) result.fromDate = params.coachingFromDate
-        if (params.coachingToDate) result.toDate = params.coachingToDate
-        if (params.entityWorkspaceId) result.workspaceId = params.entityWorkspaceId
-        if (params.entityFromDateTime) result.fromDateTime = params.entityFromDateTime
-        if (params.entityToDateTime) result.toDateTime = params.entityToDateTime
-        if (params.logsFromDateTime) result.fromDateTime = params.logsFromDateTime
-        if (params.logsToDateTime) result.toDateTime = params.logsToDateTime
+        // Map operation-specific subBlock IDs to tool param names, gated by the
+        // selected operation so stale values from other operations never leak in
+        const operation = params.operation as string
+        if (operation === 'get_call_transcript' || operation === 'get_extensive_calls') {
+          if (params.transcriptFromDateTime) result.fromDateTime = params.transcriptFromDateTime
+          if (params.transcriptToDateTime) result.toDateTime = params.transcriptToDateTime
+        }
+        if (
+          [
+            'aggregate_activity',
+            'day_by_day_activity',
+            'aggregate_by_period',
+            'interaction_stats',
+          ].includes(operation)
+        ) {
+          if (params.statsFromDate) result.fromDate = params.statsFromDate
+          if (params.statsToDate) result.toDate = params.statsToDate
+        }
+        if (operation === 'get_coaching') {
+          if (params.coachingWorkspaceId) result.workspaceId = params.coachingWorkspaceId
+          if (params.coachingFromDate) result.fromDate = params.coachingFromDate
+          if (params.coachingToDate) result.toDate = params.coachingToDate
+        }
+        if (operation === 'ask_anything' || operation === 'get_brief') {
+          if (params.entityWorkspaceId) result.workspaceId = params.entityWorkspaceId
+          if (params.entityFromDateTime) result.fromDateTime = params.entityFromDateTime
+          if (params.entityToDateTime) result.toDateTime = params.entityToDateTime
+        }
+        if (operation === 'get_logs') {
+          if (params.logsFromDateTime) result.fromDateTime = params.logsFromDateTime
+          if (params.logsToDateTime) result.toDateTime = params.logsToDateTime
+        }
         return result
       },
     },

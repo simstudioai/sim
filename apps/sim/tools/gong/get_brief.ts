@@ -71,12 +71,19 @@ export const getBriefTool: ToolConfig<GongGetBriefParams, GongGetBriefResponse> 
 
   request: {
     url: (params) => {
+      const timePeriod = params.timePeriod.trim().toUpperCase()
+      if (
+        timePeriod === 'CUSTOM_RANGE' &&
+        (!params.fromDateTime?.trim() || !params.toDateTime?.trim())
+      ) {
+        throw new Error('fromDateTime and toDateTime are required when timePeriod is CUSTOM_RANGE')
+      }
       const url = new URL('https://api.gong.io/v2/entities/get-brief')
       url.searchParams.set('workspaceId', params.workspaceId.trim())
       url.searchParams.set('briefName', params.briefName.trim())
       url.searchParams.set('crmEntityType', params.crmEntityType.trim().toUpperCase())
       url.searchParams.set('crmEntityId', params.crmEntityId.trim())
-      url.searchParams.set('timePeriod', params.timePeriod.trim().toUpperCase())
+      url.searchParams.set('timePeriod', timePeriod)
       if (params.fromDateTime?.trim())
         url.searchParams.set('fromDateTime', params.fromDateTime.trim())
       if (params.toDateTime?.trim()) url.searchParams.set('toDateTime', params.toDateTime.trim())
