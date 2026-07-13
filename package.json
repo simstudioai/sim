@@ -54,6 +54,8 @@
     "vfs-snapshot-contract:check": "bun run scripts/sync-vfs-snapshot-contract.ts --check",
     "mship:generate": "bun run scripts/generate-mship-contracts.ts",
     "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
+    "skills:sync": "bun run scripts/sync-skills.ts",
+    "skills:check": "bun run scripts/sync-skills.ts --check",
     "prepare": "bun husky",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts"

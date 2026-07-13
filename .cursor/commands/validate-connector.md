@@ -49,6 +49,20 @@ Fetch the official API docs for the service. This is the **source of truth** for
 
 Use Context7 (resolve-library-id → query-docs) or WebFetch to retrieve documentation. If both fail, note which claims are based on training knowledge vs verified docs.
 
+### Hard Rule: No Guessed Source Schemas
+
+If the service docs do not clearly show document list responses, document fetch responses, metadata fields, or pagination shapes, you MUST tell the user instead of guessing.
+
+- Do NOT infer document fields from unrelated endpoints
+- Do NOT guess pagination cursors or response wrappers
+- Do NOT assume metadata keys that are not documented
+- Do NOT treat probable shapes as validated
+
+If a schema is unknown, validation must explicitly recommend:
+1. sample API responses,
+2. live test credentials, or
+3. trimming the connector to only documented fields.
+
 ## Step 3: Validate API Endpoints
 
 For **every** API call in the connector (`listDocuments`, `getDocument`, `validateConfig`, and any helper functions), verify against the API docs:
@@ -90,6 +104,7 @@ For **every** API call in the connector (`listDocuments`, `getDocument`, `valida
 - [ ] Field names extracted match what the API actually returns
 - [ ] Nullable fields are handled with `?? null` or `|| undefined`
 - [ ] Error responses are checked before accessing data fields
+- [ ] Every extracted field and pagination value is backed by official docs or live-verified sample payloads
 
 ## Step 4: Validate OAuth Scopes (if OAuth connector)
 
@@ -132,18 +147,37 @@ For each API endpoint the connector calls:
 - [ ] No off-by-one errors in pagination tracking
 - [ ] The connector does NOT hit known API pagination limits silently (e.g., HubSpot search 10k cap)
 
+### Deletion-Reconciliation Safety (`listingCapped`) — CRITICAL
+The sync engine hard-deletes any stored document absent from a full listing. Audit every path where `listDocuments` can return less than the full source set:
+- [ ] `syncContext.listingCapped = true` is set when a `maxItems`-style cap truncates the listing while more documents exist
+- [ ] `listingCapped` is set when a transient per-item error drops a still-existing document from the listing
+- [ ] `listingCapped` is NOT set when the source is genuinely exhausted (deleted documents must reconcile) or for intentional scope filters (date cutoffs)
+This is the most common connector bug class — verify it explicitly against `sync-engine.ts`'s reconciliation gate.
+
 ### Pagination State Across Pages
 - [ ] `syncContext` is used to cache state across pages (user names, field maps, instance URLs, portal IDs, etc.)
 - [ ] Cached state in `syncContext` is correctly initialized on first page and reused on subsequent pages
 
 ## Step 6: Validate Data Transformation
 
+### Content Deferral (CRITICAL)
+Connectors that require per-document API calls to fetch content (file download, export, blocks fetch) MUST use `contentDeferred: true`. This is the standard pattern for reliability — without it, content downloads during listing can exhaust the sync task's time budget before any documents are saved.
+
+- [ ] If the connector downloads content per-doc during `listDocuments`, it MUST use `contentDeferred: true` instead
+- [ ] `listDocuments` returns lightweight stubs with `content: ''` and `contentDeferred: true`
+- [ ] `getDocument` fetches actual content and returns the full document with `contentDeferred: false`
+- [ ] A shared stub function (e.g., `fileToStub`) is used by both `listDocuments` and `getDocument` to guarantee `contentHash` consistency
+- [ ] `contentHash` is metadata-based (e.g., `service:{id}:{modifiedTime}`), NOT content-based — it must be derivable from list metadata alone
+- [ ] The `contentHash` is identical whether produced by `listDocuments` or `getDocument`
+
+Connectors where the list API already returns content inline (e.g., Slack messages, Reddit posts) do NOT need `contentDeferred`.
+
 ### ExternalDocument Construction
 - [ ] `externalId` is a stable, unique identifier from the source API
 - [ ] `title` is extracted from the correct field and has a sensible fallback (e.g., `'Untitled'`)
 - [ ] `content` is plain text — HTML content is stripped using `htmlToPlainText` from `@/connectors/utils`
 - [ ] `mimeType` is `'text/plain'`
-- [ ] `contentHash` is computed using `computeContentHash` from `@/connectors/utils`
+- [ ] `contentHash` uses a metadata-based format (e.g., `service:{id}:{modifiedTime}`) for connectors with `contentDeferred: true`, or `computeContentHash` from `@/connectors/utils` for inline-content connectors
 - [ ] `sourceUrl` is a valid, complete URL back to the original resource (not relative)
 - [ ] `metadata` contains all fields referenced by `mapTags` and `tagDefinitions`
 
@@ -197,6 +231,8 @@ For each API endpoint the connector calls:
 - [ ] Fetches a single document by `externalId`
 - [ ] Returns `null` for 404 / not found (does not throw)
 - [ ] Returns the same `ExternalDocument` shape as `listDocuments`
+- [ ] If `listDocuments` uses `contentDeferred: true`, `getDocument` MUST fetch actual content and return `contentDeferred: false`
+- [ ] If `listDocuments` uses `contentDeferred: true`, `getDocument` MUST use the same stub function to ensure `contentHash` is identical
 - [ ] Handles all content types that `listDocuments` can produce (e.g., if `listDocuments` returns both pages and blogposts, `getDocument` must handle both — not hardcode one endpoint)
 - [ ] Forwards `syncContext` if it needs cached state (user names, field maps, etc.)
 - [ ] Error handling is graceful (catches, logs, returns null or throws with context)
@@ -255,9 +291,12 @@ Group findings by severity:
 - Incorrect response field mapping (accessing wrong path)
 - SOQL/query fields that don't exist on the target object
 - Pagination that silently hits undocumented API limits
+- Missing `syncContext.listingCapped = true` when a cap or transient error truncates the listing — the sync engine hard-deletes the documents absent from the partial listing
 - Missing error handling that would crash the sync
 - `requiredScopes` not a subset of OAuth provider scopes
 - Query/filter injection: user-controlled values interpolated into OData `$filter`, SOQL, or query strings without escaping
+- Per-document content download in `listDocuments` without `contentDeferred: true` — causes sync timeouts for large document sets
+- `contentHash` mismatch between `listDocuments` stub and `getDocument` return — causes unnecessary re-processing every sync
 - Server/runtime import in `meta.ts` (e.g. `@/lib/knowledge/...`, `input-validation.server`, `fetchWithRetry`) — pulls server-only code into the client bundle and breaks the build
 - Connector missing from `connectors/registry.ts` (the client-safe meta registry) — or its entry there imports the runtime module instead of `meta.ts` — the knowledge UI can't render it
 
@@ -295,6 +334,7 @@ After fixing, confirm:
 1. `bun run lint` passes
 2. TypeScript compiles clean
 3. Re-read all modified files to verify fixes are correct
+4. Any remaining unknown source schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 
@@ -307,6 +347,8 @@ After fixing, confirm:
 - [ ] Validated scopes are sufficient for all API endpoints the connector calls
 - [ ] Validated token refresh config (`useBasicAuth`, `supportsRefreshTokenRotation`)
 - [ ] Validated pagination: cursor names, page sizes, hasMore logic, no silent caps
+- [ ] Validated deletion-reconciliation safety: `syncContext.listingCapped` set on capped/error-truncated listings, not on genuine exhaustion or intentional scope filters
+- [ ] Validated content deferral: `contentDeferred: true` used when per-doc content fetch required, metadata-based `contentHash` consistent between stub and `getDocument`
 - [ ] Validated data transformation: plain text extraction, HTML stripping, content hashing
 - [ ] Validated tag definitions match mapTags output, correct fieldTypes
 - [ ] Validated config fields: canonical pairs, selector keys, required flags

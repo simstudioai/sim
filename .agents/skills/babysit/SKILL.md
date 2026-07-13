@@ -100,8 +100,9 @@ round. Always check both conditions freshly after every push.
    git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
    ```
-   `--reverse` matches `git log`'s newest-first default to the PR commit list's oldest-first
-   order — without it a positional comparison can spuriously fail on any multi-commit branch.
+   `--reverse` makes `git log` oldest-first, matching the PR commit list's order — plain
+   `git log` is newest-first, so without it a positional comparison can spuriously fail on any
+   multi-commit branch.
    These two lists must describe the same commits. A review loop runs many pushes across many
    rounds; checking sync only before the push (step 5) and never after is how a bad push or a
    PR whose commit history quietly went stale between rounds goes unnoticed.

@@ -16,13 +16,28 @@ Adding an integration involves these steps in order:
 ## Step 1: Research the API
 
 Before writing any code:
-1. Use Context7 to find official documentation: `mcp__plugin_context7_context7__resolve-library-id`
+1. Use Context7 to find official documentation: `mcp__context7__resolve-library-id`, then fetch with `mcp__context7__query-docs`
 2. Or use WebFetch to read API docs directly
 3. Identify:
    - Authentication method (OAuth, API Key, both)
    - Available operations (CRUD, search, etc.)
    - Required vs optional parameters
    - Response structures
+
+### Hard Rule: No Guessed Response Schemas
+
+If the official docs do not clearly show the response JSON shape for an endpoint, you MUST stop and tell the user exactly which outputs are unknown.
+
+- Do NOT guess response field names
+- Do NOT infer nested JSON paths from related endpoints
+- Do NOT invent output properties just because they seem likely
+- Do NOT implement `transformResponse` against unverified payload shapes
+
+If response schemas are missing or incomplete, do one of the following before proceeding:
+1. Ask the user for sample responses
+2. Ask the user for test credentials so you can verify the live payload
+3. Reduce the scope to only endpoints whose response shapes are documented
+4. Leave the tool unimplemented and explicitly report why
 
 ## Step 2: Create Tools
 
@@ -98,6 +113,7 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 - Set `optional: true` for outputs that may not exist
 - Never output raw JSON dumps - extract meaningful fields
 - When using `type: 'json'` and you know the object shape, define `properties` with the inner fields so downstream consumers know the structure. Only use bare `type: 'json'` when the shape is truly dynamic
+- If you do not know the response JSON shape from docs or verified examples, you MUST tell the user and stop. Never guess outputs or response mappings.
 
 ## Step 3: Create Block
 
@@ -116,7 +132,7 @@ export const {Service}Block: BlockConfig = {
   name: '{Service}',
   description: '...',
   longDescription: '...',
-  docsLink: 'https://docs.sim.ai/tools/{service}',
+  docsLink: 'https://docs.sim.ai/integrations/{service}',
   category: 'tools',
   integrationType: IntegrationType.X,   // Primary category (see IntegrationType enum)
   tags: ['oauth', 'api'],              // Cross-cutting tags (see IntegrationTag type)
@@ -216,6 +232,28 @@ export const {Service}Block: BlockConfig = {
 - **Inputs section:** Must list canonical param IDs (e.g., `fileId`), NOT raw subblock IDs (e.g., `fileSelector`, `manualFileId`)
 - **Params function:** Must use canonical param IDs, NOT raw subblock IDs (raw IDs are deleted after canonical transformation)
 
+### BlockMeta (Required)
+
+Export a `{Service}BlockMeta` in the same file as the block — **minimum 7 templates**. See `.agents/skills/add-block/SKILL.md` → "BlockMeta (Required)" for valid `modules` and `category` values and the full pattern.
+
+```typescript
+export const {Service}BlockMeta = {
+  tags: ['tag1', 'tag2'],
+  templates: [
+    {
+      icon: {Service}Icon,
+      title: '{Service} <use-case>',
+      prompt: 'Build a workflow that...',  // concrete trigger → transformation → output
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation'],
+      alsoIntegrations: ['slack'],        // when the prompt references another service
+    },
+    // ... at least 6 more
+  ],
+} as const satisfies BlockMeta
+```
+
 ## Step 4: Add Icon
 
 ### File Location
@@ -251,6 +289,31 @@ Once the user provides the SVG:
 1. Extract the SVG paths/content
 2. Create a React component that spreads props
 3. Ensure viewBox is preserved from the original SVG
+
+### Theme-safety (bare rendering) — REQUIRED
+
+The icon renders both inside its colored `bgColor` tile AND "bare" (no tile) on a
+neutral page — e.g. the home **Suggested actions** list — in both light and dark
+mode. A monochrome logo whose paths hardcode a single near-white or near-black
+fill is invisible bare on the matching background (white-on-white in light mode,
+black-on-black in dark mode).
+
+Rules when adding the SVG:
+
+- **Monochrome logos** (a single white or black mark): draw the shape with
+  `fill='currentColor'`, not `fill='#fff'` / `fill='#000000'`. It then inherits
+  white inside dark tiles, near-black inside light tiles (via
+  `getTileIconColorClass`), and the theme-aware `var(--text-icon)` bare — legible
+  everywhere. Do NOT set `iconColor` for these.
+- **Multi-color brand logos** (their own vivid fills): keep the hardcoded fills.
+  They read on any background. Only set `iconColor` (a vivid brand hex, never a
+  near-black/near-white tile color) if the bare icon should adopt a brand tint.
+- A large white shape with a tiny vivid accent (e.g. a logo where the body is the
+  white negative space) still vanishes bare — convert the body to `currentColor`.
+
+Verify with `bun run check:bare-icons` (also runs in CI). It flags purely
+monochrome hazards; for partial-accent logos, eyeball the suggested-actions list
+in both light and dark mode.
 
 ## Step 5: Create Triggers (Optional)
 
@@ -384,7 +447,7 @@ Run the documentation generator:
 bun run scripts/generate-docs.ts
 ```
 
-This creates `apps/docs/content/docs/en/tools/{service}.mdx`
+This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
 
 ## V2 Integration Pattern
 
@@ -427,6 +490,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Registered block + meta in `blocks/registry-maps.ts` (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If triggers: set `triggers.enabled` and `triggers.available`
 - [ ] If triggers: spread trigger subBlocks with `getTrigger()`
+- [ ] Exported `{Service}BlockMeta` with at least 7 templates
 
 ### OAuth Scopes (if OAuth service)
 - [ ] Defined scopes in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS`
@@ -438,6 +502,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Asked user to provide SVG
 - [ ] Added icon to `components/icons.tsx`
 - [ ] Icon spreads props correctly
+- [ ] Monochrome marks use `fill='currentColor'` (not hardcoded white/black) so the icon renders bare in light AND dark mode — verified with `bun run check:bare-icons`
 
 ### Triggers (if service supports webhooks)
 - [ ] Created `triggers/{service}/` directory
@@ -457,6 +522,9 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Verified block subBlocks cover all required tool params with correct conditions
 - [ ] Verified block outputs match what the tools actually return
 - [ ] Verified `tools.config.params` correctly maps and coerces all param types
+- [ ] Verified every tool output and `transformResponse` path against documented or live-verified JSON responses
+- [ ] If any response schema remained unknown, explicitly told the user instead of guessing
+- [ ] `{Service}BlockMeta` exported with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 
 ## Example Command
 
@@ -567,38 +635,65 @@ tools: {
 
 #### 3. Create Internal API Route
 
-Create `apps/sim/app/api/tools/{service}/{action}/route.ts`:
+Create `apps/sim/app/api/tools/{service}/{action}/route.ts`. Internal tool routes are HTTP boundaries and follow the same contract policy as public routes — define the request/response shape in `apps/sim/lib/api/contracts/tools/{service}.ts` (or an existing aggregate) and validate with canonical helpers from `@/lib/api/server`. Never write a route-local Zod schema.
 
 ```typescript
+// apps/sim/lib/api/contracts/tools/{service}.ts
+import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts'
+import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
+
+export const {service}UploadBodySchema = z.object({
+  accessToken: z.string(),
+  file: FileInputSchema.optional().nullable(),
+  fileContent: z.string().optional().nullable(),
+  // ... other params
+})
+
+export const {service}UploadResponseSchema = z.object({
+  success: z.boolean(),
+  output: z.object({ id: z.string(), url: z.string() }).optional(),
+  error: z.string().optional(),
+})
+
+export const {service}UploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/{service}/upload',
+  body: {service}UploadBodySchema,
+  response: { mode: 'json', schema: {service}UploadResponseSchema },
+})
+
+export type {Service}UploadBody = z.input<typeof {service}UploadBodySchema>
+export type {Service}UploadResponse = z.output<typeof {service}UploadResponseSchema>
+```
+
+```typescript
+// apps/sim/app/api/tools/{service}/upload/route.ts
 import { createLogger } from '@sim/logger'
 import { NextResponse, type NextRequest } from 'next/server'
-import { z } from 'zod'
+import { {service}UploadContract } from '@/lib/api/contracts/tools/{service}'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { FileInputSchema, type RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { type RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 const logger = createLogger('{Service}UploadAPI')
 
-const RequestSchema = z.object({
-  accessToken: z.string(),
-  file: FileInputSchema.optional().nullable(),
-  // Legacy field for backwards compatibility
-  fileContent: z.string().optional().nullable(),
-  // ... other params
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
+  // Auth always runs BEFORE parseRequest — never validate untrusted input before authenticating.
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const data = RequestSchema.parse(body)
+  const parsed = await parseRequest({service}UploadContract, request, {})
+  if (!parsed.success) return parsed.response
+  const data = parsed.data.body
 
   let fileBuffer: Buffer
   let fileName: string
@@ -628,7 +723,7 @@ export async function POST(request: NextRequest) {
   })
 
   // ... handle response
-}
+})
 ```
 
 #### 4. Update Tool to Use Internal Route
