@@ -6546,12 +6546,28 @@
           "description": "Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow."
         },
         {
+          "name": "Unassign Flow Prospects",
+          "description": "Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospect from all flows they are assigned to."
+        },
+        {
           "name": "Get Prospect Flows",
           "description": "Get the Gong Engage flows currently assigned to the given CRM prospects."
         },
         {
           "name": "Get Coaching",
           "description": "Retrieve coaching metrics for a manager from Gong."
+        },
+        {
+          "name": "Ask Anything",
+          "description": "Ask a natural-language question about a CRM account, deal, contact, or lead. Gong answers from up to 60 calls and 500 emails associated with the entity. Consumes Gong credits."
+        },
+        {
+          "name": "Get Brief",
+          "description": "Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, contact, or lead. Consumes Gong credits."
+        },
+        {
+          "name": "Get Logs",
+          "description": "Retrieve Gong log entries of a specific type within a time range."
         },
         {
           "name": "Lookup Email",
@@ -6570,7 +6586,7 @@
           "description": "Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchronous and irreversible."
         }
       ],
-      "operationCount": 25,
+      "operationCount": 29,
       "triggers": [
         {
           "id": "gong_webhook",

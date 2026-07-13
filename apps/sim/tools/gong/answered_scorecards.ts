@@ -122,6 +122,7 @@ export const answeredScorecardsTool: ToolConfig<
             score: answer.score ?? null,
             answerText: answer.answerText ?? null,
             notApplicable: answer.notApplicable ?? null,
+            selectedOptions: answer.selectedOptions ?? null,
           })
         ),
       })
@@ -129,6 +130,7 @@ export const answeredScorecardsTool: ToolConfig<
     return {
       success: true,
       output: {
+        requestId: data.requestId ?? null,
         answeredScorecards,
         cursor: data.records?.cursor ?? null,
       },
@@ -136,6 +138,11 @@ export const answeredScorecardsTool: ToolConfig<
   },
 
   outputs: {
+    requestId: {
+      type: 'string',
+      description: 'A Gong request reference ID for troubleshooting purposes',
+      optional: true,
+    },
     answeredScorecards: {
       type: 'array',
       description: 'List of answered scorecards with scores and answers',
@@ -183,7 +190,7 @@ export const answeredScorecardsTool: ToolConfig<
                 isOverall: { type: 'boolean', description: 'Whether this is the overall question' },
                 score: {
                   type: 'number',
-                  description: 'Score between 1 to 5 if answered, null otherwise',
+                  description: 'Score between 1 to 50 if answered, null otherwise',
                 },
                 answerText: {
                   type: 'string',
@@ -192,6 +199,12 @@ export const answeredScorecardsTool: ToolConfig<
                 notApplicable: {
                   type: 'boolean',
                   description: 'Whether the question is not applicable to this call',
+                },
+                selectedOptions: {
+                  type: 'array',
+                  description:
+                    'Identifiers of the options selected for select-type questions, null otherwise',
+                  items: { type: 'string' },
                 },
               },
             },
@@ -202,6 +215,7 @@ export const answeredScorecardsTool: ToolConfig<
     cursor: {
       type: 'string',
       description: 'Pagination cursor for the next page',
+      optional: true,
     },
   },
 }

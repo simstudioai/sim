@@ -44,8 +44,12 @@ export const GongBlock: BlockConfig<GongResponse> = {
         { label: 'List Workspaces', id: 'list_workspaces' },
         { label: 'List Flows', id: 'list_flows' },
         { label: 'Assign Flow Prospects', id: 'assign_flow_prospects' },
+        { label: 'Unassign Flow Prospects', id: 'unassign_flow_prospects' },
         { label: 'Get Prospect Flows', id: 'get_prospect_flows' },
         { label: 'Get Coaching', id: 'get_coaching' },
+        { label: 'Ask Anything', id: 'ask_anything' },
+        { label: 'Get Brief', id: 'get_brief' },
+        { label: 'Get Logs', id: 'get_logs' },
         { label: 'Lookup Email', id: 'lookup_email' },
         { label: 'Lookup Phone', id: 'lookup_phone' },
         { label: 'Purge Email Address', id: 'purge_email_address' },
@@ -124,7 +128,6 @@ Return ONLY the JSON array - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'https://example.com/call-recording.mp3',
       condition: { field: 'operation', value: 'create_call' },
-      required: { field: 'operation', value: 'create_call' },
     },
     {
       id: 'title',
@@ -548,9 +551,8 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       id: 'folderId',
       title: 'Folder ID',
       type: 'short-input',
-      placeholder: 'Enter the library folder ID',
+      placeholder: 'Library folder ID (optional)',
       condition: { field: 'operation', value: 'get_folder_content' },
-      required: { field: 'operation', value: 'get_folder_content' },
     },
 
     // Workspace ID (shared by multiple operations)
@@ -592,6 +594,29 @@ Return ONLY the comma-separated list of IDs - no explanations, no extra text.`,
       placeholder: 'Enter the Gong Engage flow ID',
       condition: { field: 'operation', value: 'assign_flow_prospects' },
       required: { field: 'operation', value: 'assign_flow_prospects' },
+    },
+    {
+      id: 'crmProspectId',
+      title: 'CRM Prospect ID',
+      type: 'short-input',
+      placeholder: 'CRM contact or lead ID to unassign',
+      condition: { field: 'operation', value: 'unassign_flow_prospects' },
+      required: { field: 'operation', value: 'unassign_flow_prospects' },
+    },
+    {
+      id: 'unassignFlowId',
+      title: 'Flow ID',
+      type: 'short-input',
+      placeholder: 'Specific flow to unassign from (omit for all flows)',
+      condition: { field: 'operation', value: 'unassign_flow_prospects' },
+    },
+    {
+      id: 'unassignedByUserEmail',
+      title: 'Unassigned By User Email',
+      type: 'short-input',
+      placeholder: 'user@example.com (optional)',
+      condition: { field: 'operation', value: 'unassign_flow_prospects' },
+      mode: 'advanced',
     },
     {
       id: 'crmProspectsIds',
@@ -676,6 +701,177 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       },
     },
 
+    // Ask Anything / Get Brief inputs
+    {
+      id: 'entityWorkspaceId',
+      title: 'Workspace ID',
+      type: 'short-input',
+      placeholder: 'Gong workspace ID',
+      condition: { field: 'operation', value: ['ask_anything', 'get_brief'] },
+      required: { field: 'operation', value: ['ask_anything', 'get_brief'] },
+    },
+    {
+      id: 'crmEntityType',
+      title: 'CRM Entity Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Account', id: 'ACCOUNT' },
+        { label: 'Contact', id: 'CONTACT' },
+        { label: 'Deal', id: 'DEAL' },
+        { label: 'Lead', id: 'LEAD' },
+      ],
+      value: () => 'ACCOUNT',
+      condition: { field: 'operation', value: ['ask_anything', 'get_brief'] },
+      required: { field: 'operation', value: ['ask_anything', 'get_brief'] },
+    },
+    {
+      id: 'crmEntityId',
+      title: 'CRM Entity ID',
+      type: 'short-input',
+      placeholder: 'CRM ID of the account, contact, deal, or lead',
+      condition: { field: 'operation', value: ['ask_anything', 'get_brief'] },
+      required: { field: 'operation', value: ['ask_anything', 'get_brief'] },
+    },
+    {
+      id: 'question',
+      title: 'Question',
+      type: 'long-input',
+      placeholder: 'What are the main objections raised by this account?',
+      condition: { field: 'operation', value: 'ask_anything' },
+      required: { field: 'operation', value: 'ask_anything' },
+    },
+    {
+      id: 'briefName',
+      title: 'Brief Name',
+      type: 'short-input',
+      placeholder: 'Brief name configured in Gong Agent Studio',
+      condition: { field: 'operation', value: 'get_brief' },
+      required: { field: 'operation', value: 'get_brief' },
+    },
+    {
+      id: 'timePeriod',
+      title: 'Time Period',
+      type: 'dropdown',
+      options: [
+        { label: 'Last 7 days', id: 'LAST_7DAYS' },
+        { label: 'Last 30 days', id: 'LAST_30DAYS' },
+        { label: 'Last 90 days', id: 'LAST_90DAYS' },
+        { label: 'Last 90 days since last activity', id: 'LAST_90_DAYS_SINCE_LAST_ACTIVITY' },
+        { label: 'Last year since last activity', id: 'LAST_YEAR_SINCE_LAST_ACTIVITY' },
+        { label: 'Last year', id: 'LAST_YEAR' },
+        { label: 'This week', id: 'THIS_WEEK' },
+        { label: 'This month', id: 'THIS_MONTH' },
+        { label: 'This quarter', id: 'THIS_QUARTER' },
+        { label: 'This year', id: 'THIS_YEAR' },
+        { label: 'Custom range', id: 'CUSTOM_RANGE' },
+        { label: 'All conversations', id: 'ALL_CONVERSATIONS' },
+      ],
+      value: () => 'LAST_30DAYS',
+      condition: { field: 'operation', value: ['ask_anything', 'get_brief'] },
+      required: { field: 'operation', value: ['ask_anything', 'get_brief'] },
+    },
+    {
+      id: 'entityFromDateTime',
+      title: 'From Date/Time',
+      type: 'short-input',
+      placeholder: '2024-01-01T00:00:00Z',
+      condition: {
+        field: 'operation',
+        value: ['ask_anything', 'get_brief'],
+        and: { field: 'timePeriod', value: 'CUSTOM_RANGE' },
+      },
+      required: {
+        field: 'operation',
+        value: ['ask_anything', 'get_brief'],
+        and: { field: 'timePeriod', value: 'CUSTOM_RANGE' },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "beginning of last quarter")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'entityToDateTime',
+      title: 'To Date/Time',
+      type: 'short-input',
+      placeholder: '2024-01-31T23:59:59Z',
+      condition: {
+        field: 'operation',
+        value: ['ask_anything', 'get_brief'],
+        and: { field: 'timePeriod', value: 'CUSTOM_RANGE' },
+      },
+      required: {
+        field: 'operation',
+        value: ['ask_anything', 'get_brief'],
+        and: { field: 'timePeriod', value: 'CUSTOM_RANGE' },
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "end of last quarter")...',
+        generationType: 'timestamp',
+      },
+    },
+
+    // Get Logs inputs
+    {
+      id: 'logType',
+      title: 'Log Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Access Log', id: 'AccessLog' },
+        { label: 'User Activity Log', id: 'UserActivityLog' },
+        { label: 'User Call Play', id: 'UserCallPlay' },
+        { label: 'Externally Shared Call Access', id: 'ExternallySharedCallAccess' },
+        { label: 'Externally Shared Call Play', id: 'ExternallySharedCallPlay' },
+      ],
+      value: () => 'UserActivityLog',
+      condition: { field: 'operation', value: 'get_logs' },
+      required: { field: 'operation', value: 'get_logs' },
+    },
+    {
+      id: 'logsFromDateTime',
+      title: 'From Date/Time',
+      type: 'short-input',
+      placeholder: '2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'get_logs' },
+      required: { field: 'operation', value: 'get_logs' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "beginning of this week")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'logsToDateTime',
+      title: 'To Date/Time',
+      type: 'short-input',
+      placeholder: '2024-01-31T23:59:59Z (optional)',
+      condition: { field: 'operation', value: 'get_logs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+
     // Lookup Email / Purge Email Address inputs
     {
       id: 'emailAddress',
@@ -715,6 +911,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           'interaction_stats',
           'answered_scorecards',
           'list_flows',
+          'get_logs',
         ],
       },
       mode: 'advanced',
@@ -759,8 +956,12 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       'gong_list_workspaces',
       'gong_list_flows',
       'gong_assign_flow_prospects',
+      'gong_unassign_flow_prospects',
       'gong_get_prospect_flows',
       'gong_get_coaching',
+      'gong_ask_anything',
+      'gong_get_brief',
+      'gong_get_logs',
       'gong_lookup_email',
       'gong_lookup_phone',
       'gong_purge_email_address',
@@ -770,18 +971,41 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       tool: (params) => `gong_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        // Map operation-specific subBlock IDs to tool param names
-        if (params.transcriptFromDateTime) result.fromDateTime = params.transcriptFromDateTime
-        if (params.transcriptToDateTime) result.toDateTime = params.transcriptToDateTime
-        if (params.statsFromDate) result.fromDate = params.statsFromDate
-        if (params.statsToDate) result.toDate = params.statsToDate
-        if (params.callFromDate) result.callFromDate = params.callFromDate
-        if (params.callToDate) result.callToDate = params.callToDate
-        if (params.reviewFromDate) result.reviewFromDate = params.reviewFromDate
-        if (params.reviewToDate) result.reviewToDate = params.reviewToDate
-        if (params.coachingWorkspaceId) result.workspaceId = params.coachingWorkspaceId
-        if (params.coachingFromDate) result.fromDate = params.coachingFromDate
-        if (params.coachingToDate) result.toDate = params.coachingToDate
+        // Map operation-specific subBlock IDs to tool param names, gated by the
+        // selected operation so stale values from other operations never leak in
+        const operation = params.operation as string
+        if (operation === 'get_call_transcript' || operation === 'get_extensive_calls') {
+          if (params.transcriptFromDateTime) result.fromDateTime = params.transcriptFromDateTime
+          if (params.transcriptToDateTime) result.toDateTime = params.transcriptToDateTime
+        }
+        if (
+          [
+            'aggregate_activity',
+            'day_by_day_activity',
+            'aggregate_by_period',
+            'interaction_stats',
+          ].includes(operation)
+        ) {
+          if (params.statsFromDate) result.fromDate = params.statsFromDate
+          if (params.statsToDate) result.toDate = params.statsToDate
+        }
+        if (operation === 'get_coaching') {
+          if (params.coachingWorkspaceId) result.workspaceId = params.coachingWorkspaceId
+          if (params.coachingFromDate) result.fromDate = params.coachingFromDate
+          if (params.coachingToDate) result.toDate = params.coachingToDate
+        }
+        if (operation === 'ask_anything' || operation === 'get_brief') {
+          if (params.entityWorkspaceId) result.workspaceId = params.entityWorkspaceId
+          if (params.entityFromDateTime) result.fromDateTime = params.entityFromDateTime
+          if (params.entityToDateTime) result.toDateTime = params.entityToDateTime
+        }
+        if (operation === 'get_logs') {
+          if (params.logsFromDateTime) result.fromDateTime = params.logsFromDateTime
+          if (params.logsToDateTime) result.toDateTime = params.logsToDateTime
+        }
+        if (operation === 'unassign_flow_prospects') {
+          result.flowId = params.unassignFlowId || undefined
+        }
         return result
       },
     },
@@ -808,6 +1032,18 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     toDateTime: { type: 'string', description: 'End date/time in ISO-8601 format (list calls)' },
     callId: { type: 'string', description: 'Gong call ID' },
     callIds: { type: 'string', description: 'Comma-separated call IDs' },
+    transcriptFromDateTime: {
+      type: 'string',
+      description: 'Start date/time in ISO-8601 format (transcripts and extensive calls)',
+    },
+    transcriptToDateTime: {
+      type: 'string',
+      description: 'End date/time in ISO-8601 format (transcripts and extensive calls)',
+    },
+    includeAvatars: {
+      type: 'string',
+      description: 'Whether to include user avatar URLs (true/false)',
+    },
     userId: { type: 'string', description: 'Gong user ID' },
     userIds: { type: 'string', description: 'Comma-separated user IDs' },
     aggregationPeriod: {
@@ -829,12 +1065,56 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     folderId: { type: 'string', description: 'Library folder ID' },
     workspaceId: { type: 'string', description: 'Gong workspace ID' },
     managerId: { type: 'string', description: 'Manager user ID for coaching' },
+    coachingWorkspaceId: { type: 'string', description: 'Gong workspace ID (coaching)' },
+    coachingFromDate: {
+      type: 'string',
+      description: 'Start date/time in ISO-8601 format (coaching)',
+    },
+    coachingToDate: { type: 'string', description: 'End date/time in ISO-8601 format (coaching)' },
+    entityWorkspaceId: {
+      type: 'string',
+      description: 'Gong workspace ID (ask anything and briefs)',
+    },
+    entityFromDateTime: {
+      type: 'string',
+      description: 'Start date/time in ISO-8601 format for custom-range questions and briefs',
+    },
+    entityToDateTime: {
+      type: 'string',
+      description: 'End date/time in ISO-8601 format for custom-range questions and briefs',
+    },
+    logsFromDateTime: {
+      type: 'string',
+      description: 'Start date/time in ISO-8601 format (logs)',
+    },
+    logsToDateTime: { type: 'string', description: 'End date/time in ISO-8601 format (logs)' },
     flowOwnerEmail: {
       type: 'string',
       description: 'Email of a Gong user to retrieve personal and company flows',
     },
     flowId: { type: 'string', description: 'Gong Engage flow ID' },
     crmProspectsIds: { type: 'string', description: 'Comma-separated CRM prospect IDs' },
+    crmProspectId: { type: 'string', description: 'Single CRM prospect ID to unassign' },
+    unassignFlowId: {
+      type: 'string',
+      description: 'Specific flow ID to unassign from (omit to unassign from all flows)',
+    },
+    unassignedByUserEmail: {
+      type: 'string',
+      description: 'Email of the Gong user requesting the unassignment',
+    },
+    crmEntityType: {
+      type: 'string',
+      description: 'CRM entity type (ACCOUNT, CONTACT, DEAL, or LEAD)',
+    },
+    crmEntityId: { type: 'string', description: 'CRM ID of the entity' },
+    question: { type: 'string', description: 'Natural-language question to ask about the entity' },
+    briefName: { type: 'string', description: 'Name of the brief configured in Gong Agent Studio' },
+    timePeriod: {
+      type: 'string',
+      description: 'Time period of conversations to consider (e.g. LAST_30DAYS, CUSTOM_RANGE)',
+    },
+    logType: { type: 'string', description: 'Type of Gong logs to retrieve' },
     flowInstanceOwnerEmail: {
       type: 'string',
       description: 'Email of the Gong user who owns the flow instance and its to-dos',
@@ -868,7 +1148,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     callId: { type: 'string', description: 'Gong call ID of the created call' },
     url: { type: 'string', description: 'URL to the call in the Gong web app' },
     id: { type: 'string', description: 'Gong ID of the returned call or user' },
-    title: { type: 'string', description: 'Call title' },
+    title: { type: 'string', description: 'Call title or user job title' },
     scheduled: { type: 'string', description: 'Scheduled call time (ISO-8601)' },
     started: { type: 'string', description: 'Recording start time (ISO-8601)' },
     duration: { type: 'number', description: 'Call duration in seconds' },
@@ -981,6 +1261,37 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     coachingData: {
       type: 'json',
       description: "Coaching data per manager's team with direct-report metrics",
+    },
+
+    // unassign_flow_prospects
+    unassignedFlowInstanceIds: {
+      type: 'json',
+      description: 'IDs of the flow instances the prospect was removed from',
+    },
+
+    // ask_anything / get_brief
+    numOfCallsSearched: {
+      type: 'number',
+      description: 'Number of calls used to generate the answer or brief',
+    },
+    numOfEmailsSearched: {
+      type: 'number',
+      description: 'Number of emails used to generate the answer or brief',
+    },
+    answer: {
+      type: 'json',
+      description: 'Generated answer sections: [{answerItems, callFindings, emailFindings}]',
+    },
+    briefSections: {
+      type: 'json',
+      description:
+        'Generated brief sections: [{title, sectionSummary, briefSectionType, conversationFindings, webFindings}]',
+    },
+
+    // get_logs
+    logEntries: {
+      type: 'json',
+      description: 'Log entries: [{userId, userEmailAddress, userFullName, eventTime, logRecord}]',
     },
 
     // lookup_email / lookup_phone
