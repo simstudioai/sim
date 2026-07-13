@@ -57,7 +57,16 @@ const childBillingAttribution: BillingAttributionSnapshot = Object.freeze({
     start: '2026-07-01T00:00:00.000Z',
     end: '2026-08-01T00:00:00.000Z',
   },
-  payerSubscription: null,
+  payerSubscription: {
+    id: 'subscription-2',
+    plan: 'enterprise',
+    referenceId: 'organization-2',
+    status: 'active',
+    periodStart: '2026-07-01T00:00:00.000Z',
+    periodEnd: '2026-08-01T00:00:00.000Z',
+    seats: 25,
+    enterpriseConcurrencyLimit: 1250,
+  },
 })
 
 function createContext(): ExecutionContext {
@@ -189,6 +198,28 @@ describe('prepareWorkflowExecutionAdmission', () => {
     checkAttributedUsageLimitsMock.mockResolvedValue({
       isExceeded: false,
       payerUsage: { currentUsage: 1, limit: 10 },
+    })
+    reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
+  })
+
+  it('forwards the target Enterprise concurrency override to admission', async () => {
+    const result = await prepareWorkflowExecutionAdmission(
+      createContext(),
+      'workspace-2',
+      'child-execution-1'
+    )
+
+    expect(result).toEqual({
+      billingAttribution: childBillingAttribution,
+      targetReservation: true,
+    })
+    expect(reserveExecutionSlotMock).toHaveBeenCalledWith({
+      billingEntity: { type: 'organization', id: 'organization-2' },
+      executionId: 'child-execution-1',
+      plan: 'enterprise',
+      enterpriseConcurrencyLimit: 1250,
+      currentUsage: 1,
+      limit: 10,
     })
   })
 

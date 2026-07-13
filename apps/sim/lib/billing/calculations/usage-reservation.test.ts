@@ -41,7 +41,7 @@ const baseParams = {
 const memberParams = {
   ...baseParams,
   billingEntity: { type: 'organization' as const, id: 'org-1' },
-  plan: 'team' as const,
+  plan: 'team_25000' as const,
   member: {
     organizationId: 'org-1',
     actorUserId: 'user-1',
@@ -138,7 +138,7 @@ describe('usage-reservation', () => {
       expect(args[1]).toBe(2)
       expect(args[2]).toContain('{user:user-1}')
       expect(args[3]).toContain('{user:user-1}')
-      expect(args[6]).toBe('15')
+      expect(args[6]).toBe('10')
       expect(args[7]).toBe('1000')
       expect(args[8]).toBe('exec-1')
     })
@@ -150,20 +150,45 @@ describe('usage-reservation', () => {
       expect(args[1]).toBe(3)
       const declaredKeys = args.slice(2, 5) as string[]
       expect(new Set(declaredKeys.map(hashTag))).toEqual(new Set(['org:org-1']))
-      expect(args[7]).toBe('150')
+      expect(args[7]).toBe('200')
       expect(args.at(-1)).toBe('1')
       expect(args[0]).not.toContain('usage:')
     })
 
-    it('caps enterprise payer work at 300 entries without Lua enumeration', async () => {
+    it('caps enterprise payer work at 1,000 entries without Lua enumeration', async () => {
       evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
 
       await reserveExecutionSlot({ ...baseParams, plan: 'enterprise' })
 
       const args = evalMock.mock.calls[0]
-      expect(args[6]).toBe('300')
+      expect(args[6]).toBe('1000')
       expect(args[0]).toContain("redis.call('ZREMRANGEBYSCORE'")
       expect(args[0]).not.toMatch(/ZRANGE|SMEMBERS|HGETALL|KEYS\s/)
+    })
+
+    it.each([
+      ['pro_6000', '50'],
+      ['team_6000', '50'],
+      ['pro_25000', '200'],
+      ['team_25000', '200'],
+    ] as const)('gives %s its paid tier concurrency cap of %s', async (plan, expected) => {
+      evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
+
+      await reserveExecutionSlot({ ...baseParams, plan })
+
+      expect(evalMock.mock.calls[0][6]).toBe(expected)
+    })
+
+    it('uses an Enterprise subscription metadata concurrency override', async () => {
+      evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
+
+      await reserveExecutionSlot({
+        ...baseParams,
+        plan: 'enterprise',
+        enterpriseConcurrencyLimit: 1250,
+      })
+
+      expect(evalMock.mock.calls[0][6]).toBe('1250')
     })
 
     it('clamps negative headroom to zero slots', async () => {

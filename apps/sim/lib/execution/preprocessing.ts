@@ -658,6 +658,8 @@ export async function preprocessExecution(
         billingEntity: billingAttribution.billingEntity,
         reservationId,
         plan: billingAttribution.payerSubscription?.plan,
+        enterpriseConcurrencyLimit:
+          billingAttribution.payerSubscription?.enterpriseConcurrencyLimit,
         currentUsage: usageSnapshot.currentUsage,
         limit: usageSnapshot.limit,
         ...(billingAttribution.organizationId && usageSnapshot.memberUsage

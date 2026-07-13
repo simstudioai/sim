@@ -46,8 +46,12 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
 }))
 
+const { mockGetEnv } = vi.hoisted(() => ({
+  mockGetEnv: vi.fn((_variable: string): string | undefined => undefined),
+}))
+
 vi.mock('@/lib/core/config/env', () => ({
-  getEnv: vi.fn(() => undefined),
+  getEnv: mockGetEnv,
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
@@ -88,6 +92,7 @@ describe('storage limits and quota', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFlags.isBillingEnabled = true
+    mockGetEnv.mockReturnValue(undefined)
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
     mockWhere.mockReturnValue({ limit: mockLimit })
@@ -166,6 +171,21 @@ describe('storage limits and quota', () => {
     await expect(checkStorageQuotaForBillingContext(ORG_CONTEXT, GIB)).resolves.toEqual(expected)
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
     expect(mockSelect).not.toHaveBeenCalled()
+  })
+
+  it('opts into free-tier enforcement when FREE_STORAGE_LIMIT_GB is explicitly set', async () => {
+    mockFlags.isBillingEnabled = false
+    mockGetEnv.mockImplementation((variable: string) =>
+      variable === 'FREE_STORAGE_LIMIT_GB' ? '1' : undefined
+    )
+    mockLimit.mockResolvedValue([{ storageUsedBytes: GIB }])
+
+    await expect(checkStorageQuota('workspace-owner', GIB / 2)).resolves.toEqual({
+      allowed: false,
+      currentUsage: GIB,
+      error: 'Storage limit exceeded. Used: 1.50GB, Limit: 1GB',
+      limit: GIB,
+    })
   })
 
   it('fails closed with the exact fallback when either context resolution fails', async () => {

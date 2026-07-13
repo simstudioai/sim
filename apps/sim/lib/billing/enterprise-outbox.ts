@@ -2,6 +2,7 @@ import { outboxEvent } from '@sim/db/schema'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { z } from 'zod'
+import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
 import type { DbOrTx } from '@/lib/db/types'
 
 export const ENTERPRISE_PROVISION_EVENT_TYPE = 'stripe.provision-enterprise'
@@ -19,6 +20,8 @@ export const enterpriseProvisionRequestSchema = z.object({
   includedMonthlyCredits: nonnegativeInteger,
   usageLimitCredits: nonnegativeInteger,
   seats: z.number().int().positive(),
+  concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).optional(),
+  pausePaymentCollection: z.boolean().default(false),
 })
 
 export const enterpriseProvisionPayloadSchema = z.object({
@@ -108,6 +111,10 @@ export function enterpriseOperationMatchesStripeSubscription(
   const item = items[0]
   const price = item?.price
   const metadata = stripeSubscription.metadata ?? {}
+  const pauseCollection = stripeSubscription.pause_collection
+  const paymentCollectionMatches = request.pausePaymentCollection
+    ? pauseCollection?.behavior === 'keep_as_draft' && pauseCollection.resumes_at === null
+    : pauseCollection == null
   return (
     request.organizationId === referenceId &&
     items.length === 1 &&
@@ -121,7 +128,10 @@ export function enterpriseOperationMatchesStripeSubscription(
     stripeMetadataInteger(metadata, 'invoiceAmountCents') === request.invoiceAmountCents &&
     stripeMetadataInteger(metadata, 'includedMonthlyCredits') === request.includedMonthlyCredits &&
     stripeMetadataInteger(metadata, 'usageLimitCredits') === request.usageLimitCredits &&
-    stripeMetadataInteger(metadata, 'seats') === request.seats
+    stripeMetadataInteger(metadata, 'seats') === request.seats &&
+    (request.concurrencyLimit === undefined ||
+      stripeMetadataInteger(metadata, 'concurrencyLimit') === request.concurrencyLimit) &&
+    paymentCollectionMatches
   )
 }
 

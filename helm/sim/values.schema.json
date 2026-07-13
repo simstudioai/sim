@@ -320,6 +320,10 @@
               "type": "string",
               "description": "Free tier async API executions per minute"
             },
+            "RATE_LIMIT_FREE_API_ENDPOINT": {
+              "type": "string",
+              "description": "Free tier v1 API endpoint requests per minute"
+            },
             "RATE_LIMIT_PRO_ASYNC": {
               "type": "string",
               "description": "Pro tier async API executions per minute"
@@ -331,6 +335,22 @@
             "RATE_LIMIT_ENTERPRISE_ASYNC": {
               "type": "string",
               "description": "Enterprise tier async API executions per minute"
+            },
+            "BILLING_CONCURRENCY_LIMIT_FREE": {
+              "type": "string",
+              "description": "In-flight executions per free billing account"
+            },
+            "BILLING_CONCURRENCY_LIMIT_PRO": {
+              "type": "string",
+              "description": "In-flight executions per Pro-tier billing account (Pro and Pro for Teams)"
+            },
+            "BILLING_CONCURRENCY_LIMIT_TEAM": {
+              "type": "string",
+              "description": "In-flight executions per Max-tier billing account (Max and Max for Teams)"
+            },
+            "BILLING_CONCURRENCY_LIMIT_ENTERPRISE": {
+              "type": "string",
+              "description": "Default in-flight executions per Enterprise billing account"
             },
             "MANUAL_EXECUTION_LIMIT": {
               "type": "string",

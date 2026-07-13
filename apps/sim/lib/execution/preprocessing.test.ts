@@ -542,6 +542,32 @@ describe('preprocessExecution billing attribution', () => {
     })
   })
 
+  it('forwards the frozen Enterprise concurrency override to admission', async () => {
+    const enterpriseAttribution = {
+      ...ORGANIZATION_ATTRIBUTION,
+      payerSubscription: {
+        ...ORGANIZATION_ATTRIBUTION.payerSubscription,
+        plan: 'enterprise',
+        enterpriseConcurrencyLimit: 1250,
+      },
+    }
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      userId: 'ignored-current-user',
+      useAuthenticatedUserAsActor: false,
+      billingAttribution: enterpriseAttribution,
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockReserveExecutionSlot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: 'enterprise',
+        enterpriseConcurrencyLimit: 1250,
+      })
+    )
+  })
+
   it('reuses a serialized attribution snapshot without re-resolving the payer', async () => {
     const result = await preprocessExecution({
       ...baseOptions,

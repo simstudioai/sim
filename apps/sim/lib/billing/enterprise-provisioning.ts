@@ -4,6 +4,8 @@ import { member, organization, outboxEvent, subscription, user } from '@sim/db/s
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
+import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
+import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
 import {
   deriveEnterpriseOperationStatus,
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
@@ -235,6 +237,8 @@ export interface IssueEnterpriseProvisioningInput {
   includedMonthlyCredits: number
   usageLimitCredits?: number
   seats: number
+  concurrencyLimit?: number
+  pausePaymentCollection?: boolean
   requestedByEmail: string
   requestedByUserId: string | null
 }
@@ -248,6 +252,8 @@ export interface EnterpriseProvisioningView {
   includedMonthlyCredits: number
   usageLimitCredits: number
   seats: number
+  concurrencyLimit: number
+  pausePaymentCollection: boolean
   stripeSubscriptionId: string | null
   error: string | null
   createdAt: string
@@ -270,8 +276,12 @@ function slugifyOrganizationName(name: string, organizationId: string): string {
   return `${base || 'organization'}-${organizationId.slice(-8)}`
 }
 
-function buildRequestKey(input: IssueEnterpriseProvisioningInput, organizationId: string): string {
-  return [
+/** Builds a commercial-terms key while preserving legacy keys when new terms are omitted. */
+export function buildEnterpriseProvisioningRequestKey(
+  input: IssueEnterpriseProvisioningInput,
+  organizationId: string
+): string {
+  const requestTerms: Array<string | number> = [
     'enterprise-v2',
     input.ownerUserId,
     organizationId,
@@ -279,7 +289,10 @@ function buildRequestKey(input: IssueEnterpriseProvisioningInput, organizationId
     input.includedMonthlyCredits,
     input.usageLimitCredits ?? input.includedMonthlyCredits,
     input.seats,
-  ].join(':')
+  ]
+  if (input.concurrencyLimit !== undefined) requestTerms.push(input.concurrencyLimit)
+  if (input.pausePaymentCollection) requestTerms.push('draft-collection')
+  return requestTerms.join(':')
 }
 
 function toEnterpriseProvisioningView(
@@ -297,6 +310,8 @@ function toEnterpriseProvisioningView(
     includedMonthlyCredits: request.includedMonthlyCredits,
     usageLimitCredits: request.usageLimitCredits,
     seats: request.seats,
+    concurrencyLimit: getBillingConcurrencyLimit('enterprise', request.concurrencyLimit),
+    pausePaymentCollection: request.pausePaymentCollection,
     stripeSubscriptionId:
       payload.applicationResult?.subscriptionId ?? payload.stripeProgress.subscriptionId ?? null,
     error: row.lastError,
@@ -407,6 +422,12 @@ export async function issueEnterpriseProvisioning(
       'Monthly invoice amount must be at least $0.01 and use whole cents'
     )
   }
+  if (
+    input.concurrencyLimit !== undefined &&
+    parseBillingConcurrencyLimit(input.concurrencyLimit) !== input.concurrencyLimit
+  ) {
+    throw new EnterpriseProvisioningError('Concurrency limit is invalid')
+  }
   const result = await db.transaction(async (tx) => {
     const [owner] = await tx
       .select({ id: user.id, name: user.name, email: user.email })
@@ -479,7 +500,7 @@ export async function issueEnterpriseProvisioning(
     }
 
     await acquireOrganizationMutationLock(tx, organizationId)
-    const requestKey = buildRequestKey(input, organizationId)
+    const requestKey = buildEnterpriseProvisioningRequestKey(input, organizationId)
     const [lockedOwner] = await tx
       .select({ role: member.role })
       .from(member)
@@ -530,6 +551,8 @@ export async function issueEnterpriseProvisioning(
       includedMonthlyCredits: input.includedMonthlyCredits,
       usageLimitCredits: input.usageLimitCredits ?? input.includedMonthlyCredits,
       seats: input.seats,
+      ...(input.concurrencyLimit !== undefined ? { concurrencyLimit: input.concurrencyLimit } : {}),
+      pausePaymentCollection: input.pausePaymentCollection ?? false,
     }
     const payload: EnterpriseProvisionPayload = {
       version: 1,
@@ -558,6 +581,8 @@ export async function issueEnterpriseProvisioning(
         includedMonthlyCredits: view.includedMonthlyCredits,
         usageLimitCredits: view.usageLimitCredits,
         seats: view.seats,
+        concurrencyLimit: view.concurrencyLimit,
+        pausePaymentCollection: view.pausePaymentCollection,
         status: view.status,
       },
     })
@@ -693,6 +718,43 @@ async function resolveCanonicalCustomer(params: {
   return current.stripeCustomerId
 }
 
+/**
+ * The subscription create call also creates its first invoice. Freeze that
+ * invoice before pausing collection so it cannot auto-finalize in the small
+ * interval between the two Stripe operations.
+ */
+async function keepInitialEnterpriseInvoiceAsDraft(params: {
+  stripe: Stripe
+  subscription: Stripe.Subscription
+  operationId: string
+}): Promise<void> {
+  const latestInvoice = params.subscription.latest_invoice
+  if (!latestInvoice) {
+    throw new Error('Paused Enterprise subscription did not expose its initial invoice')
+  }
+  const invoiceId = typeof latestInvoice === 'string' ? latestInvoice : latestInvoice.id
+  if (!invoiceId) {
+    throw new Error('Paused Enterprise subscription initial invoice has no ID')
+  }
+
+  const invoice =
+    typeof latestInvoice === 'string'
+      ? await params.stripe.invoices.retrieve(invoiceId)
+      : latestInvoice
+  if (invoice.status !== 'draft') {
+    throw new Error(
+      `Paused Enterprise initial invoice ${invoiceId} is already ${invoice.status ?? 'in an unknown state'}`
+    )
+  }
+  if (invoice.auto_advance === false) return
+
+  await params.stripe.invoices.update(
+    invoiceId,
+    { auto_advance: false },
+    { idempotencyKey: `enterprise:${params.operationId}:initial-invoice-draft` }
+  )
+}
+
 export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPayload, context) => {
   const parsed = enterpriseProvisionPayloadSchema.safeParse(rawPayload)
   if (!parsed.success) throw new Error('Invalid Enterprise issuance outbox payload')
@@ -765,6 +827,9 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
     includedMonthlyCredits: request.includedMonthlyCredits.toString(),
     usageLimitCredits: request.usageLimitCredits.toString(),
     seats: request.seats.toString(),
+    ...(request.concurrencyLimit !== undefined
+      ? { concurrencyLimit: request.concurrencyLimit.toString() }
+      : {}),
   }
 
   // Recover the subscription before creating supporting catalog objects. This
@@ -900,7 +965,15 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
     createdSubscription = true
   }
 
-  if (!createdSubscription) {
+  if (request.pausePaymentCollection) {
+    await keepInitialEnterpriseInvoiceAsDraft({
+      stripe,
+      subscription: stripeSubscription,
+      operationId: context.eventId,
+    })
+  }
+
+  if (!createdSubscription || request.pausePaymentCollection) {
     stripeSubscription = await stripe.subscriptions.update(
       stripeSubscription.id,
       {
@@ -908,9 +981,12 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
           ...metadata,
           enterpriseRetryRevision: payload.retryRevision.toString(),
         },
+        pause_collection: request.pausePaymentCollection ? { behavior: 'keep_as_draft' } : '',
       },
       {
-        idempotencyKey: `enterprise:${context.eventId}:retry:${payload.retryRevision}`,
+        idempotencyKey: createdSubscription
+          ? `enterprise:${context.eventId}:pause-collection`
+          : `enterprise:${context.eventId}:retry:${payload.retryRevision}`,
       }
     )
   }
@@ -986,7 +1062,8 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
 
     const metadata: Record<string, string> = {}
     for (const [key, value] of Object.entries(latestPayload.data.metadata)) {
-      if (value !== undefined && value !== null) metadata[key] = String(value)
+      if (value === null) metadata[key] = ''
+      else if (value !== undefined) metadata[key] = String(value)
     }
     metadata.simConfigRevision = String(latestPayload.data.revision)
     metadata.simConfigOperationId = context.eventId

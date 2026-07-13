@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   subscriptionsCreate: vi.fn(),
   subscriptionsList: vi.fn(),
   subscriptionsUpdate: vi.fn(),
+  invoicesRetrieve: vi.fn(),
+  invoicesUpdate: vi.fn(),
   customersCreate: vi.fn(),
   customersList: vi.fn(),
   productsCreate: vi.fn(),
@@ -84,6 +86,7 @@ vi.mock('@/lib/billing/stripe-client', () => ({
       list: mocks.subscriptionsList,
       update: mocks.subscriptionsUpdate,
     },
+    invoices: { retrieve: mocks.invoicesRetrieve, update: mocks.invoicesUpdate },
   }),
 }))
 vi.mock('@/lib/billing/webhooks/enterprise-reconciliation-lease', () => ({
@@ -97,6 +100,7 @@ vi.mock('@/lib/core/outbox/service', () => ({
 }))
 
 import {
+  buildEnterpriseProvisioningRequestKey,
   decideEnterpriseProvisioningIssue,
   decideEnterpriseProvisioningRetry,
   provisionEnterpriseInStripe,
@@ -128,7 +132,7 @@ function operationPayload(overrides: Record<string, unknown> = {}) {
   return {
     version: 1 as const,
     request: {
-      requestKey: 'enterprise-v2:owner-1:org-1:12500:20000:24000:12',
+      requestKey: 'enterprise-v2:owner-1:org-1:12500:20000:24000:12:1250',
       ownerUserId: 'owner-1',
       organizationId: 'org-1',
       requestedByEmail: 'admin@sim.ai',
@@ -137,6 +141,8 @@ function operationPayload(overrides: Record<string, unknown> = {}) {
       includedMonthlyCredits: 20000,
       usageLimitCredits: 24000,
       seats: 12,
+      concurrencyLimit: 1250,
+      pausePaymentCollection: false,
     },
     retryRevision: 0,
     stripeProgress: {},
@@ -154,6 +160,28 @@ function context() {
 }
 
 describe('Enterprise issuance serialization decisions', () => {
+  it('preserves legacy request keys when no concurrency override is supplied', () => {
+    const input = {
+      ownerUserId: 'owner-1',
+      monthlyInvoiceAmountUsd: 125,
+      includedMonthlyCredits: 20000,
+      usageLimitCredits: 24000,
+      seats: 12,
+      requestedByEmail: 'admin@sim.ai',
+      requestedByUserId: 'admin-1',
+    }
+
+    expect(buildEnterpriseProvisioningRequestKey(input, 'org-1')).toBe(
+      'enterprise-v2:owner-1:org-1:12500:20000:24000:12'
+    )
+    expect(
+      buildEnterpriseProvisioningRequestKey({ ...input, concurrencyLimit: 1250 }, 'org-1')
+    ).toBe('enterprise-v2:owner-1:org-1:12500:20000:24000:12:1250')
+    expect(
+      buildEnterpriseProvisioningRequestKey({ ...input, pausePaymentCollection: true }, 'org-1')
+    ).toBe('enterprise-v2:owner-1:org-1:12500:20000:24000:12:draft-collection')
+  })
+
   it('deduplicates an identical unresolved request to the existing outbox operation', () => {
     expect(
       decideEnterpriseProvisioningIssue(
@@ -264,6 +292,8 @@ describe('Enterprise issuance outbox handler', () => {
       metadata: { enterpriseOperationId: 'operation-1' },
     })
     mocks.subscriptionsCreate.mockResolvedValue({ id: 'sub_1' })
+    mocks.invoicesRetrieve.mockResolvedValue({ id: 'in_1', status: 'draft', auto_advance: true })
+    mocks.invoicesUpdate.mockResolvedValue({ id: 'in_1', status: 'draft', auto_advance: false })
   })
 
   it('creates one monthly send-invoice subscription and checkpoints progress', async () => {
@@ -295,6 +325,7 @@ describe('Enterprise issuance outbox handler', () => {
           includedMonthlyCredits: '20000',
           usageLimitCredits: '24000',
           seats: '12',
+          concurrencyLimit: '1250',
         }),
       }),
       { idempotencyKey: 'enterprise:operation-1:subscription' }
@@ -337,6 +368,52 @@ describe('Enterprise issuance outbox handler', () => {
       }),
       { idempotencyKey: 'enterprise:operation-1:retry:3' }
     )
+  })
+
+  it('freezes the initial invoice and pauses collection indefinitely when requested', async () => {
+    arrangeWorkerReads()
+    mocks.subscriptionsCreate.mockResolvedValue({ id: 'sub_1', latest_invoice: 'in_1' })
+    mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_1' })
+    const pausedPayload = operationPayload({
+      request: {
+        ...operationPayload().request,
+        requestKey: 'enterprise-v2:owner-1:org-1:12500:20000:24000:12:1250:draft-collection',
+        pausePaymentCollection: true,
+      },
+    })
+
+    await provisionEnterpriseInStripe(pausedPayload, context())
+
+    expect(mocks.invoicesUpdate).toHaveBeenCalledWith(
+      'in_1',
+      { auto_advance: false },
+      { idempotencyKey: 'enterprise:operation-1:initial-invoice-draft' }
+    )
+    expect(mocks.subscriptionsUpdate).toHaveBeenCalledWith(
+      'sub_1',
+      expect.objectContaining({
+        pause_collection: { behavior: 'keep_as_draft' },
+      }),
+      { idempotencyKey: 'enterprise:operation-1:pause-collection' }
+    )
+  })
+
+  it('fails closed instead of claiming a paused demo when its initial invoice finalized', async () => {
+    arrangeWorkerReads()
+    mocks.subscriptionsCreate.mockResolvedValue({ id: 'sub_1', latest_invoice: 'in_1' })
+    mocks.invoicesRetrieve.mockResolvedValue({ id: 'in_1', status: 'open', auto_advance: true })
+    const pausedPayload = operationPayload({
+      request: {
+        ...operationPayload().request,
+        requestKey: 'enterprise-v2:owner-1:org-1:12500:20000:24000:12:1250:draft-collection',
+        pausePaymentCollection: true,
+      },
+    })
+
+    await expect(provisionEnterpriseInStripe(pausedPayload, context())).rejects.toThrow(
+      'initial invoice in_1 is already open'
+    )
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
   it('rejects a different live Stripe subscription before create', async () => {
@@ -419,6 +496,7 @@ describe('Enterprise metadata outbox handler', () => {
         seats: 15,
         includedMonthlyCredits: 30000,
         usageLimitCredits: 35000,
+        concurrencyLimit: 1250,
       },
     }
     mocks.select
@@ -445,6 +523,7 @@ describe('Enterprise metadata outbox handler', () => {
         metadata: expect.objectContaining({
           seats: '15',
           includedMonthlyCredits: '30000',
+          concurrencyLimit: '1250',
           simConfigRevision: '4',
           simConfigOperationId: 'metadata-event-1',
           simConfigDeliveryRevision: '0',
@@ -454,6 +533,48 @@ describe('Enterprise metadata outbox handler', () => {
       {
         idempotencyKey: 'enterprise-config:local-sub-1:metadata-event-1:delivery:0:attempt:0',
       }
+    )
+  })
+
+  it('unsets nullable metadata overrides in Stripe', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 5,
+      deliveryRevision: 0,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        concurrencyLimit: null,
+      },
+    }
+    mocks.select
+      .mockReturnValueOnce(
+        selectChain([{ stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} }])
+      )
+      .mockReturnValueOnce(selectChain([{ metadata: {} }]))
+      .mockReturnValueOnce(selectChain([{ id: 'metadata-event-2', payload }]))
+      .mockReturnValueOnce(selectChain([{ value: 10 }]))
+    mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_1' })
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-2',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 0,
+        checkpointPayload: vi.fn(),
+      })
+    ).rejects.toThrow('Awaiting verified Stripe webhook application')
+
+    expect(mocks.subscriptionsUpdate).toHaveBeenCalledWith(
+      'sub_1',
+      {
+        metadata: expect.objectContaining({
+          concurrencyLimit: '',
+          simConfigOperationId: 'metadata-event-2',
+        }),
+      },
+      expect.any(Object)
     )
   })
 

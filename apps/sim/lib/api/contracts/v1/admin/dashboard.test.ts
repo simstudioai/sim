@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   adminDashboardBalanceGrantBodySchema,
+  adminDashboardIssueEnterpriseBodySchema,
+  adminDashboardLimitsBodySchema,
   adminDashboardOrganizationSummarySchema,
   adminDashboardUpdateMemberBodySchema,
 } from '@/lib/api/contracts/v1/admin/dashboard'
@@ -55,6 +57,7 @@ describe('admin dashboard credit grant contract', () => {
         memberCount: 0,
         externalCollaboratorCount: 0,
         seats: 0,
+        concurrencyLimit: null,
         includedMonthlyDollars: 0,
         usageLimitDollars: 0.001,
         effectiveUsageLimitDollars: 0.001,
@@ -63,5 +66,34 @@ describe('admin dashboard credit grant contract', () => {
         provisioning: null,
       }).success
     ).toBe(true)
+  })
+
+  it('accepts positive integer Enterprise concurrency limits', () => {
+    expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 1250 }).success).toBe(true)
+    expect(
+      adminDashboardIssueEnterpriseBodySchema.safeParse({
+        ownerUserId: 'owner-1',
+        monthlyInvoiceAmountUsd: 500,
+        includedMonthlyDollars: 500,
+        seats: 10,
+        concurrencyLimit: 1250,
+        pausePaymentCollection: true,
+      }).success
+    ).toBe(true)
+    expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 0 }).success).toBe(false)
+    expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 1.5 }).success).toBe(false)
+  })
+
+  it('accepts null to restore the deployment-wide Enterprise concurrency default', () => {
+    expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: null }).success).toBe(true)
+    expect(
+      adminDashboardIssueEnterpriseBodySchema.safeParse({
+        ownerUserId: 'owner-1',
+        monthlyInvoiceAmountUsd: 500,
+        includedMonthlyDollars: 500,
+        seats: 10,
+        concurrencyLimit: null,
+      }).success
+    ).toBe(false)
   })
 })

@@ -9,10 +9,12 @@ import {
   checkOrganizationMemberUsageLimit,
   checkUsageStatus,
 } from '@/lib/billing/calculations/usage-monitor'
+import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import type { BillingContext, BillingEntity } from '@/lib/billing/core/usage-log'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
@@ -43,6 +45,7 @@ export interface PayerSubscriptionSnapshot {
   readonly seats: number | null
   readonly periodStart: string | null
   readonly periodEnd: string | null
+  readonly enterpriseConcurrencyLimit?: number
 }
 
 export interface BillingPeriodSnapshot {
@@ -121,6 +124,10 @@ function serializeSubscription(
 ): PayerSubscriptionSnapshot | null {
   if (!subscription) return null
 
+  const enterpriseConcurrencyLimit =
+    isEnterprise(subscription.plan) && isRecordLike(subscription.metadata)
+      ? parseBillingConcurrencyLimit(subscription.metadata.concurrencyLimit)
+      : null
   return Object.freeze({
     id: subscription.id,
     referenceId: subscription.referenceId,
@@ -129,6 +136,7 @@ function serializeSubscription(
     seats: subscription.seats ?? null,
     periodStart: subscription.periodStart?.toISOString() ?? null,
     periodEnd: subscription.periodEnd?.toISOString() ?? null,
+    ...(enterpriseConcurrencyLimit !== null ? { enterpriseConcurrencyLimit } : {}),
   })
 }
 
@@ -242,6 +250,15 @@ export function assertBillingAttributionSnapshot(value: unknown): BillingAttribu
     if (subscription.referenceId !== rawEntity.id) {
       throw new Error('Billing attribution subscription does not belong to its billing entity')
     }
+    const enterpriseConcurrencyLimit = subscription.enterpriseConcurrencyLimit
+    if (
+      enterpriseConcurrencyLimit !== undefined &&
+      (!isEnterprise(subscription.plan) ||
+        typeof enterpriseConcurrencyLimit !== 'number' ||
+        parseBillingConcurrencyLimit(enterpriseConcurrencyLimit) !== enterpriseConcurrencyLimit)
+    ) {
+      throw new Error('Billing attribution Enterprise concurrency limit is invalid')
+    }
 
     payerSubscription = {
       id: subscription.id,
@@ -251,6 +268,7 @@ export function assertBillingAttributionSnapshot(value: unknown): BillingAttribu
       seats: subscription.seats as number | null,
       periodStart: subscriptionStart?.toISOString() ?? null,
       periodEnd: subscriptionEnd?.toISOString() ?? null,
+      ...(enterpriseConcurrencyLimit !== undefined ? { enterpriseConcurrencyLimit } : {}),
     }
   }
 

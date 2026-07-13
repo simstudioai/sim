@@ -213,15 +213,26 @@ export const POST = withRouteHandler(
         }
 
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-        const result = await Promise.race([
-          mcpService.executeTool(userId, serverId, toolCall, workspaceId, extraHeaders),
-          new Promise<never>((_, reject) => {
-            timeoutHandle = setTimeout(
-              () => reject(new Error('Tool execution timeout')),
-              executionTimeout
-            )
-          }),
-        ]).finally(() => {
+        const executePromise = mcpService.executeTool(
+          userId,
+          serverId,
+          toolCall,
+          workspaceId,
+          extraHeaders
+        )
+        // A zero timeout means "no timeout" (billing-disabled deployments).
+        const result = await (executionTimeout > 0
+          ? Promise.race([
+              executePromise,
+              new Promise<never>((_, reject) => {
+                timeoutHandle = setTimeout(
+                  () => reject(new Error('Tool execution timeout')),
+                  executionTimeout
+                )
+              }),
+            ])
+          : executePromise
+        ).finally(() => {
           if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
         })
 

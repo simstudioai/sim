@@ -17,9 +17,9 @@ import {
   getStorageUsageForBillingContext,
   getUserStorageLimit,
   getUserStorageUsage,
+  isStorageEnforcementEnabled,
 } from '@/lib/billing/storage/limits'
 import { getFreeTierLimit, isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('StorageTracking')
@@ -281,7 +281,7 @@ export async function applyStorageUsageDeltasInTx(
     addPayerDelta(
       billingEntity,
       delta.deltaBytes,
-      delta.deltaBytes > 0 && isBillingEnabled
+      delta.deltaBytes > 0 && isStorageEnforcementEnabled()
         ? getStorageLimitForBillingContext(delta.context)
         : undefined,
       true
@@ -294,7 +294,7 @@ export async function applyStorageUsageDeltasInTx(
     }
     const billingEntity = getLegacyStorageBillingEntity(delta.userId, delta.subscription)
     const maximumUsage =
-      delta.deltaBytes > 0 && isBillingEnabled
+      delta.deltaBytes > 0 && isStorageEnforcementEnabled()
         ? await getUserStorageLimit(delta.userId, delta.subscription)
         : undefined
     addPayerDelta(billingEntity, delta.deltaBytes, maximumUsage, delta.deltaBytes > 0)
@@ -509,7 +509,7 @@ export async function maybeNotifyStorageLimitForBillingContext(
   updatedUsage?: number,
   rearmOnly = false
 ): Promise<void> {
-  if (!isBillingEnabled) return
+  if (!isStorageEnforcementEnabled()) return
 
   try {
     const [usage, limit] = await Promise.all([
@@ -559,7 +559,9 @@ export async function incrementStorageUsageForBillingContextInTx(
   bytes: number
 ): Promise<number | undefined> {
   if (bytes <= 0) return undefined
-  const limit = isBillingEnabled ? getStorageLimitForBillingContext(context) : undefined
+  const limit = isStorageEnforcementEnabled()
+    ? getStorageLimitForBillingContext(context)
+    : undefined
   const result = await mutateWorkspaceStorageUsage(
     tx,
     context.workspaceId,
@@ -598,7 +600,7 @@ export async function checkAndIncrementStorageUsageInTx(
   userId: string,
   bytes: number
 ): Promise<{ allowed: boolean; currentUsage: number; limit: number; error?: string }> {
-  if (!isBillingEnabled) {
+  if (!isStorageEnforcementEnabled()) {
     return { allowed: true, currentUsage: 0, limit: Number.MAX_SAFE_INTEGER }
   }
 

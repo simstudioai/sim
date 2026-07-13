@@ -88,7 +88,9 @@ function readCustomStorageLimitGB(metadata: unknown): number | null {
 
 /**
  * Resolves a storage cap solely from normalized plan, scope, custom-limit, and
- * configured-limit inputs.
+ * configured-limit inputs. Paid plans bucket by tier via
+ * `getPlanTypeForLimits`; an organization's subscription metadata override
+ * takes precedence over its tier default.
  */
 function resolveStorageLimit({
   plan,
@@ -98,10 +100,10 @@ function resolveStorageLimit({
 }: StorageLimitResolutionInput): number {
   if (!plan || isFree(plan)) return limits.free
 
-  if (scope === 'organization') {
-    if (customStorageLimitGB !== null) return gbToBytes(customStorageLimitGB)
-    return isEnterprise(plan) ? limits.enterpriseDefault : limits.team
+  if (scope === 'organization' && customStorageLimitGB !== null) {
+    return gbToBytes(customStorageLimitGB)
   }
+  if (isEnterprise(plan)) return limits.enterpriseDefault
 
   const effectivePlan = getPlanTypeForLimits(plan)
   if (effectivePlan === 'pro') return limits.pro
@@ -131,11 +133,11 @@ function resolveLegacyStorageLimit(
  * Evaluates quota behavior from resolved values without performing I/O.
  */
 function evaluateStorageQuota(
-  billingEnabled: boolean,
+  enforced: boolean,
   additionalBytes: number,
   snapshot: StorageQuotaSnapshot | null
 ): StorageQuotaResult {
-  if (!billingEnabled) {
+  if (!enforced) {
     return {
       allowed: true,
       currentUsage: 0,
@@ -162,6 +164,17 @@ function evaluateStorageQuota(
       ? undefined
       : `Storage limit exceeded. Used: ${(newUsage / 1024 ** 3).toFixed(2)}GB, Limit: ${(snapshot.limit / 1024 ** 3).toFixed(0)}GB`,
   }
+}
+
+/**
+ * Whether storage quotas are enforced. Always on when billing is enabled;
+ * with billing disabled, enforcement is opt-in by explicitly setting
+ * `FREE_STORAGE_LIMIT_GB` (all accounts resolve to the free tier there).
+ */
+export function isStorageEnforcementEnabled(): boolean {
+  if (isBillingEnabled) return true
+  const explicit = getEnv('FREE_STORAGE_LIMIT_GB')
+  return explicit != null && explicit !== '' && Number.parseInt(explicit) > 0
 }
 
 /**
@@ -308,7 +321,7 @@ async function checkStorageQuotaWithResolver(
   resolveSnapshot: () => Promise<StorageQuotaSnapshot>,
   logResolutionError: (error: unknown) => void
 ): Promise<StorageQuotaResult> {
-  if (!isBillingEnabled) {
+  if (!isStorageEnforcementEnabled()) {
     return evaluateStorageQuota(false, additionalBytes, null)
   }
 
@@ -322,7 +335,8 @@ async function checkStorageQuotaWithResolver(
 
 /**
  * Check if user has storage quota available.
- * Always allows uploads when billing is disabled.
+ * Billing-disabled deployments allow all uploads unless the operator
+ * explicitly opted into enforcement via `FREE_STORAGE_LIMIT_GB`.
  */
 export async function checkStorageQuota(
   userId: string,
