@@ -172,12 +172,14 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     const isModernProtocol =
       protocol === COPILOT_BILLING_PROTOCOL.attributed ||
       protocol === COPILOT_BILLING_PROTOCOL.direct
+    const isExplicitLegacyProtocol = requestedProtocol === COPILOT_BILLING_PROTOCOL.legacy
     const isAttributedProtocol = protocol === COPILOT_BILLING_PROTOCOL.attributed
     const isDirectProtocol = protocol === COPILOT_BILLING_PROTOCOL.direct
     if (
       (isModernProtocol &&
         (!billingRequestId || !idempotencyKey || billingRequestId !== idempotencyKey)) ||
       (protocol === COPILOT_BILLING_PROTOCOL.legacy && billingRequestId) ||
+      (isExplicitLegacyProtocol && (!workspaceId || !suppliedAttributionHeader)) ||
       (isMarkerlessLegacy &&
         Boolean(billingRequestId || suppliedAttributionHeader || suppliedAccountDecisionHeader)) ||
       (isAttributedProtocol && !suppliedAttributionHeader) ||

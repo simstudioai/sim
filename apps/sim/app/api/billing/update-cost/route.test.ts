@@ -130,6 +130,11 @@ const OLD_GO_HOSTED_UPDATE_COST_BODY = {
   workspaceId: 'ws-1',
 } as const
 
+const EXPLICIT_LEGACY_HOSTED_UPDATE_COST_BODY = {
+  ...OLD_GO_HOSTED_UPDATE_COST_BODY,
+  idempotencyKey: 'explicit-legacy-billing-id',
+} as const
+
 const OLD_GO_WORKSPACELESS_UPDATE_COST_BODY = {
   userId: 'user-1',
   cost: 0.5,
@@ -308,32 +313,50 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('allows explicitly labeled legacy callbacks when markerless traffic is disabled', async () => {
+  it('rejects explicitly labeled legacy callbacks without admission attribution', async () => {
     billingState.isCopilotBillingProtocolRequired = true
     const res = await POST(
-      createMockRequest(
-        'POST',
-        {
-          userId: 'user-1',
-          cost: 0.5,
-          model: 'gpt',
-          source: 'workspace-chat',
-          workspaceId: 'ws-1',
-          idempotencyKey: 'legacy-title-billing',
-        },
-        {
-          'x-api-key': 'internal',
-          'x-sim-billing-protocol': 'legacy-v0',
-        }
-      )
+      createMockRequest('POST', EXPLICIT_LEGACY_HOSTED_UPDATE_COST_BODY, {
+        'x-api-key': 'internal',
+        'x-sim-billing-protocol': 'legacy-v0',
+      })
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockRequireBillingAttributionHeader).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
+    expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
+  })
+
+  it('bills explicitly labeled legacy callbacks from their admission attribution', async () => {
+    billingState.isCopilotBillingProtocolRequired = true
+    const res = await POST(
+      createMockRequest('POST', EXPLICIT_LEGACY_HOSTED_UPDATE_COST_BODY, {
+        'x-api-key': 'internal',
+        'x-sim-billing-protocol': 'legacy-v0',
+        'x-sim-billing-attribution': 'serialized-attribution',
+      })
     )
 
     expect(res.status).toBe(200)
-    expect(mockRecordCumulativeUsage).toHaveBeenCalledTimes(1)
-    expect(mockCheckAndBillOverageThreshold).toHaveBeenCalledWith('user-1', undefined, {
-      onError: 'throw',
+    expect(mockRequireBillingAttributionHeader).toHaveBeenCalledWith(expect.anything(), {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
     })
-    expect(mockCheckAndBillPayerOverageThreshold).not.toHaveBeenCalled()
+    expect(mockResolveLegacyV0BillingAttribution).not.toHaveBeenCalled()
+    expect(mockRecordCumulativeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+        eventKey: 'update-cost:explicit-legacy-billing-id',
+      })
+    )
+    expect(mockCheckAndBillPayerOverageThreshold).toHaveBeenCalledWith(
+      { type: 'organization', id: 'org-1' },
+      expect.objectContaining({ onError: 'throw' })
+    )
+    expect(mockCheckAndBillOverageThreshold).not.toHaveBeenCalled()
   })
 
   it('rejects a direct-v1 callback without its immutable account decision envelope', async () => {
