@@ -10,6 +10,7 @@ import {
   userStats,
   workspace,
 } from '@sim/db/schema'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   and,
@@ -1075,7 +1076,7 @@ export async function addDashboardOrganizationMember(
       workspaceMoves.push({
         workspaceId,
         success: false,
-        error: error instanceof Error ? error.message : 'Workspace move failed',
+        error: getErrorMessage(error, 'Workspace move failed'),
       })
     }
   }

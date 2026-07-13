@@ -80,7 +80,7 @@ describe('knowledge processing worker', () => {
   })
 
   it('preserves the validated actor and payer snapshot through serialization', async () => {
-    await runDocumentProcessing(JSON.parse(JSON.stringify(WORKSPACE_PAYLOAD)))
+    await runDocumentProcessing(structuredClone(WORKSPACE_PAYLOAD))
 
     expect(mockProcessDocumentAsync).toHaveBeenCalledWith(
       'knowledge-base-1',

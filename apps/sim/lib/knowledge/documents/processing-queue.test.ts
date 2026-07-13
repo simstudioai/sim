@@ -68,7 +68,7 @@ describe('processDocumentsWithQueue billing attribution', () => {
     )
 
     const jobs = mockBatchTrigger.mock.calls[0][1]
-    expect(JSON.parse(JSON.stringify(jobs[0].payload))).toEqual({
+    expect(structuredClone(jobs[0].payload)).toEqual({
       knowledgeBaseId: 'knowledge-base-1',
       documentId: 'document-1',
       docData: {
