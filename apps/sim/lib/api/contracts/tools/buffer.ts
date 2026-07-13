@@ -54,7 +54,7 @@ const postSharedFields = {
   apiKey: z.string().min(1, 'API key is required'),
   text: z.string().max(50000, 'text is too long').optional().nullable(),
   mode: z.enum(['addToQueue', 'shareNext', 'shareNow', 'customScheduled']),
-  schedulingType: z.enum(['automatic', 'notification']),
+  schedulingType: z.enum(['automatic', 'notification']).default('automatic'),
   dueAt: z
     .string()
     .datetime({ offset: true, message: 'dueAt must be an ISO 8601 timestamp' })

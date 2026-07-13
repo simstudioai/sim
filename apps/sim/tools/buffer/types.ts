@@ -349,7 +349,7 @@ export interface BufferCreatePostParams extends BufferBaseParams {
   channelId: string
   text?: string
   mode: BufferShareMode
-  schedulingType: BufferSchedulingType
+  schedulingType?: BufferSchedulingType
   dueAt?: string
   saveToDraft?: boolean
   media?: unknown
@@ -360,7 +360,7 @@ export interface BufferEditPostParams extends BufferBaseParams {
   postId: string
   text?: string
   mode: BufferShareMode
-  schedulingType: BufferSchedulingType
+  schedulingType?: BufferSchedulingType
   dueAt?: string
   saveToDraft?: boolean
   media?: unknown

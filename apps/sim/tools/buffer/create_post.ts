@@ -40,10 +40,10 @@ export const bufferCreatePostTool: ToolConfig<BufferCreatePostParams, BufferPost
     },
     schedulingType: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'How the post publishes: automatic (Buffer publishes it) or notification (you get a mobile reminder)',
+        'How the post publishes: automatic (Buffer publishes it, default) or notification (you get a mobile reminder)',
     },
     dueAt: {
       type: 'string',
