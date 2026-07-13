@@ -176,19 +176,25 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
   const ref = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const stickToBottomRef = useRef(true)
+  const prevScrollTopRef = useRef(0)
   const [hasOverflow, setHasOverflow] = useState(false)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    // Any upward user input detaches auto-stick. A subsequent scroll-to-bottom
-    // (wheel back down or dragging scrollbar) re-attaches it.
+    // Any upward user input detaches auto-stick. A subsequent downward scroll
+    // reaching the bottom re-attaches it — the move must be downward, else the
+    // scroll event a small upward flick produces (still within the threshold)
+    // would instantly undo the detach.
     const handleWheel = (e: WheelEvent) => {
       if (e.deltaY < 0) stickToBottomRef.current = false
     }
     const handleScroll = () => {
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight
-      if (distance < BOTTOM_STICK_THRESHOLD_PX) stickToBottomRef.current = true
+      if (distance < BOTTOM_STICK_THRESHOLD_PX && el.scrollTop > prevScrollTopRef.current) {
+        stickToBottomRef.current = true
+      }
+      prevScrollTopRef.current = el.scrollTop
     }
     el.addEventListener('wheel', handleWheel, { passive: true })
     el.addEventListener('scroll', handleScroll, { passive: true })

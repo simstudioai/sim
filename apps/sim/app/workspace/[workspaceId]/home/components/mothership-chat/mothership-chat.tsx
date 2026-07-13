@@ -339,6 +339,23 @@ export function MothershipChat({
     rangeExtractor,
   })
 
+  /**
+   * Never compensate scroll position for size changes of the last row (an
+   * instance property, not a `useVirtualizer` option — options are ignored for
+   * this hook point). The default compensation shifts `scrollTop` by the delta
+   * whenever a resized row starts above the viewport — right for rows above,
+   * but the streaming last row is tall enough to start above the viewport
+   * while growing at its BOTTOM edge, so each token's ResizeObserver delta
+   * scrolled the viewport down in lockstep with growth. That glued the view to
+   * a fixed distance-from-bottom and dragged the user down even after
+   * useAutoScroll detached. Sticking to the bottom during streaming is
+   * useAutoScroll's job, not the virtualizer's. For all other rows this
+   * mirrors the library default (live `scrollTop` stands in for the private
+   * `getScrollOffset() + scrollAdjustments`).
+   */
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
+    item.index !== lastIndex && item.start < (instance.scrollElement?.scrollTop ?? 0)
+
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
   const userInputRef = useRef<UserInputHandle>(null)
   const messageQueueRef = useRef(messageQueue)
