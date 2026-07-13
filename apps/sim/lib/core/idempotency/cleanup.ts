@@ -3,7 +3,7 @@ import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { and, count, inArray, like, lt, max, min, sql } from 'drizzle-orm'
+import { and, count, inArray, like, lt, max, min, notLike, sql } from 'drizzle-orm'
 
 const logger = createLogger('IdempotencyCleanup')
 
@@ -62,7 +62,11 @@ export async function cleanupExpiredIdempotencyKeys(
               lt(idempotencyKey.createdAt, cutoffDate),
               like(idempotencyKey.key, `${namespace}:%`)
             )
-          : lt(idempotencyKey.createdAt, cutoffDate)
+          : and(
+              lt(idempotencyKey.createdAt, cutoffDate),
+              notLike(idempotencyKey.key, 'admin-credit-grant:%'),
+              notLike(idempotencyKey.key, 'workflow-execution-id:%')
+            )
 
         // Find keys to delete with limit
         const toDelete = await db

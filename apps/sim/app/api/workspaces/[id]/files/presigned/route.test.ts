@@ -11,16 +11,21 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckStorageQuota, mockGenerateWorkspaceFileKey, mockUseBlobStorage } = vi.hoisted(
-  () => ({
-    mockCheckStorageQuota: vi.fn(),
-    mockGenerateWorkspaceFileKey: vi.fn(),
-    mockUseBlobStorage: { value: false },
-  })
-)
+const {
+  mockCheckStorageQuota,
+  mockGenerateWorkspaceFileKey,
+  mockResolveStorageBillingContext,
+  mockUseBlobStorage,
+} = vi.hoisted(() => ({
+  mockCheckStorageQuota: vi.fn(),
+  mockGenerateWorkspaceFileKey: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
+  mockUseBlobStorage: { value: false },
+}))
 
 vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuota: mockCheckStorageQuota,
+  checkStorageQuotaForBillingContext: mockCheckStorageQuota,
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
@@ -38,6 +43,13 @@ vi.mock('@/lib/uploads/config', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 const WS = '7727ef3f-8cf6-4686-b063-2bb006a10785'
+const STORAGE_CONTEXT = {
+  workspaceId: WS,
+  billedAccountUserId: 'workspace-owner',
+  billingEntity: { type: 'organization' as const, id: 'workspace-org' },
+  plan: 'team_25000',
+  customStorageLimitGB: null,
+}
 
 import { POST } from '@/app/api/workspaces/[id]/files/presigned/route'
 
@@ -62,6 +74,7 @@ describe('POST /api/workspaces/[id]/files/presigned', () => {
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
+    mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
     storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     mockGenerateWorkspaceFileKey.mockReturnValue(`workspace/${WS}/123-abc-video.mp4`)
     storageServiceMockFns.mockGeneratePresignedUploadUrl.mockResolvedValue({
@@ -138,6 +151,8 @@ describe('POST /api/workspaces/[id]/files/presigned', () => {
     expect(body.uploadHeaders).toEqual({ 'Content-Type': 'video/mp4' })
 
     expect(mockGenerateWorkspaceFileKey).toHaveBeenCalledWith(WS, 'video.mp4')
+    expect(mockResolveStorageBillingContext).toHaveBeenCalledWith(WS)
+    expect(mockCheckStorageQuota).toHaveBeenCalledWith(STORAGE_CONTEXT, validBody.fileSize)
     expect(storageServiceMockFns.mockGeneratePresignedUploadUrl).toHaveBeenCalledWith(
       expect.objectContaining({
         context: 'workspace',

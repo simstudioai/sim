@@ -117,9 +117,17 @@ export const metaProvider: ProviderConfig = {
           // "auto" is already the endpoint default, so we never set the field; a
           // forced tool choice degrades to auto rather than failing the request.
           if (typeof toolChoice === 'object') {
+            let requestedTool: string
+            if (toolChoice.type === 'function') {
+              requestedTool = toolChoice.function.name
+            } else if (toolChoice.type === 'tool') {
+              requestedTool = toolChoice.name
+            } else {
+              requestedTool = toolChoice.any.name
+            }
             logger.warn(
               'Meta does not support forcing a specific tool; falling back to auto tool_choice',
-              { requestedTool: toolChoice.function.name, model: request.model }
+              { requestedTool, model: request.model }
             )
           }
 

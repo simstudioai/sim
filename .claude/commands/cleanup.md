@@ -1,6 +1,6 @@
 ---
 description: Run all code quality skills — effects, memo, callbacks, state, React Query, emcn design review, url-state, and comments — analyzing in parallel, then applying fixes sequentially
-argument-hint: [scope] [fix=true|false]
+argument-hint: "[scope] [fix=true|false]"
 ---
 
 # Cleanup

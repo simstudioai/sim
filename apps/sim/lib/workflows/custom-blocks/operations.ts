@@ -1,8 +1,14 @@
 import { db } from '@sim/db'
-import { customBlock, workflow, workspace } from '@sim/db/schema'
+import {
+  customBlock,
+  workflow,
+  workflowBlocks,
+  workflowDeploymentVersion,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
@@ -19,13 +25,34 @@ const logger = createLogger('CustomBlocksOperations')
  * enterprise plan). Applying it in every org-scoped resolver keeps execution, the
  * copilot VFS, and workspace context from surfacing blocks the API withholds (e.g.
  * after an org drops off the enterprise plan). Returns `null` when ineligible.
+ *
+ * Pass `userId` when the caller acts for a specific user so per-user flag
+ * targeting matches the REST routes; workspace-scoped resolvers (VFS, context,
+ * executor overlay) omit it and evaluate at org level.
  */
-async function eligibleOrgForWorkspace(workspaceId: string): Promise<string | null> {
+async function eligibleOrgForWorkspace(
+  workspaceId: string,
+  userId?: string
+): Promise<string | null> {
   const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
   if (!ws?.organizationId) return null
-  if (!(await isFeatureEnabled('deploy-as-block', { orgId: ws.organizationId }))) return null
+  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: ws.organizationId }))) {
+    return null
+  }
   if (!(await isOrganizationOnEnterprisePlan(ws.organizationId))) return null
   return ws.organizationId
+}
+
+/**
+ * Whether the workspace's org may use custom blocks (`deploy-as-block` flag +
+ * enterprise plan). Feeds the 'custom-blocks' entitlement in
+ * `@/lib/copilot/entitlements` and matches the REST route gates.
+ */
+export async function isCustomBlocksEligible(
+  workspaceId: string,
+  userId?: string
+): Promise<boolean> {
+  return (await eligibleOrgForWorkspace(workspaceId, userId)) !== null
 }
 
 /** A persisted custom block plus its live-derived Start input fields. */
@@ -62,15 +89,15 @@ async function deriveInputFields(workflowId: string): Promise<WorkflowInputField
   }
 }
 
-/** A stored per-input placeholder override, keyed by the Start field's stable id. */
-type InputPlaceholder = { id: string; placeholder?: string }
+/** A stored per-input override (placeholder + required), keyed by the Start field's stable id. */
+type InputPlaceholder = { id: string; placeholder?: string; required?: boolean }
 
 /**
  * The block's input fields: the LIVE deployed Start fields (authoritative for which
  * inputs exist and their name/type — so an input removed from the source and
- * redeployed simply disappears) with the stored per-id `placeholder` overrides
- * merged in. When the source is undeployed there are no live fields, so there are
- * no inputs — the block can't run undeployed anyway.
+ * redeployed simply disappears) with the stored per-id `placeholder`/`required`
+ * overrides merged in. When the source is undeployed there are no live fields, so
+ * there are no inputs — the block can't run undeployed anyway.
  */
 function applyInputPlaceholders(
   placeholders: InputPlaceholder[] | null,
@@ -78,12 +105,17 @@ function applyInputPlaceholders(
 ): WorkflowInputField[] {
   if (deployed.length === 0) return []
   if (!placeholders?.length) return deployed
-  const byId = new Map(placeholders.map((p) => [p.id, p.placeholder]))
-  // Placeholders are stored under `field.id ?? field.name` (the form's key), so a
+  const byId = new Map(placeholders.map((p) => [p.id, p]))
+  // Overrides are stored under `field.id ?? field.name` (the form's key), so a
   // legacy field with no stable id is keyed by name — look it up the same way.
   return deployed.map((field) => {
-    const placeholder = byId.get(field.id ?? field.name)
-    return placeholder ? { ...field, placeholder } : field
+    const override = byId.get(field.id ?? field.name)
+    if (!override) return field
+    return {
+      ...field,
+      ...(override.placeholder ? { placeholder: override.placeholder } : {}),
+      ...(override.required ? { required: true } : {}),
+    }
   })
 }
 
@@ -159,6 +191,37 @@ export async function listCustomBlockSummariesForWorkspace(
     .where(and(eq(customBlock.organizationId, organizationId), eq(customBlock.enabled, true)))
 }
 
+/**
+ * Hydrate a joined custom-block row into the wire shape. Field set derived live
+ * from the deployed Start; stored placeholders merged in. Derive even for a
+ * disabled block — the source workflow's deployment is independent of the block's
+ * enabled flag, and the edit form needs the real fields so a save doesn't
+ * overwrite the block's stored placeholders.
+ */
+async function hydrateCustomBlockRow(joined: {
+  block: typeof customBlock.$inferSelect
+  workflowName: string
+  workspaceId: string | null
+  workspaceName: string | null
+}): Promise<CustomBlockWithInputs> {
+  const { block: row, workflowName, workspaceId, workspaceName } = joined
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    workflowId: row.workflowId,
+    workflowName,
+    workspaceId,
+    workspaceName,
+    type: row.type,
+    name: row.name,
+    description: row.description,
+    iconUrl: row.iconUrl,
+    enabled: row.enabled,
+    inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
+    exposedOutputs: row.outputs ?? [],
+  }
+}
+
 /** The org's custom blocks with live-derived input fields (client overlay + list API). */
 export async function listCustomBlocksWithInputs(
   organizationId: string
@@ -175,27 +238,30 @@ export async function listCustomBlocksWithInputs(
     .leftJoin(workspace, eq(workspace.id, workflow.workspaceId))
     .where(eq(customBlock.organizationId, organizationId))
 
-  return Promise.all(
-    rows.map(async ({ block: row, workflowName, workspaceId, workspaceName }) => ({
-      id: row.id,
-      organizationId: row.organizationId,
-      workflowId: row.workflowId,
-      workflowName,
-      workspaceId,
-      workspaceName,
-      type: row.type,
-      name: row.name,
-      description: row.description,
-      iconUrl: row.iconUrl,
-      enabled: row.enabled,
-      // Field set derived live from the deployed Start; stored placeholders merged
-      // in. Derive even for a disabled block — the source workflow's deployment is
-      // independent of the block's enabled flag, and the edit form needs the real
-      // fields so a save doesn't overwrite the block's stored placeholders.
-      inputFields: applyInputPlaceholders(row.inputs, await deriveInputFields(row.workflowId)),
-      exposedOutputs: row.outputs ?? [],
-    }))
-  )
+  return Promise.all(rows.map(hydrateCustomBlockRow))
+}
+
+/**
+ * The custom block bound to a workflow (with live-derived input fields), or `null`
+ * when the workflow isn't published as a block. One block per workflow is enforced
+ * at publish time. Used by the copilot deploy_custom_block tool.
+ */
+export async function getCustomBlockWithInputsByWorkflowId(
+  workflowId: string
+): Promise<CustomBlockWithInputs | null> {
+  const [row] = await db
+    .select({
+      block: customBlock,
+      workflowName: workflow.name,
+      workspaceId: workflow.workspaceId,
+      workspaceName: workspace.name,
+    })
+    .from(customBlock)
+    .innerJoin(workflow, eq(workflow.id, customBlock.workflowId))
+    .leftJoin(workspace, eq(workspace.id, workflow.workspaceId))
+    .where(eq(customBlock.workflowId, workflowId))
+    .limit(1)
+  return row ? hydrateCustomBlockRow(row) : null
 }
 
 /** Fetch a single custom block row by id. */
@@ -250,6 +316,8 @@ export async function getCustomBlockAuthority(
   organizationId: string
   ownerUserId: string
   exposedOutputs: CustomBlockOutput[]
+  /** Start-field ids (form keys) the publisher marked required. May reference removed fields. */
+  requiredInputIds: string[]
 } | null> {
   // Scope resolution to the consumer's org: `(organizationId, type)` is the unique
   // key, so without the org filter a `custom_block_*` type smuggled in from another
@@ -267,6 +335,7 @@ export async function getCustomBlockAuthority(
       organizationId: customBlock.organizationId,
       enabled: customBlock.enabled,
       outputs: customBlock.outputs,
+      inputs: customBlock.inputs,
       ownerUserId: workflow.userId,
     })
     .from(customBlock)
@@ -282,6 +351,7 @@ export async function getCustomBlockAuthority(
     organizationId: row.organizationId,
     ownerUserId: row.ownerUserId,
     exposedOutputs: row.outputs ?? [],
+    requiredInputIds: (row.inputs ?? []).filter((i) => i.required).map((i) => i.id),
   }
 }
 
@@ -431,4 +501,56 @@ export async function updateCustomBlock(
 /** Unpublish (hard-delete) a custom block. */
 export async function deleteCustomBlock(id: string): Promise<void> {
   await db.delete(customBlock).where(eq(customBlock.id, id))
+}
+
+/**
+ * How many non-archived workflows in the org place the block, in their live
+ * editor state and/or their ACTIVE deployment snapshot. The two are scanned
+ * independently — a block removed in the editor can still ship in the active
+ * deployment (and vice versa), and the deployed placement is the one that
+ * actually runs. The deployment scan pre-filters with a raw-text match on the
+ * unique type slug so only near-exact matches pay the jsonb parse.
+ */
+export async function getCustomBlockUsageCounts(
+  organizationId: string,
+  blockType: string
+): Promise<{ usageCount: number; deployedUsageCount: number }> {
+  const orgActiveWorkflow = and(
+    eq(workspace.organizationId, organizationId),
+    isNull(workflow.archivedAt)
+  )
+  // Escape LIKE wildcards — the `_`s in `custom_block_<id>` would otherwise match
+  // any character and let unrelated states through to the jsonb parse.
+  const likePattern = `%${blockType.replace(/[\\%_]/g, '\\$&')}%`
+
+  const [liveRows, deployedRows] = await Promise.all([
+    db
+      .selectDistinct({ workflowId: workflow.id })
+      .from(workflowBlocks)
+      .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))
+      .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
+      .where(and(eq(workflowBlocks.type, blockType), orgActiveWorkflow)),
+    db
+      .select({ workflowId: workflow.id })
+      .from(workflowDeploymentVersion)
+      .innerJoin(workflow, eq(workflow.id, workflowDeploymentVersion.workflowId))
+      .innerJoin(workspace, eq(workspace.id, workflow.workspaceId))
+      .where(
+        and(
+          eq(workflowDeploymentVersion.isActive, true),
+          eq(workflow.isDeployed, true),
+          orgActiveWorkflow,
+          sql`${workflowDeploymentVersion.state}::text LIKE ${likePattern} ESCAPE '\\'`,
+          sql`EXISTS (
+            SELECT 1 FROM jsonb_each((${workflowDeploymentVersion.state})::jsonb -> 'blocks') AS b
+            WHERE b.value ->> 'type' = ${blockType}
+          )`
+        )
+      ),
+  ])
+
+  const usingWorkflowIds = new Set(liveRows.map((r) => r.workflowId))
+  for (const row of deployedRows) usingWorkflowIds.add(row.workflowId)
+
+  return { usageCount: usingWorkflowIds.size, deployedUsageCount: deployedRows.length }
 }

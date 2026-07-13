@@ -36,6 +36,8 @@
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
+    "billing-protocol-contract:generate": "bun run scripts/sync-billing-protocol-contract.ts",
+    "billing-protocol-contract:check": "bun run scripts/sync-billing-protocol-contract.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
     "mship-tools:check": "bun run scripts/sync-tool-catalog.ts --check",
     "trace-spans-contract:generate": "bun run scripts/sync-trace-spans-contract.ts",

@@ -1,3 +1,4 @@
+import { DEFAULT_BILLING_CONCURRENCY_LIMITS } from '@/lib/billing/concurrency-defaults'
 import {
   CREDIT_TIERS,
   CREDITS_PER_DOLLAR,
@@ -113,6 +114,20 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
       {
         label: 'Invite teammates',
         values: [false, true, true, true],
+      },
+    ],
+  },
+  {
+    title: 'Execution concurrency',
+    rows: [
+      {
+        label: 'Concurrent executions',
+        values: [
+          DEFAULT_BILLING_CONCURRENCY_LIMITS.free.toLocaleString('en-US'),
+          DEFAULT_BILLING_CONCURRENCY_LIMITS.pro.toLocaleString('en-US'),
+          DEFAULT_BILLING_CONCURRENCY_LIMITS.team.toLocaleString('en-US'),
+          `${DEFAULT_BILLING_CONCURRENCY_LIMITS.enterprise.toLocaleString('en-US')} (customizable)`,
+        ],
       },
     ],
   },

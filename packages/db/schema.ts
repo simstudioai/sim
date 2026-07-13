@@ -388,6 +388,11 @@ export const workflowExecutionLogs = pgTable(
     runningStartedAtIdx: index('workflow_execution_logs_running_started_at_idx')
       .on(table.startedAt)
       .where(sql`status = 'running'`),
+    completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
+      .on(table.endedAt, table.workspaceId, table.executionId)
+      .where(
+        sql`${table.status} = 'completed' AND ${table.level} = 'info' AND ${table.endedAt} IS NOT NULL`
+      ),
   })
 )
 
@@ -477,6 +482,7 @@ export const pausedExecutions = pgTable(
     pausePoints: jsonb('pause_points').notNull(),
     totalPauseCount: integer('total_pause_count').notNull(),
     resumedCount: integer('resumed_count').notNull().default(0),
+    automaticResumeRetryCount: integer('automatic_resume_retry_count').notNull().default(0),
     status: text('status').notNull().default('paused'),
     metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
     pausedAt: timestamp('paused_at').notNull().defaultNow(),
@@ -1346,7 +1352,7 @@ export const workspace = pgTable(
      * anchor — `onDelete: 'cascade'` cleans up a user's workspaces on account
      * deletion — and the ownership-transfer target when an owner is removed. For
      * admin checks use explicit `permissions` rows; for the workspace's principal
-     * billing identity use `billedAccountUserId`.
+     * billing identity use `billedAccountUserId`. DO NOT DELETE.
      */
     ownerId: text('owner_id')
       .notNull()
@@ -1358,11 +1364,20 @@ export const workspace = pgTable(
     billedAccountUserId: text('billed_account_user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'no action' }),
+    /**
+     * Durable workspace-first storage ledger.
+     *
+     * Invariant: this non-negative total and the currently routed payer aggregate
+     * change atomically while the workspace row is locked. A payer identity change
+     * moves this entire total old payer -> new payer in the same transaction.
+     */
+    storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
     allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
     archivedAt: timestamp('archived_at'),
+    organizationAssignedAt: timestamp('organization_assigned_at'),
     forkedFromWorkspaceId: text('forked_from_workspace_id').references(
       (): AnyPgColumn => workspace.id,
       { onDelete: 'set null' }
@@ -1373,6 +1388,10 @@ export const workspace = pgTable(
   (table) => ({
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    nonNegativeStorage: check(
+      'workspace_storage_used_bytes_non_negative',
+      sql`${table.storageUsedBytes} >= 0`
+    ),
     workspaceModeIdx: index('workspace_mode_idx').on(table.workspaceMode),
     forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
       table.forkedFromWorkspaceId
@@ -2362,6 +2381,9 @@ export const copilotMessages = pgTable(
     chatStreamIdx: index('copilot_messages_chat_stream_idx')
       .on(table.chatId, table.streamId)
       .where(sql`${table.streamId} IS NOT NULL`),
+    userCreatedAtIdx: index('copilot_messages_user_created_at_idx')
+      .on(table.createdAt, table.chatId, table.messageId)
+      .where(sql`${table.role} = 'user' AND ${table.deletedAt} IS NULL`),
   })
 )
 
@@ -2658,6 +2680,10 @@ export const outboxEvent = pgTable(
       table.availableAt
     ),
     lockedAtIdx: index('outbox_event_locked_at_idx').on(table.lockedAt),
+    eventTypeCreatedIdx: index('outbox_event_type_created_idx').on(
+      table.eventType,
+      table.createdAt
+    ),
   })
 )
 
@@ -2893,13 +2919,14 @@ export const customBlock = pgTable(
     /** Uploaded icon image URL (workspace storage), or null for the default icon. */
     iconUrl: text('icon_url'),
     /**
-     * Per-input placeholder hints keyed by the source Start field's stable `id`:
-     * `Array<{ id, placeholder? }>`. Only the placeholder is authored — the input
-     * field set and its name/type/description are always derived live from the
-     * deployed Start (so they can never go stale). Absent/empty → no placeholder
-     * overrides; every deployed Start input is still exposed.
+     * Per-input authored overrides keyed by the source Start field's stable `id`:
+     * `Array<{ id, placeholder?, required? }>`. Only the placeholder and required
+     * flag are authored — the input field set and its name/type/description are
+     * always derived live from the deployed Start (so they can never go stale); an
+     * override whose field was removed is ignored. Absent/empty → no overrides;
+     * every deployed Start input is still exposed.
      */
-    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string }>>(),
+    inputs: json('inputs').$type<Array<{ id: string; placeholder?: string; required?: boolean }>>(),
     /**
      * Curated outputs exposed to consumers: `Array<{ blockId, path, name }>`. Each
      * maps a child-workflow block output (blockId + dot-path) to a friendly output

@@ -8,11 +8,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createKnowledgeConnectorContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { encryptApiKey } from '@/lib/api-key/crypto'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import {
+  requireBillingAttributionHeader,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
+import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
+import { dispatchSync } from '@/lib/knowledge/connectors/queue'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -97,8 +101,16 @@ export const POST = withRouteHandler(
       const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } =
         parsed.data.body
 
+      const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId
+      if (!kbWorkspaceId) {
+        return NextResponse.json(
+          { error: 'Knowledge base is missing workspace billing context' },
+          { status: 409 }
+        )
+      }
+
       if (syncIntervalMinutes > 0 && syncIntervalMinutes < 60) {
-        const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
+        const canUseLiveSync = await hasWorkspaceLiveSyncAccess(kbWorkspaceId)
         if (!canUseLiveSync) {
           return NextResponse.json(
             { error: 'Live sync requires a Max or Enterprise plan' },
@@ -106,6 +118,17 @@ export const POST = withRouteHandler(
           )
         }
       }
+
+      const billingAttribution =
+        auth.authType === AuthType.INTERNAL_JWT
+          ? requireBillingAttributionHeader(request.headers, {
+              actorUserId: auth.userId,
+              workspaceId: kbWorkspaceId,
+            })
+          : await resolveBillingAttribution({
+              actorUserId: auth.userId,
+              workspaceId: kbWorkspaceId,
+            })
 
       const connectorConfig = CONNECTOR_REGISTRY[connectorType]
       if (!connectorConfig) {
@@ -258,7 +281,6 @@ export const POST = withRouteHandler(
 
       logger.info(`[${requestId}] Created connector ${connectorId} for KB ${knowledgeBaseId}`)
 
-      const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
       captureServerEvent(
         auth.userId,
         'knowledge_base_connector_added',
@@ -294,7 +316,7 @@ export const POST = withRouteHandler(
         request,
       })
 
-      dispatchSync(connectorId, { requestId }).catch((error) => {
+      dispatchSync(connectorId, { billingAttribution, requestId }).catch((error) => {
         logger.error(
           `[${requestId}] Failed to dispatch initial sync for connector ${connectorId}`,
           error

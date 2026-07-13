@@ -34,7 +34,7 @@ export const hubspotCreateAppointmentTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Appointment properties as JSON object (e.g., {"hs_appointment_name": "Discovery Call", "hs_appointment_start": "2024-01-15T10:00:00Z", "hs_appointment_end": "2024-01-15T11:00:00Z"})',
+        'Appointment properties as JSON object. Must include hs_appointment_start (e.g., {"hs_appointment_name": "Discovery Call", "hs_appointment_start": "2024-01-15T10:00:00Z", "hs_appointment_end": "2024-01-15T11:00:00Z"})',
     },
     associations: {
       type: 'array',

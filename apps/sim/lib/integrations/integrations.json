@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10",
+  "updatedAt": "2026-07-13",
   "integrations": [
     {
       "type": "onepassword",
@@ -2604,6 +2604,65 @@
       "tags": ["web-scraping", "automation", "agentic"]
     },
     {
+      "type": "buffer",
+      "slug": "buffer",
+      "name": "Buffer",
+      "description": "Schedule and publish social media posts across connected channels",
+      "longDescription": "Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channels, and capture content ideas using the Buffer API.",
+      "bgColor": "#FFFFFF",
+      "iconName": "BufferIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/buffer",
+      "operations": [
+        {
+          "name": "Create Post",
+          "description": "Create a post in Buffer for a channel — add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft, optionally with an image or video attachment"
+        },
+        {
+          "name": "Edit Post",
+          "description": "Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments"
+        },
+        {
+          "name": "Get Posts",
+          "description": "List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)"
+        },
+        {
+          "name": "Get Post",
+          "description": "Get a single Buffer post by ID, including its status, schedule, and media"
+        },
+        {
+          "name": "Delete Post",
+          "description": "Delete a Buffer post by ID"
+        },
+        {
+          "name": "Get Channels",
+          "description": "List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)"
+        },
+        {
+          "name": "Create Idea",
+          "description": "Save a content idea to a Buffer organization for later drafting and scheduling"
+        },
+        {
+          "name": "Get Ideas",
+          "description": "List content ideas saved in a Buffer organization"
+        },
+        {
+          "name": "Get Idea Groups",
+          "description": "List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas"
+        },
+        {
+          "name": "Get Account",
+          "description": "Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)"
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["marketing", "scheduling", "automation"]
+    },
+    {
       "type": "calcom",
       "slug": "cal-com",
       "name": "Cal.com",
@@ -3871,23 +3930,11 @@
           "description": "Retrieve brand data for a public company by its stock ticker symbol."
         },
         {
-          "name": "Get Brand (Simplified)",
-          "description": "Retrieve essential brand data for a domain: title, colors, logos, and backdrops."
-        },
-        {
           "name": "Identify Transaction",
           "description": "Identify the brand behind a raw bank/card transaction descriptor and return its brand data."
-        },
-        {
-          "name": "Prefetch Domain",
-          "description": "Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits)."
-        },
-        {
-          "name": "Prefetch by Email",
-          "description": "Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected."
         }
       ],
-      "operationCount": 22,
+      "operationCount": 19,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5742,6 +5789,37 @@
       "tags": ["meeting", "note-taking"]
     },
     {
+      "type": "flint",
+      "slug": "flint",
+      "name": "Flint",
+      "description": "Run background agent tasks on your Flint sites",
+      "longDescription": "Create background agent tasks that modify your Flint sites from natural-language prompts, generate batches of pages from a template, and check task status and results.",
+      "bgColor": "#F6F54F",
+      "iconName": "FlintIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/flint",
+      "operations": [
+        {
+          "name": "Create Task",
+          "description": "Start a background Flint agent task that modifies a site from a natural-language prompt."
+        },
+        {
+          "name": "Generate Pages",
+          "description": "Start a background Flint agent task that generates up to 10 pages from a template page."
+        },
+        {
+          "name": "Get Task",
+          "description": "Get the status and results of a background Flint agent task."
+        }
+      ],
+      "operationCount": 3,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["automation", "seo", "agentic"]
+    },
+    {
       "type": "gamma",
       "slug": "gamma",
       "name": "Gamma",
@@ -6558,12 +6636,28 @@
           "description": "Assign up to 200 CRM prospects (contacts or leads) to a Gong Engage flow."
         },
         {
+          "name": "Unassign Flow Prospects",
+          "description": "Remove a prospect from Gong Engage flows. Omit the flow ID to remove the prospect from all flows they are assigned to."
+        },
+        {
           "name": "Get Prospect Flows",
           "description": "Get the Gong Engage flows currently assigned to the given CRM prospects."
         },
         {
           "name": "Get Coaching",
           "description": "Retrieve coaching metrics for a manager from Gong."
+        },
+        {
+          "name": "Ask Anything",
+          "description": "Ask a natural-language question about a CRM account, deal, contact, or lead. Gong answers from up to 60 calls and 500 emails associated with the entity. Consumes Gong credits."
+        },
+        {
+          "name": "Get Brief",
+          "description": "Generate an AI brief (configured in Gong Agent Studio) for a CRM account, deal, contact, or lead. Consumes Gong credits."
+        },
+        {
+          "name": "Get Logs",
+          "description": "Retrieve Gong log entries of a specific type within a time range."
         },
         {
           "name": "Lookup Email",
@@ -6582,7 +6676,7 @@
           "description": "Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchronous and irreversible."
         }
       ],
-      "operationCount": 25,
+      "operationCount": 29,
       "triggers": [
         {
           "id": "gong_webhook",

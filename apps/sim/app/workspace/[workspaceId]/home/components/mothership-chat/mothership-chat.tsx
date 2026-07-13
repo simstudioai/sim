@@ -339,6 +339,16 @@ export function MothershipChat({
     rangeExtractor,
   })
 
+  /**
+   * Instance property — silently ignored if passed as a `useVirtualizer`
+   * option. Skips scroll compensation for the streaming last row: it starts
+   * above the viewport but grows at its bottom edge, so the default dragged
+   * the viewport down in lockstep with growth even after the user scrolled
+   * away. Other rows keep the library default.
+   */
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
+    item.index !== lastIndex && item.start < (instance.scrollElement?.scrollTop ?? 0)
+
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
   const userInputRef = useRef<UserInputHandle>(null)
   const messageQueueRef = useRef(messageQueue)

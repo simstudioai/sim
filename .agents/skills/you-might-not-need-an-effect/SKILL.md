@@ -1,7 +1,7 @@
 ---
 name: you-might-not-need-an-effect
 description: Analyze and fix useEffect anti-patterns in your code
-argument-hint: [scope] [fix=true|false]
+argument-hint: "[scope] [fix=true|false]"
 ---
 
 # You Might Not Need an Effect

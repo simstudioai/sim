@@ -22,7 +22,7 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -31,17 +31,17 @@ import {
 } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
+import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
@@ -76,11 +76,10 @@ export function AddConnectorModal({
   const [searchTerm, setSearchTerm] = useState('')
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
-  const { data: subscriptionResponse } = useSubscriptionData({ enabled: isBillingEnabled })
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
-  const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
+  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling, isBillingEnabled)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'

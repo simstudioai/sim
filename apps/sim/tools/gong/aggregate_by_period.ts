@@ -74,7 +74,7 @@ export const aggregateByPeriodTool: ToolConfig<
       const userIds = parseGongIdList(params.userIds)
       if (userIds) filter.userIds = userIds
       const body: Record<string, unknown> = {
-        aggregationPeriod: params.aggregationPeriod.trim(),
+        aggregationPeriod: params.aggregationPeriod.trim().toUpperCase(),
         filter,
       }
       if (params.cursor?.trim()) body.cursor = params.cursor.trim()

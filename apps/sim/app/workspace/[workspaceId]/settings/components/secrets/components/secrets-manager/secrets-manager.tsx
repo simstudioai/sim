@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,
@@ -197,7 +198,7 @@ interface WorkspaceVariableRowProps {
   onRenameEnd: (key: string, value: string) => void
   onValueChange: (key: string, value: string) => void
   onDelete: (key: string) => void
-  onViewDetails: (envKey: string) => void
+  onViewDetails?: (envKey: string) => void
 }
 
 function WorkspaceVariableRow({
@@ -243,7 +244,7 @@ function WorkspaceVariableRow({
       />
       <SecretRowMenu
         onCopyName={() => copyName(envKey)}
-        onViewDetails={hasCredential ? () => onViewDetails(envKey) : undefined}
+        onViewDetails={hasCredential && onViewDetails ? () => onViewDetails(envKey) : undefined}
         onDelete={canEdit ? () => onDelete(envKey) : undefined}
       />
     </div>
@@ -350,8 +351,10 @@ export function SecretsManager() {
   const queryClient = useQueryClient()
 
   const isWorkspaceAdmin = workspacePermissions?.viewer?.isAdmin ?? false
-  const canCreateWorkspaceSecret =
-    isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write'
+  const canCreateWorkspaceSecret = canMutateWorkspaceSettingsSection('secrets', {
+    canEdit: isWorkspaceAdmin || workspacePermissions?.viewer?.permissionType === 'write',
+    canAdmin: isWorkspaceAdmin,
+  })
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
 
@@ -987,7 +990,7 @@ export function SecretsManager() {
                     : Object.entries(workspaceVars)
                   ).map(([key, value]) => {
                     const cred = workspaceEnvKeyToCredential.get(key)
-                    const canEditRow = cred?.role === 'admin'
+                    const canEditRow = canCreateWorkspaceSecret && cred?.role === 'admin'
                     return (
                       <WorkspaceVariableRow
                         key={key}
@@ -1003,7 +1006,9 @@ export function SecretsManager() {
                         onRenameEnd={handleWorkspaceKeyRename}
                         onValueChange={handleWorkspaceValueChange}
                         onDelete={handleDeleteWorkspaceVar}
-                        onViewDetails={handleViewDetails}
+                        onViewDetails={
+                          canCreateWorkspaceSecret && cred ? handleViewDetails : undefined
+                        }
                       />
                     )
                   })}

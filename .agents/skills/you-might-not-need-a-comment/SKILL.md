@@ -1,7 +1,7 @@
 ---
 name: you-might-not-need-a-comment
 description: Analyze and fix redundant or self-explanatory inline comments — remove noise, promote genuine documentation to TSDoc
-argument-hint: [scope] [fix=true|false]
+argument-hint: "[scope] [fix=true|false]"
 ---
 
 # You Might Not Need a Comment

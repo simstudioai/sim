@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+} from '@/lib/billing/core/billing-attribution'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -48,6 +52,8 @@ export interface ExecuteWorkflowOptions {
     sourceExecutionId?: string
   }
   executionMode?: 'sync' | 'stream' | 'async'
+  /** Immutable actor/payer decision captured by preprocessing. */
+  billingAttribution?: BillingAttributionSnapshot
 }
 
 export interface WorkflowInfo {
@@ -72,6 +78,17 @@ export async function executeWorkflow(
 
   const workflowId = workflow.id
   const workspaceId = workflow.workspaceId
+  if (!streamConfig?.billingAttribution) {
+    throw new Error('Billing attribution is required for workspace execution')
+  }
+  const billingAttribution = assertBillingAttributionSnapshot(streamConfig.billingAttribution)
+  if (
+    billingAttribution.actorUserId !== actorUserId ||
+    billingAttribution.workspaceId !== workspaceId
+  ) {
+    throw new Error('Workflow billing attribution does not match its actor and workspace')
+  }
+
   const executionId = providedExecutionId || generateId()
   const triggerType = streamConfig?.workflowTriggerType || 'api'
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
@@ -83,6 +100,7 @@ export async function executeWorkflow(
       workflowId,
       workspaceId,
       userId: actorUserId,
+      billingAttribution,
       workflowUserId: workflow.userId,
       triggerType,
       triggerBlockId: streamConfig?.triggerBlockId,

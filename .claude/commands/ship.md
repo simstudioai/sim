@@ -1,6 +1,6 @@
 ---
 description: Commit, push, and open a PR to staging in one shot — runs the cleanup pass and, when migrations changed, the db-migrate safety review first
-argument-hint: [optional context or scope notes]
+argument-hint: "[optional context or scope notes]"
 ---
 
 # Ship Command

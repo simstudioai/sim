@@ -14,7 +14,7 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
+import { type CreatedApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
 
@@ -27,7 +27,7 @@ interface CreateApiKeyModalProps {
   canManageWorkspaceKeys?: boolean
   defaultKeyType?: 'personal' | 'workspace'
   source?: 'settings' | 'deploy_modal'
-  onKeyCreated?: (key: ApiKey) => void
+  onKeyCreated?: (key: CreatedApiKey) => void
 }
 
 const EMPTY_KEY_NAMES: string[] = []
@@ -50,7 +50,7 @@ export function CreateApiKeyModal({
   const [keyName, setKeyName] = useState('')
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>(defaultKeyType)
   const [createError, setCreateError] = useState<string | null>(null)
-  const [newKey, setNewKey] = useState<ApiKey | null>(null)
+  const [newKey, setNewKey] = useState<CreatedApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
 

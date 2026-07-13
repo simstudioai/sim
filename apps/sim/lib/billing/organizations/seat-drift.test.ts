@@ -62,6 +62,18 @@ describe('reconcileTeamSeatDrift', () => {
     })
   })
 
+  it('reconciles a past-due Team candidate returned by the entitlement query', async () => {
+    selectRows.value = [{ organizationId: 'org-past-due' }]
+
+    const result = await reconcileTeamSeatDrift()
+
+    expect(result).toEqual({ drifted: 1, reconciled: 1 })
+    expect(mockReconcileOrganizationSeats).toHaveBeenCalledWith({
+      organizationId: 'org-past-due',
+      reason: 'seat-drift-sweep',
+    })
+  })
+
   it('counts only reconciles that changed the seat count', async () => {
     selectRows.value = [{ organizationId: 'org-a' }, { organizationId: 'org-b' }]
     mockReconcileOrganizationSeats

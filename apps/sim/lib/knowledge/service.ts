@@ -11,6 +11,15 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { ensureUserStatsExists } from '@/lib/billing/core/usage'
+import {
+  applyStorageUsageDeltasInTx,
+  maybeNotifyStorageLimitForBillingContext,
+  resolveStorageBillingContext,
+  type StorageBillingContext,
+} from '@/lib/billing/storage'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type {
   ChunkingConfig,
@@ -33,6 +42,28 @@ export class KnowledgeBasePermissionError extends Error {
 }
 
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
+
+type KnowledgeBaseStorageMove =
+  | {
+      kind: 'workspace-to-workspace'
+      sourceContext: StorageBillingContext
+      sourceWorkspaceId: string
+      destinationContext: StorageBillingContext
+    }
+  | {
+      kind: 'workspace-to-personal'
+      sourceContext: StorageBillingContext
+      sourceWorkspaceId: string
+      ownerSubscription: HighestPrioritySubscription | null
+      ownerUserId: string
+    }
+  | {
+      kind: 'personal-to-workspace'
+      sourceWorkspaceId: null
+      destinationContext: StorageBillingContext
+      ownerSubscription: HighestPrioritySubscription | null
+      ownerUserId: string
+    }
 
 /**
  * Get knowledge bases that a user can access
@@ -272,9 +303,71 @@ export async function updateKnowledgeBase(
     )
   }
 
-  // Resolved before the transaction: the target workspace comes from the
-  // request input, so checking it inside the FOR UPDATE tx would only issue a
-  // second pooled-connection checkout while the first is held.
+  /**
+   * Resolve transfer admission before opening the transaction. The locked KB
+   * row below revalidates this source snapshot; a concurrent move is an error
+   * instead of silently falling back to newly observed payer data.
+   */
+  let storageMove: KnowledgeBaseStorageMove | undefined
+  if (updates.workspaceId !== undefined) {
+    const [kbSnapshot] = await db
+      .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
+    if (!kbSnapshot) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+    }
+    const sourceWorkspaceId = kbSnapshot.workspaceId ?? null
+    const destinationWorkspaceId = updates.workspaceId ?? null
+    if (
+      sourceWorkspaceId &&
+      destinationWorkspaceId &&
+      sourceWorkspaceId !== destinationWorkspaceId
+    ) {
+      const [sourceContext, destinationContext] = await Promise.all([
+        resolveStorageBillingContext(sourceWorkspaceId),
+        resolveStorageBillingContext(destinationWorkspaceId),
+      ])
+      storageMove = {
+        kind: 'workspace-to-workspace',
+        sourceWorkspaceId,
+        sourceContext,
+        destinationContext,
+      }
+    } else if (sourceWorkspaceId && !destinationWorkspaceId) {
+      const [sourceContext, ownerSubscription] = await Promise.all([
+        resolveStorageBillingContext(sourceWorkspaceId),
+        getHighestPrioritySubscription(kbSnapshot.userId),
+        ensureUserStatsExists(kbSnapshot.userId),
+      ])
+      storageMove = {
+        kind: 'workspace-to-personal',
+        sourceWorkspaceId,
+        sourceContext,
+        ownerUserId: kbSnapshot.userId,
+        ownerSubscription,
+      }
+    } else if (!sourceWorkspaceId && destinationWorkspaceId) {
+      const [destinationContext, ownerSubscription] = await Promise.all([
+        resolveStorageBillingContext(destinationWorkspaceId),
+        getHighestPrioritySubscription(kbSnapshot.userId),
+        ensureUserStatsExists(kbSnapshot.userId),
+      ])
+      storageMove = {
+        kind: 'personal-to-workspace',
+        sourceWorkspaceId: null,
+        destinationContext,
+        ownerUserId: kbSnapshot.userId,
+        ownerSubscription,
+      }
+    }
+  }
+
+  /**
+   * The target permission is also resolved before the transaction so no
+   * external permission lookup holds a pooled transaction connection.
+   */
   const targetWorkspacePermission = updates.workspaceId
     ? await getUserEntityPermissions(
         options?.actorUserId as string,
@@ -283,8 +376,9 @@ export async function updateKnowledgeBase(
       )
     : null
 
+  let destinationUpdatedUsage: number | undefined
   try {
-    await db.transaction(async (tx) => {
+    destinationUpdatedUsage = await db.transaction(async (tx) => {
       const [currentKb] = await tx
         .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
         .from(knowledgeBase)
@@ -294,6 +388,12 @@ export async function updateKnowledgeBase(
 
       if (!currentKb) {
         throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+      }
+
+      if (storageMove && (currentKb.workspaceId ?? null) !== storageMove.sourceWorkspaceId) {
+        throw new Error(
+          `Knowledge base ${knowledgeBaseId} workspace changed; retry with fresh storage billing contexts`
+        )
       }
 
       if (updates.workspaceId !== undefined) {
@@ -343,6 +443,64 @@ export async function updateKnowledgeBase(
         }
       }
 
+      /**
+       * Storage lock order for a move is KB, sorted workspaces, sorted user
+       * payers, then sorted organization payers. The accounting helpers own the
+       * workspace/payer portion and keep same-payer moves aggregate-neutral.
+       * Document bytes are summed in SQL while the KB lock excludes concurrent
+       * normal document insertion.
+       */
+      let transferUpdatedUsage: number | undefined
+      if (storageMove) {
+        const [billableStorage] = await tx
+          .select({
+            bytes: sql<number>`COALESCE(SUM(${document.fileSize}), 0)`,
+          })
+          .from(document)
+          .where(
+            and(
+              eq(document.knowledgeBaseId, knowledgeBaseId),
+              isNull(document.connectorId),
+              isNull(document.deletedAt)
+            )
+          )
+          .limit(1)
+        const billableBytes = Number(billableStorage?.bytes ?? 0)
+        if (storageMove.kind === 'workspace-to-workspace') {
+          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
+            workspaceDeltas: [
+              { context: storageMove.sourceContext, deltaBytes: -billableBytes },
+              { context: storageMove.destinationContext, deltaBytes: billableBytes },
+            ],
+            legacyDeltas: [],
+          })
+        } else if (storageMove.kind === 'workspace-to-personal') {
+          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
+            workspaceDeltas: [{ context: storageMove.sourceContext, deltaBytes: -billableBytes }],
+            legacyDeltas: [
+              {
+                userId: storageMove.ownerUserId,
+                subscription: storageMove.ownerSubscription,
+                deltaBytes: billableBytes,
+              },
+            ],
+          })
+        } else {
+          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
+            workspaceDeltas: [
+              { context: storageMove.destinationContext, deltaBytes: billableBytes },
+            ],
+            legacyDeltas: [
+              {
+                userId: storageMove.ownerUserId,
+                subscription: storageMove.ownerSubscription,
+                deltaBytes: -billableBytes,
+              },
+            ],
+          })
+        }
+      }
+
       await tx
         .update(knowledgeBase)
         .set(updateData)
@@ -385,12 +543,32 @@ export async function updateKnowledgeBase(
             )
         }
       }
+
+      return transferUpdatedUsage
     })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505' && updates.name !== undefined) {
       throw new KnowledgeBaseConflictError(updates.name)
     }
     throw error
+  }
+
+  if (storageMove && destinationUpdatedUsage !== undefined) {
+    if (storageMove.kind === 'workspace-to-workspace') {
+      const sourcePayer = storageMove.sourceContext.billingEntity
+      const destinationPayer = storageMove.destinationContext.billingEntity
+      if (sourcePayer.type !== destinationPayer.type || sourcePayer.id !== destinationPayer.id) {
+        void maybeNotifyStorageLimitForBillingContext(
+          storageMove.destinationContext,
+          destinationUpdatedUsage
+        )
+      }
+    } else if (storageMove.kind === 'personal-to-workspace') {
+      void maybeNotifyStorageLimitForBillingContext(
+        storageMove.destinationContext,
+        destinationUpdatedUsage
+      )
+    }
   }
 
   const updatedKb = await db

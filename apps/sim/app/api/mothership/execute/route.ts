@@ -5,9 +5,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
@@ -110,11 +112,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       userMetadata,
     } = validation.data.body
 
-    // Bind the billing actor to the authenticated identity. The executor mints
-    // the internal JWT with the workflow owner's userId, so a token issued for
-    // one user must never be used to attribute mothership-block cost to another
-    // user via a forged body.userId. When the token carries a userId we require
-    // the body to match it; the JWT userId is authoritative.
+    /**
+     * Bind actor attribution to the authenticated identity. The executor mints
+     * the internal JWT with its principal, so the request body cannot forge a
+     * different actor. Workspace billing is resolved independently downstream.
+     */
     if (auth.userId && auth.userId !== bodyUserId) {
       logger.warn('Mothership execute userId does not match authenticated identity', {
         tokenUserId: auth.userId,
@@ -128,6 +130,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const userId = auth.userId ?? bodyUserId
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
+    const billingAttribution = requireBillingAttributionHeader(req.headers, {
+      actorUserId: userId,
+      workspaceId,
+    })
 
     const effectiveChatId = chatId || generateId()
     messageId = providedMessageId || generateId()
@@ -141,25 +147,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
-    const [workspaceContext, integrationTools, userSkillTool, userPermission, agentContexts] =
-      await Promise.all([
-        generateWorkspaceContext(workspaceId, userId),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        buildUserSkillTool(workspaceId),
-        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-        processContextsServer(
-          agentMentions,
-          userId,
-          lastUserMessage,
-          workspaceId,
-          effectiveChatId
-        ).catch((error) => {
-          reqLogger.warn('Failed to resolve agent contexts for execution', {
-            error: toError(error).message,
-          })
-          return []
-        }),
-      ])
+    const [
+      workspaceContext,
+      integrationTools,
+      userSkillTool,
+      userPermission,
+      entitlements,
+      agentContexts,
+    ] = await Promise.all([
+      generateWorkspaceContext(workspaceId, userId),
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+      buildUserSkillTool(workspaceId),
+      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+      computeWorkspaceEntitlements(workspaceId, userId),
+      processContextsServer(
+        agentMentions,
+        userId,
+        lastUserMessage,
+        workspaceId,
+        effectiveChatId
+      ).catch((error) => {
+        reqLogger.warn('Failed to resolve agent contexts for execution', {
+          error: toError(error).message,
+        })
+        return []
+      }),
+    ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -182,6 +195,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),
+      ...(entitlements.length > 0 ? { entitlements } : {}),
     }
 
     let allowExplicitAbort = true
@@ -231,6 +245,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         autoExecuteTools: true,
         interactive: false,
         abortSignal: lifecycleAbortController.signal,
+        billingAttribution,
         onEvent,
       })
 

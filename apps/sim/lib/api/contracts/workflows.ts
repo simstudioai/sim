@@ -3,7 +3,9 @@ import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
-const executionIdSchema = z
+export const WORKFLOW_EXECUTION_ID_HEADER = 'X-Execution-Id'
+
+export const executionIdSchema = z
   .string()
   .min(1, 'Invalid execution ID')
   .max(128, 'Execution ID too long')
@@ -329,6 +331,10 @@ export const executeWorkflowTriggerTypeSchema = z.enum([
   'workflow',
 ])
 
+export const executeWorkflowHeadersSchema = z.object({
+  [WORKFLOW_EXECUTION_ID_HEADER]: executionIdSchema.optional(),
+})
+
 export const executeWorkflowBodySchema = z.object({
   selectedOutputs: z.array(z.string()).optional().default([]),
   triggerType: executeWorkflowTriggerTypeSchema.optional(),
@@ -339,7 +345,7 @@ export const executeWorkflowBodySchema = z.object({
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: workflowStateSchema.optional(),
-  executionId: executionIdSchema.optional(),
+  executionId: z.unknown().optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),
@@ -529,6 +535,7 @@ const workflowExecutionPausedDetailSchema = z.object({
   resumeAt: z.string().nullable(),
   pauseKind: z.enum(['time', 'human']).nullable(),
   blockedOnBlockId: z.string().nullable(),
+  automaticResumeWaitingReason: z.string().nullable(),
   pausedExecutionId: z.string(),
   pausePointCount: z.number(),
   resumedCount: z.number(),

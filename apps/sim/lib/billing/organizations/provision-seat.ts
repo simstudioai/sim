@@ -1,12 +1,12 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
-import { ensureOrganizationForTeamSubscription } from '@/lib/billing/organization'
+import { assertNoUnresolvedEnterpriseIssuance } from '@/lib/billing/enterprise-outbox'
+import { ensureOrganizationForTeamSubscriptionTx } from '@/lib/billing/organization'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import {
   buildPlanName,
   getPlanTierCredits,
@@ -18,58 +18,40 @@ import { getPlanByName } from '@/lib/billing/plans'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
-import { captureServerEvent } from '@/lib/posthog/server'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('ProvisionSeat')
 
-interface RecordPlanConversionParams {
+export interface AcceptancePlanConversion {
   organizationId: string
   actorId: string
   fromPlan: string
   toPlan: string
 }
 
-/**
- * Record telemetry for a Pro→Team plan conversion triggered by invite
- * acceptance. Fire-and-forget — `recordAudit` and `captureServerEvent` never
- * throw, so this can never break the conversion flow. The billing interval is
- * preserved across the conversion, so it is reported as `unchanged`.
- */
-function recordPlanConversion({
-  organizationId,
-  actorId,
-  fromPlan,
-  toPlan,
-}: RecordPlanConversionParams): void {
-  recordAudit({
-    workspaceId: null,
-    actorId,
-    action: AuditAction.ORG_PLAN_CONVERTED,
-    resourceType: AuditResourceType.ORGANIZATION,
-    resourceId: organizationId,
-    description: `Converted ${fromPlan} to ${toPlan}`,
-    metadata: {
-      fromPlan,
-      toPlan,
-      trigger: 'invite-acceptance',
-    },
-  })
-  captureServerEvent(actorId, 'subscription_changed', {
-    from_plan: fromPlan,
-    to_plan: toPlan,
-    interval: 'unchanged',
-  })
+export interface AcceptanceProvisioningPostCommitEffects {
+  planConversions: AcceptancePlanConversion[]
+  usageLimitUserIds: string[]
 }
 
 export type EnsureTeamOrganizationFailureCode = 'upgrade-required' | 'server-error'
 
 export type EnsureTeamOrganizationResult =
-  | { success: true; organizationId: string; fixedSeats: boolean }
+  | {
+      success: true
+      organizationId: string
+      fixedSeats: boolean
+      postCommitEffects?: AcceptanceProvisioningPostCommitEffects
+    }
   | { success: false; failureCode: EnsureTeamOrganizationFailureCode }
 
 interface EnsureTeamOrganizationParams {
   billingOwnerUserId: string
   workspaceOrganizationId: string | null
+  /** Transaction that also accepts the invitation and grants permissions. */
+  executor: DbOrTx
+  /** Workspace rows already covered by the caller's invitation/workspace locks. */
+  workspaceIdsToAttach: string[]
 }
 
 /**
@@ -95,13 +77,21 @@ interface EnsureTeamOrganizationParams {
 export async function ensureTeamOrganizationForAcceptance(
   params: EnsureTeamOrganizationParams
 ): Promise<EnsureTeamOrganizationResult> {
-  const { billingOwnerUserId, workspaceOrganizationId } = params
+  const { billingOwnerUserId, workspaceOrganizationId, executor, workspaceIdsToAttach } = params
 
   try {
     if (workspaceOrganizationId) {
-      return await ensureOrganizationOnTeamPlan(workspaceOrganizationId, billingOwnerUserId)
+      return await ensureOrganizationOnTeamPlan(
+        workspaceOrganizationId,
+        billingOwnerUserId,
+        executor
+      )
     }
-    return await convertPersonalSubscriptionToTeam(billingOwnerUserId)
+    return await convertPersonalSubscriptionToTeam(
+      billingOwnerUserId,
+      workspaceIdsToAttach,
+      executor
+    )
   } catch (error) {
     logger.error('Failed to ensure team organization for acceptance', {
       billingOwnerUserId,
@@ -114,9 +104,16 @@ export async function ensureTeamOrganizationForAcceptance(
 
 async function ensureOrganizationOnTeamPlan(
   organizationId: string,
-  actorId: string
+  actorId: string,
+  executor: DbOrTx
 ): Promise<EnsureTeamOrganizationResult> {
-  const orgSub = await getOrganizationSubscription(organizationId)
+  await acquireOrganizationMutationLock(executor, organizationId)
+  await assertNoUnresolvedEnterpriseIssuance(executor, organizationId)
+
+  const orgSub = await getOrganizationSubscription(organizationId, {
+    onError: 'throw',
+    executor,
+  })
   if (!orgSub || !hasUsableSubscriptionStatus(orgSub.status)) {
     return { success: false, failureCode: 'upgrade-required' }
   }
@@ -130,22 +127,30 @@ async function ensureOrganizationOnTeamPlan(
     if (!targetPlan) {
       return { success: false, failureCode: 'upgrade-required' }
     }
-    await activateTeamSubscription(orgSub, targetPlan, { planChanged: true })
-    recordPlanConversion({
+    await activateTeamSubscription(orgSub, targetPlan, { planChanged: true }, executor)
+    return {
+      success: true,
       organizationId,
-      actorId,
-      fromPlan: orgSub.plan,
-      toPlan: targetPlan,
-    })
+      fixedSeats: false,
+      postCommitEffects: {
+        planConversions: [{ organizationId, actorId, fromPlan: orgSub.plan, toPlan: targetPlan }],
+        usageLimitUserIds: [],
+      },
+    }
   }
 
   return { success: true, organizationId, fixedSeats: false }
 }
 
 async function convertPersonalSubscriptionToTeam(
-  userId: string
+  userId: string,
+  workspaceIdsToAttach: string[],
+  executor: DbOrTx
 ): Promise<EnsureTeamOrganizationResult> {
-  const personalSub = await getHighestPriorityPersonalSubscription(userId)
+  const personalSub = await getHighestPriorityPersonalSubscription(userId, {
+    onError: 'throw',
+    executor,
+  })
   if (!personalSub || !hasUsableSubscriptionStatus(personalSub.status)) {
     return { success: false, failureCode: 'upgrade-required' }
   }
@@ -160,15 +165,27 @@ async function convertPersonalSubscriptionToTeam(
     return { success: false, failureCode: 'upgrade-required' }
   }
 
-  await activateTeamSubscription(personalSub, targetPlan, { planChanged: !alreadyTeam })
-
-  const updated = await ensureOrganizationForTeamSubscription({
+  // Discover/reuse/create the organization and acquire its mutation lock
+  // before touching the personal subscription row. Org membership paths take
+  // the opposite resources in org -> subscription order while pausing a
+  // member's personal Pro; updating the subscription first would create a
+  // lock inversion. Everything still shares the caller's transaction, so a
+  // later plan/outbox failure rolls the org and workspace work back too.
+  const updated = await ensureOrganizationForTeamSubscriptionTx(executor, {
     id: personalSub.id,
     plan: targetPlan,
     referenceId: userId,
     status: personalSub.status,
     seats: personalSub.seats ?? 1,
+    workspaceIdsToAttach,
   })
+
+  // The conversion helper acquires the organization mutation lock. Re-read
+  // the outbox intent while that transaction-scoped lock is still held so a
+  // reused organization cannot be converted while Enterprise is unresolved.
+  await assertNoUnresolvedEnterpriseIssuance(executor, updated.referenceId)
+
+  await activateTeamSubscription(personalSub, targetPlan, { planChanged: !alreadyTeam }, executor)
 
   logger.info('Converted personal subscription to Team on invite acceptance', {
     userId,
@@ -177,16 +194,30 @@ async function convertPersonalSubscriptionToTeam(
     upgradedFromPro: !alreadyTeam,
   })
 
-  if (!alreadyTeam) {
-    recordPlanConversion({
-      organizationId: updated.referenceId,
-      actorId: userId,
-      fromPlan: personalSub.plan,
-      toPlan: targetPlan,
-    })
-  }
+  const planConversions = alreadyTeam
+    ? []
+    : [
+        {
+          organizationId: updated.referenceId,
+          actorId: userId,
+          fromPlan: personalSub.plan,
+          toPlan: targetPlan,
+        },
+      ]
 
-  return { success: true, organizationId: updated.referenceId, fixedSeats: false }
+  return {
+    success: true,
+    organizationId: updated.referenceId,
+    fixedSeats: false,
+    ...(planConversions.length > 0 || updated.usageLimitUserIds.length > 0
+      ? {
+          postCommitEffects: {
+            planConversions,
+            usageLimitUserIds: updated.usageLimitUserIds,
+          },
+        }
+      : {}),
+  }
 }
 
 /**
@@ -202,12 +233,13 @@ async function convertPersonalSubscriptionToTeam(
 async function activateTeamSubscription(
   sub: { id: string; cancelAtPeriodEnd?: boolean | null; stripeSubscriptionId: string | null },
   targetPlan: string,
-  { planChanged }: { planChanged: boolean }
+  { planChanged }: { planChanged: boolean },
+  executor: DbOrTx
 ): Promise<void> {
   const shouldClearCancellation =
     Boolean(sub.cancelAtPeriodEnd) && Boolean(sub.stripeSubscriptionId)
 
-  await db.transaction(async (tx) => {
+  const apply = async (tx: DbOrTx) => {
     await tx
       .update(subscriptionTable)
       .set({ plan: targetPlan, cancelAtPeriodEnd: false })
@@ -227,7 +259,9 @@ async function activateTeamSubscription(
         reason: 'pro-to-team-conversion',
       })
     }
-  })
+  }
+
+  await apply(executor)
 }
 
 /**

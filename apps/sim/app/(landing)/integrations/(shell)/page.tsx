@@ -7,6 +7,7 @@ import {
   INTEGRATIONS,
   type Integration,
   POPULAR_WORKFLOWS,
+  toIntegrationSummary,
 } from '@/lib/integrations'
 import { withFilteredNoindex } from '@/lib/landing/seo'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
@@ -17,6 +18,7 @@ import { RequestIntegrationModal } from '@/app/(landing)/integrations/components
 import { integrationsSearchParamsCache } from '@/app/(landing)/integrations/search-params'
 
 const allIntegrations = INTEGRATIONS
+const integrationSummaries = allIntegrations.map(toIntegrationSummary)
 const INTEGRATION_COUNT = allIntegrations.length
 const OAUTH_COUNT = allIntegrations.filter((i) => i.authType === 'oauth').length
 const TRIGGER_INTEGRATION_COUNT = allIntegrations.filter((i) => i.triggerCount > 0).length
@@ -75,9 +77,9 @@ const INTEGRATIONS_BREADCRUMB_JSON_LD = {
 const FEATURED_SLUGS = ['slack', 'notion', 'github', 'gmail'] as const
 
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
-const featured = FEATURED_SLUGS.map((s) => bySlug.get(s)).filter(
-  (i): i is Integration => i !== undefined
-)
+const featured = FEATURED_SLUGS.map((s) => bySlug.get(s))
+  .filter((i): i is Integration => i !== undefined)
+  .map(toIntegrationSummary)
 
 /**
  * `q`/`category` render a genuinely different server-rendered list (see
@@ -215,7 +217,7 @@ export default async function IntegrationsPage({
                 All Integrations
               </h2>
             </div>
-            <IntegrationGrid integrations={allIntegrations} />
+            <IntegrationGrid integrations={integrationSummaries} />
           </section>
 
           {/* FAQ */}

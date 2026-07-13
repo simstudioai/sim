@@ -1,4 +1,5 @@
 import { ChipLink, cn } from '@sim/emcn'
+import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
 /**
  * Hero-scale sizing shared by both CTAs - one step up from the navbar's 30px
@@ -24,11 +25,11 @@ const CTA_SIZE = 'h-[36px] px-[0.571em] text-[15px] [&>span]:[font-size:inherit]
 export function HeroCta() {
   return (
     <div className='flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch'>
-      <ChipLink variant='primary' href='/demo' className={CTA_SIZE}>
+      <ChipLink variant='primary' href={DEMO_HREF} className={CTA_SIZE}>
         Request a demo
       </ChipLink>
       <ChipLink
-        href='/signup'
+        href={SIGNUP_HREF}
         prefetch={false}
         className={cn(CTA_SIZE, 'border border-[var(--border-1)] max-sm:justify-center')}
       >

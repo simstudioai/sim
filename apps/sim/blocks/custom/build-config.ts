@@ -33,6 +33,7 @@ export interface CustomBlockInput {
   type: string
   placeholder?: string
   description?: string
+  required?: boolean
 }
 
 /**
@@ -108,6 +109,9 @@ export function buildCustomBlockConfig(
       type,
       description: field.description,
       placeholder: field.placeholder,
+      // Serializer Loop-B (required subBlocks not covered by tool params) and the
+      // editor asterisk both read this — same enforcement path as regular blocks.
+      required: field.required === true,
     }
     if (field.type === 'object' || field.type === 'array') sub.language = 'json'
     if (field.type === 'file[]') sub.multiple = true

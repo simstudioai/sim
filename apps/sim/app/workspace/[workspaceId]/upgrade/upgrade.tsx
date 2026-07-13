@@ -5,6 +5,7 @@ import { ArrowLeft, Chip, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { useSession } from '@/lib/auth/auth-client'
 import {
   getUpgradeCardCta,
   type PlanCardCta,
@@ -13,7 +14,9 @@ import {
 } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
 import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   BillingPeriodToggle,
   ComparisonTable,
@@ -50,8 +53,10 @@ export interface UpgradeProps {
  * Billing settings page.
  */
 export function Upgrade({ workspaceId }: UpgradeProps) {
-  const state = useUpgradeState()
   const router = useRouter()
+  const { data: session } = useSession()
+  const hostContext = useWorkspaceHostContext()
+  const state = useUpgradeState({ hostContext, workspaceId })
   const origin = useFullscreenOriginStore((s) => s.origin)
   const [reason] = useQueryState(upgradeReasonParam.key, {
     ...upgradeReasonParam.parser,
@@ -60,6 +65,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const [showAllFeatures, setShowAllFeatures] = useState(false)
 
   const header = reason ? UPGRADE_REASON_COPY[reason].header : DEFAULT_UPGRADE_HEADER
+  const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
 
   const handleBack = useCallback(() => {
     router.replace(origin ?? `/workspace/${workspaceId}/home`)
@@ -72,15 +78,46 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
       router.replace(`/workspace/${workspaceId}/home`)
       return
     }
-    if (!state.isLoading && state.subscription.isEnterprise) {
+    if (canManageBilling && !state.isLoading && state.subscription.isEnterprise) {
       router.replace(`/workspace/${workspaceId}/home`)
     }
-  }, [state.isLoading, state.subscription.isEnterprise, router, workspaceId])
+  }, [canManageBilling, state.isLoading, state.subscription.isEnterprise, router, workspaceId])
 
-  if (!isBillingEnabled || state.isLoading || state.subscription.isEnterprise) return null
+  if (
+    !isBillingEnabled ||
+    state.isLoading ||
+    (canManageBilling && state.subscription.isEnterprise)
+  ) {
+    return null
+  }
+
+  if (!canManageBilling) {
+    const description = hostContext.hostOrganizationId
+      ? `Plans for ${hostContext.workspace.name} are managed by its organization administrators. Contact an organization admin to change this workspace’s plan.`
+      : `Only the owner of ${hostContext.workspace.name} can change this workspace’s plan.`
+
+    return (
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <Chip leftIcon={ArrowLeft} onClick={handleBack}>
+            Back
+          </Chip>
+        </div>
+        <div className='flex min-h-0 flex-1 items-center justify-center px-6'>
+          <div className='flex max-w-md flex-col items-center gap-3 text-center'>
+            <h1 className='font-medium text-[var(--text-body)] text-lg'>
+              Workspace plans unavailable
+            </h1>
+            <p className='text-[var(--text-muted)] text-sm'>{description}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Enterprise is redirected above, so the current plan is only ever free/pro/max here.
   const planTier: PlanTier = state.subscription.isFree ? 'free' : state.isOnMaxTier ? 'max' : 'pro'
+  const checkoutTarget = state.subscription.isOrgScoped ? 'team' : 'pro'
 
   /**
    * Resolve a card's CTA from the canonical matrix, then bind it to the matching
@@ -120,9 +157,9 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
         case 'upgrade':
           if (card === 'max') {
             if (state.subscription.isPaid) void state.upgradeOrSwitchToMax()
-            else state.doUpgrade('pro', state.maxTier.credits)
+            else state.doUpgrade(checkoutTarget, state.maxTier.credits)
           } else {
-            state.doUpgrade('pro', state.proTier.credits)
+            state.doUpgrade(checkoutTarget, state.proTier.credits)
           }
       }
     }

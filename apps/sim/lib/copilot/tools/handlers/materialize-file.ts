@@ -4,12 +4,19 @@ import { workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
+import {
+  checkStorageQuotaForBillingContext,
+  incrementStorageUsageForBillingContextInTx,
+  maybeNotifyStorageLimitForBillingContext,
+  resolveStorageBillingContext,
+} from '@/lib/billing/storage'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -35,7 +42,11 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
   }
 }
 
-async function executeSave(fileName: string, chatId: string): Promise<ToolCallResult> {
+async function executeSave(
+  fileName: string,
+  chatId: string,
+  workspaceId: string
+): Promise<ToolCallResult> {
   const row = await findMothershipUploadRowByChatAndName(chatId, fileName)
   if (!row) {
     return {
@@ -43,21 +54,75 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
       error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
     }
   }
-
-  const [updated] = await db
-    .update(workspaceFiles)
-    .set({ context: 'workspace', chatId: null, originalName: row.displayName ?? row.originalName })
-    .where(and(eq(workspaceFiles.id, row.id), isNull(workspaceFiles.deletedAt)))
-    .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
-
-  if (!updated) {
-    return {
-      success: false,
-      error: `Upload not found: "${fileName}". Use glob("uploads/*") to list available uploads.`,
-    }
+  if (row.workspaceId !== workspaceId) {
+    return { success: false, error: `Upload not found: "${fileName}".` }
   }
 
-  logger.info('Materialized file', { fileName, fileId: updated.id, chatId })
+  const head = await headObject(row.key, 'mothership')
+  if (!head && hasCloudStorage()) {
+    return { success: false, error: `Upload object not found: "${fileName}".` }
+  }
+  const verifiedSize = head?.size ?? row.size
+  const billingContext = await resolveStorageBillingContext(workspaceId)
+  const quotaCheck = await checkStorageQuotaForBillingContext(billingContext, verifiedSize)
+  if (!quotaCheck.allowed) {
+    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+  }
+
+  /**
+   * The conditional transition makes concurrent replays no-ops. If it wins,
+   * lock order is workspace -> file row -> payer: the explicit workspace lock
+   * precedes the conditional file update, then the storage helper reuses that
+   * workspace lock before locking its payer. Any quota/stale-payer failure
+   * rolls back the row transition.
+   */
+  const transition = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR UPDATE`)
+
+    const [updated] = await tx
+      .update(workspaceFiles)
+      .set({
+        context: 'workspace',
+        chatId: null,
+        originalName: row.displayName ?? row.originalName,
+        size: verifiedSize,
+      })
+      .where(
+        and(
+          eq(workspaceFiles.id, row.id),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.chatId, chatId),
+          eq(workspaceFiles.context, 'mothership'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
+
+    if (!updated) {
+      return null
+    }
+
+    const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+      tx,
+      billingContext,
+      verifiedSize
+    )
+    return { updated, updatedUsage }
+  })
+
+  const updated = transition?.updated ?? {
+    id: row.id,
+    originalName: row.displayName ?? row.originalName,
+  }
+  if (transition?.updatedUsage !== undefined) {
+    void maybeNotifyStorageLimitForBillingContext(billingContext, transition.updatedUsage)
+  }
+
+  logger.info(transition ? 'Materialized file' : 'Materialize replay was a no-op', {
+    fileName,
+    fileId: updated.id,
+    chatId,
+  })
 
   // Canonical, per-segment-encoded path — matches how the workspace VFS serves
   // the file (files/<encoded>), rather than echoing the raw display name.
@@ -226,7 +291,7 @@ export async function executeMaterializeFile(
       if (operation === 'import') {
         result = await executeImport(fileName, context.chatId, context.workspaceId, context.userId)
       } else {
-        result = await executeSave(fileName, context.chatId)
+        result = await executeSave(fileName, context.chatId, context.workspaceId)
       }
 
       if (result.success) {

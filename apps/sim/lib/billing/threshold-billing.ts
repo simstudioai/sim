@@ -2,15 +2,18 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { BILLING_LOCK_TIMEOUT_MS, DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { calculateSubscriptionOverage, computeOrgOverageAmount } from '@/lib/billing/core/billing'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
+  getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
   getOrganizationSubscriptionUsable,
 } from '@/lib/billing/core/subscription'
-import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
   hasUsableSubscriptionAccess,
@@ -42,23 +45,237 @@ interface OrganizationUsageSnapshot {
   departedMemberUsage: number
 }
 
-export async function checkAndBillOverageThreshold(userId: string): Promise<void> {
+interface ThresholdBillingPeriod {
+  start: Date
+  end: Date
+}
+
+export type ThresholdSettlementErrorCode =
+  | 'billing_period_mismatch'
+  | 'concurrent_state_change'
+  | 'provider_failure'
+  | 'required_state_missing'
+
+export type ThresholdSettlementNoOpReason =
+  | 'already-settled'
+  | 'below-threshold'
+  | 'billing-blocked'
+  | 'billing-ineligible'
+  | 'no-subscription'
+  | 'plan-ineligible'
+
+export type ThresholdSettlementOutcome =
+  | {
+      status: 'no-op'
+      reason: ThresholdSettlementNoOpReason
+    }
+  | {
+      status: 'settled'
+      settledVia: 'credits' | 'stripe'
+    }
+
+export class ThresholdSettlementError extends Error {
+  readonly retryable = true
+
+  constructor(
+    readonly code: ThresholdSettlementErrorCode,
+    message: string,
+    options?: ErrorOptions
+  ) {
+    super(message, options)
+    this.name = 'ThresholdSettlementError'
+  }
+}
+
+export interface ThresholdBillingOptions {
+  onError?: 'log' | 'throw'
+  expectedBillingPeriod?: ThresholdBillingPeriod
+}
+
+type InternalThresholdSettlementResult =
+  | {
+      status: 'no-op'
+      reason: ThresholdSettlementNoOpReason | 'concurrent-state-change' | 'required-state-missing'
+    }
+  | {
+      status: 'settled'
+      amount: number
+      creditsApplied: number
+      settledVia: 'credits' | 'stripe'
+    }
+
+function publicSettlementOutcome(
+  options: ThresholdBillingOptions,
+  result: InternalThresholdSettlementResult
+): ThresholdSettlementOutcome | undefined {
+  if (result.status === 'no-op') {
+    if (result.reason === 'concurrent-state-change' || result.reason === 'required-state-missing') {
+      return undefined
+    }
+    return options.expectedBillingPeriod ? { status: 'no-op', reason: result.reason } : undefined
+  }
+  return options.expectedBillingPeriod
+    ? { status: 'settled', settledVia: result.settledVia }
+    : undefined
+}
+
+function noOp(
+  options: ThresholdBillingOptions,
+  reason: ThresholdSettlementNoOpReason
+): ThresholdSettlementOutcome | undefined {
+  return options.expectedBillingPeriod ? { status: 'no-op', reason } : undefined
+}
+
+function requireSettlementState(
+  options: ThresholdBillingOptions,
+  message: string
+): InternalThresholdSettlementResult {
+  if (options.onError === 'throw') {
+    throw new ThresholdSettlementError('required_state_missing', message)
+  }
+  return { status: 'no-op', reason: 'required-state-missing' }
+}
+
+function requireSettlementStateOutcome(
+  options: ThresholdBillingOptions,
+  message: string
+): ThresholdSettlementOutcome | undefined {
+  return publicSettlementOutcome(options, requireSettlementState(options, message))
+}
+
+function retryConcurrentSettlement(
+  options: ThresholdBillingOptions,
+  message: string
+): InternalThresholdSettlementResult {
+  if (options.onError === 'throw') {
+    throw new ThresholdSettlementError('concurrent_state_change', message)
+  }
+  return { status: 'no-op', reason: 'concurrent-state-change' }
+}
+
+function assertExpectedBillingPeriod(
+  billingEntity: BillingEntity,
+  periodStart: Date | null | undefined,
+  periodEnd: Date | null | undefined,
+  options: ThresholdBillingOptions
+): void {
+  const expected = options.expectedBillingPeriod
+  if (!expected) return
+
+  if (!periodStart || !periodEnd) {
+    logger.error('Resolved subscription is missing its billing period', {
+      billingEntity,
+      expectedPeriodStart: expected.start.toISOString(),
+      expectedPeriodEnd: expected.end.toISOString(),
+    })
+    if (options.onError === 'throw') {
+      throw new ThresholdSettlementError(
+        'required_state_missing',
+        'Resolved subscription is missing its billing period'
+      )
+    }
+    return
+  }
+
+  if (
+    periodStart.getTime() !== expected.start.getTime() ||
+    periodEnd.getTime() !== expected.end.getTime()
+  ) {
+    logger.warn('Frozen billing period does not match the resolved subscription period', {
+      billingEntity,
+      expectedPeriodStart: expected.start.toISOString(),
+      expectedPeriodEnd: expected.end.toISOString(),
+      resolvedPeriodStart: periodStart.toISOString(),
+      resolvedPeriodEnd: periodEnd.toISOString(),
+    })
+    throw new ThresholdSettlementError(
+      'billing_period_mismatch',
+      'Frozen billing period is no longer the active subscription period'
+    )
+  }
+}
+
+function normalizeSettlementError(error: unknown, options: ThresholdBillingOptions): unknown {
+  if (options.onError !== 'throw' || error instanceof ThresholdSettlementError) {
+    return error
+  }
+  return new ThresholdSettlementError('provider_failure', 'Billing settlement provider failed', {
+    cause: toError(error),
+  })
+}
+
+function shouldThrowSettlementError(error: unknown, options: ThresholdBillingOptions): boolean {
+  return (
+    options.onError === 'throw' ||
+    (error instanceof ThresholdSettlementError && error.code === 'billing_period_mismatch')
+  )
+}
+
+/**
+ * Runs threshold billing against an already-resolved payer entity.
+ */
+export async function checkAndBillPayerOverageThreshold(
+  billingEntity: BillingEntity,
+  options: ThresholdBillingOptions = {}
+): Promise<ThresholdSettlementOutcome | undefined> {
+  if (billingEntity.type === 'organization') {
+    return checkAndBillOrganizationOverageThreshold(billingEntity.id, options)
+  }
+
+  let personalSubscription: HighestPrioritySubscription
+  try {
+    personalSubscription = await getHighestPriorityPersonalSubscription(billingEntity.id, {
+      onError: 'throw',
+    })
+  } catch (error) {
+    const settlementError = normalizeSettlementError(error, options)
+    logger.error('Unable to resolve personal subscription for threshold settlement', {
+      billingEntity,
+      error: toError(settlementError).message,
+      settlementErrorCode:
+        settlementError instanceof ThresholdSettlementError ? settlementError.code : undefined,
+    })
+    if (shouldThrowSettlementError(settlementError, options)) {
+      throw settlementError
+    }
+    return undefined
+  }
+  return checkAndBillOverageThreshold(billingEntity.id, personalSubscription, options)
+}
+
+export async function checkAndBillOverageThreshold(
+  userId: string,
+  preloadedSubscription?: HighestPrioritySubscription,
+  options: ThresholdBillingOptions = {}
+): Promise<ThresholdSettlementOutcome | undefined> {
   try {
     const threshold = OVERAGE_THRESHOLD
 
-    const userSubscription = await getHighestPrioritySubscription(userId)
+    const userSubscription =
+      preloadedSubscription === undefined
+        ? await getHighestPrioritySubscription(userId)
+        : preloadedSubscription
     const billingStatus = await getEffectiveBillingStatus(userId)
 
-    if (
-      !userSubscription ||
-      !hasUsableSubscriptionAccess(userSubscription.status, billingStatus.billingBlocked)
-    ) {
+    if (!userSubscription) {
       logger.debug('No active subscription for threshold billing', { userId })
-      return
+      return noOp(options, 'no-subscription')
+    }
+
+    assertExpectedBillingPeriod(
+      { type: 'user', id: userId },
+      userSubscription.periodStart,
+      userSubscription.periodEnd,
+      options
+    )
+
+    if (!hasUsableSubscriptionAccess(userSubscription.status, billingStatus.billingBlocked)) {
+      logger.debug('Subscription is not eligible for threshold billing', { userId })
+      return noOp(options, 'billing-ineligible')
     }
 
     if (isFree(userSubscription.plan) || isEnterprise(userSubscription.plan)) {
-      return
+      return noOp(options, 'plan-ineligible')
     }
 
     // Org-scoped subs are billed at the org level regardless of plan name.
@@ -68,14 +285,13 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         organizationId: userSubscription.referenceId,
         plan: userSubscription.plan,
       })
-      await checkAndBillOrganizationOverageThreshold(userSubscription.referenceId)
-      return
+      return checkAndBillOrganizationOverageThreshold(userSubscription.referenceId, options)
     }
 
     const usageSnapshot = await getPersonalUsageSnapshot(userId)
     if (!usageSnapshot) {
       logger.warn('User stats not found for threshold billing', { userId })
-      return
+      return requireSettlementStateOutcome(options, 'User stats are required for settlement')
     }
 
     const currentOverage = await calculateSubscriptionOverage({
@@ -94,13 +310,16 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         currentOverage,
         threshold,
       })
-      return
+      return noOp(options, 'below-threshold')
     }
 
     const stripeSubscriptionId = userSubscription.stripeSubscriptionId
     if (!stripeSubscriptionId) {
       logger.error('No Stripe subscription ID found', { userId })
-      return
+      return requireSettlementStateOutcome(
+        options,
+        'Stripe subscription state is required for settlement'
+      )
     }
 
     const customerRows = await db
@@ -111,7 +330,10 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
     const customerId = customerRows[0]?.stripeCustomerId
     if (!customerId) {
       logger.error('No Stripe customer ID found', { userId, subscriptionId: userSubscription.id })
-      return
+      return requireSettlementStateOutcome(
+        options,
+        'Stripe customer state is required for settlement'
+      )
     }
 
     const periodEnd = userSubscription.periodEnd
@@ -121,13 +343,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
     const totalOverageCents = Math.round(currentOverage * 100)
 
     const billedResult = await db.transaction(
-      async (
-        tx
-      ): Promise<{
-        amount: number
-        creditsApplied: number
-        settledVia: 'stripe' | 'credits'
-      } | null> => {
+      async (tx): Promise<InternalThresholdSettlementResult> => {
         await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
         const statsRecords = await tx
@@ -139,7 +355,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
 
         if (statsRecords.length === 0) {
           logger.warn('User stats not found for threshold billing', { userId })
-          return null
+          return requireSettlementState(options, 'User stats are required for settlement')
         }
 
         const stats = statsRecords[0]
@@ -150,7 +366,10 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
             usageSnapshot,
             lockedUsageSnapshot,
           })
-          return null
+          return retryConcurrentSettlement(
+            options,
+            'Personal usage changed during threshold settlement'
+          )
         }
 
         const billedOverageThisPeriod = toNumber(toDecimal(stats.billedOverageThisPeriod))
@@ -166,7 +385,10 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         })
 
         if (unbilledOverage < threshold) {
-          return null
+          return {
+            status: 'no-op',
+            reason: unbilledOverage <= USAGE_TOTAL_EPSILON ? 'already-settled' : 'below-threshold',
+          }
         }
 
         // Apply credits to reduce the amount to bill (use stats from locked row)
@@ -206,7 +428,12 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
             creditsApplied,
             unbilledOverage,
           })
-          return { amount: unbilledOverage, creditsApplied, settledVia: 'credits' }
+          return {
+            status: 'settled',
+            amount: unbilledOverage,
+            creditsApplied,
+            settledVia: 'credits',
+          }
         }
 
         const amountCents = Math.round(amountToBill * 100)
@@ -246,11 +473,11 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
           newBilledTotal: billedOverageThisPeriod + unbilledOverage,
         })
 
-        return { amount: amountToBill, creditsApplied, settledVia: 'stripe' }
+        return { status: 'settled', amount: amountToBill, creditsApplied, settledVia: 'stripe' }
       }
     )
 
-    if (billedResult) {
+    if (billedResult.status === 'settled') {
       const { amount, creditsApplied, settledVia } = billedResult
       const settledLabel = settledVia === 'credits' ? 'covered by credits' : 'billed'
       recordAudit({
@@ -278,33 +505,51 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         settled_via: settledVia,
       })
     }
+    return publicSettlementOutcome(options, billedResult)
   } catch (error) {
+    const settlementError = normalizeSettlementError(error, options)
     logger.error('Error in threshold billing check', {
       userId,
-      error,
+      error: toError(settlementError).message,
+      settlementErrorCode:
+        settlementError instanceof ThresholdSettlementError ? settlementError.code : undefined,
     })
+    if (shouldThrowSettlementError(settlementError, options)) {
+      throw settlementError
+    }
   }
 }
 
-async function checkAndBillOrganizationOverageThreshold(organizationId: string): Promise<void> {
-  logger.info('=== ENTERED checkAndBillOrganizationOverageThreshold ===', { organizationId })
-
+async function checkAndBillOrganizationOverageThreshold(
+  organizationId: string,
+  options: ThresholdBillingOptions
+): Promise<ThresholdSettlementOutcome | undefined> {
   try {
     const threshold = OVERAGE_THRESHOLD
 
-    if (await isOrganizationBillingBlocked(organizationId)) {
-      logger.debug('Organization billing blocked for threshold billing', { organizationId })
-      return
-    }
-
     logger.debug('Starting organization threshold billing check', { organizationId, threshold })
 
-    const orgSubscription = await getOrganizationSubscriptionUsable(organizationId)
+    const orgSubscription = await getOrganizationSubscriptionUsable(organizationId, {
+      onError: options.onError === 'throw' ? 'throw' : 'return-null',
+    })
 
     if (!orgSubscription) {
       logger.debug('No active subscription for organization', { organizationId })
-      return
+      return noOp(options, 'no-subscription')
     }
+
+    assertExpectedBillingPeriod(
+      { type: 'organization', id: organizationId },
+      orgSubscription.periodStart,
+      orgSubscription.periodEnd,
+      options
+    )
+
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      logger.debug('Organization billing blocked for threshold billing', { organizationId })
+      return noOp(options, 'billing-blocked')
+    }
+
     logger.debug('Found organization subscription', {
       organizationId,
       plan: orgSubscription.plan,
@@ -317,7 +562,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         organizationId,
         plan: orgSubscription.plan,
       })
-      return
+      return noOp(options, 'plan-ineligible')
     }
 
     const memberUsageRows = await db
@@ -340,7 +585,10 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
 
     if (memberUsageRows.length === 0) {
       logger.warn('No members found for organization', { organizationId })
-      return
+      return requireSettlementStateOutcome(
+        options,
+        'Organization members are required for settlement'
+      )
     }
 
     const usageSnapshot = buildOrganizationUsageSnapshot(memberUsageRows)
@@ -349,7 +597,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         'Organization has no owner when running threshold billing — data integrity issue, skipping',
         { organizationId }
       )
-      return
+      return requireSettlementStateOutcome(options, 'Organization owner is required for settlement')
     }
 
     logger.debug('Found organization owner, starting transaction', {
@@ -391,20 +639,26 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         currentOverage,
         threshold,
       })
-      return
+      return noOp(options, 'below-threshold')
     }
 
     // Validate Stripe identifiers BEFORE mutating credits/trackers.
     const stripeSubscriptionId = orgSubscription.stripeSubscriptionId
     if (!stripeSubscriptionId) {
       logger.error('No Stripe subscription ID for organization', { organizationId })
-      return
+      return requireSettlementStateOutcome(
+        options,
+        'Stripe subscription state is required for organization settlement'
+      )
     }
 
     const customerId = orgSubscription.stripeCustomerId
     if (!customerId) {
       logger.error('No Stripe customer ID for organization', { organizationId })
-      return
+      return requireSettlementStateOutcome(
+        options,
+        'Stripe customer state is required for organization settlement'
+      )
     }
 
     const periodEnd = orgSubscription.periodEnd
@@ -416,12 +670,11 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
     const orgBilledResult = await db.transaction(
       async (
         tx
-      ): Promise<{
-        amount: number
-        creditsApplied: number
-        ownerId: string
-        settledVia: 'stripe' | 'credits'
-      } | null> => {
+      ): Promise<
+        InternalThresholdSettlementResult & {
+          ownerId?: string
+        }
+      > => {
         await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
         const lockedOwnerRows = await tx
@@ -435,7 +688,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
           logger.error('Organization owner not found after locking organization', {
             organizationId,
           })
-          return null
+          return requireSettlementState(options, 'Organization owner is required for settlement')
         }
 
         const ownerStatsLock = await tx
@@ -446,7 +699,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
           .limit(1)
         if (ownerStatsLock.length === 0) {
           logger.error('Owner stats not found', { organizationId, ownerId: lockedOwnerId })
-          return null
+          return requireSettlementState(options, 'Owner stats are required for settlement')
         }
 
         const orgLock = await tx
@@ -458,7 +711,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
 
         if (orgLock.length === 0) {
           logger.error('Organization not found', { organizationId })
-          return null
+          return requireSettlementState(options, 'Organization state is required for settlement')
         }
 
         const lockedMemberUsageRows = await tx
@@ -485,7 +738,10 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
             lockedUsageSnapshot,
             lockedOwnerId,
           })
-          return null
+          return retryConcurrentSettlement(
+            options,
+            'Organization usage changed during threshold settlement'
+          )
         }
 
         const totalBilledOverage = toNumber(toDecimal(ownerStatsLock[0].billedOverageThisPeriod))
@@ -507,7 +763,10 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         })
 
         if (unbilledOverage < threshold) {
-          return null
+          return {
+            status: 'no-op',
+            reason: unbilledOverage <= USAGE_TOTAL_EPSILON ? 'already-settled' : 'below-threshold',
+          }
         }
 
         let amountToBill = unbilledOverage
@@ -546,6 +805,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
             unbilledOverage,
           })
           return {
+            status: 'settled',
             amount: unbilledOverage,
             creditsApplied,
             ownerId: lockedOwnerId,
@@ -592,6 +852,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         })
 
         return {
+          status: 'settled',
           amount: amountToBill,
           creditsApplied,
           ownerId: lockedOwnerId,
@@ -600,8 +861,14 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
       }
     )
 
-    if (orgBilledResult) {
+    if (orgBilledResult.status === 'settled') {
       const { amount, creditsApplied, ownerId, settledVia } = orgBilledResult
+      if (!ownerId) {
+        throw new ThresholdSettlementError(
+          'required_state_missing',
+          'Organization settlement result is missing its owner'
+        )
+      }
       const settledLabel = settledVia === 'credits' ? 'covered by credits' : 'billed'
       recordAudit({
         actorId: ownerId,
@@ -629,11 +896,18 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         settled_via: settledVia,
       })
     }
+    return publicSettlementOutcome(options, orgBilledResult)
   } catch (error) {
+    const settlementError = normalizeSettlementError(error, options)
     logger.error('Error in organization threshold billing', {
       organizationId,
-      error,
+      error: toError(settlementError).message,
+      settlementErrorCode:
+        settlementError instanceof ThresholdSettlementError ? settlementError.code : undefined,
     })
+    if (shouldThrowSettlementError(settlementError, options)) {
+      throw settlementError
+    }
   }
 }
 

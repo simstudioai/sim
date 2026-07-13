@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
-import { SimLogoFull } from '@/components/ui/sim-logo'
+import { SimWordmark } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
 
@@ -44,8 +44,8 @@ export function Navbar() {
             paddingRight: 'calc(var(--toc-offset) + var(--nav-inset))',
           }}
         >
-          <Link href='/' className='flex min-w-[100px] items-center'>
-            <SimLogoFull className='h-[20px] w-auto' />
+          <Link href='/' className='flex items-center'>
+            <SimWordmark className='h-[18px]' />
           </Link>
 
           <div className='-translate-x-1/2 absolute left-1/2 flex items-center justify-center'>
@@ -74,6 +74,7 @@ export function Navbar() {
               <Link
                 key={tab.label}
                 href={tab.href}
+                aria-current={isActive ? 'page' : undefined}
                 {...(tab.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 className={cn(
                   '-mb-px relative flex items-center border-b text-[14px] tracking-[-0.01em] transition-colors',

@@ -34,9 +34,12 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  xAIIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   BYOKKeyManager,
   type BYOKManagerKey,
@@ -75,6 +78,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'xai',
+    name: 'xAI',
+    icon: xAIIcon,
+    description: 'LLM calls',
+    placeholder: 'xai-...',
   },
   {
     id: 'fireworks',
@@ -287,6 +297,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'anthropic',
       'google',
       'mistral',
+      'xai',
       'fireworks',
       'together',
       'baseten',
@@ -332,6 +343,8 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
 export function BYOK() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
+  const workspacePermissions = useUserPermissionsContext()
+  const canManage = canMutateWorkspaceSettingsSection('byok', workspacePermissions)
 
   const { data, isLoading } = useBYOKKeys(workspaceId)
   const upsertKey = useUpsertBYOKKey()
@@ -358,6 +371,7 @@ export function BYOK() {
         isLoading={isLoading}
         isSaving={upsertKey.isPending}
         isDeleting={deleteKey.isPending}
+        readOnly={!canManage}
         onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
           await upsertKey.mutateAsync({
             workspaceId,

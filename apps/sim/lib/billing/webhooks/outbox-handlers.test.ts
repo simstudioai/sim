@@ -57,9 +57,10 @@ function stripeItem(overrides: {
   quantity?: number
   priceId?: string
   interval?: 'month' | 'year'
+  status?: 'active' | 'past_due'
 }) {
   return {
-    status: 'active',
+    status: overrides.status ?? 'active',
     items: {
       data: [
         {
@@ -106,6 +107,27 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
         items: [{ id: 'si_1', quantity: 2, price: 'price_team_month' }],
         proration_behavior: 'always_invoice',
       }),
+      expect.any(Object)
+    )
+  })
+
+  it('syncs seats while both DB and Stripe subscriptions are past due', async () => {
+    const row = {
+      plan: 'team_6000',
+      seats: 2,
+      status: 'past_due',
+      stripeSubscriptionId: 'stripe_sub',
+    }
+    queryQueue.value = [[row], [row]]
+    stripeMock.subscriptions.retrieve.mockResolvedValue(
+      stripeItem({ quantity: 1, priceId: 'price_team_month', status: 'past_due' })
+    )
+
+    await seatSyncHandler({ subscriptionId: 'sub-1' }, ctx)
+
+    expect(stripeMock.subscriptions.update).toHaveBeenCalledWith(
+      'stripe_sub',
+      expect.objectContaining({ items: [{ id: 'si_1', quantity: 2 }] }),
       expect.any(Object)
     )
   })

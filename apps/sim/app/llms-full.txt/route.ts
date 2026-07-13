@@ -9,7 +9,7 @@ export function GET() {
 
 ## Overview
 
-Sim is the AI workspace where teams create agents visually with the workflow builder, conversationally through Mothership, or programmatically with the API. Over 100,000 builders use Sim — from startups to Fortune 500 companies. Teams connect their tools and data, build agents that automate real work across systems, and manage them with full observability. SOC2 compliant.
+Sim is the AI workspace where teams create agents visually with the workflow builder, conversationally through Chat, or programmatically with the API. Over 100,000 builders use Sim — from startups to Fortune 500 companies. Teams connect their tools and data, build agents that automate real work across systems, and manage them with full observability. SOC2 compliant.
 
 ## Product Details
 
@@ -122,7 +122,7 @@ Built-in table creation and management:
 ## Technical Architecture
 
 ### Frontend
-- Next.js 15 with App Router
+- Next.js 16 with App Router
 - React Flow for the visual builder
 - Tailwind CSS for styling
 - Zustand for state management
@@ -150,26 +150,26 @@ Built-in table creation and management:
 
 ## Links
 
-- **Website**: ${baseUrl}
-- **Documentation**: https://docs.sim.ai
-- **API Reference**: https://docs.sim.ai/api
-- **GitHub**: https://github.com/simstudioai/sim
-- **Discord**: https://discord.gg/Hr4UWYEcTT
-- **X/Twitter**: https://x.com/simdotai
-- **LinkedIn**: https://linkedin.com/company/simstudioai
+- [Website](${baseUrl}): Product overview and primary entry point
+- [Documentation](https://docs.sim.ai): Product guides and technical reference
+- [API Reference](https://docs.sim.ai/api): API documentation
+- [GitHub](https://github.com/simstudioai/sim): Open-source codebase
+- [Discord](https://discord.gg/Hr4UWYEcTT): Community server
+- [X/Twitter](https://x.com/simdotai): Announcements and updates
+- [LinkedIn](https://linkedin.com/company/simstudioai): Company page
 
 ## Support
 
-- **Email**: help@sim.ai
-- **Security Issues**: security@sim.ai
-- **Documentation**: https://docs.sim.ai
-- **Community Discord**: https://discord.gg/Hr4UWYEcTT
+- [Documentation](https://docs.sim.ai): Self-serve guides and reference
+- [Community Discord](https://discord.gg/Hr4UWYEcTT): Community support
+- Email: help@sim.ai
+- Security issues: security@sim.ai
 
 ## Legal
 
-- **Terms of Service**: ${baseUrl}/terms
-- **Privacy Policy**: ${baseUrl}/privacy
-- **Security**: ${baseUrl}/.well-known/security.txt
+- [Terms of Service](${baseUrl}/terms): Legal terms
+- [Privacy Policy](${baseUrl}/privacy): Data handling practices
+- [Security](${baseUrl}/.well-known/security.txt): Vulnerability disclosure policy
 `
 
   return new Response(llmsFullContent, {

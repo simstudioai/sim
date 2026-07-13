@@ -376,18 +376,13 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       }))
     : null
 
-  // Copied blob bytes (selected workspace files + selected KBs' document blobs) are
-  // charged to the initiating user's storage scope exactly as if uploaded to the target
-  // workspace, so enforce headroom BEFORE the locked write transaction. The sums scope to
-  // the source workspace with the same filters the in-tx copy applies, so a requested id
-  // that is not actually copyable (stale/crafted) can only over-count and block - the
-  // validated in-tx selection is always a subset. Over quota fails the sync here with the
-  // upload path's error shape, before any lock or write.
+  // UX-only preflight against the actual target workspace payer. Authoritative per-blob
+  // admission + increments happen later with metadata activation in short transactions.
   const requestedCopyBytes = await sumForkCopyBytes(db, sourceWorkspaceId, {
     fileKeys: params.copyResources?.files,
     knowledgeBaseIds: params.copyResources?.knowledgeBases,
   })
-  await assertForkStorageHeadroom({ userId, bytes: requestedCopyBytes })
+  await assertForkStorageHeadroom({ targetWorkspaceId, bytes: requestedCopyBytes })
 
   const targetMembers = (await getUsersWithPermissions(targetWorkspaceId)).map((m) => m.userId)
 

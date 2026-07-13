@@ -18,12 +18,16 @@ const {
   mockWasExecutionFinalizedByCore,
   mockRecordException,
   mockGetActiveSpan,
+  mockExecuteWithIdempotency,
+  mockReleaseExecutionSlot,
 } = vi.hoisted(() => ({
   mockResolveWebhookRecordProviderConfig: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
   mockWasExecutionFinalizedByCore: vi.fn(),
   mockRecordException: vi.fn(),
   mockGetActiveSpan: vi.fn(),
+  mockExecuteWithIdempotency: vi.fn(),
+  mockReleaseExecutionSlot: vi.fn(),
 }))
 
 vi.mock('@opentelemetry/api', () => ({
@@ -43,12 +47,14 @@ vi.mock('@/lib/workflows/executor/execution-core', () => ({
   wasExecutionFinalizedByCore: mockWasExecutionFinalizedByCore,
 }))
 
+vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
+  releaseExecutionSlot: mockReleaseExecutionSlot,
+}))
+
 vi.mock('@/lib/core/idempotency', () => ({
   IdempotencyService: { createWebhookIdempotencyKey: vi.fn(() => 'idempotency-key') },
   webhookIdempotency: {
-    executeWithIdempotency: vi.fn(
-      (_provider: string, _key: string, operation: () => Promise<unknown>) => operation()
-    ),
+    executeWithIdempotency: mockExecuteWithIdempotency,
   },
 }))
 
@@ -105,7 +111,11 @@ vi.mock('@/triggers', () => ({
   isTriggerValid: vi.fn(() => false),
 }))
 
-import { executeWebhookJob, resolveWebhookExecutionProviderConfig } from './webhook-execution'
+import {
+  executeWebhookJob,
+  resolveWebhookExecutionProviderConfig,
+  type WebhookExecutionPayload,
+} from './webhook-execution'
 
 describe('resolveWebhookExecutionProviderConfig', () => {
   beforeEach(() => {
@@ -161,10 +171,23 @@ describe('resolveWebhookExecutionProviderConfig', () => {
 })
 
 describe('executeWebhookJob fault vs error handling', () => {
-  const payload = {
+  const billingAttribution = {
+    actorUserId: 'user-1',
+    workspaceId: 'workspace-1',
+    organizationId: null,
+    billedAccountUserId: 'user-1',
+    billingEntity: { type: 'user' as const, id: 'user-1' },
+    billingPeriod: {
+      start: '2026-07-01T00:00:00.000Z',
+      end: '2026-08-01T00:00:00.000Z',
+    },
+    payerSubscription: null,
+  }
+  const payload: WebhookExecutionPayload = {
     webhookId: 'webhook-1',
     workflowId: 'workflow-1',
     userId: 'user-1',
+    billingAttribution,
     executionId: 'execution-1',
     requestId: 'request-1',
     provider: 'gmail',
@@ -176,8 +199,13 @@ describe('executeWebhookJob fault vs error handling', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockExecuteWithIdempotency.mockImplementation(
+      (_provider: string, _key: string, operation: () => Promise<unknown>) => operation()
+    )
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
       success: true,
+      actorUserId: 'user-1',
+      billingAttribution,
       workflowRecord: { workspaceId: 'workspace-1', userId: 'user-1', variables: {} },
       executionTimeout: { async: 120_000 },
     })
@@ -218,5 +246,41 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
     // Pipeline/infra errors are recorded here before re-throwing to fault the trigger.dev run.
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
+  })
+
+  it('releases the reservation when idempotency returns a cached result', async () => {
+    const cachedResult = {
+      success: true,
+      workflowId: 'workflow-1',
+      executionId: 'original-execution',
+    }
+    mockExecuteWithIdempotency.mockResolvedValueOnce(cachedResult)
+
+    await expect(executeWebhookJob(payload)).resolves.toBe(cachedResult)
+
+    expect(executionPreprocessingMockFns.mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
+  })
+
+  it('releases the reservation when background preprocessing fails', async () => {
+    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: { message: 'workflow archived', statusCode: 404 },
+    })
+
+    await expect(executeWebhookJob(payload)).rejects.toThrow('workflow archived')
+
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
+  })
+
+  it('rejects queued webhook work without an immutable attribution snapshot', async () => {
+    await expect(
+      executeWebhookJob({
+        ...payload,
+        billingAttribution: undefined,
+      } as unknown as WebhookExecutionPayload)
+    ).rejects.toThrow('Billing attribution snapshot must be an object')
+
+    expect(executionPreprocessingMockFns.mockPreprocessExecution).not.toHaveBeenCalled()
   })
 })

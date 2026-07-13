@@ -174,6 +174,10 @@ export const PUT = withRouteHandler(
 
       const deployment = deploymentResult[0]
 
+      if (deployment.authType !== 'email') {
+        return createErrorResponse('This chat does not use email authentication', 400)
+      }
+
       const storedValue = await getOTP('chat', deployment.id, email)
       if (!storedValue) {
         return createErrorResponse('No verification code found, request a new one', 400)

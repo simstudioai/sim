@@ -255,3 +255,63 @@ describe('markdown paste', () => {
     expect(transformHtml(editor, '<script>x<script>y</script>')).toBe('')
   })
 })
+
+describe('linkify a selection on URL paste', () => {
+  function linkify(
+    pasted: string,
+    from = 1,
+    to = 10
+  ): { handled: boolean; href?: string; text: string } {
+    editor = mount()
+    editor.commands.setContent('select me here', { contentType: 'markdown' })
+    editor.commands.setTextSelection({ from, to })
+    const handled = paste(editor, pasted)
+    return {
+      handled,
+      href: JSON.stringify(editor.getJSON()).match(/"href":"([^"]+)"/)?.[1],
+      text: editor.getText(),
+    }
+  }
+
+  it('wraps a non-empty text selection in a link when a URL is pasted (keeping the text)', () => {
+    const r = linkify('https://sim.ai')
+    expect(r.handled).toBe(true)
+    expect(r.href).toBe('https://sim.ai')
+    expect(r.text).toBe('select me here')
+  })
+
+  it('prepends https:// to a bare www host and mailto: to a bare email', () => {
+    expect(linkify('www.sim.ai').href).toBe('https://www.sim.ai')
+    expect(linkify('a@b.com').href).toBe('mailto:a@b.com')
+  })
+
+  it('does not linkify a collapsed caret (empty selection)', () => {
+    const r = linkify('https://sim.ai', 5, 5)
+    expect(r.handled).toBe(false)
+  })
+
+  it('does not linkify a multi-word paste over a selection', () => {
+    expect(linkify('not a url just words').handled).toBe(false)
+  })
+
+  it('does not linkify an unsafe javascript: url', () => {
+    const r = linkify('javascript:alert(1)')
+    expect(r.handled).toBe(false)
+    expect(r.href).toBeUndefined()
+  })
+
+  it('links a real mailto: but not a crafted mailto: payload', () => {
+    expect(linkify('mailto:a@b.com').href).toBe('mailto:a@b.com')
+    const crafted = linkify('mailto:javascript:alert(1)')
+    expect(crafted.handled).toBe(false)
+    expect(crafted.href).toBeUndefined()
+  })
+
+  it('does not linkify a selection spanning multiple blocks', () => {
+    editor = mount()
+    editor.commands.setContent('alpha\n\nbeta', { contentType: 'markdown' })
+    editor.commands.setTextSelection({ from: 3, to: 9 })
+    expect(paste(editor, 'https://sim.ai')).toBe(false)
+    expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"link"')
+  })
+})

@@ -8,7 +8,7 @@ const {
   mockGetSession,
   mockIsOrganizationOwnerOrAdmin,
   mockGetOrgMemberUsageLimit,
-  mockGetOrgMemberWorkspaceUsage,
+  mockGetOrgMemberUsageForCurrentPeriod,
   mockSetOrgMemberUsageLimit,
   mockGetOrganizationSubscription,
   mockFlags,
@@ -16,7 +16,7 @@ const {
   mockGetSession: vi.fn(),
   mockIsOrganizationOwnerOrAdmin: vi.fn(),
   mockGetOrgMemberUsageLimit: vi.fn(),
-  mockGetOrgMemberWorkspaceUsage: vi.fn(),
+  mockGetOrgMemberUsageForCurrentPeriod: vi.fn(),
   mockSetOrgMemberUsageLimit: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
   mockFlags: { isHosted: true },
@@ -34,8 +34,8 @@ vi.mock('@/lib/billing/core/organization', () => ({
 }))
 
 vi.mock('@/lib/billing/organizations/member-limits', () => ({
+  getOrgMemberUsageForCurrentPeriod: mockGetOrgMemberUsageForCurrentPeriod,
   getOrgMemberUsageLimit: mockGetOrgMemberUsageLimit,
-  getOrgMemberWorkspaceUsage: mockGetOrgMemberWorkspaceUsage,
   setOrgMemberUsageLimit: mockSetOrgMemberUsageLimit,
 }))
 
@@ -69,7 +69,7 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
     mockFlags.isHosted = true
     mockGetSession.mockResolvedValue(createSession({ userId: 'admin-1' }))
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
-    mockGetOrgMemberWorkspaceUsage.mockResolvedValue(1) // $1 -> 200 credits
+    mockGetOrgMemberUsageForCurrentPeriod.mockResolvedValue(1) // $1 -> 200 credits
     mockGetOrgMemberUsageLimit.mockResolvedValue(2) // $2 -> 400 credits
     mockGetOrganizationSubscription.mockResolvedValue(null)
   })
@@ -103,6 +103,20 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
         billingInterval: 'month',
       },
     })
+    expect(mockGetOrgMemberUsageForCurrentPeriod).toHaveBeenCalledWith('org-1', 'user-2', null)
+  })
+
+  it('reuses the fetched org subscription for the usage window', async () => {
+    const orgSubscription = { metadata: { billingInterval: 'year' } }
+    mockGetOrganizationSubscription.mockResolvedValue(orgSubscription)
+
+    await GET(getRequest(), context())
+
+    expect(mockGetOrgMemberUsageForCurrentPeriod).toHaveBeenCalledWith(
+      'org-1',
+      'user-2',
+      orgSubscription
+    )
   })
 
   it('returns null creditLimit when no cap is set', async () => {

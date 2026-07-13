@@ -8,6 +8,7 @@ import {
   DeleteWorkspaceMcpServer,
   DeployApi,
   DeployChat,
+  DeployCustomBlock,
   DeployMcp,
   DiffWorkflows,
   FunctionExecute,
@@ -53,6 +54,7 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/copilot/tools/server/router'
+import { executeDeployCustomBlock } from '../tools/handlers/deployment/custom-block'
 import {
   executeDeployApi,
   executeDeployChat,
@@ -156,6 +158,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [DeployApi.id]: h(executeDeployApi),
     [DeployChat.id]: h(executeDeployChat),
     [DeployMcp.id]: h(executeDeployMcp),
+    [DeployCustomBlock.id]: h(executeDeployCustomBlock),
     [Redeploy.id]: h(executeRedeploy),
     [CheckDeploymentStatus.id]: h(executeCheckDeploymentStatus),
     [ListWorkspaceMcpServers.id]: h(executeListWorkspaceMcpServers),

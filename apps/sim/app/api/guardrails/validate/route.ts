@@ -4,8 +4,16 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { guardrailsValidateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import {
+  type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
+  requireBillingAttributionHeader,
+  resolveBillingAttribution,
+  serializeBillingAttributionHeader,
+  toBillingContext,
+} from '@/lib/billing/core/billing-attribution'
+import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
@@ -123,6 +131,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     let resolvedWorkspaceId: string | undefined
+    let billingAttribution: BillingAttributionSnapshot | undefined
 
     if (validationType === 'hallucination' && model) {
       if (!workflowId || typeof workflowId !== 'string') {
@@ -157,6 +166,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       resolvedWorkspaceId = authorization.workflow.workspaceId
+      try {
+        billingAttribution =
+          auth.authType === AuthType.INTERNAL_JWT
+            ? requireBillingAttributionHeader(request.headers, {
+                actorUserId: auth.userId,
+                workspaceId: resolvedWorkspaceId,
+              })
+            : await resolveBillingAttribution({
+                actorUserId: auth.userId,
+                workspaceId: resolvedWorkspaceId,
+              })
+      } catch (error) {
+        const isInternalRequest = auth.authType === AuthType.INTERNAL_JWT
+        logger.error(`[${requestId}] Failed to establish billing attribution`, { error })
+        return NextResponse.json(
+          {
+            error: isInternalRequest
+              ? 'Invalid billing attribution'
+              : 'Failed to resolve billing attribution',
+          },
+          { status: isInternalRequest ? 400 : 500 }
+        )
+      }
 
       try {
         await assertPermissionsAllowed({
@@ -182,7 +214,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // Gate the actor's usage before incurring hosted LLM + RAG cost. In a normal
       // workflow run this already passed at preprocessing; this also blocks direct
       // calls to this route by an over-limit or frozen actor.
-      const usage = await checkActorUsageLimits(auth.userId, resolvedWorkspaceId)
+      const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         return NextResponse.json(
           { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
@@ -218,6 +250,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const authHeaders = {
       cookie: request.headers.get('cookie') || undefined,
       authorization: request.headers.get('authorization') || undefined,
+      billingAttribution:
+        auth.authType === AuthType.INTERNAL_JWT && billingAttribution
+          ? serializeBillingAttributionHeader(billingAttribution)
+          : undefined,
     }
 
     const validationResult = await executeValidation(
@@ -248,31 +284,36 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       requestId
     )
 
-    // Bill the guardrail's LLM scoring cost (hallucination only; BYOK/non-hosted
-    // already resolve to 0). Attributed to the caller + the workflow's workspace
-    // so it lands in the per-member meter. Best-effort — never fail validation on
-    // a billing error.
+    /**
+     * Hallucination scoring records the caller as actor and the workflow
+     * workspace as payer. BYOK and non-hosted validation resolve to zero cost.
+     */
     if (
       resolvedWorkspaceId &&
+      billingAttribution &&
       typeof validationResult.cost === 'number' &&
       validationResult.cost > 0
     ) {
       const { recordUsage } = await import('@/lib/billing/core/usage-log')
-      await recordUsage({
-        userId: auth.userId,
-        workspaceId: resolvedWorkspaceId,
-        entries: [
-          {
-            category: 'model',
-            source: 'workflow',
-            description: `guardrail-hallucination:${model ?? 'unknown'}`,
-            cost: validationResult.cost,
-            sourceReference: `guardrail:${workflowId ?? 'unknown'}:${requestId}`,
-          },
-        ],
-      }).catch((billingError) => {
+      try {
+        await recordUsage({
+          userId: auth.userId,
+          workspaceId: resolvedWorkspaceId,
+          ...toBillingContext(billingAttribution),
+          entries: [
+            {
+              category: 'model',
+              source: 'workflow',
+              description: `guardrail-hallucination:${model ?? 'unknown'}`,
+              cost: validationResult.cost,
+              sourceReference: `guardrail:${workflowId ?? 'unknown'}:${requestId}`,
+            },
+          ],
+        })
+        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+      } catch (billingError) {
         logger.error(`[${requestId}] Failed to record guardrail usage`, { error: billingError })
-      })
+      }
     }
 
     logger.info(`[${requestId}] Validation completed`, {
@@ -351,7 +392,7 @@ async function executeValidation(
   piiEntityTypes: string[] | undefined,
   piiMode: string | undefined,
   piiLanguage: string | undefined,
-  authHeaders: { cookie?: string; authorization?: string } | undefined,
+  authHeaders: { cookie?: string; authorization?: string; billingAttribution?: string } | undefined,
   requestId: string
 ): Promise<{
   passed: boolean

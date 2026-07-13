@@ -3921,6 +3921,7 @@ export function getHostedModels(): string[] {
     ...getProviderModels('anthropic'),
     ...getProviderModels('google'),
     ...getProviderModels('zai'),
+    ...getProviderModels('xai'),
   ]
 }
 
