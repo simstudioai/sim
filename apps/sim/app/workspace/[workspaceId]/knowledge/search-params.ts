@@ -1,4 +1,5 @@
-import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { createSortParams } from '@/lib/url-state'
 
 /** Sortable knowledge base columns, matching the `Resource.Options` sort menu. */
 export const KNOWLEDGE_SORT_COLUMNS = [
@@ -11,13 +12,15 @@ export const KNOWLEDGE_SORT_COLUMNS = [
   'updated',
 ] as const
 
-export type KnowledgeSortColumn = (typeof KNOWLEDGE_SORT_COLUMNS)[number]
-
-const SORT_DIRECTIONS = ['asc', 'desc'] as const
-
-/** Default sort: most-recently-updated first. */
-export const DEFAULT_KNOWLEDGE_SORT_COLUMN: KnowledgeSortColumn = 'updated'
-export const DEFAULT_KNOWLEDGE_SORT_DIRECTION = 'desc'
+/**
+ * `sort` / `dir` follow the shared sort convention (see `useUrlSort`). The
+ * default (most-recently-updated first) matches the list's default ordering,
+ * so a clean URL means the default sort.
+ */
+export const knowledgeSortParams = createSortParams(KNOWLEDGE_SORT_COLUMNS, {
+  column: 'updated',
+  direction: 'desc',
+})
 
 /**
  * Co-located, typed URL query-param definitions for the Knowledge Base list.
@@ -26,9 +29,6 @@ export const DEFAULT_KNOWLEDGE_SORT_DIRECTION = 'desc'
  *   controlled directly by the instant nuqs value; only its URL write is
  *   debounced via `limitUrlUpdates` (`debounce`) on the setter — never written
  *   on every keystroke.
- * - `sort` / `dir` follow the shared sort convention (two scalar params). "No
- *   active sort" is derived in the component as `sort === DEFAULT && dir ===
- *   DEFAULT`.
  * - `connector` filters by connector presence; `content` filters by document
  *   presence; `owner` filters by creator id. All are multi-select arrays.
  *
@@ -38,8 +38,6 @@ export const DEFAULT_KNOWLEDGE_SORT_DIRECTION = 'desc'
  */
 export const knowledgeParsers = {
   search: parseAsString.withDefault(''),
-  sort: parseAsStringLiteral(KNOWLEDGE_SORT_COLUMNS).withDefault(DEFAULT_KNOWLEDGE_SORT_COLUMN),
-  dir: parseAsStringLiteral(SORT_DIRECTIONS).withDefault(DEFAULT_KNOWLEDGE_SORT_DIRECTION),
   connector: parseAsArrayOf(parseAsString).withDefault([]),
   content: parseAsArrayOf(parseAsString).withDefault([]),
   owner: parseAsArrayOf(parseAsString).withDefault([]),

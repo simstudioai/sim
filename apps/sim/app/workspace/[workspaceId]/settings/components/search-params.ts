@@ -6,8 +6,9 @@ import { parseAsString } from 'nuqs/server'
  * workflow-mcp-servers). Settings sections never co-render, so they all share
  * the `search` key without collisions.
  *
- * The input is controlled directly by the nuqs value; only its URL write is
- * debounced via `limitUrlUpdates` at the hook options.
+ * Consume via `useSettingsSearch` (`settings/components/use-settings-search`),
+ * which owns the debounced-write wiring — the input is controlled directly by
+ * the instant nuqs value; only the URL write is debounced.
  */
 export const settingsSearchParam = {
   key: 'search',

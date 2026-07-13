@@ -1,4 +1,5 @@
-import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { createSortParams } from '@/lib/url-state'
 
 /** Sortable table columns, matching the `Resource.Options` sort menu. */
 export const TABLE_SORT_COLUMNS = [
@@ -10,21 +11,21 @@ export const TABLE_SORT_COLUMNS = [
   'updated',
 ] as const
 
-export type TableSortColumn = (typeof TABLE_SORT_COLUMNS)[number]
-
-const SORT_DIRECTIONS = ['asc', 'desc'] as const
-
-/** Default sort: most-recently-updated first. */
-export const DEFAULT_TABLE_SORT_COLUMN: TableSortColumn = 'updated'
-export const DEFAULT_TABLE_SORT_DIRECTION = 'desc'
+/**
+ * Shared `sort` + `dir` params for the Tables list. Default sort:
+ * most-recently-updated first. Consumed via `useUrlSort` in `tables.tsx`.
+ */
+export const tablesSortParams = createSortParams(TABLE_SORT_COLUMNS, {
+  column: 'updated',
+  direction: 'desc',
+})
 
 /**
  * Co-located, typed URL query-param definitions for the Tables list.
  *
  * - `search` is the table name filter. The input is controlled directly by the
- *   nuqs value; only its URL write is debounced via `limitUrlUpdates`
- *   (`debounce`) on the setter — never written on every keystroke.
- * - `sort` / `dir` follow the shared sort convention (two scalar params).
+ *   nuqs value; only its URL write is debounced via `useDebouncedSearchSetter`.
+ * - `sort` / `dir` live in {@link tablesSortParams} (shared sort convention).
  * - `rows` filters by row-count bucket; `owner` filters by creator id. Both are
  *   multi-select arrays.
  *
@@ -34,8 +35,6 @@ export const DEFAULT_TABLE_SORT_DIRECTION = 'desc'
  */
 export const tablesParsers = {
   search: parseAsString.withDefault(''),
-  sort: parseAsStringLiteral(TABLE_SORT_COLUMNS).withDefault(DEFAULT_TABLE_SORT_COLUMN),
-  dir: parseAsStringLiteral(SORT_DIRECTIONS).withDefault(DEFAULT_TABLE_SORT_DIRECTION),
   rows: parseAsArrayOf(parseAsString).withDefault([]),
   owner: parseAsArrayOf(parseAsString).withDefault([]),
 } as const

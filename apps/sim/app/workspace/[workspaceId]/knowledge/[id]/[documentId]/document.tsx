@@ -34,6 +34,7 @@ import {
   DocumentTagsModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
+  documentChunkSortParams,
   documentParsers,
   documentUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/search-params'
@@ -51,9 +52,18 @@ import {
   useUpdateDocument,
 } from '@/hooks/queries/kb/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('Document')
+
+/**
+ * Debounce window for chunk-search URL writes and the query feed; the input
+ * itself stays instant. Intentionally shorter than the shared
+ * `SEARCH_DEBOUNCE_MS` (300) to match the chunk search's snappier feel.
+ */
+const CHUNK_SEARCH_DEBOUNCE_MS = 200 as const
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -127,10 +137,10 @@ export function Document({
 }: DocumentProps) {
   const { workspaceId } = useParams()
   const router = useRouter()
-  const [{ page: currentPageFromURL, chunk: chunkFromURL }, setDocumentParams] = useQueryStates(
-    documentParsers,
-    documentUrlKeys
-  )
+  const [
+    { page: currentPageFromURL, chunk: chunkFromURL, search: searchQuery },
+    setDocumentParams,
+  ] = useQueryStates(documentParsers, documentUrlKeys)
   const userPermissions = useUserPermissionsContext()
 
   const { knowledgeBase } = useKnowledgeBase(knowledgeBaseId)
@@ -138,13 +148,22 @@ export function Document({
 
   const [showTagsModal, setShowTagsModal] = useState(false)
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const debouncedSearchQuery = useDebounce(searchQuery, 200)
+  /**
+   * The input is controlled directly by the instant nuqs value; only the URL
+   * write is debounced. The chunk search query below reads a debounced value so
+   * it doesn't refetch on every keystroke.
+   */
+  const handleSearchChange = useDebouncedSearchSetter(
+    (value, options) => void setDocumentParams({ search: value }, options),
+    { debounceMs: CHUNK_SEARCH_DEBOUNCE_MS }
+  )
+  const debouncedSearchQuery = useDebounce(searchQuery, CHUNK_SEARCH_DEBOUNCE_MS)
   const [enabledFilter, setEnabledFilter] = useState<string[]>([])
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
+  const {
+    activeSort,
+    onSort: onSortColumn,
+    onClear: onClearSort,
+  } = useUrlSort(documentChunkSortParams, documentUrlKeys)
 
   const enabledFilterParam = useMemo(
     () => (enabledFilter.length === 1 ? (enabledFilter[0] as 'enabled' | 'disabled') : 'all'),
@@ -591,7 +610,7 @@ export function Document({
   const searchConfig: SearchConfig | undefined = isCompleted
     ? {
         value: searchQuery,
-        onChange: (value: string) => setSearchQuery(value),
+        onChange: handleSearchChange,
         placeholder: 'Search chunks...',
       }
     : undefined
@@ -861,16 +880,17 @@ export function Document({
         { id: 'status', label: 'Status' },
       ],
       active: activeSort,
+      /** Sorting (or clearing the sort) resets pagination to the first page. */
       onSort: (column, direction) => {
-        setActiveSort({ column, direction })
+        onSortColumn(column, direction)
         void goToPage(1)
       },
       onClear: () => {
-        setActiveSort(null)
+        onClearSort()
         void goToPage(1)
       },
     }),
-    [activeSort, goToPage]
+    [activeSort, onSortColumn, onClearSort, goToPage]
   )
 
   const chunkRows: ResourceRow[] = useMemo(() => {

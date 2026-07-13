@@ -6,7 +6,6 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import {
   clearPendingCredentialCreateRequest,
@@ -17,14 +16,11 @@ import {
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import {
-  settingsSearchParam,
-  settingsSearchUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/components/search-params'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { isValidEnvVarName } from '@/executor/constants'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
@@ -367,11 +363,7 @@ export function SecretsManager() {
   const [newWorkspaceRows, setNewWorkspaceRows] = useState<UIEnvironmentVariable[]>([
     createEmptyEnvVar(),
   ])
-  const [searchTerm, setSearchTerm] = useQueryState(settingsSearchParam.key, {
-    ...settingsSearchParam.parser,
-    ...settingsSearchUrlKeys,
-    limitUrlUpdates: debounce(300),
-  })
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
   const [renamingKey, setRenamingKey] = useState<string | null>(null)

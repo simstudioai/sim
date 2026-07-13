@@ -15,14 +15,10 @@ import {
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
-import { debounce, useQueryState } from 'nuqs'
-import {
-  settingsSearchParam,
-  settingsSearchUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/components/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type CopilotKey,
   useCopilotKeys,
@@ -53,11 +49,7 @@ export function Copilot() {
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [searchTerm, setSearchTerm] = useQueryState(settingsSearchParam.key, {
-    ...settingsSearchParam.parser,
-    ...settingsSearchUrlKeys,
-    limitUrlUpdates: debounce(300),
-  })
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [createError, setCreateError] = useState<string | null>(null)
 
   const filteredKeys = useMemo(() => {

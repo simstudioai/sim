@@ -6,8 +6,9 @@ import { Button, ChipDropdown, Plus, Tooltip } from '@sim/emcn'
 import { Database } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   FilterTag,
   ResourceAction,
@@ -32,11 +33,8 @@ import {
   KnowledgeListContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
-  DEFAULT_KNOWLEDGE_SORT_COLUMN,
-  DEFAULT_KNOWLEDGE_SORT_DIRECTION,
-  KNOWLEDGE_SORT_COLUMNS,
-  type KnowledgeSortColumn,
   knowledgeParsers,
+  knowledgeSortParams,
   knowledgeUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/search-params'
 import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
@@ -47,12 +45,11 @@ import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('Knowledge')
-
-/** Debounce window for `search` URL writes; the input itself stays instant. */
-const SEARCH_DEBOUNCE_MS = 300 as const
 
 interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
   docCount?: number
@@ -158,8 +155,6 @@ export function Knowledge() {
   const [
     {
       search: urlSearchQuery,
-      sort: sortColumn,
-      dir: sortDirection,
       connector: connectorFilter,
       content: contentFilter,
       owner: ownerFilter,
@@ -172,30 +167,16 @@ export function Knowledge() {
    * write is debounced. The in-memory filter below still reads a debounced
    * value so it doesn't recompute on every keystroke.
    */
-  const setSearchQuery = useCallback(
-    (value: string) => {
-      const next = value.length > 0 ? value : null
-      setKnowledgeFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setKnowledgeFilters]
+  const setSearchQuery = useDebouncedSearchSetter((value, options) =>
+    setKnowledgeFilters({ search: value }, options)
   )
   const debouncedSearchQuery = useDebounce(urlSearchQuery, SEARCH_DEBOUNCE_MS)
 
-  /**
-   * The resolved sort is exposed to the sort menu only when it differs from the
-   * default, mirroring the prior `null`-means-default semantics.
-   */
-  const activeSort = useMemo(
-    () =>
-      sortColumn === DEFAULT_KNOWLEDGE_SORT_COLUMN &&
-      sortDirection === DEFAULT_KNOWLEDGE_SORT_DIRECTION
-        ? null
-        : { column: sortColumn, direction: sortDirection },
-    [sortColumn, sortDirection]
-  )
+  const {
+    activeSort,
+    onSort: onSortColumn,
+    onClear: onClearSort,
+  } = useUrlSort(knowledgeSortParams, knowledgeUrlKeys)
 
   const setConnectorFilter = useCallback(
     (next: string[]) => setKnowledgeFilters({ connector: next }),
@@ -478,19 +459,10 @@ export function Knowledge() {
         { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
-      onSort: (column, direction) => {
-        const sort = (KNOWLEDGE_SORT_COLUMNS as readonly string[]).includes(column)
-          ? (column as KnowledgeSortColumn)
-          : DEFAULT_KNOWLEDGE_SORT_COLUMN
-        setKnowledgeFilters({ sort, dir: direction })
-      },
-      onClear: () =>
-        setKnowledgeFilters({
-          sort: DEFAULT_KNOWLEDGE_SORT_COLUMN,
-          dir: DEFAULT_KNOWLEDGE_SORT_DIRECTION,
-        }),
+      onSort: onSortColumn,
+      onClear: onClearSort,
     }),
-    [activeSort, setKnowledgeFilters]
+    [activeSort, onSortColumn, onClearSort]
   )
 
   const memberOptions: ChipDropdownOption[] = useMemo(

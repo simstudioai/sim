@@ -127,42 +127,56 @@ If a client param must be re-read server-side after a change, set `shallow: fals
 
 ## Debounced text inputs
 
-Use nuqs's built-in [`limitUrlUpdates: debounce(ms)`](https://nuqs.dev/docs/options) — never hand-roll a local `useState` mirror + `useDebounce` + a URL write-back effect + a ref-guarded URL→local reconcile effect. The hook's returned value updates instantly (so the input is controlled directly by the nuqs value and stays snappy); only the *URL write* is debounced. Back/forward and deep links flow back natively because the input reads the nuqs value — no reconcile effect needed.
+Use `useDebouncedSearchSetter` from `@/hooks/use-debounced-search-setter` — never hand-roll a local `useState` mirror + `useDebounce` + a URL write-back effect, and never hand-roll the debounce wiring inline. The nuqs value updates instantly (the input is controlled directly by it and stays snappy); only the *URL write* is debounced via nuqs's built-in [`limitUrlUpdates: debounce(ms)`](https://nuqs.dev/docs/options), which the hook applies for you. Clearing (or a whitespace-only value) writes `null` immediately so the param strips without lingering.
 
-- **Standalone single search param** (`useQueryState`): put `limitUrlUpdates: debounce(300)` in the param's options.
-- **Search inside a grouped `useQueryStates`**: keep the group's immediate writes for the discrete filters; pass the option **per call** only on the search setter, never on the whole group:
+```typescript
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
-  ```typescript
-  import { debounce } from 'nuqs'
+// Search inside a grouped useQueryStates — the group's discrete filters keep immediate writes:
+const setSearch = useDebouncedSearchSetter((value, options) => setFilters({ search: value }, options))
 
-  const setSearch = useCallback(
-    (value: string) => {
-      const next = value.length > 0 ? value : null
-      // Immediate update when clearing so the param drops out without lingering.
-      setFilters({ search: next }, next === null ? undefined : { limitUrlUpdates: debounce(300) })
-    },
-    [setFilters]
-  )
-  ```
+// Standalone single param — pass the useQueryState setter directly:
+const setSearch = useDebouncedSearchSetter(setSearchParam)
 
-- **Keep fetches/filtering debounced.** Where the search value feeds a React Query key or an expensive in-memory filter, derive a debounced value off the instant nuqs value (`const debounced = useDebounce(urlSearch, 300)`) and feed *that* to the query — the instant value is only for the input box. Cheap in-memory filtering over a small static list may read the instant value directly.
-- Preserve `.trim()` handling, `clearOnDefault` (empty clears the param), the existing default, and `history: 'replace'`. Import `debounce` from `nuqs` (client) — not `nuqs/server`. See logs (`use-log-filters.ts` grouped, query stays debounced), integrations/recently-deleted (cheap in-memory filter, instant value), and tables (filter stays debounced).
+// Non-default window (e.g. files' 200ms):
+const setSearch = useDebouncedSearchSetter(write, { debounceMs: 200 })
+```
+
+- **Never write a trimmed value to a param that controls the input** — trimming on write eats the user's trailing space mid-typing and makes multi-word queries untypable. The hook writes the raw value; trim only for the empty-check (the hook does this) and on *read* where the value feeds a query or filter.
+- **Keep fetches/filtering debounced.** Where the search value feeds a React Query key or an expensive in-memory filter, derive a debounced value off the instant nuqs value (`const debounced = useDebounce(urlSearch, SEARCH_DEBOUNCE_MS)` with `SEARCH_DEBOUNCE_MS` from `@/lib/url-state`) and feed *that* to the query — the instant value is only for the input box. Cheap in-memory filtering over a small static list may read the instant value directly.
+- Settings list search boxes use `useSettingsSearch()` from `settings/components/use-settings-search` — the shared `?search=` binding for that surface.
+- Preserve `clearOnDefault` (empty clears the param), the existing default, and `history: 'replace'`. See logs (`use-log-filters.ts` grouped, query stays debounced), integrations (cheap in-memory filter, instant value), and tables (filter stays debounced).
 
 ## Sort convention (`sort` + `dir`)
 
-Sortable lists use **two scalar params**, never a serialized `{column,direction}` object:
+Sortable lists use **two scalar params**, never a serialized `{column,direction}` object. Build them with `createSortParams` from `@/lib/url-state` (in the feature's `search-params.ts`) and consume them with `useUrlSort` from `@/hooks/use-url-sort` — never re-declare `SORT_DIRECTIONS`/default constants or hand-roll the `activeSort`/`onSort`/`onClear` wiring:
 
 ```typescript
-const SORT_COLUMNS = ['name', 'created', 'updated'] as const
-const SORT_DIRECTIONS = ['asc', 'desc'] as const
+// search-params.ts (server-safe)
+import { createSortParams } from '@/lib/url-state'
 
-export const thingsParsers = {
-  sort: parseAsStringLiteral(SORT_COLUMNS).withDefault('updated'),
-  dir: parseAsStringLiteral(SORT_DIRECTIONS).withDefault('desc'),
-} as const
+const THING_SORT_COLUMNS = ['name', 'created', 'updated'] as const
+
+export const thingsSortParams = createSortParams(THING_SORT_COLUMNS, {
+  column: 'updated',
+  direction: 'desc',
+})
 ```
 
-Both carry the shared filter options (`{ history: 'replace', clearOnDefault: true }`). The defaults must match the list's existing default sort exactly. If a UI exposes "no active sort" as `null`, derive that in the component (`sort === DEFAULT && dir === DEFAULT ? null : { column, direction }`) — the URL still holds the resolved values. "Clear sort" writes the defaults back (which `clearOnDefault` strips from the URL); never write `null`/garbage columns.
+```typescript
+// component (client)
+import { useUrlSort } from '@/hooks/use-url-sort'
+
+const { sort, dir, activeSort, onSort, onClear } = useUrlSort(thingsSortParams, thingsUrlKeys)
+// activeSort/onSort/onClear plug straight into SortConfig; sort/dir feed query keys and comparators.
+```
+
+Two modes, chosen by whether you pass a default:
+
+- **Defaulted (the common case)** — pass the list's existing default sort; it must match exactly. A clean URL means the default ordering; explicitly selecting the default collapses back to a clean URL (`clearOnDefault`), and "clear sort" writes the defaults back. `useUrlSort` derives `activeSort: null` for the default state.
+- **Nullable** — omit the default when "no active sort" is behaviorally distinct from explicitly sorting by the fallback column (e.g. files: with no sort, files order by updated/desc but folders by name/asc). The params carry no defaults, explicit selections always persist in the URL, and "clear sort" strips both params (`useUrlSort` writes `null`s).
+
+Sort params live alongside — not inside — the feature's grouped filter parser map (one definition per param; `useUrlSort` owns its own `useQueryStates`, and nuqs keeps hooks on the same keys in sync). Both params carry the shared filter options (`{ history: 'replace', clearOnDefault: true }`). Free-form user-defined columns (e.g. `tables/[tableId]`) can't use `parseAsStringLiteral` and stay hand-rolled with `parseAsString` — reuse the shared `SORT_DIRECTIONS` there.
 
 ## Dates in the URL (date-only params)
 
