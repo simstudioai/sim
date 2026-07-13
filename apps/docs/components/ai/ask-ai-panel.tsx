@@ -43,10 +43,11 @@ function getText(parts: ReadonlyArray<{ type: string; [key: string]: unknown }>)
 interface AskAIPanelProps {
   /** Active docs locale, forwarded so retrieval is scoped to the reader's language. */
   locale: string
+  open: boolean
   onClose: () => void
 }
 
-export function AskAIPanel({ locale, onClose }: AskAIPanelProps) {
+export function AskAIPanel({ locale, open, onClose }: AskAIPanelProps) {
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -63,6 +64,7 @@ export function AskAIPanel({ locale, onClose }: AskAIPanelProps) {
   }
 
   useEffect(() => {
+    if (!open) return
     textareaRef.current?.focus()
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -71,11 +73,12 @@ export function AskAIPanel({ locale, onClose }: AskAIPanelProps) {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [open])
 
   useEffect(() => {
+    if (!open) return
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
-  }, [])
+  }, [open])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -88,6 +91,8 @@ export function AskAIPanel({ locale, onClose }: AskAIPanelProps) {
     sendMessage({ text }, { body: { locale } })
     setInput('')
   }
+
+  if (!open) return null
 
   return (
     <div
