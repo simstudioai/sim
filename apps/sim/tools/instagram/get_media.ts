@@ -1,5 +1,13 @@
+import { INSTAGRAM_CHILD_MEDIA_PROPERTIES } from '@/tools/instagram/output-properties'
 import type { InstagramGetMediaParams, InstagramGetMediaResponse } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  graphUrl,
+  type InstagramGraphPage,
+  idString,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const MEDIA_FIELDS =
@@ -58,9 +66,23 @@ export const instagramGetMediaTool: ToolConfig<InstagramGetMediaParams, Instagra
         }
       }
 
-      const data = await response.json()
+      const data = await readGraphJson<{
+        id?: string | number
+        caption?: string
+        media_type?: string
+        media_product_type?: string
+        media_url?: string
+        permalink?: string
+        timestamp?: string
+        like_count?: number
+        comments_count?: number
+        children?: InstagramGraphPage<{ id?: unknown }>
+      }>(response, 'Instagram media response')
       const children = Array.isArray(data.children?.data)
-        ? data.children.data.map((child: { id?: string }) => ({ id: String(child.id ?? '') }))
+        ? data.children.data.flatMap((child: { id?: unknown }) => {
+            const id = idString(child.id)
+            return id ? [{ id }] : []
+          })
         : []
 
       return {
@@ -89,11 +111,19 @@ export const instagramGetMediaTool: ToolConfig<InstagramGetMediaParams, Instagra
         description: 'Feed, Reels, or Stories product type',
         optional: true,
       },
-      mediaUrl: { type: 'string', description: 'CDN media URL when available', optional: true },
+      mediaUrl: {
+        type: 'string',
+        description: 'Temporary CDN URL; use Download Media for a durable User File',
+        optional: true,
+      },
       permalink: { type: 'string', description: 'Permalink to the post', optional: true },
       timestamp: { type: 'string', description: 'ISO timestamp', optional: true },
       likeCount: { type: 'number', description: 'Like count', optional: true },
       commentsCount: { type: 'number', description: 'Comments count', optional: true },
-      children: { type: 'json', description: 'Carousel child media ids' },
+      children: {
+        type: 'array',
+        description: 'Carousel child media IDs',
+        items: { type: 'object', properties: INSTAGRAM_CHILD_MEDIA_PROPERTIES },
+      },
     },
   }

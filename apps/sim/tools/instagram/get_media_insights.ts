@@ -1,3 +1,4 @@
+import { INSTAGRAM_INSIGHT_PROPERTIES } from '@/tools/instagram/output-properties'
 import type {
   InstagramGetMediaInsightsParams,
   InstagramGetMediaInsightsResponse,
@@ -7,6 +8,7 @@ import {
   graphUrl,
   parseCommaSeparated,
   readGraphError,
+  readGraphJson,
 } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -64,7 +66,10 @@ export const instagramGetMediaInsightsTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<{ data?: Record<string, unknown>[] }>(
+      response,
+      'Instagram media insights response'
+    )
     const items = Array.isArray(data.data) ? data.data : []
 
     return {
@@ -84,8 +89,9 @@ export const instagramGetMediaInsightsTool: ToolConfig<
 
   outputs: {
     insights: {
-      type: 'json',
-      description: 'Media insight metrics (name, period, title, description, values, totalValue)',
+      type: 'array',
+      description: 'Media insight metrics',
+      items: { type: 'object', properties: INSTAGRAM_INSIGHT_PROPERTIES },
     },
   },
 }

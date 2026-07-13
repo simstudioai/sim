@@ -1,3 +1,4 @@
+import { INSTAGRAM_INSIGHT_PROPERTIES } from '@/tools/instagram/output-properties'
 import type {
   InstagramGetAccountInsightsParams,
   InstagramGetAccountInsightsResponse,
@@ -7,6 +8,7 @@ import {
   graphUrl,
   parseCommaSeparated,
   readGraphError,
+  readGraphJson,
 } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,7 +50,7 @@ export const instagramGetAccountInsightsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Aggregation period: day, week, days_28, lifetime, or total_over_range',
+      description: 'Aggregation period: day, week, days_28, month, lifetime, or total_over_range',
     },
     since: {
       type: 'string',
@@ -108,7 +110,10 @@ export const instagramGetAccountInsightsTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<{ data?: Record<string, unknown>[] }>(
+      response,
+      'Instagram account insights response'
+    )
     const items = Array.isArray(data.data) ? data.data : []
 
     return {
@@ -128,8 +133,9 @@ export const instagramGetAccountInsightsTool: ToolConfig<
 
   outputs: {
     insights: {
-      type: 'json',
-      description: 'Insight metrics (name, period, title, description, values, totalValue)',
+      type: 'array',
+      description: 'Account insight metrics',
+      items: { type: 'object', properties: INSTAGRAM_INSIGHT_PROPERTIES },
     },
   },
 }

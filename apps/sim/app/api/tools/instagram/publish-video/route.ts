@@ -80,8 +80,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       coverUrl = resolvedCover.media?.url
     }
 
-    const igUserId = await resolveIgUserId(body.accessToken, body.igUserId ?? undefined)
-    // Meta deprecated media_type=VIDEO for standalone posts; feed videos are REELS + share_to_feed.
+    const igUserId = await resolveIgUserId(
+      body.accessToken,
+      body.igUserId ?? undefined,
+      request.signal
+    )
     const containerBody: Record<string, unknown> = {
       media_type: 'REELS',
       video_url: resolvedVideo.media.url,
@@ -90,9 +93,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (body.caption) containerBody.caption = body.caption
     if (coverUrl) containerBody.cover_url = coverUrl
 
-    const containerId = await createMediaContainer(body.accessToken, igUserId, containerBody)
-    const { statusCode } = await waitForContainerReady(body.accessToken, containerId)
-    const mediaId = await publishMediaContainer(body.accessToken, igUserId, containerId)
+    const containerId = await createMediaContainer(
+      body.accessToken,
+      igUserId,
+      containerBody,
+      request.signal
+    )
+    const { statusCode } = await waitForContainerReady(
+      body.accessToken,
+      containerId,
+      request.signal
+    )
+    const mediaId = await publishMediaContainer(
+      body.accessToken,
+      igUserId,
+      containerId,
+      request.signal
+    )
 
     return NextResponse.json({
       success: true,

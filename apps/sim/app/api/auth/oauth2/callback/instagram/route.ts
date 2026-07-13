@@ -7,11 +7,16 @@ import { instagramCallbackContract } from '@/lib/api/contracts/oauth-connections
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram'
+import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram/constants'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
@@ -25,8 +30,6 @@ const INSTAGRAM_STATE_COOKIE_PATH = '/api/auth'
 interface ShortLivedTokenPayload {
   access_token?: string
   user_id?: string | number
-  // Meta returns granted permissions as a comma-separated string or an array
-  // depending on the response shape.
   permissions?: string | string[]
 }
 
@@ -35,7 +38,6 @@ function unwrapShortLivedToken(body: unknown): ShortLivedTokenPayload | null {
 
   const record = body as Record<string, unknown>
 
-  // Nested shape from Instagram Login: { data: [{ access_token, user_id, permissions }] }
   if (Array.isArray(record.data) && record.data.length > 0) {
     const first = record.data[0]
     if (first && typeof first === 'object') {
@@ -43,7 +45,6 @@ function unwrapShortLivedToken(body: unknown): ShortLivedTokenPayload | null {
     }
   }
 
-  // Flat shape fallback
   if (typeof record.access_token === 'string') {
     return record as ShortLivedTokenPayload
   }
@@ -109,7 +110,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Instagram appends `#_` to the redirect; strip it from the code if present.
     const authorizationCode = code.replace(/#_$/, '')
     const redirectUri = `${baseUrl}/api/auth/oauth2/callback/instagram`
 
@@ -125,20 +125,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: tokenForm.toString(),
+      signal: request.signal,
     })
 
     if (!shortLivedResponse.ok) {
-      const errorText = await shortLivedResponse.text()
+      const errorText = await readResponseTextWithLimit(shortLivedResponse, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: 'Instagram OAuth token error response',
+        signal: request.signal,
+      }).catch(() => shortLivedResponse.statusText)
       logger.error('Failed to exchange Instagram authorization code', {
         status: shortLivedResponse.status,
-        body: errorText,
+        error: errorText,
       })
       return clearOAuthCookies(
         NextResponse.redirect(`${baseUrl}/workspace?error=instagram_token_error`)
       )
     }
 
-    const shortLivedBody = await shortLivedResponse.json()
+    const shortLivedBody = await readResponseJsonWithLimit<unknown>(shortLivedResponse, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'Instagram OAuth token response',
+      signal: request.signal,
+    })
     const shortLived = unwrapShortLivedToken(shortLivedBody)
     if (!shortLived?.access_token) {
       logger.error('Instagram short-lived token response missing access_token', {
@@ -154,23 +163,34 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     exchangeUrl.searchParams.set('client_secret', clientSecret)
     exchangeUrl.searchParams.set('access_token', shortLived.access_token)
 
-    const longLivedResponse = await fetch(exchangeUrl.toString(), { method: 'GET' })
+    const longLivedResponse = await fetch(exchangeUrl.toString(), {
+      method: 'GET',
+      signal: request.signal,
+    })
     if (!longLivedResponse.ok) {
-      const errorText = await longLivedResponse.text()
+      const errorText = await readResponseTextWithLimit(longLivedResponse, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: 'Instagram OAuth exchange error response',
+        signal: request.signal,
+      }).catch(() => longLivedResponse.statusText)
       logger.error('Failed to exchange Instagram short-lived token', {
         status: longLivedResponse.status,
-        body: errorText,
+        error: errorText,
       })
       return clearOAuthCookies(
         NextResponse.redirect(`${baseUrl}/workspace?error=instagram_exchange_error`)
       )
     }
 
-    const longLivedBody = (await longLivedResponse.json()) as {
+    const longLivedBody = await readResponseJsonWithLimit<{
       access_token?: string
       token_type?: string
       expires_in?: number
-    }
+    }>(longLivedResponse, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'Instagram OAuth exchange response',
+      signal: request.signal,
+    })
 
     if (!longLivedBody.access_token) {
       logger.error('Instagram long-lived token response missing access_token', {
@@ -184,33 +204,39 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const longLivedToken = longLivedBody.access_token
     const expiresIn = longLivedBody.expires_in ?? 5184000
 
-    const profileResponse = await fetch(
-      `${INSTAGRAM_GRAPH_BASE}/me?fields=user_id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`
-    )
+    const profileUrl = new URL(`${INSTAGRAM_GRAPH_BASE}/me`)
+    profileUrl.searchParams.set('fields', 'user_id,username,name,account_type,profile_picture_url')
+    const profileResponse = await fetch(profileUrl, {
+      headers: { Authorization: `Bearer ${longLivedToken}` },
+      signal: request.signal,
+    })
 
     if (!profileResponse.ok) {
-      const errorText = await profileResponse.text()
+      const errorText = await readResponseTextWithLimit(profileResponse, {
+        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+        label: 'Instagram OAuth profile error response',
+        signal: request.signal,
+      }).catch(() => profileResponse.statusText)
       logger.error('Failed to fetch Instagram profile after OAuth', {
         status: profileResponse.status,
-        body: errorText,
+        error: errorText,
       })
       return clearOAuthCookies(
         NextResponse.redirect(`${baseUrl}/workspace?error=instagram_profile_error`)
       )
     }
 
-    const profile = (await profileResponse.json()) as {
+    const profile = await readResponseJsonWithLimit<{
       user_id?: string | number
       id?: string
       username?: string
       name?: string
-    }
+    }>(profileResponse, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'Instagram OAuth profile response',
+      signal: request.signal,
+    })
 
-    // account.accountId must always be the Instagram professional account ID
-    // (/me user_id, which Meta may serialize as a string or number). The token
-    // exchange's user_id and /me's id are app-scoped IDs — a different ID
-    // space — so falling back to them would break reconnect dedupe by storing
-    // the same account under two identifiers.
     const igUserId =
       profile.user_id != null && profile.user_id !== '' ? String(profile.user_id) : null
 
@@ -236,8 +262,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       grantedPermissions.length > 0
         ? grantedPermissions
         : getCanonicalScopesForProvider('instagram')
-    // Space-joined: the standard OAuth format both credential routes parse
-    // (`/api/auth/oauth/connections` splits on whitespace only).
     const scope = permissions.join(' ')
 
     const now = new Date()

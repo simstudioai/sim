@@ -2,7 +2,14 @@ import type {
   InstagramGetMessageParams,
   InstagramGetMessageResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  graphUrl,
+  type InstagramGraphPage,
+  idString,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramGetMessageTool: ToolConfig<
@@ -59,15 +66,36 @@ export const instagramGetMessageTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
-    const from = data.from as { id?: string | number; username?: string } | undefined
+    const data = await readGraphJson<{
+      id?: string | number
+      created_time?: string
+      from?: { id?: string | number; username?: string }
+      to?: InstagramGraphPage<{ id?: string | number; username?: string }>
+      message?: string
+    }>(response, 'Instagram message response')
+    const from = data.from
     const toData = data.to?.data
     const toFirst = Array.isArray(toData) ? toData[0] : undefined
+    const id = idString(data.id)
+    if (!id) {
+      return {
+        success: false,
+        output: {
+          id: null,
+          createdTime: null,
+          fromId: null,
+          fromUsername: null,
+          toId: null,
+          message: null,
+        },
+        error: 'Instagram message response did not include a message id',
+      }
+    }
 
     return {
       success: true,
       output: {
-        id: idString(data.id),
+        id,
         createdTime: data.created_time ?? null,
         fromId: idString(from?.id),
         fromUsername: from?.username ?? null,
@@ -78,7 +106,7 @@ export const instagramGetMessageTool: ToolConfig<
   },
 
   outputs: {
-    id: { type: 'string', description: 'Message id', optional: true },
+    id: { type: 'string', description: 'Message id' },
     createdTime: { type: 'string', description: 'Created timestamp', optional: true },
     fromId: { type: 'string', description: 'Sender Instagram-scoped id', optional: true },
     fromUsername: { type: 'string', description: 'Sender username', optional: true },

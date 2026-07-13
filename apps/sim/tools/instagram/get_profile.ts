@@ -2,7 +2,13 @@ import type {
   InstagramGetProfileParams,
   InstagramGetProfileResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  graphUrl,
+  idString,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const PROFILE_FIELDS =
@@ -56,7 +62,17 @@ export const instagramGetProfileTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<{
+      user_id?: string | number
+      id?: string | number
+      username?: string
+      name?: string
+      account_type?: string
+      profile_picture_url?: string
+      followers_count?: number
+      follows_count?: number
+      media_count?: number
+    }>(response, 'Instagram profile response')
 
     return {
       success: true,

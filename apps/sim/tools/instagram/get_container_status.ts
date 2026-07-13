@@ -2,7 +2,13 @@ import type {
   InstagramGetContainerStatusParams,
   InstagramGetContainerStatusResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  graphUrl,
+  idString,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramGetContainerStatusTool: ToolConfig<
@@ -53,7 +59,11 @@ export const instagramGetContainerStatusTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<{
+      id?: string | number
+      status_code?: string
+      status?: string
+    }>(response, 'Instagram container status response')
     return {
       success: true,
       output: {

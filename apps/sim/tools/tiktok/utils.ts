@@ -1,15 +1,33 @@
 import { truncate } from '@sim/utils/string'
 import type { ZodType } from 'zod'
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { type TikTokApiVideo, tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type { TikTokApiError, TikTokPublishResponse, TikTokVideo } from '@/tools/tiktok/types'
+
+export const TIKTOK_API_RESPONSE_MAX_BYTES = 1024 * 1024
 
 /**
  * Default fields requested from TikTok's `/v2/user/info/` endpoint, covering the
  * `user.info.basic`, `user.info.profile`, and `user.info.stats` scopes.
  * `avatar_url` and `avatar_large_url` feed the file-typed `avatarFile` output.
  */
-export const TIKTOK_USER_FIELDS =
-  'open_id,union_id,avatar_url,avatar_large_url,display_name,bio_description,profile_deep_link,is_verified,username,follower_count,following_count,likes_count,video_count'
+export const TIKTOK_USER_FIELD_NAMES = [
+  'open_id',
+  'union_id',
+  'avatar_url',
+  'avatar_large_url',
+  'display_name',
+  'bio_description',
+  'profile_deep_link',
+  'is_verified',
+  'username',
+  'follower_count',
+  'following_count',
+  'likes_count',
+  'video_count',
+] as const
+
+export const TIKTOK_USER_FIELDS = TIKTOK_USER_FIELD_NAMES.join(',')
 
 /**
  * Fields requested from TikTok's `/v2/video/list/` and `/v2/video/query/` endpoints.
@@ -56,6 +74,10 @@ interface TikTokPublishInitResult {
   error?: string
 }
 
+interface ReadTikTokApiResponseOptions {
+  signal?: AbortSignal
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
@@ -87,8 +109,28 @@ function httpError(response: Response, rawBody: string, message?: string): TikTo
   }
 }
 
-async function readJsonObject(response: Response): Promise<ParsedJsonObject> {
-  const rawBody = await response.text()
+async function readJsonObject(
+  response: Response,
+  options: ReadTikTokApiResponseOptions = {}
+): Promise<ParsedJsonObject> {
+  let rawBody: string
+  try {
+    rawBody = await readResponseTextWithLimit(response, {
+      maxBytes: TIKTOK_API_RESPONSE_MAX_BYTES,
+      label: 'TikTok API response',
+      signal: options.signal,
+    })
+  } catch {
+    options.signal?.throwIfAborted()
+    return {
+      body: null,
+      error: {
+        code: 'invalid_response',
+        message: 'TikTok response exceeded the maximum supported size or could not be read',
+      },
+      rawBody: '',
+    }
+  }
   let parsed: unknown
 
   try {
@@ -159,9 +201,10 @@ function parseApiEnvelope<TData extends object>(
 /** Reads and normalizes a typed TikTok API envelope. */
 export async function readTikTokApiResponse<TData extends object>(
   response: Response,
-  dataSchema: ZodType<TData>
+  dataSchema: ZodType<TData>,
+  options: ReadTikTokApiResponseOptions = {}
 ): Promise<ParsedTikTokApiResponse<TData>> {
-  return parseApiEnvelope(response, await readJsonObject(response), dataSchema)
+  return parseApiEnvelope(response, await readJsonObject(response, options), dataSchema)
 }
 
 /** Enforces TikTok's bounded array request limits before making a network request. */

@@ -1467,7 +1467,7 @@ export function LinkedInIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-/** Placeholder Instagram glyph — replace with brand SVG from press kit when provided. */
+/** Instagram camera glyph rendered with the block's brand gradient background. */
 export function InstagramIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

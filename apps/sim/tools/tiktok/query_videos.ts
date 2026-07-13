@@ -1,4 +1,4 @@
-import { tiktokVideosApiDataSchema } from '@/tools/tiktok/api-schemas'
+import { tiktokQueryVideosApiDataSchema } from '@/tools/tiktok/api-schemas'
 import {
   TIKTOK_VIDEO_OUTPUT_PROPERTIES,
   type TikTokQueryVideosParams,
@@ -65,7 +65,7 @@ export const tiktokQueryVideosTool: ToolConfig<TikTokQueryVideosParams, TikTokQu
     },
 
     transformResponse: async (response: Response): Promise<TikTokQueryVideosResponse> => {
-      const { data, error } = await readTikTokApiResponse(response, tiktokVideosApiDataSchema)
+      const { data, error } = await readTikTokApiResponse(response, tiktokQueryVideosApiDataSchema)
 
       if (error) {
         return {
@@ -77,7 +77,17 @@ export const tiktokQueryVideosTool: ToolConfig<TikTokQueryVideosParams, TikTokQu
         }
       }
 
-      const videos: TikTokVideo[] = (data?.videos ?? []).map(mapTikTokVideo)
+      if (!data) {
+        return {
+          success: false,
+          output: {
+            videos: [],
+          },
+          error: 'No video query data returned',
+        }
+      }
+
+      const videos: TikTokVideo[] = data.videos.map(mapTikTokVideo)
 
       return {
         success: true,

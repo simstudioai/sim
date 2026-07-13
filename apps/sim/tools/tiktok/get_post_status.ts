@@ -26,7 +26,6 @@ export const tiktokGetPostStatusTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'tiktok',
-    requiredScopes: ['video.publish', 'video.upload'],
   },
 
   params: {

@@ -1859,6 +1859,7 @@ import {
 } from '@/tools/infisical'
 import {
   instagramDeleteCommentTool,
+  instagramDownloadMediaTool,
   instagramGetAccountInsightsTool,
   instagramGetContainerStatusTool,
   instagramGetConversationMessagesTool,
@@ -4925,6 +4926,7 @@ export const tools: Record<string, ToolConfig> = {
   hex_update_group: hexUpdateGroupTool,
   hex_update_project: hexUpdateProjectTool,
   instagram_delete_comment: instagramDeleteCommentTool,
+  instagram_download_media: instagramDownloadMediaTool,
   instagram_get_account_insights: instagramGetAccountInsightsTool,
   instagram_get_container_status: instagramGetContainerStatusTool,
   instagram_get_conversation_messages: instagramGetConversationMessagesTool,

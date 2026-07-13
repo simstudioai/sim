@@ -1,8 +1,16 @@
+import { INSTAGRAM_COMMENT_PROPERTIES } from '@/tools/instagram/output-properties'
 import type {
   InstagramListCommentsParams,
   InstagramListCommentsResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, clampGraphLimit, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  clampGraphLimit,
+  graphUrl,
+  type InstagramGraphPage,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramListCommentsTool: ToolConfig<
@@ -49,7 +57,7 @@ export const instagramListCommentsTool: ToolConfig<
   request: {
     url: (params) =>
       graphUrl(`/${params.mediaId.trim()}/comments`, {
-        fields: 'id,text,username,timestamp,like_count,hidden',
+        fields: 'id,text,from,timestamp,like_count,hidden',
         limit: String(clampGraphLimit(params.limit)),
         after: params.after?.trim() || undefined,
       }),
@@ -66,21 +74,41 @@ export const instagramListCommentsTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<InstagramGraphPage<Record<string, unknown>>>(
+      response,
+      'Instagram comments response'
+    )
     const items = Array.isArray(data.data) ? data.data : []
+    const comments = items.flatMap((item: Record<string, unknown>) => {
+      const id = item.id == null || item.id === '' ? null : String(item.id)
+      if (!id) return []
+
+      const from =
+        item.from && typeof item.from === 'object'
+          ? (item.from as { username?: unknown })
+          : undefined
+
+      return [
+        {
+          id,
+          text: typeof item.text === 'string' ? item.text : null,
+          username:
+            typeof from?.username === 'string'
+              ? from.username
+              : typeof item.username === 'string'
+                ? item.username
+                : null,
+          timestamp: typeof item.timestamp === 'string' ? item.timestamp : null,
+          likeCount: typeof item.like_count === 'number' ? item.like_count : null,
+          hidden: typeof item.hidden === 'boolean' ? item.hidden : null,
+        },
+      ]
+    })
 
     return {
       success: true,
       output: {
-        comments: items.map((item: Record<string, unknown>) => ({
-          id: String(item.id ?? ''),
-          text: (item.text as string | undefined) ?? null,
-          username: (item.username as string | undefined) ?? null,
-          timestamp: (item.timestamp as string | undefined) ?? null,
-          likeCount: (item.like_count as number | undefined) ?? null,
-          hidden: (item.hidden as boolean | undefined) ?? null,
-        })),
-        // Graph includes cursors on every page; only `paging.next` signals another page.
+        comments,
         nextCursor: data.paging?.next ? (data.paging?.cursors?.after ?? null) : null,
       },
     }
@@ -88,8 +116,9 @@ export const instagramListCommentsTool: ToolConfig<
 
   outputs: {
     comments: {
-      type: 'json',
-      description: 'Comments (id, text, username, timestamp, likeCount, hidden)',
+      type: 'array',
+      description: 'Comments on the media object',
+      items: { type: 'object', properties: INSTAGRAM_COMMENT_PROPERTIES },
     },
     nextCursor: { type: 'string', description: 'Pagination cursor', optional: true },
   },

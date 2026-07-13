@@ -1,5 +1,13 @@
+import { INSTAGRAM_MEDIA_PROPERTIES } from '@/tools/instagram/output-properties'
 import type { InstagramListMediaParams, InstagramListMediaResponse } from '@/tools/instagram/types'
-import { bearerHeaders, clampGraphLimit, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  clampGraphLimit,
+  graphUrl,
+  type InstagramGraphPage,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const MEDIA_FIELDS =
@@ -68,24 +76,35 @@ export const instagramListMediaTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<InstagramGraphPage<Record<string, unknown>>>(
+      response,
+      'Instagram media list response'
+    )
     const items = Array.isArray(data.data) ? data.data : []
+    const media = items.flatMap((item: Record<string, unknown>) => {
+      const id = item.id == null || item.id === '' ? null : String(item.id)
+      if (!id) return []
+
+      return [
+        {
+          id,
+          caption: typeof item.caption === 'string' ? item.caption : null,
+          mediaType: typeof item.media_type === 'string' ? item.media_type : null,
+          mediaProductType:
+            typeof item.media_product_type === 'string' ? item.media_product_type : null,
+          mediaUrl: typeof item.media_url === 'string' ? item.media_url : null,
+          permalink: typeof item.permalink === 'string' ? item.permalink : null,
+          timestamp: typeof item.timestamp === 'string' ? item.timestamp : null,
+          likeCount: typeof item.like_count === 'number' ? item.like_count : null,
+          commentsCount: typeof item.comments_count === 'number' ? item.comments_count : null,
+        },
+      ]
+    })
 
     return {
       success: true,
       output: {
-        media: items.map((item: Record<string, unknown>) => ({
-          id: String(item.id ?? ''),
-          caption: (item.caption as string | undefined) ?? null,
-          mediaType: (item.media_type as string | undefined) ?? null,
-          mediaProductType: (item.media_product_type as string | undefined) ?? null,
-          mediaUrl: (item.media_url as string | undefined) ?? null,
-          permalink: (item.permalink as string | undefined) ?? null,
-          timestamp: (item.timestamp as string | undefined) ?? null,
-          likeCount: (item.like_count as number | undefined) ?? null,
-          commentsCount: (item.comments_count as number | undefined) ?? null,
-        })),
-        // Graph includes cursors on every page; only `paging.next` signals another page.
+        media,
         nextCursor: data.paging?.next ? (data.paging?.cursors?.after ?? null) : null,
       },
     }
@@ -93,9 +112,9 @@ export const instagramListMediaTool: ToolConfig<
 
   outputs: {
     media: {
-      type: 'json',
-      description:
-        'List of media objects (id, caption, mediaType, mediaProductType, mediaUrl, permalink, timestamp, likeCount, commentsCount)',
+      type: 'array',
+      description: 'Media objects from this page',
+      items: { type: 'object', properties: INSTAGRAM_MEDIA_PROPERTIES },
     },
     nextCursor: {
       type: 'string',

@@ -250,7 +250,6 @@ export async function resolveInstagramMedia(
     return { error: { status: 400, message: CLOUD_STORAGE_REQUIRED_MESSAGE } }
   }
 
-  // Meta only curls HTTPS; reject plain HTTP before the shared helper accepts it.
   if (filePath && isPublicHttpUrl(filePath) && !filePath.startsWith('https://')) {
     return {
       error: {
@@ -309,7 +308,7 @@ export async function resolveInstagramCarouselMedia(
         const parsed = JSON.parse(trimmed) as unknown
         return resolveInstagramCarouselMedia(parsed, userId, requestId, logger)
       } catch {
-        // fall through to comma-separated URL parsing
+        return { error: { status: 400, message: 'Carousel media JSON is invalid' } }
       }
     }
 

@@ -1,5 +1,9 @@
-import type { InstagramPublishResponse, InstagramPublishStoryParams } from '@/tools/instagram/types'
-import { createPublishTransform, PUBLISH_OUTPUTS } from '@/tools/instagram/utils'
+import {
+  type InstagramPublishResponse,
+  type InstagramPublishStoryParams,
+  PUBLISH_OUTPUTS,
+} from '@/tools/instagram/types'
+import { createPublishTransform } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramPublishStoryTool: ToolConfig<
@@ -8,7 +12,8 @@ export const instagramPublishStoryTool: ToolConfig<
 > = {
   id: 'instagram_publish_story',
   name: 'Instagram Publish Story',
-  description: 'Publish an image or video story from an uploaded file or public HTTPS URL',
+  description:
+    'Publish an image or video story for an Instagram Business account from an uploaded file or public HTTPS URL',
   version: '1.0.0',
 
   oauth: {

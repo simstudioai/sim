@@ -1,4 +1,13 @@
-import type { ToolResponse } from '@/tools/types'
+import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import type { UserFile } from '@/executor/types'
+import type { OutputProperty, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+
+/** Shared outputs returned by every Instagram publishing operation. */
+export const PUBLISH_OUTPUTS = {
+  containerId: { type: 'string', description: 'Media container ID', optional: true },
+  mediaId: { type: 'string', description: 'Published media ID', optional: true },
+  statusCode: { type: 'string', description: 'Final container status', optional: true },
+} satisfies Record<string, OutputProperty>
 
 export interface InstagramAccessParams {
   accessToken: string
@@ -65,7 +74,26 @@ export interface InstagramGetMediaResponse extends ToolResponse {
   }
 }
 
-export interface InstagramListStoriesParams extends InstagramAccessParams {}
+export interface InstagramDownloadMediaParams {
+  accessToken: string
+  mediaId: string
+  filename?: string
+  _context?: WorkflowToolExecutionContext
+}
+
+export interface InstagramDownloadMediaResponse extends ToolResponse {
+  output: {
+    files: UserFile[]
+    mediaId: string
+    mediaType: string | null
+    downloadedCount: number
+  }
+}
+
+export interface InstagramListStoriesParams extends InstagramAccessParams {
+  limit?: number
+  after?: string
+}
 
 export interface InstagramListStoriesResponse extends ToolResponse {
   output: {
@@ -75,11 +103,12 @@ export interface InstagramListStoriesResponse extends ToolResponse {
       mediaUrl: string | null
       timestamp: string | null
     }>
+    nextCursor: string | null
   }
 }
 
 /** Uploaded UserFile object, or a public HTTPS URL string (advanced paste / legacy). */
-export type InstagramMediaInput = object | string
+export type InstagramMediaInput = RawFileInput | string
 
 export interface InstagramPublishImageParams extends InstagramAccessParams {
   image: InstagramMediaInput
@@ -108,7 +137,7 @@ export interface InstagramPublishStoryParams extends InstagramAccessParams {
 
 export interface InstagramPublishCarouselParams extends InstagramAccessParams {
   /** File array, single file, or comma-separated public URLs (prefix videos with video:). */
-  media: InstagramMediaInput | InstagramMediaInput[]
+  media: RawFileInput | RawFileInput[] | string
   caption?: string
 }
 
@@ -243,6 +272,8 @@ export interface InstagramListConversationsResponse extends ToolResponse {
 export interface InstagramGetConversationMessagesParams {
   accessToken: string
   conversationId: string
+  limit?: number
+  after?: string
 }
 
 export interface InstagramGetConversationMessagesResponse extends ToolResponse {
@@ -251,7 +282,9 @@ export interface InstagramGetConversationMessagesResponse extends ToolResponse {
     messages: Array<{
       id: string
       createdTime: string | null
+      isUnsupported: boolean
     }>
+    nextCursor: string | null
   }
 }
 
@@ -329,6 +362,7 @@ export type InstagramResponse =
   | InstagramGetProfileResponse
   | InstagramListMediaResponse
   | InstagramGetMediaResponse
+  | InstagramDownloadMediaResponse
   | InstagramListStoriesResponse
   | InstagramPublishResponse
   | InstagramGetContainerStatusResponse

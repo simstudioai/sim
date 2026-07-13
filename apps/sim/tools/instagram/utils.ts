@@ -1,7 +1,36 @@
+import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram/constants'
 import type { InstagramPublishResponse } from '@/tools/instagram/types'
-import type { ToolConfig } from '@/tools/types'
+
+export const INSTAGRAM_RESPONSE_MAX_BYTES = 2 * 1024 * 1024
+
+export interface InstagramGraphPaging {
+  cursors?: { after?: string }
+  next?: string
+}
+
+export interface InstagramGraphPage<T> {
+  data?: T[]
+  paging?: InstagramGraphPaging
+}
+
+export async function readGraphJson<T>(
+  response: Response,
+  label: string,
+  signal?: AbortSignal
+): Promise<T> {
+  return readResponseJsonWithLimit<T>(response, {
+    maxBytes: INSTAGRAM_RESPONSE_MAX_BYTES,
+    label,
+    signal,
+  })
+}
 
 export function bearerHeaders(accessToken: string): Record<string, string> {
   return {
@@ -42,36 +71,66 @@ export function idString(value: unknown): string | null {
   return String(value)
 }
 
+interface InstagramGraphErrorBody {
+  error?: {
+    message?: string
+    type?: string
+    code?: number
+    error_subcode?: number
+    fbtrace_id?: string
+  }
+}
+
 export async function readGraphError(response: Response): Promise<string> {
-  const text = await response.text()
+  const text = await readResponseTextWithLimit(response, {
+    maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+    label: 'Instagram Graph error response',
+  }).catch(() => '')
+
   try {
-    const json = JSON.parse(text) as { error?: { message?: string; code?: number } }
-    if (json.error?.message) {
-      return json.error.message
+    const graphError = (JSON.parse(text) as InstagramGraphErrorBody).error
+    if (graphError?.message) {
+      const diagnostics = [
+        graphError.type ? `type ${graphError.type}` : null,
+        graphError.code !== undefined ? `code ${graphError.code}` : null,
+        graphError.error_subcode !== undefined ? `subcode ${graphError.error_subcode}` : null,
+        graphError.fbtrace_id ? `trace ${graphError.fbtrace_id}` : null,
+      ].filter((value): value is string => value !== null)
+
+      return diagnostics.length > 0
+        ? `${graphError.message} (${diagnostics.join(', ')})`
+        : graphError.message
     }
   } catch {
-    // keep raw text
+    return text || response.statusText
   }
+
   return text || response.statusText
 }
 
-export async function resolveIgUserId(accessToken: string, igUserId?: string): Promise<string> {
+export async function resolveIgUserId(
+  accessToken: string,
+  igUserId?: string,
+  signal?: AbortSignal
+): Promise<string> {
   if (igUserId && igUserId.trim().length > 0) {
     return igUserId.trim()
   }
 
   const response = await fetch(graphUrl('/me', { fields: 'user_id' }), {
     headers: bearerHeaders(accessToken),
+    signal,
   })
 
   if (!response.ok) {
     throw new Error(`Failed to resolve Instagram user id: ${await readGraphError(response)}`)
   }
 
-  // Only /me's user_id is the Instagram professional account ID that publish
-  // and messaging paths expect; /me's id is an app-scoped ID from a different
-  // ID space, so never fall back to it.
-  const data = (await response.json()) as { user_id?: string | number }
+  const data = await readGraphJson<{ user_id?: string | number }>(
+    response,
+    'Instagram user response',
+    signal
+  )
   if (data.user_id == null || data.user_id === '') {
     throw new Error('Instagram /me response did not include a user_id')
   }
@@ -82,35 +141,63 @@ export type ContainerStatusCode = 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRES
 
 export async function getContainerStatus(
   accessToken: string,
-  containerId: string
+  containerId: string,
+  signal?: AbortSignal
 ): Promise<{ statusCode: ContainerStatusCode | null; status: string | null }> {
   const response = await fetch(graphUrl(`/${containerId}`, { fields: 'status_code,status' }), {
     headers: bearerHeaders(accessToken),
+    signal,
   })
 
   if (!response.ok) {
     throw new Error(`Failed to get container status: ${await readGraphError(response)}`)
   }
 
-  const data = (await response.json()) as { status_code?: string; status?: string }
+  const data = await readGraphJson<{ status_code?: string; status?: string }>(
+    response,
+    'Instagram container status response',
+    signal
+  )
   return {
     statusCode: (data.status_code as ContainerStatusCode | undefined) ?? null,
     status: data.status ?? null,
   }
 }
 
-// Meta recommends checking once per minute for no more than five minutes.
-// Six attempts = an immediate check plus five minute-spaced checks, so the
-// full five-minute window is covered before timing out.
 const POLL_INTERVAL_MS = 60_000
 const POLL_MAX_ATTEMPTS = 6
 
+async function waitForNextPoll(signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    await sleep(POLL_INTERVAL_MS)
+    return
+  }
+
+  if (signal.aborted) {
+    throw toError(signal.reason ?? new Error('Instagram publishing was cancelled'))
+  }
+
+  let abortHandler: (() => void) | undefined
+  const aborted = new Promise<never>((_, reject) => {
+    abortHandler = () =>
+      reject(toError(signal.reason ?? new Error('Instagram publishing was cancelled')))
+    signal.addEventListener('abort', abortHandler, { once: true })
+  })
+
+  try {
+    await Promise.race([sleep(POLL_INTERVAL_MS), aborted])
+  } finally {
+    if (abortHandler) signal.removeEventListener('abort', abortHandler)
+  }
+}
+
 export async function waitForContainerReady(
   accessToken: string,
-  containerId: string
+  containerId: string,
+  signal?: AbortSignal
 ): Promise<{ statusCode: ContainerStatusCode; status: string | null }> {
   for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-    const { statusCode, status } = await getContainerStatus(accessToken, containerId)
+    const { statusCode, status } = await getContainerStatus(accessToken, containerId, signal)
 
     if (statusCode === 'FINISHED' || statusCode === 'PUBLISHED') {
       return { statusCode, status }
@@ -122,7 +209,7 @@ export async function waitForContainerReady(
     }
 
     if (attempt < POLL_MAX_ATTEMPTS - 1) {
-      await sleep(POLL_INTERVAL_MS)
+      await waitForNextPoll(signal)
     }
   }
 
@@ -137,7 +224,8 @@ export async function waitForContainerReady(
 async function postGraphForm(
   accessToken: string,
   path: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<Response> {
   const form = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
@@ -153,21 +241,27 @@ async function postGraphForm(
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: form.toString(),
+    signal,
   })
 }
 
 export async function createMediaContainer(
   accessToken: string,
   igUserId: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<string> {
-  const response = await postGraphForm(accessToken, `/${igUserId}/media`, body)
+  const response = await postGraphForm(accessToken, `/${igUserId}/media`, body, signal)
 
   if (!response.ok) {
     throw new Error(`Failed to create media container: ${await readGraphError(response)}`)
   }
 
-  const data = (await response.json()) as { id?: string | number }
+  const data = await readGraphJson<{ id?: string | number }>(
+    response,
+    'Instagram create container response',
+    signal
+  )
   const id = idString(data.id)
   if (!id) {
     throw new Error('Create media container response missing id')
@@ -178,29 +272,32 @@ export async function createMediaContainer(
 export async function publishMediaContainer(
   accessToken: string,
   igUserId: string,
-  creationId: string
+  creationId: string,
+  signal?: AbortSignal
 ): Promise<string> {
-  const response = await postGraphForm(accessToken, `/${igUserId}/media_publish`, {
-    creation_id: creationId,
-  })
+  const response = await postGraphForm(
+    accessToken,
+    `/${igUserId}/media_publish`,
+    {
+      creation_id: creationId,
+    },
+    signal
+  )
 
   if (!response.ok) {
     throw new Error(`Failed to publish media: ${await readGraphError(response)}`)
   }
 
-  const data = (await response.json()) as { id?: string | number }
+  const data = await readGraphJson<{ id?: string | number }>(
+    response,
+    'Instagram publish media response',
+    signal
+  )
   const id = idString(data.id)
   if (!id) {
     throw new Error('Publish media response missing id')
   }
   return id
-}
-
-/** Shared output schema for the five publish tools (image, video, reel, story, carousel). */
-export const PUBLISH_OUTPUTS: ToolConfig['outputs'] = {
-  containerId: { type: 'string', description: 'Media container id', optional: true },
-  mediaId: { type: 'string', description: 'Published media id', optional: true },
-  statusCode: { type: 'string', description: 'Final container status', optional: true },
 }
 
 /**
@@ -209,8 +306,38 @@ export const PUBLISH_OUTPUTS: ToolConfig['outputs'] = {
  */
 export function createPublishTransform(fallbackError: string) {
   return async (response: Response): Promise<InstagramPublishResponse> => {
-    const data = await response.json()
-    const output = data.output || { containerId: null, mediaId: null, statusCode: null }
+    const text = await readResponseTextWithLimit(response, {
+      maxBytes: INSTAGRAM_RESPONSE_MAX_BYTES,
+      label: 'Instagram publish response',
+    }).catch(() => '')
+    const fallbackOutput = { containerId: null, mediaId: null, statusCode: null }
+
+    let data: {
+      success?: boolean
+      output?: InstagramPublishResponse['output']
+      error?: string
+    } = {}
+
+    if (text) {
+      try {
+        data = JSON.parse(text) as typeof data
+      } catch {
+        if (!response.ok) {
+          return {
+            success: false,
+            output: fallbackOutput,
+            error: `${fallbackError}: ${text}`,
+          }
+        }
+        return {
+          success: false,
+          output: fallbackOutput,
+          error: `${fallbackError}: invalid JSON response`,
+        }
+      }
+    }
+
+    const output = data.output ?? fallbackOutput
     if (!response.ok || data.success === false) {
       return { success: false, output, error: data.error || fallbackError }
     }

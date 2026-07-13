@@ -1,8 +1,16 @@
+import { INSTAGRAM_CONVERSATION_PROPERTIES } from '@/tools/instagram/output-properties'
 import type {
   InstagramListConversationsParams,
   InstagramListConversationsResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, clampGraphLimit, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  clampGraphLimit,
+  graphUrl,
+  type InstagramGraphPage,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramListConversationsTool: ToolConfig<
@@ -71,17 +79,26 @@ export const instagramListConversationsTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<InstagramGraphPage<Record<string, unknown>>>(
+      response,
+      'Instagram conversations response'
+    )
     const items = Array.isArray(data.data) ? data.data : []
+    const conversations = items.flatMap((item: Record<string, unknown>) => {
+      const id = item.id == null || item.id === '' ? null : String(item.id)
+      if (!id) return []
+      return [
+        {
+          id,
+          updatedTime: typeof item.updated_time === 'string' ? item.updated_time : null,
+        },
+      ]
+    })
 
     return {
       success: true,
       output: {
-        conversations: items.map((item: Record<string, unknown>) => ({
-          id: String(item.id ?? ''),
-          updatedTime: (item.updated_time as string | undefined) ?? null,
-        })),
-        // Graph includes cursors on every page; only `paging.next` signals another page.
+        conversations,
         nextCursor: data.paging?.next ? (data.paging?.cursors?.after ?? null) : null,
       },
     }
@@ -89,8 +106,9 @@ export const instagramListConversationsTool: ToolConfig<
 
   outputs: {
     conversations: {
-      type: 'json',
-      description: 'Conversations (id, updatedTime)',
+      type: 'array',
+      description: 'Instagram Direct conversations from this page',
+      items: { type: 'object', properties: INSTAGRAM_CONVERSATION_PROPERTIES },
     },
     nextCursor: { type: 'string', description: 'Pagination cursor', optional: true },
   },

@@ -2,7 +2,7 @@ import type {
   InstagramDeleteCommentParams,
   InstagramDeleteCommentResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, readGraphError, readGraphJson } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramDeleteCommentTool: ToolConfig<
@@ -49,10 +49,25 @@ export const instagramDeleteCommentTool: ToolConfig<
       }
     }
 
-    const data = await response.json().catch(() => ({ success: true }))
+    if (response.status === 204) {
+      return { success: true, output: { success: true } }
+    }
+
+    const data = await readGraphJson<{ success?: boolean }>(
+      response,
+      'Instagram delete comment response'
+    ).catch(() => null)
+    if (!data || data.success !== true) {
+      return {
+        success: false,
+        output: { success: false },
+        error: 'Instagram did not confirm that the comment was deleted',
+      }
+    }
+
     return {
       success: true,
-      output: { success: data.success !== false },
+      output: { success: true },
     }
   },
 

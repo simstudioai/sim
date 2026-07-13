@@ -2,7 +2,13 @@ import type {
   InstagramSendTextMessageParams,
   InstagramSendTextMessageResponse,
 } from '@/tools/instagram/types'
-import { graphUrl, idString, jsonBearerHeaders, readGraphError } from '@/tools/instagram/utils'
+import {
+  graphUrl,
+  idString,
+  jsonBearerHeaders,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramSendTextMessageTool: ToolConfig<
@@ -69,21 +75,31 @@ export const instagramSendTextMessageTool: ToolConfig<
       }
     }
 
-    const data = (await response.json()) as {
+    const data = await readGraphJson<{
       message_id?: string | number
       recipient_id?: string | number
+    }>(response, 'Instagram send message response')
+    const messageId = idString(data.message_id)
+    const recipientId = idString(data.recipient_id) ?? params?.recipientId?.trim() ?? null
+    if (!messageId || !recipientId) {
+      return {
+        success: false,
+        output: { messageId: null, recipientId },
+        error: 'Instagram send message response did not include the required ids',
+      }
     }
+
     return {
       success: true,
       output: {
-        messageId: idString(data.message_id),
-        recipientId: idString(data.recipient_id) ?? params?.recipientId?.trim() ?? null,
+        messageId,
+        recipientId,
       },
     }
   },
 
   outputs: {
-    messageId: { type: 'string', description: 'Sent message id', optional: true },
-    recipientId: { type: 'string', description: 'Recipient id', optional: true },
+    messageId: { type: 'string', description: 'Sent message id' },
+    recipientId: { type: 'string', description: 'Recipient id' },
   },
 }

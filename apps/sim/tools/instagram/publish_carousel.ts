@@ -1,8 +1,9 @@
-import type {
-  InstagramPublishCarouselParams,
-  InstagramPublishResponse,
+import {
+  type InstagramPublishCarouselParams,
+  type InstagramPublishResponse,
+  PUBLISH_OUTPUTS,
 } from '@/tools/instagram/types'
-import { createPublishTransform, PUBLISH_OUTPUTS } from '@/tools/instagram/utils'
+import { createPublishTransform } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramPublishCarouselTool: ToolConfig<

@@ -80,7 +80,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       coverUrl = resolvedCover.media?.url
     }
 
-    const igUserId = await resolveIgUserId(body.accessToken, body.igUserId ?? undefined)
+    const igUserId = await resolveIgUserId(
+      body.accessToken,
+      body.igUserId ?? undefined,
+      request.signal
+    )
     const containerBody: Record<string, unknown> = {
       media_type: 'REELS',
       video_url: resolvedVideo.media.url,
@@ -92,9 +96,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     if (body.thumbOffset != null) containerBody.thumb_offset = body.thumbOffset
 
-    const containerId = await createMediaContainer(body.accessToken, igUserId, containerBody)
-    const { statusCode } = await waitForContainerReady(body.accessToken, containerId)
-    const mediaId = await publishMediaContainer(body.accessToken, igUserId, containerId)
+    const containerId = await createMediaContainer(
+      body.accessToken,
+      igUserId,
+      containerBody,
+      request.signal
+    )
+    const { statusCode } = await waitForContainerReady(
+      body.accessToken,
+      containerId,
+      request.signal
+    )
+    const mediaId = await publishMediaContainer(
+      body.accessToken,
+      igUserId,
+      containerId,
+      request.signal
+    )
 
     return NextResponse.json({
       success: true,

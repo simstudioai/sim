@@ -57,12 +57,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const igUserId = await resolveIgUserId(body.accessToken, body.igUserId ?? undefined)
+    const igUserId = await resolveIgUserId(
+      body.accessToken,
+      body.igUserId ?? undefined,
+      request.signal
+    )
 
-    // Create every child container before polling any of them: Meta fetches each
-    // media URL at container creation, so presigned links are consumed while
-    // fresh, and polling in parallel bounds the total wait to a single
-    // five-minute window instead of five minutes per item.
     const childIds: string[] = []
     for (const item of resolved.items) {
       const childBody: Record<string, unknown> = {
@@ -74,13 +74,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       } else {
         childBody.image_url = item.url
       }
-      childIds.push(await createMediaContainer(body.accessToken, igUserId, childBody))
+      childIds.push(
+        await createMediaContainer(body.accessToken, igUserId, childBody, request.signal)
+      )
     }
 
-    // allSettled so a fast-failing child doesn't leave sibling polls rejecting
-    // with no handler (Node terminates on unhandled rejections).
     const childResults = await Promise.allSettled(
-      childIds.map((childId) => waitForContainerReady(body.accessToken, childId))
+      childIds.map((childId) => waitForContainerReady(body.accessToken, childId, request.signal))
     )
     const failedChild = childResults.find(
       (result): result is PromiseRejectedResult => result.status === 'rejected'
@@ -95,9 +95,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     if (body.caption) parentBody.caption = body.caption
 
-    const containerId = await createMediaContainer(body.accessToken, igUserId, parentBody)
-    const { statusCode } = await waitForContainerReady(body.accessToken, containerId)
-    const mediaId = await publishMediaContainer(body.accessToken, igUserId, containerId)
+    const containerId = await createMediaContainer(
+      body.accessToken,
+      igUserId,
+      parentBody,
+      request.signal
+    )
+    const { statusCode } = await waitForContainerReady(
+      body.accessToken,
+      containerId,
+      request.signal
+    )
+    const mediaId = await publishMediaContainer(
+      body.accessToken,
+      igUserId,
+      containerId,
+      request.signal
+    )
 
     return NextResponse.json({
       success: true,

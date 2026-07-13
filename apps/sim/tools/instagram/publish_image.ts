@@ -1,5 +1,9 @@
-import type { InstagramPublishImageParams, InstagramPublishResponse } from '@/tools/instagram/types'
-import { createPublishTransform, PUBLISH_OUTPUTS } from '@/tools/instagram/utils'
+import {
+  type InstagramPublishImageParams,
+  type InstagramPublishResponse,
+  PUBLISH_OUTPUTS,
+} from '@/tools/instagram/types'
+import { createPublishTransform } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramPublishImageTool: ToolConfig<

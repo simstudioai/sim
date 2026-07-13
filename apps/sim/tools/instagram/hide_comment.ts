@@ -2,7 +2,7 @@ import type {
   InstagramHideCommentParams,
   InstagramHideCommentResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import { bearerHeaders, graphUrl, readGraphError, readGraphJson } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramHideCommentTool: ToolConfig<
@@ -55,10 +55,21 @@ export const instagramHideCommentTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<{ success?: boolean }>(
+      response,
+      'Instagram hide comment response'
+    )
+    if (data.success !== true) {
+      return {
+        success: false,
+        output: { success: false },
+        error: 'Instagram did not confirm that the comment visibility was updated',
+      }
+    }
+
     return {
       success: true,
-      output: { success: data.success === true || data.success === undefined },
+      output: { success: true },
     }
   },
 

@@ -2,7 +2,13 @@ import type {
   InstagramPrivateReplyParams,
   InstagramPrivateReplyResponse,
 } from '@/tools/instagram/types'
-import { graphUrl, idString, jsonBearerHeaders, readGraphError } from '@/tools/instagram/utils'
+import {
+  graphUrl,
+  idString,
+  jsonBearerHeaders,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramPrivateReplyTool: ToolConfig<
@@ -11,7 +17,8 @@ export const instagramPrivateReplyTool: ToolConfig<
 > = {
   id: 'instagram_private_reply',
   name: 'Instagram Private Reply',
-  description: 'Send a private Direct message reply to a commenter (one per commenter)',
+  description:
+    'Send the one allowed initial private reply within 7 days of a comment; follow-ups require a recipient response',
   version: '1.0.0',
 
   oauth: {
@@ -68,25 +75,34 @@ export const instagramPrivateReplyTool: ToolConfig<
       }
     }
 
-    const data = (await response.json()) as {
+    const data = await readGraphJson<{
       message_id?: string | number
       recipient_id?: string | number
+    }>(response, 'Instagram private reply response')
+    const messageId = idString(data.message_id)
+    const recipientId = idString(data.recipient_id)
+    if (!messageId || !recipientId) {
+      return {
+        success: false,
+        output: { messageId: null, recipientId: null },
+        error: 'Instagram private reply response did not include message and recipient ids',
+      }
     }
+
     return {
       success: true,
       output: {
-        messageId: idString(data.message_id),
-        recipientId: idString(data.recipient_id),
+        messageId,
+        recipientId,
       },
     }
   },
 
   outputs: {
-    messageId: { type: 'string', description: 'Sent message id', optional: true },
+    messageId: { type: 'string', description: 'Sent message id' },
     recipientId: {
       type: 'string',
       description: 'Instagram-scoped recipient id',
-      optional: true,
     },
   },
 }

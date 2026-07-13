@@ -29,7 +29,7 @@ function resolveCarouselMediaInput(value: unknown): object[] | string | undefine
       const files = normalizeFileInput(parsed)
       if (files) return files
     } catch {
-      // plain URL or comma-separated URLs
+      return trimmed
     }
     return trimmed
   }
@@ -53,20 +53,69 @@ const IG_USER_ID_OPS = [
   'instagram_get_account_insights',
 ]
 
+const OPERATION_PARAM_KEYS: Record<string, readonly string[]> = {
+  instagram_get_profile: [],
+  instagram_list_media: ['igUserId', 'limit', 'after'],
+  instagram_get_media: ['mediaId'],
+  instagram_download_media: ['mediaId', 'filename'],
+  instagram_list_stories: ['igUserId', 'limit', 'after'],
+  instagram_publish_image: ['igUserId', 'caption', 'altText', 'isAiGenerated'],
+  instagram_publish_video: ['igUserId', 'caption'],
+  instagram_publish_reel: ['igUserId', 'caption', 'shareToFeed', 'thumbOffset'],
+  instagram_publish_story: ['igUserId'],
+  instagram_publish_carousel: ['igUserId', 'caption'],
+  instagram_get_container_status: ['containerId'],
+  instagram_get_publishing_limit: ['igUserId'],
+  instagram_list_comments: ['mediaId', 'limit', 'after'],
+  instagram_reply_to_comment: ['commentId', 'message'],
+  instagram_hide_comment: ['commentId', 'hide'],
+  instagram_delete_comment: ['commentId'],
+  instagram_set_comments_enabled: ['mediaId', 'commentEnabled'],
+  instagram_private_reply: ['igUserId', 'commentId', 'message'],
+  instagram_list_conversations: ['igUserId', 'limit', 'after'],
+  instagram_get_conversation_messages: ['conversationId', 'limit', 'after'],
+  instagram_get_message: ['messageId'],
+  instagram_send_text_message: ['igUserId', 'recipientId', 'message'],
+  instagram_get_account_insights: [
+    'igUserId',
+    'metrics',
+    'period',
+    'since',
+    'until',
+    'metricType',
+    'breakdown',
+    'timeframe',
+  ],
+  instagram_get_media_insights: ['mediaId', 'metrics'],
+}
+
+const INSTAGRAM_TOOL_IDS = new Set(Object.keys(OPERATION_PARAM_KEYS))
+const INSTAGRAM_OPERATION_INPUT_KEYS = new Set([
+  'image',
+  'video',
+  'cover',
+  'media',
+  'carouselMedia',
+  ...Object.values(OPERATION_PARAM_KEYS).flat(),
+])
+
+const NUMERIC_PARAM_KEYS = new Set(['limit', 'thumbOffset'])
+const BOOLEAN_PARAM_KEYS = new Set(['hide', 'commentEnabled', 'shareToFeed', 'isAiGenerated'])
+
 export const InstagramBlock: BlockConfig<InstagramResponse> = {
   type: 'instagram',
   name: 'Instagram',
-  description: 'Publish content, moderate comments, and manage Instagram DMs',
+  description: 'Publish and download content, moderate comments, and manage Instagram DMs',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Instagram into workflows. Publish images, videos, Reels, stories, and carousels; moderate comments; send DMs; and pull account or media insights.',
+    'Integrate Instagram into workflows. Publish and download images, videos, Reels, stories, and carousels as canonical User Files; moderate comments; send DMs; and pull account or media insights.',
   docsLink: 'https://docs.sim.ai/integrations/instagram',
   category: 'tools',
   integrationType: IntegrationType.Marketing,
-  // Gradient fills the tile; white camera glyph sits on top (same pattern as AWS icons).
   bgColor: 'radial-gradient(circle at 28% 96%, #fa8f21 9%, #d82d7e 55%, #8c3aaa 100%)',
   iconColor: '#E4405F',
   icon: InstagramIcon,
+  hideFromToolbar: true,
   subBlocks: [
     {
       id: 'operation',
@@ -76,6 +125,7 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
         { label: 'Get Profile', id: 'instagram_get_profile' },
         { label: 'List Media', id: 'instagram_list_media' },
         { label: 'Get Media', id: 'instagram_get_media' },
+        { label: 'Download Media', id: 'instagram_download_media' },
         { label: 'List Stories', id: 'instagram_list_stories' },
         { label: 'Publish Image', id: 'instagram_publish_image' },
         { label: 'Publish Video', id: 'instagram_publish_video' },
@@ -121,7 +171,6 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       required: true,
     },
 
-    // Publish Image — JPEG upload / file ref (same basic+advanced pattern as Gmail)
     {
       id: 'imageUpload',
       title: 'Image',
@@ -147,7 +196,6 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       required: { field: 'operation', value: 'instagram_publish_image' },
     },
 
-    // Publish Video / Reel — video + optional cover
     {
       id: 'videoUpload',
       title: 'Video',
@@ -215,7 +263,6 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       required: false,
     },
 
-    // Publish Story — single image or video
     {
       id: 'storyMediaUpload',
       title: 'Media',
@@ -241,7 +288,6 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
       required: { field: 'operation', value: 'instagram_publish_story' },
     },
 
-    // Publish Carousel — up to 10 items
     {
       id: 'carouselMediaUpload',
       title: 'Media',
@@ -319,7 +365,6 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       title: 'Share to Feed',
       type: 'dropdown',
       options: [
-        // Yes first: Meta shares reels to the feed by default when the param is omitted.
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
@@ -345,6 +390,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
         field: 'operation',
         value: [
           'instagram_get_media',
+          'instagram_download_media',
           'instagram_list_comments',
           'instagram_set_comments_enabled',
           'instagram_get_media_insights',
@@ -354,11 +400,20 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
         field: 'operation',
         value: [
           'instagram_get_media',
+          'instagram_download_media',
           'instagram_list_comments',
           'instagram_set_comments_enabled',
           'instagram_get_media_insights',
         ],
       },
+    },
+    {
+      id: 'filename',
+      title: 'Filename',
+      type: 'short-input',
+      placeholder: 'Optional filename override',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'instagram_download_media' },
     },
     {
       id: 'containerId',
@@ -494,6 +549,7 @@ Return ONLY the comma-separated metric names - no explanations, no extra text.`,
         { label: 'Day', id: 'day' },
         { label: 'Week', id: 'week' },
         { label: '28 Days', id: 'days_28' },
+        { label: 'Month', id: 'month' },
         { label: 'Lifetime', id: 'lifetime' },
         { label: 'Total Over Range', id: 'total_over_range' },
       ],
@@ -565,8 +621,6 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       title: 'Demographic Timeframe',
       type: 'dropdown',
       options: [
-        // Empty default keeps timeframe out of the request; it is only valid
-        // for demographic metrics (follower_demographics, engaged_audience_demographics).
         { label: 'Default', id: '' },
         { label: 'This Week', id: 'this_week' },
         { label: 'This Month', id: 'this_month' },
@@ -584,7 +638,13 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['instagram_list_media', 'instagram_list_comments', 'instagram_list_conversations'],
+        value: [
+          'instagram_list_media',
+          'instagram_list_stories',
+          'instagram_list_comments',
+          'instagram_list_conversations',
+          'instagram_get_conversation_messages',
+        ],
       },
     },
     {
@@ -595,7 +655,13 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['instagram_list_media', 'instagram_list_comments', 'instagram_list_conversations'],
+        value: [
+          'instagram_list_media',
+          'instagram_list_stories',
+          'instagram_list_comments',
+          'instagram_list_conversations',
+          'instagram_get_conversation_messages',
+        ],
       },
     },
     {
@@ -612,6 +678,7 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       'instagram_get_profile',
       'instagram_list_media',
       'instagram_get_media',
+      'instagram_download_media',
       'instagram_list_stories',
       'instagram_publish_image',
       'instagram_publish_video',
@@ -634,62 +701,50 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       'instagram_get_media_insights',
     ],
     config: {
-      tool: (params) => params.operation,
+      tool: (params) => {
+        const operation =
+          typeof params.operation === 'string' ? params.operation : 'instagram_get_profile'
+        if (!INSTAGRAM_TOOL_IDS.has(operation)) {
+          throw new Error(`Unsupported Instagram operation: ${operation}`)
+        }
+        return operation
+      },
       params: (params) => {
-        const { oauthCredential, image, video, cover, media, carouselMedia, ...rest } = params
+        const operation = typeof params.operation === 'string' ? params.operation : ''
         const result: Record<string, unknown> = {
-          credential: oauthCredential,
+          credential: params.oauthCredential,
         }
 
-        const operation = params.operation as string | undefined
+        for (const key of INSTAGRAM_OPERATION_INPUT_KEYS) {
+          result[key] = undefined
+        }
 
         if (operation === 'instagram_publish_image') {
-          const resolved = resolveSingleMediaInput(image)
+          const resolved = resolveSingleMediaInput(params.image)
           if (resolved) result.image = resolved
         } else if (
           operation === 'instagram_publish_video' ||
           operation === 'instagram_publish_reel'
         ) {
-          const resolvedVideo = resolveSingleMediaInput(video)
+          const resolvedVideo = resolveSingleMediaInput(params.video)
           if (resolvedVideo) result.video = resolvedVideo
-          const resolvedCover = resolveSingleMediaInput(cover)
+          const resolvedCover = resolveSingleMediaInput(params.cover)
           if (resolvedCover) result.cover = resolvedCover
         } else if (operation === 'instagram_publish_story') {
-          const resolved = resolveSingleMediaInput(media)
+          const resolved = resolveSingleMediaInput(params.media)
           if (resolved) result.media = resolved
         } else if (operation === 'instagram_publish_carousel') {
-          // Distinct UI canonical (carouselMedia) so it doesn't collide with story's media pair
-          const resolved = resolveCarouselMediaInput(carouselMedia)
+          const resolved = resolveCarouselMediaInput(params.carouselMedia)
           if (resolved) result.media = resolved
         }
 
-        for (const [key, value] of Object.entries(rest)) {
+        for (const key of OPERATION_PARAM_KEYS[operation] ?? []) {
+          const value = params[key]
           if (value === undefined || value === null || value === '') continue
-          if (key === 'operation' || key === 'credential' || key === 'manualCredential') continue
-          // Skip raw upload/ref subBlock ids — only canonical media params above
-          if (
-            key === 'imageUpload' ||
-            key === 'imageRef' ||
-            key === 'videoUpload' ||
-            key === 'videoRef' ||
-            key === 'coverUpload' ||
-            key === 'coverRef' ||
-            key === 'storyMediaUpload' ||
-            key === 'storyMediaRef' ||
-            key === 'carouselMediaUpload' ||
-            key === 'carouselMediaRef'
-          ) {
-            continue
-          }
 
-          if (key === 'limit' || key === 'thumbOffset') {
+          if (NUMERIC_PARAM_KEYS.has(key)) {
             result[key] = Number(value)
-          } else if (
-            key === 'hide' ||
-            key === 'commentEnabled' ||
-            key === 'shareToFeed' ||
-            key === 'isAiGenerated'
-          ) {
+          } else if (BOOLEAN_PARAM_KEYS.has(key)) {
             result[key] = value === true || value === 'true'
           } else {
             result[key] = value
@@ -730,6 +785,7 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       description: 'Video frame offset in milliseconds for the Reel cover thumbnail',
     },
     mediaId: { type: 'string', description: 'Instagram media ID' },
+    filename: { type: 'string', description: 'Optional filename override for Download Media' },
     containerId: { type: 'string', description: 'Media container ID' },
     commentId: { type: 'string', description: 'Comment ID' },
     message: { type: 'string', description: 'Message or reply text' },
@@ -753,73 +809,282 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     igUserId: { type: 'string', description: 'Instagram professional account user ID' },
   },
   outputs: {
-    // Profile
-    userId: { type: 'string', description: 'Instagram professional account user_id' },
-    id: { type: 'string', description: 'Graph object or message id' },
-    username: { type: 'string', description: 'Instagram username' },
-    name: { type: 'string', description: 'Display name' },
-    accountType: { type: 'string', description: 'Business or Media_Creator' },
-    profilePictureUrl: { type: 'string', description: 'Profile picture URL' },
-    followersCount: { type: 'number', description: 'Follower count' },
-    followsCount: { type: 'number', description: 'Following count' },
-    mediaCount: { type: 'number', description: 'Media count' },
-    // Media
+    userId: {
+      type: 'string',
+      description: 'Instagram professional account user_id',
+      condition: { field: 'operation', value: 'instagram_get_profile' },
+    },
+    id: {
+      type: 'string',
+      description: 'Graph object, comment, or message ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'instagram_get_profile',
+          'instagram_get_media',
+          'instagram_reply_to_comment',
+          'instagram_get_message',
+        ],
+      },
+    },
+    username: {
+      type: 'string',
+      description: 'Instagram username',
+      condition: { field: 'operation', value: 'instagram_get_profile' },
+    },
+    name: {
+      type: 'string',
+      description: 'Display name',
+      condition: { field: 'operation', value: 'instagram_get_profile' },
+    },
+    accountType: {
+      type: 'string',
+      description: 'Business or Media_Creator',
+      condition: { field: 'operation', value: 'instagram_get_profile' },
+    },
+    profilePictureUrl: {
+      type: 'string',
+      description: 'Profile picture URL',
+      condition: { field: 'operation', value: 'instagram_get_profile' },
+    },
+    followersCount: {
+      type: 'number',
+      description: 'Follower count',
+      condition: { field: 'operation', value: 'instagram_get_profile' },
+    },
+    followsCount: {
+      type: 'number',
+      description: 'Following count',
+      condition: { field: 'operation', value: 'instagram_get_profile' },
+    },
+    mediaCount: {
+      type: 'number',
+      description: 'Media count',
+      condition: { field: 'operation', value: 'instagram_get_profile' },
+    },
     media: {
-      type: 'json',
-      description:
-        'List of media objects (id, caption, mediaType, mediaProductType, mediaUrl, permalink, timestamp, likeCount, commentsCount)',
+      type: 'array',
+      description: 'Media objects from this page',
+      condition: { field: 'operation', value: 'instagram_list_media' },
     },
-    caption: { type: 'string', description: 'Media caption text' },
-    mediaType: { type: 'string', description: 'IMAGE, VIDEO, or CAROUSEL_ALBUM' },
-    mediaProductType: { type: 'string', description: 'Feed, Reels, or Stories product type' },
-    mediaUrl: { type: 'string', description: 'CDN media URL when available' },
-    permalink: { type: 'string', description: 'Permalink to the post' },
-    timestamp: { type: 'string', description: 'ISO timestamp' },
-    likeCount: { type: 'number', description: 'Like count' },
-    commentsCount: { type: 'number', description: 'Comments count' },
-    children: { type: 'json', description: 'Carousel child media ids' },
+    files: {
+      type: 'file[]',
+      description: 'Downloaded media as canonical User Files, ordered by carousel position',
+      condition: { field: 'operation', value: 'instagram_download_media' },
+    },
+    downloadedCount: {
+      type: 'number',
+      description: 'Number of media files downloaded',
+      condition: { field: 'operation', value: 'instagram_download_media' },
+    },
+    caption: {
+      type: 'string',
+      description: 'Media caption text',
+      condition: { field: 'operation', value: 'instagram_get_media' },
+    },
+    mediaType: {
+      type: 'string',
+      description: 'IMAGE, VIDEO, or CAROUSEL_ALBUM',
+      condition: {
+        field: 'operation',
+        value: ['instagram_get_media', 'instagram_download_media'],
+      },
+    },
+    mediaProductType: {
+      type: 'string',
+      description: 'Feed, Reels, or Stories product type',
+      condition: { field: 'operation', value: 'instagram_get_media' },
+    },
+    mediaUrl: {
+      type: 'string',
+      description: 'Temporary Instagram CDN URL',
+      condition: { field: 'operation', value: 'instagram_get_media' },
+    },
+    permalink: {
+      type: 'string',
+      description: 'Permalink to the post',
+      condition: { field: 'operation', value: 'instagram_get_media' },
+    },
+    timestamp: {
+      type: 'string',
+      description: 'ISO timestamp',
+      condition: { field: 'operation', value: 'instagram_get_media' },
+    },
+    likeCount: {
+      type: 'number',
+      description: 'Like count',
+      condition: { field: 'operation', value: 'instagram_get_media' },
+    },
+    commentsCount: {
+      type: 'number',
+      description: 'Comments count',
+      condition: { field: 'operation', value: 'instagram_get_media' },
+    },
+    children: {
+      type: 'array',
+      description: 'Carousel child media IDs',
+      condition: { field: 'operation', value: 'instagram_get_media' },
+    },
     stories: {
-      type: 'json',
-      description: 'Active stories (id, mediaType, mediaUrl, timestamp)',
+      type: 'array',
+      description: 'Active stories from this page',
+      condition: { field: 'operation', value: 'instagram_list_stories' },
     },
-    // Publishing
-    containerId: { type: 'string', description: 'Media container id' },
-    mediaId: { type: 'string', description: 'Published media id' },
+    containerId: {
+      type: 'string',
+      description: 'Media container ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'instagram_publish_image',
+          'instagram_publish_video',
+          'instagram_publish_reel',
+          'instagram_publish_story',
+          'instagram_publish_carousel',
+          'instagram_get_container_status',
+        ],
+      },
+    },
+    mediaId: {
+      type: 'string',
+      description: 'Published or downloaded media ID',
+      condition: {
+        field: 'operation',
+        value: [
+          'instagram_download_media',
+          'instagram_publish_image',
+          'instagram_publish_video',
+          'instagram_publish_reel',
+          'instagram_publish_story',
+          'instagram_publish_carousel',
+        ],
+      },
+    },
     statusCode: {
       type: 'string',
       description: 'Container status (EXPIRED, ERROR, FINISHED, IN_PROGRESS, or PUBLISHED)',
+      condition: {
+        field: 'operation',
+        value: [
+          'instagram_publish_image',
+          'instagram_publish_video',
+          'instagram_publish_reel',
+          'instagram_publish_story',
+          'instagram_publish_carousel',
+          'instagram_get_container_status',
+        ],
+      },
     },
-    status: { type: 'string', description: 'Detailed container status message' },
-    quotaUsage: { type: 'number', description: 'Publishes used in the current window' },
-    config: { type: 'json', description: 'Publishing quota config (quotaTotal, quotaDuration)' },
-    // Comments
+    status: {
+      type: 'string',
+      description: 'Detailed container status message',
+      condition: { field: 'operation', value: 'instagram_get_container_status' },
+    },
+    quotaUsage: {
+      type: 'number',
+      description: 'Publishes used in the current window',
+      condition: { field: 'operation', value: 'instagram_get_publishing_limit' },
+    },
+    config: {
+      type: 'json',
+      description: 'Publishing quota config',
+      condition: { field: 'operation', value: 'instagram_get_publishing_limit' },
+    },
     comments: {
-      type: 'json',
-      description: 'Comments (id, text, username, timestamp, likeCount, hidden)',
+      type: 'array',
+      description: 'Comments from this page',
+      condition: { field: 'operation', value: 'instagram_list_comments' },
     },
-    success: { type: 'boolean', description: 'Whether the operation succeeded' },
-    // Messaging
-    conversations: { type: 'json', description: 'Conversations (id, updatedTime)' },
-    conversationId: { type: 'string', description: 'Conversation id' },
+    success: {
+      type: 'boolean',
+      description: 'Whether the operation succeeded',
+      condition: {
+        field: 'operation',
+        value: [
+          'instagram_hide_comment',
+          'instagram_delete_comment',
+          'instagram_set_comments_enabled',
+        ],
+      },
+    },
+    conversations: {
+      type: 'array',
+      description: 'Instagram Direct conversations from this page',
+      condition: { field: 'operation', value: 'instagram_list_conversations' },
+    },
+    conversationId: {
+      type: 'string',
+      description: 'Conversation ID',
+      condition: { field: 'operation', value: 'instagram_get_conversation_messages' },
+    },
     messages: {
-      type: 'json',
-      description:
-        'Message references (id, createdTime); use Get Message for sender, recipient, and text',
+      type: 'array',
+      description: 'Message references; use Get Message for sender, recipient, and text',
+      condition: { field: 'operation', value: 'instagram_get_conversation_messages' },
     },
-    createdTime: { type: 'string', description: 'Message created timestamp' },
-    fromId: { type: 'string', description: 'Sender Instagram-scoped id' },
-    fromUsername: { type: 'string', description: 'Sender username' },
-    toId: { type: 'string', description: 'Recipient id' },
-    message: { type: 'string', description: 'Message text' },
-    messageId: { type: 'string', description: 'Sent or retrieved message id' },
-    recipientId: { type: 'string', description: 'DM recipient id' },
-    // Insights & pagination
+    createdTime: {
+      type: 'string',
+      description: 'Message created timestamp',
+      condition: { field: 'operation', value: 'instagram_get_message' },
+    },
+    fromId: {
+      type: 'string',
+      description: 'Sender Instagram-scoped ID',
+      condition: { field: 'operation', value: 'instagram_get_message' },
+    },
+    fromUsername: {
+      type: 'string',
+      description: 'Sender username',
+      condition: { field: 'operation', value: 'instagram_get_message' },
+    },
+    toId: {
+      type: 'string',
+      description: 'Recipient ID',
+      condition: { field: 'operation', value: 'instagram_get_message' },
+    },
+    message: {
+      type: 'string',
+      description: 'Message text',
+      condition: { field: 'operation', value: 'instagram_get_message' },
+    },
+    messageId: {
+      type: 'string',
+      description: 'Sent message ID',
+      condition: {
+        field: 'operation',
+        value: ['instagram_private_reply', 'instagram_send_text_message'],
+      },
+    },
+    recipientId: {
+      type: 'string',
+      description: 'DM recipient ID',
+      condition: {
+        field: 'operation',
+        value: ['instagram_private_reply', 'instagram_send_text_message'],
+      },
+    },
     insights: {
-      type: 'json',
-      description: 'Insight metrics (name, period, title, description, values, totalValue)',
+      type: 'array',
+      description: 'Insight metrics',
+      condition: {
+        field: 'operation',
+        value: ['instagram_get_account_insights', 'instagram_get_media_insights'],
+      },
     },
-    nextCursor: { type: 'string', description: 'Pagination cursor for the next page' },
-    error: { type: 'string', description: 'Error message if the operation failed' },
+    nextCursor: {
+      type: 'string',
+      description: 'Pagination cursor for the next page',
+      condition: {
+        field: 'operation',
+        value: [
+          'instagram_list_media',
+          'instagram_list_stories',
+          'instagram_list_comments',
+          'instagram_list_conversations',
+          'instagram_get_conversation_messages',
+        ],
+      },
+    },
   },
 }
 
@@ -870,7 +1135,7 @@ export const InstagramBlockMeta = {
       description:
         'Publish a JPEG image to Instagram with an optional caption and accessibility alt text.',
       content:
-        '# Publish Instagram Image\n\nPublish a single image post to the connected Instagram professional account.\n\n## Steps\n1. Upload a JPEG image (or reference a file from a previous block / paste a public HTTPS JPEG URL) and draft a caption within Instagram length limits.\n2. Optionally set alt text for accessibility and mark the post as AI-generated when applicable.\n3. Run Publish Image, then optionally Get Container Status if you need to confirm publishing finished.\n\n## Output\nThe published media ID, container ID, status, and the final caption used.',
+        '# Publish Instagram Image\n\nPublish a single image post to the connected Instagram professional account.\n\n## Steps\n1. Upload a JPEG image (or reference a file from a previous block / paste a public HTTPS JPEG URL) and draft a caption within Instagram length limits.\n2. Optionally set alt text for accessibility and mark the post as AI-generated when applicable.\n3. Run Publish Image, then optionally Get Container Status if you need to confirm publishing finished.\n\n## Output\nThe published media ID, container ID, and final container status.',
     },
     {
       name: 'moderate-instagram-comments',
@@ -883,7 +1148,7 @@ export const InstagramBlockMeta = {
       name: 'reply-instagram-dm',
       description: 'Open an Instagram Direct conversation and send a text reply to the recipient.',
       content:
-        '# Reply Instagram DM\n\nRespond to an Instagram Direct message thread.\n\n## Steps\n1. List Conversations to find the thread, then Get Conversation Messages for recent context.\n2. Optionally Get Message for a specific message ID if you need full details.\n3. Send Text Message to the recipient ID with a clear, helpful reply.\n\n## Output\nThe sent message ID, recipient ID, and the reply text used.',
+        '# Reply Instagram DM\n\nRespond to an Instagram Direct message thread.\n\n## Steps\n1. List Conversations to find the thread, then Get Conversation Messages for message references.\n2. Optionally Get Message for one of the 20 most recent message IDs when you need full details.\n3. Send Text Message to the recipient ID with a clear, helpful reply.\n\n## Output\nThe sent message ID and recipient ID.',
     },
     {
       name: 'fetch-instagram-insights',
@@ -891,6 +1156,12 @@ export const InstagramBlockMeta = {
         'Pull account-level or media-level Instagram insights for reporting and analysis.',
       content:
         '# Fetch Instagram Insights\n\nRetrieve performance metrics for the account or a specific post.\n\n## Steps\n1. For account interaction trends, run Get Account Insights with comma-separated metrics and the day period. Use lifetime plus a timeframe for demographic metrics.\n2. For a specific post, run Get Media Insights with the media ID and metrics like views, reach, likes, comments, saved, or shares.\n3. Summarize the returned insight values for the reporting window.\n\n## Output\nThe insights JSON plus a short plain-language summary of the key metrics.',
+    },
+    {
+      name: 'download-instagram-media',
+      description: 'Download an Instagram post or story as canonical User Files.',
+      content:
+        '# Download Instagram Media\n\nMaterialize Instagram media into durable User Files for downstream blocks.\n\n## Steps\n1. Use List Media, Get Media, or List Stories to find the media ID.\n2. Run Download Media with that ID. Carousel children are downloaded in display order.\n3. Pass the files output directly to a file[] input such as Gmail attachments.\n\n## Output\nA canonical User File array plus the source media ID, media type, and downloaded count.',
     },
   ],
 } as const satisfies BlockMeta

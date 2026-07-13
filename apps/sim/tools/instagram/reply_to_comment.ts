@@ -2,7 +2,13 @@ import type {
   InstagramReplyToCommentParams,
   InstagramReplyToCommentResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, idString, readGraphError } from '@/tools/instagram/utils'
+import {
+  graphUrl,
+  idString,
+  jsonBearerHeaders,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramReplyToCommentTool: ToolConfig<
@@ -41,11 +47,10 @@ export const instagramReplyToCommentTool: ToolConfig<
   },
 
   request: {
-    // Graph comment endpoints document message as a query/form parameter, not
-    // a JSON body (same style as hide_comment and set_comments_enabled).
-    url: (params) => graphUrl(`/${params.commentId.trim()}/replies`, { message: params.message }),
+    url: (params) => graphUrl(`/${params.commentId.trim()}/replies`),
     method: 'POST',
-    headers: (params) => bearerHeaders(params.accessToken),
+    headers: (params) => jsonBearerHeaders(params.accessToken),
+    body: (params) => ({ message: params.message }),
   },
 
   transformResponse: async (response): Promise<InstagramReplyToCommentResponse> => {
@@ -57,14 +62,26 @@ export const instagramReplyToCommentTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<{ id?: string | number }>(
+      response,
+      'Instagram reply comment response'
+    )
+    const id = idString(data.id)
+    if (!id) {
+      return {
+        success: false,
+        output: { id: null },
+        error: 'Instagram reply response did not include a comment id',
+      }
+    }
+
     return {
       success: true,
-      output: { id: idString(data.id) },
+      output: { id },
     }
   },
 
   outputs: {
-    id: { type: 'string', description: 'Created reply comment id', optional: true },
+    id: { type: 'string', description: 'Created reply comment id' },
   },
 }

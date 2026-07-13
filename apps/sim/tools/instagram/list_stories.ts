@@ -1,8 +1,16 @@
+import { INSTAGRAM_STORY_PROPERTIES } from '@/tools/instagram/output-properties'
 import type {
   InstagramListStoriesParams,
   InstagramListStoriesResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  clampGraphLimit,
+  graphUrl,
+  type InstagramGraphPage,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const instagramListStoriesTool: ToolConfig<
@@ -32,6 +40,18 @@ export const instagramListStoriesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Instagram professional account user id (defaults to /me)',
     },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Max number of active stories to return (default 25, max 100)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from a previous List Stories response',
+    },
   },
 
   request: {
@@ -39,6 +59,8 @@ export const instagramListStoriesTool: ToolConfig<
       const path = params.igUserId?.trim() ? `/${params.igUserId.trim()}/stories` : '/me/stories'
       return graphUrl(path, {
         fields: 'id,media_type,media_url,timestamp',
+        limit: String(clampGraphLimit(params.limit)),
+        after: params.after?.trim() || undefined,
       })
     },
     method: 'GET',
@@ -49,31 +71,45 @@ export const instagramListStoriesTool: ToolConfig<
     if (!response.ok) {
       return {
         success: false,
-        output: { stories: [] },
+        output: { stories: [], nextCursor: null },
         error: await readGraphError(response),
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<InstagramGraphPage<Record<string, unknown>>>(
+      response,
+      'Instagram stories response'
+    )
     const items = Array.isArray(data.data) ? data.data : []
+    const stories = items.flatMap((item: Record<string, unknown>) => {
+      const id = item.id == null || item.id === '' ? null : String(item.id)
+      if (!id) return []
+
+      return [
+        {
+          id,
+          mediaType: typeof item.media_type === 'string' ? item.media_type : null,
+          mediaUrl: typeof item.media_url === 'string' ? item.media_url : null,
+          timestamp: typeof item.timestamp === 'string' ? item.timestamp : null,
+        },
+      ]
+    })
 
     return {
       success: true,
       output: {
-        stories: items.map((item: Record<string, unknown>) => ({
-          id: String(item.id ?? ''),
-          mediaType: (item.media_type as string | undefined) ?? null,
-          mediaUrl: (item.media_url as string | undefined) ?? null,
-          timestamp: (item.timestamp as string | undefined) ?? null,
-        })),
+        stories,
+        nextCursor: data.paging?.next ? (data.paging?.cursors?.after ?? null) : null,
       },
     }
   },
 
   outputs: {
     stories: {
-      type: 'json',
-      description: 'Active stories (id, mediaType, mediaUrl, timestamp)',
+      type: 'array',
+      description: 'Active stories from this page',
+      items: { type: 'object', properties: INSTAGRAM_STORY_PROPERTIES },
     },
+    nextCursor: { type: 'string', description: 'Pagination cursor', optional: true },
   },
 }

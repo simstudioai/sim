@@ -1,4 +1,5 @@
 export { instagramDeleteCommentTool } from '@/tools/instagram/delete_comment'
+export { instagramDownloadMediaTool } from '@/tools/instagram/download_media'
 export { instagramGetAccountInsightsTool } from '@/tools/instagram/get_account_insights'
 export { instagramGetContainerStatusTool } from '@/tools/instagram/get_container_status'
 export { instagramGetConversationMessagesTool } from '@/tools/instagram/get_conversation_messages'

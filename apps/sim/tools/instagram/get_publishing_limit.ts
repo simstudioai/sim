@@ -2,8 +2,22 @@ import type {
   InstagramGetPublishingLimitParams,
   InstagramGetPublishingLimitResponse,
 } from '@/tools/instagram/types'
-import { bearerHeaders, graphUrl, readGraphError } from '@/tools/instagram/utils'
+import {
+  bearerHeaders,
+  graphUrl,
+  type InstagramGraphPage,
+  readGraphError,
+  readGraphJson,
+} from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
+
+interface PublishingLimitData {
+  quota_usage?: number
+  config?: {
+    quota_total?: number
+    quota_duration?: number
+  }
+}
 
 export const instagramGetPublishingLimitTool: ToolConfig<
   InstagramGetPublishingLimitParams,
@@ -54,7 +68,10 @@ export const instagramGetPublishingLimitTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = await readGraphJson<InstagramGraphPage<PublishingLimitData> & PublishingLimitData>(
+      response,
+      'Instagram publishing limit response'
+    )
     const first = Array.isArray(data.data) ? data.data[0] : data
 
     return {

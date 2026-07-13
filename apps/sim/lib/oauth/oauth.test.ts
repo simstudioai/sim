@@ -9,6 +9,8 @@ vi.mock('@/lib/core/config/env', () =>
     GITHUB_CLIENT_SECRET: 'github_client_secret',
     X_CLIENT_ID: 'x_client_id',
     X_CLIENT_SECRET: 'x_client_secret',
+    TIKTOK_CLIENT_ID: 'tiktok_client_key',
+    TIKTOK_CLIENT_SECRET: 'tiktok_client_secret',
     CONFLUENCE_CLIENT_ID: 'confluence_client_id',
     CONFLUENCE_CLIENT_SECRET: 'confluence_client_secret',
     JIRA_CLIENT_ID: 'jira_client_id',
@@ -269,6 +271,22 @@ describe('OAuth Token Refresh', () => {
           expect(bodyParams.get('client_secret')).toBe(expectedClientSecret)
         }
       )
+    })
+
+    it.concurrent('should refresh TikTok with client_key instead of client_id', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+      const refreshToken = 'test_refresh_token'
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('tiktok', refreshToken))
+
+      const [endpoint, requestOptions] = mockFetch.mock.calls[0] as [string, { body: string }]
+      const bodyParams = new URLSearchParams(requestOptions.body)
+
+      expect(endpoint).toBe('https://open.tiktokapis.com/v2/oauth/token/')
+      expect(bodyParams.get('client_key')).toBe('tiktok_client_key')
+      expect(bodyParams.get('client_secret')).toBe('tiktok_client_secret')
+      expect(bodyParams.get('refresh_token')).toBe(refreshToken)
+      expect(bodyParams.get('client_id')).toBeNull()
     })
 
     it.concurrent('should send Notion request with Basic Auth header and JSON body', async () => {
