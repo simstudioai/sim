@@ -14,7 +14,7 @@
 
 import { stripVersionSuffix } from '@sim/utils/string'
 import integrationsJson from '@/lib/integrations/integrations.json'
-import type { Integration } from '@/lib/integrations/types'
+import type { Integration, IntegrationSummary } from '@/lib/integrations/types'
 import { getAllBlockMeta } from '@/blocks/registry'
 
 /** All integrations surfaced in the catalog, ordered by `scripts/generate-docs.ts`. */
@@ -67,13 +67,44 @@ export const POPULAR_WORKFLOWS: readonly PopularWorkflow[] = (() => {
   return pairs
 })()
 
+/**
+ * Projects a full `Integration` down to the fields the `/integrations`
+ * catalog grid renders and searches by, replacing the full `operations`/
+ * `triggers` arrays with a precomputed, lowercased `searchFields` index
+ * (name, description, every operation's name and description, every
+ * trigger's name) - the exact same fields the original per-field search
+ * over `Integration[]` matched against. See {@link IntegrationSummary} for
+ * why this exists.
+ */
+export function toIntegrationSummary(integration: Integration): IntegrationSummary {
+  const searchFields = [
+    integration.name.toLowerCase(),
+    integration.description.toLowerCase(),
+    ...integration.operations.flatMap((op) => [
+      op.name.toLowerCase(),
+      op.description.toLowerCase(),
+    ]),
+    ...integration.triggers.map((t) => t.name.toLowerCase()),
+  ]
+
+  return {
+    type: integration.type,
+    slug: integration.slug,
+    name: integration.name,
+    description: integration.description,
+    bgColor: integration.bgColor,
+    integrationType: integration.integrationType,
+    searchFields,
+  }
+}
+
 export { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 export {
   type OAuthServiceMatch,
   resolveOAuthServiceForIntegration,
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations/oauth-service'
-export type { AuthType, FAQItem, Integration } from '@/lib/integrations/types'
+export type { AuthType, FAQItem, Integration, IntegrationSummary } from '@/lib/integrations/types'
 export { getAllBlockMeta, getBlockMeta, getTemplatesForBlock } from '@/blocks/registry'
 export type { BlockMeta, BlockTemplate } from '@/blocks/types'
 export { formatIntegrationType } from '@/blocks/types'
