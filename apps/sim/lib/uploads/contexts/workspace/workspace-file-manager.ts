@@ -83,6 +83,8 @@ interface ListWorkspaceFilesOptions {
   folders?: WorkspaceFileFolderRecord[]
   hydrateFolderPaths?: boolean
   includeReservedSystemFiles?: boolean
+  /** Propagate storage errors when an incomplete list would be unsafe. */
+  throwOnError?: boolean
 }
 
 /**
@@ -801,6 +803,7 @@ export async function listWorkspaceFiles(
       })
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
+    if (options?.throwOnError) throw error
     return []
   }
 }
