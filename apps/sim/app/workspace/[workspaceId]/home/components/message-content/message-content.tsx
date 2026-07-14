@@ -137,14 +137,17 @@ function createAgentGroupSegment(name: string, id: string): AgentGroupSegment {
   }
 }
 
+/**
+ * Appends narration content to a group, merging into the previous text item.
+ * Distinct segments (e.g. a thinking run followed by a text run) can meet
+ * without any whitespace at the seam, gluing sentences together. The merge
+ * repairs only unambiguous sentence boundaries — trailing punctuation meeting
+ * a fresh alphanumeric start — so a segment split mid-word, mid-URL, or in
+ * text that takes no spaces (CJK) is never corrupted.
+ */
 function appendTextItem(group: AgentGroupSegment, content: string): void {
   const lastItem = group.items[group.items.length - 1]
   if (lastItem?.type === 'text') {
-    // Distinct segments (e.g. a thinking run followed by a text run) can meet
-    // without any whitespace at the seam, gluing sentences together. Repair
-    // only unambiguous sentence boundaries — trailing punctuation meeting a
-    // fresh alphanumeric start — so a segment split mid-word, mid-URL, or in
-    // text that takes no spaces (CJK) is never corrupted.
     const needsSpace = /[.!?;:]$/.test(lastItem.content) && /^[A-Za-z0-9]/.test(content)
     lastItem.content += (needsSpace ? ' ' : '') + content
   } else {

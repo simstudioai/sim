@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 
-const INLINE_TOKEN = /(\*\*[^*\n]+\*\*|\*\S(?:[^*\n]*\S)?\*|`[^`\n]+`|\[[^\]\n]+\]\([^\s)]+\))/g
+const INLINE_TOKEN =
+  /(\*{3}[^*\n]+\*{3}|\*\*[^*\n]+\*\*|\*[^\s*](?:[^*\n]*[^\s*])?\*|`[^`\n]+`|\[[^\]\n]+\]\([^\s)]+\))/g
 
 const LINK_TOKEN = /^\[([^\]\n]+)\]\([^\s)]+\)$/
 
 /**
  * Minimal inline-markdown renderer for agent-group narration rows. Supports
- * `**bold**`, `*italic*`, `` `code` `` spans, and `[label](url)` links
+ * `**bold**`, `*italic*`, `***bold-italic***`, `` `code` `` spans, and `[label](url)` links
  * (rendered as their label — narration is prose, not navigation). Everything
  * else, including unterminated markers, renders verbatim. Full Streamdown
  * rendering is intentionally avoided here — these rows re-render on every
@@ -15,6 +16,13 @@ const LINK_TOKEN = /^\[([^\]\n]+)\]\([^\s)]+\)$/
 export function renderInlineMarkdown(text: string): ReactNode[] {
   const parts = text.split(INLINE_TOKEN)
   return parts.map((part, i) => {
+    if (part.length > 6 && part.startsWith('***') && part.endsWith('***')) {
+      return (
+        <strong key={i} className='font-semibold'>
+          <em>{part.slice(3, -3)}</em>
+        </strong>
+      )
+    }
     if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) {
       return (
         <strong key={i} className='font-semibold'>

@@ -28,6 +28,12 @@ interface ToolCallItemProps {
   streamingArgs?: string
 }
 
+/**
+ * A single tool-call row inside an agent group: shimmer while executing, a
+ * static label once terminal. For `workspace_file` the title is derived live
+ * from the streaming args; because that path bypasses the completed-title
+ * rewrite in `toToolData`, the past-tense flip is applied here on success.
+ */
 export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: ToolCallItemProps) {
   const liveWorkspaceFileTitle = useMemo(() => {
     if (toolName !== WorkspaceFile.id || !streamingArgs) return null
@@ -60,8 +66,6 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
 
   const isExecuting = resolveToolDisplayState(status) === 'spinner'
   const liveTitle = liveWorkspaceFileTitle || displayTitle
-  // The live workspace_file title bypasses toToolData's completed-title rewrite,
-  // so flip it to past tense here once the call succeeds.
   const title =
     status === 'success' && liveWorkspaceFileTitle
       ? (getToolCompletedTitle(liveTitle) ?? liveTitle)

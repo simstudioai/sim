@@ -45,6 +45,13 @@ describe('renderInlineMarkdown', () => {
     expect(renderInlineMarkdown('2 * 3 * 4')).toEqual(['2 * 3 * 4'])
   })
 
+  it('renders ***bold-italic*** as nested strong and em', () => {
+    const parts = renderInlineMarkdown('a ***wrapped*** word')
+    const bold = parts.find((p) => isValidElement(p) && p.type === 'strong')
+    expect(bold).toBeDefined()
+    expect(parts.some((p) => typeof p === 'string' && p.includes('*'))).toBe(false)
+  })
+
   it('renders links as their label text', () => {
     const parts = renderInlineMarkdown('see [the docs](https://sim.ai/docs) for more')
     expect(parts.join('')).toBe('see the docs for more')
