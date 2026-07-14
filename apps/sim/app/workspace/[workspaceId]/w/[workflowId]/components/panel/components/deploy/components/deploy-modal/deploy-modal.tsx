@@ -53,13 +53,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  ApiDeploy,
-  ChatDeploy,
-  type ExistingChat,
-  GeneralDeploy,
-  McpDeploy,
-} from './components'
+import { ApiDeploy, ChatDeploy, type ExistingChat, GeneralDeploy, McpDeploy } from './components'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
 
 const logger = createLogger('DeployModal')

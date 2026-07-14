@@ -64,17 +64,13 @@ const createMockStream = () => {
   })
 }
 
-const {
-  mockValidateChatAuth,
-  mockSetChatAuthCookie,
-  mockValidateAuthToken,
-  mockProcessChatFiles,
-} = vi.hoisted(() => ({
-  mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
-  mockSetChatAuthCookie: vi.fn(),
-  mockValidateAuthToken: vi.fn().mockReturnValue(false),
-  mockProcessChatFiles: vi.fn(),
-}))
+const { mockValidateChatAuth, mockSetChatAuthCookie, mockValidateAuthToken, mockProcessChatFiles } =
+  vi.hoisted(() => ({
+    mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
+    mockSetChatAuthCookie: vi.fn(),
+    mockValidateAuthToken: vi.fn().mockReturnValue(false),
+    mockProcessChatFiles: vi.fn(),
+  }))
 
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse

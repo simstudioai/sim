@@ -452,4 +452,3 @@ describe('Chat API Utils', () => {
     })
   })
 })
-
