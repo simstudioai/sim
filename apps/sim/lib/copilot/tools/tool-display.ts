@@ -10,7 +10,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
  * enrichment for the run_* tools; every other surface (server persistence,
  * transcript replay, fallback rendering) calls `getToolDisplayTitle` directly.
  *
- * Icons are likewise client-owned — see `getToolIcon` in the message-content
+ * Icons are likewise client-owned — see `getAgentIcon` in the message-content
  * utils. Nothing about tool presentation lives on the Go side anymore.
  */
 
