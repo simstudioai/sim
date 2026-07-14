@@ -399,7 +399,6 @@ describe('completed tool titles', () => {
 })
 
 describe('narration text seams', () => {
-
   it('never inserts a space into a segment split mid-word or mid-URL', () => {
     const seam = (first: string, second: string): string => {
       const blocks: ContentBlock[] = [
