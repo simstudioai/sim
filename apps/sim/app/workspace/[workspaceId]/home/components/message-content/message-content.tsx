@@ -48,6 +48,56 @@ interface StoppedSegment {
 
 type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | StoppedSegment
 
+function getAgentGroupActivityKey(items: AgentGroupItem[]): string {
+  return items
+    .map((item) => {
+      if (item.type === 'text' || item.type === 'thinking') {
+        return `${item.type}:${item.content.length}`
+      }
+      if (item.type === 'tool') {
+        return [
+          'tool',
+          item.data.id,
+          item.data.status,
+          item.data.displayTitle,
+          item.data.streamingArgs?.length ?? 0,
+        ].join(':')
+      }
+      return [
+        'agent',
+        item.group.id,
+        item.group.isDelegating ? 1 : 0,
+        item.group.isOpen ? 1 : 0,
+        getAgentGroupActivityKey(item.group.items),
+      ].join(':')
+    })
+    .join('|')
+}
+
+/**
+ * Compact identity for what the transcript is visibly rendering. Main-lane
+ * reasoning and other suppressed blocks intentionally do not affect it, while
+ * activity in every nested/parallel lane does.
+ */
+function getVisibleStreamActivityKey(segments: MessageSegment[]): string {
+  return segments
+    .map((segment) => {
+      if (segment.type === 'text') return `text:${segment.id}:${segment.content.length}`
+      if (segment.type === 'options') {
+        return `options:${segment.items.map((item) => `${item.id}:${item.label.length}`).join(',')}`
+      }
+      if (segment.type === 'stopped') return 'stopped'
+      return [
+        'agent',
+        segment.id,
+        segment.isDelegating ? 1 : 0,
+        segment.isOpen ? 1 : 0,
+        getAgentGroupActivityKey(segment.items),
+      ].join(':')
+    })
+    .join('||')
+}
+
 const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
 
 /**
@@ -830,7 +880,15 @@ function MessageContentInner({
   }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
 
-  // Every rendered stream snapshot restarts the quiet-period clock. A layout
+  const segments: MessageSegment[] =
+    parsed.length > 0
+      ? parsed
+      : fallbackContent?.trim()
+        ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
+        : []
+  const visibleStreamActivityKey = getVisibleStreamActivityKey(segments)
+
+  // Every visible stream update restarts the quiet-period clock. A layout
   // effect clears an already-visible indicator before paint, so a chunk from
   // any parallel lane hides the one turn-level loader without a stale flash.
   useLayoutEffect(() => {
@@ -842,14 +900,7 @@ function MessageContentInner({
     setIsStreamIdle(false)
     const timeout = setTimeout(() => setIsStreamIdle(true), STREAM_IDLE_DELAY_MS)
     return () => clearTimeout(timeout)
-  }, [blocks, fallbackContent, isStreaming])
-
-  const segments: MessageSegment[] =
-    parsed.length > 0
-      ? parsed
-      : fallbackContent?.trim()
-        ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
-        : []
+  }, [visibleStreamActivityKey, isStreaming])
 
   const lastSegment = segments[segments.length - 1]
   const hasTrailingTextSegment = lastSegment?.type === 'text'
