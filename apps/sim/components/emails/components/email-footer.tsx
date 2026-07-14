@@ -81,10 +81,7 @@ export function EmailFooter({
                             </Link>
                           </td>
                           <td align='left' style={{ padding: '0 8px' }}>
-                            <Link
-                              href='https://www.linkedin.com/company/simdotai'
-                              rel='noopener noreferrer'
-                            >
+                            <Link href={`${baseUrl}/linkedin`} rel='noopener noreferrer'>
                               <Img
                                 src={`${baseUrl}/static/linkedin-icon.png`}
                                 width='20'

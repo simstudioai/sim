@@ -340,6 +340,11 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
+        source: '/linkedin',
+        destination: 'https://www.linkedin.com/company/simstudioai/',
+        permanent: false,
+      },
+      {
         source: '/github',
         destination: 'https://github.com/simstudioai/sim',
         permanent: false,
