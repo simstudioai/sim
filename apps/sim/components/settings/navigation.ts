@@ -671,6 +671,18 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
 export const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsSection>[] =
   buildPlaneSettingsItems('workspace')
 
+/**
+ * Unified sections that resolve to organization-plane settings. The workspace
+ * settings section page routes these through the organization gate (host
+ * organization present + org-admin viewer), so workspace-plane navigation must
+ * apply the same requirement before surfacing them.
+ */
+export const ORGANIZATION_PLANE_UNIFIED_SECTIONS: ReadonlySet<UnifiedSettingsSection> = new Set(
+  SETTINGS_SECTION_REGISTRY.flatMap((entry) =>
+    entry.planes?.organization ? [entry.unified.id] : []
+  )
+)
+
 export type OrganizationSectionAccess = 'unavailable' | 'view' | 'manage'
 
 interface ResolveOrganizationSectionAccessOptions {
