@@ -308,10 +308,13 @@ export function useChatStreaming() {
     setIsLoading(false)
 
     let terminated = false
+    // Capture before Stop nulls abortControllerRef; needed when the reader
+    // resolves on abort instead of throwing AbortError.
+    const streamAbortSignal = abortControllerRef.current!.signal
 
     try {
       await readSSEEvents<ChatSseEvent>(response.body, {
-        signal: abortControllerRef.current!.signal,
+        signal: streamAbortSignal,
         onParseError: (_data, parseError) => {
           logger.error('Error parsing stream data:', parseError)
         },
@@ -630,7 +633,41 @@ export function useChatStreaming() {
 
       if (!terminated) {
         flushUI()
+        // Stream closed without a terminal final/error frame (abrupt disconnect,
+        // or only non-terminal stream_error). Clear live chrome so the UI does not
+        // stay stuck in a streaming/loading state.
+        const wasAborted = streamAbortSignal.aborted
+        settleInFlightTools(toolCallsMap, wasAborted ? 'cancelled' : 'error')
+        syncToolCallsRef()
+        isThinkingStreaming = false
+        const toolsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id !== messageId) return msg
+            // stopStreaming already wrote the stop notice into content; do not clobber it.
+            if (wasAborted) {
+              return {
+                ...msg,
+                isStreaming: false,
+                isThinkingStreaming: false,
+                isToolStreaming: false,
+                thinking: accumulatedThinking || msg.thinking,
+                toolCalls: toolsSnapshot ?? msg.toolCalls,
+              }
+            }
+            return {
+              ...msg,
+              isStreaming: false,
+              isThinkingStreaming: false,
+              isToolStreaming: false,
+              content: accumulatedText || msg.content,
+              thinking: accumulatedThinking || msg.thinking,
+              toolCalls: toolsSnapshot ?? msg.toolCalls,
+            }
+          })
+        )
         if (
+          !wasAborted &&
           shouldPlayAudio &&
           streamingOptions?.audioStreamHandler &&
           accumulatedText.length > lastAudioPosition

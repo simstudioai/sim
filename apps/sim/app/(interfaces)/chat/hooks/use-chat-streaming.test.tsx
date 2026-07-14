@@ -196,6 +196,47 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     expect(assistant?.isStreaming).toBe(false)
   })
 
+  it('clears streaming flags when SSE ends without a terminal final/error frame', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({
+        blockId: 'agent-1',
+        event: 'thinking',
+        data: 'Halfway…',
+      })
+      await options.onEvent({
+        blockId: 'agent-1',
+        chunk: 'Partial answer',
+      })
+      await options.onEvent({
+        blockId: 'agent-1',
+        event: 'tool',
+        phase: 'start',
+        id: 't1',
+        name: 'search',
+      })
+      // Stream closes abruptly — no final or error event.
+    })
+
+    await act(async () => {
+      await handle.latest().handleStreamedResponse(
+        makeSseResponse(),
+        setMessages,
+        vi.fn(),
+        vi.fn(),
+        false
+      )
+    })
+    await flushUiBatch()
+
+    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
+    expect(assistant?.content).toBe('Partial answer')
+    expect(assistant?.thinking).toBe('Halfway…')
+    expect(assistant?.isStreaming).toBe(false)
+    expect(assistant?.isThinkingStreaming).toBe(false)
+    expect(assistant?.isToolStreaming).toBe(false)
+    expect(assistant?.toolCalls?.some((t) => t.status === 'error')).toBe(true)
+  })
+
   it('does not append thinking payload into answer when mislabeled as chunk', async () => {
     mockReadSSEEvents.mockImplementation(async (_source, options) => {
       await options.onEvent({
