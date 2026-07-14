@@ -85,13 +85,13 @@ Follow `.claude/rules/constitution.md` exactly: Sim is "the open-source AI works
     │   ├── landing-shell/               # light wrapper + skip link + Navbar(stars) + Footer; wraps every page
     │   ├── hero-cta/                    # the one email-capture + Sign-up CTA (hero + every platform hero)
     │   └── logos/                       # the one customer-logo set; layout='grid' (hero) | 'row' (platform)
-    └── platform-page/                   # the reusable platform-page layout (Workflows, Tables, Files, …)
-        ├── platform-page.tsx, index.ts, types.ts, constants.ts   # PlatformPage + the content contract + spacing
-        └── components/                  # platform-hero, platform-logos-row, platform-card-row (→ card, pill-cta),
-                                         #   platform-visual-frame, platform-structured-data
+    └── solutions-page/                  # the reusable solutions/platform layout (Workflows, Knowledge, Tables, Files, Logs, solutions/*)
+        ├── solutions-page.tsx, index.ts, types.ts, constants.ts  # SolutionsPage + the content contract + spacing
+        └── components/                  # solutions-hero, solutions-logos-row, solutions-card-row (→ card, pill-cta),
+                                         #   solutions-visual-frame, solutions-structured-data
 ```
 
-Each section component's TSDoc carries its layout spec - read it before implementing. Section components own their landmark (Navbar → `<header>`, Footer → `<footer>`, the rest → `<section>`); the shared `LandingShell` owns the page frame (light wrapper, skip link, navbar, footer, GitHub stars via `@/lib/github/stars` - fetched at build/revalidate time, never client-fetched), and the page's `<main>` owns the section order and rhythm. Platform routes consume `PlatformPage` with a single content `config` - see `platform-page/CLAUDE`-level TSDoc on `platform-page.tsx`. Sub-components of a section go in `components/<section>/components/`.
+Each section component's TSDoc carries its layout spec - read it before implementing. Section components own their landmark (Navbar → `<header>`, Footer → `<footer>`, the rest → `<section>`); the shared `LandingShell` owns the page frame (light wrapper, skip link, navbar, footer, GitHub stars via `@/lib/github/stars` - fetched at build/revalidate time, never client-fetched), and the page's `<main>` owns the section order and rhythm. Platform and solutions routes consume `SolutionsPage` with a single content `config` - see the TSDoc on `solutions-page.tsx`. Sub-components of a section go in `components/<section>/components/`.
 
 Absolute imports only in component code (`@/app/(landing)/components/...`); `index.ts` barrels use relative re-exports (`export { X } from './x'`), matching the workspace convention. Props interfaces for every component. No `utils.ts` until two files share a helper.
 

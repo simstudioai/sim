@@ -16,10 +16,6 @@ import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-p
  * near-zero ceremony. A route renders the shared shell and drops in one
  * `<SolutionsPage config={…} />`.
  *
- * Structurally this mirrors `PlatformPage` today; the two are deliberately
- * separate so the solutions layout and its components can diverge from the
- * platform layout without coupling.
- *
  * This component owns the entire `<main>`: an inner content column carries the
  * shared `max-w-[1460px]` width (centered via `LANDING_CONTENT_WIDTH`, matching
  * the navbar and landing sections), the one horizontal gutter

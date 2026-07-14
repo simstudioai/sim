@@ -1,0 +1,45 @@
+/**
+ * The TablesHeroLoop's motion: an appended record row stamps in once from
+ * above when the parent clock mounts it, and an enriched cell's value fades
+ * up once when the enrichment sweep reaches it. Both are one-shot mount
+ * animations - the loop's restart unmounts and remounts the elements, so a
+ * new cycle replays them naturally. Under prefers-reduced-motion the parent
+ * renders the finished frame and these never play.
+ */
+
+.rowIn {
+  animation: tables-row-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.cellIn {
+  animation: tables-cell-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes tables-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tables-cell-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rowIn,
+  .cellIn {
+    animation: none;
+  }
+}

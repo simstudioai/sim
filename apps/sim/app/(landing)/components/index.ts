@@ -19,14 +19,6 @@ export { LogoShell } from './logo-shell'
 export { Mothership } from './mothership/mothership'
 export { Navbar } from './navbar'
 export { PlatformHeroVisual } from './platform-hero-visual'
-export type {
-  PlatformCardConfig,
-  PlatformCardRowConfig,
-  PlatformHeroConfig,
-  PlatformPageConfig,
-  PlatformPillCta,
-} from './platform-page'
-export { PlatformPage } from './platform-page'
 export { ProductDemo } from './product-demo'
 export { ShareButton } from './share-button'
 export { SiteStructuredData } from './site-structured-data'

@@ -78,6 +78,12 @@ interface EnterpriseSidebarProps {
   chats?: readonly string[]
   /** Deployed-workflow entries - five fill the design height. Defaults enterprise. */
   workflows?: readonly string[]
+  /**
+   * Workspace-nav row to render active (e.g. `'Tables'`) - the platform pages
+   * highlight their own module instead of New chat. Unset keeps the enterprise
+   * default (New chat active).
+   */
+  activeNav?: (typeof WORKSPACE_NAV)[number]['label']
 }
 
 /**
@@ -95,6 +101,7 @@ export function EnterpriseSidebar({
   workspaceName = 'Brightwave',
   chats = SIDEBAR_CHATS,
   workflows = SIDEBAR_WORKFLOWS,
+  activeNav,
 }: EnterpriseSidebarProps = {}) {
   return (
     <div className='flex h-full w-[249px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
@@ -122,7 +129,7 @@ export function EnterpriseSidebar({
       </div>
 
       <div className='mt-2.5 flex flex-shrink-0 flex-col gap-0.5 px-2'>
-        <IconRow icon={Home} label='New chat' active />
+        <IconRow icon={Home} label='New chat' active={!activeNav} />
         <IconRow icon={Search} label='Search' />
         <IconRow icon={Integration} label='Integrations' />
       </div>
@@ -140,7 +147,12 @@ export function EnterpriseSidebar({
         <SectionLabel label='Workspace' />
         <div className='flex flex-col gap-0.5 px-2'>
           {WORKSPACE_NAV.map((item) => (
-            <IconRow key={item.label} icon={item.icon} label={item.label} />
+            <IconRow
+              key={item.label}
+              icon={item.icon}
+              label={item.label}
+              active={item.label === activeNav}
+            />
           ))}
         </div>
       </div>
