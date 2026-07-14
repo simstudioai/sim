@@ -12,7 +12,6 @@ const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     FORKING_ENABLED: undefined as boolean | undefined,
     DEPLOY_AS_BLOCK: undefined as boolean | undefined,
-    MOTHERSHIP_SUBAGENT_NARRATION: undefined as boolean | undefined,
   },
   flagRef: { isAppConfigEnabled: false },
 }))
@@ -64,7 +63,6 @@ describe('getFeatureFlags', () => {
     const flags = await getFeatureFlags()
     // All registered flags should be present, disabled (env vars unset in test env)
     expect(flags['mothership-beta']).toEqual({ enabled: false })
-    expect(flags['mothership-subagent-narration']).toEqual({ enabled: false })
     expect(flags['pii-redaction']).toEqual({ enabled: false })
     expect(flags['pii-granular-redaction']).toEqual({ enabled: false })
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
@@ -112,7 +110,6 @@ describe('isFeatureEnabled', () => {
     flagRef.isAppConfigEnabled = false
     envRef.FORKING_ENABLED = undefined
     envRef.DEPLOY_AS_BLOCK = undefined
-    envRef.MOTHERSHIP_SUBAGENT_NARRATION = undefined
   })
 
   describe('workspace-forking flag', () => {
@@ -148,21 +145,6 @@ describe('isFeatureEnabled', () => {
       withAppConfig({ 'deploy-as-block': { orgIds: ['o1'] } })
       expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o1' })).toBe(true)
       expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o2' })).toBe(false)
-    })
-  })
-
-  describe('mothership-subagent-narration flag', () => {
-    it('defaults off and uses its fallback only when explicitly enabled', async () => {
-      expect(await isFeatureEnabled('mothership-subagent-narration', { userId: 'u1' })).toBe(false)
-
-      envRef.MOTHERSHIP_SUBAGENT_NARRATION = true
-      expect(await isFeatureEnabled('mothership-subagent-narration', { userId: 'u1' })).toBe(true)
-    })
-
-    it('supports targeted rollout through AppConfig', async () => {
-      withAppConfig({ 'mothership-subagent-narration': { userIds: ['u1'] } })
-      expect(await isFeatureEnabled('mothership-subagent-narration', { userId: 'u1' })).toBe(true)
-      expect(await isFeatureEnabled('mothership-subagent-narration', { userId: 'u2' })).toBe(false)
     })
   })
 

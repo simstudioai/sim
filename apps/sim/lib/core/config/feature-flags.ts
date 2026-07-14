@@ -64,12 +64,6 @@ const FEATURE_FLAGS = {
       'user context — use enabled:true for global rollout rather than per-user targeting.',
     fallback: 'MOTHERSHIP_BETA_FEATURES',
   },
-  'mothership-subagent-narration': {
-    description:
-      'Stream and render free-form assistant narration from Mothership subagents such as ' +
-      'Workflow Agent. Disabled by default so only subagent lifecycle and tool activity are shown.',
-    fallback: 'MOTHERSHIP_SUBAGENT_NARRATION',
-  },
   'table-snapshot-cache': {
     description:
       'Mount Sim tables into code sandboxes by reference via a version-keyed CSV snapshot in ' +

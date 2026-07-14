@@ -451,7 +451,6 @@ export const env = createEnv({
     DISABLE_INVITATIONS:                   z.boolean().optional(),                 // Disable workspace invitations globally (for self-hosted deployments)
     DISABLE_PUBLIC_API:                    z.boolean().optional(),                 // Disable public API access globally (for self-hosted deployments)
     MOTHERSHIP_BETA_FEATURES:              z.boolean().optional(),                 // Enable beta Mothership planning/changelog artifact surfaces
-    MOTHERSHIP_SUBAGENT_NARRATION:         z.boolean().optional(),                 // Show and stream subagent narration in Mothership chat (defaults to false)
 
     // Development Tools
     REACT_GRAB_ENABLED:                    z.boolean().optional(),                 // Enable React Grab for UI element debugging in Cursor/AI agents (dev only)
