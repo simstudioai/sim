@@ -15,6 +15,7 @@ import { EditorLoop, type EditorLoopContent } from '@/app/(landing)/components/s
  * build sequence; an edge draws once both endpoints are on canvas.
  */
 const SCHEDULED_TASKS_EDITOR_CONTENT: EditorLoopContent = {
+  activeNav: 'Scheduled tasks',
   sidebarChats: [
     'Morning digest setup',
     'Move sync to nightly',

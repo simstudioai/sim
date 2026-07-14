@@ -5,6 +5,7 @@ import { cn } from '@sim/emcn'
 import { HeroWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-workflow-stage'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import type { EnterpriseSidebarProps } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/enterprise-sidebar'
 import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
@@ -31,6 +32,8 @@ export interface EditorLoopContent {
   canvas: { width: number; height: number }
   /** The block the "editing" beat selects once the flow is assembled. */
   selectedBlockId: string
+  /** Workspace-nav row to highlight in the sidebar; unset keeps New chat active. */
+  activeNav?: EnterpriseSidebarProps['activeNav']
 }
 
 interface EditorLoopProps {
@@ -90,7 +93,11 @@ export function EditorLoop({ content }: EditorLoopProps) {
   )
 
   return (
-    <HeroLoopShell chats={content.sidebarChats} workflows={content.sidebarWorkflows}>
+    <HeroLoopShell
+      chats={content.sidebarChats}
+      workflows={content.sidebarWorkflows}
+      activeNav={content.activeNav}
+    >
       <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           className={cn(
