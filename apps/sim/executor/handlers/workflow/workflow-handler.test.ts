@@ -9,15 +9,25 @@ import {
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const { mockExecutorExecute, mockCreateSnapshot } = vi.hoisted(() => ({
-  mockExecutorExecute: vi.fn(),
-  mockCreateSnapshot: vi.fn(),
-}))
+const { mockExecutorExecute, mockCreateSnapshot, mockResolveBillingAttribution, executorOptions } =
+  vi.hoisted(() => ({
+    mockExecutorExecute: vi.fn(),
+    mockCreateSnapshot: vi.fn(),
+    mockResolveBillingAttribution: vi.fn(),
+    executorOptions: [] as Array<Record<string, any>>,
+  }))
 
 vi.mock('@/executor', () => ({
   Executor: class {
+    constructor(options: Record<string, any>) {
+      executorOptions.push(options)
+    }
     execute = mockExecutorExecute
   },
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: mockResolveBillingAttribution,
 }))
 
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
@@ -92,6 +102,7 @@ describe('WorkflowBlockHandler', () => {
 
     // Reset all mocks
     vi.clearAllMocks()
+    executorOptions.length = 0
 
     // Setup default fetch mock
     mockFetch.mockResolvedValue({
@@ -271,6 +282,43 @@ describe('WorkflowBlockHandler', () => {
         result: { data: 'ok' },
       })
       expect(mockExecutorExecute).toHaveBeenCalledWith('child-workflow-id')
+    })
+
+    it('threads the parent billing attribution into the child execution context', async () => {
+      const billingAttribution = {
+        actorUserId: 'actor-1',
+        workspaceId: 'workspace-parent',
+        organizationId: 'org-1',
+        billedAccountUserId: 'owner-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+        payerSubscription: null,
+      }
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-parent',
+        metadata: { ...mockContext.metadata, billingAttribution },
+      } as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.billingAttribution).toBe(billingAttribution)
+      expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     })
 
     it('should fail closed when the executing context has no workspace', async () => {
