@@ -459,7 +459,7 @@ export default function Logs() {
         writeExecutionId(nextLog.executionId ?? null)
       }
     }
-  }, [setExecutionId])
+  }, [writeExecutionId])
 
   const handleNavigatePrev = useCallback(() => {
     const idx = selectedLogIndexRef.current
@@ -471,13 +471,13 @@ export default function Logs() {
         writeExecutionId(prevLog.executionId ?? null)
       }
     }
-  }, [setExecutionId])
+  }, [writeExecutionId])
 
   const handleCloseSidebar = useCallback(() => {
     dispatch({ type: 'CLOSE_SIDEBAR' })
     writeExecutionId(null)
     activeLogTabRef.current = 'overview'
-  }, [setExecutionId])
+  }, [writeExecutionId])
 
   /**
    * Strip the `tab` param whenever the detail panel transitions from open to

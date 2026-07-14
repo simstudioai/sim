@@ -156,7 +156,10 @@ export function useScheduledTasks({
    * meaning shifts as the run completes). Until schedules load — or when the
    * occurrence falls outside the current anchor/scope window — the id doesn't
    * resolve, `selectedTask` stays `null`, and the param lingers harmlessly; the
-   * modal opens as soon as the id resolves.
+   * modal opens as soon as the id resolves. Stability of an OPEN modal relies on
+   * the schedules query not refetching in the background (no refetchInterval;
+   * the app-wide QueryClient disables refetchOnWindowFocus) — a mid-edit refetch
+   * that regenerates occurrence ids would close the modal and drop the draft.
    */
   const taskById = useMemo(() => {
     const byId = new Map<string, CalendarEvent>()
