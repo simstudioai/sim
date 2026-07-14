@@ -2,10 +2,17 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { resolveToolDisplay } from './store-utils'
 import { ClientToolCallState } from './tool-call-state'
+
+const gmailBlock = { type: 'gmail_v2', name: 'Gmail', icon: () => null }
+
+vi.mock('@/blocks/registry', () => ({
+  getBlock: vi.fn((type: string) => (type === 'gmail_v2' ? gmailBlock : undefined)),
+  getLatestBlock: vi.fn((baseType: string) => (baseType === 'gmail' ? gmailBlock : undefined)),
+}))
 
 describe('resolveToolDisplay', () => {
   it('uses a friendly label for internal respond tools', () => {
@@ -118,6 +125,26 @@ describe('resolveToolDisplay', () => {
         path: 'files/deck.pptx/style',
       })?.text
     ).toBe('Read style details for deck.pptx')
+  })
+
+  it('shows the block display name for block and integration schema reads', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'components/blocks/gmail_v2.json',
+      })?.text
+    ).toBe('Read Gmail')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'components/integrations/gmail/send.json',
+      })?.text
+    ).toBe('Reading Gmail')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'components/blocks/unknown_block.json',
+      })?.text
+    ).toBe('Read unknown_block')
   })
 
   it('falls back to a humanized tool label for generic tools', () => {

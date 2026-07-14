@@ -4,6 +4,7 @@ import { FileText } from 'lucide-react'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
+import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
 import { decodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 
@@ -97,6 +98,9 @@ function decodeVfsSegmentSafe(segment: string): string {
 
 function describeReadTarget(path: string | undefined): string | undefined {
   if (!path) return undefined
+
+  const block = getReadTargetBlock(path)
+  if (block) return block.name
 
   const segments = path
     .split('/')

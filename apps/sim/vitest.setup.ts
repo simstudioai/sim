@@ -88,6 +88,7 @@ vi.mock('@/blocks/registry', () => ({
     outputs: {},
   })),
   getAllBlocks: vi.fn(() => ({})),
+  getLatestBlock: vi.fn(() => undefined),
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({
