@@ -1,4 +1,5 @@
 import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import type { LogSortBy, LogSortOrder } from '@/hooks/queries/logs'
 import {
   CORE_TRIGGER_TYPES,
   type LogLevel,
@@ -114,6 +115,31 @@ export const logFilterParsers = {
 export const logFilterUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
+} as const
+
+/** Columns the logs list can sort by; must stay in sync with {@link LogSortBy}. */
+export const LOG_SORT_COLUMNS = [
+  'date',
+  'duration',
+  'cost',
+  'status',
+] as const satisfies readonly LogSortBy[]
+
+const LOG_SORT_DIRECTIONS = ['asc', 'desc'] as const satisfies readonly LogSortOrder[]
+
+/** Default ordering the server applies when no sort is active (newest first). */
+export const DEFAULT_LOG_SORT_COLUMN: LogSortBy = 'date'
+export const DEFAULT_LOG_SORT_DIRECTION: LogSortOrder = 'desc'
+
+/**
+ * Sort params for the logs resource table (`sort` + `dir`). The defaults match
+ * the server's default ordering exactly, so with `clearOnDefault` a clean URL
+ * means "no active sort" and clearing the sort strips both params. Shares
+ * {@link logFilterUrlKeys} so sort changes replace history like filter changes.
+ */
+export const logSortParsers = {
+  sort: parseAsStringLiteral(LOG_SORT_COLUMNS).withDefault(DEFAULT_LOG_SORT_COLUMN),
+  dir: parseAsStringLiteral(LOG_SORT_DIRECTIONS).withDefault(DEFAULT_LOG_SORT_DIRECTION),
 } as const
 
 /**

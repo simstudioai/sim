@@ -21,11 +21,11 @@ import {
   MemberSection,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
-  teammatesSearchParam,
-  teammatesUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/components/teammates/search-params'
+  settingsSearchParam,
+  settingsSearchUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/search-params'
+import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import {
   useCancelWorkspaceInvitation,
@@ -74,9 +74,9 @@ export function Teammates() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const [searchTerm, setSearchTerm] = useQueryState(teammatesSearchParam.key, {
-    ...teammatesSearchParam.parser,
-    ...teammatesUrlKeys,
+  const [searchTerm, setSearchTerm] = useQueryState(settingsSearchParam.key, {
+    ...settingsSearchParam.parser,
+    ...settingsSearchUrlKeys,
     limitUrlUpdates: debounce(300),
   })
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)

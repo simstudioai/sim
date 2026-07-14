@@ -26,7 +26,7 @@ import { Download, Workflow } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { useQueryState } from 'nuqs'
+import { useQueryState, useQueryStates } from 'nuqs'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -58,9 +58,14 @@ import { Resource, type ResourceTableHandle } from '@/app/workspace/[workspaceId
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
+  DEFAULT_LOG_SORT_COLUMN,
+  DEFAULT_LOG_SORT_DIRECTION,
   executionIdParam,
+  LOG_SORT_COLUMNS,
   logDetailsTabParam,
   logDetailsTabUrlKeys,
+  logFilterUrlKeys,
+  logSortParsers,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -97,7 +102,6 @@ import {
 } from './utils'
 
 const LOGS_PER_PAGE = 50 as const
-const SORTABLE_COLUMNS: readonly LogSortBy[] = ['date', 'duration', 'cost', 'status'] as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
 const LIVE_REFRESH_INTERVAL_MS = 10_000 as const
 const ACTIVE_RUN_DETAIL_REFRESH_MS = 3_000 as const
@@ -270,10 +274,13 @@ export default function Logs() {
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
+
+  /**
+   * URL-backed sort (`sort` + `dir`). The defaults match the server's default
+   * ordering, so a clean URL means "no active sort" and clearing the sort
+   * writes the defaults back (which `clearOnDefault` strips from the URL).
+   */
+  const [sortParams, setSortParams] = useQueryStates(logSortParsers, logFilterUrlKeys)
   const userPermissions = useUserPermissionsContext()
 
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
@@ -301,11 +308,8 @@ export default function Logs() {
     refetchInterval,
   })
 
-  const sortBy: LogSortBy =
-    activeSort && SORTABLE_COLUMNS.includes(activeSort.column as LogSortBy)
-      ? (activeSort.column as LogSortBy)
-      : 'date'
-  const sortOrder: LogSortOrder = activeSort?.direction ?? 'desc'
+  const sortBy: LogSortBy = sortParams.sort
+  const sortOrder: LogSortOrder = sortParams.dir
 
   const logFilters = useMemo(
     () => ({
@@ -1016,11 +1020,18 @@ export default function Logs() {
         { id: 'cost', label: 'Cost' },
         { id: 'status', label: 'Status' },
       ],
-      active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      active:
+        sortParams.sort === DEFAULT_LOG_SORT_COLUMN && sortParams.dir === DEFAULT_LOG_SORT_DIRECTION
+          ? null
+          : { column: sortParams.sort, direction: sortParams.dir },
+      onSort: (column, direction) => {
+        if (!(LOG_SORT_COLUMNS as readonly string[]).includes(column)) return
+        setSortParams({ sort: column as LogSortBy, dir: direction })
+      },
+      onClear: () =>
+        setSortParams({ sort: DEFAULT_LOG_SORT_COLUMN, dir: DEFAULT_LOG_SORT_DIRECTION }),
     }),
-    [activeSort]
+    [sortParams, setSortParams]
   )
 
   const searchConfig = useMemo<SearchConfig>(
