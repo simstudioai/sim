@@ -25,7 +25,7 @@ function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute
     }
   }
   return [...authorsMap.entries()].map(([id, date]) => ({
-    url: `${SITE_URL}${basePath}/authors/${id}`,
+    url: `${SITE_URL}${basePath}/authors/${encodeURIComponent(id)}`,
     lastModified: date,
   }))
 }
