@@ -144,7 +144,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
       },
       {
         label: 'API endpoint',
-        values: ['0', '100', '200', 'Custom'],
+        values: ['30', '100', '200', 'Custom'],
       },
     ],
   },

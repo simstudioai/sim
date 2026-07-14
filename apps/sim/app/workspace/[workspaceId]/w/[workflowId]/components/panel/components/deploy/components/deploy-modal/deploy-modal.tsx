@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -22,7 +22,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -47,7 +46,7 @@ import {
 } from '@/hooks/queries/deployments'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
-import { useWorkspaceOwnerBilling, useWorkspaceSettings } from '@/hooks/queries/workspace'
+import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -57,7 +56,6 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   ApiDeploy,
   ChatDeploy,
-  DeployUpgradeGate,
   type ExistingChat,
   GeneralDeploy,
   McpDeploy,
@@ -65,19 +63,6 @@ import {
 import { ApiInfoModal } from './components/general/components/api-info-modal'
 
 const logger = createLogger('DeployModal')
-
-/** Renders the upgrade prompt in place of a programmatic-deploy tab when gated. */
-function GatedTabContent({
-  gated,
-  feature,
-  children,
-}: {
-  gated: boolean
-  feature: 'API' | 'MCP'
-  children: ReactNode
-}) {
-  return gated ? <DeployUpgradeGate feature={feature} /> : <>{children}</>
-}
 
 interface DeployModalProps {
   open: boolean
@@ -153,16 +138,6 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  // Gate on the WORKSPACE owner's plan (billed account, rolled up), not the
-  // viewer's individual plan, so a free member of a paid workspace isn't shown
-  // the upgrade wall. Keyed on the URL `workspaceId` (available on mount). Uses
-  // `isPaid` — the same check the server gate runs (any paid plan in an entitled
-  // status, incl. `past_due`) — rather than `hasUsablePaidAccess`, which would
-  // reject `past_due`/billing-blocked owners the API still allows. While loading
-  // the data is undefined → gate stays closed (no flash); only a resolved,
-  // non-paid owner gates.
-  const { data: ownerBilling } = useWorkspaceOwnerBilling(workspaceId ?? undefined)
-  const gateProgrammaticDeploy = isBillingEnabled && !!ownerBilling && !ownerBilling.isPaid
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -581,17 +556,15 @@ export function DeployModal({
               </ModalTabsContent>
 
               <ModalTabsContent value='api' className='h-full'>
-                <GatedTabContent gated={gateProgrammaticDeploy} feature='API'>
-                  <ApiDeploy
-                    workflowId={workflowId}
-                    deploymentInfo={deploymentInfo}
-                    isLoading={isLoadingDeploymentInfo}
-                    needsRedeployment={needsRedeployment}
-                    getInputFormatExample={getInputFormatExample}
-                    selectedStreamingOutputs={selectedStreamingOutputs}
-                    onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
-                  />
-                </GatedTabContent>
+                <ApiDeploy
+                  workflowId={workflowId}
+                  deploymentInfo={deploymentInfo}
+                  isLoading={isLoadingDeploymentInfo}
+                  needsRedeployment={needsRedeployment}
+                  getInputFormatExample={getInputFormatExample}
+                  selectedStreamingOutputs={selectedStreamingOutputs}
+                  onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
+                />
               </ModalTabsContent>
 
               <ModalTabsContent value='chat'>
@@ -611,22 +584,20 @@ export function DeployModal({
               </ModalTabsContent>
 
               <ModalTabsContent value='mcp' className='h-full'>
-                <GatedTabContent gated={gateProgrammaticDeploy} feature='MCP'>
-                  {workflowId && (
-                    <McpDeploy
-                      workflowId={workflowId}
-                      workflowName={workflowMetadata?.name || 'Workflow'}
-                      workflowDescription={workflowMetadata?.description}
-                      isDeployed={isDeployed}
-                      deployedState={deployedState}
-                      isLoadingDeployedState={isLoadingDeployedState}
-                      onSubmittingChange={setMcpToolSubmitting}
-                      onCanSaveChange={setMcpToolCanSave}
-                      onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
-                      onActiveServerChange={setMcpActiveServerId}
-                    />
-                  )}
-                </GatedTabContent>
+                {workflowId && (
+                  <McpDeploy
+                    workflowId={workflowId}
+                    workflowName={workflowMetadata?.name || 'Workflow'}
+                    workflowDescription={workflowMetadata?.description}
+                    isDeployed={isDeployed}
+                    deployedState={deployedState}
+                    isLoadingDeployedState={isLoadingDeployedState}
+                    onSubmittingChange={setMcpToolSubmitting}
+                    onCanSaveChange={setMcpToolCanSave}
+                    onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
+                    onActiveServerChange={setMcpActiveServerId}
+                  />
+                )}
               </ModalTabsContent>
             </ModalBody>
           </ModalTabs>
@@ -646,7 +617,7 @@ export function DeployModal({
               }}
             />
           )}
-          {activeTab === 'api' && !gateProgrammaticDeploy && (
+          {activeTab === 'api' && (
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
@@ -698,7 +669,7 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'mcp' && !gateProgrammaticDeploy && isDeployed && hasMcpServers && (
+          {activeTab === 'mcp' && isDeployed && hasMcpServers && (
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>

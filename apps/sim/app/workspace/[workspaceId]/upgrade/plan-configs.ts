@@ -29,7 +29,7 @@ export const ENTERPRISE_PLAN_CREDITS: PlanCredits = {
 export const PRO_PLAN_FEATURES: readonly string[] = [
   `${DEFAULT_BILLING_CONCURRENCY_LIMITS.pro.toLocaleString('en-US')} concurrent executions`,
   'Invite teammates',
-  'Deploy workflows as APIs',
+  'Higher rate limits',
   'Extended run timeouts',
   'More storage & tables',
 ]
