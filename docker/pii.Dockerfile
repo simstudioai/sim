@@ -96,7 +96,7 @@ RUN python -c "from gliner import GLiNER; \
 model = GLiNER.from_pretrained('${GLINER_MODEL}'); \
 ents = model.predict_entities('John Smith flew to Paris on 4 May 2021.', ['person', 'location', 'date']); \
 labels = {e['label'] for e in ents}; \
-assert {'person', 'location'} <= labels, f'GLiNER smoke inference failed, got: {ents}'" && \
+assert {'person', 'location', 'date'} <= labels, f'GLiNER smoke inference failed, got: {ents}'" && \
     chmod -R a+rX /opt/hf-cache
 ENV HF_HUB_OFFLINE=1
 
