@@ -29,7 +29,7 @@ export interface ContentRegistryConfig {
 
 export interface ContentRegistry {
   getAllPostMeta: () => Promise<ContentMeta[]>
-  getPostBySlug: (slug: string) => Promise<ContentPost>
+  getPostBySlug: (slug: string) => Promise<ContentPost | null>
   getAllTags: () => Promise<TagWithCount[]>
   getRelatedPosts: (slug: string, limit?: number) => Promise<ContentMeta[]>
   getNavPosts: () => Promise<Pick<ContentMeta, 'slug' | 'title' | 'ogImage'>[]>
@@ -225,10 +225,10 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     }
   }
 
-  async function getPostBySlug(slug: string): Promise<ContentPost> {
+  async function getPostBySlug(slug: string): Promise<ContentPost | null> {
     const meta = await scanFrontmatters()
     const found = meta.find((m) => m.slug === slug)
-    if (!found) throw new Error(`Post not found: ${slug}`)
+    if (!found) return null
     const mdxPath = path.join(contentDir, slug, 'index.mdx')
     const raw = await fs.readFile(mdxPath, 'utf-8')
     const { content, data } = matter(raw)

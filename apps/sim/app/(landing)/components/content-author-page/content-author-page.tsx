@@ -1,4 +1,3 @@
-import { ChipLink } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ContentMeta } from '@/lib/content/schema'
@@ -9,9 +8,9 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
 interface ContentAuthorPageProps {
   /** Route base path, e.g. `/blog` or `/library`. */
   basePath: string
-  /** Section label used in the not-found fallback, e.g. "Blog" or "Library". */
+  /** Section label used in the back link, e.g. "Blog" or "Library". */
   sectionName: string
-  authorName?: string
+  authorName: string
   authorAvatarUrl?: string
   /** Posts already filtered down to this author. */
   posts: ContentMeta[]
@@ -32,22 +31,6 @@ export function ContentAuthorPage({
   posts,
   graphJsonLd,
 }: ContentAuthorPageProps) {
-  if (!authorName) {
-    return (
-      <section className='mx-auto flex min-h-[60vh] w-full max-w-[1460px] flex-col items-center justify-center gap-3 px-20 py-24 text-center max-sm:px-5 max-lg:px-8'>
-        <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-          Author not found
-        </h1>
-        <p className='text-[var(--text-muted)] text-lg'>
-          The author you&apos;re looking for doesn&apos;t exist or has been moved.
-        </p>
-        <ChipLink variant='primary' href={basePath} className='mt-3'>
-          Browse {sectionName}
-        </ChipLink>
-      </section>
-    )
-  }
-
   return (
     <>
       <section className='bg-[var(--bg)]'>
