@@ -4,13 +4,13 @@ import { generateId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { useShallow } from 'zustand/react/shallow'
-import { redactApiKeys } from '@/lib/core/security/redaction'
-import { sendMothershipMessage } from '@/lib/mothership/events'
-import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type {
   AgentStreamToolCall,
   AgentStreamToolStatus,
 } from '@/components/agent-stream/agent-stream-chrome'
+import { redactApiKeys } from '@/lib/core/security/redaction'
+import { sendMothershipMessage } from '@/lib/mothership/events'
+import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { useExecutionStore } from '@/stores/execution'
