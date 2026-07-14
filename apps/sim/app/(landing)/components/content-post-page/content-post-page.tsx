@@ -96,7 +96,7 @@ export function ContentPostPage({
                       </Avatar>
                     ) : null}
                     <Link
-                      href={`${basePath}/authors/${a?.id}`}
+                      href={`${basePath}/authors/${encodeURIComponent(a?.id ?? '')}`}
                       rel='author'
                       className='text-[var(--text-muted)] text-xs uppercase tracking-[0.1em] hover:text-[var(--text-primary)]'
                       itemProp='author'
