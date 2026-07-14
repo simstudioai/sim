@@ -10,7 +10,7 @@ import {
   parseSettingsPathSection,
 } from '@/components/settings/navigation'
 import { getSession } from '@/lib/auth'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 
 interface AccountSettingsSectionPageProps {
@@ -46,6 +46,7 @@ export default async function AccountSettingsSectionPage({
   })
   if (!parsed) notFound()
   if (parsed === 'billing' && !isBillingEnabled) redirect(getAccountSettingsHref('general'))
+  if (parsed === 'copilot' && !isHosted) redirect(getAccountSettingsHref('general'))
   if (parsed === 'admin' || parsed === 'mothership') {
     const isSuperUser = await isPlatformAdmin(session.user.id)
     if (!isSuperUser) notFound()
