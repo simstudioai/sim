@@ -328,6 +328,36 @@ describe('narration text seams', () => {
     expect(text.content).toBe('that triggered it. The failing block is X.')
   })
 
+  it('never inserts a space into a segment split mid-word or mid-URL', () => {
+    const seam = (first: string, second: string): string => {
+      const blocks: ContentBlock[] = [
+        subagentStart('research', 'S1', 'main'),
+        { type: 'subagent_text', content: first, spanId: 'S1', subagent: 'research', timestamp: 2 },
+        {
+          type: 'subagent_text',
+          content: second,
+          spanId: 'S1',
+          subagent: 'research',
+          timestamp: 3,
+        },
+      ]
+      const segments = parseBlocks(blocks)
+      const group = segments.find((s) => s.type === 'agent_group')
+      if (!group || group.type !== 'agent_group') throw new Error('expected group')
+      const text = group.items.find((i) => i.type === 'text')
+      if (!text || text.type !== 'text') throw new Error('expected text')
+      return text.content
+    }
+
+    expect(seam('the fox jum', 'ps over')).toBe('the fox jumps over')
+    expect(seam('see https://example', '/path for details')).toBe(
+      'see https://example/path for details'
+    )
+    expect(seam('日本語のテキストが分割', 'されても壊れない')).toBe(
+      '日本語のテキストが分割されても壊れない'
+    )
+  })
+
   it('does not double-space when the seam already has whitespace', () => {
     const blocks: ContentBlock[] = [
       subagentStart('research', 'S1', 'main'),
