@@ -3,8 +3,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
+import { useSmoothText } from '@/hooks/use-smooth-text'
 import type { ToolCallData } from '../../../../types'
 import { getAgentIcon, isToolDone } from '../../utils'
+import { renderInlineMarkdown } from './inline-markdown'
 import { ToolCallItem } from './tool-call-item'
 
 /**
@@ -148,12 +150,11 @@ export function AgentGroup({
                     )
                   }
                   return (
-                    <span
+                    <NarrationText
                       key={`text-${idx}`}
-                      className='pl-6 text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'
-                    >
-                      {item.content.trim()}
-                    </span>
+                      content={item.content}
+                      isStreaming={isStreaming && idx === items.length - 1}
+                    />
                   )
                 })}
               </div>
@@ -162,6 +163,27 @@ export function AgentGroup({
         </Expandable>
       )}
     </div>
+  )
+}
+
+interface NarrationTextProps {
+  content: string
+  /** This row is the group's live tail — pace its reveal like top-level text. */
+  isStreaming: boolean
+}
+
+/**
+ * A narration (thinking/text) row inside an agent group. The live tail row is
+ * paced with {@link useSmoothText} so streamed chunks reveal word-by-word
+ * instead of popping in, matching the top-level text treatment.
+ */
+function NarrationText({ content, isStreaming }: NarrationTextProps) {
+  const revealed = useSmoothText(content, isStreaming)
+
+  return (
+    <span className='pl-6 text-[13px] text-[var(--text-muted)] leading-[18px]'>
+      {renderInlineMarkdown(revealed.trim())}
+    </span>
   )
 }
 

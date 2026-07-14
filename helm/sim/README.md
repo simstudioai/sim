@@ -473,7 +473,7 @@ kubectl --namespace sim logs job/sim-migrations
 * **Docs:** https://docs.sim.ai
 * **GitHub:** https://github.com/simstudioai/sim
 * **Issues:** https://github.com/simstudioai/sim/issues
-* **Discord:** https://discord.gg/Hr4UWYEcTT
+* **Slack:** https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA
 
 ---
 

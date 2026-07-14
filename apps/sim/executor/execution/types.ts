@@ -168,6 +168,13 @@ export interface ContextExtensions {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /**
+   * Immutable actor/payer decision for this execution. Child workflow
+   * executions receive it here (they carry no full metadata), so internal
+   * tool calls inside the child still attach the billing attribution header.
+   * Takes precedence over `metadata.billingAttribution` when both are set.
+   */
+  billingAttribution?: BillingAttributionSnapshot
   stream?: boolean
   selectedOutputs?: string[]
   edges?: Array<{ source: string; target: string }>

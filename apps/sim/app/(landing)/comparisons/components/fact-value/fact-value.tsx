@@ -1,7 +1,7 @@
 import { Check, X } from '@sim/emcn/icons'
 import type { Fact } from '@/lib/compare/data'
-import { SourceLink } from '@/app/(landing)/comparison/components/source-info'
-import { parseFactValue } from '@/app/(landing)/comparison/fact-status'
+import { SourceLink } from '@/app/(landing)/comparisons/components/source-info'
+import { parseFactValue } from '@/app/(landing)/comparisons/fact-status'
 
 export interface FactValueProps {
   fact: Fact

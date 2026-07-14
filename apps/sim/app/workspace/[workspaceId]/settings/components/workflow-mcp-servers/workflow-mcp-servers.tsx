@@ -24,15 +24,21 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Plus, Server } from 'lucide-react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  mcpServerIdParam,
+  mcpServerIdUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useCreateMcpServer } from '@/hooks/queries/mcp'
@@ -871,7 +877,6 @@ function ServerDetailView({ canManage, workspaceId, serverId, onBack }: ServerDe
 export function WorkflowMcpServers() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const searchParams = useSearchParams()
   const workspacePermissions = useUserPermissionsContext()
   const canAdmin = canMutateWorkspaceSettingsSection('workflow-mcp-servers', workspacePermissions)
 
@@ -879,11 +884,12 @@ export function WorkflowMcpServers() {
   const { data: deployedWorkflows = [] } = useDeployedWorkflows(workspaceId)
   const deleteServerMutation = useDeleteWorkflowMcpServer()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [showAddModal, setShowAddModal] = useState(false)
-  const [selectedServerId, setSelectedServerId] = useState<string | null>(() =>
-    searchParams.get('mcpServerId')
-  )
+  const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
+    ...mcpServerIdParam.parser,
+    ...mcpServerIdUrlKeys,
+  })
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
 
@@ -925,13 +931,24 @@ export function WorkflowMcpServers() {
   const hasServers = servers.length > 0
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && hasServers
 
-  if (selectedServerId) {
+  /**
+   * Render the detail view only while the id can still resolve — while the
+   * list loads (a fresh deep link) or when the server exists in it. A stale id
+   * (deleted server restored from an old history entry or a dead link) falls
+   * back to the list instead of a failed detail view; the lingering param is
+   * harmless and gets overwritten by the next selection. Closing replaces the
+   * URL so Back leaves the section rather than reopening the detail view.
+   */
+  const selectedServerResolves =
+    selectedServerId !== null && (isLoading || servers.some((s) => s.id === selectedServerId))
+
+  if (selectedServerId && selectedServerResolves) {
     return (
       <ServerDetailView
         canManage={canAdmin}
         workspaceId={workspaceId}
         serverId={selectedServerId}
-        onBack={() => setSelectedServerId(null)}
+        onBack={() => setSelectedServerId(null, { history: 'replace' })}
       />
     )
   }

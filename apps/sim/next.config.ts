@@ -329,8 +329,19 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
+        source: '/slack',
+        destination:
+          'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
+        permanent: false,
+      },
+      {
         source: '/x',
         destination: 'https://x.com/simdotai',
+        permanent: false,
+      },
+      {
+        source: '/linkedin',
+        destination: 'https://www.linkedin.com/company/simstudioai/',
         permanent: false,
       },
       {
@@ -454,6 +465,25 @@ const nextConfig: NextConfig = {
         permanent: true,
       })
     }
+
+    /**
+     * The comparison route was renamed from `/comparison` to `/comparisons`
+     * for naming consistency with `/integrations/[slug]` (plural category,
+     * singular item). Preserve previously indexed URLs for the hub page and
+     * every competitor detail page.
+     */
+    redirects.push(
+      {
+        source: '/comparison',
+        destination: '/comparisons',
+        permanent: true,
+      },
+      {
+        source: '/comparison/:path*',
+        destination: '/comparisons/:path*',
+        permanent: true,
+      }
+    )
 
     return redirects
   },

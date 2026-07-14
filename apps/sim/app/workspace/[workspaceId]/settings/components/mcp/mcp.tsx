@@ -27,6 +27,7 @@ import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/component
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import {
   type McpServer,
@@ -187,7 +188,7 @@ export function MCP() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
   const { connectingServers: connectingOauthServers, startOauthForServer } = useMcpOauthPopup({
     workspaceId,
@@ -261,8 +262,9 @@ export function MCP() {
     refetchStoredTools()
   }
 
+  /** Closing replaces the URL — Back should leave the section, not reopen the detail view. */
   const handleBackToList = () => {
-    setSelectedServerId(null)
+    setSelectedServerId(null, { history: 'replace' })
     setExpandedTools(new Set())
   }
 

@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { simProfile } from '@/lib/compare/data'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
-import { BrandIconTile } from '@/app/(landing)/comparison/components/brand-icon-tile'
-import { ALL_COMPETITORS, ensurePeriod, lowercaseFirst } from '@/app/(landing)/comparison/utils'
+import { BrandIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
+import { ALL_COMPETITORS, ensurePeriod, lowercaseFirst } from '@/app/(landing)/comparisons/utils'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
@@ -47,7 +47,7 @@ export const metadata: Metadata = buildLandingMetadata({
   title: 'Sim Comparisons | Sim, the AI Workspace',
   description:
     'Compare Sim, the open-source AI workspace, to n8n, Zapier, Make, and other workflow automation and AI agent platforms. Sourced, dated, fact-checked.',
-  path: '/comparison',
+  path: '/comparisons',
   keywords: [
     'Sim comparison',
     'Sim vs n8n',
@@ -65,7 +65,7 @@ export default function ComparisonHubPage() {
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
-      { '@type': 'ListItem', position: 2, name: 'Comparison', item: `${baseUrl}/comparison` },
+      { '@type': 'ListItem', position: 2, name: 'Comparisons', item: `${baseUrl}/comparisons` },
     ],
   }
 
@@ -74,12 +74,12 @@ export default function ComparisonHubPage() {
     '@type': 'ItemList',
     name: 'Sim Comparisons',
     description: 'Directory of Sim comparison pages against AI agent and workflow platforms.',
-    url: `${baseUrl}/comparison`,
+    url: `${baseUrl}/comparisons`,
     numberOfItems: ALL_COMPETITORS.length,
     itemListElement: ALL_COMPETITORS.map((competitor, index) => ({
       '@type': 'ListItem',
       position: index + 1,
-      url: `${baseUrl}/comparison/${competitor.id}`,
+      url: `${baseUrl}/comparisons/${competitor.id}`,
       name: `Sim vs ${competitor.name}`,
     })),
   }
@@ -144,7 +144,7 @@ export default function ComparisonHubPage() {
                   return (
                     <div key={competitor.id}>
                       <Link
-                        href={`/comparison/${competitor.id}`}
+                        href={`/comparisons/${competitor.id}`}
                         className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover-hover:bg-[var(--surface-hover)]'
                         aria-label={`Sim vs ${competitor.name} comparison`}
                       >

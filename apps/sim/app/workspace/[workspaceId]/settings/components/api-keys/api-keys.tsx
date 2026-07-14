@@ -14,6 +14,7 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   type ApiKey,
   type ApiKeyScope,
@@ -105,7 +106,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
 
   const defaultKeyType = isPersonalScope
     ? 'personal'
