@@ -320,7 +320,9 @@ export function buildAuthorGraphJsonLd(section: ContentSection, author: Author) 
         name: author.name,
         url: `${SITE_URL}${section.basePath}/authors/${author.id}`,
         sameAs: author.url ? [author.url] : [],
-        image: author.avatarUrl,
+        image: author.avatarUrl?.startsWith('http')
+          ? author.avatarUrl
+          : author.avatarUrl && `${SITE_URL}${author.avatarUrl}`,
         worksFor: {
           '@type': 'Organization',
           name: 'Sim',
