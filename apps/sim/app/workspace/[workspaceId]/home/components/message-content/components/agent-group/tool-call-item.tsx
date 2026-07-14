@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { ShimmerText } from '@/components/ui'
-import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { getToolCompletedTitle } from '@/lib/copilot/tools/tool-display'
+import { getBareIconStyle } from '@/blocks/icon-color'
 import type { ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
 
@@ -25,6 +27,7 @@ interface ToolCallItemProps {
   toolName: string
   displayTitle: string
   status: ToolCallStatus
+  params?: Record<string, unknown>
   streamingArgs?: string
 }
 
@@ -33,8 +36,22 @@ interface ToolCallItemProps {
  * static label once terminal. For `workspace_file` the title is derived live
  * from the streaming args; because that path bypasses the completed-title
  * rewrite in `toToolData`, the past-tense flip is applied here on success.
+ * A `read` of a block or integration schema shows the block's brand icon
+ * inline next to its display name (e.g. the Gmail logo before "Read Gmail").
  */
-export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: ToolCallItemProps) {
+export function ToolCallItem({
+  toolName,
+  displayTitle,
+  status,
+  params,
+  streamingArgs,
+}: ToolCallItemProps) {
+  const readBlock = useMemo(() => {
+    if (toolName !== ReadTool.id) return undefined
+    const path = params?.path
+    return typeof path === 'string' ? getReadTargetBlock(path) : undefined
+  }, [toolName, params])
+
   const liveWorkspaceFileTitle = useMemo(() => {
     if (toolName !== WorkspaceFile.id || !streamingArgs) return null
     const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
@@ -71,8 +88,13 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
       ? (getToolCompletedTitle(liveTitle) ?? liveTitle)
       : liveTitle
 
+  const BlockIcon = readBlock?.icon
+
   return (
-    <div className='flex items-center pl-6'>
+    <div className='flex items-center gap-[6px] pl-6'>
+      {BlockIcon && (
+        <BlockIcon className='size-[14px] flex-shrink-0' style={getBareIconStyle(BlockIcon)} />
+      )}
       {isExecuting ? (
         <ShimmerText className='text-[13px] [--shimmer-rest:var(--text-secondary)]'>
           {title}
