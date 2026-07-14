@@ -1,4 +1,4 @@
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -306,43 +306,71 @@ export async function publishMediaContainer(
  */
 export function createPublishTransform(fallbackError: string) {
   return async (response: Response): Promise<InstagramPublishResponse> => {
-    const text = await readResponseTextWithLimit(response, {
-      maxBytes: INSTAGRAM_RESPONSE_MAX_BYTES,
-      label: 'Instagram publish response',
-    }).catch(() => '')
     const fallbackOutput = { containerId: null, mediaId: null, statusCode: null }
+    let data: unknown
 
-    let data: {
-      success?: boolean
-      output?: InstagramPublishResponse['output']
-      error?: string
-    } = {}
-
-    if (text) {
-      try {
-        data = JSON.parse(text) as typeof data
-      } catch {
-        if (!response.ok) {
-          return {
-            success: false,
-            output: fallbackOutput,
-            error: `${fallbackError}: ${text}`,
-          }
-        }
-        return {
-          success: false,
-          output: fallbackOutput,
-          error: `${fallbackError}: invalid JSON response`,
-        }
+    try {
+      data = await readResponseJsonWithLimit<unknown>(response, {
+        maxBytes: INSTAGRAM_RESPONSE_MAX_BYTES,
+        label: 'Instagram publish response',
+      })
+    } catch (error) {
+      return {
+        success: false,
+        output: fallbackOutput,
+        error: getErrorMessage(error, fallbackError),
       }
     }
 
-    const output = data.output ?? fallbackOutput
-    if (!response.ok || data.success === false) {
-      return { success: false, output, error: data.error || fallbackError }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return {
+        success: false,
+        output: fallbackOutput,
+        error: `${fallbackError}: invalid response`,
+      }
     }
+
+    const envelope = data as Record<string, unknown>
+    const rawOutput = envelope.output
+    const output = isInstagramPublishOutput(rawOutput) ? rawOutput : fallbackOutput
+    const error =
+      typeof envelope.error === 'string' && envelope.error.trim()
+        ? envelope.error.trim()
+        : fallbackError
+
+    if (!response.ok || envelope.success === false) {
+      return { success: false, output, error }
+    }
+
+    if (envelope.success !== true || !isCompleteInstagramPublishOutput(rawOutput)) {
+      return {
+        success: false,
+        output: fallbackOutput,
+        error: `${fallbackError}: invalid success response`,
+      }
+    }
+
     return { success: true, output }
   }
+}
+
+function isInstagramPublishOutput(value: unknown): value is InstagramPublishResponse['output'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+
+  const output = value as Record<string, unknown>
+  return [output.containerId, output.mediaId, output.statusCode].every(
+    (field) => field === null || typeof field === 'string'
+  )
+}
+
+function isCompleteInstagramPublishOutput(
+  value: unknown
+): value is InstagramPublishResponse['output'] {
+  if (!isInstagramPublishOutput(value)) return false
+
+  return [value.containerId, value.mediaId, value.statusCode].every(
+    (field) => typeof field === 'string' && field.trim().length > 0
+  )
 }
 
 export function parseCommaSeparated(value?: string): string[] {

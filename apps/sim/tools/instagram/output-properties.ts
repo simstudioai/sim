@@ -11,7 +11,7 @@ export const INSTAGRAM_MEDIA_PROPERTIES = {
   },
   mediaUrl: {
     type: 'string',
-    description: 'Temporary Instagram CDN URL',
+    description: 'Instagram media URL when available',
     nullable: true,
   },
   permalink: { type: 'string', description: 'Permalink to the media', nullable: true },
@@ -25,7 +25,7 @@ export const INSTAGRAM_STORY_PROPERTIES = {
   mediaType: { type: 'string', description: 'IMAGE or VIDEO', nullable: true },
   mediaUrl: {
     type: 'string',
-    description: 'Temporary Instagram CDN URL',
+    description: 'Instagram story media URL when available',
     nullable: true,
   },
   timestamp: { type: 'string', description: 'ISO timestamp', nullable: true },

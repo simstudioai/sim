@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { instagramCallbackContract } from '@/lib/api/contracts/oauth-connections'
@@ -17,6 +18,11 @@ import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { INSTAGRAM_GRAPH_BASE } from '@/lib/integrations/instagram/constants'
+import {
+  parseInstagramLongLivedToken,
+  parseInstagramProfile,
+  parseInstagramShortLivedToken,
+} from '@/lib/oauth/instagram'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
@@ -27,30 +33,6 @@ export const dynamic = 'force-dynamic'
 const INSTAGRAM_STATE_COOKIE = 'instagram_oauth_state'
 const INSTAGRAM_RETURN_URL_COOKIE = 'instagram_return_url'
 const INSTAGRAM_STATE_COOKIE_PATH = '/api/auth'
-interface ShortLivedTokenPayload {
-  access_token?: string
-  user_id?: string | number
-  permissions?: string | string[]
-}
-
-function unwrapShortLivedToken(body: unknown): ShortLivedTokenPayload | null {
-  if (!body || typeof body !== 'object') return null
-
-  const record = body as Record<string, unknown>
-
-  if (Array.isArray(record.data) && record.data.length > 0) {
-    const first = record.data[0]
-    if (first && typeof first === 'object') {
-      return first as ShortLivedTokenPayload
-    }
-  }
-
-  if (typeof record.access_token === 'string') {
-    return record as ShortLivedTokenPayload
-  }
-
-  return null
-}
 
 function clearOAuthCookies(response: NextResponse) {
   response.cookies.delete({ name: INSTAGRAM_STATE_COOKIE, path: INSTAGRAM_STATE_COOKIE_PATH })
@@ -148,11 +130,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       label: 'Instagram OAuth token response',
       signal: request.signal,
     })
-    const shortLived = unwrapShortLivedToken(shortLivedBody)
-    if (!shortLived?.access_token) {
-      logger.error('Instagram short-lived token response missing access_token', {
-        body: shortLivedBody,
-      })
+    const shortLived = parseInstagramShortLivedToken(shortLivedBody)
+    if (!shortLived) {
+      logger.error('Instagram short-lived token response was invalid')
       return clearOAuthCookies(
         NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_token`)
       )
@@ -182,27 +162,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const longLivedBody = await readResponseJsonWithLimit<{
-      access_token?: string
-      token_type?: string
-      expires_in?: number
-    }>(longLivedResponse, {
+    const longLivedBody = await readResponseJsonWithLimit<unknown>(longLivedResponse, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'Instagram OAuth exchange response',
       signal: request.signal,
     })
+    const longLived = parseInstagramLongLivedToken(longLivedBody)
 
-    if (!longLivedBody.access_token) {
-      logger.error('Instagram long-lived token response missing access_token', {
-        body: longLivedBody,
-      })
+    if (!longLived) {
+      logger.error('Instagram long-lived token response was invalid')
       return clearOAuthCookies(
         NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_long_lived`)
       )
     }
 
-    const longLivedToken = longLivedBody.access_token
-    const expiresIn = longLivedBody.expires_in ?? 5184000
+    const longLivedToken = longLived.access_token
+    const expiresIn = longLived.expires_in
 
     const profileUrl = new URL(`${INSTAGRAM_GRAPH_BASE}/me`)
     profileUrl.searchParams.set('fields', 'user_id,username,name,account_type,profile_picture_url')
@@ -226,16 +201,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const profile = await readResponseJsonWithLimit<{
-      user_id?: string | number
-      id?: string
-      username?: string
-      name?: string
-    }>(profileResponse, {
+    const profileBody = await readResponseJsonWithLimit<unknown>(profileResponse, {
       maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
       label: 'Instagram OAuth profile response',
       signal: request.signal,
     })
+    const profile = parseInstagramProfile(profileBody)
+    if (!profile) {
+      logger.error('Instagram profile response was invalid')
+      return clearOAuthCookies(
+        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_profile_error`)
+      )
+    }
 
     const igUserId =
       profile.user_id != null && profile.user_id !== '' ? String(profile.user_id) : null
@@ -294,7 +271,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     } else {
       await safeAccountInsert(
         {
-          id: `instagram_${session.user.id}_${Date.now()}`,
+          id: generateId(),
           userId: session.user.id,
           providerId: 'instagram',
           accountId: igUserId,

@@ -1,10 +1,9 @@
-import { createLogger } from '@sim/logger'
+import { createLogger, getRequestContext } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { instagramPublishImageContract } from '@/lib/api/contracts/tools/instagram'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveInstagramMedia } from '@/lib/integrations/instagram/resolve-media'
 import {
@@ -21,12 +20,12 @@ export const maxDuration = 600
 const logger = createLogger('InstagramPublishImageAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
+  const requestId = getRequestContext()?.requestId ?? 'unknown'
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized Instagram publish image: ${authResult.error}`)
+      logger.warn('Unauthorized Instagram publish image', { error: authResult.error })
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
         { status: 401 }
@@ -91,7 +90,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: { containerId, mediaId, statusCode },
     })
   } catch (error) {
-    logger.error(`[${requestId}] Instagram publish image failed:`, error)
+    logger.error('Instagram publish image failed', { error })
     return NextResponse.json(
       {
         success: false,

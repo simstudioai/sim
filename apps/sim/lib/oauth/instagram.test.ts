@@ -3,6 +3,9 @@ import {
   INSTAGRAM_MIN_TOKEN_AGE_MS,
   INSTAGRAM_PROACTIVE_REFRESH_THRESHOLD_DAYS,
   isInstagramProvider,
+  parseInstagramLongLivedToken,
+  parseInstagramProfile,
+  parseInstagramShortLivedToken,
   shouldProactivelyRefreshInstagramToken,
 } from '@/lib/oauth/instagram'
 
@@ -58,5 +61,54 @@ describe('instagram oauth helpers', () => {
         now,
       })
     ).toBe(false)
+  })
+
+  it('parses direct and data-array short-lived token responses', () => {
+    expect(
+      parseInstagramShortLivedToken({
+        access_token: 'short-token',
+        user_id: 123,
+        permissions: ['instagram_business_basic'],
+      })
+    ).toEqual({
+      access_token: 'short-token',
+      user_id: 123,
+      permissions: ['instagram_business_basic'],
+    })
+    expect(
+      parseInstagramShortLivedToken({ data: [{ access_token: 'wrapped-token', user_id: '456' }] })
+    ).toEqual({ access_token: 'wrapped-token', user_id: '456' })
+  })
+
+  it('rejects malformed or oversized token responses', () => {
+    expect(parseInstagramShortLivedToken({ access_token: 123 })).toBeNull()
+    expect(
+      parseInstagramLongLivedToken({ access_token: 'token', expires_in: '5184000' })
+    ).toBeNull()
+    expect(parseInstagramLongLivedToken({ access_token: 'token' })).toBeNull()
+    expect(
+      parseInstagramLongLivedToken({
+        access_token: 'token',
+        expires_in: 366 * 24 * 60 * 60,
+      })
+    ).toBeNull()
+  })
+
+  it('parses bounded long-lived token and profile responses', () => {
+    expect(
+      parseInstagramLongLivedToken({
+        access_token: 'long-token',
+        token_type: 'bearer',
+        expires_in: 5_184_000,
+      })
+    ).toEqual({
+      access_token: 'long-token',
+      token_type: 'bearer',
+      expires_in: 5_184_000,
+    })
+    expect(
+      parseInstagramProfile({ user_id: 123, id: 'graph-id', username: 'sim', name: 'Sim' })
+    ).toEqual({ user_id: 123, id: 'graph-id', username: 'sim', name: 'Sim' })
+    expect(parseInstagramProfile({ user_id: { nested: true } })).toBeNull()
   })
 })

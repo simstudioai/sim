@@ -19,7 +19,7 @@ vi.mock('@/lib/webhooks/processor', () => ({
   dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
 }))
 
-vi.mock('@/lib/webhooks/providers/tiktok-targets', () => ({
+vi.mock('@/background/tiktok-webhook-targets', () => ({
   findTikTokWebhookTargetPage: mockFindTikTokWebhookTargetPage,
 }))
 vi.mock('@/lib/core/async-jobs', () => ({

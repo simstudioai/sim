@@ -113,7 +113,7 @@ export const instagramGetMediaTool: ToolConfig<InstagramGetMediaParams, Instagra
       },
       mediaUrl: {
         type: 'string',
-        description: 'Temporary CDN URL; use Download Media for a durable User File',
+        description: 'Instagram media URL when available; use Download Media to persist it',
         optional: true,
       },
       permalink: { type: 'string', description: 'Permalink to the post', optional: true },

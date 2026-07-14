@@ -44,13 +44,13 @@ export const instagramGetAccountInsightsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated metrics (e.g. reach,views,accounts_engaged,profile_views,follower_count)',
+        'Comma-separated current metrics (e.g. reach,views,accounts_engaged,likes,comments,saves,shares,total_interactions)',
     },
     period: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Aggregation period: day, week, days_28, month, lifetime, or total_over_range',
+      description: 'Use day for interaction metrics or lifetime for demographic metrics',
     },
     since: {
       type: 'string',
@@ -80,7 +80,7 @@ export const instagramGetAccountInsightsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Required lookback window for demographic metrics',
+      description: 'Required for demographic metrics: this_week or this_month',
     },
   },
 

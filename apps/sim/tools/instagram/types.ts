@@ -316,14 +316,18 @@ export interface InstagramSendTextMessageResponse extends ToolResponse {
   }
 }
 
+export type InstagramAccountInsightsPeriod = 'day' | 'lifetime'
+export type InstagramAccountInsightsMetricType = 'time_series' | 'total_value'
+export type InstagramAccountInsightsTimeframe = 'this_week' | 'this_month'
+
 export interface InstagramGetAccountInsightsParams extends InstagramAccessParams {
   metrics: string
-  period: string
+  period: InstagramAccountInsightsPeriod
   since?: string
   until?: string
-  metricType?: string
+  metricType?: InstagramAccountInsightsMetricType
   breakdown?: string
-  timeframe?: string
+  timeframe?: InstagramAccountInsightsTimeframe
 }
 
 export interface InstagramGetAccountInsightsResponse extends ToolResponse {

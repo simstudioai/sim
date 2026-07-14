@@ -293,13 +293,21 @@ describe('POST /api/tools/instagram/download-media', () => {
     )
 
     expect(response.status).toBe(413)
-    expect(await response.json()).toMatchObject({ success: false })
+    expect(await response.json()).toEqual({
+      success: false,
+      error: 'Instagram media exceeds the 100 MB canonical User File limit',
+    })
     expect(mockUploadExecutionFile).not.toHaveBeenCalled()
     expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 })
 
 describe('instagramDownloadMediaTool', () => {
+  it('documents the canonical User File size limit', () => {
+    expect(instagramDownloadMediaTool.description).toContain('100 MB max per file')
+    expect(instagramDownloadMediaTool.outputs?.files.description).toContain('100 MB max each')
+  })
+
   it('forwards execution context and returns canonical file-array output', async () => {
     const body = instagramDownloadMediaTool.request.body?.({
       accessToken: 'instagram-token',

@@ -11,6 +11,23 @@ import {
 } from '@/tools/instagram/utils'
 import type { ToolConfig } from '@/tools/types'
 
+function finiteNumberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function parsePublishingLimitConfig(value: unknown): {
+  quotaTotal: number | null
+  quotaDuration: number | null
+} | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+
+  const config = value as Record<string, unknown>
+  return {
+    quotaTotal: finiteNumberOrNull(config.quota_total),
+    quotaDuration: finiteNumberOrNull(config.quota_duration),
+  }
+}
+
 interface PublishingLimitData {
   quota_usage?: number
   config?: {
@@ -77,13 +94,8 @@ export const instagramGetPublishingLimitTool: ToolConfig<
     return {
       success: true,
       output: {
-        quotaUsage: first?.quota_usage ?? null,
-        config: first?.config
-          ? {
-              quotaTotal: first.config.quota_total ?? null,
-              quotaDuration: first.config.quota_duration ?? null,
-            }
-          : null,
+        quotaUsage: finiteNumberOrNull(first?.quota_usage),
+        config: parsePublishingLimitConfig(first?.config),
       },
     }
   },
@@ -98,6 +110,18 @@ export const instagramGetPublishingLimitTool: ToolConfig<
       type: 'json',
       description: 'Quota config (quotaTotal, quotaDuration)',
       optional: true,
+      properties: {
+        quotaTotal: {
+          type: 'number',
+          description: 'Total publishes allowed in the quota window',
+          nullable: true,
+        },
+        quotaDuration: {
+          type: 'number',
+          description: 'Quota window duration reported by Instagram',
+          nullable: true,
+        },
+      },
     },
   },
 }

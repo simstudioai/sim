@@ -28,7 +28,7 @@ export const instagramDownloadMediaTool: ToolConfig<
   id: 'instagram_download_media',
   name: 'Instagram Download Media',
   description:
-    'Download an Instagram image, video, Reel, story, or ordered carousel into canonical User Files for downstream file inputs',
+    'Download Instagram media into canonical User Files for downstream file inputs (100 MB max per file)',
   version: '1.0.0',
 
   oauth: {
@@ -126,7 +126,8 @@ export const instagramDownloadMediaTool: ToolConfig<
   outputs: {
     files: {
       type: 'file[]',
-      description: 'Downloaded media as canonical User Files, ready for attachment inputs',
+      description:
+        'Downloaded media as canonical User Files, ready for attachment inputs (100 MB max each)',
     },
     mediaId: { type: 'string', description: 'Instagram media ID that was downloaded' },
     mediaType: {

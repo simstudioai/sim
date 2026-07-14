@@ -96,7 +96,7 @@ vi.mock('drizzle-orm', () => ({
 import {
   findTikTokWebhookTargetPage,
   TIKTOK_WEBHOOK_TARGET_PAGE_SIZE,
-} from '@/lib/webhooks/providers/tiktok-targets'
+} from '@/background/tiktok-webhook-targets'
 
 const ACCOUNT_UUID = '11111111-2222-3333-4444-555555555555'
 

@@ -21,6 +21,7 @@ describe('instagramGetConversationMessagesTool', () => {
       })
     )
 
+    expect(url.pathname.startsWith('/v25.0/')).toBe(true)
     expect(url.pathname.endsWith('/conversation-1')).toBe(true)
     expect(url.searchParams.get('fields')).toBe(
       'messages.limit(7).after(cursor-2){id,created_time,is_unsupported}'

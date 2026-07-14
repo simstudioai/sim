@@ -36,10 +36,9 @@ function openIdFromAccountId(accountId: string): string {
 }
 
 /**
- * Resolves one deterministic page of active webhook targets for a TikTok user_openid through the
- * credential ID persisted in providerConfig. The workflow-workspace equality prevents
- * cross-tenant event routing, while the webhook ID cursor keeps each query and retained result set
- * bounded without offset drift.
+ * Resolves one deterministic page of active webhook targets for the TikTok background ingress.
+ * The workflow-workspace equality prevents cross-tenant event routing, while the webhook ID cursor
+ * keeps each query and retained result set bounded without offset drift.
  */
 export async function findTikTokWebhookTargetPage(
   userOpenId: string,

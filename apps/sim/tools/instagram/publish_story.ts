@@ -13,7 +13,7 @@ export const instagramPublishStoryTool: ToolConfig<
   id: 'instagram_publish_story',
   name: 'Instagram Publish Story',
   description:
-    'Publish an image or video story for an Instagram Business account from an uploaded file or public HTTPS URL',
+    'Publish an image or video story for an Instagram professional account from an uploaded file or public HTTPS URL',
   version: '1.0.0',
 
   oauth: {

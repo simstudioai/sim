@@ -547,11 +547,7 @@ Return ONLY the comma-separated metric names - no explanations, no extra text.`,
       type: 'dropdown',
       options: [
         { label: 'Day', id: 'day' },
-        { label: 'Week', id: 'week' },
-        { label: '28 Days', id: 'days_28' },
-        { label: 'Month', id: 'month' },
         { label: 'Lifetime', id: 'lifetime' },
-        { label: 'Total Over Range', id: 'total_over_range' },
       ],
       value: () => 'day',
       condition: { field: 'operation', value: 'instagram_get_account_insights' },
@@ -563,7 +559,11 @@ Return ONLY the comma-separated metric names - no explanations, no extra text.`,
       type: 'short-input',
       placeholder: 'Unix timestamp or YYYY-MM-DD',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'instagram_get_account_insights' },
+      condition: {
+        field: 'operation',
+        value: 'instagram_get_account_insights',
+        and: { field: 'period', value: 'day' },
+      },
       wandConfig: {
         enabled: true,
         generationType: 'timestamp',
@@ -582,7 +582,11 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       type: 'short-input',
       placeholder: 'Unix timestamp or YYYY-MM-DD',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'instagram_get_account_insights' },
+      condition: {
+        field: 'operation',
+        value: 'instagram_get_account_insights',
+        and: { field: 'period', value: 'day' },
+      },
       wandConfig: {
         enabled: true,
         generationType: 'timestamp',
@@ -621,13 +625,21 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
       title: 'Demographic Timeframe',
       type: 'dropdown',
       options: [
-        { label: 'Default', id: '' },
         { label: 'This Week', id: 'this_week' },
         { label: 'This Month', id: 'this_month' },
       ],
-      value: () => '',
+      value: () => 'this_month',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'instagram_get_account_insights' },
+      condition: {
+        field: 'operation',
+        value: 'instagram_get_account_insights',
+        and: { field: 'period', value: 'lifetime' },
+      },
+      required: {
+        field: 'operation',
+        value: 'instagram_get_account_insights',
+        and: { field: 'period', value: 'lifetime' },
+      },
     },
 
     {
@@ -751,6 +763,17 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
           }
         }
 
+        if (operation === 'instagram_get_account_insights') {
+          if (result.period === 'day') {
+            result.timeframe = undefined
+          } else if (result.period === 'lifetime') {
+            result.since = undefined
+            result.until = undefined
+          } else {
+            throw new Error('Instagram account insights period must be day or lifetime')
+          }
+        }
+
         return result
       },
     },
@@ -795,14 +818,14 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     messageId: { type: 'string', description: 'DM message ID' },
     recipientId: { type: 'string', description: 'DM recipient Instagram-scoped ID' },
     metrics: { type: 'string', description: 'Comma-separated insight metrics' },
-    period: { type: 'string', description: 'Insight aggregation period' },
+    period: { type: 'string', description: 'Account insight period: day or lifetime' },
     since: { type: 'string', description: 'Account insights range start' },
     until: { type: 'string', description: 'Account insights range end' },
     metricType: { type: 'string', description: 'Account insights metric_type' },
     breakdown: { type: 'string', description: 'Account insights breakdown dimension' },
     timeframe: {
       type: 'string',
-      description: 'Lookback window required for demographic insight metrics',
+      description: 'Demographic insight timeframe: this_week or this_month',
     },
     limit: { type: 'number', description: 'Maximum number of results' },
     after: { type: 'string', description: 'Pagination cursor' },
@@ -869,7 +892,8 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     },
     files: {
       type: 'file[]',
-      description: 'Downloaded media as canonical User Files, ordered by carousel position',
+      description:
+        'Downloaded media as canonical User Files (100 MB max each), ordered by carousel position',
       condition: { field: 'operation', value: 'instagram_download_media' },
     },
     downloadedCount: {
@@ -897,7 +921,7 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
     },
     mediaUrl: {
       type: 'string',
-      description: 'Temporary Instagram CDN URL',
+      description: 'Instagram media URL when available',
       condition: { field: 'operation', value: 'instagram_get_media' },
     },
     permalink: {

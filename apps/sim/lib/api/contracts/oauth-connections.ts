@@ -191,8 +191,17 @@ export const trelloCallbackContract = defineRouteContract({
   response: { mode: 'text' },
 })
 
+const MAX_OAUTH_RETURN_URL_LENGTH = 2048
+const MAX_OAUTH_CODE_LENGTH = 8192
+const MAX_OAUTH_STATE_LENGTH = 256
+const MAX_OAUTH_ERROR_LENGTH = 2048
+
 export const instagramAuthorizeQuerySchema = z.object({
-  returnUrl: z.string().optional(),
+  returnUrl: z
+    .string()
+    .min(1, 'Return URL cannot be empty')
+    .max(MAX_OAUTH_RETURN_URL_LENGTH, 'Return URL is too long')
+    .optional(),
   workspaceId: workspaceIdSchema.optional(),
 })
 
@@ -204,11 +213,31 @@ export const authorizeInstagramContract = defineRouteContract({
 })
 
 export const instagramCallbackQuerySchema = z.object({
-  code: z.string().optional(),
-  state: z.string().optional(),
-  error: z.string().optional(),
-  error_reason: z.string().optional(),
-  error_description: z.string().optional(),
+  code: z
+    .string()
+    .min(1, 'Authorization code cannot be empty')
+    .max(MAX_OAUTH_CODE_LENGTH, 'Authorization code is too long')
+    .optional(),
+  state: z
+    .string()
+    .min(1, 'OAuth state cannot be empty')
+    .max(MAX_OAUTH_STATE_LENGTH, 'OAuth state is too long')
+    .optional(),
+  error: z
+    .string()
+    .min(1, 'OAuth error cannot be empty')
+    .max(MAX_OAUTH_ERROR_LENGTH, 'OAuth error is too long')
+    .optional(),
+  error_reason: z
+    .string()
+    .min(1, 'OAuth error reason cannot be empty')
+    .max(MAX_OAUTH_ERROR_LENGTH, 'OAuth error reason is too long')
+    .optional(),
+  error_description: z
+    .string()
+    .min(1, 'OAuth error description cannot be empty')
+    .max(MAX_OAUTH_ERROR_LENGTH, 'OAuth error description is too long')
+    .optional(),
 })
 
 export const instagramCallbackContract = defineRouteContract({

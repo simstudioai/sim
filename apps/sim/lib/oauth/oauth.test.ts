@@ -11,6 +11,8 @@ vi.mock('@/lib/core/config/env', () =>
     X_CLIENT_SECRET: 'x_client_secret',
     TIKTOK_CLIENT_ID: 'tiktok_client_key',
     TIKTOK_CLIENT_SECRET: 'tiktok_client_secret',
+    INSTAGRAM_CLIENT_ID: 'instagram_client_id',
+    INSTAGRAM_CLIENT_SECRET: 'instagram_client_secret',
     CONFLUENCE_CLIENT_ID: 'confluence_client_id',
     CONFLUENCE_CLIENT_SECRET: 'confluence_client_secret',
     JIRA_CLIENT_ID: 'jira_client_id',
@@ -54,6 +56,7 @@ vi.mock('@/lib/core/config/env', () =>
   })
 )
 
+import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { refreshOAuthToken } from '@/lib/oauth'
 
 /**
@@ -523,6 +526,82 @@ describe('OAuth Token Refresh', () => {
         expiresIn: 3600,
         refreshToken: refreshToken,
       })
+    })
+  })
+
+  describe('Instagram Token Refresh', () => {
+    it.concurrent('validates and rotates the long-lived token response', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        Response.json({
+          access_token: 'new_instagram_access_token',
+          token_type: 'bearer',
+          expires_in: 5_184_000,
+        })
+      )
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('instagram', 'old_instagram_access_token')
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        accessToken: 'new_instagram_access_token',
+        expiresIn: 5_184_000,
+        refreshToken: 'new_instagram_access_token',
+      })
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=old_instagram_access_token',
+        expect.objectContaining({ method: 'GET', signal: expect.any(AbortSignal) })
+      )
+    })
+
+    it.concurrent('rejects malformed long-lived token response fields', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        Response.json({
+          access_token: 'new_instagram_access_token',
+          expires_in: '5184000',
+        })
+      )
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('instagram', 'old_instagram_access_token')
+      )
+
+      expect(result).toEqual({
+        ok: false,
+        message: 'Invalid Instagram token refresh response',
+      })
+    })
+
+    it.concurrent('extracts nested Meta error codes from a bounded response', async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { error: { message: 'Invalid OAuth access token', type: 'OAuthException', code: 190 } },
+            { status: 400 }
+          )
+        )
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('instagram', 'old_instagram_access_token')
+      )
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.errorCode).toBe('190')
+    })
+
+    it.concurrent('rejects oversized token responses before materializing them', async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1)))
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('instagram', 'old_instagram_access_token')
+      )
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.message).toContain('exceeds maximum size')
     })
   })
 })

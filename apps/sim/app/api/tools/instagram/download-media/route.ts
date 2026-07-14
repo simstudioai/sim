@@ -367,6 +367,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     await rollbackStoredFiles(files, storageContext)
     logger.error('Instagram media download failed', { error })
+
+    if (isPayloadSizeLimitError(error) && error.maxBytes === MAX_FILE_SIZE) {
+      return failureResponse('Instagram media exceeds the 100 MB canonical User File limit', 413)
+    }
+
     return failureResponse(
       getErrorMessage(error, 'Failed to download Instagram media'),
       isPayloadSizeLimitError(error) ? 413 : 500

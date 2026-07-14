@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import {
   AirtableIcon,
   AsanaIcon,
@@ -54,6 +55,11 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
@@ -1589,8 +1595,12 @@ export type RefreshTokenResult = RefreshTokenSuccess | RefreshTokenFailure
 
 function extractErrorCode(value: unknown): string | undefined {
   if (value && typeof value === 'object' && 'error' in value) {
-    const code = (value as { error: unknown }).error
-    if (typeof code === 'string') return code
+    const error = (value as { error: unknown }).error
+    if (typeof error === 'string') return error
+    if (error && typeof error === 'object' && 'code' in error) {
+      const code = (error as { code: unknown }).code
+      if (typeof code === 'string' || typeof code === 'number') return String(code)
+    }
   }
   return undefined
 }
@@ -1618,49 +1628,51 @@ async function refreshInstagramLongLivedToken(
     signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
   })
 
+  const responseText = await readResponseTextWithLimit(response, {
+    maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+    label: 'Instagram token refresh response',
+  })
+  let responseData: unknown = responseText
+  try {
+    responseData = JSON.parse(responseText)
+  } catch {
+    responseData = responseText
+  }
+
   if (!response.ok) {
-    const errorText = await response.text()
-    let errorData: unknown = errorText
-    try {
-      errorData = JSON.parse(errorText)
-    } catch {
-      // keep text
-    }
+    const errorSummary = truncate(responseText, 1000)
     logger.error('Instagram long-lived token refresh failed:', {
       status: response.status,
       statusText: response.statusText,
-      error: errorText,
-      parsedError: errorData,
+      error: errorSummary,
+      parsedError: responseData,
       providerId,
       tokenEndpoint: config.tokenEndpoint,
     })
     return {
       ok: false,
-      errorCode: extractErrorCode(errorData),
-      message: `Failed to refresh token: ${response.status} ${errorText}`,
+      errorCode: extractErrorCode(responseData),
+      message: `Failed to refresh token: ${response.status} ${errorSummary}`,
     }
   }
 
-  const data = await response.json()
-  const accessToken = data.access_token
-  const expiresIn = data.expires_in || data.expiresIn || 5184000
-
-  if (!accessToken) {
-    logger.warn('No access token found in Instagram refresh response', {
-      providerId,
-      response: data,
-    })
-    return { ok: false, message: 'No access token in refresh response' }
+  const payload = parseInstagramLongLivedToken(responseData)
+  if (!payload) {
+    logger.warn('Invalid Instagram refresh response', { providerId })
+    return { ok: false, message: 'Invalid Instagram token refresh response' }
   }
 
-  logger.info('Instagram long-lived token refreshed successfully', { expiresIn, providerId })
+  logger.info('Instagram long-lived token refreshed successfully', {
+    expiresIn: payload.expires_in,
+    providerId,
+  })
 
   // Instagram returns a new long-lived token; store it as both access and refresh.
   return {
     ok: true,
-    accessToken,
-    expiresIn,
-    refreshToken: accessToken,
+    accessToken: payload.access_token,
+    expiresIn: payload.expires_in,
+    refreshToken: payload.access_token,
   }
 }
 

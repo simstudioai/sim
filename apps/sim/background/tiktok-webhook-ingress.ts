@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 import type { TikTokWebhookEnvelope } from '@/lib/api/contracts/webhooks'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { dispatchResolvedWebhookTarget } from '@/lib/webhooks/processor'
-import { findTikTokWebhookTargetPage } from '@/lib/webhooks/providers/tiktok-targets'
+import { findTikTokWebhookTargetPage } from '@/background/tiktok-webhook-targets'
 
 const logger = createLogger('TikTokWebhookIngressTask')
 
