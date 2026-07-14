@@ -15,7 +15,10 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import {
+  CONTEXT_COMPACTION_DISPLAY_TITLE,
+  getToolDisplayTitle,
+} from '@/lib/copilot/tools/tool-display'
 
 interface StreamSnapshotLike {
   events: StreamBatchEvent[]
@@ -438,7 +441,7 @@ function buildLiveAssistantMessage(params: {
             calledBy: scopedSubagent,
             ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
             ...spanIdentity,
-            displayTitle: 'Compacting context...',
+            displayTitle: CONTEXT_COMPACTION_DISPLAY_TITLE,
             state: 'executing',
           })
           continue
@@ -458,7 +461,7 @@ function buildLiveAssistantMessage(params: {
             calledBy: scopedSubagent,
             ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
             ...spanIdentity,
-            displayTitle: 'Compacted context',
+            displayTitle: CONTEXT_COMPACTION_DISPLAY_TITLE,
             state: MothershipStreamV1ToolOutcome.success,
           })
         }

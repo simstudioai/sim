@@ -16,6 +16,8 @@ import { stripVersionSuffix } from '@sim/utils/string'
 
 type ToolArgs = Record<string, unknown> | undefined
 
+export const CONTEXT_COMPACTION_DISPLAY_TITLE = 'Summarizing context'
+
 function stringArg(args: ToolArgs, key: string): string {
   const value = args?.[key]
   return typeof value === 'string' ? value.trim() : ''
@@ -41,13 +43,20 @@ function nestedStringArg(args: ToolArgs, parentKey: string, ...keys: string[]): 
   return firstStringArg(parent as Record<string, unknown>, ...keys)
 }
 
-function operationTitle(
+interface OperationDisplay {
+  verb: string
+  resource: string
+}
+
+function namedOperationTitle(
   args: ToolArgs,
+  target: string,
   placeholder: string,
-  labels: Record<string, string>
+  labels: Record<string, OperationDisplay>
 ): string {
   const operation = stringArg(args, 'operation')
-  return labels[operation] ?? placeholder
+  const display = labels[operation]
+  return display ? `${display.verb} ${target || display.resource}` : placeholder
 }
 
 function isWorkflowArtifactPath(path: string, filename: string): boolean {
@@ -61,6 +70,56 @@ function decodePathSegment(segment: string): string {
   } catch {
     return segment
   }
+}
+
+function pathLeaf(path: string): string {
+  const normalized = path.replace(/\/+$/, '')
+  const leaf = normalized.split('/').filter(Boolean).at(-1) || normalized
+  return decodePathSegment(leaf)
+}
+
+function summarizeTargets(targets: string[], fallback: string): string {
+  const normalized = targets.map((target) => target.trim()).filter(Boolean)
+  if (normalized.length === 0) return fallback
+  if (normalized.length === 1) return normalized[0]
+  if (normalized.length === 2) return `${normalized[0]} and ${normalized[1]}`
+  return `${normalized[0]}, ${normalized[1]}, and ${normalized.length - 2} more`
+}
+
+function countedResourceTarget(
+  args: ToolArgs,
+  key: string,
+  singular: string,
+  plural: string
+): string {
+  const values = args?.[key]
+  return Array.isArray(values) && values.length > 1 ? `${values.length} ${plural}` : singular
+}
+
+function firstOutputFilePath(args: ToolArgs): string {
+  const outputs = args?.outputs
+  if (!outputs || typeof outputs !== 'object') return ''
+  const files = (outputs as Record<string, unknown>).files
+  if (!Array.isArray(files)) return ''
+
+  for (const file of files) {
+    if (!file || typeof file !== 'object') continue
+    const path = stringArg(file as Record<string, unknown>, 'path')
+    if (path) return path
+  }
+  return ''
+}
+
+function createFileTitle(args: ToolArgs): string {
+  const nestedArgs =
+    args?.args && typeof args.args === 'object' ? (args.args as Record<string, unknown>) : undefined
+  const target =
+    firstOutputFilePath(args) ||
+    firstStringArg(args, 'fileName') ||
+    firstOutputFilePath(nestedArgs) ||
+    firstStringArg(nestedArgs, 'fileName')
+  if (!target) return 'Creating file'
+  return `Creating ${pathLeaf(target)}`
 }
 
 /**
@@ -189,6 +248,7 @@ const TOOL_TITLES: Record<string, string> = {
   search: 'Search Agent',
   media: 'Media Agent',
   superagent: 'Executing action',
+  context_compaction: CONTEXT_COMPACTION_DISPLAY_TITLE,
 }
 
 /** Acronyms that must keep their canonical casing when humanized. */
@@ -225,6 +285,43 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   switch (name) {
+    case 'create_file':
+      return createFileTitle(args)
+    case 'delete_file': {
+      const targets = stringArrayArg(args, 'paths').map(pathLeaf)
+      return `Deleting ${summarizeTargets(targets, 'file')}`
+    }
+    case 'delete_file_folder': {
+      const targets = stringArrayArg(args, 'paths').map(pathLeaf)
+      return `Deleting ${summarizeTargets(targets, 'folder')}`
+    }
+    case 'create_workflow': {
+      const target = firstStringArg(args, 'name', 'workflowName', 'title')
+      return `Creating ${target || 'workflow'}`
+    }
+    case 'edit_workflow': {
+      const target = firstStringArg(args, 'workflowName', 'name', 'title')
+      return `Editing ${target || 'workflow'}`
+    }
+    case 'delete_workflow': {
+      const target = summarizeTargets(
+        stringArrayArg(args, 'workflowNames'),
+        countedResourceTarget(args, 'workflowIds', 'workflow', 'workflows')
+      )
+      return `Deleting ${target}`
+    }
+    case 'create_workspace_mcp_server': {
+      const target = firstStringArg(args, 'name', 'serverName', 'title')
+      return `Creating ${target || 'MCP server'}`
+    }
+    case 'update_workspace_mcp_server': {
+      const target = firstStringArg(args, 'name', 'serverName', 'title')
+      return `Updating ${target || 'MCP server'}`
+    }
+    case 'delete_workspace_mcp_server': {
+      const target = firstStringArg(args, 'serverName', 'name', 'title')
+      return `Deleting ${target || 'MCP server'}`
+    }
     case 'search_online': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Searching online for ${target}` : 'Searching online'
@@ -241,6 +338,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const sources = stringArrayArg(args, 'sources')
       const verb =
         sources.length === 1 ? mvDisplayVerb(sources[0], stringArg(args, 'destination')) : 'Moving'
+      if (verb === 'Renaming' && sources[0]) {
+        const destination = stringArg(args, 'destination')
+        if (destination) return `Renaming ${pathLeaf(sources[0])} to ${pathLeaf(destination)}`
+      }
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `${verb} ${target}` : verb
     }
@@ -278,47 +379,90 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       if (urls.length > 1) return `Getting ${urls.length} pages`
       return 'Getting page contents'
     }
-    case 'manage_custom_tool':
-      return operationTitle(args, 'Custom tool action', {
-        add: 'Creating custom tool',
-        edit: 'Updating custom tool',
-        delete: 'Deleting custom tool',
-        list: 'Listing custom tools',
+    case 'manage_custom_tool': {
+      const schema = args?.schema
+      const target =
+        firstStringArg(args, 'toolTitle', 'title', 'name') ||
+        (schema && typeof schema === 'object'
+          ? nestedStringArg(schema as Record<string, unknown>, 'function', 'name')
+          : '')
+      return namedOperationTitle(args, target, 'Custom tool action', {
+        add: { verb: 'Creating', resource: 'custom tool' },
+        edit: { verb: 'Updating', resource: 'custom tool' },
+        delete: { verb: 'Deleting', resource: 'custom tool' },
+        list: { verb: 'Viewing', resource: 'custom tools' },
       })
-    case 'manage_mcp_tool':
-      return operationTitle(args, 'MCP server action', {
-        add: 'Creating MCP server',
-        edit: 'Updating MCP server',
-        delete: 'Deleting MCP server',
-        list: 'Listing MCP servers',
+    }
+    case 'manage_mcp_tool': {
+      const target =
+        firstStringArg(args, 'serverName', 'name', 'title') ||
+        nestedStringArg(args, 'config', 'name')
+      return namedOperationTitle(args, target, 'MCP server action', {
+        add: { verb: 'Creating', resource: 'MCP server' },
+        edit: { verb: 'Updating', resource: 'MCP server' },
+        delete: { verb: 'Deleting', resource: 'MCP server' },
+        list: { verb: 'Viewing', resource: 'MCP servers' },
       })
-    case 'manage_skill':
-      return operationTitle(args, 'Skill action', {
-        add: 'Creating skill',
-        edit: 'Updating skill',
-        delete: 'Deleting skill',
-        list: 'Listing skills',
+    }
+    case 'manage_skill': {
+      const target = firstStringArg(args, 'name', 'skillName', 'title')
+      return namedOperationTitle(args, target, 'Skill action', {
+        add: { verb: 'Creating', resource: 'skill' },
+        edit: { verb: 'Updating', resource: 'skill' },
+        delete: { verb: 'Deleting', resource: 'skill' },
+        list: { verb: 'Viewing', resource: 'skills' },
       })
-    case 'manage_scheduled_task':
-      return operationTitle(args, 'Scheduled task action', {
-        create: 'Creating scheduled task',
-        get: 'Getting scheduled task',
-        update: 'Updating scheduled task',
-        delete: 'Deleting scheduled task',
-        list: 'Listing scheduled tasks',
+    }
+    case 'manage_scheduled_task': {
+      const target =
+        firstStringArg(args, 'title', 'taskName', 'name') || nestedStringArg(args, 'args', 'title')
+      return namedOperationTitle(args, target, 'Scheduled task action', {
+        create: { verb: 'Creating', resource: 'scheduled task' },
+        get: { verb: 'Reading', resource: 'scheduled task' },
+        update: { verb: 'Updating', resource: 'scheduled task' },
+        delete: { verb: 'Deleting', resource: 'scheduled task' },
+        list: { verb: 'Viewing', resource: 'scheduled tasks' },
       })
-    case 'manage_credential':
-      return operationTitle(args, 'Credential action', {
-        rename: 'Renaming credential',
-        delete: 'Deleting credential',
+    }
+    case 'manage_credential': {
+      const operation = stringArg(args, 'operation')
+      if (operation === 'rename') {
+        const from = firstStringArg(args, 'previousDisplayName', 'oldName', 'credentialName')
+        const to = firstStringArg(args, 'displayName', 'newName', 'name', 'title')
+        if (from && to) return `Renaming ${from} to ${to}`
+        return to ? `Renaming credential to ${to}` : 'Renaming credential'
+      }
+      const target = firstStringArg(args, 'credentialName', 'displayName', 'name', 'title')
+      return namedOperationTitle(args, target, 'Credential action', {
+        delete: { verb: 'Deleting', resource: 'credential' },
       })
-    case 'manage_folder':
-      return operationTitle(args, 'Folder action', {
-        create: 'Creating folder',
-        rename: 'Renaming folder',
-        move: 'Moving folder',
-        delete: 'Deleting folder',
+    }
+    case 'manage_folder': {
+      const operation = stringArg(args, 'operation')
+      if (operation === 'rename') {
+        const rawFrom = firstStringArg(args, 'oldPath', 'source', 'path', 'folderName')
+        const rawTo = firstStringArg(args, 'newPath', 'destination', 'newName', 'name', 'title')
+        const from = rawFrom ? pathLeaf(rawFrom) : ''
+        const to = rawTo ? pathLeaf(rawTo) : ''
+        if (from && to) return `Renaming ${from} to ${to}`
+        return to ? `Renaming folder to ${to}` : 'Renaming folder'
+      }
+      const rawTarget = firstStringArg(
+        args,
+        'newPath',
+        'destination',
+        'path',
+        'folderName',
+        'name',
+        'title'
+      )
+      const target = rawTarget ? pathLeaf(rawTarget) : ''
+      return namedOperationTitle(args, target, 'Folder action', {
+        create: { verb: 'Creating', resource: 'folder' },
+        move: { verb: 'Moving', resource: 'folder' },
+        delete: { verb: 'Deleting', resource: 'folder' },
       })
+    }
     case 'run_workflow':
     case 'run_from_block':
     case 'run_workflow_until_block':

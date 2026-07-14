@@ -349,6 +349,8 @@ interface ChatContentProps {
   onOptionSelect?: (id: string) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
+  /** Reports whether this segment is actively painting text or its own pending-tag indicator. */
+  onStreamActivityChange?: (active: boolean) => void
 }
 
 function ChatContentInner({
@@ -358,6 +360,7 @@ function ChatContentInner({
   onOptionSelect,
   onWorkspaceResourceSelect,
   onRevealStateChange,
+  onStreamActivityChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
@@ -367,7 +370,8 @@ function ChatContentInner({
 
   const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
   const streamedContent = useSmoothText(displayContent, isStreaming)
-  const isRevealing = isStreaming || streamedContent.length < displayContent.length
+  const hasRevealBacklog = streamedContent.length < displayContent.length
+  const isRevealing = isStreaming || hasRevealBacklog
 
   useEffect(() => {
     onRevealStateChangeRef.current?.(isRevealing)
@@ -477,6 +481,12 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
+  const hasPendingIndicator = parsed.hasPendingTag && isRevealing
+
+  useEffect(() => {
+    onStreamActivityChange?.(hasRevealBacklog || hasPendingIndicator)
+    return () => onStreamActivityChange?.(false)
+  }, [hasPendingIndicator, hasRevealBacklog, onStreamActivityChange])
 
   type BlockSegment = Exclude<
     ContentSegment,
@@ -563,7 +573,7 @@ function ChatContentInner({
           />
         )
       })}
-      {parsed.hasPendingTag && isRevealing && <PendingTagIndicator />}
+      {hasPendingIndicator && <PendingTagIndicator />}
     </div>
   )
 }

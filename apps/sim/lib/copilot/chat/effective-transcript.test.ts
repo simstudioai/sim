@@ -337,6 +337,7 @@ describe('buildEffectiveChatTranscript', () => {
           id: 'compaction_2',
           name: 'context_compaction',
           calledBy: 'workflow',
+          display: { title: 'Summarizing context' },
           state: MothershipStreamV1ToolOutcome.success,
         }),
       })

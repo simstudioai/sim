@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -18,6 +18,7 @@ import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } fro
 import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
+const STREAM_IDLE_DELAY_MS = 1_500
 
 interface TextSegment {
   type: 'text'
@@ -99,6 +100,17 @@ function mapToolStatusToClientState(
 function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
   if (tc.name === ReadTool.id || tc.name === 'respond' || tc.name.endsWith('_respond')) {
     return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.params)?.text
+  }
+  if (tc.name === 'manage_credential' && tc.params?.operation === 'rename') {
+    const output = tc.result?.output
+    const result = output && typeof output === 'object' ? (output as Record<string, unknown>) : null
+    const previousDisplayName = result?.previousDisplayName
+    if (typeof previousDisplayName === 'string' && previousDisplayName.trim()) {
+      return getToolDisplayTitle(tc.name, {
+        ...tc.params,
+        previousDisplayName: previousDisplayName.trim(),
+      })
+    }
   }
   return undefined
 }
@@ -765,6 +777,28 @@ export function shouldSmoothTextSegment({
   return isStreaming && segmentIndex === segmentCount - 1
 }
 
+export function shouldShowTrailingThinking({
+  isStreaming,
+  isStreamIdle,
+  isRenderingStream,
+  hasExecutingTool,
+  lastSegmentType,
+}: {
+  isStreaming: boolean
+  isStreamIdle: boolean
+  isRenderingStream: boolean
+  hasExecutingTool: boolean
+  lastSegmentType?: 'text' | 'agent_group' | 'options' | 'stopped'
+}): boolean {
+  return (
+    isStreaming &&
+    isStreamIdle &&
+    !isRenderingStream &&
+    !hasExecutingTool &&
+    lastSegmentType !== 'stopped'
+  )
+}
+
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
@@ -790,6 +824,25 @@ function MessageContentInner({
   const handleTrailingRevealChange = useCallback((revealing: boolean) => {
     setTrailingRevealing(revealing)
   }, [])
+  const [trailingStreamActivity, setTrailingStreamActivity] = useState(false)
+  const handleTrailingStreamActivityChange = useCallback((active: boolean) => {
+    setTrailingStreamActivity(active)
+  }, [])
+  const [isStreamIdle, setIsStreamIdle] = useState(false)
+
+  // Every rendered stream snapshot restarts the quiet-period clock. A layout
+  // effect clears an already-visible indicator before paint, so a chunk from
+  // any parallel lane hides the one turn-level loader without a stale flash.
+  useLayoutEffect(() => {
+    if (!isStreaming) {
+      setIsStreamIdle(false)
+      return
+    }
+
+    setIsStreamIdle(false)
+    const timeout = setTimeout(() => setIsStreamIdle(true), STREAM_IDLE_DELAY_MS)
+    return () => clearTimeout(timeout)
+  }, [blocks, fallbackContent, isStreaming])
 
   const segments: MessageSegment[] =
     parsed.length > 0
@@ -820,14 +873,18 @@ function MessageContentInner({
     return null
   }
 
-  const hasTrailingContent = lastSegment.type === 'text' || lastSegment.type === 'stopped'
-
-  // Deterministic "between steps" signal: the turn is still streaming, nothing
-  // is actively running (a running tool/subagent renders its own spinner), and
-  // no trailing text is being revealed. Derived from explicit node state rather
-  // than guessing from the shape of the last segment.
-  const hasRunningWork = assistantMessageHasRunningWork(blocks)
-  const showTrailingThinking = phase === 'streaming' && !hasTrailingContent && !hasRunningWork
+  // Executing tools already render an active row. An open subagent lane does
+  // not suppress the turn-level indicator: once its latest visible chunk has
+  // settled, the loader can bridge the wait until that lane (or a parallel
+  // sibling) emits again.
+  const hasExecutingTool = blocks.some((b) => b.toolCall?.status === 'executing')
+  const showTrailingThinking = shouldShowTrailingThinking({
+    isStreaming: phase === 'streaming',
+    isStreamIdle,
+    isRenderingStream: trailingStreamActivity,
+    hasExecutingTool,
+    lastSegmentType: lastSegment.type,
+  })
 
   return (
     <div className='space-y-[10px]'>
@@ -848,6 +905,9 @@ function MessageContentInner({
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                 onRevealStateChange={
                   i === segments.length - 1 ? handleTrailingRevealChange : undefined
+                }
+                onStreamActivityChange={
+                  i === segments.length - 1 ? handleTrailingStreamActivityChange : undefined
                 }
               />
             )
@@ -885,11 +945,7 @@ function MessageContentInner({
             )
         }
       })}
-      {showTrailingThinking && (
-        <div className='animate-stream-fade-in-delayed opacity-0'>
-          <PendingTagIndicator />
-        </div>
-      )}
+      {showTrailingThinking && <PendingTagIndicator />}
     </div>
   )
 }

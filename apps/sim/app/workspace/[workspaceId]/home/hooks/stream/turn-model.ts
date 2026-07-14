@@ -9,6 +9,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { CONTEXT_COMPACTION_DISPLAY_TITLE } from '@/lib/copilot/tools/tool-display'
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the
@@ -576,7 +577,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           seq,
           tsMs
         )
-        node.uiTitle = 'Compacting context...'
+        node.uiTitle = CONTEXT_COMPACTION_DISPLAY_TITLE
       } else if (kind === MothershipStreamV1RunKind.compaction_done) {
         ensureSubagentLane(model, spanId, scope, seq, tsMs)
         let finalized = false
@@ -589,7 +590,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
             node.status === 'running'
           ) {
             node.status = 'success'
-            node.uiTitle = 'Compacted context'
+            node.uiTitle = CONTEXT_COMPACTION_DISPLAY_TITLE
             finalized = true
             break
           }
@@ -604,7 +605,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
             tsMs
           )
           node.status = 'success'
-          node.uiTitle = 'Compacted context'
+          node.uiTitle = CONTEXT_COMPACTION_DISPLAY_TITLE
         }
       }
       break

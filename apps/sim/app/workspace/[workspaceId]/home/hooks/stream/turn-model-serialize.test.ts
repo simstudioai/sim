@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { resolveStreamingToolDisplayTitle } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
 import {
   type AgentNode,
   applyTurnTerminal,
@@ -42,6 +43,26 @@ function build(events: PersistedStreamEventEnvelope[]): TurnModel {
   for (const e of events) reduceEvent(m, e)
   return m
 }
+
+describe('streaming resource titles', () => {
+  it('includes resource names as soon as they appear in streamed arguments', () => {
+    expect(resolveStreamingToolDisplayTitle('create_workflow', '{"name":"Lead Router"}')).toBe(
+      'Creating Lead Router'
+    )
+    expect(
+      resolveStreamingToolDisplayTitle(
+        'manage_custom_tool',
+        '{"operation":"add","schema":{"function":{"name":"lookupWeather"}}}'
+      )
+    ).toBe('Creating lookupWeather')
+    expect(
+      resolveStreamingToolDisplayTitle(
+        'manage_folder',
+        '{"operation":"rename","path":"workflows/Old%20Name","name":"New Name"}'
+      )
+    ).toBe('Renaming Old Name to New Name')
+  })
+})
 
 // A main-agent file delegation: trigger tool (main lane), subagent span, inner
 // workspace_file, span end, delegation result.
@@ -359,6 +380,7 @@ describe('modelToContentBlocks', () => {
         parentSpanId: 'main',
         toolCall: expect.objectContaining({
           calledBy: 'workflow',
+          displayTitle: 'Summarizing context',
           status: 'success',
         }),
       })

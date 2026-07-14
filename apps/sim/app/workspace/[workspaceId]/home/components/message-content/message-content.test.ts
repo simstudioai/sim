@@ -6,6 +6,7 @@ import type { ContentBlock } from '../../types'
 import {
   assistantMessageHasRunningWork,
   parseBlocks,
+  shouldShowTrailingThinking,
   shouldSmoothTextSegment,
 } from './message-content'
 
@@ -40,6 +41,35 @@ function mainToolCall(id: string, name: string): ContentBlock {
 }
 
 describe('parseBlocks span-identity tree', () => {
+  it('refines a completed credential rename with its previous and new names', () => {
+    const segments = parseBlocks([
+      {
+        type: 'tool_call',
+        toolCall: {
+          id: 'rename-credential',
+          name: 'manage_credential',
+          status: 'success',
+          params: { operation: 'rename', displayName: 'Production Stripe' },
+          result: {
+            success: true,
+            output: {
+              previousDisplayName: 'Stripe',
+              displayName: 'Production Stripe',
+            },
+          },
+        },
+        timestamp: 1,
+      },
+    ])
+
+    expect(segments).toHaveLength(1)
+    const group = segments[0]
+    if (group.type !== 'agent_group') throw new Error('expected mothership group')
+    const tool = group.items[0]
+    if (tool?.type !== 'tool') throw new Error('expected credential tool')
+    expect(tool.data.displayTitle).toBe('Renamed Stripe to Production Stripe')
+  })
+
   it('nests a deploy subagent inside the workflow subagent that spawned it', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),
@@ -430,6 +460,62 @@ describe('narration text seams', () => {
     const text = group.items.find((i) => i.type === 'text')
     if (!text || text.type !== 'text') throw new Error('expected text')
     expect(text.content).toBe('first sentence. second sentence.')
+  })
+})
+
+describe('shouldShowTrailingThinking', () => {
+  it('shows one turn-level indicator while an open subagent waits between completed steps', () => {
+    expect(
+      shouldShowTrailingThinking({
+        isStreaming: true,
+        isStreamIdle: true,
+        isRenderingStream: false,
+        hasExecutingTool: false,
+        lastSegmentType: 'agent_group',
+      })
+    ).toBe(true)
+  })
+
+  it('stays hidden while a chunk is rendering or before the stream becomes idle', () => {
+    expect(
+      shouldShowTrailingThinking({
+        isStreaming: true,
+        isStreamIdle: true,
+        isRenderingStream: true,
+        hasExecutingTool: false,
+        lastSegmentType: 'text',
+      })
+    ).toBe(false)
+    expect(
+      shouldShowTrailingThinking({
+        isStreaming: true,
+        isStreamIdle: false,
+        isRenderingStream: false,
+        hasExecutingTool: false,
+        lastSegmentType: 'agent_group',
+      })
+    ).toBe(false)
+  })
+
+  it('does not duplicate an executing tool row or survive a stopped turn', () => {
+    expect(
+      shouldShowTrailingThinking({
+        isStreaming: true,
+        isStreamIdle: true,
+        isRenderingStream: false,
+        hasExecutingTool: true,
+        lastSegmentType: 'agent_group',
+      })
+    ).toBe(false)
+    expect(
+      shouldShowTrailingThinking({
+        isStreaming: true,
+        isStreamIdle: true,
+        isRenderingStream: false,
+        hasExecutingTool: false,
+        lastSegmentType: 'stopped',
+      })
+    ).toBe(false)
   })
 })
 

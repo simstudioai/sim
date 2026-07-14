@@ -433,7 +433,7 @@ describe('reduceEvent — error tag + compaction coverage', () => {
       (n) => n.kind === 'tool' && n.name === 'context_compaction'
     ) as ToolNode
     expect(compaction.status).toBe('success')
-    expect(compaction.uiTitle).toBe('Compacted context')
+    expect(compaction.uiTitle).toBe('Summarizing context')
   })
 
   it('pairs concurrent compactions only within their scoped subagent spans', () => {
@@ -460,13 +460,17 @@ describe('reduceEvent — error tag + compaction coverage', () => {
     expect(agent(m, 'S1').agentId).toBe('workflow')
     expect(agent(m, 'S2').agentId).toBe('workflow')
     expect(tool(m, 'compaction:1')).toEqual(
-      expect.objectContaining({ spanId: 'S1', status: 'success', uiTitle: 'Compacted context' })
+      expect.objectContaining({
+        spanId: 'S1',
+        status: 'success',
+        uiTitle: 'Summarizing context',
+      })
     )
     expect(tool(m, 'compaction:2')).toEqual(
       expect.objectContaining({
         spanId: 'S2',
         status: 'running',
-        uiTitle: 'Compacting context...',
+        uiTitle: 'Summarizing context',
       })
     )
 
