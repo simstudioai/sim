@@ -1,17 +1,13 @@
 import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
 
 /**
- * The Platform menu - Sim's modules. Six items in a three-column grid. Each
+ * The Platform menu - Sim's modules. Five items on the three-column grid (the
+ * panel centers the two-item last row so the count reads intentional). Each
  * description names the outcome the module unlocks for your agents.
  */
 export const PLATFORM_MENU: NavMenu = {
   label: 'Platform',
   items: [
-    {
-      title: 'Mothership',
-      description: 'Build and command agents in natural language',
-      href: '/',
-    },
     {
       title: 'Workflows',
       description: 'Design agent logic visually',
@@ -121,13 +117,9 @@ export const SOLUTIONS_MENU: NavMenu = {
 }
 
 /**
- * Navbar mega-menus that are currently rendered, in trigger order - shared by
- * desktop and mobile nav (the desktop bar maps this list; mobile nav derives
- * its visible sections from these labels).
- *
- * `PLATFORM_MENU` and `SOLUTIONS_MENU` are intentionally omitted for now to hide
- * those sections from navigation while their pages stay live and reachable by
- * direct URL. The menu definitions above are kept intact - to restore a section,
- * add its constant back to this list.
+ * Navbar mega-menus in trigger order - shared by desktop and mobile nav (the
+ * desktop bar maps this list; mobile nav derives its visible sections from
+ * these labels). Platform leads with the product modules, Solutions follows
+ * with the per-team pages, and Resources closes with learning surfaces.
  */
-export const NAV_MENUS = [RESOURCES_MENU] as const
+export const NAV_MENUS = [PLATFORM_MENU, SOLUTIONS_MENU, RESOURCES_MENU] as const
