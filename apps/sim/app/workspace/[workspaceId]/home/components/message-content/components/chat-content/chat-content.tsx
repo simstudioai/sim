@@ -226,7 +226,7 @@ const MARKDOWN_COMPONENTS = {
             if (match) {
               const type = match[1]
               const ref = match[2]
-              const linkText = e.currentTarget.textContent || ref
+              const linkText = label || ref
               window.dispatchEvent(
                 new CustomEvent('wsres-click', {
                   detail:
