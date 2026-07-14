@@ -93,7 +93,13 @@ export function ToolCallItem({
   return (
     <div className='flex items-center gap-[6px] pl-6'>
       {BlockIcon && (
-        <BlockIcon className='size-[14px] flex-shrink-0' style={getBareIconStyle(BlockIcon)} />
+        // Size via inline style: a custom block's image icon carries a trailing
+        // `size-full` that defeats size *classes* (it fills tiled surfaces), so a
+        // class-only size renders the uploaded icon at natural size here.
+        <BlockIcon
+          className='size-[14px] flex-shrink-0'
+          style={{ width: 14, height: 14, ...getBareIconStyle(BlockIcon) }}
+        />
       )}
       {isExecuting ? (
         <ShimmerText className='text-[13px] [--shimmer-rest:var(--text-secondary)]'>
