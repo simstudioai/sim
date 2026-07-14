@@ -347,6 +347,58 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     expect(assistant?.isThinkingStreaming).toBe(false)
   })
 
+  it('does not replace Stop notice with server Client cancelled request error', async () => {
+    const abortController = new AbortController()
+    let resolveStream!: () => void
+    const streamDone = new Promise<void>((resolve) => {
+      resolveStream = resolve
+    })
+
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({
+        blockId: 'agent-1',
+        chunk: 'partial answer',
+      })
+      await new Promise<void>((resolve) => {
+        options.signal?.addEventListener(
+          'abort',
+          () => {
+            // Server still emits terminal cancel error while the reader finishes.
+            void options.onEvent({
+              event: 'error',
+              error: 'Client cancelled request',
+            })
+            resolve()
+          },
+          { once: true }
+        )
+        streamDone.then(() => resolve())
+      })
+    })
+
+    const streamPromise = act(async () => {
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false, {
+          abortController,
+        })
+    })
+
+    await flushUiBatch()
+
+    act(() => {
+      handle.latest().stopStreaming(setMessages)
+    })
+    resolveStream()
+    await streamPromise
+
+    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
+    expect(String(assistant?.content)).toContain('partial answer')
+    expect(String(assistant?.content)).toContain('Response stopped by user')
+    expect(String(assistant?.content)).not.toContain('Client cancelled request')
+    expect(assistant?.isStreaming).toBe(false)
+  })
+
   it('leaves thinking undefined when no thinking events arrive', async () => {
     mockReadSSEEvents.mockImplementation(async (_source, options) => {
       await options.onEvent({

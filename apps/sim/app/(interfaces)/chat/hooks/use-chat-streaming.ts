@@ -322,6 +322,32 @@ export function useChatStreaming() {
           const { blockId, chunk: contentChunk, event: eventType } = json
 
           if (eventType === 'error' || json.event === 'error') {
+            // User Stop aborts the fetch; the server often still emits a terminal
+            // `{ event: 'error', error: 'Client cancelled request' }` before the
+            // SSE reader finishes. Do not overwrite the stop notice.
+            if (streamAbortSignal.aborted) {
+              settleInFlightTools(toolCallsMap, 'cancelled')
+              syncToolCallsRef()
+              const toolsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        isStreaming: false,
+                        isThinkingStreaming: false,
+                        isToolStreaming: false,
+                        thinking: accumulatedThinking || msg.thinking,
+                        toolCalls: toolsSnapshot ?? msg.toolCalls,
+                      }
+                    : msg
+                )
+              )
+              setIsLoading(false)
+              terminated = true
+              return true
+            }
+
             const errorMessage = json.error || CHAT_ERROR_MESSAGES.GENERIC_ERROR
             settleInFlightTools(toolCallsMap, 'error')
             syncToolCallsRef()
