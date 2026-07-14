@@ -9,13 +9,21 @@ import {
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const { mockExecutorExecute, mockCreateSnapshot, mockResolveBillingAttribution, executorOptions } =
-  vi.hoisted(() => ({
-    mockExecutorExecute: vi.fn(),
-    mockCreateSnapshot: vi.fn(),
-    mockResolveBillingAttribution: vi.fn(),
-    executorOptions: [] as Array<Record<string, any>>,
-  }))
+const {
+  mockExecutorExecute,
+  mockCreateSnapshot,
+  mockResolveBillingAttribution,
+  mockGetCustomBlockAuthority,
+  mockGetPersonalAndWorkspaceEnv,
+  executorOptions,
+} = vi.hoisted(() => ({
+  mockExecutorExecute: vi.fn(),
+  mockCreateSnapshot: vi.fn(),
+  mockResolveBillingAttribution: vi.fn(),
+  mockGetCustomBlockAuthority: vi.fn(),
+  mockGetPersonalAndWorkspaceEnv: vi.fn(),
+  executorOptions: [] as Array<Record<string, any>>,
+}))
 
 vi.mock('@/executor', () => ({
   Executor: class {
@@ -28,6 +36,14 @@ vi.mock('@/executor', () => ({
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mockResolveBillingAttribution,
+}))
+
+vi.mock('@/lib/environment/utils', () => ({
+  getPersonalAndWorkspaceEnv: mockGetPersonalAndWorkspaceEnv,
+}))
+
+vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+  getCustomBlockAuthority: mockGetCustomBlockAuthority,
 }))
 
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
@@ -319,6 +335,70 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions).toHaveLength(1)
       expect(executorOptions[0].contextExtensions.billingAttribution).toBe(billingAttribution)
       expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+    })
+
+    it('resolves a source-scoped billing attribution for custom block children', async () => {
+      const consumerAttribution = { actorUserId: 'consumer-1', workspaceId: 'workspace-consumer' }
+      const sourceAttribution = { actorUserId: 'owner-9', workspaceId: 'workspace-source' }
+      const customBlock = {
+        ...mockBlock,
+        metadata: { id: 'custom_block_abc', name: 'Published Block' },
+      }
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-consumer',
+        metadata: { ...mockContext.metadata, billingAttribution: consumerAttribution },
+      } as unknown as ExecutionContext
+
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: [],
+      })
+      mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      })
+      mockResolveBillingAttribution.mockResolvedValue(sourceAttribution)
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                name: 'Source Workflow',
+                workspaceId: 'workspace-source',
+                variables: {},
+              },
+            }),
+        }
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, customBlock, {})
+
+      expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.billingAttribution).toBe(sourceAttribution)
+      expect(executorOptions[0].contextExtensions.userId).toBe('owner-9')
+      expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
     })
 
     it('should fail closed when the executing context has no workspace', async () => {

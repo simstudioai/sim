@@ -229,9 +229,18 @@ function buildDashboardOrganizationSummary({
 
 export async function listDashboardUsers({ search, limit, offset }: PaginationInput) {
   const trimmed = search.trim()
-  const where = trimmed
+  // Mirror Better Auth's active-ban semantics: permanent bans and temporary
+  // bans whose expiry is still in the future stay out of the Users dashboard,
+  // while an expired temporary ban is treated as lifted. Keep this predicate
+  // in the database query so pagination totals cannot leak or count hidden rows.
+  const visibleUser = sql<boolean>`NOT (
+    coalesce(${user.banned}, false)
+    AND (${user.banExpires} IS NULL OR ${user.banExpires} > now())
+  )`
+  const searchMatch = trimmed
     ? or(ilike(user.name, `%${trimmed}%`), ilike(user.email, `%${trimmed}%`), eq(user.id, trimmed))
     : undefined
+  const where = searchMatch ? and(visibleUser, searchMatch) : visibleUser
   const [totalRow, rows] = await Promise.all([
     db.select({ total: count() }).from(user).where(where),
     db
