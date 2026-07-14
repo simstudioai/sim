@@ -151,10 +151,12 @@ export function Document({
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
    * write is debounced. The chunk search query below reads a debounced value so
-   * it doesn't refetch on every keystroke.
+   * it doesn't refetch on every keystroke. Changing the search resets `page` in
+   * the same write — a search started from a later page must land on the first
+   * page of matches, and a shared search link must open there too.
    */
   const handleSearchChange = useDebouncedSearchSetter(
-    (value, options) => void setDocumentParams({ search: value }, options),
+    (value, options) => void setDocumentParams({ search: value, page: null }, options),
     { debounceMs: CHUNK_SEARCH_DEBOUNCE_MS }
   )
   /** Raw URL value drives the input; the chunk search query always sees it trimmed. */
