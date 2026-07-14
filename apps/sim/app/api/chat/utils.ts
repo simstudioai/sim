@@ -1,6 +1,5 @@
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
@@ -9,8 +8,6 @@ import {
   type DeploymentAuthResult,
   validateDeploymentAuth,
 } from '@/lib/core/security/deployment-auth'
-
-const logger = createLogger('ChatAuthUtils')
 
 export function setChatAuthCookie(
   response: NextResponse,
