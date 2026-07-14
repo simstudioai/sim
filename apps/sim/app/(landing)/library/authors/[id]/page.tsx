@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { getAllPostMeta } from '@/lib/library/registry'
 import { buildAuthorGraphJsonLd, buildAuthorMetadata, LIBRARY_SECTION } from '@/lib/library/seo'
 import { ContentAuthorPage } from '@/app/(landing)/components'
@@ -13,6 +14,7 @@ export async function generateMetadata({
   const { id } = await params
   const posts = (await getAllPostMeta()).filter((p) => p.authors.some((a) => a.id === id))
   const author = posts[0]?.authors.find((a) => a.id === id)
+  if (!author) return {}
   return buildAuthorMetadata(id, author)
 }
 
@@ -20,15 +22,16 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
   const { id } = await params
   const posts = (await getAllPostMeta()).filter((p) => p.authors.some((a) => a.id === id))
   const author = posts[0]?.authors.find((a) => a.id === id)
+  if (!author) notFound()
 
   return (
     <ContentAuthorPage
       basePath={LIBRARY_SECTION.basePath}
       sectionName={LIBRARY_SECTION.name}
-      authorName={author?.name}
-      authorAvatarUrl={author?.avatarUrl}
+      authorName={author.name}
+      authorAvatarUrl={author.avatarUrl}
       posts={posts}
-      graphJsonLd={author ? buildAuthorGraphJsonLd(author) : undefined}
+      graphJsonLd={buildAuthorGraphJsonLd(author)}
     />
   )
 }

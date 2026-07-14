@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/library/registry'
 import { buildPostGraphJsonLd, buildPostMetadata, LIBRARY_SECTION } from '@/lib/library/seo'
@@ -18,6 +19,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const post = await getPostBySlug(slug)
+  if (!post) return {}
   return buildPostMetadata(post)
 }
 
@@ -26,6 +28,7 @@ export const revalidate = 86400
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const post = await getPostBySlug(slug)
+  if (!post) notFound()
   const related = await getRelatedPosts(slug, 3)
 
   return (
