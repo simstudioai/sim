@@ -427,6 +427,9 @@ export class DAGExecutor {
       blockLogs: overrides?.runFromBlockContext ? [] : (snapshotState?.blockLogs ?? []),
       metadata: {
         ...this.contextExtensions.metadata,
+        ...(this.contextExtensions.billingAttribution
+          ? { billingAttribution: this.contextExtensions.billingAttribution }
+          : {}),
         startTime: new Date().toISOString(),
         duration: 0,
         useDraftState:
