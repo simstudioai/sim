@@ -6,17 +6,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { debounce, useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import {
-  settingsSearchParam,
-  settingsSearchUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/components/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -31,11 +27,7 @@ export function CustomTools() {
   const { data: tools = [], isLoading, error, refetch: refetchTools } = useCustomTools(workspaceId)
   const deleteToolMutation = useDeleteCustomTool()
 
-  const [searchTerm, setSearchTerm] = useQueryState(settingsSearchParam.key, {
-    ...settingsSearchParam.parser,
-    ...settingsSearchUrlKeys,
-    limitUrlUpdates: debounce(300),
-  })
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [deletingTools, setDeletingTools] = useState<Set<string>>(() => new Set())
   const [editingTool, setEditingTool] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -117,7 +109,7 @@ export function CustomTools() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: (value) => void setSearchTerm(value),
+          onChange: setSearchTerm,
           placeholder: 'Search tools...',
           disabled: isLoading,
         }}

@@ -16,6 +16,10 @@ User arguments: $ARGUMENTS
 
 Shareable client view-state (active tab/panel, filters, search query, sort, pagination, selected-entity id, an open "view" modal/drawer that is a destination) lives in the URL via [`nuqs`](https://nuqs.dev) — driven by a co-located `search-params.ts`, never read via `useSearchParams().get(...)` and never mutated by hand-built query strings. Remote data stays in React Query; high-frequency / large / ephemeral / socket-synced state stays in Zustand; purely local UI stays in `useState`.
 
+Shared helpers own the two repeated wirings — never hand-roll them inline:
+- Sort: `createSortParams` from `@/lib/url-state` (in `search-params.ts`) + `useUrlSort` from `@/hooks/use-url-sort` (in the component) — defaulted mode for lists with a fixed default ordering, nullable mode when "no active sort" is distinct from the default column.
+- Debounced search: `useDebouncedSearchSetter` from `@/hooks/use-debounced-search-setter` (grouped or single-param); settings list search boxes use `useSettingsSearch()` from `settings/components/use-settings-search`. Never write a trimmed value to a param that controls the input — trim on read.
+
 `.claude/rules/sim-url-state.md` is the source of truth — read it first.
 
 ## References
@@ -33,14 +37,15 @@ Read these before analyzing:
 3. **`window.history.replaceState`/`pushState`** to mutate a param.
 4. **URL state duplicated into a store/useState + synced with an effect** (or a `popstate` listener). The URL is the single source of truth; derive from it, don't mirror it.
 5. **Objects in the URL**: serializing a `TableDefinition`/`SkillDefinition`/etc. Store the id and derive the object from the loaded list (`items.find(i => i.id === id)`).
-6. **High-frequency / large state in the URL**: cursor, pan/zoom, un-debounced keystrokes, big JSON blobs. Debounce text search (local `useState` mirror + reconcile effect); keep canvas/presence/resize state in Zustand.
+6. **High-frequency / large state in the URL**: cursor, pan/zoom, un-debounced keystrokes, big JSON blobs. Debounce text search via `useDebouncedSearchSetter` (never a local `useState` mirror + reconcile effect, and never inline `limitUrlUpdates` wiring); keep canvas/presence/resize state in Zustand.
 7. **Shareable view-state trapped in `useState`**: a tab/filter/sort/pagination/selected-entity that should be a link but lives in local state. Migrate it to the URL.
 8. **Missing Suspense boundary**: a component newly calling `useQueryState`/`useQueryStates` whose page entry has no `<Suspense>` wrapper (Next.js requires it for `useSearchParams`). Add one with a real-chrome fallback.
 9. **`import { z }` for param validation in client code**: use nuqs parsers instead.
+10. **Re-implemented shared wiring**: a hand-rolled `SORT_DIRECTIONS`/default-sort constants/`activeSort` derivation instead of `createSortParams` + `useUrlSort`, or an inline debounced-search setter instead of `useDebouncedSearchSetter`/`useSettingsSearch`.
 
 ## Steps
 
 1. Read `.claude/rules/sim-url-state.md` and the nuqs docs above to understand the guidelines
 2. Analyze the specified scope for the anti-patterns listed above
 3. For each finding, decide the correct home using the decision table — do not force URL state onto ephemeral/high-frequency/socket-synced state
-4. If fix=true, apply the fixes (co-locate a `search-params.ts`, wire `useQueryState(s)`, add the Suspense boundary, delete the replaced state + sync effects). If fix=false, propose the fixes without applying.
+4. If fix=true, apply the fixes (co-locate a `search-params.ts`, wire `useQueryState(s)` — sort via `createSortParams` + `useUrlSort`, search via `useDebouncedSearchSetter` — add the Suspense boundary, delete the replaced state + sync effects). If fix=false, propose the fixes without applying.

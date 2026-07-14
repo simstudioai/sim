@@ -22,7 +22,7 @@ import { Download, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
@@ -76,11 +76,10 @@ import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/compon
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import {
-  FILE_SORT_COLUMNS,
-  type FileSortColumn,
   filesFilterParsers,
   filesFilterUrlKeys,
   filesParsers,
+  filesSortParams,
   filesUrlKeys,
 } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -101,8 +100,10 @@ import {
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type FileResourceItem =
@@ -111,8 +112,11 @@ type FileResourceItem =
 
 const logger = createLogger('Files')
 
-/** Debounce window for `search` URL writes and filtering; the input itself stays instant. */
-const SEARCH_DEBOUNCE_MS = 200 as const
+/**
+ * Debounce window for `search` URL writes and filtering; the input itself stays
+ * instant. Intentionally shorter than the shared `SEARCH_DEBOUNCE_MS` (300).
+ */
+const FILES_SEARCH_DEBOUNCE_MS = 200 as const
 
 const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_DOCUMENT_EXTENSIONS,
@@ -255,14 +259,7 @@ export function Files() {
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
   const [
-    {
-      search: urlSearchTerm,
-      sort: sortColumn,
-      dir: sortDirection,
-      type: typeFilter,
-      size: sizeFilter,
-      uploadedBy: uploadedByFilter,
-    },
+    { search: urlSearchTerm, type: typeFilter, size: sizeFilter, uploadedBy: uploadedByFilter },
     setFileFilters,
   ] = useQueryStates(filesFilterParsers, filesFilterUrlKeys)
 
@@ -271,17 +268,11 @@ export function Files() {
    * write is debounced. The in-memory filter below still reads a debounced value
    * so it doesn't recompute on every keystroke.
    */
-  const setSearchTerm = useCallback(
-    (value: string) => {
-      const next = value.length > 0 ? value : null
-      setFileFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setFileFilters]
+  const setSearchTerm = useDebouncedSearchSetter(
+    (value, options) => setFileFilters({ search: value }, options),
+    { debounceMs: FILES_SEARCH_DEBOUNCE_MS }
   )
-  const debouncedSearchTerm = useDebounce(urlSearchTerm, SEARCH_DEBOUNCE_MS)
+  const debouncedSearchTerm = useDebounce(urlSearchTerm, FILES_SEARCH_DEBOUNCE_MS)
 
   /**
    * `sort`/`dir` are nullable in the URL because "no active sort" is distinct
@@ -289,13 +280,7 @@ export function Files() {
    * updated/desc but folders to name/asc, while an explicit sort orders both
    * sections by the chosen column.
    */
-  const activeSort = useMemo(
-    () =>
-      sortColumn !== null && sortDirection !== null
-        ? { column: sortColumn, direction: sortDirection }
-        : null,
-    [sortColumn, sortDirection]
-  )
+  const { activeSort, onSort, onClear } = useUrlSort(filesSortParams, filesFilterUrlKeys)
 
   const setTypeFilter = useCallback(
     (next: string[]) => setFileFilters({ type: next }),
@@ -403,10 +388,9 @@ export function Files() {
 
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
-    const searched = debouncedSearchTerm
-      ? siblings.filter((folder) =>
-          folder.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-        )
+    const needle = debouncedSearchTerm.trim().toLowerCase()
+    const searched = needle
+      ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
       : siblings
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
@@ -424,11 +408,10 @@ export function Files() {
   }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
 
   const filteredFiles = useMemo(() => {
-    let result = debouncedSearchTerm
+    const needle = debouncedSearchTerm.trim().toLowerCase()
+    let result = needle
       ? files.filter(
-          (f) =>
-            (f.folderId ?? null) === currentFolderId &&
-            f.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+          (f) => (f.folderId ?? null) === currentFolderId && f.name.toLowerCase().includes(needle)
         )
       : files.filter((f) => (f.folderId ?? null) === currentFolderId)
 
@@ -1745,13 +1728,10 @@ export function Files() {
         { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
-      onSort: (column, direction) => {
-        if (!(FILE_SORT_COLUMNS as readonly string[]).includes(column)) return
-        setFileFilters({ sort: column as FileSortColumn, dir: direction })
-      },
-      onClear: () => setFileFilters({ sort: null, dir: null }),
+      onSort,
+      onClear,
     }),
-    [activeSort, setFileFilters]
+    [activeSort, onSort, onClear]
   )
 
   const hasActiveFilters =

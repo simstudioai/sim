@@ -29,7 +29,7 @@ import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
 import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryState, useQueryStates } from 'nuqs'
+import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
@@ -38,6 +38,7 @@ import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/
 import type { DocumentData } from '@/lib/knowledge/types'
 import { captureEvent } from '@/lib/posthog/client'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   BreadcrumbItem,
   FilterTag,
@@ -61,11 +62,9 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   addConnectorParam,
-  DEFAULT_KB_SORT_COLUMN,
-  DEFAULT_KB_SORT_DIRECTION,
   documentFiltersParsers,
   documentFiltersUrlKeys,
-  type KbSortColumn,
+  kbDocumentSortParams,
   pageParam,
   pageUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
@@ -92,8 +91,10 @@ import {
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -296,41 +297,31 @@ export function KnowledgeBase({
     ...pageUrlKeys,
   })
 
-  const [
-    { q: searchQuery, enabled: enabledFilter, sort: sortColumn, dir: sortDirection },
-    setDocumentFilters,
-  ] = useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
+  const [{ q: searchQuery, enabled: enabledFilter }, setDocumentFilters] = useQueryStates(
+    documentFiltersParsers,
+    documentFiltersUrlKeys
+  )
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
    * write is debounced. The document query below reads a debounced value so it
    * doesn't refetch on every keystroke. Changing the search resets pagination.
    */
-  const handleSearchChange = useCallback(
-    (newQuery: string) => {
-      const trimmed = newQuery.trim()
-      const next = trimmed.length > 0 ? trimmed : null
-      setDocumentFilters(
-        { q: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(300) }
-      )
-      setCurrentPage(1)
-    },
-    [setDocumentFilters, setCurrentPage]
-  )
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  const handleSearchChange = useDebouncedSearchSetter((value, options) => {
+    setDocumentFilters({ q: value }, options)
+    setCurrentPage(1)
+  })
+  const debouncedSearchQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
+  /** Raw URL value drives the input; matching/highlighting always sees it trimmed. */
+  const highlightQuery = searchQuery.trim()
 
-  /**
-   * The resolved sort is exposed to the sort menu only when it differs from the
-   * default, mirroring the prior `null`-means-default semantics.
-   */
-  const activeSort = useMemo(
-    () =>
-      sortColumn === DEFAULT_KB_SORT_COLUMN && sortDirection === DEFAULT_KB_SORT_DIRECTION
-        ? null
-        : { column: sortColumn, direction: sortDirection },
-    [sortColumn, sortDirection]
-  )
+  const {
+    sort: sortColumn,
+    dir: sortDirection,
+    activeSort,
+    onSort: onSortColumn,
+    onClear: onClearSort,
+  } = useUrlSort(kbDocumentSortParams, documentFiltersUrlKeys)
 
   const setEnabledFilter = useCallback(
     (value: 'all' | 'enabled' | 'disabled') => {
@@ -385,7 +376,7 @@ export function KnowledgeBase({
     updateDocument,
     refreshDocuments,
   } = useKnowledgeBaseDocuments(id, {
-    search: debouncedSearchQuery || undefined,
+    search: debouncedSearchQuery.trim() || undefined,
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
     sortBy: sortColumn as DocumentSortField,
@@ -914,20 +905,17 @@ export function KnowledgeBase({
         { id: 'enabled', label: 'Status' },
       ],
       active: activeSort,
+      /** Sorting (or clearing the sort) resets pagination to the first page. */
       onSort: (column, direction) => {
-        setDocumentFilters({ sort: column as KbSortColumn, dir: direction })
+        onSortColumn(column, direction)
         setCurrentPage(1)
       },
-      /**
-       * Clearing writes the defaults back (stripped by clearOnDefault), so the
-       * sort menu reads "no active sort" again and the URL stays clean.
-       */
       onClear: () => {
-        setDocumentFilters({ sort: DEFAULT_KB_SORT_COLUMN, dir: DEFAULT_KB_SORT_DIRECTION })
+        onClearSort()
         setCurrentPage(1)
       },
     }),
-    [activeSort, setDocumentFilters, setCurrentPage]
+    [activeSort, onSortColumn, onClearSort, setCurrentPage]
   )
 
   const filterContent = useMemo(
@@ -1130,7 +1118,7 @@ export function KnowledgeBase({
                     label={doc.filename}
                     className={cn('block', chipContentLabelClass)}
                   >
-                    <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
+                    <SearchHighlight text={doc.filename} searchQuery={highlightQuery} />
                   </FloatingOverflowText>
                 </span>
               ),
@@ -1166,7 +1154,7 @@ export function KnowledgeBase({
           },
         }
       }),
-    [documents, tagDefinitions, searchQuery]
+    [documents, tagDefinitions, highlightQuery]
   )
 
   if (error && !knowledgeBase) {
