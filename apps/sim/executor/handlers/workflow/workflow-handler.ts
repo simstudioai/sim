@@ -888,14 +888,15 @@ export class WorkflowBlockHandler implements BlockHandler {
       return { success: true, result: executionResult.output ?? {}, ...cost }
     }
     const logs = executionResult.logs ?? []
-    const output: Record<string, unknown> = { success: true, ...cost }
+    const output: Record<string, unknown> = {}
     for (const { blockId, path, name } of exposedOutputs) {
       const log =
         [...logs].reverse().find((l) => l.blockId === blockId && l.success) ??
         [...logs].reverse().find((l) => l.blockId === blockId)
       output[name] = log ? getValueAtPath(log.output, path) : undefined
     }
-    return output as BlockOutput
+    // System fields spread last — pre-validation rows may still name an output cost/success.
+    return { ...output, success: true, ...cost } as BlockOutput
   }
 
   private mapChildOutputToParent(
