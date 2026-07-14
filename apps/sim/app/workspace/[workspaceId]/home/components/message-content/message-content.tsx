@@ -730,6 +730,29 @@ export function assistantMessageHasRenderableContent(
   return segments.length > 0
 }
 
+/**
+ * True while any wire-declared work in the turn is still running: a tool row
+ * still `executing`, or a subagent lane that has not closed. A lane closes via
+ * its paired `subagent_end` block (live serializer) or a stamped `endedAt`
+ * (Sim-backend persistence / turn-terminal sweep). The live path never stamps
+ * `endedAt` on `subagent` blocks, so checking `endedAt` alone reads every
+ * finished subagent as still running for the rest of the turn — permanently
+ * suppressing the between-steps thinking indicator after the first delegation.
+ */
+export function assistantMessageHasRunningWork(blocks: ContentBlock[]): boolean {
+  const closedSpanIds = new Set<string>()
+  for (const block of blocks) {
+    if (block.type === 'subagent_end' && block.spanId) closedSpanIds.add(block.spanId)
+  }
+  return blocks.some(
+    (block) =>
+      block.toolCall?.status === 'executing' ||
+      (block.type === 'subagent' &&
+        block.endedAt === undefined &&
+        !(block.spanId && closedSpanIds.has(block.spanId)))
+  )
+}
+
 export function shouldSmoothTextSegment({
   isStreaming,
   segmentIndex,
@@ -803,9 +826,7 @@ function MessageContentInner({
   // is actively running (a running tool/subagent renders its own spinner), and
   // no trailing text is being revealed. Derived from explicit node state rather
   // than guessing from the shape of the last segment.
-  const hasRunningWork = blocks.some(
-    (b) => b.toolCall?.status === 'executing' || (b.type === 'subagent' && b.endedAt === undefined)
-  )
+  const hasRunningWork = assistantMessageHasRunningWork(blocks)
   const showTrailingThinking = phase === 'streaming' && !hasTrailingContent && !hasRunningWork
 
   return (
