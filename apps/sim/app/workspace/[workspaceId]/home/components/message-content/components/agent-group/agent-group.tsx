@@ -130,6 +130,7 @@ export function AgentGroup({
                         toolName={item.data.toolName}
                         displayTitle={item.data.displayTitle}
                         status={item.data.status}
+                        params={item.data.params}
                         streamingArgs={item.data.streamingArgs}
                       />
                     )
