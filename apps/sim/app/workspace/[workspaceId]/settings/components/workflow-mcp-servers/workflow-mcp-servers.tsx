@@ -924,9 +924,6 @@ export function WorkflowMcpServers() {
         workspaceId,
         serverId: serverToDelete.id,
       })
-      if (selectedServerId === serverToDelete.id) {
-        void setSelectedServerId(null, { history: 'replace' })
-      }
     } catch (err) {
       logger.error('Failed to delete server:', err)
     } finally {
@@ -941,13 +938,24 @@ export function WorkflowMcpServers() {
   const hasServers = servers.length > 0
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && hasServers
 
-  if (selectedServerId) {
+  /**
+   * Render the detail view only while the id can still resolve — while the
+   * list loads (a fresh deep link) or when the server exists in it. A stale id
+   * (deleted server restored from an old history entry or a dead link) falls
+   * back to the list instead of a failed detail view; the lingering param is
+   * harmless and gets overwritten by the next selection. Closing replaces the
+   * URL so Back leaves the section rather than reopening the detail view.
+   */
+  const selectedServerResolves =
+    selectedServerId !== null && (isLoading || servers.some((s) => s.id === selectedServerId))
+
+  if (selectedServerId && selectedServerResolves) {
     return (
       <ServerDetailView
         canManage={canAdmin}
         workspaceId={workspaceId}
         serverId={selectedServerId}
-        onBack={() => setSelectedServerId(null)}
+        onBack={() => setSelectedServerId(null, { history: 'replace' })}
       />
     )
   }

@@ -269,8 +269,9 @@ export function MCP() {
     refetchStoredTools()
   }
 
+  /** Closing replaces the URL — Back should leave the section, not reopen the detail view. */
   const handleBackToList = () => {
-    setSelectedServerId(null)
+    setSelectedServerId(null, { history: 'replace' })
     setExpandedTools(new Set())
   }
 
