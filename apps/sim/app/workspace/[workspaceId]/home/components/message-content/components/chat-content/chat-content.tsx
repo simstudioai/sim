@@ -219,7 +219,12 @@ const MARKDOWN_COMPONENTS = {
       return (
         <a
           href={href}
-          className='not-prose inline-flex items-center gap-[5px] text-[var(--text-primary)] no-underline'
+          className={cn(
+            'text-[var(--text-primary)]',
+            kind
+              ? 'not-prose inline-flex items-center gap-[5px] no-underline'
+              : 'underline decoration-dashed underline-offset-4'
+          )}
           onClick={(e) => {
             e.preventDefault()
             const match = href.match(/^#wsres-(\w+)-(.+)$/)
