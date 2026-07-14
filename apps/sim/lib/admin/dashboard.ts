@@ -235,7 +235,10 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
   // in the database query so pagination totals cannot leak or count hidden rows.
   const visibleUser = sql<boolean>`NOT (
     coalesce(${user.banned}, false)
-    AND (${user.banExpires} IS NULL OR ${user.banExpires} > now())
+    AND (
+      ${user.banExpires} IS NULL
+      OR ${user.banExpires} > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+    )
   )`
   const searchMatch = trimmed
     ? or(ilike(user.name, `%${trimmed}%`), ilike(user.email, `%${trimmed}%`), eq(user.id, trimmed))
