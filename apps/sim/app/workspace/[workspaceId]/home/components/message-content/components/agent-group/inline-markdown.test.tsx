@@ -5,25 +5,63 @@ import { isValidElement } from 'react'
 import { describe, expect, it } from 'vitest'
 import { renderInlineMarkdown } from './inline-markdown'
 
-function textOfPart(part: React.ReactNode): string {
-  if (typeof part === 'string') return part
-  if (isValidElement<{ children?: React.ReactNode }>(part)) return String(part.props.children)
+function flattenText(node: React.ReactNode): string {
+  if (typeof node === 'string') return node
+  if (Array.isArray(node)) return node.map(flattenText).join('')
+  if (isValidElement<{ children?: React.ReactNode }>(node)) return flattenText(node.props.children)
   return ''
+}
+
+function findByType(parts: React.ReactNode[], type: string): React.ReactNode {
+  return parts.find((p) => isValidElement(p) && p.type === type)
 }
 
 describe('renderInlineMarkdown', () => {
   it('renders **bold** spans as strong elements', () => {
     const parts = renderInlineMarkdown('The failing block is **ModalDenied** (a Slack block).')
-    const bold = parts.find((p) => isValidElement(p) && p.type === 'strong')
+    const bold = findByType(parts, 'strong')
     expect(bold).toBeDefined()
-    expect(textOfPart(bold)).toBe('ModalDenied')
-    expect(parts.some((p) => typeof p === 'string' && p.includes('*'))).toBe(false)
+    expect(flattenText(bold)).toBe('ModalDenied')
+    expect(flattenText(parts)).toBe('The failing block is ModalDenied (a Slack block).')
   })
 
   it('renders `code` spans as mono elements', () => {
     const parts = renderInlineMarkdown('check the `webhook` payload')
-    const code = parts.find((p) => isValidElement(p) && p.type === 'span')
-    expect(textOfPart(code)).toBe('webhook')
+    expect(flattenText(findByType(parts, 'span'))).toBe('webhook')
+    expect(flattenText(parts)).toBe('check the webhook payload')
+  })
+
+  it('renders *italic* spans as em elements', () => {
+    const parts = renderInlineMarkdown('this is *important* context')
+    expect(flattenText(findByType(parts, 'em'))).toBe('important')
+  })
+
+  it('renders ***bold-italic*** as nested strong and em', () => {
+    const parts = renderInlineMarkdown('a ***wrapped*** word')
+    const bold = findByType(parts, 'strong')
+    expect(bold).toBeDefined()
+    expect(flattenText(parts)).toBe('a wrapped word')
+  })
+
+  it('renders links as their label text', () => {
+    const parts = renderInlineMarkdown('see [the docs](https://sim.ai/docs) for more')
+    expect(flattenText(parts)).toBe('see the docs for more')
+  })
+
+  it('keeps emphasis markers inside code spans verbatim', () => {
+    const parts = renderInlineMarkdown('pass `*args` and `**kwargs` through')
+    const codeTexts = parts
+      .filter((p) => isValidElement(p) && p.type === 'span')
+      .map((p) => flattenText(p))
+    expect(codeTexts).toEqual(['*args', '**kwargs'])
+    expect(flattenText(parts)).toBe('pass *args and **kwargs through')
+  })
+
+  it('renders nested markers inside emphasis and link labels', () => {
+    expect(
+      flattenText(renderInlineMarkdown('read [**the docs**](https://sim.ai/docs) first'))
+    ).toBe('read the docs first')
+    expect(flattenText(renderInlineMarkdown('use *`glob`* patterns'))).toBe('use glob patterns')
   })
 
   it('leaves unterminated markers verbatim', () => {
@@ -31,29 +69,11 @@ describe('renderInlineMarkdown', () => {
     expect(renderInlineMarkdown('a `dangling tick')).toEqual(['a `dangling tick'])
   })
 
-  it('passes plain text through untouched', () => {
-    expect(renderInlineMarkdown('no markup here.')).toEqual(['no markup here.'])
-  })
-
-  it('renders *italic* spans as em elements', () => {
-    const parts = renderInlineMarkdown('this is *important* context')
-    const em = parts.find((p) => isValidElement(p) && p.type === 'em')
-    expect(textOfPart(em)).toBe('important')
-  })
-
   it('does not italicize bare asterisks in math-like text', () => {
     expect(renderInlineMarkdown('2 * 3 * 4')).toEqual(['2 * 3 * 4'])
   })
 
-  it('renders ***bold-italic*** as nested strong and em', () => {
-    const parts = renderInlineMarkdown('a ***wrapped*** word')
-    const bold = parts.find((p) => isValidElement(p) && p.type === 'strong')
-    expect(bold).toBeDefined()
-    expect(parts.some((p) => typeof p === 'string' && p.includes('*'))).toBe(false)
-  })
-
-  it('renders links as their label text', () => {
-    const parts = renderInlineMarkdown('see [the docs](https://sim.ai/docs) for more')
-    expect(parts.join('')).toBe('see the docs for more')
+  it('passes plain text through untouched', () => {
+    expect(renderInlineMarkdown('no markup here.')).toEqual(['no markup here.'])
   })
 })

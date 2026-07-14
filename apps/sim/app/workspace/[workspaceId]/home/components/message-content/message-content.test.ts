@@ -356,6 +356,8 @@ describe('narration text seams', () => {
     expect(seam('日本語のテキストが分割', 'されても壊れない')).toBe(
       '日本語のテキストが分割されても壊れない'
     )
+    expect(seam('released in v2.', '1 last week')).toBe('released in v2.1 last week')
+    expect(seam('pi is 3.', '14 roughly')).toBe('pi is 3.14 roughly')
   })
 
   it('does not double-space when the seam already has whitespace', () => {
