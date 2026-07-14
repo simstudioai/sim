@@ -3,11 +3,23 @@ import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm'
 
 const logger = createLogger('OutboxService')
 
 const DEFAULT_MAX_ATTEMPTS = 10
+const MAX_PERSISTED_ERROR_LENGTH = 500
+
+/**
+ * Bounds a handler failure before persisting it to `last_error`. Driver
+ * errors ("Failed query: ...\nparams: ...") embed every bound parameter,
+ * which can include user credentials from handler payloads — the parameter
+ * tail is dropped and the rest is capped.
+ */
+function toPersistedHandlerError(error: unknown): string {
+  return truncate(toError(error).message.split(/\nparams: /)[0], MAX_PERSISTED_ERROR_LENGTH)
+}
 const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
 const MAX_BACKOFF_MS = 60 * 60 * 1000 // 1 hour
 const BASE_BACKOFF_MS = 1000 // 1 second, doubled per attempt
@@ -404,7 +416,7 @@ async function runHandler(
 
     const nextAttempts = event.attempts + 1
     const isDead = nextAttempts >= event.maxAttempts
-    const errMsg = toError(error).message
+    const errMsg = toPersistedHandlerError(error)
 
     if (isDead) {
       const updated = await updateIfLeaseHeld(event, {

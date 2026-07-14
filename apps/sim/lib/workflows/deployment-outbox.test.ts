@@ -11,6 +11,7 @@ const {
   mockBeginDeploymentOperationActivation,
   mockActivateDeploymentOperation,
   mockMarkDeploymentOperationFailed,
+  mockRecordDeploymentOperationRetry,
   mockIsDeploymentOperationCurrent,
   mockIsDeploymentVersionProtectedByCurrentOperation,
   mockCreateSchedulesForDeploy,
@@ -32,6 +33,7 @@ const {
   mockBeginDeploymentOperationActivation: vi.fn(),
   mockActivateDeploymentOperation: vi.fn(),
   mockMarkDeploymentOperationFailed: vi.fn(),
+  mockRecordDeploymentOperationRetry: vi.fn(),
   mockIsDeploymentOperationCurrent: vi.fn(),
   mockIsDeploymentVersionProtectedByCurrentOperation: vi.fn(),
   mockCreateSchedulesForDeploy: vi.fn(),
@@ -147,6 +149,7 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
     mockIsDeploymentVersionProtectedByCurrentOperation,
   markDeploymentComponentReadiness: mockMarkDeploymentComponentReadiness,
   markDeploymentOperationFailed: mockMarkDeploymentOperationFailed,
+  recordDeploymentOperationRetry: mockRecordDeploymentOperationRetry,
 }))
 
 vi.mock('@/lib/workflows/schedules', () => ({
@@ -215,7 +218,7 @@ function context(controller = new AbortController(), attempts = 0): OutboxEventC
     eventId: 'event-1',
     eventType: WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS.PREPARE_V2,
     attempts,
-    maxAttempts: 10,
+    maxAttempts: 4,
     signal: controller.signal,
     checkpointPayload: vi.fn().mockResolvedValue(undefined),
   }
@@ -367,7 +370,7 @@ describe('versioned deployment preparation outbox', () => {
       .mockResolvedValueOnce([{ id: 'version-2', state: { blocks: {} } }])
     mockPrepareWebhooks.mockRejectedValue(new Error('provider unavailable'))
 
-    await expect(handler()(payload(), context(new AbortController(), 9))).rejects.toThrow(
+    await expect(handler()(payload(), context(new AbortController(), 3))).rejects.toThrow(
       'provider unavailable'
     )
 
@@ -394,6 +397,12 @@ describe('versioned deployment preparation outbox', () => {
     )
 
     expect(mockMarkDeploymentOperationFailed).not.toHaveBeenCalled()
+    expect(mockRecordDeploymentOperationRetry).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      operationId: 'operation-1',
+      generation: 2,
+      error: expect.objectContaining({ message: 'provider briefly unavailable' }),
+    })
     expect(mockActivateDeploymentOperation).not.toHaveBeenCalled()
   })
 

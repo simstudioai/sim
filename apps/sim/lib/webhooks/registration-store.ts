@@ -281,8 +281,24 @@ export async function prepareWebhookRegistrationIntents(input: {
         .map((row) => [row.blockId, row])
     )
 
+    /**
+     * Orphans left by earlier attempts (their cleanup failed or the process
+     * died) are re-collected on every preparation so they cannot leak forever
+     * — cleanup itself stays generation-fenced, so racing operations at most
+     * duplicate a best-effort provider delete.
+     */
+    const staleOrphanRows = await tx
+      .select()
+      .from(webhook)
+      .where(
+        and(
+          eq(webhook.workflowId, input.fence.workflowId),
+          eq(webhook.registrationStatus, 'orphaned')
+        )
+      )
+
     const candidates: PreparedWebhookCandidate[] = []
-    const orphanedCandidates: WebhookRegistrationRow[] = []
+    const orphanedCandidates: WebhookRegistrationRow[] = [...staleOrphanRows]
     const now = new Date()
 
     for (const action of plan.actions) {
@@ -311,12 +327,35 @@ export async function prepareWebhookRegistrationIntents(input: {
 
       const desired = action.desired.desired
       const existingCandidate = candidatesByBlockId.get(action.triggerId)
-      if (
-        existingCandidate &&
-        existingCandidate.registrationGeneration === input.fence.generation &&
-        existingCandidate.configFingerprint === action.desired.fingerprint
-      ) {
-        candidates.push({ desired, row: existingCandidate })
+      if (existingCandidate && existingCandidate.configFingerprint === action.desired.fingerprint) {
+        if (existingCandidate.registrationGeneration === input.fence.generation) {
+          candidates.push({ desired, row: existingCandidate })
+          continue
+        }
+        /**
+         * A fingerprint-identical candidate from a superseded attempt is
+         * adopted rather than orphaned and reinserted: this preserves any
+         * checkpointed provider progress (an external subscription it already
+         * created keeps serving instead of being deleted and recreated) and
+         * avoids insert churn against the path uniqueness index.
+         */
+        const [adopted] = await tx
+          .update(webhook)
+          .set({
+            registrationGeneration: input.fence.generation,
+            deploymentVersionId: input.fence.deploymentVersionId,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(webhook.id, existingCandidate.id),
+              eq(webhook.registrationStatus, 'candidate'),
+              eq(webhook.registrationGeneration, rowRegistrationGeneration(existingCandidate))
+            )
+          )
+          .returning()
+        if (!adopted) throw new StaleWebhookRegistrationOperationError()
+        candidates.push({ desired, row: adopted })
         continue
       }
 

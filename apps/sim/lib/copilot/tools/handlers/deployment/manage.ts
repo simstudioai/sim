@@ -370,6 +370,7 @@ export async function executeGetDeploymentLog(
       name: r.name ?? undefined,
       description: r.description ?? undefined,
       isActive: r.isActive,
+      latestOperationStatus: r.latestOperationStatus ?? undefined,
       createdAt: r.createdAt.toISOString(),
       createdBy: r.createdBy ?? undefined,
     }))
@@ -565,6 +566,7 @@ export async function executePromoteToLive(
         deployedAt: result.deployedAt ? new Date(result.deployedAt).toISOString() : undefined,
         lifecycleStatus: result.latestDeploymentAttempt?.status ?? null,
         readiness: result.latestDeploymentAttempt?.readiness ?? null,
+        error: result.latestDeploymentAttempt?.error ?? null,
         warnings: result.warnings,
       },
     }

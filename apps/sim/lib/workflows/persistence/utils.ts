@@ -18,7 +18,7 @@ import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } f
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import type { Edge } from 'reactflow'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
@@ -942,7 +942,7 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
 }> {
   const { user } = await import('@sim/db')
 
-  const [rows, operations] = await Promise.all([
+  const [rows, [currentOperation]] = await Promise.all([
     db
       .select({
         id: workflowDeploymentVersion.id,
@@ -958,38 +958,31 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
       .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
       .where(eq(workflowDeploymentVersion.workflowId, workflowId))
       .orderBy(desc(workflowDeploymentVersion.version)),
+    /**
+     * Only the workflow's current (latest-generation) operation carries a
+     * status marker: a failed or in-flight attempt is live information until
+     * the next deploy action supersedes it, at which point it is history and
+     * the marker clears rather than sticking to old versions forever.
+     */
     db
-      .selectDistinctOn([workflowDeploymentOperation.deploymentVersionId], {
+      .select({
         deploymentVersionId: workflowDeploymentOperation.deploymentVersionId,
         status: workflowDeploymentOperation.status,
       })
       .from(workflowDeploymentOperation)
-      .where(
-        and(
-          eq(workflowDeploymentOperation.workflowId, workflowId),
-          isNotNull(workflowDeploymentOperation.deploymentVersionId)
-        )
-      )
-      .orderBy(
-        workflowDeploymentOperation.deploymentVersionId,
-        desc(workflowDeploymentOperation.generation)
-      ),
+      .where(eq(workflowDeploymentOperation.workflowId, workflowId))
+      .orderBy(desc(workflowDeploymentOperation.generation))
+      .limit(1),
   ])
-  const latestStatusByVersion = new Map<string, string>()
-  for (const operation of operations) {
-    if (
-      operation.deploymentVersionId &&
-      !latestStatusByVersion.has(operation.deploymentVersionId)
-    ) {
-      latestStatusByVersion.set(operation.deploymentVersionId, operation.status)
-    }
-  }
 
   return {
     versions: rows.map((row) => ({
       ...row,
       deployedByName: row.deployedByName ?? (row.createdBy === 'admin-api' ? 'Admin' : null),
-      latestOperationStatus: latestStatusByVersion.get(row.id) ?? null,
+      latestOperationStatus:
+        currentOperation && currentOperation.deploymentVersionId === row.id
+          ? currentOperation.status
+          : null,
     })),
   }
 }

@@ -12,9 +12,11 @@ import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateTriggerWebhookConfigForDeploy } from '@/lib/webhooks/deploy'
 import {
+  DEPLOYMENT_ERROR_CODES,
   type DeploymentComponentStatus,
   isDeploymentOperationAction,
   isDeploymentOperationStatus,
+  isNonRetryableDeploymentErrorCode,
   parseDeploymentReadiness,
 } from '@/lib/workflows/deployment-lifecycle'
 import {
@@ -225,9 +227,9 @@ function buildInlinePreparationFailure(
     success: false,
     error: latest.errorMessage || 'Deployment preparation failed',
     errorCode:
-      latest.errorCode === 'webhook_path_conflict'
+      latest.errorCode === DEPLOYMENT_ERROR_CODES.webhookPathConflict
         ? 'conflict'
-        : latest.errorCode === 'invalid_trigger_configuration'
+        : latest.errorCode === DEPLOYMENT_ERROR_CODES.invalidTriggerConfiguration
           ? 'validation'
           : 'internal',
   }
@@ -375,7 +377,7 @@ function summarizeDeploymentOperation(
         ? {
             code: operation.errorCode,
             message: operation.errorMessage,
-            retryable: false,
+            retryable: !isNonRetryableDeploymentErrorCode(operation.errorCode),
           }
         : null,
   }

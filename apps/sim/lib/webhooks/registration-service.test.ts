@@ -247,6 +247,78 @@ describe('stable webhook registration service', () => {
     expect(checkpointCandidate.mock.calls[1][0]).not.toHaveProperty('prepared')
   })
 
+  it('cleans a never-prepared ghost candidate best-effort so new deploys are not wedged', async () => {
+    const ghostOrphan = registrationRow({
+      id: 'ghost-orphan',
+      registrationStatus: 'orphaned',
+      registrationGeneration: 4,
+      preparedAt: null,
+      providerConfig: { event: 'created' },
+      isActive: false,
+      archivedAt: new Date('2026-07-14T00:00:00Z'),
+    })
+    const cleanupExternal = vi.fn()
+    const deleteAfterCleanup = vi.fn().mockResolvedValue(true)
+    const checkpointCandidate = vi.fn()
+    const store = dependencies({
+      prepareIntents: vi.fn().mockResolvedValue({
+        candidates: [],
+        orphanedCandidates: [ghostOrphan],
+      }),
+      getCleanupSnapshot: vi.fn().mockResolvedValue(ghostOrphan),
+      cleanupExternal,
+      deleteAfterCleanup,
+      checkpointCandidate,
+    })
+
+    await prepareStableWebhookRegistrations(
+      {
+        request: {} as NextRequest,
+        fence,
+        workflow: { id: fence.workflowId },
+        userId: 'user-1',
+        requestId: 'request-ghost',
+        desired: [],
+      },
+      store
+    )
+
+    expect(cleanupExternal).toHaveBeenCalledWith(ghostOrphan, expect.anything(), 'request-ghost', {
+      throwOnError: false,
+    })
+    expect(deleteAfterCleanup).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps strict external cleanup for retired rows that served traffic', async () => {
+    const retired = registrationRow({
+      registrationStatus: 'retired',
+      isActive: false,
+      archivedAt: new Date('2026-07-14T00:00:00Z'),
+    })
+    const cleanupExternal = vi.fn()
+    const deleteAfterCleanup = vi.fn().mockResolvedValue(true)
+    const store = dependencies({
+      listRetired: vi.fn().mockResolvedValueOnce([retired]).mockResolvedValue([]),
+      getCleanupSnapshot: vi.fn().mockResolvedValue(retired),
+      cleanupExternal,
+      deleteAfterCleanup,
+    })
+
+    await cleanupRetiredWebhookRegistrationsAfterActivation(
+      {
+        fence,
+        workflow: { id: fence.workflowId },
+        requestId: 'request-retired',
+      },
+      store
+    )
+
+    expect(cleanupExternal).toHaveBeenCalledWith(retired, expect.anything(), 'request-retired', {
+      throwOnError: true,
+    })
+    expect(deleteAfterCleanup).toHaveBeenCalledTimes(1)
+  })
+
   it('skips external cleanup when the row was reused by a newer generation', async () => {
     const staleRetired = registrationRow({
       registrationStatus: 'retired',

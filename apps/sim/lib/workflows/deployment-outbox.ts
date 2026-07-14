@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, ne } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
@@ -29,6 +30,7 @@ import {
 import { cleanupRetiredWebhookRegistrationsAfterActivation } from '@/lib/webhooks/registration-service'
 import { activateWebhookRegistrations } from '@/lib/webhooks/registration-store'
 import {
+  DEPLOYMENT_ERROR_CODES,
   DEPLOYMENT_OPERATION_PROTOCOL_VERSION,
   type DeploymentOperationStatus,
   isDeploymentReadinessComplete,
@@ -45,6 +47,7 @@ import {
   isDeploymentVersionProtectedByCurrentOperation,
   markDeploymentComponentReadiness,
   markDeploymentOperationFailed,
+  recordDeploymentOperationRetry,
   type WorkflowDeploymentOperation,
 } from '@/lib/workflows/persistence/deployment-operations'
 import { createSchedulesForDeploy, deleteSchedulesForWorkflow } from '@/lib/workflows/schedules'
@@ -63,6 +66,14 @@ export const WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS = {
 } as const
 
 export const DEPLOYMENT_READINESS_COMPONENTS = ['webhooks', 'schedules', 'mcp'] as const
+
+/**
+ * One inline attempt at deploy time plus three exponential-backoff retries.
+ * Checkpoints make retries resumable, so a persistently failing preparation
+ * reaches its terminal failed state within roughly half a minute instead of
+ * burning a long retry tail while the UI shows retrying.
+ */
+const DEPLOYMENT_PREPARATION_MAX_ATTEMPTS = 4
 
 interface DeploymentPreparationCheckpoints {
   webhooksPrepared?: boolean
@@ -134,7 +145,7 @@ export async function enqueueWorkflowDeploymentPreparation(
   payload: PrepareDeploymentV2Payload
 ): Promise<string> {
   return enqueueOutboxEvent(executor, WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS.PREPARE_V2, payload, {
-    maxAttempts: 10,
+    maxAttempts: DEPLOYMENT_PREPARATION_MAX_ATTEMPTS,
   })
 }
 
@@ -219,7 +230,9 @@ const defaultPrepareDeploymentWebhooks: PrepareDeploymentWebhooksHook = async (i
     if (status >= 400 && status < 500) {
       throw new NonRetryableDeploymentError(
         message,
-        status === 409 ? 'webhook_path_conflict' : 'invalid_trigger_configuration'
+        status === 409
+          ? DEPLOYMENT_ERROR_CODES.webhookPathConflict
+          : DEPLOYMENT_ERROR_CODES.invalidTriggerConfiguration
       )
     }
     throw new Error(message)
@@ -256,6 +269,28 @@ function createPrepareDeploymentHandler(
           })
           return
         }
+        throw error
+      }
+
+      try {
+        /**
+         * Transient failure with retries remaining: surface the live error on
+         * the in-flight operation so status consumers show "retrying" instead
+         * of a blank pending state. Best-effort — the outbox retry is the
+         * durable mechanism, not this record.
+         */
+        await recordDeploymentOperationRetry({
+          workflowId: payload.workflowId,
+          operationId: payload.operationId,
+          generation: payload.generation,
+          error,
+        })
+      } catch (recordError) {
+        logger.warn('Failed to record deployment retry state', {
+          workflowId: payload.workflowId,
+          operationId: payload.operationId,
+          error: toError(recordError).message,
+        })
       }
       throw error
     }

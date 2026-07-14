@@ -211,6 +211,16 @@ export function Versions({
             !v.isActive && v.latestOperationStatus !== 'active' ? v.latestOperationStatus : null
           const isOperationPending =
             operationStatus === 'preparing' || operationStatus === 'activating'
+          /** Exactly one parenthetical per row; selection already highlights the row. */
+          const rowLabel = v.isActive
+            ? 'live'
+            : isOperationPending
+              ? 'pending'
+              : operationStatus === 'failed'
+                ? 'failed'
+                : isSelected
+                  ? 'selected'
+                  : null
 
           return (
             <div
@@ -287,25 +297,8 @@ export function Versions({
                         v{v.version}
                       </span>
                       {v.name && <span className='truncate'>{v.name}</span>}
-                      {v.isActive && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>(live)</span>
-                      )}
-                      {operationStatus && (
-                        <span
-                          className={cn(
-                            'shrink-0',
-                            isOperationPending
-                              ? 'text-amber-600 dark:text-amber-400'
-                              : operationStatus === 'failed'
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-[var(--text-tertiary)]'
-                          )}
-                        >
-                          ({operationStatus})
-                        </span>
-                      )}
-                      {isSelected && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>(selected)</span>
+                      {rowLabel && (
+                        <span className='shrink-0 text-[var(--text-tertiary)]'>({rowLabel})</span>
                       )}
                     </span>
                   )}

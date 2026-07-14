@@ -49,4 +49,14 @@ describe('deployment lifecycle', () => {
         'authorization=[redacted] password=[redacted] https://[redacted]@example.com failed next',
     })
   })
+
+  it('drops driver bound-parameter tails that can carry credentials', () => {
+    const error = new Error(
+      'Failed query: insert into "webhook" ("id", "provider_config") values ($1, $2)\nparams: wh-1,{"triggerApiKey":"super-secret-key"}'
+    )
+
+    expect(toSafeDeploymentError(error).message).toBe(
+      'Failed query: insert into "webhook" ("id", "provider_config") values ($1, $2)'
+    )
+  })
 })

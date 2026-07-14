@@ -13,6 +13,8 @@ const { ensureWorkflowAccessMock, checkNeedsRedeploymentMock } = vi.hoisted(() =
 
 const performRevertToVersionMock = workflowsOrchestrationMockFns.mockPerformRevertToVersion
 const performActivateVersionMock = workflowsOrchestrationMockFns.mockPerformActivateVersion
+const getWorkflowDeploymentSummaryMock =
+  workflowsOrchestrationMockFns.mockGetWorkflowDeploymentSummary
 
 const { resolveWorkflowStateRefMock, generateWorkflowDiffSummaryMock, listWorkflowVersionsMock } =
   vi.hoisted(() => ({
@@ -182,6 +184,17 @@ describe('executePromoteToLive', () => {
     performActivateVersionMock.mockResolvedValue({
       success: true,
       deployedAt: new Date('2026-05-30T00:00:00.000Z'),
+      latestDeploymentAttempt: {
+        id: 'op-1',
+        deploymentVersionId: 'dv-3',
+        version: 3,
+        action: 'activate',
+        status: 'active',
+        readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-05-30T00:00:00.000Z',
+        activatedAt: '2026-05-30T00:00:00.000Z',
+        error: null,
+      },
     })
 
     const result = await executePromoteToLive({ workflowId: 'wf-1', version: 3 }, {
@@ -194,13 +207,14 @@ describe('executePromoteToLive', () => {
       workflowId: 'wf-1',
       version: 3,
       userId: 'user-1',
-      workflow: { id: 'wf-1', workspaceId: 'ws-1', name: 'Test Workflow' },
     })
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({
       workflowId: 'wf-1',
       version: 3,
       message: 'Promoted version 3 to live',
+      lifecycleStatus: 'active',
+      error: null,
     })
   })
 
@@ -322,6 +336,11 @@ describe('executeCheckDeploymentStatus', () => {
       workflow: { id: 'wf-1', workspaceId: 'ws-1', name: 'Test Workflow' },
     })
     checkNeedsRedeploymentMock.mockResolvedValue(false)
+    getWorkflowDeploymentSummaryMock.mockResolvedValue({
+      activeDeployment: null,
+      latestDeploymentAttempt: null,
+      warnings: [],
+    })
   })
 
   it('uses the shared redeployment freshness helper for deployed APIs', async () => {

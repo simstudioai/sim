@@ -126,6 +126,25 @@ export function parseDeploymentReadiness(value: unknown): DeploymentReadiness | 
   return readiness
 }
 
+export const DEPLOYMENT_ERROR_CODES = {
+  webhookPathConflict: 'webhook_path_conflict',
+  invalidTriggerConfiguration: 'invalid_trigger_configuration',
+} as const
+
+const NON_RETRYABLE_DEPLOYMENT_ERROR_CODES = new Set<string>([
+  DEPLOYMENT_ERROR_CODES.webhookPathConflict,
+  DEPLOYMENT_ERROR_CODES.invalidTriggerConfiguration,
+])
+
+/**
+ * Returns true when a persisted deployment error code cannot succeed on a
+ * plain retry — the configuration must change first. Everything else
+ * (exhausted transient retries, generic failures) is worth redeploying as-is.
+ */
+export function isNonRetryableDeploymentErrorCode(code: string | null | undefined): boolean {
+  return code != null && NON_RETRYABLE_DEPLOYMENT_ERROR_CODES.has(code)
+}
+
 /**
  * A preparation failure that cannot succeed on retry (path conflicts, invalid
  * trigger configuration). The outbox handler fails the operation immediately
@@ -176,7 +195,14 @@ export function toSafeDeploymentError(error: unknown, errorCode?: string): SafeD
 }
 
 function sanitizeDeploymentErrorMessage(message: string): string {
-  const withoutControlCharacters = message.replace(/[\u0000-\u001F\u007F]+/g, ' ').trim()
+  /**
+   * Driver errors ("Failed query: ...\nparams: ...") embed every bound
+   * parameter value, which can include user credentials from provider
+   * configs — the parameter tail is dropped before anything else because the
+   * control-character pass below would otherwise fold it into one line.
+   */
+  const withoutBoundParams = message.split(/\nparams: /)[0]
+  const withoutControlCharacters = withoutBoundParams.replace(/[\u0000-\u001F\u007F]+/g, ' ').trim()
   const withoutUrlCredentials = withoutControlCharacters.replace(
     /:\/\/[^/\s:@]+:[^/\s@]+@/g,
     '://[redacted]@'

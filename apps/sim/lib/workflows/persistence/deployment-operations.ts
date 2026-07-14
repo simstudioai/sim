@@ -345,6 +345,8 @@ export async function beginDeploymentOperationActivation(
       .update(workflowDeploymentOperation)
       .set({
         status: 'activating',
+        errorCode: null,
+        errorMessage: null,
         updatedAt: now,
       })
       .where(
@@ -361,6 +363,8 @@ export async function beginDeploymentOperationActivation(
       operation: {
         ...operation.operation,
         status: 'activating',
+        errorCode: null,
+        errorMessage: null,
         updatedAt: now,
       },
     }
@@ -399,6 +403,8 @@ export async function markDeploymentComponentReadiness(
         ${JSON.stringify(nextState)}::jsonb,
         false
       )`,
+      errorCode: null,
+      errorMessage: null,
       updatedAt: now,
     })
     .where(
@@ -595,6 +601,34 @@ export async function markDeploymentOperationFailed(
 ): Promise<DeploymentOperationMutationResult> {
   const safeError = toSafeDeploymentError(params.error, params.errorCode)
   return markDeploymentOperationTerminal(params, 'failed', safeError)
+}
+
+/**
+ * Records a transient attempt failure on an in-flight operation without
+ * changing its lifecycle status, so status surfaces can show "retrying" with
+ * the live error instead of a blank pending state. Cleared again the moment a
+ * later attempt makes progress (component readiness or activation).
+ */
+export async function recordDeploymentOperationRetry(
+  params: DeploymentOperationGeneration & { error: unknown }
+): Promise<void> {
+  const safeError = toSafeDeploymentError(params.error, 'preparation_retrying')
+  const now = new Date()
+  await db
+    .update(workflowDeploymentOperation)
+    .set({
+      errorCode: safeError.code,
+      errorMessage: safeError.message,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(workflowDeploymentOperation.id, params.operationId),
+        eq(workflowDeploymentOperation.workflowId, params.workflowId),
+        eq(workflowDeploymentOperation.generation, params.generation),
+        inArray(workflowDeploymentOperation.status, IN_FLIGHT_STATUSES)
+      )
+    )
 }
 
 /**

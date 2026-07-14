@@ -132,7 +132,6 @@ export function DeployModal({
   const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [deployError, setDeployError] = useState<string | null>(null)
-  const [deployWarnings, setDeployWarnings] = useState<string[]>([])
   const [isFinalizingDeploy, setIsFinalizingDeploy] = useState(false)
   const [isActivatingVersion, setIsActivatingVersion] = useState(false)
   const [isChatFormValid, setIsChatFormValid] = useState(false)
@@ -203,41 +202,25 @@ export function DeployModal({
 
   const versions = versionsData?.versions ?? []
   const deploymentAttemptStatus = deploymentInfoData?.latestDeploymentAttempt?.status
-  const hasTerminalDeploymentAttempt =
-    deploymentAttemptStatus === 'active' ||
-    deploymentAttemptStatus === 'failed' ||
-    deploymentAttemptStatus === 'superseded'
-  const isAttemptFailed = deploymentAttemptStatus === 'failed'
-  const attemptErrorMessage = isAttemptFailed
-    ? (deploymentInfoData?.latestDeploymentAttempt?.error?.message ??
-      'Deployment preparation failed')
-    : null
-  const displayedDeployWarnings = isAttemptFailed
-    ? []
-    : hasTerminalDeploymentAttempt || deployWarnings.length === 0
-      ? (deploymentInfoData?.warnings ?? [])
-      : deployWarnings
+  const attemptErrorMessage =
+    deploymentInfoData?.latestDeploymentAttempt?.error?.message ??
+    (deploymentAttemptStatus === 'failed' ? 'Deployment preparation failed' : null)
 
   const isWorkflowStillActive = (targetWorkflowId: string) => {
     return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
   }
 
-  const syncDraftAfterDeploy = async (): Promise<string | null> => {
-    if (!workflowId) return null
+  const syncDraftAfterDeploy = async (): Promise<void> => {
+    if (!workflowId) return
 
     try {
-      const syncedActiveWorkflow = await syncLocalDraftFromServer(workflowId)
-      if (!syncedActiveWorkflow && isWorkflowStillActive(workflowId)) {
-        return 'Deployment succeeded, but local sync is still catching up. Refresh if the status looks stale.'
-      }
-      return null
+      await syncLocalDraftFromServer(workflowId)
     } catch (error) {
-      if (!isWorkflowStillActive(workflowId)) return null
+      if (!isWorkflowStillActive(workflowId)) return
       logger.warn('Workflow deployed, but local draft sync failed', {
         workflowId,
         error: toError(error).message,
       })
-      return 'Deployment succeeded, but local sync failed. Refresh if the status looks stale.'
     }
   }
 
@@ -288,7 +271,6 @@ export function DeployModal({
     if (open && workflowId) {
       setActiveTab('general')
       setDeployError(null)
-      setDeployWarnings([])
       setChatSuccess(false)
 
       const currentOutputs = selectedStreamingOutputsRef.current
@@ -344,7 +326,6 @@ export function DeployModal({
     deployActionIdRef.current = actionId
     setIsFinalizingDeploy(true)
     setDeployError(null)
-    setDeployWarnings([])
 
     try {
       if (!(await deployReadiness.waitUntilReady())) {
@@ -356,10 +337,9 @@ export function DeployModal({
 
       try {
         const result = await deployMutation.mutateAsync({ workflowId })
-        const syncWarning =
-          result.latestDeploymentAttempt?.status === 'active' ? await syncDraftAfterDeploy() : null
-        if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
-        setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
+        if (result.latestDeploymentAttempt?.status === 'active') {
+          await syncDraftAfterDeploy()
+        }
       } finally {
         if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
@@ -385,18 +365,14 @@ export function DeployModal({
 
     activateVersionInFlightRef.current = true
     setIsActivatingVersion(true)
-    setDeployWarnings([])
+    setDeployError(null)
 
     try {
-      const result = await activateVersionMutation.mutateAsync({ workflowId, version })
-      if (!isWorkflowStillActive(workflowId)) return
-      if (result.warnings && result.warnings.length > 0) {
-        setDeployWarnings(result.warnings)
-      }
+      await activateVersionMutation.mutateAsync({ workflowId, version })
     } catch (error) {
       if (!isWorkflowStillActive(workflowId)) return
       logger.error('Error promoting version:', { error })
-      throw error
+      setDeployError(toError(error).message || `Failed to promote v${version} to live`)
     } finally {
       activateVersionInFlightRef.current = false
       setIsActivatingVersion(false)
@@ -411,16 +387,10 @@ export function DeployModal({
       return
     }
 
-    setDeployWarnings([])
-
     try {
-      const result = await undeployMutation.mutateAsync({ workflowId: targetWorkflowId })
+      await undeployMutation.mutateAsync({ workflowId: targetWorkflowId })
       if (!isWorkflowStillActive(targetWorkflowId)) return
       setUndeployTargetWorkflowId(null)
-      if (result.warnings && result.warnings.length > 0) {
-        setDeployWarnings(result.warnings)
-        return
-      }
       onOpenChange(false)
     } catch (error: unknown) {
       if (!isWorkflowStillActive(targetWorkflowId)) return
@@ -436,7 +406,6 @@ export function DeployModal({
     deployActionIdRef.current = actionId
     setIsFinalizingDeploy(true)
     setDeployError(null)
-    setDeployWarnings([])
 
     try {
       if (!(await deployReadiness.waitUntilReady())) {
@@ -462,9 +431,9 @@ export function DeployModal({
 
       try {
         const result = await deployMutation.mutateAsync({ workflowId })
-        const syncWarning = await syncDraftAfterDeploy()
-        if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
-        setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
+        if (result.latestDeploymentAttempt?.status === 'active') {
+          await syncDraftAfterDeploy()
+        }
       } finally {
         if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
@@ -490,7 +459,6 @@ export function DeployModal({
     if (workflowId) releaseDeployAction(workflowId)
     setChatSubmitting(false)
     setDeployError(null)
-    setDeployWarnings([])
     onOpenChange(false)
   }
 
@@ -562,47 +530,11 @@ export function DeployModal({
                 Configure and manage workflow deployment settings including API, MCP, and chat
                 options.
               </ModalDescription>
-              {(deployError || attemptErrorMessage || displayedDeployWarnings.length > 0) && (
-                <div className='mb-3 flex flex-col gap-2' aria-live='polite'>
-                  {deployError && (
-                    <Badge variant='red' size='lg' dot className='max-w-full truncate' role='alert'>
-                      {deployError}
-                    </Badge>
-                  )}
-                  {!deployError && attemptErrorMessage && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Badge
-                          variant='red'
-                          size='lg'
-                          dot
-                          className='max-w-full cursor-default truncate'
-                          role='alert'
-                        >
-                          {attemptErrorMessage}
-                        </Badge>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='bottom' className='max-w-[360px]'>
-                        <p className='text-caption'>{attemptErrorMessage}</p>
-                        <p className='text-caption'>
-                          {isDeployed
-                            ? 'The previously deployed version is still live.'
-                            : 'The workflow remains undeployed.'}
-                        </p>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-                  {displayedDeployWarnings.map((warning) => (
-                    <Badge
-                      key={warning}
-                      variant='amber'
-                      size='lg'
-                      dot
-                      className='max-w-full truncate'
-                    >
-                      {warning}
-                    </Badge>
-                  ))}
+              {deployError && (
+                <div className='mb-3' role='alert'>
+                  <Badge variant='red' size='lg' dot className='max-w-full truncate'>
+                    {deployError}
+                  </Badge>
                 </div>
               )}
               <ModalTabsContent value='general'>
@@ -833,9 +765,10 @@ interface StatusBadgeProps {
 }
 
 /**
- * Lifecycle-aware deployment status badge. Pending attempts render amber,
- * failed attempts render red with the failure reason in a tooltip, and a
- * settled live deployment falls back to the Live/Update states.
+ * Lifecycle-aware deployment status badge. Pending attempts render amber
+ * (labelled Retrying once an attempt has recorded a transient error), failed
+ * attempts render red with the failure reason in a tooltip, and a settled
+ * live deployment falls back to the Live/Update states.
  */
 function StatusBadge({
   isDeployed,
@@ -844,17 +777,25 @@ function StatusBadge({
   attemptErrorMessage,
 }: StatusBadgeProps) {
   if (attemptStatus === 'preparing' || attemptStatus === 'activating') {
+    const isRetrying = Boolean(attemptErrorMessage)
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Badge variant='amber' size='lg' dot className='cursor-default'>
-            Pending
+            {isRetrying ? 'Retrying' : 'Pending'}
           </Badge>
         </Tooltip.Trigger>
         <Tooltip.Content side='top' className='max-w-[320px]'>
-          {isDeployed
-            ? 'A new version is being prepared. The current version stays live until cutover completes.'
-            : 'Triggers and schedules are being registered. The workflow goes live once activation completes.'}
+          {isRetrying && <p className='text-caption'>{attemptErrorMessage}</p>}
+          <p className='text-caption'>
+            {isRetrying
+              ? isDeployed
+                ? 'Retrying automatically. The current version stays live until cutover completes.'
+                : 'Retrying automatically. The workflow goes live once activation completes.'
+              : isDeployed
+                ? 'A new version is being prepared. The current version stays live until cutover completes.'
+                : 'Triggers and schedules are being registered. The workflow goes live once activation completes.'}
+          </p>
         </Tooltip.Content>
       </Tooltip.Root>
     )
@@ -922,22 +863,30 @@ function GeneralFooter({
     deployReadiness.isBlocked && !deployReadiness.isSyncing && !isSubmitting && !isUndeploying
       ? deployReadiness.tooltip
       : null
+  const status = (
+    <div className='flex min-w-0 flex-col gap-1'>
+      <StatusBadge
+        isDeployed={Boolean(isDeployed)}
+        needsRedeployment={needsRedeployment}
+        attemptStatus={attemptStatus}
+        attemptErrorMessage={attemptErrorMessage}
+      />
+      {blockedMessage && (
+        <div
+          className='max-w-[300px] truncate text-[var(--text-muted)] text-xs'
+          title={blockedMessage}
+        >
+          {blockedMessage}
+        </div>
+      )}
+    </div>
+  )
   const deployActionLoading = isSubmitting || isDeploymentSettling
 
   if (!isDeployed) {
     return (
       <ModalFooter className='items-center justify-between'>
-        <div className='flex min-w-0 flex-col gap-1'>
-          <StatusBadge
-            isDeployed={false}
-            needsRedeployment={needsRedeployment}
-            attemptStatus={attemptStatus}
-            attemptErrorMessage={attemptErrorMessage}
-          />
-          {blockedMessage && (
-            <div className='max-w-[260px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
-          )}
-        </div>
+        {status}
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
             {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
@@ -950,17 +899,7 @@ function GeneralFooter({
 
   return (
     <ModalFooter className='items-center justify-between'>
-      <div className='flex min-w-0 flex-col gap-1'>
-        <StatusBadge
-          isDeployed
-          needsRedeployment={needsRedeployment}
-          attemptStatus={attemptStatus}
-          attemptErrorMessage={attemptErrorMessage}
-        />
-        {blockedMessage && (
-          <div className='max-w-[300px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
-        )}
-      </div>
+      {status}
       <div className='flex items-center gap-2'>
         <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}

@@ -100,7 +100,18 @@ async function cleanupGenerationFencedRegistration(
   })
   if (!snapshot) return false
 
-  await dependencies.cleanupExternal(snapshot, workflow, requestId, { throwOnError: true })
+  /**
+   * Strict cleanup only for rows that verifiably held a live subscription:
+   * retired rows served traffic and prepared candidates completed provider
+   * setup. A never-prepared ghost (its create failed) has partial or no
+   * external state — strict-failing on it would wedge every future deploy
+   * behind an uncleanable leftover, so those clean up best-effort instead.
+   */
+  const holdsVerifiedSubscription =
+    snapshot.registrationStatus === 'retired' || snapshot.preparedAt !== null
+  await dependencies.cleanupExternal(snapshot, workflow, requestId, {
+    throwOnError: holdsVerifiedSubscription,
+  })
   return dependencies.deleteAfterCleanup({
     workflowId: snapshot.workflowId,
     webhookId: snapshot.id,
@@ -287,6 +298,7 @@ export async function prepareStableWebhookRegistrations(
   })
 
   const failures: Error[] = []
+  const failureReasons: string[] = []
   const blocksWithFailedOrphanCleanup = new Set<string>()
   for (const orphaned of work.orphanedCandidates) {
     try {
@@ -299,6 +311,7 @@ export async function prepareStableWebhookRegistrations(
       )
     } catch (error) {
       failures.push(toError(error))
+      failureReasons.push(`${orphaned.provider ?? 'webhook'} cleanup: ${toError(error).message}`)
       if (orphaned.blockId) blocksWithFailedOrphanCleanup.add(orphaned.blockId)
     }
   }
@@ -309,6 +322,7 @@ export async function prepareStableWebhookRegistrations(
       await prepareCandidate(input, candidate, dependencies)
     } catch (error) {
       failures.push(toError(error))
+      failureReasons.push(`${candidate.desired.provider}: ${toError(error).message}`)
       logger.warn('Webhook registration candidate preparation failed', {
         workflowId: input.fence.workflowId,
         webhookId: candidate.row.id,
@@ -319,9 +333,14 @@ export async function prepareStableWebhookRegistrations(
   }
 
   if (failures.length > 0) {
+    /**
+     * The aggregate message carries the underlying provider reasons because it
+     * is what gets persisted on the deployment operation and shown in the
+     * retrying/failed tooltips — a bare count would hide the actual cause.
+     */
     throw new AggregateError(
       failures,
-      `Failed to prepare ${failures.length} webhook registration(s)`
+      `Failed to prepare ${failures.length} webhook registration(s): ${[...new Set(failureReasons)].join('; ')}`
     )
   }
 }
@@ -344,6 +363,7 @@ export async function cleanupRetiredWebhookRegistrationsAfterActivation(
     if (retiredRows.length === 0) return
 
     const failures: Error[] = []
+    const failureReasons: string[] = []
     for (const row of retiredRows) {
       input.signal?.throwIfAborted()
       try {
@@ -356,11 +376,15 @@ export async function cleanupRetiredWebhookRegistrationsAfterActivation(
         )
       } catch (error) {
         failures.push(toError(error))
+        failureReasons.push(`${row.provider ?? 'webhook'}: ${toError(error).message}`)
       }
     }
 
     if (failures.length > 0) {
-      throw new AggregateError(failures, `Failed to clean ${failures.length} retired webhook(s)`)
+      throw new AggregateError(
+        failures,
+        `Failed to clean ${failures.length} retired webhook(s): ${[...new Set(failureReasons)].join('; ')}`
+      )
     }
   }
 }

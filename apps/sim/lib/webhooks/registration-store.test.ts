@@ -237,7 +237,7 @@ describe('prepareWebhookRegistrationIntents', () => {
 
   it('claims paths and writes legacy-invisible candidates for changed registrations', async () => {
     const previousActive = activeRow()
-    const { inserts, updates } = runInTx([[{ id: 'workflow-1' }], [], [previousActive], []])
+    const { inserts, updates } = runInTx([[{ id: 'workflow-1' }], [], [previousActive], [], []])
 
     const work = await prepareWebhookRegistrationIntents({ fence: FENCE, desired: [desired] })
 
@@ -265,7 +265,7 @@ describe('prepareWebhookRegistrationIntents', () => {
 
   it('reuses fingerprint-matched active rows by bumping their generation fence', async () => {
     const reusable = activeRow({ configFingerprint: 'fp-new' })
-    const { inserts, updates } = runInTx([[{ id: 'workflow-1' }], [], [reusable], []])
+    const { inserts, updates } = runInTx([[{ id: 'workflow-1' }], [], [reusable], [], []])
 
     const work = await prepareWebhookRegistrationIntents({ fence: FENCE, desired: [desired] })
 
@@ -275,6 +275,53 @@ describe('prepareWebhookRegistrationIntents', () => {
       expect.objectContaining({ registrationGeneration: 3, configFingerprint: 'fp-new' })
     )
     expect(work.candidates).toHaveLength(0)
+  })
+
+  it('adopts a fingerprint-identical candidate from a superseded attempt instead of reinserting', async () => {
+    const supersededCandidate = activeRow({
+      id: 'wh-prev-candidate',
+      registrationStatus: 'candidate',
+      registrationGeneration: 2,
+      configFingerprint: 'fp-new',
+      preparedAt: null,
+      isActive: false,
+      deploymentVersionId: 'version-2',
+      archivedAt: new Date('2026-07-14T00:00:00Z'),
+    })
+    const { inserts, updates } = runInTx([
+      [{ id: 'workflow-1' }],
+      [],
+      [],
+      [supersededCandidate],
+      [],
+    ])
+
+    const work = await prepareWebhookRegistrationIntents({ fence: FENCE, desired: [desired] })
+
+    expect(inserts).toHaveLength(0)
+    expect(updates).toHaveLength(1)
+    expect(updates[0].payload).toEqual(
+      expect.objectContaining({ registrationGeneration: 3, deploymentVersionId: 'version-3' })
+    )
+    expect(work.candidates).toHaveLength(1)
+    expect(work.orphanedCandidates).toHaveLength(0)
+  })
+
+  it('re-collects stale orphans from earlier attempts so they cannot leak forever', async () => {
+    const staleOrphan = activeRow({
+      id: 'wh-stale-orphan',
+      registrationStatus: 'orphaned',
+      registrationGeneration: 2,
+      preparedAt: null,
+      isActive: false,
+      archivedAt: new Date('2026-07-13T00:00:00Z'),
+    })
+    const { inserts } = runInTx([[{ id: 'workflow-1' }], [], [], [], [staleOrphan]])
+
+    const work = await prepareWebhookRegistrationIntents({ fence: FENCE, desired: [desired] })
+
+    expect(work.orphanedCandidates).toEqual([staleOrphan])
+    expect(inserts).toHaveLength(1)
   })
 
   it('rejects stale generations before touching rows', async () => {

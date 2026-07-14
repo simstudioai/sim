@@ -32,7 +32,7 @@ const logger = createLogger('DeploymentQueries')
 export type { ChatDetail, DeploymentVersionsResponse }
 
 export const DEPLOYMENT_INFO_STALE_TIME = 30 * 1000
-export const DEPLOYMENT_STATUS_REFETCH_INTERVAL = 2 * 1000
+export const DEPLOYMENT_STATUS_REFETCH_INTERVAL = 5 * 1000
 export const DEPLOYED_WORKFLOW_STATE_STALE_TIME = 30 * 1000
 export const DEPLOYMENT_VERSIONS_STALE_TIME = 30 * 1000
 export const CHAT_DEPLOYMENT_STATUS_STALE_TIME = 30 * 1000
