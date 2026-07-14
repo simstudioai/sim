@@ -10,10 +10,7 @@ import type {
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
-import type {
-  AgentStreamSink,
-  UnsubscribeAgentStreamSink,
-} from '@/providers/stream-events'
+import type { AgentStreamSink, UnsubscribeAgentStreamSink } from '@/providers/stream-events'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 

@@ -3,9 +3,9 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createAgentEventReadableStream,
   type AgentStreamEvent,
   type AgentStreamSink,
+  createAgentEventReadableStream,
 } from '@/providers/stream-events'
 import { createAgentStreamPump, DEFAULT_MAX_THINKING_BYTES } from '@/providers/stream-pump'
 

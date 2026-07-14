@@ -49,7 +49,12 @@ function toolThenAnswerChunks(toolName: string, args: string, answer: string) {
           delta: {
             reasoning_content: 'I should call the tool. ',
             tool_calls: [
-              { index: 0, id: 'call_1', type: 'function', function: { name: toolName, arguments: '' } },
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: toolName, arguments: '' },
+              },
             ],
           },
         },

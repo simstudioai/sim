@@ -48,7 +48,6 @@ import {
   getIterationContext,
 } from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
-import { createAgentStreamPump } from '@/providers/stream-pump'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import {
   buildBranchNodeId,
@@ -60,6 +59,7 @@ import {
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
   type VariableResolver,
 } from '@/executor/variables/resolver'
+import { createAgentStreamPump } from '@/providers/stream-pump'
 import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -974,7 +974,7 @@ function stripThinkingContentFromOutput(output: unknown): void {
   if (!Array.isArray(segments)) return
   for (const segment of segments) {
     if (segment && typeof segment === 'object' && 'thinkingContent' in segment) {
-      delete (segment as { thinkingContent?: string }).thinkingContent
+      ;(segment as { thinkingContent?: string }).thinkingContent = undefined
     }
   }
 }

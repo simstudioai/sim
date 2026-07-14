@@ -3,13 +3,13 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  type AgentStreamEvent,
   createAgentEventReadableStream,
   isAgentEventReadableStream,
   isAgentStreamEvent,
   isAgentStreamFormat,
   isTextDeltaTurn,
   isToolCallEndStatus,
-  type AgentStreamEvent,
 } from '@/providers/stream-events'
 
 describe('stream-events contract', () => {

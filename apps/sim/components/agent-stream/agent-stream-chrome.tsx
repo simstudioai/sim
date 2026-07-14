@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Circle, Square, X } from 'lucide-react'
 import { cn } from '@sim/emcn'
+import { Check, ChevronDown, Circle, Square, X } from 'lucide-react'
 import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 
 export type AgentStreamToolStatus = 'running' | 'success' | 'error' | 'cancelled'

@@ -62,10 +62,7 @@ function makeFinalMessage(overrides: {
   }
 }
 
-function makeMessageStream(
-  events: unknown[],
-  finalMessage: ReturnType<typeof makeFinalMessage>
-) {
+function makeMessageStream(events: unknown[], finalMessage: ReturnType<typeof makeFinalMessage>) {
   return {
     async *[Symbol.asyncIterator]() {
       for (const event of events) {

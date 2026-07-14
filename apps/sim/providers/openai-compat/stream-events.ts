@@ -7,9 +7,9 @@
  * Tool-call argument deltas are accumulated for tool-loop history.
  */
 
+import { createLogger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { createLogger } from '@sim/logger'
 import type { AgentStreamEvent, TextDeltaTurn } from '@/providers/stream-events'
 
 export interface OpenAICompatAssembledToolCall {

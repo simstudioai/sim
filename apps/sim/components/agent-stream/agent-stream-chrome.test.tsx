@@ -15,10 +15,7 @@ vi.mock('@/lib/copilot/tools/tool-display', () => ({
 
 import { AgentStreamThinkingChrome } from '@/components/agent-stream/agent-stream-chrome'
 
-function renderChrome(props: {
-  thinking: string
-  isStreaming?: boolean
-}): {
+function renderChrome(props: { thinking: string; isStreaming?: boolean }): {
   container: HTMLDivElement
   rerender: (next: { thinking: string; isStreaming?: boolean }) => void
   unmount: () => void
@@ -30,9 +27,7 @@ function renderChrome(props: {
 
   const mount = (p: { thinking: string; isStreaming?: boolean }) => {
     act(() => {
-      root.render(
-        <AgentStreamThinkingChrome thinking={p.thinking} isStreaming={p.isStreaming} />
-      )
+      root.render(<AgentStreamThinkingChrome thinking={p.thinking} isStreaming={p.isStreaming} />)
     })
   }
 

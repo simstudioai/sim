@@ -95,5 +95,4 @@ export const anthropicRedactedThinkingAssembledContent = [
 export const anthropicRedactedThinkingExpectedTraceThinking =
   '[redacted]\n\nVisible follow-up reasoning after redaction.'
 
-export const anthropicRedactedThinkingExpectedText =
-  'Here is the answer after redacted thinking.'
+export const anthropicRedactedThinkingExpectedText = 'Here is the answer after redacted thinking.'

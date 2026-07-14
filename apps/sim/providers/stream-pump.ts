@@ -13,8 +13,8 @@ import {
   type AgentStreamEvent,
   type AgentStreamFormat,
   type AgentStreamSink,
-  type UnsubscribeAgentStreamSink,
   isAgentStreamEvent,
+  type UnsubscribeAgentStreamSink,
 } from '@/providers/stream-events'
 
 /** Default cap on thinking text forwarded to sinks (UTF-16 code units via `.length`). */
@@ -231,8 +231,7 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
     if (event.type === 'thinking_delta') {
       const remaining = Math.max(0, maxThinkingBytes - thinkingBytesForwarded)
       if (remaining <= 0) return
-      const forwarded =
-        event.text.length > remaining ? event.text.slice(0, remaining) : event.text
+      const forwarded = event.text.length > remaining ? event.text.slice(0, remaining) : event.text
       thinkingBytesForwarded += forwarded.length
       if (forwarded.length > 0) {
         await dispatchToSinks({ type: 'thinking_delta', text: forwarded })

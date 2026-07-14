@@ -26,7 +26,6 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
-import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
 import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
@@ -36,6 +35,7 @@ import {
   normalizeAutomaticResumeWaitingReason,
   resolveAutomaticResumeAdmissionFailure,
 } from '@/lib/workflows/executor/resume-policy'
+import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   ChildWorkflowContext,

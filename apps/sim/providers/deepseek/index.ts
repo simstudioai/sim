@@ -148,15 +148,9 @@ export const deepseekProvider: ProviderConfig = {
               basePayload: payload,
               messages: formattedMessages as any,
               createStream: async (params, options) =>
-                deepseek.chat.completions.create(
-                  { ...params, stream: true },
-                  options
-                ),
+                deepseek.chat.completions.create({ ...params, stream: true }, options),
               createBlocking: async (params, options) =>
-                deepseek.chat.completions.create(
-                  { ...params, stream: false },
-                  options
-                ),
+                deepseek.chat.completions.create({ ...params, stream: false }, options),
               logger,
               timeSegments,
               forcedTools,

@@ -139,13 +139,9 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     })
 
     await act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false)
     })
     await flushUiBatch()
 
@@ -179,13 +175,9 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     })
 
     await act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false)
     })
     await flushUiBatch()
 
@@ -218,13 +210,9 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     })
 
     await act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false)
     })
     await flushUiBatch()
 
@@ -256,13 +244,9 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     })
 
     await act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false)
     })
     await flushUiBatch()
 
@@ -291,21 +275,16 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     })
 
     await act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false,
-        {
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false, {
           voiceSettings: {
             isVoiceEnabled: true,
             voiceId: 'voice-1',
             autoPlayResponses: true,
           },
           audioStreamHandler,
-        }
-      )
+        })
     })
     await flushUiBatch()
 
@@ -343,14 +322,11 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     })
 
     const streamPromise = act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false,
-        { abortController }
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false, {
+          abortController,
+        })
     })
 
     await flushUiBatch()
@@ -384,13 +360,9 @@ describe('useChatStreaming thinking + abort (Step 6)', () => {
     })
 
     await act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false)
     })
     await flushUiBatch()
 
@@ -451,13 +423,9 @@ describe('useChatStreaming tool lifecycle (Step 8)', () => {
     })
 
     await act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false)
     })
     await flushUiBatch()
 
@@ -515,14 +483,11 @@ describe('useChatStreaming tool lifecycle (Step 8)', () => {
     })
 
     const streamPromise = act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false,
-        { abortController }
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false, {
+          abortController,
+        })
     })
 
     await flushUiBatch()
@@ -556,13 +521,9 @@ describe('useChatStreaming tool lifecycle (Step 8)', () => {
     })
 
     await act(async () => {
-      await handle.latest().handleStreamedResponse(
-        makeSseResponse(),
-        setMessages,
-        vi.fn(),
-        vi.fn(),
-        false
-      )
+      await handle
+        .latest()
+        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), false)
     })
     await flushUiBatch()
 

@@ -161,15 +161,9 @@ export const groqProvider: ProviderConfig = {
             basePayload: payload,
             messages: formattedMessages as any,
             createStream: async (params, options) =>
-              groq.chat.completions.create(
-                { ...params, stream: true },
-                options
-              ) as any,
+              groq.chat.completions.create({ ...params, stream: true }, options) as any,
             createBlocking: async (params, options) =>
-              groq.chat.completions.create(
-                { ...params, stream: false },
-                options
-              ) as any,
+              groq.chat.completions.create({ ...params, stream: false }, options) as any,
             logger,
             timeSegments,
             forcedTools,
@@ -217,35 +211,32 @@ export const groqProvider: ProviderConfig = {
         isStreaming: true,
         streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
-          createReadableStreamFromGroqStream(
-            streamResponse as any,
-            (content, usage, thinking) => {
-              output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
+          createReadableStreamFromGroqStream(streamResponse as any, (content, usage, thinking) => {
+            output.content = content
+            output.tokens = {
+              input: usage.prompt_tokens,
+              output: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
 
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+            const costResult = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
 
-              if (thinking) {
-                const segment = output.providerTiming?.timeSegments?.[0]
-                if (segment) {
-                  segment.thinkingContent = thinking
-                }
+            if (thinking) {
+              const segment = output.providerTiming?.timeSegments?.[0]
+              if (segment) {
+                segment.thinkingContent = thinking
               }
             }
-          ),
+          }),
       })
 
       return streamingResult

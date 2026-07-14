@@ -11,10 +11,10 @@
  * `tool_calls` deltas (no blocking hybrid).
  */
 
-import type OpenAI from 'openai'
-import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import type OpenAI from 'openai'
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {

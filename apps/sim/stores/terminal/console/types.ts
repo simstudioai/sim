@@ -1,6 +1,6 @@
+import type { AgentStreamToolCall } from '@/components/agent-stream/agent-stream-chrome'
 import type { ParentIteration } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import type { AgentStreamToolCall } from '@/components/agent-stream/agent-stream-chrome'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export interface ConsoleEntry {

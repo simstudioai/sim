@@ -15,6 +15,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
 import {
   checkForForcedToolUsage,
   cleanSchemaForGemini,
@@ -28,10 +29,9 @@ import {
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
-import { enrichLastModelSegment } from '@/providers/trace-enrichment'
-import { ensureToolCallId } from '@/providers/tool-call-id'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
+import { ensureToolCallId } from '@/providers/tool-call-id'
+import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
   ProviderRequest,
@@ -1280,7 +1280,9 @@ export async function executeGeminiRequest(
 
               if (thinking) {
                 const segments = streamingResult.execution.output.providerTiming?.timeSegments
-                const lastModel = segments ? [...segments].reverse().find((s) => s.type === 'model') : undefined
+                const lastModel = segments
+                  ? [...segments].reverse().find((s) => s.type === 'model')
+                  : undefined
                 if (lastModel) {
                   lastModel.thinkingContent = thinking
                 }

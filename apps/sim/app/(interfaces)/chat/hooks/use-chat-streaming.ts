@@ -3,9 +3,9 @@
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
-import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import type {
   ChatFile,
   ChatMessage,
@@ -357,8 +357,7 @@ export function useChatStreaming() {
               error: errText,
             })
             // Non-terminal: keep streaming; surface in thinking chrome so it is visible.
-            accumulatedThinking +=
-              (accumulatedThinking ? '\n\n' : '') + `[Stream error] ${errText}`
+            accumulatedThinking += `${accumulatedThinking ? '\n\n' : ''}[Stream error] ${errText}`
             accumulatedThinkingRef.current = accumulatedThinking
             isThinkingStreaming = true
             uiDirty = true

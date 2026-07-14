@@ -24,13 +24,13 @@ import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
-import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
-import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import {
   AGENT_STREAM_PROTOCOL_HEADER,
   AGENT_STREAM_PROTOCOL_V1,
   shouldEmitAgentStreamEvents,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
+import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
+import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import { DEFAULT_MAX_THINKING_BYTES } from '@/providers/stream-pump'
 
 /**
@@ -116,7 +116,6 @@ export function agentStreamProtocolResponseHeaders(options: {
   }
   return { [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }
 }
-
 
 interface StreamingState {
   streamedChunks: Map<string, string[]>
@@ -689,9 +688,7 @@ export async function createStreamingResponse(
           logger.info(`[${requestId}] Streaming execution aborted by client disconnect`)
           if (result._streamingMetadata?.loggingSession) {
             // LoggingSession has no cancelled status; match workflow execute route wording.
-            await result._streamingMetadata.loggingSession.markAsFailed(
-              'Client cancelled request'
-            )
+            await result._streamingMetadata.loggingSession.markAsFailed('Client cancelled request')
           }
           // No `final` after abort; clients that already disconnected ignore these.
           controller.enqueue(encodeSSE({ event: 'error', error: 'Client cancelled request' }))

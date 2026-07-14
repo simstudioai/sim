@@ -70,8 +70,7 @@ export function isAgentStreamEvent(value: unknown): value is AgentStreamEvent {
   switch (value.type) {
     case 'text_delta':
       return (
-        typeof value.text === 'string' &&
-        (value.turn === undefined || isTextDeltaTurn(value.turn))
+        typeof value.text === 'string' && (value.turn === undefined || isTextDeltaTurn(value.turn))
       )
     case 'thinking_delta':
       return typeof value.text === 'string'

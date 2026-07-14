@@ -87,8 +87,11 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { createStreamingResponse, agentStreamProtocolResponseHeaders } from '@/lib/workflows/streaming/streaming'
 import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
+import {
+  agentStreamProtocolResponseHeaders,
+  createStreamingResponse,
+} from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'

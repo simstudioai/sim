@@ -549,9 +549,9 @@ describe('BlockExecutor streaming pump (Step 3)', () => {
       { type: 'text_delta', text: 'Hello ', turn: 'final' },
       { type: 'text_delta', text: 'world', turn: 'final' },
     ])
-    expect(
-      state.getBlockOutput(block.id)?.providerTiming?.timeSegments?.[0]?.thinkingContent
-    ).toBe('hmm yes')
+    expect(state.getBlockOutput(block.id)?.providerTiming?.timeSegments?.[0]?.thinkingContent).toBe(
+      'hmm yes'
+    )
   })
 
   it('drains without onStream and still persists answer content', async () => {
@@ -602,7 +602,12 @@ describe('BlockExecutor streaming pump (Step 3)', () => {
       const result = (await originalExecute(ctx, block, inputs)) as {
         stream: ReadableStream
         streamFormat: 'agent-events-v1'
-        execution: { success: boolean; output: Record<string, unknown>; logs: unknown[]; metadata: Record<string, unknown> }
+        execution: {
+          success: boolean
+          output: Record<string, unknown>
+          logs: unknown[]
+          metadata: Record<string, unknown>
+        }
       }
       // Abort after a tick so the pump can project the first text_delta.
       queueMicrotask(() => abortController.abort('user'))

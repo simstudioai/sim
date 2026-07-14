@@ -43,7 +43,9 @@ export const openaiCompatToolCallStartChunks = [
     choices: [
       {
         delta: {
-          tool_calls: [{ index: 0, id: 'call_abc', function: { name: 'http_request', arguments: '' } }],
+          tool_calls: [
+            { index: 0, id: 'call_abc', function: { name: 'http_request', arguments: '' } },
+          ],
         },
       },
     ],

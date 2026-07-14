@@ -31,9 +31,9 @@ vi.mock('@/app/(interfaces)/chat/components/message/components/markdown-renderer
 }))
 
 import {
+  type ChatMessage,
   ClientChatMessage,
   escapeHtml,
-  type ChatMessage,
 } from '@/app/(interfaces)/chat/components/message/message'
 
 describe('escapeHtml', () => {

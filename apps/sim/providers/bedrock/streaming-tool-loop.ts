@@ -6,11 +6,11 @@
  */
 
 import {
+  type Message as BedrockMessage,
+  type BedrockRuntimeClient,
   type ContentBlock,
   type ConversationRole,
   ConverseStreamCommand,
-  type BedrockRuntimeClient,
-  type Message as BedrockMessage,
   type SystemContentBlock,
   type Tool,
   type ToolConfiguration,
@@ -25,11 +25,7 @@ import { checkForForcedToolUsage, generateToolUseId } from '@/providers/bedrock/
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
-import {
-  calculateCost,
-  prepareToolExecution,
-  sumToolCosts,
-} from '@/providers/utils'
+import { calculateCost, prepareToolExecution, sumToolCosts } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 export interface BedrockStreamingToolLoopComplete {
@@ -238,11 +234,7 @@ export function createBedrockStreamingToolLoopStream(
             throw new Error('No stream returned from Bedrock')
           }
 
-          const drained = await drainBedrockTurn(
-            streamResponse.stream,
-            controller,
-            openToolStarts
-          )
+          const drained = await drainBedrockTurn(streamResponse.stream, controller, openToolStarts)
           const modelEnd = Date.now()
           const thisModelTime = modelEnd - modelStart
           modelTime += thisModelTime
@@ -441,15 +433,7 @@ export function createBedrockStreamingToolLoopStream(
 
           const toolResultContent: ContentBlock[] = []
           for (const value of orderedResults) {
-            const {
-              toolUseId,
-              toolName,
-              toolParams,
-              result,
-              startTime,
-              endTime,
-              duration,
-            } = value
+            const { toolUseId, toolName, toolParams, result, startTime, endTime, duration } = value
 
             timeSegments.push({
               type: 'tool',
@@ -496,9 +480,14 @@ export function createBedrockStreamingToolLoopStream(
             })
           }
 
-          if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
+          if (
+            typeof originalToolChoice === 'object' &&
+            hasUsedForcedTool &&
+            forcedTools.length > 0
+          ) {
             const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
-            toolChoice = remainingTools.length > 0 ? { tool: { name: remainingTools[0] } } : { auto: {} }
+            toolChoice =
+              remainingTools.length > 0 ? { tool: { name: remainingTools[0] } } : { auto: {} }
           } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
             toolChoice = { auto: {} }
           }

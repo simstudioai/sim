@@ -3,8 +3,8 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
-import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { StreamingExecution } from '@/executor/types'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 
 describe('attachAgentStreamSink (Step 10)', () => {
   it('subscribes in sync window and routes thinking/tool events', async () => {

@@ -19,7 +19,13 @@ import {
 type StreamEvent = {
   type: string
   index?: number
-  delta?: { type: string; thinking?: string; text?: string; signature?: string; partial_json?: string }
+  delta?: {
+    type: string
+    thinking?: string
+    text?: string
+    signature?: string
+    partial_json?: string
+  }
   content_block?: {
     type: string
     thinking?: string

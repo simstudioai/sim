@@ -18,11 +18,7 @@ import { checkForForcedToolUsage } from '@/providers/anthropic/utils'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
-import {
-  calculateCost,
-  prepareToolExecution,
-  sumToolCosts,
-} from '@/providers/utils'
+import { calculateCost, prepareToolExecution, sumToolCosts } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 /** Custom payload fields shared with `core.ts` (adaptive thinking, output_format). */
@@ -181,7 +177,7 @@ export function createAnthropicStreamingToolLoopStream(
             messages: currentMessages,
           }
           // Streaming tool loop always streams each turn; never pass stream:true twice.
-          delete (turnPayload as { stream?: boolean }).stream
+          ;(turnPayload as { stream?: boolean }).stream = undefined
 
           // Forced tool_choice vs thinking — same rules as silent loop.
           const thinkingEnabled = !!payload.thinking
@@ -522,11 +518,7 @@ export function createAnthropicStreamingToolLoopStream(
               throw new DOMException('Stream aborted', 'AbortError')
             }
           } catch (error) {
-            settleOpenTools(
-              controller,
-              openToolStarts,
-              isAbortError(error) ? 'cancelled' : 'error'
-            )
+            settleOpenTools(controller, openToolStarts, isAbortError(error) ? 'cancelled' : 'error')
             throw error
           }
         }

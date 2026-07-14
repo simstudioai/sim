@@ -18,13 +18,13 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { buildBedrockMessageContent } from '@/providers/attachments'
+import { createBedrockStreamingToolLoopStream } from '@/providers/bedrock/streaming-tool-loop'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromBedrockStream,
   generateToolUseId,
   getBedrockInferenceProfileId,
 } from '@/providers/bedrock/utils'
-import { createBedrockStreamingToolLoopStream } from '@/providers/bedrock/streaming-tool-loop'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createStreamingExecution } from '@/providers/streaming-execution'

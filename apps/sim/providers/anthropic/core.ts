@@ -3,7 +3,12 @@ import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { Logger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { BlockTokens, IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import type {
+  BlockTokens,
+  IterationToolCall,
+  NormalizedBlockOutput,
+  StreamingExecution,
+} from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { createAnthropicStreamingToolLoopStream } from '@/providers/anthropic/streaming-tool-loop'
 import {

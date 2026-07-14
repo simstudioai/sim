@@ -91,8 +91,7 @@ function buildNextConfig(
   model: string
 ): GenerateContentConfig {
   const nextConfig = { ...baseConfig }
-  const allForcedToolsUsed =
-    forcedTools.length > 0 && usedForcedTools.length === forcedTools.length
+  const allForcedToolsUsed = forcedTools.length > 0 && usedForcedTools.length === forcedTools.length
 
   if (allForcedToolsUsed && request.responseFormat) {
     nextConfig.tools = undefined

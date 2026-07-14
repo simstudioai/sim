@@ -9,9 +9,9 @@ import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
 import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
+import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
-import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import {
@@ -1255,11 +1255,7 @@ export function useWorkflowExecution() {
                   executionIdRef.current
                 )
               } else {
-                updateConsole(
-                  data.blockId,
-                  { agentStreamActive: false },
-                  executionIdRef.current
-                )
+                updateConsole(data.blockId, { agentStreamActive: false }, executionIdRef.current)
               }
             },
 

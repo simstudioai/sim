@@ -67,8 +67,11 @@ describe('createReadableStreamFromGeminiStream (Step 9)', () => {
     )
     const events = await collectEvents(stream)
     expect(events.some((e) => e.type === 'thinking_delta')).toBe(false)
-    expect(events.filter((e) => e.type === 'text_delta').map((e) => e.text).join('')).toContain(
-      'Just text'
-    )
+    expect(
+      events
+        .filter((e) => e.type === 'text_delta')
+        .map((e) => e.text)
+        .join('')
+    ).toContain('Just text')
   })
 })

@@ -115,5 +115,4 @@ export const anthropicThinkingTextToolExpectedThinking =
   'I should check the weather before answering. Calling get_weather for SF.'
 
 /** Concatenated answer text (what output.content / live stream should contain today). */
-export const anthropicThinkingTextToolExpectedText =
-  'Let me check the weather in San Francisco.'
+export const anthropicThinkingTextToolExpectedText = 'Let me check the weather in San Francisco.'
