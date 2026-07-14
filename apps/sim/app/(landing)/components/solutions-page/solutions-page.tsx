@@ -41,15 +41,9 @@ import type { SolutionsPageConfig } from '@/app/(landing)/components/solutions-p
 interface SolutionsPageProps {
   /** The complete page content - identity, hero, and ordered card rows. */
   config: SolutionsPageConfig
-  /**
-   * Card treatment forwarded to every {@link SolutionsCardRow}. `featureTile`
-   * renders the enterprise page's framed feature tiles (copy + visual in one
-   * toned surface); the default keeps the original split layout.
-   */
-  cardVariant?: 'split' | 'featureTile'
 }
 
-export function SolutionsPage({ config, cardVariant = 'split' }: SolutionsPageProps) {
+export function SolutionsPage({ config }: SolutionsPageProps) {
   return (
     <>
       <SolutionsStructuredData config={config} />
@@ -68,12 +62,7 @@ export function SolutionsPage({ config, cardVariant = 'split' }: SolutionsPagePr
           <SolutionsHero hero={config.hero} />
           <SolutionsLogosRow />
           {config.rows.map((row) => (
-            <SolutionsCardRow
-              key={row.id}
-              row={row}
-              cardVariant={cardVariant}
-              headerVariant={cardVariant === 'featureTile' ? 'feature' : 'standard'}
-            />
+            <SolutionsCardRow key={row.id} row={row} />
           ))}
         </div>
 

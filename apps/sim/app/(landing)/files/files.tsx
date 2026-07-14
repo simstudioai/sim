@@ -167,5 +167,5 @@ const FILES_CONFIG: SolutionsPageConfig = {
 }
 
 export default function Files() {
-  return <SolutionsPage config={FILES_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={FILES_CONFIG} />
 }

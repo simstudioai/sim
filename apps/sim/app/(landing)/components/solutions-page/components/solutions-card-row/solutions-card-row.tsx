@@ -29,12 +29,6 @@ import type { SolutionsCardRowConfig } from '@/app/(landing)/components/solution
 
 interface SolutionsCardRowProps {
   row: SolutionsCardRowConfig
-  /** Header stack alignment. Defaults to the original left-aligned layout. */
-  align?: 'left' | 'center'
-  /** Card treatment. Defaults to the original split copy + visual layout. */
-  cardVariant?: 'split' | 'featureTile'
-  /** Header typography treatment. Defaults to the original larger solutions header. */
-  headerVariant?: 'standard' | 'feature'
 }
 
 /** Maps a supported column count to its grid class; anything else falls back to three-up. */
@@ -44,12 +38,7 @@ const GRID_COLS: Record<number, string> = {
   4: 'grid-cols-4',
 }
 
-export function SolutionsCardRow({
-  row,
-  align = 'left',
-  cardVariant = 'split',
-  headerVariant = 'standard',
-}: SolutionsCardRowProps) {
+export function SolutionsCardRow({ row }: SolutionsCardRowProps) {
   const headingId = `solutions-row-${row.id}-heading`
   const gridCols = GRID_COLS[row.columns ?? row.cards.length] ?? GRID_COLS[3]
 
@@ -59,12 +48,7 @@ export function SolutionsCardRow({
       aria-labelledby={headingId}
       className={cn('flex flex-col', SOLUTIONS_SPACING.cardRowHeaderToGrid)}
     >
-      <SolutionsCardRowHeader
-        row={row}
-        headingId={headingId}
-        align={align}
-        variant={headerVariant}
-      />
+      <SolutionsCardRowHeader row={row} headingId={headingId} />
 
       <div
         className={cn(
@@ -79,13 +63,7 @@ export function SolutionsCardRow({
             key={`${row.id}-${card.title}`}
             card={card}
             headingId={`solutions-row-${row.id}-card-${index}-heading`}
-            variant={cardVariant}
-            tabletSpan={
-              cardVariant === 'featureTile' &&
-              row.cards.length === 3 &&
-              row.columns === undefined &&
-              index === 2
-            }
+            tabletSpan={row.cards.length === 3 && row.columns === undefined && index === 2}
           />
         ))}
       </div>

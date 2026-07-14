@@ -188,5 +188,5 @@ const SCHEDULED_TASKS_CONFIG: SolutionsPageConfig = {
 }
 
 export default function ScheduledTasks() {
-  return <SolutionsPage config={SCHEDULED_TASKS_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={SCHEDULED_TASKS_CONFIG} />
 }

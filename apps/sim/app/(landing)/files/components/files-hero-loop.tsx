@@ -1,19 +1,14 @@
 'use client'
 
 import type { ReactNode, SVGProps } from 'react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowUpDown, File, ListFilter, Plus, Search } from '@sim/emcn/icons'
 import { AgentIcon } from '@/components/icons'
 import { CsvIcon, DocxIcon, PdfIcon } from '@/components/icons/document-icons'
-import { EnterpriseSidebar } from '@/app/(landing)/enterprise/components/enterprise-platform-loop'
-
-/**
- * The window interior's design space - the same 1280x735 "mini app" geometry
- * the enterprise platform loop uses, so this hero reads at the identical
- * scale inside the shared demo window.
- */
-const DESIGN = { width: 1280, height: 735 } as const
+import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the files hero - a file-heavy team's workspace. */
 const SIDEBAR_CHATS = [
@@ -159,11 +154,12 @@ const ROW_STEP_MS = 220
 const DROP_AFTER_MS = 1400
 /** The completed frame (with the dropped file) holds this long before the fade. */
 const DROPPED_HOLD_MS = 4800
-/** Fade-out length before the cycle restarts. */
-const RESET_FADE_MS = 300
 
 /** Shared grid template for the header and every file row. */
 const ROW_GRID = 'grid grid-cols-[minmax(0,1fr)_110px_130px_170px_200px]'
+
+/** Column headers matching the real Files table. */
+const COL_HEADERS = ['Name', 'Size', 'Type', 'Created', 'Owner'] as const
 
 /** Renders the owner cell - an initial badge for teammates, the agent glyph for agents. */
 function OwnerCell({ owner }: { owner: FileOwner }) {
@@ -230,177 +226,115 @@ function ToolbarChip({ icon, label }: { icon: ReactNode; label: string }) {
  * starts: the full library including the agent's file renders statically.
  */
 export function FilesHeroLoop() {
-  const regionRef = useRef<HTMLDivElement>(null)
   const [rowCount, setRowCount] = useState(0)
   const [dropped, setDropped] = useState(false)
   const [fading, setFading] = useState(false)
-  const [scale, setScale] = useState(1)
 
-  // Track the rendered region width and scale the design-space layer to fill
-  // it, keeping the live layer's proportions locked to the window's.
-  useLayoutEffect(() => {
-    const el = regionRef.current
-    if (!el) return
-    const measure = () => {
-      const w = el.getBoundingClientRect().width
-      if (w > 40) setScale(w / DESIGN.width)
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let timers: ReturnType<typeof setTimeout>[] = []
-
-    const clearScheduled = () => {
-      timers.forEach(clearTimeout)
-      timers = []
-    }
-
-    const showFinished = () => {
-      clearScheduled()
-      setFading(false)
-      setRowCount(BASE_ROWS.length)
-      setDropped(true)
-    }
-
-    const runCycle = () => {
+  useMotionSafeCycle({
+    scheduleCycle: () => {
       setFading(false)
       setRowCount(0)
       setDropped(false)
       const dropAt = IDLE_HOLD_MS + (BASE_ROWS.length - 1) * ROW_STEP_MS + DROP_AFTER_MS
-      const total = dropAt + DROPPED_HOLD_MS
-      timers = [
-        ...BASE_ROWS.map((_, i) =>
-          setTimeout(() => setRowCount(i + 1), IDLE_HOLD_MS + i * ROW_STEP_MS)
-        ),
-        setTimeout(() => setDropped(true), dropAt),
-        setTimeout(() => setFading(true), total - RESET_FADE_MS),
-        setTimeout(runCycle, total),
-      ]
-    }
-
-    const syncMotionPreference = () => {
-      clearScheduled()
-      if (media.matches) {
-        showFinished()
-        return
+      const totalMs = dropAt + DROPPED_HOLD_MS
+      return {
+        timers: [
+          ...BASE_ROWS.map((_, i) =>
+            setTimeout(() => setRowCount(i + 1), IDLE_HOLD_MS + i * ROW_STEP_MS)
+          ),
+          setTimeout(() => setDropped(true), dropAt),
+          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+        ],
+        totalMs,
       }
-      runCycle()
-    }
-
-    syncMotionPreference()
-    media.addEventListener('change', syncMotionPreference)
-    return () => {
-      media.removeEventListener('change', syncMotionPreference)
-      clearScheduled()
-    }
-  }, [])
+    },
+    showFinished: () => {
+      setFading(false)
+      setRowCount(BASE_ROWS.length)
+      setDropped(true)
+    },
+  })
 
   return (
-    <div ref={regionRef} className='pointer-events-none absolute inset-0 overflow-hidden'>
-      <div
-        className='flex origin-top-left bg-[var(--surface-1)]'
-        style={{
-          width: DESIGN.width,
-          height: DESIGN.height,
-          transform: `scale(${scale})`,
-        }}
-      >
-        <EnterpriseSidebar
-          workspaceName='Brightwave'
-          chats={SIDEBAR_CHATS}
-          workflows={SIDEBAR_WORKFLOWS}
-          activeNav='Files'
-        />
-        <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px]'>
-          <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeNav='Files'>
+      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+        <div
+          className={cn(
+            'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
+            fading ? 'opacity-0' : 'opacity-100'
+          )}
+        >
+          <div className='flex h-[44px] flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
+            <div className='flex items-center gap-3'>
+              <File className='size-[14px] text-[var(--text-icon)]' />
+              <span className='font-medium text-[var(--text-body)] text-sm'>Files</span>
+            </div>
+            <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
+              <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+              Upload file
+            </span>
+          </div>
+
+          <div className='flex flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
+            <div className='flex flex-1 items-center gap-2.5'>
+              <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <span className='text-[var(--text-subtle)] text-caption'>Search files...</span>
+            </div>
+            <div className='flex items-center gap-1.5'>
+              <ToolbarChip
+                icon={<ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />}
+                label='Filter'
+              />
+              <ToolbarChip
+                icon={<ArrowUpDown className='mr-1.5 size-[14px] text-[var(--text-icon)]' />}
+                label='Sort'
+              />
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              ROW_GRID,
+              'h-10 flex-shrink-0 items-center shadow-[inset_0_-1px_0_var(--border)]'
+            )}
+          >
+            {COL_HEADERS.map((header) => (
+              <span key={header} className='px-6 text-[var(--text-muted)] text-caption'>
+                {header}
+              </span>
+            ))}
+          </div>
+
+          <div className='min-h-0 flex-1 overflow-hidden'>
             <div
               className={cn(
-                'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
-                fading ? 'opacity-0' : 'opacity-100'
+                'overflow-hidden transition-all duration-500 ease-out',
+                dropped ? 'max-h-[40px] opacity-100' : 'max-h-0 opacity-0'
               )}
             >
-              {/* Title bar - fixed 44px, matching the real Files page header. */}
-              <div className='flex h-[44px] flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
-                <div className='flex items-center gap-3'>
-                  <File className='size-[14px] text-[var(--text-icon)]' />
-                  <span className='font-medium text-[var(--text-body)] text-sm'>Files</span>
-                </div>
-                <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-                  <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-                  Upload file
-                </span>
-              </div>
-
-              {/* Options bar - search on the left, Filter/Sort on the right. */}
-              <div className='flex flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
-                <div className='flex flex-1 items-center gap-2.5'>
-                  <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                  <span className='text-[var(--text-subtle)] text-caption'>Search files...</span>
-                </div>
-                <div className='flex items-center gap-1.5'>
-                  <ToolbarChip
-                    icon={<ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />}
-                    label='Filter'
-                  />
-                  <ToolbarChip
-                    icon={<ArrowUpDown className='mr-1.5 size-[14px] text-[var(--text-icon)]' />}
-                    label='Sort'
-                  />
-                </div>
-              </div>
-
-              {/* Column header */}
               <div
                 className={cn(
-                  ROW_GRID,
-                  'h-10 flex-shrink-0 items-center shadow-[inset_0_-1px_0_var(--border)]'
+                  'bg-[var(--surface-2)] transition-transform duration-500 ease-out',
+                  dropped ? 'translate-y-0' : '-translate-y-2'
                 )}
               >
-                {['Name', 'Size', 'Type', 'Created', 'Owner'].map((header) => (
-                  <span key={header} className='px-6 text-[var(--text-muted)] text-caption'>
-                    {header}
-                  </span>
-                ))}
-              </div>
-
-              {/* File rows - the dropped agent artifact expands in above the base library. */}
-              <div className='min-h-0 flex-1 overflow-hidden'>
-                <div
-                  className={cn(
-                    'overflow-hidden transition-all duration-500 ease-out',
-                    dropped ? 'max-h-[40px] opacity-100' : 'max-h-0 opacity-0'
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'bg-[var(--surface-2)] transition-transform duration-500 ease-out',
-                      dropped ? 'translate-y-0' : '-translate-y-2'
-                    )}
-                  >
-                    <FileRow row={DROPPED_ROW} />
-                  </div>
-                </div>
-                {BASE_ROWS.map((row, index) => (
-                  <div
-                    key={row.name}
-                    className={cn(
-                      'transition-all duration-300 ease-out',
-                      index < rowCount ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
-                    )}
-                  >
-                    <FileRow row={row} />
-                  </div>
-                ))}
+                <FileRow row={DROPPED_ROW} />
               </div>
             </div>
+            {BASE_ROWS.map((row, index) => (
+              <div
+                key={row.name}
+                className={cn(
+                  'transition-all duration-300 ease-out',
+                  index < rowCount ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
+                )}
+              >
+                <FileRow row={row} />
+              </div>
+            ))}
           </div>
         </div>
       </div>
-    </div>
+    </HeroLoopShell>
   )
 }

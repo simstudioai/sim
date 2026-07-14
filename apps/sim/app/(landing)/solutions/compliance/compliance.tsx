@@ -134,5 +134,5 @@ const COMPLIANCE_CONFIG: SolutionsPageConfig = {
 }
 
 export default function ComplianceSolution() {
-  return <SolutionsPage config={COMPLIANCE_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={COMPLIANCE_CONFIG} />
 }

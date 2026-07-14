@@ -167,5 +167,5 @@ const FINANCE_CONFIG: SolutionsPageConfig = {
 }
 
 export default function FinanceSolution() {
-  return <SolutionsPage config={FINANCE_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={FINANCE_CONFIG} />
 }

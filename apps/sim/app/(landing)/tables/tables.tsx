@@ -162,5 +162,5 @@ const TABLES_CONFIG: SolutionsPageConfig = {
 }
 
 export default function Tables() {
-  return <SolutionsPage config={TABLES_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={TABLES_CONFIG} />
 }

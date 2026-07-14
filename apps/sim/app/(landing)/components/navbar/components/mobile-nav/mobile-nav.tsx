@@ -82,6 +82,7 @@ export function MobileNav({ stars }: MobileNavProps) {
         type='button'
         aria-label={open ? 'Close menu' : 'Open menu'}
         aria-expanded={open}
+        aria-controls='mobile-nav-sheet'
         onClick={() => setOpen((v) => !v)}
         className='flex size-[30px] items-center justify-center rounded-lg border border-[var(--border-1)] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-hover)]'
       >
@@ -99,12 +100,13 @@ export function MobileNav({ stars }: MobileNavProps) {
       ) : null}
 
       <div
+        id='mobile-nav-sheet'
         className={cn(
-          'absolute top-full right-0 left-0 z-50 max-h-[calc(100dvh-62px)] origin-top overflow-y-auto overscroll-contain border-[var(--border)] border-b transition-[opacity,transform] duration-200 motion-reduce:transition-none',
+          'absolute top-full right-0 left-0 z-50 max-h-[calc(100dvh-62px)] origin-top overflow-y-auto overscroll-contain border-[var(--border)] border-b transition-[opacity,transform,visibility] duration-200 motion-reduce:transition-none',
           NAVBAR_GLASS_SURFACE,
           open
-            ? 'pointer-events-auto translate-y-0 opacity-100'
-            : '-translate-y-2 pointer-events-none opacity-0'
+            ? 'pointer-events-auto visible translate-y-0 opacity-100'
+            : '-translate-y-2 pointer-events-none invisible opacity-0'
         )}
       >
         <div className='mx-auto flex w-full max-w-[1460px] flex-col gap-1 px-5 pt-2 pb-5'>

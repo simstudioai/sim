@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { ChevronDown, cn, Home, Library } from '@sim/emcn'
 import {
   Calendar,
@@ -71,7 +72,7 @@ function SectionLabel({ label, actions }: { label: string; actions?: boolean }) 
   )
 }
 
-interface EnterpriseSidebarProps {
+export interface EnterpriseSidebarProps {
   /** Workspace name in the header chip. Defaults to the enterprise workspace. */
   workspaceName?: string
   /** Recent-chat entries - four fill the design height. Defaults enterprise. */
@@ -95,9 +96,11 @@ interface EnterpriseSidebarProps {
  * hover/click behavior is owned by the parent's `pointer-events-none` frame.
  * The workspace name and the chat / workflow entries are injectable so each
  * solutions hero can read like that team's workspace; defaults keep the
- * enterprise page exactly as it renders today.
+ * enterprise page exactly as it renders today. Memoized - the sidebar is
+ * fully static per props, and every consuming loop re-renders on each clock
+ * tick with stable sidebar props.
  */
-export function EnterpriseSidebar({
+export const EnterpriseSidebar = memo(function EnterpriseSidebar({
   workspaceName = 'Brightwave',
   chats = SIDEBAR_CHATS,
   workflows = SIDEBAR_WORKFLOWS,
@@ -172,4 +175,4 @@ export function EnterpriseSidebar({
       </div>
     </div>
   )
-}
+})

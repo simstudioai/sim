@@ -22,11 +22,5 @@ export { PlatformHeroVisual } from './platform-hero-visual'
 export { ProductDemo } from './product-demo'
 export { ShareButton } from './share-button'
 export { SiteStructuredData } from './site-structured-data'
-export type {
-  SolutionsCardConfig,
-  SolutionsCardRowConfig,
-  SolutionsHeroConfig,
-  SolutionsPageConfig,
-  SolutionsPillCta,
-} from './solutions-page'
+export type { SolutionsPageConfig } from './solutions-page'
 export { SolutionsPage } from './solutions-page'

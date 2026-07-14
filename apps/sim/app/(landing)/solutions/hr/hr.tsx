@@ -156,5 +156,5 @@ const HR_CONFIG: SolutionsPageConfig = {
 }
 
 export default function HrSolution() {
-  return <SolutionsPage config={HR_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={HR_CONFIG} />
 }

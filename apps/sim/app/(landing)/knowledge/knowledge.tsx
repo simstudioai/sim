@@ -171,5 +171,5 @@ const KNOWLEDGE_CONFIG: SolutionsPageConfig = {
 }
 
 export default function Knowledge() {
-  return <SolutionsPage config={KNOWLEDGE_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={KNOWLEDGE_CONFIG} />
 }

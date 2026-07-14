@@ -165,5 +165,5 @@ const WORKFLOWS_CONFIG: SolutionsPageConfig = {
 }
 
 export default function Workflows() {
-  return <SolutionsPage config={WORKFLOWS_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={WORKFLOWS_CONFIG} />
 }

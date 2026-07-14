@@ -1,17 +1,12 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Checkbox, cn } from '@sim/emcn'
 import { ChevronDown, Table, TypeBoolean, TypeText } from '@sim/emcn/icons'
-import { EnterpriseSidebar } from '@/app/(landing)/enterprise/components/enterprise-platform-loop'
+import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 import styles from '@/app/(landing)/tables/components/tables-hero-loop.module.css'
-
-/**
- * The window interior's design space - the same 1280x735 "mini app" geometry
- * the enterprise and workflows loops use, so every platform hero reads at
- * the identical scale inside the shared demo window.
- */
-const DESIGN = { width: 1280, height: 735 } as const
 
 /** Sidebar content for the tables hero - a data-minded workspace. */
 const SIDEBAR_CHATS = [
@@ -223,8 +218,30 @@ const ENRICH_AFTER_MS = 600
 const CELL_STEP_MS = 170
 /** The fully enriched grid holds this long before the fade. */
 const FILLED_HOLD_MS = 4200
-/** Fade-out length before the cycle restarts. */
-const RESET_FADE_MS = 300
+
+/**
+ * Renders one cell's value - text as-is, booleans as the real editor's
+ * checkbox, rendered non-interactive (no tab stop) since the whole frame is
+ * `aria-hidden` decoration. Enriched cells stamp in with the module's
+ * cell-in animation.
+ */
+function renderValue(column: GridColumn, value: string, animate: boolean) {
+  const content =
+    column.type === 'boolean' ? (
+      <div className='flex min-h-[20px] items-center justify-center'>
+        <Checkbox
+          size='sm'
+          checked={value === 'true'}
+          tabIndex={-1}
+          className='pointer-events-none'
+        />
+      </div>
+    ) : (
+      value
+    )
+  if (!animate) return content
+  return <span className={cn('block', styles.cellIn)}>{content}</span>
+}
 
 interface TablesGridPaneProps {
   /** How many appended rows are on the grid (0..APPENDED_ROWS.length). */
@@ -245,24 +262,6 @@ function TablesGridPane({ rowCount, filledCount }: TablesGridPaneProps) {
     const sweepColumn = ENRICHED_COLUMNS.indexOf(columnId)
     if (sweepColumn === -1) return true
     return sweepColumn * APPENDED_ROWS.length + appendedIndex < filledCount
-  }
-
-  const renderValue = (column: GridColumn, value: string, animate: boolean) => {
-    const content =
-      column.type === 'boolean' ? (
-        <div className='flex min-h-[20px] items-center justify-center'>
-          <Checkbox
-            size='sm'
-            checked={value === 'true'}
-            aria-label={column.label}
-            className='pointer-events-none'
-          />
-        </div>
-      ) : (
-        value
-      )
-    if (!animate) return content
-    return <span className={cn('block', styles.cellIn)}>{content}</span>
   }
 
   const renderRow = (row: LeadRow, rowIndex: number, appendedIndex: number | null) => (
@@ -357,109 +356,51 @@ function TablesGridPane({ rowCount, filledCount }: TablesGridPaneProps) {
  * (including reacting to media-query changes).
  */
 export function TablesHeroLoop() {
-  const regionRef = useRef<HTMLDivElement>(null)
   const [rowCount, setRowCount] = useState(0)
   const [filledCount, setFilledCount] = useState(0)
   const [fading, setFading] = useState(false)
   const [cycleId, setCycleId] = useState(0)
-  const [scale, setScale] = useState(1)
 
-  // Track the rendered region width and scale the design-space layer to fill
-  // it, keeping the live layer's proportions locked to the window's.
-  useLayoutEffect(() => {
-    const el = regionRef.current
-    if (!el) return
-    const measure = () => {
-      const w = el.getBoundingClientRect().width
-      if (w > 40) setScale(w / DESIGN.width)
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let timers: ReturnType<typeof setTimeout>[] = []
-
-    const clearScheduled = () => {
-      timers.forEach(clearTimeout)
-      timers = []
-    }
-
-    const showFinished = () => {
-      clearScheduled()
-      setFading(false)
-      setRowCount(APPENDED_ROWS.length)
-      setFilledCount(TOTAL_FILLED_CELLS)
-    }
-
-    const runCycle = () => {
+  useMotionSafeCycle({
+    scheduleCycle: () => {
       setFading(false)
       setRowCount(0)
       setFilledCount(0)
       setCycleId((c) => c + 1)
       const sweepAt = IDLE_HOLD_MS + (APPENDED_ROWS.length - 1) * ROW_STEP_MS + ENRICH_AFTER_MS
-      const total = sweepAt + TOTAL_FILLED_CELLS * CELL_STEP_MS + FILLED_HOLD_MS
-      timers = [
-        ...APPENDED_ROWS.map((_, i) =>
-          setTimeout(() => setRowCount(i + 1), IDLE_HOLD_MS + i * ROW_STEP_MS)
-        ),
-        ...Array.from({ length: TOTAL_FILLED_CELLS }, (_, i) =>
-          setTimeout(() => setFilledCount(i + 1), sweepAt + i * CELL_STEP_MS)
-        ),
-        setTimeout(() => setFading(true), total - RESET_FADE_MS),
-        setTimeout(runCycle, total),
-      ]
-    }
-
-    const syncMotionPreference = () => {
-      clearScheduled()
-      if (media.matches) {
-        showFinished()
-        return
+      const totalMs = sweepAt + TOTAL_FILLED_CELLS * CELL_STEP_MS + FILLED_HOLD_MS
+      return {
+        timers: [
+          ...APPENDED_ROWS.map((_, i) =>
+            setTimeout(() => setRowCount(i + 1), IDLE_HOLD_MS + i * ROW_STEP_MS)
+          ),
+          ...Array.from({ length: TOTAL_FILLED_CELLS }, (_, i) =>
+            setTimeout(() => setFilledCount(i + 1), sweepAt + i * CELL_STEP_MS)
+          ),
+          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+        ],
+        totalMs,
       }
-      runCycle()
-    }
-
-    syncMotionPreference()
-    media.addEventListener('change', syncMotionPreference)
-    return () => {
-      media.removeEventListener('change', syncMotionPreference)
-      clearScheduled()
-    }
-  }, [])
+    },
+    showFinished: () => {
+      setFading(false)
+      setRowCount(APPENDED_ROWS.length)
+      setFilledCount(TOTAL_FILLED_CELLS)
+    },
+  })
 
   return (
-    <div ref={regionRef} className='pointer-events-none absolute inset-0 overflow-hidden'>
-      <div
-        className='flex origin-top-left bg-[var(--surface-1)]'
-        style={{
-          width: DESIGN.width,
-          height: DESIGN.height,
-          transform: `scale(${scale})`,
-        }}
-      >
-        <EnterpriseSidebar
-          workspaceName='Brightwave'
-          chats={SIDEBAR_CHATS}
-          workflows={SIDEBAR_WORKFLOWS}
-          activeNav='Tables'
-        />
-        <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px]'>
-          <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
-            <div
-              className={cn(
-                'h-full w-full transition-opacity duration-300 ease-out',
-                fading ? 'opacity-0' : 'opacity-100'
-              )}
-            >
-              <TablesGridPane key={cycleId} rowCount={rowCount} filledCount={filledCount} />
-            </div>
-          </div>
+    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeNav='Tables'>
+      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+        <div
+          className={cn(
+            'h-full w-full transition-opacity duration-300 ease-out',
+            fading ? 'opacity-0' : 'opacity-100'
+          )}
+        >
+          <TablesGridPane key={cycleId} rowCount={rowCount} filledCount={filledCount} />
         </div>
       </div>
-    </div>
+    </HeroLoopShell>
   )
 }

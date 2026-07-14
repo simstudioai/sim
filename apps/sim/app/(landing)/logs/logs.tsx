@@ -170,5 +170,5 @@ const LOGS_CONFIG: SolutionsPageConfig = {
 }
 
 export default function Logs() {
-  return <SolutionsPage config={LOGS_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={LOGS_CONFIG} />
 }

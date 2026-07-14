@@ -144,5 +144,5 @@ const ENGINEERING_CONFIG: SolutionsPageConfig = {
 }
 
 export default function EngineeringSolution() {
-  return <SolutionsPage config={ENGINEERING_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={ENGINEERING_CONFIG} />
 }

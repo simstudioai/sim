@@ -130,5 +130,5 @@ const IT_CONFIG: SolutionsPageConfig = {
 }
 
 export default function ItSolution() {
-  return <SolutionsPage config={IT_CONFIG} cardVariant='featureTile' />
+  return <SolutionsPage config={IT_CONFIG} />
 }

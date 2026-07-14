@@ -10,10 +10,9 @@ interface PlatformHeroVisualProps {
  * The enterprise hero's visual composition, shared: the architectural backdrop
  * (`enterprise-hero-background.webp`) with the white demo window framed in
  * front of it, ready to hold a live platform interior (a chat platform loop or
- * the workflows editor loop). Extracted so the solutions and workflows heroes
- * reuse the exact backdrop, window geometry (`aspect-[1080/620]` at 83.08%
- * width), and shadow treatment the enterprise page established - the
- * enterprise page keeps its own inline copy, byte-identical.
+ * the workflows editor loop). Extracted so every hero - the enterprise page
+ * included - reuses the exact backdrop, window geometry (`aspect-[1080/620]`
+ * at 83.08% width), and shadow treatment the enterprise page established.
  *
  * Renders inside a hero visual slot (the `variant='home'` media frame or the
  * standard {@link SolutionsVisualFrame}); the outer `relative` wrapper anchors

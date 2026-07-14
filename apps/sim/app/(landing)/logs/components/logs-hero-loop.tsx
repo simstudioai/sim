@@ -1,17 +1,12 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { BadgeProps } from '@sim/emcn'
-import { ArrowUpDown, Badge, cn, Library, ListFilter, Search } from '@sim/emcn'
-import { Download, Workflow } from '@sim/emcn/icons'
-import { EnterpriseSidebar } from '@/app/(landing)/enterprise/components/enterprise-platform-loop'
-
-/**
- * The window interior's design space - the same 1280x735 "mini app" geometry
- * the enterprise platform loop uses, so this hero reads at the identical
- * scale inside the shared demo window.
- */
-const DESIGN = { width: 1280, height: 735 } as const
+import { Badge, cn } from '@sim/emcn'
+import { ArrowUpDown, Download, Library, ListFilter, Search, Workflow } from '@sim/emcn/icons'
+import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
+import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the logs hero - a team living in its run history. */
 const SIDEBAR_CHATS = [
@@ -182,8 +177,6 @@ const LIVE_APPEAR_MS = 2400
 const LIVE_COMPLETE_MS = 4800
 /** The finished table holds this long before the fade. */
 const COMPLETED_HOLD_MS = 4400
-/** Fade-out length before the cycle restarts. */
-const RESET_FADE_MS = 300
 
 type LiveState = 'hidden' | 'running' | 'completed'
 
@@ -247,218 +240,155 @@ function LogsTableRow({ row, visible }: LogsTableRowProps) {
  * `aria-hidden` frame.
  */
 export function LogsHeroLoop() {
-  const regionRef = useRef<HTMLDivElement>(null)
   const [historyCount, setHistoryCount] = useState(0)
   const [liveState, setLiveState] = useState<LiveState>('hidden')
   const [fading, setFading] = useState(false)
   const [cycleId, setCycleId] = useState(0)
-  const [scale, setScale] = useState(1)
 
-  // Track the rendered region width and scale the design-space layer to fill
-  // it, keeping the live layer's proportions locked to the window's.
-  useLayoutEffect(() => {
-    const el = regionRef.current
-    if (!el) return
-    const measure = () => {
-      const w = el.getBoundingClientRect().width
-      if (w > 40) setScale(w / DESIGN.width)
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let timers: ReturnType<typeof setTimeout>[] = []
-
-    const clearScheduled = () => {
-      timers.forEach(clearTimeout)
-      timers = []
-    }
-
-    const showFinished = () => {
-      clearScheduled()
-      setFading(false)
-      setHistoryCount(HISTORY_ROWS.length)
-      setLiveState('completed')
-    }
-
-    const runCycle = () => {
+  useMotionSafeCycle({
+    scheduleCycle: () => {
       setFading(false)
       setHistoryCount(0)
       setLiveState('hidden')
       setCycleId((c) => c + 1)
-      const total = LIVE_COMPLETE_MS + COMPLETED_HOLD_MS
-      timers = [
-        ...HISTORY_ROWS.map((_, i) =>
-          setTimeout(() => setHistoryCount(i + 1), HISTORY_START_MS + i * HISTORY_STEP_MS)
-        ),
-        setTimeout(() => setLiveState('running'), LIVE_APPEAR_MS),
-        setTimeout(() => setLiveState('completed'), LIVE_COMPLETE_MS),
-        setTimeout(() => setFading(true), total - RESET_FADE_MS),
-        setTimeout(runCycle, total),
-      ]
-    }
-
-    const syncMotionPreference = () => {
-      clearScheduled()
-      if (media.matches) {
-        showFinished()
-        return
+      const totalMs = LIVE_COMPLETE_MS + COMPLETED_HOLD_MS
+      return {
+        timers: [
+          ...HISTORY_ROWS.map((_, i) =>
+            setTimeout(() => setHistoryCount(i + 1), HISTORY_START_MS + i * HISTORY_STEP_MS)
+          ),
+          setTimeout(() => setLiveState('running'), LIVE_APPEAR_MS),
+          setTimeout(() => setLiveState('completed'), LIVE_COMPLETE_MS),
+          setTimeout(() => setFading(true), totalMs - RESET_FADE_MS),
+        ],
+        totalMs,
       }
-      runCycle()
-    }
-
-    syncMotionPreference()
-    media.addEventListener('change', syncMotionPreference)
-    return () => {
-      media.removeEventListener('change', syncMotionPreference)
-      clearScheduled()
-    }
-  }, [])
+    },
+    showFinished: () => {
+      setFading(false)
+      setHistoryCount(HISTORY_ROWS.length)
+      setLiveState('completed')
+    },
+  })
 
   const liveCompleted = liveState === 'completed'
 
   return (
-    <div ref={regionRef} className='pointer-events-none absolute inset-0 overflow-hidden'>
-      <div
-        className='flex origin-top-left bg-[var(--surface-1)]'
-        style={{
-          width: DESIGN.width,
-          height: DESIGN.height,
-          transform: `scale(${scale})`,
-        }}
-      >
-        <EnterpriseSidebar
-          workspaceName='Brightwave'
-          chats={SIDEBAR_CHATS}
-          workflows={SIDEBAR_WORKFLOWS}
-          activeNav='Logs'
-        />
-        <div className='h-full min-w-0 flex-1 py-[7px] pr-[8px]'>
-          <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
-            <div
-              key={cycleId}
-              className={cn(
-                'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
-                fading ? 'opacity-0' : 'opacity-100'
-              )}
-            >
-              {/* Title bar - fixed 44px, matching the real Logs surface. */}
-              <div className='flex h-[44px] flex-shrink-0 items-center border-[var(--border)] border-b px-6'>
-                <div className='flex w-full items-center justify-between'>
-                  <div className='flex items-center gap-3'>
-                    <Library className='size-[14px] text-[var(--text-icon)]' />
-                    <span className='font-medium text-[var(--text-body)] text-sm'>Logs</span>
-                  </div>
-                  <div className='flex items-center gap-1'>
-                    <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-                      <Download className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-                      Export
-                    </span>
-                    <span className='rounded-md bg-[var(--surface-active)] px-2 py-1 text-[var(--text-body)] text-caption'>
-                      Logs
-                    </span>
-                    <span className='rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-                      Dashboard
-                    </span>
-                  </div>
-                </div>
+    <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeNav='Logs'>
+      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+        <div
+          key={cycleId}
+          className={cn(
+            'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
+            fading ? 'opacity-0' : 'opacity-100'
+          )}
+        >
+          <div className='flex h-[44px] flex-shrink-0 items-center border-[var(--border)] border-b px-6'>
+            <div className='flex w-full items-center justify-between'>
+              <div className='flex items-center gap-3'>
+                <Library className='size-[14px] text-[var(--text-icon)]' />
+                <span className='font-medium text-[var(--text-body)] text-sm'>Logs</span>
               </div>
-
-              {/* Options bar - search, Filter, Sort. */}
-              <div className='flex-shrink-0 border-[var(--border)] border-b px-6 py-2.5'>
-                <div className='flex items-center justify-between'>
-                  <div className='flex flex-1 items-center gap-2.5'>
-                    <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                    <span className='flex-1 text-[var(--text-muted)] text-caption'>
-                      Search logs...
-                    </span>
-                  </div>
-                  <div className='flex items-center gap-1.5'>
-                    <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-                      <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-                      Filter
-                    </span>
-                    <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-                      <ArrowUpDown className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-                      Sort
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Runs table - live row on top (slot reserved), history beneath. */}
-              <div className='min-h-0 flex-1 overflow-hidden'>
-                <table className='w-full table-fixed text-sm'>
-                  <colgroup>
-                    {COL_WIDTHS.map((width, index) => (
-                      <col key={index} style={{ width }} />
-                    ))}
-                  </colgroup>
-                  <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
-                    <tr>
-                      {COL_HEADERS.map((label) => (
-                        <th
-                          key={label}
-                          className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-caption'
-                        >
-                          {label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      className={cn(
-                        'h-[44px] transition-opacity duration-300 ease-out',
-                        liveState === 'hidden' ? 'opacity-0' : 'opacity-100'
-                      )}
-                    >
-                      <td className='px-6 align-middle'>
-                        <div className='flex items-center gap-2'>
-                          <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                          <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
-                            {LIVE_ROW.workflowName}
-                          </span>
-                        </div>
-                      </td>
-                      <td className='px-6 align-middle text-[var(--text-secondary)] text-caption'>
-                        {LIVE_ROW.date}
-                      </td>
-                      <td className='px-6 align-middle'>
-                        <Badge variant={liveCompleted ? 'gray-secondary' : 'gray'} size='sm' dot>
-                          {liveCompleted ? 'Completed' : 'Running'}
-                        </Badge>
-                      </td>
-                      <td className='px-6 align-middle text-[var(--text-secondary)] text-caption'>
-                        {liveCompleted ? LIVE_ROW.completedCost : LIVE_ROW.runningCost}
-                      </td>
-                      <td className='px-6 align-middle'>
-                        <Badge variant='gray-secondary' size='sm'>
-                          {LIVE_ROW.triggerLabel}
-                        </Badge>
-                      </td>
-                      <td className='px-6 align-middle text-[var(--text-secondary)] text-caption'>
-                        {liveCompleted ? LIVE_ROW.completedDuration : LIVE_ROW.runningDuration}
-                      </td>
-                    </tr>
-                    {HISTORY_ROWS.map((row, index) => (
-                      <LogsTableRow
-                        key={`${row.workflowName}-${row.date}`}
-                        row={row}
-                        visible={index < historyCount}
-                      />
-                    ))}
-                  </tbody>
-                </table>
+              <div className='flex items-center gap-1'>
+                <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
+                  <Download className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+                  Export
+                </span>
+                <span className='rounded-md bg-[var(--surface-active)] px-2 py-1 text-[var(--text-body)] text-caption'>
+                  Logs
+                </span>
+                <span className='rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
+                  Dashboard
+                </span>
               </div>
             </div>
           </div>
+
+          <div className='flex-shrink-0 border-[var(--border)] border-b px-6 py-2.5'>
+            <div className='flex items-center justify-between'>
+              <div className='flex flex-1 items-center gap-2.5'>
+                <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <span className='flex-1 text-[var(--text-muted)] text-caption'>Search logs...</span>
+              </div>
+              <div className='flex items-center gap-1.5'>
+                <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
+                  <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+                  Filter
+                </span>
+                <span className='flex items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
+                  <ArrowUpDown className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+                  Sort
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className='min-h-0 flex-1 overflow-hidden'>
+            <table className='w-full table-fixed text-sm'>
+              <colgroup>
+                {COL_WIDTHS.map((width, index) => (
+                  <col key={index} style={{ width }} />
+                ))}
+              </colgroup>
+              <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+                <tr>
+                  {COL_HEADERS.map((label) => (
+                    <th
+                      key={label}
+                      className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-caption'
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  className={cn(
+                    'h-[44px] transition-opacity duration-300 ease-out',
+                    liveState === 'hidden' ? 'opacity-0' : 'opacity-100'
+                  )}
+                >
+                  <td className='px-6 align-middle'>
+                    <div className='flex items-center gap-2'>
+                      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                      <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
+                        {LIVE_ROW.workflowName}
+                      </span>
+                    </div>
+                  </td>
+                  <td className='px-6 align-middle text-[var(--text-secondary)] text-caption'>
+                    {LIVE_ROW.date}
+                  </td>
+                  <td className='px-6 align-middle'>
+                    <Badge variant={liveCompleted ? 'gray-secondary' : 'gray'} size='sm' dot>
+                      {liveCompleted ? 'Completed' : 'Running'}
+                    </Badge>
+                  </td>
+                  <td className='px-6 align-middle text-[var(--text-secondary)] text-caption'>
+                    {liveCompleted ? LIVE_ROW.completedCost : LIVE_ROW.runningCost}
+                  </td>
+                  <td className='px-6 align-middle'>
+                    <Badge variant='gray-secondary' size='sm'>
+                      {LIVE_ROW.triggerLabel}
+                    </Badge>
+                  </td>
+                  <td className='px-6 align-middle text-[var(--text-secondary)] text-caption'>
+                    {liveCompleted ? LIVE_ROW.completedDuration : LIVE_ROW.runningDuration}
+                  </td>
+                </tr>
+                {HISTORY_ROWS.map((row, index) => (
+                  <LogsTableRow
+                    key={`${row.workflowName}-${row.date}`}
+                    row={row}
+                    visible={index < historyCount}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
+    </HeroLoopShell>
   )
 }
