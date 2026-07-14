@@ -75,6 +75,7 @@ describe('sse-handlers tool lifecycle', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    isSimExecuted.mockReturnValue(true)
     upsertAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     completeAsyncToolCall.mockResolvedValue(null)
@@ -1025,6 +1026,84 @@ describe('sse-handlers tool lifecycle', () => {
     expect(executeTool).toHaveBeenCalledWith('gmail_read', { maxResults: 10 }, expect.any(Object))
     expect(context.toolCalls.get('tool-dynamic-sim')?.status).toBe(
       MothershipStreamV1ToolOutcome.success
+    )
+  })
+
+  it('rebinds a gateway call to the resolved integration operation and branded activity', async () => {
+    isSimExecuted.mockReturnValue(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: { emails: [] } })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-gmail',
+          toolName: 'call_integration_tool',
+          arguments: { toolId: 'gmail_read_v2' },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: 'generating',
+          partial: true,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-gmail',
+          toolName: 'call_integration_tool',
+          arguments: {
+            toolId: 'gmail_read_v2',
+            description: 'Searching for invoice emails',
+            arguments: { maxResults: 10 },
+          },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-gmail',
+          toolName: 'gmail_read_v2',
+          arguments: { maxResults: 10, credentialId: 'cred-gmail' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sleep(0)
+
+    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(executeTool).toHaveBeenCalledWith(
+      'gmail_read_v2',
+      { maxResults: 10, credentialId: 'cred-gmail' },
+      expect.any(Object)
+    )
+    expect(context.toolCalls.get('gateway-gmail')).toEqual(
+      expect.objectContaining({
+        name: 'gmail_read_v2',
+        displayTitle: 'Gmail: Searching for invoice emails',
+        params: { maxResults: 10, credentialId: 'cred-gmail' },
+      })
     )
   })
 

@@ -9,6 +9,7 @@ export interface ToolCatalogEntry {
   id:
     | 'agent'
     | 'auth'
+    | 'call_integration_tool'
     | 'check_deployment_status'
     | 'complete_scheduled_task'
     | 'cp'
@@ -85,6 +86,7 @@ export interface ToolCatalogEntry {
     | 'scrape_page'
     | 'search'
     | 'search_documentation'
+    | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
     | 'search_online'
@@ -92,7 +94,6 @@ export interface ToolCatalogEntry {
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
-    | 'superagent'
     | 'table'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
@@ -105,6 +106,7 @@ export interface ToolCatalogEntry {
   name:
     | 'agent'
     | 'auth'
+    | 'call_integration_tool'
     | 'check_deployment_status'
     | 'complete_scheduled_task'
     | 'cp'
@@ -181,6 +183,7 @@ export interface ToolCatalogEntry {
     | 'scrape_page'
     | 'search'
     | 'search_documentation'
+    | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
     | 'search_online'
@@ -188,7 +191,6 @@ export interface ToolCatalogEntry {
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
-    | 'superagent'
     | 'table'
     | 'update_deployment_version'
     | 'update_scheduled_task_history'
@@ -210,7 +212,6 @@ export interface ToolCatalogEntry {
     | 'run'
     | 'scheduled_task'
     | 'search'
-    | 'superagent'
     | 'table'
     | 'workflow'
 }
@@ -246,6 +247,35 @@ export const Auth: ToolCatalogEntry = {
   },
   subagentId: 'auth',
   internal: true,
+}
+
+export const CallIntegrationTool: ToolCatalogEntry = {
+  id: 'call_integration_tool',
+  name: 'call_integration_tool',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    properties: {
+      arguments: {
+        additionalProperties: true,
+        description: "Inputs matching the selected operation's server-owned inputSchema.",
+        type: 'object',
+      },
+      credentialId: {
+        description:
+          'Optional OAuth credential ID convenience field. It is injected into operation arguments when that schema accepts credentialId.',
+        type: 'string',
+      },
+      description: {
+        description:
+          'Short present-progressive UI phrase describing this invocation, without the integration name (for example "Searching for invoice emails").',
+        type: 'string',
+      },
+      toolId: { description: 'Exact toolId returned by search_integration_tools.', type: 'string' },
+    },
+    required: ['toolId', 'description', 'arguments'],
+    type: 'object',
+  },
 }
 
 export const CheckDeploymentStatus: ToolCatalogEntry = {
@@ -1500,6 +1530,12 @@ export const FunctionExecute: ToolCatalogEntry = {
             },
           },
         },
+      },
+      timeout: {
+        type: 'number',
+        description:
+          'Maximum execution time in seconds. The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds; the platform execution limit still applies.',
+        default: 10,
       },
       title: {
         type: 'string',
@@ -3633,6 +3669,34 @@ export const SearchDocumentation: ToolCatalogEntry = {
   },
 }
 
+export const SearchIntegrationTools: ToolCatalogEntry = {
+  id: 'search_integration_tools',
+  name: 'search_integration_tools',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    properties: {
+      limit: {
+        description: 'Maximum matches to return. Defaults to 5.',
+        maximum: 10,
+        minimum: 1,
+        type: 'integer',
+      },
+      query: {
+        description: 'What the service operation must do, in plain language.',
+        type: 'string',
+      },
+      service: {
+        description:
+          'Optional canonical service name, such as "gmail", "slack", or "google_sheets".',
+        type: 'string',
+      },
+    },
+    required: ['query'],
+    type: 'object',
+  },
+}
+
 export const SearchKnowledgeBase: ToolCatalogEntry = {
   id: 'search_knowledge_base',
   name: 'search_knowledge_base',
@@ -3856,26 +3920,6 @@ export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
     required: ['operations'],
   },
   requiredPermission: 'write',
-}
-
-export const Superagent: ToolCatalogEntry = {
-  id: 'superagent',
-  name: 'superagent',
-  route: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: {
-      task: {
-        description:
-          "A single sentence — the agent has full conversation context. Do NOT pre-read credentials or look up configs. Example: 'send the email we discussed' or 'check my calendar for tomorrow'.",
-        type: 'string',
-      },
-    },
-    required: ['task'],
-    type: 'object',
-  },
-  subagentId: 'superagent',
-  internal: true,
 }
 
 export const Table: ToolCatalogEntry = {
@@ -4307,7 +4351,7 @@ export const Workflow: ToolCatalogEntry = {
       },
       sessionId: {
         description:
-          'Reusable session ID returned by an earlier workflow call in this chat. Supply it only on a later user message that continues the same task; the agent resumes from its saved transcript and receives unseen parent conversation messages. Omit it for a new or independent task.',
+          'Reusable session ID returned by an earlier workflow call in this chat. Supply it only on a later user message that continues the same task, and at most once per user message — never re-pass a sessionId already used this turn; the agent resumes from its saved transcript and receives unseen parent conversation messages. Omit it for a new or independent task.',
         type: 'string',
       },
       title: {
@@ -4747,6 +4791,7 @@ export const WorkspaceFileOperationValues = [
 export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Agent.id]: Agent,
   [Auth.id]: Auth,
+  [CallIntegrationTool.id]: CallIntegrationTool,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
   [CompleteScheduledTask.id]: CompleteScheduledTask,
   [Cp.id]: Cp,
@@ -4823,6 +4868,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ScrapePage.id]: ScrapePage,
   [Search.id]: Search,
   [SearchDocumentation.id]: SearchDocumentation,
+  [SearchIntegrationTools.id]: SearchIntegrationTools,
   [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,
   [SearchOnline.id]: SearchOnline,
@@ -4830,7 +4876,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetBlockEnabled.id]: SetBlockEnabled,
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
-  [Superagent.id]: Superagent,
   [Table.id]: Table,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateScheduledTaskHistory.id]: UpdateScheduledTaskHistory,

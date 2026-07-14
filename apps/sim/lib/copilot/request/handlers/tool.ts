@@ -30,8 +30,9 @@ import type {
 } from '@/lib/copilot/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { getToolDisplayTitle, humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolScope } from './types'
 import {
   abortPendingToolIfStreamDead,
@@ -53,10 +54,50 @@ const logger = createLogger('CopilotToolHandler')
 
 function applyToolDisplay(toolCall: ToolCallState | undefined): void {
   if (!toolCall?.name) return
+  if (toolCall.integrationDescription) {
+    const integrationName =
+      getBlockByToolName(toolCall.name)?.name ?? humanizeToolName(toolCall.name)
+    toolCall.displayTitle = `${integrationName}: ${toolCall.integrationDescription}`
+    return
+  }
   toolCall.displayTitle = getToolDisplayTitle(
     toolCall.name,
     toolCall.params as Record<string, unknown> | undefined
   )
+}
+
+const INTEGRATION_GATEWAY_TOOL = 'call_integration_tool'
+
+/**
+ * The model first streams the stable gateway call. Once Go resolves its exact
+ * server-owned operation, a second authoritative frame with the same call id
+ * carries the real executable tool name and arguments. Rebind atomically so
+ * execution, persistence, branding, and results all use that operation while
+ * retaining only the model-authored activity description for presentation.
+ */
+function rebindResolvedIntegrationCall(
+  toolCall: ToolCallState | undefined,
+  toolName: string,
+  args: Record<string, unknown> | undefined
+): boolean {
+  if (!toolCall || toolCall.name !== INTEGRATION_GATEWAY_TOOL) {
+    return false
+  }
+  // Gateway arguments may arrive over several generating/final frames. Keep
+  // the newest complete snapshot so the eventual authoritative operation frame
+  // can retain the model-authored presentation description.
+  if (toolName === INTEGRATION_GATEWAY_TOOL) {
+    if (args) toolCall.params = args
+    return true
+  }
+  const description = toolCall.params?.description
+  if (typeof description === 'string' && description.trim()) {
+    toolCall.integrationDescription = description.trim()
+  }
+  toolCall.name = toolName
+  toolCall.params = args
+  applyToolDisplay(toolCall)
+  return true
 }
 
 /**
@@ -260,8 +301,10 @@ async function handleCallPhase(
 
   if (isSubagent) {
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
-      if (existing && !existing.name && toolName) existing.name = toolName
-      if (existing && !existing.params && args) existing.params = args
+      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+        if (existing && !existing.name && toolName) existing.name = toolName
+        if (existing && !existing.params && args) existing.params = args
+      }
       applyToolDisplay(existing)
       return
     }
@@ -270,8 +313,10 @@ async function handleCallPhase(
       existing?.endTime ||
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
-      if (!existing.name && toolName) existing.name = toolName
-      if (!existing.params && args) existing.params = args
+      if (!rebindResolvedIntegrationCall(existing, toolName, args)) {
+        if (!existing.name && toolName) existing.name = toolName
+        if (!existing.params && args) existing.params = args
+      }
       applyToolDisplay(existing)
       return
     }
@@ -375,8 +420,10 @@ function registerSubagentToolCall(
   const hideFromUi = isToolHiddenInUi(toolName) || ui.hidden === true
   let toolCall = context.toolCalls.get(toolCallId)
   if (toolCall) {
-    if (!toolCall.name && toolName) toolCall.name = toolName
-    if (args && !toolCall.params) toolCall.params = args
+    if (!rebindResolvedIntegrationCall(toolCall, toolName, args)) {
+      if (!toolCall.name && toolName) toolCall.name = toolName
+      if (args && !toolCall.params) toolCall.params = args
+    }
     applyToolDisplay(toolCall)
     if (hideFromUi) removeToolCallContentBlock(context, toolCallId)
   } else {
@@ -404,8 +451,10 @@ function registerSubagentToolCall(
   const subagentToolCalls = context.subAgentToolCalls[parentToolCallId]
   const existingSubagentToolCall = subagentToolCalls.find((tc) => tc.id === toolCallId)
   if (existingSubagentToolCall) {
-    if (!existingSubagentToolCall.name && toolName) existingSubagentToolCall.name = toolName
-    if (args && !existingSubagentToolCall.params) existingSubagentToolCall.params = args
+    if (!rebindResolvedIntegrationCall(existingSubagentToolCall, toolName, args)) {
+      if (!existingSubagentToolCall.name && toolName) existingSubagentToolCall.name = toolName
+      if (args && !existingSubagentToolCall.params) existingSubagentToolCall.params = args
+    }
     applyToolDisplay(existingSubagentToolCall)
   } else {
     subagentToolCalls.push(toolCall)
@@ -422,7 +471,9 @@ function registerMainToolCall(
 ): void {
   const hideFromUi = isToolHiddenInUi(toolName) || ui.hidden === true
   if (existing) {
-    if (args && !existing.params) existing.params = args
+    if (!rebindResolvedIntegrationCall(existing, toolName, args) && args && !existing.params) {
+      existing.params = args
+    }
     applyToolDisplay(existing)
     if (hideFromUi) {
       removeToolCallContentBlock(context, toolCallId)

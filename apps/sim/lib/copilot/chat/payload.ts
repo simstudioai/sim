@@ -57,6 +57,7 @@ export interface ToolSchema {
   name: string
   description: string
   input_schema: Record<string, unknown>
+  outputs?: Record<string, unknown>
   defer_loading?: boolean
   executeLocally?: boolean
   params?: Record<string, unknown>
@@ -104,6 +105,7 @@ function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
       input_schema: { ...tool.input_schema },
     }
     if (tool.params) cloned.params = { ...tool.params }
+    if (tool.outputs) cloned.outputs = structuredClone(tool.outputs)
     if (tool.oauth) cloned.oauth = { ...tool.oauth }
     return cloned
   })
@@ -236,6 +238,16 @@ async function buildIntegrationToolSchemasUncached(
             appendEmailTagline: shouldAppendEmailTagline,
           }),
           input_schema: { ...userSchema },
+          ...(toolConfig.outputs && {
+            outputs: Object.fromEntries(
+              Object.entries(toolConfig.outputs)
+                .filter(([, output]) => output != null)
+                .map(([key, output]) => [
+                  key,
+                  { type: output.type, description: output.description },
+                ])
+            ),
+          }),
           defer_loading: true,
           executeLocally:
             catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
@@ -357,7 +369,9 @@ export async function buildCopilotRequestPayload(
   let mothershipTools: ToolSchema[] = []
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
-  if (effectiveMode === 'build') {
+  // "superagent" is a legacy wire value for Direct Action mode; both modes
+  // execute connected-service operations through the main-agent gateway.
+  if (effectiveMode === 'build' || effectiveMode === 'superagent') {
     integrationTools = await buildIntegrationToolSchemas(
       userId,
       userMessageId,

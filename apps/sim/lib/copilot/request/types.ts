@@ -23,6 +23,8 @@ export interface ToolCallState {
   name: string
   status: ToolCallStatus
   displayTitle?: string
+  /** Model-authored activity text for a gateway-resolved integration call. */
+  integrationDescription?: string
   params?: Record<string, unknown>
   result?: ToolCallStateResult
   error?: string

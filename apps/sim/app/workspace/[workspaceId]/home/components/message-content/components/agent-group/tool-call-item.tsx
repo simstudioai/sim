@@ -4,6 +4,7 @@ import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-ca
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { getToolCompletedTitle } from '@/lib/copilot/tools/tool-display'
 import { getBareIconStyle } from '@/blocks/icon-color'
+import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
 
@@ -88,7 +89,7 @@ export function ToolCallItem({
       ? (getToolCompletedTitle(liveTitle) ?? liveTitle)
       : liveTitle
 
-  const BlockIcon = readBlock?.icon
+  const BlockIcon = (readBlock ?? getBlockByToolName(toolName))?.icon
 
   return (
     <div className='flex items-center gap-[6px] pl-6'>

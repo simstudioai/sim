@@ -36,6 +36,34 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  call_integration_tool: {
+    parameters: {
+      properties: {
+        arguments: {
+          additionalProperties: true,
+          description: "Inputs matching the selected operation's server-owned inputSchema.",
+          type: 'object',
+        },
+        credentialId: {
+          description:
+            'Optional OAuth credential ID convenience field. It is injected into operation arguments when that schema accepts credentialId.',
+          type: 'string',
+        },
+        description: {
+          description:
+            'Short present-progressive UI phrase describing this invocation, without the integration name (for example "Searching for invoice emails").',
+          type: 'string',
+        },
+        toolId: {
+          description: 'Exact toolId returned by search_integration_tools.',
+          type: 'string',
+        },
+      },
+      required: ['toolId', 'description', 'arguments'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   check_deployment_status: {
     parameters: {
       type: 'object',
@@ -1334,6 +1362,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
             },
           },
+        },
+        timeout: {
+          type: 'number',
+          description:
+            'Maximum execution time in seconds. The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds; the platform execution limit still applies.',
+          default: 10,
         },
         title: {
           type: 'string',
@@ -3430,6 +3464,30 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  search_integration_tools: {
+    parameters: {
+      properties: {
+        limit: {
+          description: 'Maximum matches to return. Defaults to 5.',
+          maximum: 10,
+          minimum: 1,
+          type: 'integer',
+        },
+        query: {
+          description: 'What the service operation must do, in plain language.',
+          type: 'string',
+        },
+        service: {
+          description:
+            'Optional canonical service name, such as "gmail", "slack", or "google_sheets".',
+          type: 'string',
+        },
+      },
+      required: ['query'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   search_knowledge_base: {
     parameters: {
       type: 'object',
@@ -3657,20 +3715,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['operations'],
-    },
-    resultSchema: undefined,
-  },
-  superagent: {
-    parameters: {
-      properties: {
-        task: {
-          description:
-            "A single sentence — the agent has full conversation context. Do NOT pre-read credentials or look up configs. Example: 'send the email we discussed' or 'check my calendar for tomorrow'.",
-          type: 'string',
-        },
-      },
-      required: ['task'],
-      type: 'object',
     },
     resultSchema: undefined,
   },
@@ -4132,7 +4176,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         sessionId: {
           description:
-            'Reusable session ID returned by an earlier workflow call in this chat. Supply it only on a later user message that continues the same task; the agent resumes from its saved transcript and receives unseen parent conversation messages. Omit it for a new or independent task.',
+            'Reusable session ID returned by an earlier workflow call in this chat. Supply it only on a later user message that continues the same task, and at most once per user message — never re-pass a sessionId already used this turn; the agent resumes from its saved transcript and receives unseen parent conversation messages. Omit it for a new or independent task.',
           type: 'string',
         },
         title: {
