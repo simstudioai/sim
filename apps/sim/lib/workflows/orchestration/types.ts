@@ -7,5 +7,6 @@ export type OrchestrationErrorCode = 'validation' | 'not_found' | 'conflict' | '
 export function statusForOrchestrationError(code: OrchestrationErrorCode | undefined): number {
   if (code === 'validation') return 400
   if (code === 'not_found') return 404
+  if (code === 'conflict') return 409
   return 500
 }

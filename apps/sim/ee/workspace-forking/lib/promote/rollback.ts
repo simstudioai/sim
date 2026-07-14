@@ -171,7 +171,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
           skipped.add(op.workflowId)
           continue
         }
-        outboxEventIds.push(result.outboxEventId)
+        if (result.outboxEventId) outboxEventIds.push(result.outboxEventId)
         continue
       }
 

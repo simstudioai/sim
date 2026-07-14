@@ -140,7 +140,6 @@ export const PATCH = withRouteHandler(
       const deployResult = await performFullDeploy({
         workflowId: existingChat[0].workflowId,
         userId: session.user.id,
-        request,
       })
 
       if (!deployResult.success) {

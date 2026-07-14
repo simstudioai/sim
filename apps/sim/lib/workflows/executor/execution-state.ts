@@ -1,9 +1,12 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, or, sql } from 'drizzle-orm'
+import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
-export interface ExecutionStateRecord {
+const LATEST_EXECUTION_STATE_CANDIDATE_LIMIT = 10
+
+interface ExecutionStateRecord {
   executionId: string
   state: SerializableExecutionState
 }
@@ -27,16 +30,30 @@ function extractExecutionState(executionData: unknown): SerializableExecutionSta
   return isSerializableExecutionState(state) ? state : null
 }
 
-export async function getExecutionState(
+interface ExecutionStateRow {
   executionId: string
-): Promise<SerializableExecutionState | null> {
-  const [row] = await db
-    .select({ executionData: workflowExecutionLogs.executionData })
-    .from(workflowExecutionLogs)
-    .where(eq(workflowExecutionLogs.executionId, executionId))
-    .limit(1)
+  workflowId: string | null
+  workspaceId: string
+  executionData: unknown
+}
 
-  return extractExecutionState(row?.executionData)
+async function materializeExecutionDataFromRow(
+  row: ExecutionStateRow | undefined
+): Promise<Record<string, unknown> | null> {
+  if (!row) return null
+
+  return materializeExecutionData(row.executionData as Record<string, unknown> | null, {
+    workspaceId: row.workspaceId,
+    workflowId: row.workflowId,
+    executionId: row.executionId,
+  })
+}
+
+async function extractExecutionStateFromRow(
+  row: ExecutionStateRow | undefined
+): Promise<SerializableExecutionState | null> {
+  const executionData = await materializeExecutionDataFromRow(row)
+  return extractExecutionState(executionData)
 }
 
 export async function getExecutionStateForWorkflow(
@@ -44,7 +61,12 @@ export async function getExecutionStateForWorkflow(
   workflowId: string
 ): Promise<SerializableExecutionState | null> {
   const [row] = await db
-    .select({ executionData: workflowExecutionLogs.executionData })
+    .select({
+      executionId: workflowExecutionLogs.executionId,
+      workflowId: workflowExecutionLogs.workflowId,
+      workspaceId: workflowExecutionLogs.workspaceId,
+      executionData: workflowExecutionLogs.executionData,
+    })
     .from(workflowExecutionLogs)
     .where(
       and(
@@ -54,7 +76,7 @@ export async function getExecutionStateForWorkflow(
     )
     .limit(1)
 
-  return extractExecutionState(row?.executionData)
+  return extractExecutionStateFromRow(row)
 }
 
 /**
@@ -67,7 +89,12 @@ export async function getExecutionInputForWorkflow(
   workflowId: string
 ): Promise<{ found: boolean; input?: unknown }> {
   const [row] = await db
-    .select({ executionData: workflowExecutionLogs.executionData })
+    .select({
+      executionId: workflowExecutionLogs.executionId,
+      workflowId: workflowExecutionLogs.workflowId,
+      workspaceId: workflowExecutionLogs.workspaceId,
+      executionData: workflowExecutionLogs.executionData,
+    })
     .from(workflowExecutionLogs)
     .where(
       and(
@@ -81,35 +108,46 @@ export async function getExecutionInputForWorkflow(
     return { found: false }
   }
 
-  const data = row.executionData as { workflowInput?: unknown } | null | undefined
+  const data = await materializeExecutionDataFromRow(row)
   return { found: true, input: data?.workflowInput }
-}
-
-export async function getLatestExecutionState(
-  workflowId: string
-): Promise<SerializableExecutionState | null> {
-  const record = await getLatestExecutionStateWithExecutionId(workflowId)
-  return record?.state ?? null
 }
 
 export async function getLatestExecutionStateWithExecutionId(
   workflowId: string
 ): Promise<ExecutionStateRecord | null> {
-  const [row] = await db
+  const rows = await db
     .select({
       executionId: workflowExecutionLogs.executionId,
-      executionData: workflowExecutionLogs.executionData,
+      workflowId: workflowExecutionLogs.workflowId,
+      workspaceId: workflowExecutionLogs.workspaceId,
+      executionState: sql<unknown>`${workflowExecutionLogs.executionData} -> 'executionState'`,
+      traceStoreRef: sql<unknown>`${workflowExecutionLogs.executionData} -> ${TRACE_STORE_REF_KEY}`,
     })
     .from(workflowExecutionLogs)
     .where(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
-        sql`${workflowExecutionLogs.executionData} -> 'executionState' IS NOT NULL`
+        or(
+          sql`${workflowExecutionLogs.executionData} -> 'executionState' IS NOT NULL`,
+          sql`${workflowExecutionLogs.executionData} -> ${TRACE_STORE_REF_KEY} IS NOT NULL`
+        )
       )
     )
     .orderBy(desc(workflowExecutionLogs.startedAt))
-    .limit(1)
+    .limit(LATEST_EXECUTION_STATE_CANDIDATE_LIMIT)
 
-  const state = extractExecutionState(row?.executionData)
-  return row && state ? { executionId: row.executionId, state } : null
+  for (const row of rows) {
+    const state = await extractExecutionStateFromRow({
+      executionId: row.executionId,
+      workflowId: row.workflowId,
+      workspaceId: row.workspaceId,
+      executionData: {
+        executionState: row.executionState,
+        [TRACE_STORE_REF_KEY]: row.traceStoreRef,
+      },
+    })
+    if (state) return { executionId: row.executionId, state }
+  }
+
+  return null
 }

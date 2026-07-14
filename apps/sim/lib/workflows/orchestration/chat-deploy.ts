@@ -73,6 +73,14 @@ export async function performChatDeploy(
   if (!deployResult.success) {
     return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
   }
+  if (deployResult.latestDeploymentAttempt?.status !== 'active') {
+    return {
+      success: false,
+      error:
+        deployResult.warnings?.[0] ??
+        'Workflow deployment is still preparing. Retry chat deployment after it becomes active.',
+    }
+  }
 
   let encryptedPassword: string | null = null
   if (authType === 'password' && password) {

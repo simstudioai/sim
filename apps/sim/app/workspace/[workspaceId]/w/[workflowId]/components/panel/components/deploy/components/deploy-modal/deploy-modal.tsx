@@ -22,6 +22,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import type { DeploymentOperationSummary } from '@/lib/api/contracts/deployments'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
@@ -180,7 +181,7 @@ export function DeployModal({
     data: deploymentInfoData,
     isLoading: isLoadingDeploymentInfo,
     refetch: refetchDeploymentInfo,
-  } = useDeploymentInfo(workflowId, { enabled: open && isDeployed })
+  } = useDeploymentInfo(workflowId, { enabled: open })
 
   const { data: versionsData, isLoading: versionsLoading } = useDeploymentVersions(workflowId, {
     enabled: open,
@@ -201,6 +202,21 @@ export function DeployModal({
   const activateVersionMutation = useActivateDeploymentVersion()
 
   const versions = versionsData?.versions ?? []
+  const deploymentAttemptStatus = deploymentInfoData?.latestDeploymentAttempt?.status
+  const hasTerminalDeploymentAttempt =
+    deploymentAttemptStatus === 'active' ||
+    deploymentAttemptStatus === 'failed' ||
+    deploymentAttemptStatus === 'superseded'
+  const isAttemptFailed = deploymentAttemptStatus === 'failed'
+  const attemptErrorMessage = isAttemptFailed
+    ? (deploymentInfoData?.latestDeploymentAttempt?.error?.message ??
+      'Deployment preparation failed')
+    : null
+  const displayedDeployWarnings = isAttemptFailed
+    ? []
+    : hasTerminalDeploymentAttempt || deployWarnings.length === 0
+      ? (deploymentInfoData?.warnings ?? [])
+      : deployWarnings
 
   const isWorkflowStillActive = (targetWorkflowId: string) => {
     return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
@@ -340,7 +356,8 @@ export function DeployModal({
 
       try {
         const result = await deployMutation.mutateAsync({ workflowId })
-        const syncWarning = await syncDraftAfterDeploy()
+        const syncWarning =
+          result.latestDeploymentAttempt?.status === 'active' ? await syncDraftAfterDeploy() : null
         if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
         setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
       } finally {
@@ -545,14 +562,37 @@ export function DeployModal({
                 Configure and manage workflow deployment settings including API, MCP, and chat
                 options.
               </ModalDescription>
-              {(deployError || deployWarnings.length > 0) && (
-                <div className='mb-3 flex flex-col gap-2'>
+              {(deployError || attemptErrorMessage || displayedDeployWarnings.length > 0) && (
+                <div className='mb-3 flex flex-col gap-2' aria-live='polite'>
                   {deployError && (
-                    <Badge variant='red' size='lg' dot className='max-w-full truncate'>
+                    <Badge variant='red' size='lg' dot className='max-w-full truncate' role='alert'>
                       {deployError}
                     </Badge>
                   )}
-                  {deployWarnings.map((warning) => (
+                  {!deployError && attemptErrorMessage && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Badge
+                          variant='red'
+                          size='lg'
+                          dot
+                          className='max-w-full cursor-default truncate'
+                          role='alert'
+                        >
+                          {attemptErrorMessage}
+                        </Badge>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='bottom' className='max-w-[360px]'>
+                        <p className='text-caption'>{attemptErrorMessage}</p>
+                        <p className='text-caption'>
+                          {isDeployed
+                            ? 'The previously deployed version is still live.'
+                            : 'The workflow remains undeployed.'}
+                        </p>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+                  {displayedDeployWarnings.map((warning) => (
                     <Badge
                       key={warning}
                       variant='amber'
@@ -639,6 +679,8 @@ export function DeployModal({
               isUndeploying={isUndeploying}
               deployReadiness={deployReadiness}
               isDeploymentSettling={isDeploymentSettling}
+              attemptStatus={deploymentAttemptStatus}
+              attemptErrorMessage={attemptErrorMessage}
               onDeploy={onDeploy}
               onRedeploy={handleRedeploy}
               onUndeploy={() => {
@@ -781,15 +823,68 @@ export function DeployModal({
   )
 }
 
+type DeploymentAttemptStatus = DeploymentOperationSummary['status']
+
 interface StatusBadgeProps {
-  isWarning: boolean
+  isDeployed: boolean
+  needsRedeployment: boolean
+  attemptStatus?: DeploymentAttemptStatus
+  attemptErrorMessage?: string | null
 }
 
-function StatusBadge({ isWarning }: StatusBadgeProps) {
-  const label = isWarning ? 'Update deployment' : 'Live'
+/**
+ * Lifecycle-aware deployment status badge. Pending attempts render amber,
+ * failed attempts render red with the failure reason in a tooltip, and a
+ * settled live deployment falls back to the Live/Update states.
+ */
+function StatusBadge({
+  isDeployed,
+  needsRedeployment,
+  attemptStatus,
+  attemptErrorMessage,
+}: StatusBadgeProps) {
+  if (attemptStatus === 'preparing' || attemptStatus === 'activating') {
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Badge variant='amber' size='lg' dot className='cursor-default'>
+            Pending
+          </Badge>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top' className='max-w-[320px]'>
+          {isDeployed
+            ? 'A new version is being prepared. The current version stays live until cutover completes.'
+            : 'Triggers and schedules are being registered. The workflow goes live once activation completes.'}
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
+
+  if (attemptStatus === 'failed') {
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Badge variant='red' size='lg' dot className='cursor-default'>
+            Failed
+          </Badge>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top' className='max-w-[320px]'>
+          <p className='text-caption'>{attemptErrorMessage || 'Deployment preparation failed.'}</p>
+          <p className='text-caption'>
+            {isDeployed
+              ? 'The previously deployed version is still live.'
+              : 'The workflow remains undeployed.'}
+          </p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
+
+  if (!isDeployed) return null
+
   return (
-    <Badge variant={isWarning ? 'amber' : 'green'} size='lg' dot>
-      {label}
+    <Badge variant={needsRedeployment ? 'amber' : 'green'} size='lg' dot>
+      {needsRedeployment ? 'Update deployment' : 'Live'}
     </Badge>
   )
 }
@@ -801,6 +896,8 @@ interface GeneralFooterProps {
   isUndeploying: boolean
   deployReadiness: DeployReadiness
   isDeploymentSettling: boolean
+  attemptStatus?: DeploymentAttemptStatus
+  attemptErrorMessage?: string | null
   onDeploy: () => Promise<void>
   onRedeploy: () => Promise<void>
   onUndeploy: () => void
@@ -813,6 +910,8 @@ function GeneralFooter({
   isUndeploying,
   deployReadiness,
   isDeploymentSettling,
+  attemptStatus,
+  attemptErrorMessage,
   onDeploy,
   onRedeploy,
   onUndeploy,
@@ -828,7 +927,17 @@ function GeneralFooter({
   if (!isDeployed) {
     return (
       <ModalFooter className='items-center justify-between'>
-        <div className='max-w-[260px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
+        <div className='flex min-w-0 flex-col gap-1'>
+          <StatusBadge
+            isDeployed={false}
+            needsRedeployment={needsRedeployment}
+            attemptStatus={attemptStatus}
+            attemptErrorMessage={attemptErrorMessage}
+          />
+          {blockedMessage && (
+            <div className='max-w-[260px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
+          )}
+        </div>
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
             {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
@@ -842,7 +951,12 @@ function GeneralFooter({
   return (
     <ModalFooter className='items-center justify-between'>
       <div className='flex min-w-0 flex-col gap-1'>
-        <StatusBadge isWarning={needsRedeployment} />
+        <StatusBadge
+          isDeployed
+          needsRedeployment={needsRedeployment}
+          attemptStatus={attemptStatus}
+          attemptErrorMessage={attemptErrorMessage}
+        />
         {blockedMessage && (
           <div className='max-w-[300px] text-[var(--text-muted)] text-xs'>{blockedMessage}</div>
         )}

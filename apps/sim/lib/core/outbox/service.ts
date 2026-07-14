@@ -37,6 +37,13 @@ export interface OutboxEventContext {
   eventType: string
   /** How many times this event has been attempted (zero on first run). */
   attempts: number
+  /** Maximum attempts before this event is dead-lettered. */
+  maxAttempts: number
+  /**
+   * Aborted when the handler exceeds its lease-bound execution window.
+   * External-operation handlers must stop before performing another side effect.
+   */
+  signal: AbortSignal
   /**
    * Durably shallow-merge fields into this event's JSON payload while the
    * current processing lease is still held. Long-running handlers can
@@ -558,13 +565,18 @@ function runHandlerWithTimeout(
   event: typeof outboxEvent.$inferSelect,
   timeoutMs: number = DEFAULT_HANDLER_TIMEOUT_MS
 ): Promise<void> {
+  const controller = new AbortController()
   const context: OutboxEventContext = {
     eventId: event.id,
     eventType: event.eventType,
     attempts: event.attempts,
+    maxAttempts: event.maxAttempts,
+    signal: controller.signal,
     checkpointPayload: async (patch) => {
+      controller.signal.throwIfAborted()
       const updated = await mergePayloadIfLeaseHeld(event, patch)
       if (!updated) {
+        controller.abort()
         throw new Error(`Outbox lease lost while checkpointing event ${event.id}`)
       }
       event.payload = {
@@ -576,6 +588,7 @@ function runHandlerWithTimeout(
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
+      controller.abort()
       reject(new OutboxHandlerTimeoutError(timeoutMs))
     }, timeoutMs)
 

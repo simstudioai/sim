@@ -345,6 +345,8 @@ export const executeWorkflowBodySchema = z.object({
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: workflowStateSchema.optional(),
+  /** Internal MCP bridge pin for calls admitted before a deployment cutover. */
+  deploymentVersionId: z.string().min(1).optional(),
   executionId: z.unknown().optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),

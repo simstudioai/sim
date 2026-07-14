@@ -319,17 +319,23 @@ async function isScheduleDeploymentVersionActive(
 
 async function isScheduleClaimCurrent(
   scheduleId: string,
-  claimedAt: Date | null
+  claimedAt: Date | null,
+  deploymentOperationId?: string
 ): Promise<boolean> {
-  if (!claimedAt) return true
+  if (!claimedAt && !deploymentOperationId) return true
 
   const [scheduleRecord] = await db
-    .select({ lastQueuedAt: workflowSchedule.lastQueuedAt })
+    .select({
+      lastQueuedAt: workflowSchedule.lastQueuedAt,
+      deploymentOperationId: workflowSchedule.deploymentOperationId,
+    })
     .from(workflowSchedule)
     .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
     .limit(1)
 
-  return scheduleRecord?.lastQueuedAt?.getTime() === claimedAt.getTime()
+  if (!scheduleRecord) return false
+  if (claimedAt && scheduleRecord.lastQueuedAt?.getTime() !== claimedAt.getTime()) return false
+  return scheduleRecord.deploymentOperationId === (deploymentOperationId ?? null)
 }
 
 async function runWorkflowExecution({
@@ -455,7 +461,13 @@ async function runWorkflowExecution({
       }
 
       const claimedAt = getScheduleClaimedAt(payload)
-      if (!(await isScheduleClaimCurrent(payload.scheduleId, claimedAt))) {
+      if (
+        !(await isScheduleClaimCurrent(
+          payload.scheduleId,
+          claimedAt,
+          payload.deploymentOperationId
+        ))
+      ) {
         logger.info(
           `[${requestId}] Schedule claim changed before workflow core started, skipping`,
           {
@@ -569,6 +581,7 @@ export type ScheduleExecutionPayload = {
   correlation?: AsyncExecutionCorrelation
   blockId?: string
   deploymentVersionId?: string
+  deploymentOperationId?: string
   cronExpression?: string
   timezone?: string
   lastRanAt?: string

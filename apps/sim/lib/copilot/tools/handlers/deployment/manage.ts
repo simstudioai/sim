@@ -9,7 +9,11 @@ import {
   performUpdateWorkflowMcpServer,
 } from '@/lib/mcp/orchestration'
 import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison'
-import { performActivateVersion, performRevertToVersion } from '@/lib/workflows/orchestration'
+import {
+  getWorkflowDeploymentSummary,
+  performActivateVersion,
+  performRevertToVersion,
+} from '@/lib/workflows/orchestration'
 import {
   listWorkflowVersions,
   updateDeploymentVersionMetadata,
@@ -42,7 +46,7 @@ export async function executeCheckDeploymentStatus(
     const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
     const workspaceId = workflowRecord.workspaceId
 
-    const [apiDeploy, chatDeploy] = await Promise.all([
+    const [apiDeploy, chatDeploy, deploymentSummary] = await Promise.all([
       db
         .select({ isDeployed: workflow.isDeployed, deployedAt: workflow.deployedAt })
         .from(workflow)
@@ -63,6 +67,7 @@ export async function executeCheckDeploymentStatus(
         .from(chat)
         .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
         .limit(1),
+      getWorkflowDeploymentSummary(workflowId),
     ])
 
     const isApiDeployed = apiDeploy[0]?.isDeployed || false
@@ -73,6 +78,9 @@ export async function executeCheckDeploymentStatus(
       endpoint: isApiDeployed ? `/api/workflows/${workflowId}/execute` : null,
       apiKey: workflowRecord.workspaceId ? 'Workspace API keys' : 'Personal API keys',
       needsRedeployment,
+      activeDeployment: deploymentSummary.activeDeployment,
+      latestDeploymentAttempt: deploymentSummary.latestDeploymentAttempt,
+      warnings: deploymentSummary.warnings ?? [],
     }
 
     const isChatDeployed = !!chatDeploy[0]
@@ -539,20 +547,24 @@ export async function executePromoteToLive(
       workflowId,
       version,
       userId: context.userId,
-      workflow: workflowRecord as Record<string, unknown>,
     })
 
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to promote version' }
     }
 
+    const isActive = result.latestDeploymentAttempt?.status === 'active'
     return {
       success: true,
       output: {
         workflowId,
         version,
-        message: `Promoted version ${version} to live`,
+        message: isActive
+          ? `Promoted version ${version} to live`
+          : `Started preparing version ${version} for promotion`,
         deployedAt: result.deployedAt ? new Date(result.deployedAt).toISOString() : undefined,
+        lifecycleStatus: result.latestDeploymentAttempt?.status ?? null,
+        readiness: result.latestDeploymentAttempt?.readiness ?? null,
         warnings: result.warnings,
       },
     }

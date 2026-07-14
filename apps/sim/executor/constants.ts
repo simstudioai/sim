@@ -247,11 +247,6 @@ export const EVALUATOR = {
   JSON_INDENT: 2,
 } as const
 
-export const CONDITION = {
-  ELSE_LABEL: 'else',
-  ELSE_TITLE: 'else',
-} as const
-
 export const PAUSE_RESUME = {
   OPERATION: {
     HUMAN: 'human',

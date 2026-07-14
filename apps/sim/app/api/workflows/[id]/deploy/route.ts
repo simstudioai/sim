@@ -10,7 +10,11 @@ import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
+import {
+  getWorkflowDeploymentSummary,
+  performFullDeploy,
+  performFullUndeploy,
+} from '@/lib/workflows/orchestration'
 import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import {
@@ -44,7 +48,10 @@ export const GET = withRouteHandler(
         return createErrorResponse(error.message, error.status)
       }
 
-      if (!workflowData.isDeployed) {
+      const deploymentSummary = await getWorkflowDeploymentSummary(id)
+      const isDeployed = deploymentSummary.activeDeployment !== null || workflowData.isDeployed
+
+      if (!isDeployed) {
         logger.info(`[${requestId}] Workflow is not deployed: ${id}`)
         return createSuccessResponse({
           isDeployed: false,
@@ -52,10 +59,17 @@ export const GET = withRouteHandler(
           apiKey: null,
           needsRedeployment: false,
           isPublicApi: workflowData.isPublicApi ?? false,
+          activeDeployment: deploymentSummary.activeDeployment,
+          latestDeploymentAttempt: deploymentSummary.latestDeploymentAttempt,
+          warnings: deploymentSummary.warnings,
         })
       }
 
-      const needsRedeployment = await checkNeedsRedeployment(id)
+      const attemptStatus = deploymentSummary.latestDeploymentAttempt?.status
+      const needsRedeployment =
+        attemptStatus === 'preparing' || attemptStatus === 'activating'
+          ? false
+          : await checkNeedsRedeployment(id)
 
       logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
 
@@ -65,10 +79,13 @@ export const GET = withRouteHandler(
 
       return createSuccessResponse({
         apiKey: responseApiKeyInfo,
-        isDeployed: workflowData.isDeployed,
-        deployedAt: workflowData.deployedAt,
+        isDeployed,
+        deployedAt: deploymentSummary.activeDeployment?.deployedAt ?? workflowData.deployedAt,
         needsRedeployment,
         isPublicApi: workflowData.isPublicApi ?? false,
+        activeDeployment: deploymentSummary.activeDeployment,
+        latestDeploymentAttempt: deploymentSummary.latestDeploymentAttempt,
+        warnings: deploymentSummary.warnings,
       })
     } catch (error: any) {
       logger.error(`[${requestId}] Error fetching deployment info: ${id}`, error)
@@ -102,9 +119,7 @@ export const POST = withRouteHandler(
       const result = await performFullDeploy({
         workflowId: id,
         userId: actorUserId,
-        workflowName: workflowData!.name || undefined,
         requestId,
-        request,
       })
 
       if (!result.success) {
@@ -114,16 +129,10 @@ export const POST = withRouteHandler(
         )
       }
 
-      logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
-
-      captureServerEvent(
-        actorUserId,
-        'workflow_deployed',
-        { workflow_id: id, workspace_id: workflowData!.workspaceId ?? '' },
-        {
-          groups: workflowData!.workspaceId ? { workspace: workflowData!.workspaceId } : undefined,
-          setOnce: { first_workflow_deployed_at: new Date().toISOString() },
-        }
+      const isDeployed = Boolean(result.activeDeployment)
+      const attemptActivated = result.latestDeploymentAttempt?.status === 'active'
+      logger.info(
+        `[${requestId}] Workflow deployment ${attemptActivated ? 'activated' : 'accepted for preparation'}: ${id}`
       )
 
       const responseApiKeyInfo = workflowData!.workspaceId
@@ -132,9 +141,11 @@ export const POST = withRouteHandler(
 
       return createSuccessResponse({
         apiKey: responseApiKeyInfo,
-        isDeployed: true,
+        isDeployed,
         deployedAt: result.deployedAt,
         warnings: result.warnings,
+        activeDeployment: result.activeDeployment,
+        latestDeploymentAttempt: result.latestDeploymentAttempt,
       })
     } catch (error: unknown) {
       if (error instanceof WorkflowLockedError) {

@@ -29,7 +29,10 @@ import {
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
-import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState,
+} from '@/lib/workflows/persistence/utils'
 import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { WEBHOOK_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { getBlock } from '@/blocks'
@@ -241,6 +244,8 @@ export type WebhookExecutionPayload = {
   headers: Record<string, string>
   path: string
   blockId?: string
+  /** Immutable deployment admitted by webhook ingress; absent on legacy queued jobs. */
+  deploymentVersionId?: string
   workspaceId: string
   credentialId?: string
   /** Epoch ms when the webhook HTTP request was first received (for dispatch-latency metrics). */
@@ -407,6 +412,9 @@ async function executeWebhookJobInternal(
   if (!workflowRecord) {
     throw new Error(`Workflow ${payload.workflowId} not found during preprocessing`)
   }
+  if (!workflowRecord.isDeployed || workflowRecord.archivedAt) {
+    throw new Error(`Workflow ${payload.workflowId} is no longer deployed`)
+  }
 
   const workspaceId = workflowRecord.workspaceId
   if (!workspaceId) {
@@ -420,8 +428,15 @@ async function executeWebhookJobInternal(
   let deploymentVersionId: string | undefined
 
   try {
+    const workflowStatePromise = payload.deploymentVersionId
+      ? loadWorkflowDeploymentVersionState(
+          payload.workflowId,
+          payload.deploymentVersionId,
+          workspaceId
+        )
+      : loadDeployedWorkflowState(payload.workflowId, workspaceId)
     const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
-      loadDeployedWorkflowState(payload.workflowId, workspaceId),
+      workflowStatePromise,
       db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
       payload.credentialId
         ? resolveCredentialAccountUserId(payload.credentialId)

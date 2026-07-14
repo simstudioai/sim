@@ -4,7 +4,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { cleanupWebhooksForWorkflow } from '@/lib/webhooks/deploy'
 import type { BlockState } from '@/lib/workflows/schedules/utils'
 import { findScheduleBlocks, validateScheduleBlock } from '@/lib/workflows/schedules/validation'
 
@@ -31,7 +30,8 @@ export async function createSchedulesForDeploy(
   workflowId: string,
   blocks: Record<string, BlockState>,
   tx?: DbOrTx,
-  deploymentVersionId?: string
+  deploymentVersionId?: string,
+  deploymentOperationId?: string
 ): Promise<ScheduleDeployResult> {
   const scheduleBlocks = findScheduleBlocks(blocks)
 
@@ -110,6 +110,7 @@ export async function createSchedulesForDeploy(
           id: scheduleId,
           workflowId,
           deploymentVersionId: deploymentVersionId || null,
+          deploymentOperationId: deploymentOperationId || null,
           blockId,
           cronExpression,
           triggerType: 'schedule',
@@ -126,6 +127,7 @@ export async function createSchedulesForDeploy(
           blockId,
           cronExpression,
           ...(deploymentVersionId ? { deploymentVersionId } : {}),
+          ...(deploymentOperationId ? { deploymentOperationId } : {}),
           updatedAt: now,
           nextRunAt,
           timezone,
@@ -200,35 +202,4 @@ export async function deleteSchedulesForWorkflow(
       ? `Deleted schedules for workflow ${workflowId} deployment ${deploymentVersionId}`
       : `Deleted all schedules for workflow ${workflowId}`
   )
-}
-
-async function cleanupDeploymentVersion(params: {
-  workflowId: string
-  workflow: Record<string, unknown>
-  requestId: string
-  deploymentVersionId: string
-  /**
-   * If true, skip external subscription cleanup (already done by saveTriggerWebhooksForDeploy).
-   * Only deletes DB records.
-   */
-  skipExternalCleanup?: boolean
-  strictExternalCleanup?: boolean
-}): Promise<void> {
-  const {
-    workflowId,
-    workflow,
-    requestId,
-    deploymentVersionId,
-    skipExternalCleanup = false,
-    strictExternalCleanup = false,
-  } = params
-  await cleanupWebhooksForWorkflow(
-    workflowId,
-    workflow,
-    requestId,
-    deploymentVersionId,
-    skipExternalCleanup,
-    strictExternalCleanup
-  )
-  await deleteSchedulesForWorkflow(workflowId, db, deploymentVersionId)
 }

@@ -207,6 +207,10 @@ export function Versions({
       <div className='bg-[var(--surface-2)]'>
         {versions.map((v) => {
           const isSelected = selectedVersion === v.version
+          const operationStatus =
+            !v.isActive && v.latestOperationStatus !== 'active' ? v.latestOperationStatus : null
+          const isOperationPending =
+            operationStatus === 'preparing' || operationStatus === 'activating'
 
           return (
             <div
@@ -233,9 +237,23 @@ export function Versions({
                   <div
                     className={cn(
                       'size-[6px] shrink-0 rounded-xs',
-                      v.isActive ? 'bg-[var(--indicator-active)]' : 'bg-[var(--indicator-inactive)]'
+                      v.isActive
+                        ? 'bg-[var(--indicator-active)]'
+                        : isOperationPending
+                          ? 'bg-amber-400'
+                          : operationStatus === 'failed'
+                            ? 'bg-red-400'
+                            : 'bg-[var(--indicator-inactive)]'
                     )}
-                    title={v.isActive ? 'Live' : 'Inactive'}
+                    title={
+                      v.isActive
+                        ? 'Live'
+                        : isOperationPending
+                          ? 'Pending'
+                          : operationStatus === 'failed'
+                            ? 'Failed'
+                            : 'Inactive'
+                    }
                   />
                   {editingVersion === v.version ? (
                     <Input
@@ -271,6 +289,20 @@ export function Versions({
                       {v.name && <span className='truncate'>{v.name}</span>}
                       {v.isActive && (
                         <span className='shrink-0 text-[var(--text-tertiary)]'>(live)</span>
+                      )}
+                      {operationStatus && (
+                        <span
+                          className={cn(
+                            'shrink-0',
+                            isOperationPending
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : operationStatus === 'failed'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-[var(--text-tertiary)]'
+                          )}
+                        >
+                          ({operationStatus})
+                        </span>
                       )}
                       {isSelected && (
                         <span className='shrink-0 text-[var(--text-tertiary)]'>(selected)</span>

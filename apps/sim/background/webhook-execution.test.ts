@@ -20,6 +20,7 @@ const {
   mockGetActiveSpan,
   mockExecuteWithIdempotency,
   mockReleaseExecutionSlot,
+  mockLoadDeploymentVersionState,
 } = vi.hoisted(() => ({
   mockResolveWebhookRecordProviderConfig: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
@@ -28,6 +29,15 @@ const {
   mockGetActiveSpan: vi.fn(),
   mockExecuteWithIdempotency: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
+  mockLoadDeploymentVersionState: vi.fn(
+    async (_workflowId: string, deploymentVersionId: string) => ({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      deploymentVersionId,
+    })
+  ),
 }))
 
 vi.mock('@opentelemetry/api', () => ({
@@ -66,6 +76,7 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
     parallels: {},
     deploymentVersionId: 'deployment-1',
   })),
+  loadWorkflowDeploymentVersionState: mockLoadDeploymentVersionState,
 }))
 
 vi.mock('@/lib/webhooks/providers', () => ({
@@ -206,7 +217,13 @@ describe('executeWebhookJob fault vs error handling', () => {
       success: true,
       actorUserId: 'user-1',
       billingAttribution,
-      workflowRecord: { workspaceId: 'workspace-1', userId: 'user-1', variables: {} },
+      workflowRecord: {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        variables: {},
+        isDeployed: true,
+        archivedAt: null,
+      },
       executionTimeout: { async: 120_000 },
     })
     mockResolveWebhookRecordProviderConfig.mockImplementation(async (record) => record)
@@ -246,6 +263,55 @@ describe('executeWebhookJob fault vs error handling', () => {
     expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
     // Pipeline/infra errors are recorded here before re-throwing to fault the trigger.dev run.
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalled()
+  })
+
+  it('executes against the deployment version admitted by webhook ingress', async () => {
+    mockExecuteWorkflowCore.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob({
+      ...payload,
+      deploymentVersionId: 'deployment-admitted',
+    })
+
+    expect(mockLoadDeploymentVersionState).toHaveBeenCalledWith(
+      'workflow-1',
+      'deployment-admitted',
+      'workspace-1'
+    )
+  })
+
+  it('does not start queued webhook work after the workflow is undeployed', async () => {
+    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'user-1',
+      billingAttribution,
+      workflowRecord: {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        variables: {},
+        isDeployed: false,
+        archivedAt: null,
+      },
+      executionTimeout: { async: 120_000 },
+    })
+
+    await expect(executeWebhookJob(payload)).rejects.toThrow(
+      'Workflow workflow-1 is no longer deployed'
+    )
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
   })
 
   it('releases the reservation when idempotency returns a cached result', async () => {

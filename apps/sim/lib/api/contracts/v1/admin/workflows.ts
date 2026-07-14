@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  activeDeploymentSummarySchema,
+  deploymentOperationSummarySchema,
+} from '@/lib/api/contracts/deployments'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
   adminV1ExportFormatQuerySchema,
@@ -130,10 +134,12 @@ export const adminV1DeploymentVersionSchema = z.object({
 })
 
 export const adminV1DeployResultSchema = z.object({
-  isDeployed: z.literal(true),
-  version: z.number(),
-  deployedAt: z.string(),
+  isDeployed: z.boolean(),
+  version: z.number().nullable(),
+  deployedAt: z.string().nullable(),
   warnings: z.array(z.string()).optional(),
+  activeDeployment: activeDeploymentSummarySchema.nullable().optional(),
+  latestDeploymentAttempt: deploymentOperationSummarySchema.nullable().optional(),
 })
 
 export const adminV1UndeployResultSchema = z.object({
@@ -171,8 +177,10 @@ const adminV1WorkflowVersionsResultSchema = z.object({
 const adminV1ActivateWorkflowVersionResultSchema = z.object({
   success: z.literal(true),
   version: z.number(),
-  deployedAt: z.string(),
+  deployedAt: z.string().nullable(),
   warnings: z.array(z.string()).optional(),
+  activeDeployment: activeDeploymentSummarySchema.nullable().optional(),
+  latestDeploymentAttempt: deploymentOperationSummarySchema.nullable().optional(),
 })
 
 export const adminV1ListWorkflowsContract = defineRouteContract({
