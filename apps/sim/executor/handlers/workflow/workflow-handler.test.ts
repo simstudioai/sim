@@ -518,6 +518,45 @@ describe('WorkflowBlockHandler', () => {
       })
     })
   })
+
+  describe('projectCustomBlockOutput', () => {
+    const childResult = {
+      success: true,
+      output: { data: 'whole result' },
+      logs: [{ blockId: 'b1', success: true, output: { data: { x: 42 }, price: 999 } }],
+    }
+
+    it('maps each curated output to its named field plus system fields', () => {
+      const result = (handler as any).projectCustomBlockOutput(
+        childResult,
+        [{ blockId: 'b1', path: 'data.x', name: 'answer' }],
+        0.5
+      )
+
+      expect(result).toEqual({ answer: 42, success: true, cost: { total: 0.5 } })
+    })
+
+    it('never lets an exposed output named cost clobber the billed cost', () => {
+      const result = (handler as any).projectCustomBlockOutput(
+        childResult,
+        [{ blockId: 'b1', path: 'price', name: 'cost' }],
+        0.5
+      )
+
+      expect(result.cost).toEqual({ total: 0.5 })
+      expect(result.success).toBe(true)
+    })
+
+    it('exposes the whole child result when no outputs are curated', () => {
+      const result = (handler as any).projectCustomBlockOutput(childResult, [], 0.5)
+
+      expect(result).toEqual({
+        success: true,
+        result: { data: 'whole result' },
+        cost: { total: 0.5 },
+      })
+    })
+  })
 })
 
 describe('remapCustomBlockInputKeys', () => {

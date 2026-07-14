@@ -105,6 +105,7 @@ export const useSearchModalStore = create<SearchModalState>()(
             bgColor: block.bgColor || '#6B7280',
             type: block.type,
             searchValue: `${block.name} ${block.type} ${buildCommandSearchableOptionSearchValue(block)}`,
+            sourceWorkflowId: block.sourceWorkflowId,
           }
 
           if (block.category === 'blocks' && block.type !== 'starter') {

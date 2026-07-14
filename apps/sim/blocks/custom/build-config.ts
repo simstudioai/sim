@@ -62,6 +62,19 @@ export const RESERVED_PARAMS = new Set([
   'advancedMode',
 ])
 
+/**
+ * Output names the block projects itself (`success`/`error`/`result` from
+ * `buildOutputs`, `cost` from the executor's billing aggregation). A user-named
+ * exposed output must never shadow these — an output literally named `cost`
+ * would clobber the billed cost.
+ */
+export const RESERVED_OUTPUT_NAMES = new Set(['success', 'error', 'result', 'cost'])
+
+/** Whether an exposed-output name collides with a system output field. */
+export function isReservedOutputName(name: string): boolean {
+  return RESERVED_OUTPUT_NAMES.has(name.trim().toLowerCase())
+}
+
 /** Map a Start input field type to the editor sub-block type used to collect it. */
 function subBlockTypeForField(fieldType: string): SubBlockType {
   switch (fieldType) {
@@ -122,6 +135,7 @@ export function buildCustomBlockConfig(
     type: row.type,
     name: row.name,
     description: row.description,
+    sourceWorkflowId: row.workflowId,
     category: 'tools',
     longDescription:
       'A published workflow packaged as a reusable, self-contained block. Fill its input ' +
