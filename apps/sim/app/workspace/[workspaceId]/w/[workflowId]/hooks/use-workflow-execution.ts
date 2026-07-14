@@ -1387,7 +1387,8 @@ export function useWorkflowExecution() {
               )
                 return
 
-              settleAllAgentStreamChrome('success')
+              // HITL pause mid tool-loop — open tools never got an end event.
+              settleAllAgentStreamChrome('cancelled')
 
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
