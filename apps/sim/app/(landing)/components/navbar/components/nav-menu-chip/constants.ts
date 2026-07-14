@@ -1,8 +1,7 @@
 import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
 
 /**
- * The Platform menu - Sim's modules. Five items on the three-column grid (the
- * panel centers the two-item last row so the count reads intentional). Each
+ * The Platform menu - Sim's modules. Six items in a three-column grid. Each
  * description names the outcome the module unlocks for your agents.
  */
 export const PLATFORM_MENU: NavMenu = {
@@ -27,6 +26,11 @@ export const PLATFORM_MENU: NavMenu = {
       title: 'Files',
       description: 'One file store for team and agents',
       href: '/files',
+    },
+    {
+      title: 'Scheduled Tasks',
+      description: 'Run agents on a cadence',
+      href: '/scheduled-tasks',
     },
     {
       title: 'Logs',
