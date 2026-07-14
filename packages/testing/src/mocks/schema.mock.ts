@@ -428,6 +428,7 @@ export const schemaMock = {
     password: 'password',
     allowedEmails: 'allowedEmails',
     outputConfigs: 'outputConfigs',
+    includeThinking: 'includeThinking',
     archivedAt: 'archivedAt',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',

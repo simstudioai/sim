@@ -26,6 +26,12 @@ import {
 } from '@/lib/uploads/utils/user-file-base64.server'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
+import {
+  AGENT_STREAM_PROTOCOL_HEADER,
+  AGENT_STREAM_PROTOCOL_V1,
+  shouldEmitAgentStreamEvents,
+} from '@/lib/workflows/streaming/agent-stream-protocol'
+import { DEFAULT_MAX_THINKING_BYTES } from '@/providers/stream-pump'
 
 /**
  * Extended streaming execution type that includes blockId on the execution.
@@ -41,6 +47,16 @@ const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
 const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
   'Selected output is too large to inline; select a nested field or use pagination/preview.'
 
+/**
+ * Simple SSE stream contract (Step 5):
+ * - Answer text: `{ blockId, chunk }` only (`chunk` is forever answer text).
+ * - Thinking (opt-in): `{ blockId, event: 'thinking', data }` — never uses `chunk`.
+ * - Success terminal: `{ event: 'final', data }` then `[DONE]`.
+ * - Failure terminal: exactly one `{ event: 'error', ... }` then `[DONE]`. No `final` after failure.
+ * - Mid-block read issues may emit non-terminal `{ event: 'stream_error', blockId, error }`.
+ * - Thinking never enters `streamedChunks` / log rewrite / tokenization.
+ */
+
 interface StreamingConfig {
   selectedOutputs?: string[]
   isSecureMode?: boolean
@@ -48,6 +64,13 @@ interface StreamingConfig {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   timeoutMs?: number
+  /**
+   * Deployment policy for thinking/tool SSE. Still requires the client to send
+   * {@link AGENT_STREAM_PROTOCOL_HEADER}: {@link AGENT_STREAM_PROTOCOL_V1}.
+   */
+  includeThinking?: boolean
+  /** Cap on thinking bytes forwarded over SSE for the whole execution. */
+  maxThinkingBytes?: number
 }
 
 export type StreamingExecutorFn = (callbacks: {
@@ -67,8 +90,33 @@ export interface StreamingResponseOptions {
   workspaceId?: string
   workflowId?: string
   userId?: string
+  /** Incoming fetch/request abort — combined with the stream timeout. */
+  requestSignal?: AbortSignal
+  /** Used with {@link StreamingConfig.includeThinking} for dual-gate thinking SSE. */
+  requestHeaders?: Headers | { get(name: string): string | null }
   executeFn: StreamingExecutorFn
 }
+
+/**
+ * Extra response headers when the dual-gate agent stream protocol is active.
+ * Callers should merge these into the SSE response alongside {@link SSE_HEADERS}.
+ */
+export function agentStreamProtocolResponseHeaders(options: {
+  includeThinking?: boolean | null
+  requestHeaders?: Headers | { get(name: string): string | null }
+}): Record<string, string> {
+  if (!options.requestHeaders) return {}
+  if (
+    !shouldEmitAgentStreamEvents({
+      includeThinking: options.includeThinking,
+      requestHeaders: options.requestHeaders,
+    })
+  ) {
+    return {}
+  }
+  return { [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 }
+}
+
 
 interface StreamingState {
   streamedChunks: Map<string, string[]>
@@ -351,14 +399,31 @@ export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {
   const { requestId, streamConfig, executionId, executeFn } = options
-  const durableContext = {
-    workspaceId: options.workspaceId,
-    workflowId: options.workflowId,
-    executionId,
-    userId: options.userId,
-    requireDurable: Boolean(options.workspaceId && options.workflowId && executionId),
-  }
   const timeoutController = createTimeoutAbortController(streamConfig.timeoutMs)
+  const emitAgentEvents =
+    Boolean(options.requestHeaders) &&
+    shouldEmitAgentStreamEvents({
+      includeThinking: streamConfig.includeThinking,
+      requestHeaders: options.requestHeaders!,
+    })
+  const maxThinkingBytes = streamConfig.maxThinkingBytes ?? DEFAULT_MAX_THINKING_BYTES
+
+  let requestAborted = false
+  const onRequestAbort = () => {
+    requestAborted = true
+    timeoutController.abort()
+  }
+  if (options.requestSignal) {
+    if (options.requestSignal.aborted) {
+      onRequestAbort()
+    } else {
+      options.requestSignal.addEventListener('abort', onRequestAbort, { once: true })
+    }
+  }
+
+  const cleanupRequestAbort = () => {
+    options.requestSignal?.removeEventListener('abort', onRequestAbort)
+  }
 
   return new ReadableStream({
     async start(controller) {
@@ -370,6 +435,7 @@ export async function createStreamingResponse(
         selectedOutputBytes: 0,
         streamedSelectedOutputKeys: new Set(),
       }
+      let thinkingBytesEmitted = 0
 
       const sendChunk = (
         blockId: string,
@@ -390,14 +456,65 @@ export async function createStreamingResponse(
         state.processedOutputs.add(blockId)
       }
 
+      const sendThinking = (blockId: string, text: string) => {
+        if (!text || thinkingBytesEmitted >= maxThinkingBytes) return
+        const remaining = maxThinkingBytes - thinkingBytesEmitted
+        const forwarded = text.length > remaining ? text.slice(0, remaining) : text
+        thinkingBytesEmitted += forwarded.length
+        // Never push thinking into streamedChunks — logs stay answer-text only.
+        controller.enqueue(
+          encodeSSE({
+            blockId,
+            event: 'thinking',
+            data: forwarded,
+          })
+        )
+      }
+
+      const sendTool = (
+        blockId: string,
+        phase: 'start' | 'end',
+        id: string,
+        name: string,
+        status?: string
+      ) => {
+        controller.enqueue(
+          encodeSSE({
+            blockId,
+            event: 'tool',
+            phase,
+            id,
+            name,
+            ...(phase === 'end' && status ? { status } : {}),
+          })
+        )
+      }
+
       /**
        * Callback for handling streaming execution events.
+       * Subscribe synchronously before the first await so the executor pump
+       * can attach sinks before pulling provider chunks.
        */
       const onStreamCallback = async (streamingExec: StreamingExecutionWithBlockId) => {
         const blockId = streamingExec.execution?.blockId
         if (!blockId) {
           logger.warn(`[${requestId}] Streaming execution missing blockId`)
           return
+        }
+
+        let unsubscribe: (() => void) | undefined
+        if (emitAgentEvents && streamingExec.subscribe) {
+          unsubscribe = streamingExec.subscribe({
+            onEvent: async (event) => {
+              if (event.type === 'thinking_delta') {
+                sendThinking(blockId, event.text)
+              } else if (event.type === 'tool_call_start') {
+                sendTool(blockId, 'start', event.id, event.name)
+              } else if (event.type === 'tool_call_end') {
+                sendTool(blockId, 'end', event.id, event.name, event.status)
+              }
+            },
+          })
         }
 
         const reader = streamingExec.stream.getReader()
@@ -434,6 +551,8 @@ export async function createStreamingResponse(
               error: getErrorMessage(error, 'Stream reading error'),
             })
           )
+        } finally {
+          unsubscribe?.()
         }
       }
 
@@ -555,7 +674,8 @@ export async function createStreamingResponse(
         if (
           result.status === 'cancelled' &&
           timeoutController.isTimedOut() &&
-          timeoutController.timeoutMs
+          timeoutController.timeoutMs &&
+          !requestAborted
         ) {
           const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
           logger.info(`[${requestId}] Streaming execution timed out`, {
@@ -565,6 +685,16 @@ export async function createStreamingResponse(
             await result._streamingMetadata.loggingSession.markAsFailed(timeoutErrorMessage)
           }
           controller.enqueue(encodeSSE({ event: 'error', error: timeoutErrorMessage }))
+        } else if (result.status === 'cancelled' && requestAborted) {
+          logger.info(`[${requestId}] Streaming execution aborted by client disconnect`)
+          if (result._streamingMetadata?.loggingSession) {
+            // LoggingSession has no cancelled status; match workflow execute route wording.
+            await result._streamingMetadata.loggingSession.markAsFailed(
+              'Client cancelled request'
+            )
+          }
+          // No `final` after abort; clients that already disconnected ignore these.
+          controller.enqueue(encodeSSE({ event: 'error', error: 'Client cancelled request' }))
         } else {
           await completeLoggingSession(result)
 
@@ -603,6 +733,7 @@ export async function createStreamingResponse(
           }
         }
 
+        // Terminal marker: always follows success `final` or a single terminal `error`.
         controller.enqueue(encodeSSE('[DONE]'))
 
         if (executionId) {
@@ -617,6 +748,8 @@ export async function createStreamingResponse(
             ? SELECTED_OUTPUT_TOO_LARGE_MESSAGE
             : getErrorMessage(error, 'Stream processing error')
         controller.enqueue(encodeSSE({ event: 'error', error: errorMessage }))
+        // Same terminal rule as timeout/abort: one error, then [DONE], never `final`.
+        controller.enqueue(encodeSSE('[DONE]'))
 
         if (executionId) {
           await cleanupExecutionBase64Cache(executionId)
@@ -624,12 +757,15 @@ export async function createStreamingResponse(
 
         controller.close()
       } finally {
+        cleanupRequestAbort()
         timeoutController.cleanup()
       }
     },
     async cancel(reason) {
       logger.info(`[${requestId}] Streaming response cancelled`, { reason })
+      requestAborted = true
       timeoutController.abort()
+      cleanupRequestAbort()
       timeoutController.cleanup()
       if (executionId) {
         try {

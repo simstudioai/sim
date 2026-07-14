@@ -152,6 +152,7 @@ export const nvidiaProvider: ProviderConfig = {
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromNvidiaStream(streamResponse as any, (content, usage) => {
               output.content = content
@@ -512,6 +513,7 @@ export const nvidiaProvider: ProviderConfig = {
                 }
               : undefined,
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromNvidiaStream(streamResponse as any, (content, usage) => {
               output.content = content

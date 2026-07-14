@@ -66,4 +66,27 @@ describe('getExecutionTimeout', () => {
       vi.useRealTimers()
     }
   })
+
+  it('aborts with reason "timeout" when the timer fires', () => {
+    vi.useFakeTimers()
+    try {
+      const controller = createTimeoutAbortController(1000)
+      vi.advanceTimersByTime(1000)
+      expect(controller.signal.aborted).toBe(true)
+      expect(controller.isTimedOut()).toBe(true)
+      expect(controller.signal.reason).toBe('timeout')
+      controller.cleanup()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('manual abort uses reason "user"', () => {
+    const controller = createTimeoutAbortController(60_000)
+    controller.abort()
+    expect(controller.signal.aborted).toBe(true)
+    expect(controller.isTimedOut()).toBe(false)
+    expect(controller.signal.reason).toBe('user')
+    controller.cleanup()
+  })
 })

@@ -87,7 +87,8 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
+import { createStreamingResponse, agentStreamProtocolResponseHeaders } from '@/lib/workflows/streaming/streaming'
+import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
@@ -1448,6 +1449,8 @@ async function handleExecutePost(
           includeFileBase64,
           base64MaxBytes,
           timeoutMs: preprocessResult.executionTimeout?.sync,
+          // Workflow API has no chat includeThinking policy — thinking frames stay off.
+          includeThinking: false,
         },
         executionId,
         largeValueExecutionIds,
@@ -1457,6 +1460,8 @@ async function handleExecutePost(
         workflowId,
         userId: actorUserId,
         allowLargeValueWorkflowScope,
+        requestSignal: req.signal,
+        requestHeaders: req.headers,
         executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
           executeWorkflow(
             streamWorkflow,
@@ -1488,7 +1493,13 @@ async function handleExecutePost(
       executionIdClaimCommitted = true
       return new NextResponse(stream, {
         status: 200,
-        headers: SSE_HEADERS,
+        headers: {
+          ...SSE_HEADERS,
+          ...agentStreamProtocolResponseHeaders({
+            includeThinking: false,
+            requestHeaders: req.headers,
+          }),
+        },
       })
     }
 
@@ -1529,7 +1540,11 @@ async function handleExecutePost(
           event: ExecutionEvent,
           terminalStatus?: TerminalExecutionStreamStatus
         ) => {
-          const isBuffered = event.type !== 'stream:chunk' && event.type !== 'stream:done'
+          const isBuffered =
+            event.type !== 'stream:chunk' &&
+            event.type !== 'stream:done' &&
+            event.type !== 'stream:thinking' &&
+            event.type !== 'stream:tool'
           let eventToSend = event
           if (isBuffered) {
             try {
@@ -1727,6 +1742,37 @@ async function handleExecutePost(
           const onStream = async (streamingExec: StreamingExecution) => {
             const blockId = (streamingExec.execution as any).blockId
 
+            // Sync window: attach sink before first await so pump delivers thinking/tools.
+            const unsubscribe = attachAgentStreamSink(streamingExec, {
+              onThinkingDelta: async (text) => {
+                await sendEvent({
+                  type: 'stream:thinking',
+                  timestamp: new Date().toISOString(),
+                  executionId,
+                  workflowId,
+                  data: { blockId, data: text },
+                })
+              },
+              onToolCallStart: async (id, name) => {
+                await sendEvent({
+                  type: 'stream:tool',
+                  timestamp: new Date().toISOString(),
+                  executionId,
+                  workflowId,
+                  data: { blockId, phase: 'start', id, name },
+                })
+              },
+              onToolCallEnd: async (id, name, status) => {
+                await sendEvent({
+                  type: 'stream:tool',
+                  timestamp: new Date().toISOString(),
+                  executionId,
+                  workflowId,
+                  data: { blockId, phase: 'end', id, name, status },
+                })
+              },
+            })
+
             const reader = streamingExec.stream.getReader()
             const decoder = new TextDecoder()
             const cancelReader = () => {
@@ -1767,6 +1813,7 @@ async function handleExecutePost(
                 reqLogger.error('Error streaming block content:', error)
               }
             } finally {
+              unsubscribe()
               timeoutController.signal.removeEventListener('abort', cancelReader)
               try {
                 await reader.cancel().catch(() => {})

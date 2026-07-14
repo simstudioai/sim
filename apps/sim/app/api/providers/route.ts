@@ -24,6 +24,7 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
+import { projectStreamingExecutionToByteStream } from '@/providers/stream-pump'
 
 const logger = createLogger('ProvidersAPI')
 
@@ -238,8 +239,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.info(`[${requestId}] Received StreamingExecution from provider`)
 
       // Extract the stream and execution data
-      const stream = streamingExec.stream
       const executionData = streamingExec.execution
+      // agent-events-v1 is an object stream — project final-turn answer bytes for HTTP.
+      const byteStream = projectStreamingExecutionToByteStream(streamingExec)
 
       // Attach the execution data as a custom header
       // We need to safely serialize the execution data to avoid circular references
@@ -288,7 +290,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       // Return the stream with execution data in a header
-      return new Response(stream, {
+      return new Response(byteStream, {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',

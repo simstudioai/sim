@@ -612,6 +612,18 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             updatedEntry.childWorkflowInstanceId = update.childWorkflowInstanceId
           }
 
+          if (update.agentStreamThinking !== undefined) {
+            updatedEntry.agentStreamThinking = update.agentStreamThinking
+          }
+
+          if (update.agentStreamToolCalls !== undefined) {
+            updatedEntry.agentStreamToolCalls = update.agentStreamToolCalls
+          }
+
+          if (update.agentStreamActive !== undefined) {
+            updatedEntry.agentStreamActive = update.agentStreamActive
+          }
+
           nextEntries[location.index] = updatedEntry
         }
 

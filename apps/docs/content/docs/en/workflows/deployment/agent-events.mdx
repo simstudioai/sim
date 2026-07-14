@@ -1,0 +1,90 @@
+---
+title: Agent stream events
+description: Protocol for streaming thinking and tool lifecycle from Agent blocks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Agent blocks can emit more than answer text while they run: **provider-exposed thinking** (or reasoning summaries) and a **tool-call lifecycle** (name + status). Sim delivers those as typed events on an opt-in stream protocol.
+
+<Callout type="info">
+Sim does **not** invent thinking for providers that do not stream it. Bedrock Converse, many OpenAI-compat models, and non-reasoning chat models stay text-only (plus tools when a live tool loop is wired).
+</Callout>
+
+## Dual gate (public chat / simple SSE)
+
+Thinking and tool frames leave the public chat or workflow simple-SSE path only when **both** are true:
+
+1. Deployment policy: chat `includeThinking` is enabled (default **off**).
+2. Request opts in with header:
+
+```http
+X-Sim-Stream-Protocol: agent-events-v1
+```
+
+Legacy clients that omit the header keep today’s text-only SSE even if the deployment has thinking enabled. The hosted chat UI always sends the header for its own deployments.
+
+## Simple SSE frame shapes
+
+Answer text stays on `chunk`. Thinking and tools never reuse `chunk` (so older clients that append every `chunk` into the answer cannot leak thinking).
+
+| Frame | Meaning |
+|-------|---------|
+| `{ "blockId", "chunk": "…" }` | Final-turn answer text only |
+| `{ "blockId", "event": "thinking", "data": "…" }` | Thinking / reasoning summary delta |
+| `{ "blockId", "event": "tool", "phase": "start"\|"end", "id", "name", "status?" }` | Tool lifecycle (no args / results) |
+| `{ "event": "final", … }` | Terminal success envelope |
+| `{ "event": "stream_error", … }` | Terminal failure (may omit `final`) |
+| `data: [DONE]` | Stream closed (documented completion marker) |
+
+### Intermediate-turn text
+
+During a live tool loop, the model may emit preamble text before calling a tool. That text is tagged **intermediate** internally and is **not** projected into the user-facing answer channel. Only the **final** turn’s text appears as `chunk`.
+
+### Abort
+
+Client disconnect or Stop aborts the provider stream. In-flight tools settle as `cancelled`. Cancel is distinct from execution timeout.
+
+### Reconnect
+
+Canvas execution-events `stream:chunk`, `stream:thinking`, and `stream:tool` are **live-only** (not buffered for reconnect replay), same as answer chunks. Guaranteed `seq` replay is out of scope.
+
+## Canvas (draft Run)
+
+When you click **Run** in the builder, the execution-events SSE path forwards the same sink:
+
+- `stream:thinking` — `{ blockId, data }`
+- `stream:tool` — `{ blockId, phase, id, name, status? }`
+- `stream:chunk` — answer text (unchanged)
+
+The terminal output panel shows Thinking / Tools chrome above the block output when those events arrive. PII redaction on block output still disables live forwarding (executor rule).
+
+## Chat deployment toggle
+
+In **Deploy → Chat**, enable **Include thinking** so public chat can expose thinking/tool frames (still requires the protocol header). Redeploy / update the chat after changing Agent models or tools.
+
+## Capability honesty (high level)
+
+| Family | Thinking | Live tools |
+|--------|----------|------------|
+| Anthropic / Azure Anthropic | Yes (incl. redacted blocks in traces) | Yes |
+| Gemini / Vertex | Yes when `includeThoughts` requested | Yes |
+| OpenAI Responses | Reasoning **summaries** when streamed | Silent tool loop today (answer streams; chips may be absent) |
+| OpenAI-compat (Groq, DeepSeek, …) | Only if vendor streams `reasoning` / `reasoning_content` | Live loop where wired (e.g. Groq, DeepSeek) |
+| Bedrock | Not invented | Yes when streaming tool loop is used |
+
+## Example (public chat)
+
+<Tabs items={['cURL']}>
+  <Tab value="cURL">
+```bash
+curl -N -X POST 'http://localhost:3000/api/chat/your-slug' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Sim-Stream-Protocol: agent-events-v1' \
+  -d '{"input":"Think briefly, then say hi"}'
+```
+  </Tab>
+</Tabs>
+
+See also [Chat deployment](/docs/workflows/deployment/chat) for access control and the Include thinking setting.

@@ -15,6 +15,8 @@ import type {
   ExecutionStartedData,
   StreamChunkData,
   StreamDoneData,
+  StreamThinkingData,
+  StreamToolData,
 } from '@/lib/workflows/executor/execution-events'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
@@ -124,6 +126,12 @@ export async function processSSEStream(
             case 'stream:done':
               await callbacks.onStreamDone?.(event.data)
               break
+            case 'stream:thinking':
+              await callbacks.onStreamThinking?.(event.data)
+              break
+            case 'stream:tool':
+              await callbacks.onStreamTool?.(event.data)
+              break
             default:
               logger.warn('Unknown event type:', (event as any).type)
           }
@@ -165,6 +173,8 @@ export interface ExecutionStreamCallbacks {
   onBlockChildWorkflowStarted?: (data: BlockChildWorkflowStartedData) => void | Promise<void>
   onStreamChunk?: (data: StreamChunkData) => void | Promise<void>
   onStreamDone?: (data: StreamDoneData) => void | Promise<void>
+  onStreamThinking?: (data: StreamThinkingData) => void | Promise<void>
+  onStreamTool?: (data: StreamToolData) => void | Promise<void>
   onEventId?: (eventId: number) => void | Promise<void>
 }
 

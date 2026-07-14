@@ -1853,7 +1853,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 0.87,
           updatedAt: '2026-06-16',
         },
-        capabilities: {},
+        capabilities: {
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+          },
+        },
         contextWindow: 1000000,
         releaseDate: '2026-04-24',
       },
@@ -1867,6 +1872,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+          },
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-24',
@@ -1881,6 +1890,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+          },
         },
         contextWindow: 1000000,
         releaseDate: '2024-12-26',
@@ -1908,7 +1921,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 2.19,
           updatedAt: '2026-04-01',
         },
-        capabilities: {},
+        capabilities: {
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+          },
+        },
         contextWindow: 128000,
         releaseDate: '2025-01-20',
         deprecated: true,
@@ -1921,7 +1939,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           output: 0.28,
           updatedAt: '2026-06-11',
         },
-        capabilities: {},
+        capabilities: {
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+          },
+        },
         contextWindow: 1000000,
         releaseDate: '2025-01-20',
       },
@@ -2251,6 +2274,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           maxOutputTokens: 65536,
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
         },
         contextWindow: 131072,
         releaseDate: '2025-08-05',
@@ -2266,6 +2292,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           maxOutputTokens: 65536,
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
         },
         contextWindow: 131072,
         releaseDate: '2025-08-05',
@@ -2280,6 +2309,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           maxOutputTokens: 65536,
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
         },
         contextWindow: 131072,
         releaseDate: '2025-10-29',
@@ -2293,6 +2325,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           maxOutputTokens: 40960,
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+          },
         },
         contextWindow: 131072,
         releaseDate: '2025-04-29',
@@ -2307,6 +2343,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           maxOutputTokens: 32768,
+          thinking: {
+            levels: ['enabled'],
+            default: 'enabled',
+          },
         },
         contextWindow: 131072,
         releaseDate: '2026-04-21',

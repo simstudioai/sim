@@ -952,6 +952,19 @@ export class AgentBlockHandler implements BlockHandler {
       verbosity: inputs.verbosity,
       thinkingLevel: inputs.thinkingLevel,
       previousInteractionId: inputs.previousInteractionId,
+      // Live tool lifecycle on agent-events stream. Only providers with a real
+      // streaming tool loop (Step 7/9) — others still get agent-events on text
+      // streams without streamToolCalls.
+      streamToolCalls:
+        streaming &&
+        formattedTools.length > 0 &&
+        (providerId === 'anthropic' ||
+          providerId === 'azure-anthropic' ||
+          providerId === 'groq' ||
+          providerId === 'deepseek' ||
+          providerId === 'google' ||
+          providerId === 'vertex' ||
+          providerId === 'bedrock'),
     }
   }
 
@@ -1025,6 +1038,7 @@ export class AgentBlockHandler implements BlockHandler {
         verbosity: providerRequest.verbosity,
         thinkingLevel: providerRequest.thinkingLevel,
         previousInteractionId: providerRequest.previousInteractionId,
+        streamToolCalls: providerRequest.streamToolCalls,
         abortSignal: ctx.abortSignal,
       })
 
@@ -1084,8 +1098,7 @@ export class AgentBlockHandler implements BlockHandler {
     streamingExec: StreamingExecution
   ): StreamingExecution {
     return {
-      stream: streamingExec.stream,
-      execution: streamingExec.execution,
+      ...streamingExec,
       onFullContent: async (content: string) => {
         if (!content.trim()) return
         try {

@@ -53,6 +53,61 @@ describe('processSSEStream', () => {
     expect(order).toEqual(['handler:start', 'handler:end', 'event-id'])
   })
 
+  it('routes stream:thinking and stream:tool without requiring event ids', async () => {
+    const onStreamThinking = vi.fn()
+    const onStreamTool = vi.fn()
+    const onStreamChunk = vi.fn()
+    const onEventId = vi.fn()
+
+    const events: ExecutionEvent[] = [
+      {
+        type: 'stream:thinking',
+        timestamp: new Date().toISOString(),
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        data: { blockId: 'agent-1', data: 'reasoning ' },
+      },
+      {
+        type: 'stream:tool',
+        timestamp: new Date().toISOString(),
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        data: {
+          blockId: 'agent-1',
+          phase: 'start',
+          id: 'tool_1',
+          name: 'http_request',
+        },
+      },
+      {
+        type: 'stream:chunk',
+        timestamp: new Date().toISOString(),
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        data: { blockId: 'agent-1', chunk: 'answer' },
+      },
+    ]
+
+    await processSSEStream(
+      streamEvents(events).getReader(),
+      { onStreamThinking, onStreamTool, onStreamChunk, onEventId },
+      'test'
+    )
+
+    expect(onStreamThinking).toHaveBeenCalledWith({
+      blockId: 'agent-1',
+      data: 'reasoning ',
+    })
+    expect(onStreamTool).toHaveBeenCalledWith({
+      blockId: 'agent-1',
+      phase: 'start',
+      id: 'tool_1',
+      name: 'http_request',
+    })
+    expect(onStreamChunk).toHaveBeenCalledWith({ blockId: 'agent-1', chunk: 'answer' })
+    expect(onEventId).not.toHaveBeenCalled()
+  })
+
   it('propagates callback failures without acknowledging the event id', async () => {
     const event: ExecutionEvent = {
       type: 'block:started',

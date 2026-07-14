@@ -11,6 +11,7 @@ import { requestJson } from '@/lib/api/client/request'
 import { cancelWorkflowExecutionContract, workflowLogContract } from '@/lib/api/contracts/workflows'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
+import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import type { ExecutionPausedData } from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import {
@@ -1063,6 +1064,12 @@ export function useWorkflowExecution() {
       const activeBlocksSet = new Set<string>()
       const activeBlockRefCounts = new Map<string, number>()
       const streamedChunks = new Map<string, string[]>()
+      const agentStreamThinking = new Map<string, string>()
+      const agentStreamToolCalls = new Map<
+        string,
+        Map<string, import('@/components/agent-stream/agent-stream-chrome').AgentStreamToolCall>
+      >()
+      const agentStreamToolOrder = new Map<string, string[]>()
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
       const executedBlockIds = new Set<string>()
@@ -1167,8 +1174,93 @@ export function useWorkflowExecution() {
               }
             },
 
+            onStreamThinking: (data) => {
+              const prev = agentStreamThinking.get(data.blockId) ?? ''
+              const next = prev + data.data
+              agentStreamThinking.set(data.blockId, next)
+              updateConsole(
+                data.blockId,
+                {
+                  agentStreamThinking: next,
+                  agentStreamActive: true,
+                },
+                executionIdRef.current
+              )
+            },
+
+            onStreamTool: (data) => {
+              const key = `${data.blockId}:${data.id}`
+              if (!agentStreamToolCalls.has(data.blockId)) {
+                agentStreamToolCalls.set(data.blockId, new Map())
+                agentStreamToolOrder.set(data.blockId, [])
+              }
+              const map = agentStreamToolCalls.get(data.blockId)!
+              const order = agentStreamToolOrder.get(data.blockId)!
+
+              if (data.phase === 'start') {
+                if (!map.has(key)) {
+                  order.push(key)
+                }
+                map.set(key, {
+                  key,
+                  id: data.id,
+                  name: data.name,
+                  displayName: humanizeToolName(data.name),
+                  status: 'running',
+                })
+              } else {
+                const existing = map.get(key)
+                map.set(key, {
+                  key,
+                  id: data.id,
+                  name: data.name,
+                  displayName: existing?.displayName ?? humanizeToolName(data.name),
+                  status: data.status ?? 'success',
+                })
+                if (!existing) {
+                  order.push(key)
+                }
+              }
+
+              updateConsole(
+                data.blockId,
+                {
+                  agentStreamToolCalls: order
+                    .map((k) => map.get(k))
+                    .filter((t): t is NonNullable<typeof t> => Boolean(t)),
+                  agentStreamActive: true,
+                },
+                executionIdRef.current
+              )
+            },
+
             onStreamDone: (data) => {
               logger.info('Stream done for block:', data.blockId)
+              const map = agentStreamToolCalls.get(data.blockId)
+              const order = agentStreamToolOrder.get(data.blockId)
+              if (map && order) {
+                for (const [key, tool] of map) {
+                  if (tool.status === 'running') {
+                    map.set(key, { ...tool, status: 'success' })
+                  }
+                }
+                updateConsole(
+                  data.blockId,
+                  {
+                    agentStreamActive: false,
+                    agentStreamToolCalls: order
+                      .map((k) => map.get(k))
+                      .filter((t): t is NonNullable<typeof t> => Boolean(t)),
+                  },
+                  executionIdRef.current
+                )
+              } else {
+                updateConsole(
+                  data.blockId,
+                  { agentStreamActive: false },
+                  executionIdRef.current
+                )
+              }
             },
 
             onExecutionCompleted: (data) => {

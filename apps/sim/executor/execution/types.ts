@@ -45,6 +45,11 @@ export interface ExecutionMetadata {
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
   executionMode?: 'sync' | 'stream' | 'async'
+  /**
+   * Deployed-chat dual gate for thinking SSE. Persisted so HITL resume can
+   * re-enable thinking frames without hardcoding false.
+   */
+  includeThinking?: boolean
 }
 
 export interface SerializableExecutionState {

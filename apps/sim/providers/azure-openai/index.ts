@@ -201,6 +201,7 @@ async function executeChatCompletionsRequest(
         timing: { kind: 'simple', segmentName: request.model },
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { input: 0, output: 0, total: 0 },
+        streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
             output.content = content
@@ -517,6 +518,7 @@ async function executeChatCompletionsRequest(
                 count: toolCalls.length,
               }
             : undefined,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
             output.content = content

@@ -257,12 +257,15 @@ export const POST = withRouteHandler(
           streamConfig: {
             selectedOutputs: persistedSnapshot.selectedOutputs,
             timeoutMs: preprocessResult.executionTimeout?.sync,
+            includeThinking: persistedSnapshot.metadata.includeThinking === true,
           },
           executionId: enqueueResult.resumeExecutionId,
           workspaceId: workflow.workspaceId || undefined,
           workflowId,
           userId: enqueueResult.userId,
           allowLargeValueWorkflowScope: true,
+          requestSignal: request.signal,
+          requestHeaders: request.headers,
           executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
             PauseResumeManager.startResumeExecution({
               ...resumeArgs,

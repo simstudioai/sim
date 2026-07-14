@@ -5,6 +5,10 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { noop } from '@/lib/core/utils/request'
 import {
+  AGENT_STREAM_PROTOCOL_HEADER,
+  AGENT_STREAM_PROTOCOL_V1,
+} from '@/lib/workflows/streaming/agent-stream-protocol'
+import {
   ChatErrorState,
   ChatHeader,
   ChatInput,
@@ -244,7 +248,9 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       scrollToMessage(userMessage.id, true)
     }, 100)
 
+    // One AbortController for fetch + SSE body reads so Stop cancels server work too.
     const abortController = new AbortController()
+    abortControllerRef.current = abortController
     const timeoutId = setTimeout(() => {
       abortController.abort()
     }, CHAT_REQUEST_TIMEOUT_MS)
@@ -282,6 +288,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
+          [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1,
         },
         body: JSON.stringify(payload),
         credentials: 'same-origin',
@@ -326,6 +333,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
           },
           audioStreamHandler: audioHandler,
           outputConfigs: chatConfig?.outputConfigs,
+          abortController,
         }
       )
     } catch (error) {

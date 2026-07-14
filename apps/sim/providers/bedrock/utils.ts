@@ -1,6 +1,7 @@
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
 import { randomFloat } from '@sim/utils/random'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('BedrockUtils')
@@ -10,10 +11,15 @@ export interface BedrockStreamUsage {
   outputTokens: number
 }
 
+/**
+ * Bedrock ConverseStream → agent-events-v1.
+ * Capability-honest: text deltas always; tool_call_start when toolUse id+name
+ * appear on contentBlockStart. No thinking_delta unless/until Bedrock exposes it.
+ */
 export function createReadableStreamFromBedrockStream(
   bedrockStream: AsyncIterable<ConverseStreamOutput>,
   onComplete?: (content: string, usage: BedrockStreamUsage) => void
-): ReadableStream<Uint8Array> {
+): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
   let inputTokens = 0
   let outputTokens = 0
@@ -22,10 +28,20 @@ export function createReadableStreamFromBedrockStream(
     async start(controller) {
       try {
         for await (const event of bedrockStream) {
+          const startBlock = event.contentBlockStart?.start
+          if (startBlock && 'toolUse' in startBlock && startBlock.toolUse) {
+            const toolUse = startBlock.toolUse
+            const id = toolUse.toolUseId
+            const name = toolUse.name
+            if (id && name) {
+              controller.enqueue({ type: 'tool_call_start', id, name })
+            }
+          }
+
           if (event.contentBlockDelta?.delta?.text) {
             const text = event.contentBlockDelta.delta.text
             fullContent += text
-            controller.enqueue(new TextEncoder().encode(text))
+            controller.enqueue({ type: 'text_delta', text, turn: 'final' })
           } else if (event.metadata?.usage) {
             inputTokens = event.metadata.usage.inputTokens ?? 0
             outputTokens = event.metadata.usage.outputTokens ?? 0

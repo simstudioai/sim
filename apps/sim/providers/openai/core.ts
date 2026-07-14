@@ -14,6 +14,7 @@ import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
+  supportsReasoningEffort,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -98,10 +99,14 @@ export async function executeResponsesProviderRequest(
   if (request.temperature !== undefined) basePayload.temperature = request.temperature
   if (request.maxTokens != null) basePayload.max_output_tokens = request.maxTokens
 
-  if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
+  // Always request reasoning summaries on reasoning models so Thinking chrome works
+  // even when effort is `auto` / unset (API defaults effort).
+  if (supportsReasoningEffort(config.modelName)) {
     basePayload.reasoning = {
-      effort: request.reasoningEffort,
       summary: 'auto',
+      ...(request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto'
+        ? { effort: request.reasoningEffort }
+        : {}),
     }
   }
 
@@ -255,8 +260,9 @@ export async function executeResponsesProviderRequest(
         timing: { kind: 'simple', segmentName: request.model },
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { input: 0, output: 0, total: 0 },
+        streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromResponses(streamResponse, (content, usage) => {
+          createReadableStreamFromResponses(streamResponse, (content, usage, thinking) => {
             output.content = content
             output.tokens = {
               input: usage?.promptTokens || 0,
@@ -273,6 +279,14 @@ export async function executeResponsesProviderRequest(
               input: costResult.input,
               output: costResult.output,
               total: costResult.total,
+            }
+
+            if (thinking) {
+              const segment = output.providerTiming?.timeSegments?.[0]
+              if (segment) {
+                // Label honestly: these are reasoning *summaries*, not raw CoT.
+                segment.thinkingContent = thinking
+              }
             }
 
             finalizeTiming()
@@ -582,10 +596,12 @@ export async function executeResponsesProviderRequest(
       // Copy over non-tool related settings
       if (request.temperature !== undefined) finalPayload.temperature = request.temperature
       if (request.maxTokens != null) finalPayload.max_output_tokens = request.maxTokens
-      if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
+      if (supportsReasoningEffort(config.modelName)) {
         finalPayload.reasoning = {
-          effort: request.reasoningEffort,
           summary: 'auto',
+          ...(request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto'
+            ? { effort: request.reasoningEffort }
+            : {}),
         }
       }
       if (request.verbosity !== undefined && request.verbosity !== 'auto') {
@@ -681,8 +697,9 @@ export async function executeResponsesProviderRequest(
           total: accumulatedCost.total,
         },
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+        streamFormat: 'agent-events-v1',
         createStream: ({ output }) =>
-          createReadableStreamFromResponses(streamResponse, (content, usage) => {
+          createReadableStreamFromResponses(streamResponse, (content, usage, thinking) => {
             output.content = content
             output.tokens = {
               input: tokens.input + (usage?.promptTokens || 0),
@@ -701,6 +718,13 @@ export async function executeResponsesProviderRequest(
               output: accumulatedCost.output + streamCost.output,
               toolCost: tc || undefined,
               total: accumulatedCost.total + streamCost.total + tc,
+            }
+
+            if (thinking) {
+              const lastModel = [...timeSegments].reverse().find((s) => s.type === 'model')
+              if (lastModel) {
+                lastModel.thinkingContent = thinking
+              }
             }
           }),
       })

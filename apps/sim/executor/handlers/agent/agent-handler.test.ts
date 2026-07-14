@@ -2243,4 +2243,38 @@ describe('AgentBlockHandler', () => {
       })
     })
   })
+
+  describe('wrapStreamForMemoryPersistence envelope (Step 3)', () => {
+    it('preserves streamFormat and subscribe via object spread', () => {
+      const handler = new AgentBlockHandler()
+      const subscribe = vi.fn()
+      const streamingExec: StreamingExecution = {
+        stream: new ReadableStream(),
+        streamFormat: 'agent-events-v1',
+        subscribe,
+        execution: {
+          success: true,
+          output: { content: '' },
+          logs: [],
+          metadata: { startTime: '', endTime: '', duration: 0 },
+        },
+      }
+
+      const wrapped = (
+        handler as unknown as {
+          wrapStreamForMemoryPersistence: (
+            ctx: ExecutionContext,
+            inputs: Record<string, unknown>,
+            exec: StreamingExecution
+          ) => StreamingExecution
+        }
+      ).wrapStreamForMemoryPersistence({} as ExecutionContext, {}, streamingExec)
+
+      expect(wrapped.streamFormat).toBe('agent-events-v1')
+      expect(wrapped.subscribe).toBe(subscribe)
+      expect(wrapped.stream).toBe(streamingExec.stream)
+      expect(wrapped.execution).toBe(streamingExec.execution)
+      expect(typeof wrapped.onFullContent).toBe('function')
+    })
+  })
 })

@@ -28,6 +28,10 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import {
+  AgentStreamThinkingChrome,
+  AgentStreamToolCallsChrome,
+} from '@/components/agent-stream/agent-stream-chrome'
+import {
   OutputContextMenu,
   StructuredOutput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components'
@@ -568,6 +572,31 @@ export const OutputPanel = React.memo(function OutputPanel({
           className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
           onContextMenu={handleOutputPanelContextMenu}
         >
+          {!showInput &&
+            (selectedEntry.agentStreamThinking ||
+              (selectedEntry.agentStreamToolCalls &&
+                selectedEntry.agentStreamToolCalls.length > 0)) && (
+              <div className='border-[var(--border)] border-b px-3 pt-3'>
+                {selectedEntry.agentStreamThinking ? (
+                  <AgentStreamThinkingChrome
+                    thinking={selectedEntry.agentStreamThinking}
+                    isStreaming={Boolean(
+                      selectedEntry.isRunning && selectedEntry.agentStreamActive
+                    )}
+                  />
+                ) : null}
+                {selectedEntry.agentStreamToolCalls &&
+                selectedEntry.agentStreamToolCalls.length > 0 ? (
+                  <AgentStreamToolCallsChrome
+                    toolCalls={selectedEntry.agentStreamToolCalls}
+                    isStreaming={Boolean(
+                      selectedEntry.isRunning &&
+                        selectedEntry.agentStreamToolCalls.some((t) => t.status === 'running')
+                    )}
+                  />
+                ) : null}
+              </div>
+            )}
           {shouldShowCodeDisplay ? (
             <OutputCodeContent
               code={selectedEntry.input.code}

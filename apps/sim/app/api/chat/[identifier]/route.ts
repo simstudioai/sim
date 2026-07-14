@@ -27,6 +27,7 @@ interface ChatConfigSource {
   customizations: unknown
   authType: string | null
   outputConfigs: unknown
+  includeThinking?: boolean | null
 }
 
 function toChatConfigResponse(deployment: ChatConfigSource) {
@@ -37,6 +38,7 @@ function toChatConfigResponse(deployment: ChatConfigSource) {
     customizations: deployment.customizations,
     authType: deployment.authType,
     outputConfigs: deployment.outputConfigs,
+    includeThinking: deployment.includeThinking ?? false,
   }
 }
 
@@ -80,6 +82,7 @@ export const POST = withRouteHandler(
           password: chat.password,
           allowedEmails: chat.allowedEmails,
           outputConfigs: chat.outputConfigs,
+          includeThinking: chat.includeThinking,
         })
         .from(chat)
         .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
@@ -216,7 +219,9 @@ export const POST = withRouteHandler(
           }
         }
 
-        const { createStreamingResponse } = await import('@/lib/workflows/streaming/streaming')
+        const { createStreamingResponse, agentStreamProtocolResponseHeaders } = await import(
+          '@/lib/workflows/streaming/streaming'
+        )
         const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
         const { SSE_HEADERS } = await import('@/lib/core/utils/sse')
 
@@ -272,17 +277,21 @@ export const POST = withRouteHandler(
           variables: (workflowRecord?.variables as Record<string, unknown>) ?? undefined,
         }
 
+        const includeThinking = deployment.includeThinking ?? false
         const stream = await createStreamingResponse({
           requestId,
           streamConfig: {
             selectedOutputs,
             isSecureMode: true,
             workflowTriggerType: 'chat',
+            includeThinking,
           },
           executionId,
           workspaceId,
           workflowId: deployment.workflowId,
           userId: resolvedActorUserId,
+          requestSignal: request.signal,
+          requestHeaders: request.headers,
           executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
             executeWorkflow(
               workflowForExecution,
@@ -300,6 +309,7 @@ export const POST = withRouteHandler(
                 abortSignal,
                 executionMode: 'stream',
                 billingAttribution,
+                includeThinking,
               },
               executionId
             ),
@@ -307,7 +317,13 @@ export const POST = withRouteHandler(
 
         const streamResponse = new NextResponse(stream, {
           status: 200,
-          headers: SSE_HEADERS,
+          headers: {
+            ...SSE_HEADERS,
+            ...agentStreamProtocolResponseHeaders({
+              includeThinking,
+              requestHeaders: request.headers,
+            }),
+          },
         })
         return streamResponse
       } catch (error: any) {
@@ -344,6 +360,7 @@ export const GET = withRouteHandler(
           password: chat.password,
           allowedEmails: chat.allowedEmails,
           outputConfigs: chat.outputConfigs,
+          includeThinking: chat.includeThinking,
         })
         .from(chat)
         .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))

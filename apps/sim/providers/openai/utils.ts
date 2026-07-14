@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type OpenAI from 'openai'
 import { buildOpenAIMessageContent } from '@/providers/attachments'
+import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message } from '@/providers/types'
 
 const logger = createLogger('ResponsesUtils')
@@ -411,18 +412,23 @@ export function parseResponsesUsage(
 }
 
 /**
- * Creates a ReadableStream from a Responses API SSE stream.
+ * Creates an agent-events-v1 stream from a Responses API SSE stream.
+ *
+ * Capability-honest: emits `thinking_delta` only for streamable reasoning
+ * *summary* deltas (not encrypted_content / raw CoT). If the API only
+ * surfaces reasoning at completion, live thinking may be empty — traces still
+ * use extractResponseReasoning post-hoc.
  */
 export function createReadableStreamFromResponses(
   response: Response,
-  onComplete?: (content: string, usage?: ResponsesUsageTokens) => void
-): ReadableStream<Uint8Array> {
+  onComplete?: (content: string, usage?: ResponsesUsageTokens, thinking?: string) => void
+): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
+  let fullThinking = ''
   let finalUsage: ResponsesUsageTokens | undefined
   let activeEventType: string | undefined
-  const encoder = new TextEncoder()
 
-  return new ReadableStream<Uint8Array>({
+  return new ReadableStream<AgentStreamEvent>({
     async start(controller) {
       const reader = response.body?.getReader()
       if (!reader) {
@@ -488,6 +494,28 @@ export function createReadableStreamFromResponses(
               return
             }
 
+            // Reasoning *summaries* only — never stream encrypted_content.
+            if (
+              eventType === 'response.reasoning_summary_text.delta' ||
+              eventType === 'response.reasoning_summary.delta' ||
+              eventType === 'response.reasoning.delta'
+            ) {
+              let deltaText = ''
+              const delta = event.delta as string | Record<string, unknown> | undefined
+              if (typeof delta === 'string') {
+                deltaText = delta
+              } else if (delta && typeof delta.text === 'string') {
+                deltaText = delta.text
+              } else if (typeof event.text === 'string') {
+                deltaText = event.text
+              }
+              if (deltaText.length > 0) {
+                fullThinking += deltaText
+                controller.enqueue({ type: 'thinking_delta', text: deltaText })
+              }
+              continue
+            }
+
             if (
               eventType === 'response.output_text.delta' ||
               eventType === 'response.output_json.delta'
@@ -508,7 +536,7 @@ export function createReadableStreamFromResponses(
 
               if (deltaText.length > 0) {
                 fullContent += deltaText
-                controller.enqueue(encoder.encode(deltaText))
+                controller.enqueue({ type: 'text_delta', text: deltaText, turn: 'final' })
               }
             }
 
@@ -523,7 +551,7 @@ export function createReadableStreamFromResponses(
         }
 
         if (onComplete) {
-          onComplete(fullContent, finalUsage)
+          onComplete(fullContent, finalUsage, fullThinking || undefined)
         }
 
         controller.close()

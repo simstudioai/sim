@@ -18,6 +18,10 @@ export type ExecutionEventType =
   | 'block:childWorkflowStarted'
   | 'stream:chunk'
   | 'stream:done'
+  /** Live-only agent thinking delta (not buffered for reconnect replay). */
+  | 'stream:thinking'
+  /** Live-only tool lifecycle (not buffered for reconnect replay). */
+  | 'stream:tool'
 
 /**
  * Base event structure for SSE
@@ -220,6 +224,36 @@ interface StreamDoneEvent extends BaseExecutionEvent {
 }
 
 /**
+ * Live thinking delta from an agent-events provider sink (canvas / draft runs).
+ * Builder runs show provider-exposed signals when the sink is attached
+ * (executor already disables the sink under PII redaction).
+ */
+interface StreamThinkingEvent extends BaseExecutionEvent {
+  type: 'stream:thinking'
+  workflowId: string
+  data: {
+    blockId: string
+    data: string
+  }
+}
+
+/**
+ * Live tool lifecycle from an agent-events provider sink.
+ * Name + status only — never args or results.
+ */
+interface StreamToolEvent extends BaseExecutionEvent {
+  type: 'stream:tool'
+  workflowId: string
+  data: {
+    blockId: string
+    phase: 'start' | 'end'
+    id: string
+    name: string
+    status?: 'success' | 'error' | 'cancelled'
+  }
+}
+
+/**
  * Union type of all execution events
  */
 export type ExecutionEvent =
@@ -234,6 +268,8 @@ export type ExecutionEvent =
   | BlockChildWorkflowStartedEvent
   | StreamChunkEvent
   | StreamDoneEvent
+  | StreamThinkingEvent
+  | StreamToolEvent
 
 export type ExecutionStartedData = ExecutionStartedEvent['data']
 export type ExecutionCompletedData = ExecutionCompletedEvent['data']
@@ -246,6 +282,8 @@ export type BlockErrorData = BlockErrorEvent['data']
 export type BlockChildWorkflowStartedData = BlockChildWorkflowStartedEvent['data']
 export type StreamChunkData = StreamChunkEvent['data']
 export type StreamDoneData = StreamDoneEvent['data']
+export type StreamThinkingData = StreamThinkingEvent['data']
+export type StreamToolData = StreamToolEvent['data']
 
 /**
  * Helper to create SSE formatted message

@@ -301,6 +301,7 @@ export async function executeDeployChat(
               allowedEmails: (existing[0].allowedEmails as string[]) || [],
               outputConfigs:
                 (existing[0].outputConfigs as Array<{ blockId: string; path: string }>) || [],
+              includeThinking: existing[0].includeThinking ?? false,
               welcomeMessage:
                 (existing[0].customizations as { welcomeMessage?: string } | null)
                   ?.welcomeMessage || 'Hi there! How can I help you today?',
@@ -388,6 +389,10 @@ export async function executeDeployChat(
       blockId: string
       path: string
     }>
+    const resolvedIncludeThinking =
+      typeof params.includeThinking === 'boolean'
+        ? params.includeThinking
+        : (existingDeployment?.includeThinking ?? false)
     const welcomeMessage =
       typeof params.welcomeMessage === 'string'
         ? params.welcomeMessage
@@ -417,6 +422,7 @@ export async function executeDeployChat(
       password: params.password,
       allowedEmails: resolvedAllowedEmails,
       outputConfigs: resolvedOutputConfigs,
+      includeThinking: resolvedIncludeThinking,
       workspaceId: workflowRecord.workspaceId,
     })
 
@@ -469,6 +475,7 @@ export async function executeDeployChat(
             authType: resolvedAuthType,
             allowedEmails: resolvedAllowedEmails,
             outputConfigs: resolvedOutputConfigs,
+            includeThinking: resolvedIncludeThinking,
             welcomeMessage: welcomeMessage || 'Hi there! How can I help you today?',
             primaryColor:
               params.customizations?.primaryColor ||

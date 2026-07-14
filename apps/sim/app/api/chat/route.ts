@@ -64,6 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       password,
       allowedEmails = [],
       outputConfigs = [],
+      includeThinking = false,
     } = parsed.data.body
 
     if (authType === 'password' && !password) {
@@ -112,6 +113,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       password,
       allowedEmails,
       outputConfigs,
+      includeThinking,
       workspaceId: workflowRecord.workspaceId,
     })
 

@@ -37,6 +37,7 @@ function createMockNextRequest(
     method,
     headers: headersObj,
     nextUrl: parsedUrl,
+    signal: AbortSignal.timeout(60_000),
     cookies: {
       get: vi.fn().mockReturnValue(undefined),
     },
@@ -114,6 +115,7 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/workflows/streaming/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
+  agentStreamProtocolResponseHeaders: vi.fn().mockReturnValue({}),
 }))
 
 vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
@@ -150,6 +152,7 @@ describe('Chat Identifier API Route', () => {
         primaryColor: '#000000',
       },
       outputConfigs: [{ blockId: 'block-1', path: 'output' }],
+      includeThinking: false,
     },
   ]
 
@@ -443,9 +446,12 @@ describe('Chat Identifier API Route', () => {
       expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           executeFn: expect.any(Function),
+          requestSignal: expect.any(AbortSignal),
+          requestHeaders: expect.anything(),
           streamConfig: expect.objectContaining({
             isSecureMode: true,
             workflowTriggerType: 'chat',
+            includeThinking: false,
           }),
         })
       )

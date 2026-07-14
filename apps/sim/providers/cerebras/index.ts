@@ -133,6 +133,7 @@ export const cerebrasProvider: ProviderConfig = {
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromCerebrasStream(streamResponse, (content, usage) => {
               output.content = content
@@ -492,6 +493,7 @@ export const cerebrasProvider: ProviderConfig = {
                 }
               : undefined,
           isStreaming: true,
+          streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
             createReadableStreamFromCerebrasStream(streamResponse, (content, usage) => {
               output.content = content

@@ -152,7 +152,8 @@ export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortCo
   if (timeoutMs) {
     timeoutId = setTimeout(() => {
       isTimedOut = true
-      abortController.abort()
+      // Typed reason so pumps/executors can distinguish timeout from user Stop.
+      abortController.abort('timeout')
     }, timeoutMs)
   }
 
@@ -162,7 +163,8 @@ export function createTimeoutAbortController(timeoutMs?: number): TimeoutAbortCo
     cleanup: () => {
       if (timeoutId) clearTimeout(timeoutId)
     },
-    abort: () => abortController.abort(),
+    // Manual abort is user/client cancellation (disconnect, Stop, registerManualExecutionAborter).
+    abort: () => abortController.abort('user'),
     timeoutMs,
   }
 }

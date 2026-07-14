@@ -26,6 +26,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
+import { attachAgentStreamSink } from '@/lib/workflows/streaming/attach-agent-stream-sink'
 import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
@@ -1269,7 +1270,11 @@ export class PauseResumeManager {
       event: ExecutionEvent,
       terminalStatus?: TerminalExecutionStreamStatus
     ) => {
-      const isBuffered = event.type !== 'stream:chunk' && event.type !== 'stream:done'
+      const isBuffered =
+        event.type !== 'stream:chunk' &&
+        event.type !== 'stream:done' &&
+        event.type !== 'stream:thinking' &&
+        event.type !== 'stream:tool'
       if (isBuffered) {
         const entry = terminalStatus
           ? await eventWriter.writeTerminal(event, terminalStatus).catch((error) => {
@@ -1411,6 +1416,37 @@ export class PauseResumeManager {
           ? streamingExec.execution.blockId
           : undefined
         const blockId = typeof blockIdValue === 'string' ? blockIdValue : ''
+
+        const unsubscribe = attachAgentStreamSink(streamingExec, {
+          onThinkingDelta: async (text) => {
+            await writeBufferedEvent({
+              type: 'stream:thinking',
+              timestamp: new Date().toISOString(),
+              executionId: resumeExecutionId,
+              workflowId,
+              data: { blockId, data: text },
+            } as ExecutionEvent)
+          },
+          onToolCallStart: async (id, name) => {
+            await writeBufferedEvent({
+              type: 'stream:tool',
+              timestamp: new Date().toISOString(),
+              executionId: resumeExecutionId,
+              workflowId,
+              data: { blockId, phase: 'start', id, name },
+            } as ExecutionEvent)
+          },
+          onToolCallEnd: async (id, name, status) => {
+            await writeBufferedEvent({
+              type: 'stream:tool',
+              timestamp: new Date().toISOString(),
+              executionId: resumeExecutionId,
+              workflowId,
+              data: { blockId, phase: 'end', id, name, status },
+            } as ExecutionEvent)
+          },
+        })
+
         const reader = streamingExec.stream.getReader()
         const decoder = new TextDecoder()
         try {
@@ -1440,6 +1476,7 @@ export class PauseResumeManager {
             error: toError(streamError).message,
           })
         } finally {
+          unsubscribe()
           try {
             await reader.cancel().catch(() => {})
           } catch {}
