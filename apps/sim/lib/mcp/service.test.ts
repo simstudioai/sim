@@ -1,6 +1,9 @@
 /**
  * @vitest-environment node
  */
+
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -26,7 +29,7 @@ const {
   // an expiry timestamp so negative-cache assertions behave like production.
   const cacheStore = new Map<string, { tools: unknown[]; expiry: number }>()
   const mockCacheAdapter = {
-    get: async (key: string) => {
+    get: vi.fn(async (key: string) => {
       const entry = cacheStore.get(key)
       if (!entry) return null
       if (entry.expiry <= Date.now()) {
@@ -34,16 +37,16 @@ const {
         return null
       }
       return entry
-    },
-    set: async (key: string, tools: unknown[], ttlMs: number) => {
+    }),
+    set: vi.fn(async (key: string, tools: unknown[], ttlMs: number) => {
       cacheStore.set(key, { tools, expiry: Date.now() + ttlMs })
-    },
-    delete: async (key: string) => {
+    }),
+    delete: vi.fn(async (key: string) => {
       cacheStore.delete(key)
-    },
-    clear: async () => {
+    }),
+    clear: vi.fn(async () => {
       cacheStore.clear()
-    },
+    }),
     dispose: () => {},
   }
   return {
@@ -131,6 +134,8 @@ vi.mock('@/lib/mcp/storage', () => ({
 
 import { mcpService } from '@/lib/mcp/service'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
+
+const mockLogger = vi.mocked(loggerMock.createLogger).mock.results.at(-1)?.value
 
 const WORKSPACE_ID = 'workspace-test'
 const USER_ID = 'user-test'
@@ -329,6 +334,70 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockListTools).not.toHaveBeenCalled()
   })
 
+  it('persists and negative-caches UnauthorizedError for a headers-auth server', async () => {
+    const reflectedCredential = 'Bearer static-secret-for-bulk-discovery'
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools.mockRejectedValueOnce(
+      new UnauthorizedError(`Rejected Authorization: ${reflectedCredential}`)
+    )
+
+    const first = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(first).toEqual([])
+
+    await vi.waitFor(() => {
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionStatus: 'disconnected',
+          lastError: 'Authentication failed',
+          statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
+        })
+      )
+      expect(mockCacheAdapter.set).toHaveBeenCalledWith(
+        `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
+        [],
+        expect.any(Number)
+      )
+    })
+    expect(JSON.stringify(mockUpdateSet.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockCacheAdapter.set.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
+
+    mockListTools.mockClear()
+    const second = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(second).toEqual([])
+    expect(mockListTools).not.toHaveBeenCalled()
+  })
+
+  it('keeps UnauthorizedError soft-pending for an OAuth server', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mockResolveEnvVars.mockRejectedValue(new UnauthorizedError('OAuth token rejected'))
+
+    const first = await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(first).toEqual([])
+
+    await vi.waitFor(() => {
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionStatus: 'disconnected',
+          lastError: null,
+        })
+      )
+    })
+    expect(mockCacheAdapter.set).not.toHaveBeenCalledWith(
+      `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
+      [],
+      expect.any(Number)
+    )
+
+    mockResolveEnvVars.mockClear()
+    await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
+    expect(mockResolveEnvVars).toHaveBeenCalledTimes(1)
+  })
+
   it('successful discoverServerTools clears the negative cache', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools.mockRejectedValueOnce(new Error('Request timed out'))
@@ -394,6 +463,66 @@ describe('McpService.discoverTools per-server caching', () => {
         statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
       })
     )
+  })
+
+  it('persists and negative-caches per-server UnauthorizedError for headers auth', async () => {
+    const reflectedCredential = 'Bearer static-secret-for-server-discovery'
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools.mockRejectedValueOnce(
+      new UnauthorizedError(`Rejected Authorization: ${reflectedCredential}`)
+    )
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      reflectedCredential
+    )
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastError: 'Authentication failed',
+        statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
+      })
+    )
+    expect(JSON.stringify(mockUpdateSet.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockCacheAdapter.set.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
+
+    mockListTools.mockClear()
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'cooldown'
+    )
+    expect(mockListTools).not.toHaveBeenCalled()
+  })
+
+  it('keeps per-server UnauthorizedError soft-pending for OAuth auth', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mockResolveEnvVars.mockRejectedValue(new UnauthorizedError('OAuth token rejected'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'OAuth token rejected'
+    )
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastError: null,
+      })
+    )
+    expect(mockCacheAdapter.set).not.toHaveBeenCalledWith(
+      `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
+      [],
+      expect.any(Number)
+    )
+
+    mockResolveEnvVars.mockClear()
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'OAuth token rejected'
+    )
+    expect(mockResolveEnvVars).toHaveBeenCalledTimes(1)
   })
 
   it('promotes the persisted server status to error on the third consecutive failure', async () => {

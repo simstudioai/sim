@@ -70,8 +70,22 @@ type ServerStatusUpdate =
   | { outcome: 'connected'; toolCount: number }
   | { outcome: 'failed'; error: string; discoveryStartedAt?: Date }
 
-function isOauthAuthorizationError(error: unknown): boolean {
-  return error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError
+function isOauthAuthorizationError(error: unknown, authType: McpServerConfig['authType']): boolean {
+  return (
+    error instanceof McpOauthAuthorizationRequiredError ||
+    (authType === 'oauth' && error instanceof UnauthorizedError)
+  )
+}
+
+function getDiscoveryFailureMessage(
+  error: unknown,
+  authType: McpServerConfig['authType'],
+  fallback: string
+): string {
+  if (authType !== 'oauth' && error instanceof UnauthorizedError) {
+    return 'Authentication failed'
+  }
+  return getErrorMessage(error, fallback)
 }
 
 class McpService {
@@ -410,9 +424,10 @@ class McpService {
   private async markServerUnhealthy(
     workspaceId: string,
     serverId: string,
-    error: unknown
+    error: unknown,
+    authType: McpServerConfig['authType']
   ): Promise<void> {
-    if (isOauthAuthorizationError(error)) {
+    if (isOauthAuthorizationError(error, authType)) {
       return
     }
     try {
@@ -534,12 +549,12 @@ class McpService {
               await client.disconnect()
             }
           } catch (error) {
-            if (isOauthAuthorizationError(error)) {
+            if (isOauthAuthorizationError(error, config.authType)) {
               return { kind: 'oauth-pending' }
             }
             return {
               kind: 'error',
-              message: getErrorMessage(error, 'Unknown error'),
+              message: getDiscoveryFailureMessage(error, config.authType, 'Unknown error'),
               originalError: error,
             }
           }
@@ -614,7 +629,12 @@ class McpService {
           }).then(async (statusApplied) => {
             if (!statusApplied) return
             await Promise.allSettled([
-              this.markServerUnhealthy(workspaceId, server.id, outcome.originalError),
+              this.markServerUnhealthy(
+                workspaceId,
+                server.id,
+                outcome.originalError,
+                server.authType
+              ),
               this.cacheAdapter
                 .delete(serverCacheKey(workspaceId, server.id))
                 .catch((err) =>
@@ -713,6 +733,7 @@ class McpService {
     }
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      let authType: McpServerConfig['authType']
       try {
         logger.info(
           `[${requestId}] Discovering tools from server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`
@@ -722,6 +743,7 @@ class McpService {
         if (!config) {
           throw new Error(`Server ${serverId} not found or not accessible`)
         }
+        authType = config.authType
 
         const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
           config,
@@ -759,11 +781,11 @@ class McpService {
           continue
         }
         // Drop positive cache so a follow-up doesn't return stale tools.
-        const statusApplied = isOauthAuthorizationError(error)
+        const statusApplied = isOauthAuthorizationError(error, authType)
           ? await this.markServerOauthPending(serverId, workspaceId, discoveryStartedAt)
           : await this.updateServerStatus(serverId, workspaceId, {
               outcome: 'failed',
-              error: getErrorMessage(error, 'Connection failed'),
+              error: getDiscoveryFailureMessage(error, authType, 'Connection failed'),
               discoveryStartedAt,
             })
         if (statusApplied) {
@@ -773,7 +795,7 @@ class McpService {
               .catch((err) =>
                 logger.warn(`[${requestId}] Cache delete failed for ${serverId}:`, err)
               ),
-            this.markServerUnhealthy(workspaceId, serverId, error),
+            this.markServerUnhealthy(workspaceId, serverId, error, authType),
           ])
         }
         throw error
@@ -814,7 +836,7 @@ class McpService {
             error: undefined,
           })
         } catch (error) {
-          if (isOauthAuthorizationError(error)) {
+          if (isOauthAuthorizationError(error, config.authType)) {
             summaries.push({
               id: config.id,
               name: config.name,
@@ -835,7 +857,7 @@ class McpService {
             status: 'error',
             toolCount: 0,
             lastSeen: undefined,
-            error: getErrorMessage(error, 'Connection failed'),
+            error: getDiscoveryFailureMessage(error, config.authType, 'Connection failed'),
           })
         }
       }

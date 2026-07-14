@@ -4,7 +4,8 @@
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDiscoverServerTools, mockSelect, mockUpdateSet } = vi.hoisted(() => ({
+const { mockClearCache, mockDiscoverServerTools, mockSelect, mockUpdateSet } = vi.hoisted(() => ({
+  mockClearCache: vi.fn(),
   mockDiscoverServerTools: vi.fn(),
   mockSelect: vi.fn(),
   mockUpdateSet: vi.fn(),
@@ -41,7 +42,7 @@ vi.mock('@/lib/mcp/middleware', () => ({
 
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: {
-    clearCache: vi.fn(),
+    clearCache: mockClearCache,
     discoverServerTools: mockDiscoverServerTools,
   },
 }))
@@ -104,5 +105,63 @@ describe('MCP server refresh route', () => {
     expect(mockUpdateSet).not.toHaveBeenCalledWith(
       expect.objectContaining({ connectionStatus: expect.anything() })
     )
+  })
+
+  it('reports the discovery failure when status persistence leaves a stale connected row', async () => {
+    const reflectedSecret = 'Bearer reflected-static-token'
+    mockDiscoverServerTools.mockRejectedValueOnce(
+      new Error(`Upstream reflected ${reflectedSecret}`)
+    )
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([initialServer]),
+      }),
+    })
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'disconnected',
+        error: 'Internal server error',
+        workflowsUpdated: 0,
+      })
+    )
+    expect(JSON.stringify(body)).not.toContain(reflectedSecret)
+    expect(mockClearCache).not.toHaveBeenCalled()
+  })
+
+  it('preserves a connected status from a newer successful discovery', async () => {
+    mockDiscoverServerTools.mockRejectedValueOnce(new Error('Connection failed'))
+    const newerSuccessfulServer = {
+      ...initialServer,
+      lastConnected: new Date(Date.now() + 60_000),
+      toolCount: 7,
+    }
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([newerSuccessfulServer]),
+      }),
+    })
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'connected',
+        error: null,
+        toolCount: 7,
+        workflowsUpdated: 0,
+      })
+    )
+    expect(mockClearCache).toHaveBeenCalledWith('workspace-1')
   })
 })

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { mcpServers, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -12,6 +12,7 @@ import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
 import {
+  categorizeError,
   createMcpErrorResponse,
   createMcpSuccessResponse,
   MCP_TOOL_CORE_PARAMS,
@@ -188,6 +189,7 @@ export const POST = withRouteHandler(
         let syncResult: SyncResult = { updatedCount: 0, updatedWorkflowIds: [] }
         let discoveredTools: McpTool[] = []
         let discoveryError: string | null = null
+        const discoveryStartedAt = new Date()
 
         try {
           discoveredTools = await mcpService.discoverServerTools(
@@ -200,12 +202,10 @@ export const POST = withRouteHandler(
             `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`
           )
         } catch (error) {
-          discoveryError = truncate(
-            getErrorMessage(error, 'Connection failed').split('\n')[0],
-            200,
-            ''
-          )
-          logger.warn(`[${requestId}] Failed to connect to server ${serverId}:`, error)
+          discoveryError = truncate(categorizeError(error).message, 200, '')
+          logger.warn(`[${requestId}] Failed to connect to server ${serverId}`, {
+            error: discoveryError,
+          })
         }
 
         if (discoveryError === null) {
@@ -240,9 +240,20 @@ export const POST = withRouteHandler(
             toolCount: mcpServers.toolCount,
           })
 
-        const connectionStatus = refreshedServer?.connectionStatus ?? 'error'
-        const lastError = refreshedServer ? refreshedServer.lastError : discoveryError
+        let connectionStatus = refreshedServer?.connectionStatus ?? 'error'
+        let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
         const toolCount = refreshedServer?.toolCount ?? discoveredTools.length
+
+        if (discoveryError !== null && connectionStatus === 'connected') {
+          const newerSuccessWonRace =
+            refreshedServer?.lastConnected != null &&
+            refreshedServer.lastConnected > discoveryStartedAt
+
+          if (!newerSuccessWonRace) {
+            connectionStatus = 'disconnected'
+            lastError = discoveryError
+          }
+        }
 
         if (connectionStatus === 'connected') {
           await mcpService.clearCache(workspaceId)
