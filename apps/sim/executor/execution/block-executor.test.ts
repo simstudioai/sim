@@ -675,6 +675,41 @@ describe('BlockExecutor streaming pump (Step 3)', () => {
     expect(output).not.toMatchObject({ error: expect.any(String) })
   })
 
+  it('fails on timeout but keeps drained answer text in block output', async () => {
+    const abortController = new AbortController()
+    const handler = createAgentEventsStreamingHandler({
+      events: [
+        { type: 'text_delta', text: 'partial before timeout', turn: 'final' },
+        { type: 'thinking_delta', text: 'more' },
+      ],
+    })
+
+    const { executor, block, state } = createExecutor(handler)
+    const ctx = createContext(state)
+    ctx.abortSignal = abortController.signal
+    ctx.onStream = async (streamingExec) => {
+      streamingExec.subscribe?.({ onEvent: async () => {} })
+      const reader = streamingExec.stream.getReader()
+      try {
+        const first = await reader.read()
+        expect(first.done).toBe(false)
+        abortController.abort('timeout')
+        while (true) {
+          const { done } = await reader.read()
+          if (done) break
+        }
+      } catch {
+        // timeout may cancel the text stream
+      }
+    }
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(/timed out/i)
+
+    const output = state.getBlockOutput(block.id)
+    expect(output?.error).toBeTruthy()
+    expect(output?.content).toBe('partial before timeout')
+  })
+
   it('with PII redaction: no live forward and strips thinking from traces', async () => {
     const { redactObjectStrings } = await import('@/lib/logs/execution/pii-redaction')
     vi.mocked(redactObjectStrings).mockImplementation(async (value) => {

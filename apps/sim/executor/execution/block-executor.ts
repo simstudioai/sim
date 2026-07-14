@@ -177,6 +177,7 @@ export class BlockExecutor {
     }
     cleanupSelfReference?.()
 
+    let streamingPartialOutput: Record<string, any> | undefined
     try {
       const output = handler.executeWithNode
         ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
@@ -193,14 +194,21 @@ export class BlockExecutor {
         // even with no `onStream`. When block-output redaction is on we do not
         // live-forward chunks; content is masked before persist and the masked
         // final output reaches the client via block-complete.
-        await this.handleStreamingExecution(
-          ctx,
-          node,
-          block,
-          streamingExec,
-          resolvedInputs,
-          normalizeStringArray(ctx.selectedOutputs)
-        )
+        try {
+          await this.handleStreamingExecution(
+            ctx,
+            node,
+            block,
+            streamingExec,
+            resolvedInputs,
+            normalizeStringArray(ctx.selectedOutputs)
+          )
+        } catch (streamError) {
+          // Timeout / drain failures may still have projected answer text — keep it
+          // for the failed block output so logs match what the client already saw.
+          streamingPartialOutput = streamingExec.execution?.output
+          throw streamError
+        }
 
         normalizedOutput = this.normalizeOutput(
           streamingExec.execution.output ?? streamingExec.execution
@@ -311,7 +319,8 @@ export class BlockExecutor {
         blockLog,
         inputsForLog,
         isSentinel,
-        'execution'
+        'execution',
+        streamingPartialOutput
       )
     }
   }
@@ -368,7 +377,8 @@ export class BlockExecutor {
     blockLog: BlockLog | undefined,
     inputsForLog: Record<string, any>,
     isSentinel: boolean,
-    phase: 'input_resolution' | 'execution'
+    phase: 'input_resolution' | 'execution',
+    streamingPartialOutput?: Record<string, any>
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
@@ -429,6 +439,13 @@ export class BlockExecutor {
 
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,
+    }
+
+    // Keep any answer text already drained before timeout/failure so logs match
+    // what was projected to the client.
+    const partialContent = streamingPartialOutput?.content
+    if (typeof partialContent === 'string' && partialContent) {
+      errorOutput.content = partialContent
     }
 
     if (ChildWorkflowError.isChildWorkflowError(error)) {
@@ -881,10 +898,19 @@ export class BlockExecutor {
       await onStreamPromise
     }
 
-    // Timeout still fails the block. User Stop soft-completes with any drained
-    // answer text so logs don't show a scary red agent block for a routine cancel
-    // (workflow status remains `cancelled` via the engine abort flag).
+    // Timeout still fails the block, but keep any drained answer text so logs
+    // match what was already projected to the client before the deadline.
+    // User Stop soft-completes below so logs don't show a scary red agent block
+    // for a routine cancel (workflow status remains `cancelled` via abort).
     if (pumpResult.cancelled && pumpResult.cancelReason === 'timeout') {
+      const truncated = pumpResult.answerText
+      if (truncated && streamingExec.execution?.output) {
+        streamingExec.execution.output.content = truncated
+      }
+      this.execLogger.warn('Stream timed out; persisting drained answer before failing block', {
+        blockId,
+        hasContent: Boolean(truncated),
+      })
       throw new DOMException('Provider request timed out', 'AbortError')
     }
 
