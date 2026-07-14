@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { Check, ChevronDown, Circle, Square, X } from 'lucide-react'
+import { ShimmerText } from '@/components/ui'
 import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
 
 export type AgentStreamToolStatus = 'running' | 'success' | 'error' | 'cancelled'
@@ -32,6 +33,8 @@ export function AgentStreamThinkingChrome({
   const [overflowing, setOverflowing] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const wasStreamingRef = useRef(!!isStreaming)
+  /** After a manual reopen of completed thoughts, jump to the top once. */
+  const reopenFromTopRef = useRef(false)
 
   useEffect(() => {
     const wasStreaming = wasStreamingRef.current
@@ -56,6 +59,12 @@ export function AgentStreamThinkingChrome({
 
     setOverflowing(el.scrollHeight > el.clientHeight + 1)
 
+    if (reopenFromTopRef.current && !isStreaming) {
+      el.scrollTop = 0
+      reopenFromTopRef.current = false
+      return
+    }
+
     if (isStreaming && stickToBottom) {
       el.scrollTop = el.scrollHeight
     }
@@ -70,7 +79,13 @@ export function AgentStreamThinkingChrome({
         setUserPinnedOpen(false)
       }
       if (next) {
-        setStickToBottom(true)
+        if (isStreaming) {
+          setStickToBottom(true)
+        } else {
+          // ChatGPT-style: reopen completed thoughts from the top.
+          setStickToBottom(false)
+          reopenFromTopRef.current = true
+        }
       }
       return next
     })
@@ -103,7 +118,16 @@ export function AgentStreamThinkingChrome({
           )}
           strokeWidth={2}
         />
-        <span>{label}</span>
+        {isStreaming ? (
+          <ShimmerText
+            className='text-sm [--shimmer-rest:var(--text-muted)]'
+            data-testid='agent-stream-thinking-label'
+          >
+            {label}
+          </ShimmerText>
+        ) : (
+          <span data-testid='agent-stream-thinking-label'>{label}</span>
+        )}
       </button>
 
       <div
@@ -121,10 +145,23 @@ export function AgentStreamThinkingChrome({
               data-testid='agent-stream-thinking-body'
               className={cn(
                 'max-h-40 overflow-y-auto border-[var(--border)] border-l pl-3',
-                'whitespace-pre-wrap break-words text-[var(--text-muted)] text-sm leading-relaxed'
+                'whitespace-pre-wrap break-words text-sm leading-relaxed',
+                !isStreaming && 'text-[var(--text-muted)]'
               )}
             >
-              {thinking}
+              {/* Shimmer on an inner node — never on the scroll shell. background-clip:text
+                  on overflow-y-auto breaks scroll/overflow in Chromium. */}
+              {isStreaming ? (
+                <ShimmerText
+                  as='div'
+                  className='[--shimmer-rest:var(--text-muted)]'
+                  data-testid='agent-stream-thinking-shimmer'
+                >
+                  {thinking}
+                </ShimmerText>
+              ) : (
+                thinking
+              )}
             </div>
             {open && isStreaming && overflowing && (
               <div

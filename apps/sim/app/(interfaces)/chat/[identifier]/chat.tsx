@@ -99,8 +99,9 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const [conversationId] = useState(() => generateId())
 
   const [showScrollButton, setShowScrollButton] = useState(false)
-  const [userHasScrolled, setUserHasScrolled] = useState(false)
-  const isUserScrollingRef = useRef(false)
+  /** ChatGPT-style: follow new tokens only while the viewport is near the bottom. */
+  const stickToBottomRef = useRef(true)
+  const ignoreScrollRef = useRef(false)
 
   const [isVoiceFirstMode, setIsVoiceFirstMode] = useState(false)
 
@@ -135,10 +136,31 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const { isPlayingAudio, streamTextToAudio, stopAudio } = useAudioStreaming(audioContextRef)
 
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+  const NEAR_BOTTOM_THRESHOLD_PX = 100
+
+  /**
+   * ChatGPT-style scroll. Without `force`, no-ops when the user has scrolled away.
+   * With `force` (jump button), re-pins to bottom.
+   */
+  const scrollToBottom = useCallback((options?: { behavior?: ScrollBehavior; force?: boolean }) => {
+    const behavior = options?.behavior ?? 'smooth'
+    const force = options?.force === true
+    if (!force && !stickToBottomRef.current) return
+    if (!messagesEndRef.current) return
+
+    if (force) {
+      stickToBottomRef.current = true
+      setShowScrollButton(false)
     }
+
+    ignoreScrollRef.current = true
+    messagesEndRef.current.scrollIntoView({ behavior })
+    window.setTimeout(
+      () => {
+        ignoreScrollRef.current = false
+      },
+      behavior === 'smooth' ? 400 : 50
+    )
   }, [])
 
   const scrollToMessage = useCallback(
@@ -169,38 +191,22 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     [messagesContainerRef]
   )
 
-  const isStreamingResponseRef = useRef(isStreamingResponse)
-  isStreamingResponseRef.current = isStreamingResponse
-
   useEffect(() => {
     const container = messagesContainerRef.current
     if (!container) return
 
     const handleScroll = () => {
+      if (ignoreScrollRef.current) return
       const { scrollTop, scrollHeight, clientHeight } = container
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      setShowScrollButton(distanceFromBottom > 100)
-
-      if (isStreamingResponseRef.current && !isUserScrollingRef.current) {
-        setUserHasScrolled(true)
-      }
+      const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX
+      stickToBottomRef.current = nearBottom
+      setShowScrollButton(!nearBottom)
     }
 
     container.addEventListener('scroll', handleScroll, { passive: true })
     return () => container.removeEventListener('scroll', handleScroll)
   }, [chatConfig, isVoiceFirstMode, authRequired])
-
-  useEffect(() => {
-    if (isStreamingResponse) {
-      setUserHasScrolled(false)
-
-      isUserScrollingRef.current = true
-      const timeoutId = setTimeout(() => {
-        isUserScrollingRef.current = false
-      }, 1000)
-      return () => clearTimeout(timeoutId)
-    }
-  }, [isStreamingResponse])
 
   const handleSendMessage = async (
     messageParam?: string,
@@ -224,7 +230,8 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       filesCount: files?.length,
     })
 
-    setUserHasScrolled(false)
+    stickToBottomRef.current = true
+    setShowScrollButton(false)
 
     const userMessage: ChatMessage = {
       id: generateId(),
@@ -323,8 +330,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         response,
         setMessages,
         setIsLoading,
-        scrollToBottom,
-        userHasScrolled,
+        () => scrollToBottom({ behavior: 'auto' }),
         {
           voiceSettings: {
             isVoiceEnabled: shouldPlayAudio,
@@ -445,7 +451,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         showScrollButton={showScrollButton}
         messagesContainerRef={messagesContainerRef as RefObject<HTMLDivElement>}
         messagesEndRef={messagesEndRef as RefObject<HTMLDivElement>}
-        scrollToBottom={scrollToBottom}
+        scrollToBottom={() => scrollToBottom({ behavior: 'smooth', force: true })}
         scrollToMessage={scrollToMessage}
         chatConfig={chatConfig}
       />

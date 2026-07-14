@@ -205,7 +205,6 @@ export function useChatStreaming() {
     setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
     setIsLoading: React.Dispatch<React.SetStateAction<boolean>>,
     scrollToBottom: () => void,
-    userHasScrolled?: boolean,
     streamingOptions?: StreamingOptions
   ) => {
     logger.info('[useChatStreaming] handleStreamedResponse called')
@@ -280,6 +279,10 @@ export function useChatStreaming() {
           }
         })
       )
+      // Caller supplies a stick-to-bottom-aware scroller (no-ops if user scrolled away).
+      requestAnimationFrame(() => {
+        scrollToBottom()
+      })
     }
 
     const scheduleUIFlush = () => {
@@ -740,11 +743,10 @@ export function useChatStreaming() {
       setIsStreamingResponse(false)
       abortControllerRef.current = null
 
-      if (!userHasScrolled) {
-        setTimeout(() => {
-          scrollToBottom()
-        }, 300)
-      }
+      // Stick-to-bottom-aware; no-ops if the user scrolled away mid-stream.
+      setTimeout(() => {
+        scrollToBottom()
+      }, 300)
 
       if (shouldPlayAudio) {
         streamingOptions?.onAudioEnd?.()

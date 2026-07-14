@@ -13,6 +13,27 @@ vi.mock('@/lib/copilot/tools/tool-display', () => ({
   humanizeToolName: (name: string) => name,
 }))
 
+vi.mock('@/components/ui', () => ({
+  ShimmerText: ({
+    as: Comp = 'span',
+    children,
+    className,
+    ...props
+  }: {
+    as?: 'span' | 'div'
+    children: React.ReactNode
+    className?: string
+    [key: string]: unknown
+  }) => {
+    const Tag = Comp
+    return (
+      <Tag data-shimmer='true' className={className} {...props}>
+        {children}
+      </Tag>
+    )
+  },
+}))
+
 import { AgentStreamThinkingChrome } from '@/components/agent-stream/agent-stream-chrome'
 
 function renderChrome(props: { thinking: string; isStreaming?: boolean }): {
@@ -70,8 +91,19 @@ describe('AgentStreamThinkingChrome', () => {
 
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
     expect(toggle.textContent).toContain('Thinking…')
+    expect(
+      container
+        .querySelector('[data-testid="agent-stream-thinking-label"]')
+        ?.getAttribute('data-shimmer')
+    ).toBe('true')
     expect(body.className).toContain('max-h-40')
     expect(body.className).toContain('overflow-y-auto')
+    expect(body.getAttribute('data-shimmer')).toBeNull()
+    expect(
+      container
+        .querySelector('[data-testid="agent-stream-thinking-shimmer"]')
+        ?.getAttribute('data-shimmer')
+    ).toBe('true')
     expect(body.textContent).toContain('step one')
   })
 
@@ -87,36 +119,50 @@ describe('AgentStreamThinkingChrome', () => {
     const toggle = container.querySelector(
       '[data-testid="agent-stream-thinking-toggle"]'
     ) as HTMLButtonElement
+    const body = container.querySelector(
+      '[data-testid="agent-stream-thinking-body"]'
+    ) as HTMLDivElement
 
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(toggle.textContent).toContain('Thought for a moment')
+    expect(
+      container
+        .querySelector('[data-testid="agent-stream-thinking-label"]')
+        ?.getAttribute('data-shimmer')
+    ).toBeNull()
+    expect(container.querySelector('[data-testid="agent-stream-thinking-shimmer"]')).toBeNull()
+    expect(body.className).toContain('text-[var(--text-muted)]')
   })
 
   it('stays open after manual reopen once collapsed', () => {
     const { container, rerender, unmount } = renderChrome({
-      thinking: 'reason',
+      thinking: 'reason\n'.repeat(40),
       isStreaming: true,
     })
     mounts.push(unmount)
 
-    rerender({ thinking: 'reason', isStreaming: false })
+    rerender({ thinking: 'reason\n'.repeat(40), isStreaming: false })
 
     const toggle = container.querySelector(
       '[data-testid="agent-stream-thinking-toggle"]'
     ) as HTMLButtonElement
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
 
+    const body = container.querySelector(
+      '[data-testid="agent-stream-thinking-body"]'
+    ) as HTMLDivElement
+    Object.defineProperty(body, 'scrollTop', { value: 80, writable: true, configurable: true })
+
     act(() => {
       toggle.click()
     })
 
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(
-      container.querySelector('[data-testid="agent-stream-thinking-body"]')?.textContent
-    ).toContain('reason')
+    expect(body.scrollTop).toBe(0)
+    expect(body.textContent).toContain('reason')
 
     // Re-render with same done state should not force-close a user pin.
-    rerender({ thinking: 'reason', isStreaming: false })
+    rerender({ thinking: 'reason\n'.repeat(40), isStreaming: false })
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
   })
 
