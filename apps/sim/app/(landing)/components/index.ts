@@ -18,6 +18,7 @@ export { Lightbox } from './lightbox'
 export { LogoShell } from './logo-shell'
 export { Mothership } from './mothership/mothership'
 export { Navbar } from './navbar'
+export { PlatformHeroVisual } from './platform-hero-visual'
 export type {
   PlatformCardConfig,
   PlatformCardRowConfig,

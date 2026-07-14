@@ -31,9 +31,9 @@ import {
  * Enterprise landing page (`/enterprise`) - the flagship surface for teams
  * evaluating Sim as their enterprise AI agent platform.
  *
- * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows) but
- * composes its own `<main>` so it can append the shared homepage CTA that
- * `SolutionsPage` does not render. The four feature rows render through
+ * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows →
+ * shared homepage CTA) but composes its own `<main>` so the hero can render
+ * full-bleed in its `home` variant. The four feature rows render through
  * {@link EnterpriseFeatureGrid} - one shared grid that regroups the 12 cards
  * into 4/4/2/2 in the two-column band so no section leaves an orphan cell.
  * The shared `SOLUTIONS_SPACING` constants own the enterprise content gutter

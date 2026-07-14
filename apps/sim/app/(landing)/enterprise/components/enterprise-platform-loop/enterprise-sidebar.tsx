@@ -71,6 +71,15 @@ function SectionLabel({ label, actions }: { label: string; actions?: boolean }) 
   )
 }
 
+interface EnterpriseSidebarProps {
+  /** Workspace name in the header chip. Defaults to the enterprise workspace. */
+  workspaceName?: string
+  /** Recent-chat entries - four fill the design height. Defaults enterprise. */
+  chats?: readonly string[]
+  /** Deployed-workflow entries - five fill the design height. Defaults enterprise. */
+  workflows?: readonly string[]
+}
+
 /**
  * The Brightwave workspace sidebar, rendered live (the homepage loop keeps its
  * baked-screenshot sidebar; the enterprise loop draws its own so the content
@@ -78,8 +87,15 @@ function SectionLabel({ label, actions }: { label: string; actions?: boolean }) 
  * Search / Integrations, a filled-out Chats history, the Workspace nav, a full
  * Workflows section, and the Help / Settings footer. Purely decorative -
  * hover/click behavior is owned by the parent's `pointer-events-none` frame.
+ * The workspace name and the chat / workflow entries are injectable so each
+ * solutions hero can read like that team's workspace; defaults keep the
+ * enterprise page exactly as it renders today.
  */
-export function EnterpriseSidebar() {
+export function EnterpriseSidebar({
+  workspaceName = 'Brightwave',
+  chats = SIDEBAR_CHATS,
+  workflows = SIDEBAR_WORKFLOWS,
+}: EnterpriseSidebarProps = {}) {
   return (
     <div className='flex h-full w-[249px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
       {/* Workspace header, matching the real product's WorkspaceHeader chip
@@ -99,7 +115,7 @@ export function EnterpriseSidebar() {
             height={16}
             className='size-[16px] flex-shrink-0 rounded-sm'
           />
-          <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>Brightwave</span>
+          <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{workspaceName}</span>
           <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
         </div>
         <PanelLeft className='mr-1.5 size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -114,7 +130,7 @@ export function EnterpriseSidebar() {
       <div className='mt-3.5 flex flex-shrink-0 flex-col'>
         <SectionLabel label='Chats' />
         <div className='flex flex-col gap-0.5 px-2'>
-          {SIDEBAR_CHATS.map((chat) => (
+          {chats.map((chat) => (
             <TextRow key={chat} label={chat} />
           ))}
         </div>
@@ -132,7 +148,7 @@ export function EnterpriseSidebar() {
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden pt-3.5'>
         <SectionLabel label='Workflows' actions />
         <div className='flex flex-col gap-0.5 px-2'>
-          {SIDEBAR_WORKFLOWS.map((workflow) => (
+          {workflows.map((workflow) => (
             <TextRow key={workflow} label={workflow} />
           ))}
         </div>

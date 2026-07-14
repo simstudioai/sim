@@ -39,6 +39,9 @@ interface Port {
   fillClass: string
 }
 
+/** Left-to-right label triple for one row of ports. */
+type PortLabels = readonly [string, string, string]
+
 /**
  * Inbound ops tools across the top, staggered like a constellation rather
  * than a rank: Zendesk rides highest on the center axis (x 140), Gmail
@@ -199,17 +202,41 @@ function PortTag({ port }: { port: Port }) {
  * center. The fixed-size canvas is centered with a transform (`left-1/2`
  * + `-translate-x-1/2`, the standards tile's approach) so at narrow tile
  * widths it keeps its wiring geometry and overflows both edges equally
- * instead of drifting. On the narrow grid bands where the tile drops
- * below the canvas width (small two-column screens and the 3-up row just
- * past `lg`) the canvas scales down via transform so the outer tool pills
- * are never cropped.
+ * instead of drifting. Narrow grid columns are handled by the feature
+ * tile itself, which zooms its whole design-space canvas down
+ * proportionally (see `SOLUTIONS_VISUAL`), so the outer tool pills are
+ * never cropped without this graphic carrying its own breakpoint scaling.
+ *
+ * The source/destination tool names are parametrizable so other landing
+ * pages (IT, HR, and other solutions) can retell the switchboard with
+ * their own domain's tools; the defaults keep the enterprise page's
+ * Gmail/Zendesk/Sheets → Slack/Salesforce/Jira routing byte-identical.
+ * Labels map onto the fixed port geometry left-to-right, so wiring,
+ * timing, and layout never change with the copy.
  */
-export function OperationsTeamsGraphic() {
+interface OperationsTeamsGraphicProps {
+  /** Inbound tool names across the top row, left to right. */
+  sourceLabels?: PortLabels
+  /** Outbound tool names across the bottom row, left to right. */
+  destinationLabels?: PortLabels
+}
+
+export function OperationsTeamsGraphic({
+  sourceLabels,
+  destinationLabels,
+}: OperationsTeamsGraphicProps = {}) {
+  const sources = sourceLabels
+    ? SOURCES.map((port, index) => ({ ...port, label: sourceLabels[index] }))
+    : SOURCES
+  const destinations = destinationLabels
+    ? DESTINATIONS.map((port, index) => ({ ...port, label: destinationLabels[index] }))
+    : DESTINATIONS
+
   return (
     <FeatureGraphicShell>
       <div aria-hidden='true' className='absolute inset-0 pr-8 pb-8 max-lg:pr-6 max-lg:pb-6'>
         <div className='relative h-full'>
-          <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[248px] w-[280px] max-sm:scale-100 max-md:scale-[0.85] lg:max-[1180px]:scale-[0.85]'>
+          <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[248px] w-[280px]'>
             <svg
               className='absolute inset-0'
               fill='none'
@@ -256,7 +283,7 @@ export function OperationsTeamsGraphic() {
               />
             </svg>
 
-            {SOURCES.map((port) => (
+            {sources.map((port) => (
               <span key={port.label}>
                 <span
                   className={cn(
@@ -269,7 +296,7 @@ export function OperationsTeamsGraphic() {
               </span>
             ))}
 
-            {DESTINATIONS.map((port) => (
+            {destinations.map((port) => (
               <span key={port.label}>
                 <span
                   className={cn(

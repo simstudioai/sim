@@ -89,13 +89,39 @@ export const SOLUTIONS_VISUAL = {
   /** Fixed height of a card's visual panel - uniform across every card. */
   cardHeight: 'h-[240px]',
   /**
-   * Minimum height for framed feature tiles with copy and future UI in one
-   * surface. One value at every breakpoint: the tallest tile vignettes (audit
-   * ledger, staging panel) need ~300px of visual slot below the copy block, so
-   * shrinking the tile on small screens crops their tops against the slot's
-   * `overflow-hidden`.
+   * The feature-tile proportional-scaling system. Tiles are authored against a
+   * fixed design space - `352px` wide (the 3-up column at the widest desktop
+   * container) by `440px` tall - and the whole tile scales down uniformly,
+   * copy and graphic together, whenever its grid column gets narrower than
+   * that, like a zoomed-out desktop tile. Columns at or above 352px render
+   * fluid at scale 1, exactly the pre-scaler layout, so wide tiles (2-up rows,
+   * single-column phones) are untouched.
+   *
+   * Mechanics, pure CSS (no JS measurement):
+   * - {@link featureTileContainer} makes each tile's wrapper an inline-size
+   *   query container, so `100cqw` reads the rendered column width.
+   * - {@link featureTileScale} derives the factor on the tile:
+   *   `tan(atan2(100cqw, 352px))` is the standard trick for dividing two
+   *   lengths into a plain number, clamped to 1.
+   * - {@link featureTileCanvas} is the design-space stage: an absolutely
+   *   positioned layer sized `100%/scale` (= 352px wide when scaling engages)
+   *   and shrunk back with `scale`, so content lays out at desktop geometry
+   *   and the transform never leaves layout dead space.
+   * - {@link featureTileMinHeight} tracks the scaled canvas - `440px × scale` -
+   *   so the tile's height follows the zoom instead of clipping or leaving an
+   *   empty band.
    */
-  featureTileMinHeight: 'min-h-[440px]',
+  featureTileContainer: '[container-type:inline-size]',
+  featureTileScale: '[--tile-scale:min(1,tan(atan2(100cqw,352px)))]',
+  featureTileCanvas:
+    'h-[calc(100%/var(--tile-scale,1))] w-[calc(100%/var(--tile-scale,1))] origin-top-left [scale:var(--tile-scale,1)]',
+  /**
+   * Feature-tile minimum height - the `440px` design-space height, multiplied
+   * by the tile's current scale so height tracks the zoomed content. The
+   * tallest tile vignettes (audit ledger, staging panel) need ~300px of visual
+   * slot below the copy block in design space.
+   */
+  featureTileMinHeight: 'min-h-[calc(440px*var(--tile-scale,1))]',
 } as const
 
 /**

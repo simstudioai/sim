@@ -10,7 +10,15 @@ import type { SolutionsCardRowConfig } from '@/app/(landing)/components/solution
  * A card row - the core repeating unit of a solutions page. A header block (an
  * `<h2>` title, a body-color subtitle, and a single pill CTA) sits above a grid
  * of cards. The grid column count is derived from `cards.length` - 3 cards render
- * `grid-cols-3`, 4 render `grid-cols-4` - so the page never specifies layout.
+ * `grid-cols-3`, 4 render `grid-cols-4` - so the page never specifies layout. A
+ * row can opt down to a denser wrap via `row.columns` (e.g. 4 cards as a 2×2
+ * grid); the grid's own gap keeps the wrapped rows at the standard inter-tile
+ * rhythm.
+ *
+ * In the two-column band (`sm`..`lg`) a 3-card feature-tile row would leave its
+ * third card orphaned beside an empty cell, so that card spans both columns and
+ * switches to the tile's wide side-by-side treatment (copy left, graphic
+ * right) - see {@link SolutionsCard}'s `tabletSpan`.
  *
  * Rendered as a labelled `<section>` for a clean, crawlable landmark; each card
  * is an `<article>` with an `<h3>`, keeping the strict H2 → H3 hierarchy. Every
@@ -29,8 +37,9 @@ interface SolutionsCardRowProps {
   headerVariant?: 'standard' | 'feature'
 }
 
-/** Maps a supported card count to its grid column class; anything else falls back to three-up. */
+/** Maps a supported column count to its grid class; anything else falls back to three-up. */
 const GRID_COLS: Record<number, string> = {
+  2: 'grid-cols-2',
   3: 'grid-cols-3',
   4: 'grid-cols-4',
 }
@@ -42,7 +51,7 @@ export function SolutionsCardRow({
   headerVariant = 'standard',
 }: SolutionsCardRowProps) {
   const headingId = `solutions-row-${row.id}-heading`
-  const gridCols = GRID_COLS[row.cards.length] ?? GRID_COLS[3]
+  const gridCols = GRID_COLS[row.columns ?? row.cards.length] ?? GRID_COLS[3]
 
   return (
     <section
@@ -71,6 +80,12 @@ export function SolutionsCardRow({
             card={card}
             headingId={`solutions-row-${row.id}-card-${index}-heading`}
             variant={cardVariant}
+            tabletSpan={
+              cardVariant === 'featureTile' &&
+              row.cards.length === 3 &&
+              row.columns === undefined &&
+              index === 2
+            }
           />
         ))}
       </div>
