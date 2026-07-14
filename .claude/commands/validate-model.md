@@ -34,7 +34,7 @@ Capture per model: `id`, full `pricing`, full `capabilities`, `contextWindow`, `
 
 ## Step 2: Live-fetch authoritative sources
 
-Use the canonical provider URL table in the `add-model` skill (`.claude/commands/add-model.md`, or its mirror `.agents/skills/add-model/SKILL.md`), Step 1, as the single source of truth — fetch the models index, pricing, and reasoning/parameter caveats pages listed there for the target provider. If you update one table, update the other in the same change.
+Use the canonical provider URL table in the `add-model` skill (`.agents/skills/add-model/SKILL.md`), Step 1, as the single source of truth — fetch the models index, pricing, and reasoning/parameter caveats pages listed there for the target provider.
 
 Secondary cross-check (use at least one): OpenRouter, Artificial Analysis, CloudPrice.
 

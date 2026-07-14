@@ -1,14 +1,30 @@
 /**
  * @vitest-environment node
  */
+import { document, knowledgeBase, workspaceFiles } from '@sim/db/schema'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckStorageQuota } = vi.hoisted(() => ({
-  mockCheckStorageQuota: vi.fn(),
+const {
+  mockCheckStorageQuotaForBillingContext,
+  mockResolveStorageBillingContext,
+  mockGetOrganizationSubscription,
+  mockGetHighestPriorityPersonalSubscription,
+} = vi.hoisted(() => ({
+  mockCheckStorageQuotaForBillingContext: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
+  mockGetOrganizationSubscription: vi.fn(),
+  mockGetHighestPriorityPersonalSubscription: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuota: mockCheckStorageQuota,
+  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
+}))
+vi.mock('@/lib/billing/core/billing', () => ({
+  getOrganizationSubscription: mockGetOrganizationSubscription,
+}))
+vi.mock('@/lib/billing/core/plan', () => ({
+  getHighestPriorityPersonalSubscription: mockGetHighestPriorityPersonalSubscription,
 }))
 
 /**
@@ -33,26 +49,14 @@ import {
 } from '@/ee/workspace-forking/lib/copy/storage-quota'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 
-/**
- * Fake executor resolving one aggregate row per query, in call order. Supports both sum
- * shapes: `select().from().where()` (files) and `select().from().innerJoin().where()` (KB
- * documents joined to their live KB row).
- */
-function makeExecutor(totals: Array<number | string>) {
-  let call = 0
-  const next = () => Promise.resolve([{ total: totals[call++] ?? 0 }])
-  const select = vi.fn(() => ({
-    from: () => ({
-      where: next,
-      innerJoin: () => ({ where: next }),
-    }),
-  }))
-  return { executor: { select } as unknown as DbOrTx, select }
+function makeExecutor(total: number | string) {
+  const execute = vi.fn((_query: unknown) => Promise.resolve([{ total }]))
+  return { executor: { execute } as unknown as DbOrTx, execute }
 }
 
 describe('sumForkCopyBytes', () => {
-  it('adds the workspace-file and KB-document byte sums', async () => {
-    const { executor, select } = makeExecutor([300, 700])
+  it('returns the exact workspace-file plus KB-document total from one scalar query', async () => {
+    const { executor, execute } = makeExecutor(1000)
 
     const bytes = await sumForkCopyBytes(executor, 'src-ws', {
       fileIds: ['wf-1'],
@@ -60,11 +64,37 @@ describe('sumForkCopyBytes', () => {
     })
 
     expect(bytes).toBe(1000)
-    expect(select).toHaveBeenCalledTimes(2)
+    expect(execute).toHaveBeenCalledTimes(1)
+    const outerQuery = execute.mock.calls[0][0] as {
+      toSQL: () => { sql: string; params: Array<{ toSQL: () => { params: unknown[] } }> }
+    }
+    const compiled = outerQuery.toSQL()
+    expect(compiled.sql).toBe('SELECT (? + ?)::bigint AS total')
+    const [fileBytes, kbBytes] = compiled.params
+    expect(fileBytes.toSQL().params[2]).toEqual({
+      type: 'and',
+      conditions: [
+        { type: 'inArray', column: workspaceFiles.id, values: ['wf-1'] },
+        { type: 'eq', left: workspaceFiles.workspaceId, right: 'src-ws' },
+        { type: 'eq', left: workspaceFiles.context, right: 'workspace' },
+        { type: 'isNull', column: workspaceFiles.deletedAt },
+      ],
+    })
+    expect(kbBytes.toSQL().params[4]).toEqual({
+      type: 'and',
+      conditions: [
+        { type: 'inArray', column: knowledgeBase.id, values: ['kb-1'] },
+        { type: 'eq', left: knowledgeBase.workspaceId, right: 'src-ws' },
+        { type: 'isNull', column: knowledgeBase.deletedAt },
+        { type: 'isNull', column: document.deletedAt },
+        { type: 'isNull', column: document.archivedAt },
+        { type: 'isNotNull', column: document.storageKey },
+      ],
+    })
   })
 
   it('coerces driver string aggregates (bigint sums) to numbers', async () => {
-    const { executor } = makeExecutor(['1024'])
+    const { executor } = makeExecutor('1024')
 
     const bytes = await sumForkCopyBytes(executor, 'src-ws', { fileKeys: ['workspace/src/k1'] })
 
@@ -72,7 +102,7 @@ describe('sumForkCopyBytes', () => {
   })
 
   it('runs no query for an empty selection', async () => {
-    const { executor, select } = makeExecutor([])
+    const { executor, execute } = makeExecutor(0)
 
     const bytes = await sumForkCopyBytes(executor, 'src-ws', {
       fileIds: [],
@@ -81,47 +111,64 @@ describe('sumForkCopyBytes', () => {
     })
 
     expect(bytes).toBe(0)
-    expect(select).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
   })
 
-  it('skips the file query when only KBs are selected (and vice versa)', async () => {
-    const { executor, select } = makeExecutor([555])
+  it('uses the same single scalar query when only KBs are selected', async () => {
+    const { executor, execute } = makeExecutor(555)
 
     const bytes = await sumForkCopyBytes(executor, 'src-ws', { knowledgeBaseIds: ['kb-1'] })
 
     expect(bytes).toBe(555)
-    expect(select).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('assertForkStorageHeadroom', () => {
+  const targetContext = {
+    workspaceId: 'target-ws',
+    billedAccountUserId: 'target-payer',
+    billingEntity: { type: 'user', id: 'target-payer' },
+    plan: 'pro',
+    customStorageLimitGB: null,
+  } as const
+
   beforeEach(() => {
     vi.clearAllMocks()
+    mockResolveStorageBillingContext.mockResolvedValue(targetContext)
   })
 
   it('never consults the quota helper for zero bytes', async () => {
-    await assertForkStorageHeadroom({ userId: 'user-1', bytes: 0 })
-    expect(mockCheckStorageQuota).not.toHaveBeenCalled()
+    await assertForkStorageHeadroom({ targetWorkspaceId: 'target-ws', bytes: 0 })
+    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(mockCheckStorageQuotaForBillingContext).not.toHaveBeenCalled()
   })
 
-  it('resolves when the scope has headroom', async () => {
-    mockCheckStorageQuota.mockResolvedValue({ allowed: true, currentUsage: 10, limit: 100 })
+  it('checks sync headroom against the actual target workspace payer, never the actor', async () => {
+    mockCheckStorageQuotaForBillingContext.mockResolvedValue({
+      allowed: true,
+      currentUsage: 10,
+      limit: 100,
+    })
 
     await expect(
-      assertForkStorageHeadroom({ userId: 'user-1', bytes: 50 })
+      assertForkStorageHeadroom({ targetWorkspaceId: 'target-ws', bytes: 50 })
     ).resolves.toBeUndefined()
-    expect(mockCheckStorageQuota).toHaveBeenCalledWith('user-1', 50)
+    expect(mockResolveStorageBillingContext).toHaveBeenCalledWith('target-ws')
+    expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(targetContext, 50)
   })
 
   it("throws a 413 ForkError carrying the upload path's quota message when over quota", async () => {
-    mockCheckStorageQuota.mockResolvedValue({
+    mockCheckStorageQuotaForBillingContext.mockResolvedValue({
       allowed: false,
       currentUsage: 99,
       limit: 100,
       error: 'Storage limit exceeded. Used: 10.50GB, Limit: 10GB',
     })
 
-    const rejection = expect(assertForkStorageHeadroom({ userId: 'user-1', bytes: 50 })).rejects
+    const rejection = expect(
+      assertForkStorageHeadroom({ targetWorkspaceId: 'target-ws', bytes: 50 })
+    ).rejects
     await rejection.toBeInstanceOf(ForkError)
     await rejection.toMatchObject({
       statusCode: 413,
@@ -131,10 +178,51 @@ describe('assertForkStorageHeadroom', () => {
   })
 
   it('falls back to a generic storage message when the quota helper omits one', async () => {
-    mockCheckStorageQuota.mockResolvedValue({ allowed: false, currentUsage: 0, limit: 0 })
+    mockCheckStorageQuotaForBillingContext.mockResolvedValue({
+      allowed: false,
+      currentUsage: 0,
+      limit: 0,
+    })
 
-    await expect(assertForkStorageHeadroom({ userId: 'user-1', bytes: 1 })).rejects.toThrow(
-      'Not enough storage to copy the selected resources. Storage limit exceeded'
+    await expect(
+      assertForkStorageHeadroom({ targetWorkspaceId: 'target-ws', bytes: 1 })
+    ).rejects.toThrow('Not enough storage to copy the selected resources. Storage limit exceeded')
+  })
+
+  it('derives a not-yet-created fork payer from the creation policy', async () => {
+    mockGetOrganizationSubscription.mockResolvedValue({
+      plan: 'team',
+      metadata: { customStorageLimitGB: 250 },
+    })
+    mockCheckStorageQuotaForBillingContext.mockResolvedValue({
+      allowed: true,
+      currentUsage: 10,
+      limit: 100,
+    })
+
+    await assertForkStorageHeadroom({
+      plannedWorkspaceId: 'planned-child-ws',
+      creationPolicy: {
+        workspaceMode: 'organization',
+        organizationId: 'target-org',
+        billedAccountUserId: 'target-org-owner',
+      },
+      bytes: 50,
+    })
+
+    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('target-org', {
+      onError: 'throw',
+    })
+    expect(mockGetHighestPriorityPersonalSubscription).not.toHaveBeenCalled()
+    expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(
+      {
+        workspaceId: 'planned-child-ws',
+        billedAccountUserId: 'target-org-owner',
+        billingEntity: { type: 'organization', id: 'target-org' },
+        plan: 'team',
+        customStorageLimitGB: 250,
+      },
+      50
     )
   })
 })

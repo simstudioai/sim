@@ -12,18 +12,23 @@ To access the Sim API, you need an API key. Sim supports two types of API keys �
 
 |  | **Personal Keys** | **Workspace Keys** |
 | --- | --- | --- |
-| **Billed to** | Your individual account | Workspace owner |
+| **Billing** | Workspace payer for workspace-hosted usage | Workspace payer |
 | **Scope** | Across workspaces you have access to | Shared across the workspace |
 | **Managed by** | Each user individually | Workspace admins |
 | **Permissions** | Must be enabled at workspace level | Require admin permissions |
 
 <Callout type="info">
-  Workspace admins can disable personal API key usage for their workspace. If disabled, only workspace keys can be used.
+  Personal keys identify the user making a request; they do not select who pays.
+  Hosted usage is billed to the workspace's organization or personal billing
+  account and, for organizations, is attributed to the actor's member cap.
+  Workspace admins can disable personal API key usage for their workspace. If
+  disabled, only workspace keys can be used.
 </Callout>
 
 ## Generating API Keys
 
-To generate a key, open the Sim platform and navigate to **Settings**, then go to **Sim Keys** and click **Create**.
+To generate a personal key, open **Account settings** → **Sim API keys**. Workspace
+administrators can create shared keys from **Workspace settings** → **Sim API keys**.
 
 <Callout type="warn">
   API keys are only shown once when generated. Store your key securely — you will not be able to view it again.

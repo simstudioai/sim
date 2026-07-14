@@ -17,20 +17,27 @@ import { createLogger } from '@sim/logger'
 import { PERMISSION_RANK, type PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq, inArray, lte } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lte, ne, sql } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
+  acquireOrganizationMutationLock,
   acquireOrgMembershipLock,
-  ensureUserInOrganization,
+  ensureUserInOrganizationTx,
   getUserOrganization,
 } from '@/lib/billing/organizations/membership'
-import { ensureTeamOrganizationForAcceptance } from '@/lib/billing/organizations/provision-seat'
+import {
+  type AcceptancePlanConversion,
+  ensureTeamOrganizationForAcceptance,
+} from '@/lib/billing/organizations/provision-seat'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import type { DbOrTx } from '@/lib/db/types'
+import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceWithOwner, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('InvitationCore')
 
@@ -64,22 +71,29 @@ export interface InvitationWithGrants {
   inviterEmail: string | null
 }
 
-export async function getInvitationById(id: string): Promise<InvitationWithGrants | null> {
-  const [row] = await db.select().from(invitation).where(eq(invitation.id, id)).limit(1)
+export async function getInvitationById(
+  id: string,
+  executor: DbOrTx = db
+): Promise<InvitationWithGrants | null> {
+  const [row] = await executor.select().from(invitation).where(eq(invitation.id, id)).limit(1)
   if (!row) return null
-  return hydrateInvitation(row)
+  return hydrateInvitation(row, executor)
 }
 
-export async function getInvitationByToken(token: string): Promise<InvitationWithGrants | null> {
-  const [row] = await db.select().from(invitation).where(eq(invitation.token, token)).limit(1)
+export async function getInvitationByToken(
+  token: string,
+  executor: DbOrTx = db
+): Promise<InvitationWithGrants | null> {
+  const [row] = await executor.select().from(invitation).where(eq(invitation.token, token)).limit(1)
   if (!row) return null
-  return hydrateInvitation(row)
+  return hydrateInvitation(row, executor)
 }
 
 async function hydrateInvitation(
-  row: typeof invitation.$inferSelect
+  row: typeof invitation.$inferSelect,
+  executor: DbOrTx = db
 ): Promise<InvitationWithGrants> {
-  const grantRows = await db
+  const grantRows = await executor
     .select({
       id: invitationWorkspaceGrant.id,
       workspaceId: invitationWorkspaceGrant.workspaceId,
@@ -92,7 +106,7 @@ async function hydrateInvitation(
 
   let organizationName: string | null = null
   if (row.organizationId) {
-    const [orgRow] = await db
+    const [orgRow] = await executor
       .select({ name: organization.name })
       .from(organization)
       .where(eq(organization.id, row.organizationId))
@@ -100,7 +114,7 @@ async function hydrateInvitation(
     organizationName = orgRow?.name ?? null
   }
 
-  const [inviterRow] = await db
+  const [inviterRow] = await executor
     .select({ name: user.name, email: user.email })
     .from(user)
     .where(eq(user.id, row.inviterId))
@@ -229,8 +243,10 @@ export type AcceptInvitationResult =
 export interface AcceptInvitationInput {
   userId: string
   userEmail: string
+  actorName?: string | null
   invitationId: string
   token: string | null
+  request?: { headers: { get(name: string): string | null } }
 }
 
 /**
@@ -246,32 +262,123 @@ class MembershipRevokedDuringAcceptError extends Error {
   }
 }
 
+interface InvitationAcceptancePostCommitEffects {
+  organizationId: string | null
+  memberRole: string | null
+  reconcileSeats: boolean
+  acceptedWorkspaceIds: string[]
+  syncUsageLimitUserIds: string[]
+  planConversions: AcceptancePlanConversion[]
+  acceptedInvitation: InvitationWithGrants | null
+  membershipAlreadyExists: boolean
+}
+
 /**
- * An invitee who already belongs to a different organization cannot join a
- * second one. A workspace invite (with grants) falls back to external access;
- * anything else is rejected. Returns `true` when the caller should downgrade to
- * external membership, `false` when the invite was rejected as cross-org.
+ * Compute the complete workspace lock set before taking any workspace lock.
+ * A personal Pro→Team conversion attaches the billing owner's other personal
+ * workspaces in the same transaction, so those rows must participate in the
+ * same deterministic lock ordering as the invitation grants.
  */
-async function downgradeOrRejectCrossOrgInvite(inv: InvitationWithGrants): Promise<boolean> {
-  if (inv.kind === 'workspace' && inv.grants.length > 0) {
-    return true
+async function getInvitationAcceptanceWorkspaceLockIds(
+  tx: DbOrTx,
+  inv: InvitationWithGrants
+): Promise<{ workspaceIds: string[]; primaryWorkspace: WorkspaceWithOwner | null }> {
+  const grantWorkspaceIds = inv.grants.map((grant) => grant.workspaceId)
+  const primaryWorkspace = grantWorkspaceIds[0]
+    ? await getWorkspaceWithOwner(grantWorkspaceIds[0], { executor: tx })
+    : null
+  if (
+    !isBillingEnabled ||
+    inv.membershipIntent === 'external' ||
+    !primaryWorkspace ||
+    primaryWorkspace.organizationId
+  ) {
+    return { workspaceIds: [...new Set(grantWorkspaceIds)].sort(), primaryWorkspace }
   }
-  await db
-    .update(invitation)
-    .set({ status: 'rejected', updatedAt: new Date() })
-    .where(eq(invitation.id, inv.id))
-  return false
+
+  const attachableWorkspaces = await tx
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(
+      and(
+        eq(workspace.billedAccountUserId, primaryWorkspace.billedAccountUserId),
+        isNull(workspace.organizationId),
+        ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION)
+      )
+    )
+
+  return {
+    workspaceIds: [
+      ...new Set([...grantWorkspaceIds, ...attachableWorkspaces.map((row) => row.id)]),
+    ].sort(),
+    primaryWorkspace,
+  }
 }
 
 export async function acceptInvitation(
   input: AcceptInvitationInput
 ): Promise<AcceptInvitationResult> {
-  const inv = await getInvitationById(input.invitationId)
-
-  if (!inv) {
-    return { success: false, kind: 'not-found' }
+  const effects: InvitationAcceptancePostCommitEffects = {
+    organizationId: null,
+    memberRole: null,
+    reconcileSeats: false,
+    acceptedWorkspaceIds: [],
+    syncUsageLimitUserIds: [],
+    planConversions: [],
+    acceptedInvitation: null,
+    membershipAlreadyExists: false,
   }
+  const result = await db.transaction(async (tx): Promise<AcceptInvitationResult> => {
+    await acquireInvitationMutationLocks(tx, {
+      invitationIds: [input.invitationId],
+      workspaceIds: [],
+    })
 
+    await tx.execute(sql`select id from invitation where id = ${input.invitationId} for update`)
+
+    const inv = await getInvitationById(input.invitationId, tx)
+    if (!inv) {
+      return { success: false, kind: 'not-found' }
+    }
+
+    const lockPlan = await getInvitationAcceptanceWorkspaceLockIds(tx, inv)
+    await acquireInvitationMutationLocks(tx, {
+      invitationIds: [],
+      workspaceIds: lockPlan.workspaceIds,
+    })
+
+    // Re-read and row-lock the primary workspace only after the shared
+    // workspace advisory lock is held. If a move won the lock first, every
+    // billing and membership decision below now uses the committed post-move
+    // organization/billing identity rather than the pre-lock snapshot.
+    const lockedPrimaryWorkspace = inv.grants[0]
+      ? await getWorkspaceWithOwner(inv.grants[0].workspaceId, {
+          executor: tx,
+          forUpdate: true,
+        })
+      : null
+
+    return acceptLockedInvitation(
+      input,
+      inv,
+      { ...lockPlan, primaryWorkspace: lockedPrimaryWorkspace },
+      tx,
+      effects
+    )
+  })
+  if (result.success) {
+    await runInvitationAcceptancePostCommitEffects(input, effects)
+  }
+  return result
+}
+
+async function acceptLockedInvitation(
+  input: AcceptInvitationInput,
+  inv: InvitationWithGrants,
+  lockPlan: { workspaceIds: string[]; primaryWorkspace: WorkspaceWithOwner | null },
+  tx: DbOrTx,
+  effects: InvitationAcceptancePostCommitEffects
+): Promise<AcceptInvitationResult> {
   if (input.token && inv.token !== input.token) {
     return { success: false, kind: 'invalid-token' }
   }
@@ -281,7 +388,7 @@ export async function acceptInvitation(
   }
 
   if (isInvitationExpired(inv)) {
-    await db
+    await tx
       .update(invitation)
       .set({ status: 'expired', updatedAt: new Date() })
       .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
@@ -299,26 +406,22 @@ export async function acceptInvitation(
   const primaryGrant = inv.grants[0]
   let billingOwnerUserId = inv.inviterId
   let workspaceOrganizationId = inv.organizationId
-  if (primaryGrant) {
-    const grantWorkspace = await getWorkspaceWithOwner(primaryGrant.workspaceId)
-    if (grantWorkspace) {
-      billingOwnerUserId = grantWorkspace.billedAccountUserId
-      workspaceOrganizationId = grantWorkspace.organizationId ?? inv.organizationId
-    }
+  if (primaryGrant && lockPlan.primaryWorkspace) {
+    billingOwnerUserId = lockPlan.primaryWorkspace.billedAccountUserId
+    workspaceOrganizationId = lockPlan.primaryWorkspace.organizationId
   }
 
-  const existingMembership = await getUserOrganization(input.userId)
+  const existingMembership = await getUserOrganization(input.userId, tx)
   const inviteeAlreadyInDifferentOrg =
     !!existingMembership &&
     (workspaceOrganizationId ? existingMembership.organizationId !== workspaceOrganizationId : true)
 
   if (shouldJoinOrganization && inviteeAlreadyInDifferentOrg) {
-    if (await downgradeOrRejectCrossOrgInvite(inv)) {
-      acceptedMembershipIntent = 'external'
-      shouldJoinOrganization = false
-    } else {
+    if (inv.kind !== 'workspace' || inv.grants.length === 0) {
       return { success: false, kind: 'already-in-organization' }
     }
+    acceptedMembershipIntent = 'external'
+    shouldJoinOrganization = false
   }
 
   let targetOrganizationId = workspaceOrganizationId
@@ -332,15 +435,24 @@ export async function acceptInvitation(
     let fixedSeats = false
 
     if (isBillingEnabled && !alreadyMemberOfTarget) {
+      if (workspaceOrganizationId) {
+        await acquireOrganizationMutationLock(tx, workspaceOrganizationId)
+      }
       const orgResult = await ensureTeamOrganizationForAcceptance({
         billingOwnerUserId,
         workspaceOrganizationId,
+        executor: tx,
+        workspaceIdsToAttach: lockPlan.workspaceIds,
       })
       if (!orgResult.success) {
         return { success: false, kind: orgResult.failureCode }
       }
       targetOrganizationId = orgResult.organizationId
       fixedSeats = orgResult.fixedSeats
+      if (orgResult.postCommitEffects) {
+        effects.planConversions.push(...orgResult.postCommitEffects.planConversions)
+        effects.syncUsageLimitUserIds.push(...orgResult.postCommitEffects.usageLimitUserIds)
+      }
     }
 
     // Team plans manage seats by reconciling to the member count after the
@@ -350,70 +462,40 @@ export async function acceptInvitation(
     const billingManagesSeats = isBillingEnabled && !fixedSeats
 
     if (targetOrganizationId) {
-      const membershipResult = await ensureUserInOrganization({
+      const membershipResult = await ensureUserInOrganizationTx(tx, {
         userId: input.userId,
         organizationId: targetOrganizationId,
         role: (inv.role || 'member') as 'admin' | 'member' | 'owner',
         acceptingInvitationId: inv.id,
-        skipSeatValidation: billingManagesSeats,
+        // If the pre-lock membership read said the user already belonged to
+        // this org but a concurrent removal won the org lock first, fall back
+        // to normal validation instead of accidentally bypassing Enterprise's
+        // fixed-seat cap with stale state.
+        skipSeatValidation: billingManagesSeats && !alreadyMemberOfTarget,
       })
 
       if (!membershipResult.success) {
         if (membershipResult.existingOrgId) {
-          if (await downgradeOrRejectCrossOrgInvite(inv)) {
-            acceptedMembershipIntent = 'external'
-            shouldJoinOrganization = false
-          } else {
-            return { success: false, kind: 'already-in-organization' }
-          }
-        } else if (membershipResult.failureCode === 'no-seats-available') {
+          return { success: false, kind: 'already-in-organization' }
+        }
+        if (membershipResult.failureCode === 'no-seats-available') {
           return { success: false, kind: 'no-seats-available' }
-        } else {
-          return { success: false, kind: 'server-error', message: membershipResult.error }
         }
-      } else {
-        membershipAlreadyExists = membershipResult.alreadyMember
+        return { success: false, kind: 'server-error', message: membershipResult.error }
+      }
+      membershipAlreadyExists = membershipResult.alreadyMember
 
-        if (!membershipResult.alreadyMember) {
-          const memberRole = inv.role || 'member'
-          recordAudit({
-            workspaceId: null,
-            actorId: input.userId,
-            action: AuditAction.ORG_MEMBER_ADDED,
-            resourceType: AuditResourceType.ORGANIZATION,
-            resourceId: targetOrganizationId,
-            description: `Joined organization as ${memberRole} via invite acceptance`,
-            metadata: { invitationId: inv.id, memberRole },
-          })
-          captureServerEvent(
-            input.userId,
-            'org_member_added',
-            { organization_id: targetOrganizationId, member_role: memberRole },
-            { groups: { organization: targetOrganizationId } }
-          )
-        }
+      if (!membershipResult.alreadyMember) {
+        effects.memberRole = inv.role || 'member'
+      }
 
-        // Grow the paid seat count to match the new member and push the charge
-        // to Stripe asynchronously (Team plans only; Enterprise seats are
-        // fixed). Best-effort: the member is already in, and a transient
-        // failure self-heals on the next join/removal reconcile, matching the
-        // removal path's seat accounting.
-        if (billingManagesSeats && !membershipResult.alreadyMember) {
-          try {
-            await reconcileOrganizationSeats({
-              organizationId: targetOrganizationId,
-              reason: 'member-accepted-invite',
-              actorId: input.userId,
-            })
-          } catch (seatError) {
-            logger.error('Failed to reconcile organization seats after invite acceptance', {
-              userId: input.userId,
-              organizationId: targetOrganizationId,
-              invitationId: inv.id,
-              error: seatError,
-            })
-          }
-        }
+      // Grow the paid seat count to match the new member and push the charge
+      // to Stripe asynchronously (Team plans only; Enterprise seats are
+      // fixed). Best-effort: the member is already in, and a transient
+      // failure self-heals on the next join/removal reconcile, matching the
+      // removal path's seat accounting.
+      if (billingManagesSeats && !membershipResult.alreadyMember) {
+        effects.reconcileSeats = true
       }
     } else {
       shouldJoinOrganization = false
@@ -423,77 +505,72 @@ export async function acceptInvitation(
   const acceptedWorkspaceIds: string[] = []
 
   try {
-    await db.transaction(async (tx) => {
-      /**
-       * When this acceptance joins an organization, serialize against a
-       * concurrent member-removal for the same user+org and confirm the member
-       * still exists before granting workspace access. Without this, a removal
-       * landing between the join and the grant would leave the user with
-       * workspace access but no org membership/seat.
-       */
-      if (shouldJoinOrganization && targetOrganizationId) {
-        await acquireOrgMembershipLock(tx, input.userId, targetOrganizationId)
-        const [stillMember] = await tx
-          .select({ id: member.id })
-          .from(member)
-          .where(
-            and(eq(member.organizationId, targetOrganizationId), eq(member.userId, input.userId))
-          )
-          .limit(1)
-        if (!stillMember) {
-          throw new MembershipRevokedDuringAcceptError()
-        }
+    /**
+     * The caller's transaction holds the invitation and workspace locks for
+     * this entire acceptance, including membership validation and grants.
+     */
+    if (shouldJoinOrganization && targetOrganizationId) {
+      await acquireOrgMembershipLock(tx, input.userId, targetOrganizationId)
+      const [stillMember] = await tx
+        .select({ id: member.id })
+        .from(member)
+        .where(
+          and(eq(member.organizationId, targetOrganizationId), eq(member.userId, input.userId))
+        )
+        .limit(1)
+      if (!stillMember) {
+        throw new MembershipRevokedDuringAcceptError()
       }
+    }
 
-      await tx
-        .update(invitation)
-        .set({
-          status: 'accepted',
-          membershipIntent: acceptedMembershipIntent,
+    await tx
+      .update(invitation)
+      .set({
+        status: 'accepted',
+        membershipIntent: acceptedMembershipIntent,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
+
+    for (const grant of inv.grants) {
+      const [existingPermission] = await tx
+        .select({ id: permissions.id, permissionType: permissions.permissionType })
+        .from(permissions)
+        .where(
+          and(
+            eq(permissions.entityId, grant.workspaceId),
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.userId, input.userId)
+          )
+        )
+        .limit(1)
+
+      const newPermission = grant.permission as PermissionType
+      const newRank = PERMISSION_RANK[newPermission] ?? 0
+
+      if (existingPermission) {
+        const existingRank =
+          PERMISSION_RANK[existingPermission.permissionType as PermissionType] ?? 0
+        if (newRank > existingRank) {
+          await tx
+            .update(permissions)
+            .set({ permissionType: newPermission, updatedAt: new Date() })
+            .where(eq(permissions.id, existingPermission.id))
+        }
+      } else {
+        await tx.insert(permissions).values({
+          id: generateId(),
+          entityType: 'workspace',
+          entityId: grant.workspaceId,
+          userId: input.userId,
+          permissionType: newPermission,
+          createdAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(invitation.id, inv.id))
-
-      for (const grant of inv.grants) {
-        const [existingPermission] = await tx
-          .select({ id: permissions.id, permissionType: permissions.permissionType })
-          .from(permissions)
-          .where(
-            and(
-              eq(permissions.entityId, grant.workspaceId),
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.userId, input.userId)
-            )
-          )
-          .limit(1)
-
-        const newPermission = grant.permission as PermissionType
-        const newRank = PERMISSION_RANK[newPermission] ?? 0
-
-        if (existingPermission) {
-          const existingRank =
-            PERMISSION_RANK[existingPermission.permissionType as PermissionType] ?? 0
-          if (newRank > existingRank) {
-            await tx
-              .update(permissions)
-              .set({ permissionType: newPermission, updatedAt: new Date() })
-              .where(eq(permissions.id, existingPermission.id))
-          }
-        } else {
-          await tx.insert(permissions).values({
-            id: generateId(),
-            entityType: 'workspace',
-            entityId: grant.workspaceId,
-            userId: input.userId,
-            permissionType: newPermission,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-        }
-
-        acceptedWorkspaceIds.push(grant.workspaceId)
       }
-    })
+
+      acceptedWorkspaceIds.push(grant.workspaceId)
+    }
   } catch (grantError) {
     if (grantError instanceof MembershipRevokedDuringAcceptError) {
       logger.warn('Aborted invite acceptance: org membership revoked concurrently', {
@@ -506,20 +583,138 @@ export async function acceptInvitation(
     throw grantError
   }
 
-  if (shouldJoinOrganization && targetOrganizationId) {
+  effects.organizationId = shouldJoinOrganization ? targetOrganizationId : null
+  effects.acceptedWorkspaceIds = acceptedWorkspaceIds
+  if (shouldJoinOrganization && targetOrganizationId && !membershipAlreadyExists) {
+    effects.syncUsageLimitUserIds.push(input.userId)
+  }
+  const acceptedInvitation: InvitationWithGrants = {
+    ...inv,
+    organizationId: targetOrganizationId,
+    status: 'accepted',
+    membershipIntent: acceptedMembershipIntent,
+  }
+  effects.acceptedInvitation = acceptedInvitation
+  effects.membershipAlreadyExists = membershipAlreadyExists
+
+  const redirectPath =
+    inv.kind === 'workspace' && acceptedWorkspaceIds.length > 0
+      ? `/workspace/${acceptedWorkspaceIds[0]}/home`
+      : '/workspace'
+
+  return {
+    success: true,
+    invitation: acceptedInvitation,
+    acceptedWorkspaceIds,
+    redirectPath,
+    membershipAlreadyExists,
+  }
+}
+
+async function runInvitationAcceptancePostCommitEffects(
+  input: AcceptInvitationInput,
+  effects: InvitationAcceptancePostCommitEffects
+): Promise<void> {
+  if (effects.acceptedInvitation) {
+    const accepted = effects.acceptedInvitation
+    recordAudit({
+      workspaceId: effects.acceptedWorkspaceIds[0] ?? null,
+      actorId: input.userId,
+      actorName: input.actorName ?? undefined,
+      actorEmail: input.userEmail,
+      action:
+        accepted.kind === 'workspace'
+          ? AuditAction.INVITATION_ACCEPTED
+          : AuditAction.ORG_INVITATION_ACCEPTED,
+      resourceType:
+        accepted.kind === 'workspace'
+          ? AuditResourceType.WORKSPACE
+          : AuditResourceType.ORGANIZATION,
+      resourceId: accepted.organizationId ?? effects.acceptedWorkspaceIds[0] ?? accepted.id,
+      description: `Accepted ${accepted.kind} invitation for ${accepted.email}`,
+      metadata: {
+        invitationId: accepted.id,
+        targetEmail: accepted.email,
+        targetRole: accepted.role,
+        kind: accepted.kind,
+        membershipIntent: accepted.membershipIntent,
+        workspaceIds: effects.acceptedWorkspaceIds,
+        membershipAlreadyExists: effects.membershipAlreadyExists,
+      },
+      request: input.request,
+    })
+  }
+
+  if (effects.organizationId && effects.memberRole) {
+    recordAudit({
+      workspaceId: null,
+      actorId: input.userId,
+      action: AuditAction.ORG_MEMBER_ADDED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: effects.organizationId,
+      description: `Joined organization as ${effects.memberRole} via invite acceptance`,
+      metadata: { invitationId: input.invitationId, memberRole: effects.memberRole },
+    })
+    captureServerEvent(
+      input.userId,
+      'org_member_added',
+      { organization_id: effects.organizationId, member_role: effects.memberRole },
+      { groups: { organization: effects.organizationId } }
+    )
+  }
+
+  for (const conversion of effects.planConversions) {
+    recordAudit({
+      workspaceId: null,
+      actorId: conversion.actorId,
+      action: AuditAction.ORG_PLAN_CONVERTED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: conversion.organizationId,
+      description: `Converted ${conversion.fromPlan} to ${conversion.toPlan}`,
+      metadata: {
+        fromPlan: conversion.fromPlan,
+        toPlan: conversion.toPlan,
+        trigger: 'invite-acceptance',
+      },
+    })
+    captureServerEvent(conversion.actorId, 'subscription_changed', {
+      from_plan: conversion.fromPlan,
+      to_plan: conversion.toPlan,
+      interval: 'unchanged',
+    })
+  }
+
+  if (effects.organizationId && effects.reconcileSeats) {
     try {
-      await setActiveOrganizationForCurrentSession(targetOrganizationId)
+      await reconcileOrganizationSeats({
+        organizationId: effects.organizationId,
+        reason: 'member-accepted-invite',
+        actorId: input.userId,
+      })
+    } catch (seatError) {
+      logger.error('Failed to reconcile organization seats after invite acceptance', {
+        userId: input.userId,
+        organizationId: effects.organizationId,
+        invitationId: input.invitationId,
+        error: seatError,
+      })
+    }
+  }
+
+  if (effects.organizationId) {
+    try {
+      await setActiveOrganizationForCurrentSession(effects.organizationId)
     } catch (activeOrgError) {
       logger.error('Failed to activate organization after accepting invitation', {
         userId: input.userId,
-        organizationId: targetOrganizationId,
-        invitationId: inv.id,
+        organizationId: effects.organizationId,
+        invitationId: input.invitationId,
         error: activeOrgError,
       })
     }
   }
 
-  for (const workspaceId of acceptedWorkspaceIds) {
+  for (const workspaceId of effects.acceptedWorkspaceIds) {
     try {
       const [wsEnvRow] = await db
         .select({ variables: workspaceEnvironment.variables })
@@ -538,36 +733,23 @@ export async function acceptInvitation(
       logger.error('Failed to sync workspace env credentials after invitation accept', {
         userId: input.userId,
         workspaceId,
-        invitationId: inv.id,
+        invitationId: input.invitationId,
         error: envError,
       })
     }
   }
 
-  if (shouldJoinOrganization && targetOrganizationId && !membershipAlreadyExists) {
+  for (const userId of new Set(effects.syncUsageLimitUserIds)) {
     try {
-      await syncUsageLimitsFromSubscription(input.userId)
+      await syncUsageLimitsFromSubscription(userId)
     } catch (syncError) {
       logger.error('Failed to sync usage limits after joining org', {
-        userId: input.userId,
-        organizationId: targetOrganizationId,
-        invitationId: inv.id,
+        userId,
+        organizationId: effects.organizationId,
+        invitationId: input.invitationId,
         error: syncError,
       })
     }
-  }
-
-  const redirectPath =
-    inv.kind === 'workspace' && acceptedWorkspaceIds.length > 0
-      ? `/workspace/${acceptedWorkspaceIds[0]}/home`
-      : '/workspace'
-
-  return {
-    success: true,
-    invitation: { ...inv, status: 'accepted', membershipIntent: acceptedMembershipIntent },
-    acceptedWorkspaceIds,
-    redirectPath,
-    membershipAlreadyExists,
   }
 }
 

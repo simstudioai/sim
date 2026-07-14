@@ -10,7 +10,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
  * enrichment for the run_* tools; every other surface (server persistence,
  * transcript replay, fallback rendering) calls `getToolDisplayTitle` directly.
  *
- * Icons are likewise client-owned — see `getToolIcon` in the message-content
+ * Icons are likewise client-owned — see `getAgentIcon` in the message-content
  * utils. Nothing about tool presentation lives on the Go side anymore.
  */
 
@@ -87,6 +87,57 @@ const TOOL_TITLES: Record<string, string> = {
   generate_audio: 'Generating audio',
   ffmpeg: 'Processing media',
   manage_folder: 'Folder action',
+  check_deployment_status: 'Checking deployment status',
+  complete_scheduled_task: 'Completing scheduled task',
+  create_file: 'Creating file',
+  create_file_folder: 'Creating folder',
+  create_workspace_mcp_server: 'Creating MCP server',
+  delete_file: 'Deleting file',
+  delete_file_folder: 'Deleting folder',
+  delete_workflow: 'Deleting workflow',
+  delete_workspace_mcp_server: 'Deleting MCP server',
+  deploy_api: 'Deploying API',
+  deploy_chat: 'Deploying chat',
+  deploy_custom_block: 'Deploying custom block',
+  deploy_mcp: 'Deploying MCP server',
+  diff_workflows: 'Comparing workflows',
+  download_to_workspace_file: 'Downloading file',
+  function_execute: 'Running code',
+  generate_api_key: 'Generating API key',
+  get_block_outputs: 'Getting block outputs',
+  get_block_upstream_references: 'Getting block references',
+  get_deployed_workflow_state: 'Getting deployed workflow',
+  get_deployment_log: 'Getting deployment logs',
+  get_platform_actions: 'Getting platform actions',
+  get_scheduled_task_logs: 'Getting scheduled task logs',
+  get_workflow_data: 'Getting workflow data',
+  get_workflow_run_options: 'Getting run options',
+  list_file_folders: 'Listing folders',
+  list_integration_tools: 'Listing integrations',
+  list_user_workspaces: 'Listing workspaces',
+  list_workspace_mcp_servers: 'Listing MCP servers',
+  load_deployment: 'Loading deployment',
+  materialize_file: 'Preparing file',
+  move_file: 'Moving file',
+  move_file_folder: 'Moving folder',
+  move_workflow: 'Moving workflow',
+  oauth_get_auth_link: 'Getting authorization link',
+  oauth_request_access: 'Requesting access',
+  promote_to_live: 'Promoting to live',
+  redeploy: 'Redeploying',
+  rename_file: 'Renaming file',
+  rename_file_folder: 'Renaming folder',
+  rename_workflow: 'Renaming workflow',
+  restore_resource: 'Restoring resource',
+  run_block: 'Running block',
+  search_documentation: 'Searching documentation',
+  search_patterns: 'Searching patterns',
+  set_block_enabled: 'Toggling block',
+  set_environment_variables: 'Setting environment variables',
+  set_global_workflow_variables: 'Setting workflow variables',
+  update_deployment_version: 'Updating deployment',
+  update_scheduled_task_history: 'Updating task history',
+  update_workspace_mcp_server: 'Updating MCP server',
   // Subagent trigger tools, when surfaced as a tool call.
   workflow: 'Workflow Agent',
   run: 'Run Agent',
@@ -101,6 +152,16 @@ const TOOL_TITLES: Record<string, string> = {
   superagent: 'Executing action',
 }
 
+/** Acronyms that must keep their canonical casing when humanized. */
+const ACRONYM_CASING: Record<string, string> = {
+  mcp: 'MCP',
+  api: 'API',
+  oauth: 'OAuth',
+  url: 'URL',
+  id: 'ID',
+  ai: 'AI',
+}
+
 /**
  * Final fallback: humanize a raw tool name (e.g. `manage_folder` -> "Manage
  * Folder"), matching the legacy client humanizer so labels never render blank.
@@ -108,7 +169,9 @@ const TOOL_TITLES: Record<string, string> = {
 export function humanizeToolName(name: string): string {
   const words = stripVersionSuffix(name).split('_').filter(Boolean)
   if (words.length === 0) return name
-  return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  return words
+    .map((word) => ACRONYM_CASING[word] ?? word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 /**
@@ -220,4 +283,66 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   return TOOL_TITLES[name] ?? humanizeToolName(name)
+}
+
+/**
+ * Present-participle to past-tense verb map for completed tool titles. Applied
+ * to the leading word only, so "Searching online for X" -> "Searched online
+ * for X" while non-gerund labels ("Run Agent", "Folder action") pass through.
+ */
+const COMPLETED_VERB_REWRITES: Record<string, string> = {
+  Accessing: 'Accessed',
+  Adding: 'Added',
+  Applying: 'Applied',
+  Checking: 'Checked',
+  Comparing: 'Compared',
+  Completing: 'Completed',
+  Crawling: 'Crawled',
+  Creating: 'Created',
+  Deleting: 'Deleted',
+  Deploying: 'Deployed',
+  Downloading: 'Downloaded',
+  Editing: 'Edited',
+  Executing: 'Executed',
+  Finding: 'Found',
+  Gathering: 'Gathered',
+  Generating: 'Generated',
+  Getting: 'Got',
+  Listing: 'Listed',
+  Loading: 'Loaded',
+  Managing: 'Managed',
+  Moving: 'Moved',
+  Opening: 'Opened',
+  Preparing: 'Prepared',
+  Processing: 'Processed',
+  Promoting: 'Promoted',
+  Querying: 'Queried',
+  Reading: 'Read',
+  Redeploying: 'Redeployed',
+  Renaming: 'Renamed',
+  Requesting: 'Requested',
+  Restoring: 'Restored',
+  Running: 'Ran',
+  Scraping: 'Scraped',
+  Searching: 'Searched',
+  Setting: 'Set',
+  Toggling: 'Toggled',
+  Updating: 'Updated',
+  Validating: 'Validated',
+  Writing: 'Wrote',
+}
+
+/**
+ * Rewrite a resolved display title to its past-tense form for a successfully
+ * completed tool call (e.g. "Querying logs for X" -> "Queried logs for X").
+ * Operates on the already-resolved title so enriched and persisted titles both
+ * work. Returns undefined when the title has no leading gerund rewrite — the
+ * caller keeps the original.
+ */
+export function getToolCompletedTitle(title: string): string | undefined {
+  const spaceIndex = title.indexOf(' ')
+  const firstWord = spaceIndex === -1 ? title : title.slice(0, spaceIndex)
+  const past = COMPLETED_VERB_REWRITES[firstWord]
+  if (!past) return undefined
+  return past + title.slice(firstWord.length)
 }

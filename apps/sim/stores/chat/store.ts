@@ -63,7 +63,7 @@ export const useChatStore = create<ChatState>()(
               timestamp: (message as any).timestamp ?? new Date().toISOString(),
             }
 
-            const newMessages = [newMessage, ...state.messages].slice(0, MAX_MESSAGES)
+            const newMessages = [...state.messages, newMessage].slice(-MAX_MESSAGES)
 
             return { messages: newMessages }
           })
@@ -126,14 +126,9 @@ export const useChatStore = create<ChatState>()(
 
           const headers = ['timestamp', 'type', 'content']
 
-          const sortedMessages = [...messages].sort(
-            (a: ChatMessage, b: ChatMessage) =>
-              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          )
-
           const csvRows = [
             headers.join(','),
-            ...sortedMessages.map((message: ChatMessage) =>
+            ...messages.map((message: ChatMessage) =>
               [
                 formatCSVValue(message.timestamp),
                 formatCSVValue(message.type),
@@ -253,6 +248,21 @@ export const useChatStore = create<ChatState>()(
       }),
       {
         name: 'chat-store',
+        version: 1,
+        /**
+         * v0 stored messages newest-first; v1 stores them in insertion
+         * (chronological) order, which consumers render without sorting.
+         */
+        migrate: (persistedState, version) => {
+          if ((version ?? 0) < 1) {
+            const state = persistedState as { messages?: ChatMessage[] } | null
+            return {
+              ...state,
+              messages: [...(state?.messages ?? [])].reverse(),
+            }
+          }
+          return persistedState
+        },
         /**
          * Persist only the durable chat state — message history (with transient
          * blob `previewUrl`s stripped since they are not valid across reloads),

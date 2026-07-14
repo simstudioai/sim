@@ -31,13 +31,11 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('MultipartUploadAPI')
 
 /**
- * Contexts the multipart endpoint accepts. The quota-exempt public-asset
- * contexts (`profile-pictures`, `workspace-logos`, `og-images`) and the
- * system-internal `logs` context are deliberately excluded: their uploads are
- * small images capped far below the multipart threshold and routed through the
- * presigned endpoint, so they have no large-file flow here. Accepting them would
- * only expose a path that bypasses the per-user storage quota, since every
- * context in this set is quota-enforced below.
+ * Contexts the multipart endpoint accepts. Small public assets and internal logs
+ * are excluded because they have no large-file flow. Mothership remains
+ * available for large chat attachments but is quota-exempt because chat uploads
+ * do not count as durable workspace-file storage. Every other accepted context
+ * is quota-enforced below.
  */
 const ALLOWED_UPLOAD_CONTEXTS = new Set<StorageContext>([
   'knowledge-base',
@@ -166,8 +164,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const config = getStorageConfig(storageContext)
 
         if (!QUOTA_EXEMPT_STORAGE_CONTEXTS.has(storageContext)) {
-          const { checkStorageQuota } = await import('@/lib/billing/storage')
-          const quotaCheck = await checkStorageQuota(userId, fileSize ?? 0)
+          const { checkStorageQuotaForBillingContext, resolveStorageBillingContext } = await import(
+            '@/lib/billing/storage'
+          )
+          const storageBillingContext = await resolveStorageBillingContext(workspaceId)
+          const quotaCheck = await checkStorageQuotaForBillingContext(
+            storageBillingContext,
+            fileSize ?? 0
+          )
           if (!quotaCheck.allowed) {
             return NextResponse.json(
               { error: quotaCheck.error || 'Storage limit exceeded' },

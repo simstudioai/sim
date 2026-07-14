@@ -388,6 +388,29 @@ describe('executeDeployCustomBlock', () => {
     expect(publishCustomBlockMock).not.toHaveBeenCalled()
   })
 
+  it('rejects non-https icon URL schemes on pass-through', async () => {
+    const dataUri = await executeDeployCustomBlock(
+      { name: 'Enrich Lead', iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+' },
+      context
+    )
+    expect(dataUri.success).toBe(false)
+    expect(dataUri.error).toContain('https')
+
+    const plainHttp = await executeDeployCustomBlock(
+      { name: 'Enrich Lead', iconUrl: 'http://example.com/icon.png' },
+      context
+    )
+    expect(plainHttp.success).toBe(false)
+    expect(publishCustomBlockMock).not.toHaveBeenCalled()
+
+    publishCustomBlockMock.mockResolvedValue(publishedBlock)
+    const servePath = await executeDeployCustomBlock(
+      { name: 'Enrich Lead', iconUrl: '/api/files/serve/workspace-logos%2Ficon.png' },
+      context
+    )
+    expect(servePath.success).toBe(true)
+  })
+
   it('fails when the icon workspace file is not an image', async () => {
     listWorkspaceFilesMock.mockResolvedValue([
       { name: 'notes.pdf', folderPath: null, type: 'application/pdf', size: 1024, key: 'k' },

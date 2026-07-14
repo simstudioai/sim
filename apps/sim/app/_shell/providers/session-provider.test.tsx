@@ -6,21 +6,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockSetActive, mockRequestJson } = vi.hoisted(() => ({
+const { mockGetSession, mockListOrganizations, mockSetActive } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
+  mockListOrganizations: vi.fn(),
   mockSetActive: vi.fn(),
-  mockRequestJson: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/auth-client', () => ({
   client: {
     getSession: mockGetSession,
-    organization: { setActive: mockSetActive },
+    organization: {
+      list: mockListOrganizations,
+      setActive: mockSetActive,
+    },
   },
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
 }))
 
 vi.mock('posthog-js', () => ({
@@ -64,6 +63,16 @@ const STALE_SESSION: AppSession = {
 const FRESH_SESSION: AppSession = {
   user: { id: 'user-1', email: 'u@x.com', name: 'Fresh plan' },
   session: { id: 's1', userId: 'user-1', activeOrganizationId: 'org-1' },
+}
+
+const NO_ACTIVE_ORGANIZATION_SESSION: AppSession = {
+  user: { id: 'user-1', email: 'u@x.com', name: 'No active organization' },
+  session: { id: 's1', userId: 'user-1' },
+}
+
+const RECOVERED_ORGANIZATION_SESSION: AppSession = {
+  user: { id: 'user-1', email: 'u@x.com', name: 'Recovered organization' },
+  session: { id: 's1', userId: 'user-1', activeOrganizationId: 'org-member' },
 }
 
 interface Harness {
@@ -152,6 +161,8 @@ describe('useSessionQuery', () => {
 describe('SessionProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockListOrganizations.mockResolvedValue({ data: [], error: null })
+    mockSetActive.mockResolvedValue({ data: null, error: null })
     setSearch('')
   })
 
@@ -175,6 +186,85 @@ describe('SessionProvider', () => {
     expect(typeof ctx?.refetch).toBe('function')
     expect(ctx?.data).toEqual(STALE_SESSION)
     expect(ctx?.isPending).toBe(false)
+
+    h.unmount()
+  })
+
+  it('preserves an intentional no-active-organization state on a normal load', async () => {
+    mockGetSession.mockResolvedValue({ data: NO_ACTIVE_ORGANIZATION_SESSION })
+    mockListOrganizations.mockResolvedValue({
+      data: [{ id: 'org-member', name: 'Member organization' }],
+      error: null,
+    })
+
+    const h = renderProvider()
+    await flushUntil(() => h.ctx()?.data != null)
+
+    expect(h.ctx()?.data).toEqual(NO_ACTIVE_ORGANIZATION_SESSION)
+    expect(mockListOrganizations).not.toHaveBeenCalled()
+    expect(mockSetActive).not.toHaveBeenCalled()
+
+    h.unmount()
+  })
+
+  it('does not auto-select an organization for an external-only user during recovery', async () => {
+    setSearch('?upgraded=true')
+    mockGetSession.mockResolvedValue({ data: NO_ACTIVE_ORGANIZATION_SESSION })
+    mockListOrganizations.mockResolvedValue({ data: [], error: null })
+
+    const h = renderProvider()
+    await flushUntil(() => mockListOrganizations.mock.calls.length > 0)
+
+    expect(mockListOrganizations).toHaveBeenCalledTimes(1)
+    expect(mockSetActive).not.toHaveBeenCalled()
+
+    h.unmount()
+  })
+
+  it('recovers the sole valid viewer organization membership when upgrade recovery is explicit', async () => {
+    window.history.replaceState({}, '', '/workspace/workspace-b?upgraded=true')
+    mockListOrganizations.mockResolvedValue({
+      data: [{ id: 'org-member', name: 'Member organization' }],
+      error: null,
+    })
+    mockGetSession.mockImplementation(() =>
+      Promise.resolve({
+        data:
+          mockSetActive.mock.calls.length > 0
+            ? RECOVERED_ORGANIZATION_SESSION
+            : NO_ACTIVE_ORGANIZATION_SESSION,
+      })
+    )
+
+    const h = renderProvider()
+    await flushUntil(
+      () =>
+        h.queryClient.getQueryData<AppSession>(sessionKeys.detail())?.session
+          ?.activeOrganizationId === 'org-member'
+    )
+
+    expect(mockSetActive).toHaveBeenCalledWith({ organizationId: 'org-member' })
+    expect(h.queryClient.getQueryData(sessionKeys.detail())).toEqual(RECOVERED_ORGANIZATION_SESSION)
+
+    h.unmount()
+  })
+
+  it('does not choose arbitrarily when multiple valid memberships need recovery', async () => {
+    setSearch('?upgraded=true')
+    mockGetSession.mockResolvedValue({ data: NO_ACTIVE_ORGANIZATION_SESSION })
+    mockListOrganizations.mockResolvedValue({
+      data: [
+        { id: 'org-a', name: 'Organization A' },
+        { id: 'org-b', name: 'Organization B' },
+      ],
+      error: null,
+    })
+
+    const h = renderProvider()
+    await flushUntil(() => mockListOrganizations.mock.calls.length > 0)
+
+    expect(mockListOrganizations).toHaveBeenCalledTimes(1)
+    expect(mockSetActive).not.toHaveBeenCalled()
 
     h.unmount()
   })

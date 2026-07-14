@@ -5,7 +5,26 @@
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const {
+  mockCheckStorageQuotaForBillingContext,
+  mockDecrementStorageUsageForBillingContext,
+  mockIncrementStorageUsageForBillingContext,
+  mockResolveStorageBillingContext,
+} = vi.hoisted(() => ({
+  mockCheckStorageQuotaForBillingContext: vi.fn(),
+  mockDecrementStorageUsageForBillingContext: vi.fn(),
+  mockIncrementStorageUsageForBillingContext: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
+}))
+
 vi.mock('@sim/db', () => dbChainMock)
+
+vi.mock('@/lib/billing/storage', () => ({
+  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
+  decrementStorageUsageForBillingContext: mockDecrementStorageUsageForBillingContext,
+  incrementStorageUsageForBillingContext: mockIncrementStorageUsageForBillingContext,
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
+}))
 
 import { CHAT_DISPLAY_NAME_INDEX, suffixedName, trackChatUpload } from './workspace-file-manager'
 
@@ -13,6 +32,13 @@ const CHAT_ID = '11111111-1111-1111-1111-111111111111'
 const WORKSPACE_ID = 'ws_1'
 const USER_ID = 'user_1'
 const S3_KEY = 'mothership/abc/123-image.png'
+
+function expectNoWorkspaceStorageAccounting(): void {
+  expect(mockCheckStorageQuotaForBillingContext).not.toHaveBeenCalled()
+  expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+  expect(mockIncrementStorageUsageForBillingContext).not.toHaveBeenCalled()
+  expect(mockDecrementStorageUsageForBillingContext).not.toHaveBeenCalled()
+}
 
 describe('suffixedName', () => {
   it('returns the original name for n <= 1', () => {
@@ -47,7 +73,7 @@ describe('trackChatUpload', () => {
     resetDbChainMock()
   })
 
-  it('flips an existing workspace-scope row to mothership and returns the displayName', async () => {
+  it('finalizes an existing direct upload without workspace storage accounting', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
 
     const result = await trackChatUpload(
@@ -68,10 +94,10 @@ describe('trackChatUpload', () => {
         displayName: 'image.png',
       })
     )
+    expectNoWorkspaceStorageAccounting()
   })
 
-  it('inserts a new row when no existing key matches', async () => {
-    // UPDATE returns no rows — falls through to INSERT.
+  it('finalizes a presigned upload without workspace storage accounting', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
     const result = await trackChatUpload(
@@ -94,20 +120,17 @@ describe('trackChatUpload', () => {
         displayName: 'image.png',
       })
     )
+    expectNoWorkspaceStorageAccounting()
   })
 
-  it('retries with a suffixed displayName on collision against the chat displayName index', async () => {
-    // 23505 from the partial unique index on (chat_id, display_name) — the case we retry.
+  it('retries metadata naming without workspace storage accounting', async () => {
     const displayNameCollision = Object.assign(new Error('duplicate key'), {
       code: '23505',
       constraint_name: CHAT_DISPLAY_NAME_INDEX,
     })
 
-    // Attempt 1: UPDATE finds no row (returning -> []), then INSERT throws displayName 23505.
     dbChainMockFns.returning.mockResolvedValueOnce([])
     dbChainMockFns.values.mockRejectedValueOnce(displayNameCollision)
-
-    // Attempt 2: UPDATE finds no row, INSERT succeeds.
     dbChainMockFns.returning.mockResolvedValueOnce([])
     dbChainMockFns.values.mockResolvedValueOnce(undefined)
 
@@ -122,20 +145,16 @@ describe('trackChatUpload', () => {
     )
 
     expect(result).toEqual({ displayName: 'image (2).png' })
-
     const lastValuesCall =
       dbChainMockFns.values.mock.calls[dbChainMockFns.values.mock.calls.length - 1]
     expect(lastValuesCall[0]).toMatchObject({
       displayName: 'image (2).png',
       originalName: 'image.png',
     })
+    expectNoWorkspaceStorageAccounting()
   })
 
-  it('does NOT retry on a 23505 from the active-key index (concurrent same-s3Key insert)', async () => {
-    // A racing concurrent trackChatUpload for the same s3Key hit INSERT first. Our INSERT
-    // 23505s on workspace_files_key_active_unique. Retrying with a suffixed displayName
-    // would let the next iteration UPDATE the racer's row and silently rename the path
-    // it already returned to its caller — so we throw instead.
+  it('does not retry an active-key collision', async () => {
     const keyCollision = Object.assign(new Error('duplicate key'), {
       code: '23505',
       constraint_name: 'workspace_files_key_active_unique',
@@ -149,13 +168,16 @@ describe('trackChatUpload', () => {
     ).rejects.toThrow('duplicate key')
 
     expect(dbChainMockFns.values).toHaveBeenCalledTimes(1)
+    expectNoWorkspaceStorageAccounting()
   })
 
-  it('rethrows non-unique-violation errors immediately', async () => {
+  it('rethrows metadata errors without workspace storage accounting', async () => {
     dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection lost'))
 
     await expect(
       trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
     ).rejects.toThrow('connection lost')
+
+    expectNoWorkspaceStorageAccounting()
   })
 })

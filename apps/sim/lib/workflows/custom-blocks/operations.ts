@@ -15,7 +15,7 @@ import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/wor
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { CustomBlockOutput, CustomBlockRow } from '@/blocks/custom/build-config'
-import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
+import { CUSTOM_BLOCK_TYPE_PREFIX, isReservedOutputName } from '@/blocks/custom/build-config'
 
 const logger = createLogger('CustomBlocksOperations')
 
@@ -363,6 +363,19 @@ export class CustomBlockValidationError extends Error {
 }
 
 /**
+ * Reject exposed outputs whose name shadows a system output field. Authoritative
+ * check: also covers callers that bypass the HTTP contract (copilot handler).
+ */
+function assertNoReservedOutputNames(exposedOutputs: CustomBlockOutput[] | undefined): void {
+  const reserved = exposedOutputs?.find((o) => isReservedOutputName(o.name))
+  if (reserved) {
+    throw new CustomBlockValidationError(
+      `"${reserved.name}" is a reserved output name (success, error, cost)`
+    )
+  }
+}
+
+/**
  * Publish a deployed workflow as an org-wide custom block. The source workflow
  * must live in `workspaceId` — the workspace the caller was verified to admin —
  * so a caller cannot publish another workspace's workflow (which then runs under
@@ -392,6 +405,8 @@ export async function publishCustomBlock(params: {
     inputs,
     exposedOutputs,
   } = params
+
+  assertNoReservedOutputNames(exposedOutputs)
 
   const [wf] = await db
     .select({
@@ -487,6 +502,7 @@ export async function updateCustomBlock(
     exposedOutputs?: CustomBlockOutput[]
   }
 ): Promise<void> {
+  if (updates.exposedOutputs !== undefined) assertNoReservedOutputNames(updates.exposedOutputs)
   const patch: Partial<typeof customBlock.$inferInsert> = { updatedAt: new Date() }
   if (updates.name !== undefined) patch.name = updates.name
   if (updates.description !== undefined) patch.description = updates.description

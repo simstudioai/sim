@@ -163,4 +163,30 @@ describe('serializePauseSnapshot', () => {
 
     expect(serialized.metadata.useDraftState).toBe(true)
   })
+
+  it('serializes billing attribution for an exact-payer resume', () => {
+    const billingAttribution = {
+      actorUserId: 'external-actor',
+      workspaceId: 'workspace-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'owner-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+    const context = createContext({
+      metadata: {
+        ...createContext().metadata,
+        billingAttribution,
+      },
+    })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.metadata.billingAttribution).toEqual(billingAttribution)
+  })
 })

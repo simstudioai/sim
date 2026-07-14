@@ -3,7 +3,7 @@ import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNotNull, like, or, sql } from 'drizzle-orm'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('SeatDriftSweep')
@@ -51,7 +51,7 @@ export async function reconcileTeamSeatDrift(): Promise<SeatDriftSweepResult> {
     .innerJoin(member, eq(member.organizationId, subscription.referenceId))
     .where(
       and(
-        inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES),
+        inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
         isNotNull(subscription.stripeSubscriptionId),
         or(eq(subscription.plan, 'team'), like(subscription.plan, 'team\\_%'))
       )

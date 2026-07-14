@@ -1,4 +1,4 @@
-import { createParser, parseAsStringLiteral } from 'nuqs/server'
+import { createParser, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 const CALENDAR_SCOPES = ['day', 'week', 'month'] as const
 
@@ -57,5 +57,22 @@ export const calendarParsers = {
 /** Calendar view-state: clean URLs, no back-stack churn. */
 export const calendarUrlKeys = {
   history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
+ * The open task occurrence's id (`?taskId=`). The value is the occurrence id
+ * from `scheduleToTasks`: `scheduleId` (one-time), `scheduleId:<runAt ISO>`
+ * (recurring occurrence), or `scheduleId:last` (last-run marker). Nullable —
+ * a clean URL means no task modal is open.
+ */
+export const taskIdParam = {
+  key: 'taskId',
+  parser: parseAsString,
+} as const
+
+/** Opening a task is a destination — Back closes it. */
+export const taskIdUrlKeys = {
+  history: 'push',
   clearOnDefault: true,
 } as const

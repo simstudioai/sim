@@ -121,6 +121,29 @@ Configure one provider — the mailer auto-detects in priority order: **Resend �
 |----------|-------------|
 | `AZURE_ACS_CONNECTION_STRING` | Azure Communication Services connection string |
 
+## Limits
+
+Self-hosted deployments (billing disabled) run without plan limits: no rate limits, no execution timeouts, no table or storage caps, and no retention-based data deletion. Each limit can be opted back in individually by explicitly setting its variable.
+
+| Variable | Opts in | Suggested value |
+|----------|---------|-----------------|
+| `RATE_LIMIT_FREE_SYNC` | Sync executions per minute | `50` |
+| `RATE_LIMIT_FREE_ASYNC` | Async executions per minute | `200` |
+| `RATE_LIMIT_FREE_API_ENDPOINT` | v1 API endpoint requests per minute | `30` |
+| `EXECUTION_TIMEOUT_FREE` | Sync execution timeout (seconds) | `300` |
+| `EXECUTION_TIMEOUT_ASYNC_FREE` | Async execution timeout (seconds) | `5400` |
+| `FREE_TABLES_LIMIT` | Max user tables per workspace | `5` |
+| `FREE_TABLE_ROWS_LIMIT` | Max rows per user table | `50000` |
+| `FREE_STORAGE_LIMIT_GB` | File storage quota (GB) | `5` |
+
+<Callout type="info">
+  Without billing, every account resolves to the free tier, so only the free-tier variables apply. Setting one variable enforces only that limit — the rest stay unlimited.
+</Callout>
+
+<Callout type="warn">
+  Deployments installed with the Helm chart ship these variables preset in `app.envDefaults`, so chart-based installs keep enforcement unless those keys are removed or overridden.
+</Callout>
+
 ## Example .env
 
 ```bash

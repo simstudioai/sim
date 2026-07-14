@@ -6,10 +6,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -18,11 +21,13 @@ const logger = createLogger('CustomToolsSettings')
 export function CustomTools() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const workspacePermissions = useUserPermissionsContext()
+  const canEdit = canMutateWorkspaceSettingsSection('custom-tools', workspacePermissions)
 
   const { data: tools = [], isLoading, error, refetch: refetchTools } = useCustomTools(workspaceId)
   const deleteToolMutation = useDeleteCustomTool()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [deletingTools, setDeletingTools] = useState<Set<string>>(() => new Set())
   const [editingTool, setEditingTool] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -87,15 +92,17 @@ export function CustomTools() {
   const showEmptyState = !hasTools && !showAddForm && !editingTool
   const showNoResults = searchTerm.trim() && filteredTools.length === 0 && tools.length > 0
 
-  const actions: SettingsAction[] = [
-    {
-      text: 'Add tool',
-      icon: Plus,
-      variant: 'primary',
-      onSelect: () => setShowAddForm(true),
-      disabled: isLoading,
-    },
-  ]
+  const actions: SettingsAction[] = canEdit
+    ? [
+        {
+          text: 'Add tool',
+          icon: Plus,
+          variant: 'primary',
+          onSelect: () => setShowAddForm(true),
+          disabled: isLoading,
+        },
+      ]
+    : []
 
   return (
     <>
@@ -115,7 +122,9 @@ export function CustomTools() {
             </p>
           </div>
         ) : isLoading ? null : showEmptyState ? (
-          <SettingsEmptyState>Click "Add tool" above to get started</SettingsEmptyState>
+          <SettingsEmptyState>
+            {canEdit ? 'Click "Add tool" above to get started' : 'No custom tools configured'}
+          </SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredTools.map((tool) => (
@@ -130,20 +139,22 @@ export function CustomTools() {
                     </p>
                   )}
                 </div>
-                <div className='flex flex-shrink-0 items-center gap-1'>
-                  <RowActionsMenu
-                    label='Tool actions'
-                    actions={[
-                      { label: 'Edit', onSelect: () => setEditingTool(tool.id) },
-                      {
-                        label: 'Delete',
-                        destructive: true,
-                        disabled: deletingTools.has(tool.id),
-                        onSelect: () => handleDeleteClick(tool.id),
-                      },
-                    ]}
-                  />
-                </div>
+                {canEdit && (
+                  <div className='flex flex-shrink-0 items-center gap-1'>
+                    <RowActionsMenu
+                      label='Tool actions'
+                      actions={[
+                        { label: 'Edit', onSelect: () => setEditingTool(tool.id) },
+                        {
+                          label: 'Delete',
+                          destructive: true,
+                          disabled: deletingTools.has(tool.id),
+                          onSelect: () => handleDeleteClick(tool.id),
+                        },
+                      ]}
+                    />
+                  </div>
+                )}
               </div>
             ))}
             {showNoResults && (
@@ -155,43 +166,47 @@ export function CustomTools() {
         )}
       </SettingsPanel>
 
-      <CustomToolModal
-        open={showAddForm || !!editingTool}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowAddForm(false)
-            setEditingTool(null)
+      {canEdit && (
+        <CustomToolModal
+          open={showAddForm || !!editingTool}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowAddForm(false)
+              setEditingTool(null)
+            }
+          }}
+          onSave={handleToolSaved}
+          onDelete={() => {}}
+          blockId=''
+          initialValues={
+            editingTool
+              ? (() => {
+                  const tool = tools.find((t) => t.id === editingTool)
+                  return tool?.schema
+                    ? { id: tool.id, schema: tool.schema, code: tool.code }
+                    : undefined
+                })()
+              : undefined
           }
-        }}
-        onSave={handleToolSaved}
-        onDelete={() => {}}
-        blockId=''
-        initialValues={
-          editingTool
-            ? (() => {
-                const tool = tools.find((t) => t.id === editingTool)
-                return tool?.schema
-                  ? { id: tool.id, schema: tool.schema, code: tool.code }
-                  : undefined
-              })()
-            : undefined
-        }
-      />
+        />
+      )}
 
-      <ChipConfirmModal
-        open={showDeleteDialog}
-        onOpenChange={(open) => {
-          if (!open) setShowDeleteDialog(false)
-        }}
-        srTitle='Delete Custom Tool'
-        title='Delete Custom Tool'
-        text={[
-          'Are you sure you want to delete ',
-          { text: toolToDelete?.name ?? 'this tool', bold: true },
-          '? This action cannot be undone.',
-        ]}
-        confirm={{ label: 'Delete', onClick: handleDeleteTool }}
-      />
+      {canEdit && (
+        <ChipConfirmModal
+          open={showDeleteDialog}
+          onOpenChange={(open) => {
+            if (!open) setShowDeleteDialog(false)
+          }}
+          srTitle='Delete Custom Tool'
+          title='Delete Custom Tool'
+          text={[
+            'Are you sure you want to delete ',
+            { text: toolToDelete?.name ?? 'this tool', bold: true },
+            '? This action cannot be undone.',
+          ]}
+          confirm={{ label: 'Delete', onClick: handleDeleteTool }}
+        />
+      )}
     </>
   )
 }

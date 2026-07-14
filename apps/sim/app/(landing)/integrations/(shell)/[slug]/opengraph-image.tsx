@@ -19,6 +19,17 @@ const AUTH_LABEL: Record<AuthType, string> = {
   none: 'No auth required',
 }
 
+/**
+ * The sibling page.tsx sets `dynamicParams = false`, a segment-level
+ * restriction that also blocks this metadata route from rendering any
+ * param combination it wasn't statically generated for - but Next does not
+ * share generateStaticParams between a page and its sibling metadata
+ * routes, so without this export every integration's OG image 404s.
+ */
+export async function generateStaticParams() {
+  return integrations.map((integration) => ({ slug: integration.slug }))
+}
+
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const integration = bySlug.get(slug)

@@ -96,12 +96,17 @@ export function getPlanType(plan: string | null | undefined): PlanCategory {
 }
 
 /**
- * Return the plan category used for rate limits, storage, and execution timeouts.
- * Max plans (>= 25K credits) are promoted to team-level limits.
+ * Return the plan category used for plan-based limits (rate limits, storage,
+ * execution timeouts, concurrency, tables). Modern plans bucket by paid tier:
+ * Pro and Pro for Teams share `pro`, while Max and Max for Teams (>= 25K
+ * credits) share `team`. Legacy `pro`/`team` plan names keep their original
+ * categories.
  */
 export function getPlanTypeForLimits(plan: string | null | undefined): PlanCategory {
-  const credits = getPlanTierCredits(plan)
-  if (credits >= 25000 && isPro(plan)) return 'team'
+  if (plan === 'pro' || plan === 'team') return getPlanType(plan)
+  if (isPro(plan) || isTeam(plan)) {
+    return getPlanTierCredits(plan) >= 25000 ? 'team' : 'pro'
+  }
   return getPlanType(plan)
 }
 

@@ -2,6 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { cache } from 'react'
 import matter from 'gray-matter'
+import { imageSize } from 'image-size'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeSlug from 'rehype-slug'
@@ -28,7 +29,7 @@ export interface ContentRegistryConfig {
 
 export interface ContentRegistry {
   getAllPostMeta: () => Promise<ContentMeta[]>
-  getPostBySlug: (slug: string) => Promise<ContentPost>
+  getPostBySlug: (slug: string) => Promise<ContentPost | null>
   getAllTags: () => Promise<TagWithCount[]>
   getRelatedPosts: (slug: string, limit?: number) => Promise<ContentMeta[]>
   getNavPosts: () => Promise<Pick<ContentMeta, 'slug' | 'title' | 'ogImage'>[]>
@@ -89,6 +90,25 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     return loadAuthorsForDir(authorsDir)
   }
 
+  /**
+   * Reads the intrinsic pixel dimensions of a local `public/` OG image so the
+   * SEO builders can declare accurate `og:image` and JSON-LD sizes. Returns
+   * null for remote URLs or unreadable files, in which case the builders fall
+   * back to the 1200x630 OG default.
+   */
+  async function readOgImageDimensions(
+    ogImage: string
+  ): Promise<{ width: number; height: number } | null> {
+    if (ogImage.startsWith('http')) return null
+    try {
+      const buffer = await fs.readFile(path.join(process.cwd(), 'public', ogImage))
+      const { width, height } = imageSize(buffer)
+      return width && height ? { width, height } : null
+    } catch {
+      return null
+    }
+  }
+
   async function scanFrontmatters(): Promise<ContentMeta[]> {
     if (cachedMeta) {
       return cachedMeta
@@ -119,6 +139,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
           .filter((w) => w.length > 0).length
         const authors = fm.authors.map((id) => authorsMap[id]).filter(Boolean)
         if (authors.length === 0) throw new Error(`Authors not found for "${slug}"`)
+        const ogImageDimensions = await readOgImageDimensions(fm.ogImage)
         return {
           slug: fm.slug,
           title: fm.title,
@@ -130,6 +151,8 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
           readingTime: fm.readingTime,
           tags: fm.tags,
           ogImage: fm.ogImage,
+          ogImageWidth: ogImageDimensions?.width,
+          ogImageHeight: ogImageDimensions?.height,
           canonical: fm.canonical,
           ogAlt: fm.ogAlt,
           about: fm.about,
@@ -138,6 +161,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
           wordCount,
           draft: fm.draft,
           featured: fm.featured ?? false,
+          technical: fm.technical,
         }
       })
     )
@@ -201,10 +225,10 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     }
   }
 
-  async function getPostBySlug(slug: string): Promise<ContentPost> {
+  async function getPostBySlug(slug: string): Promise<ContentPost | null> {
     const meta = await scanFrontmatters()
     const found = meta.find((m) => m.slug === slug)
-    if (!found) throw new Error(`Post not found: ${slug}`)
+    if (!found) return null
     const mdxPath = path.join(contentDir, slug, 'index.mdx')
     const raw = await fs.readFile(mdxPath, 'utf-8')
     const { content, data } = matter(raw)

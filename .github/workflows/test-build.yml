@@ -137,6 +137,9 @@ jobs:
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 
+      - name: Verify skill projections are in sync
+        run: bun run skills:check
+
       - name: Migration safety (zero-downtime) audit
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then

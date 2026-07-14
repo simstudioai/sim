@@ -8,6 +8,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import {
@@ -17,6 +18,7 @@ import {
   type McpToolIssue,
 } from '@/lib/mcp/tool-validation'
 import type { McpTransport } from '@/lib/mcp/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   mcpServerIdParam,
   mcpServerIdUrlKeys,
@@ -27,6 +29,7 @@ import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/component
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import {
   type McpServer,
@@ -61,6 +64,7 @@ function formatTransportLabel(transport: string): string {
 }
 
 interface ServerListItemProps {
+  canManage: boolean
   server: McpServer
   tools: McpTool[]
   isDeleting: boolean
@@ -71,6 +75,7 @@ interface ServerListItemProps {
 }
 
 function ServerListItem({
+  canManage,
   server,
   tools,
   isDeleting,
@@ -111,7 +116,16 @@ function ServerListItem({
           label='Server actions'
           actions={[
             { label: 'Details', onSelect: onViewDetails },
-            { label: 'Delete', destructive: true, disabled: isDeleting, onSelect: onRemove },
+            ...(canManage
+              ? [
+                  {
+                    label: 'Delete',
+                    destructive: true,
+                    disabled: isDeleting,
+                    onSelect: onRemove,
+                  },
+                ]
+              : []),
           ]}
         />
       </div>
@@ -141,6 +155,8 @@ function buildEditInitialData(server: McpServer) {
 export function MCP() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const workspacePermissions = useUserPermissionsContext()
+  const canEdit = canMutateWorkspaceSettingsSection('mcp', workspacePermissions)
 
   const {
     data: servers = [],
@@ -165,7 +181,7 @@ export function MCP() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingServerId, setEditingServerId] = useState<string | null>(null)
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
   const { connectingServers: connectingOauthServers, startOauthForServer } = useMcpOauthPopup({
     workspaceId,
@@ -185,9 +201,9 @@ export function MCP() {
     if (didDeepLinkRefreshRef.current) return
     if (!initialServerIdRef.current) return
     didDeepLinkRefreshRef.current = true
-    forceRefreshTools(workspaceId)
+    if (canEdit) forceRefreshTools(workspaceId)
     refetchStoredTools()
-  }, [workspaceId, forceRefreshTools, refetchStoredTools])
+  }, [canEdit, workspaceId, forceRefreshTools, refetchStoredTools])
 
   const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 
@@ -235,12 +251,13 @@ export function MCP() {
 
   const handleViewDetails = (serverId: string) => {
     setSelectedServerId(serverId)
-    forceRefreshTools(workspaceId)
+    if (canEdit) forceRefreshTools(workspaceId)
     refetchStoredTools()
   }
 
+  /** Closing replaces the URL — Back should leave the section, not reopen the detail view. */
   const handleBackToList = () => {
-    setSelectedServerId(null)
+    setSelectedServerId(null, { history: 'replace' })
     setExpandedTools(new Set())
   }
 
@@ -368,18 +385,22 @@ export function MCP() {
       <SettingsPanel
         back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
         title={server.name || 'Unnamed Server'}
-        actions={[
-          {
-            text: refreshAction.text,
-            textTone: refreshAction.textTone,
-            onSelect: () => handleRefreshServer(server.id),
-            disabled: refreshAction.disabled,
-          },
-          {
-            text: 'Edit',
-            onSelect: () => setEditingServerId(server.id),
-          },
-        ]}
+        actions={
+          canEdit
+            ? [
+                {
+                  text: refreshAction.text,
+                  textTone: refreshAction.textTone,
+                  onSelect: () => handleRefreshServer(server.id),
+                  disabled: refreshAction.disabled,
+                },
+                {
+                  text: 'Edit',
+                  onSelect: () => setEditingServerId(server.id),
+                },
+              ]
+            : []
+        }
       >
         <SettingsSection label='Server'>
           <div className='flex flex-col gap-4.5'>
@@ -409,7 +430,7 @@ export function MCP() {
               </div>
             )}
 
-            {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
+            {canEdit && server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
               <div className='flex flex-col gap-2'>
                 <span className='text-[var(--text-muted)] text-caption'>Authentication</span>
                 <div>
@@ -548,28 +569,30 @@ export function MCP() {
           )}
         </SettingsSection>
 
-        <McpServerFormModal
-          open={editingServerId !== null}
-          onOpenChange={(open) => {
-            if (!open) setEditingServerId(null)
-          }}
-          mode='edit'
-          initialData={editInitialData}
-          onSubmit={async (config) => {
-            const currentServer = servers.find((s) => s.id === selectedServerId)
-            await updateServerMutation.mutateAsync({
-              workspaceId,
-              serverId: selectedServerId!,
-              updates: {
-                ...config,
-                enabled: currentServer?.enabled ?? true,
-              },
-            })
-          }}
-          workspaceId={workspaceId}
-          availableEnvVars={availableEnvVars}
-          allowedMcpDomains={allowedMcpDomains}
-        />
+        {canEdit && (
+          <McpServerFormModal
+            open={editingServerId !== null}
+            onOpenChange={(open) => {
+              if (!open) setEditingServerId(null)
+            }}
+            mode='edit'
+            initialData={editInitialData}
+            onSubmit={async (config) => {
+              const currentServer = servers.find((s) => s.id === selectedServerId)
+              await updateServerMutation.mutateAsync({
+                workspaceId,
+                serverId: selectedServerId!,
+                updates: {
+                  ...config,
+                  enabled: currentServer?.enabled ?? true,
+                },
+              })
+            }}
+            workspaceId={workspaceId}
+            availableEnvVars={availableEnvVars}
+            allowedMcpDomains={allowedMcpDomains}
+          />
+        )}
       </SettingsPanel>
     )
   }
@@ -582,15 +605,19 @@ export function MCP() {
           onChange: setSearchTerm,
           placeholder: 'Search MCPs...',
         }}
-        actions={[
-          {
-            text: 'Add server',
-            icon: Plus,
-            variant: 'primary',
-            onSelect: () => setShowAddModal(true),
-            disabled: serversLoading,
-          },
-        ]}
+        actions={
+          canEdit
+            ? [
+                {
+                  text: 'Add server',
+                  icon: Plus,
+                  variant: 'primary',
+                  onSelect: () => setShowAddModal(true),
+                  disabled: serversLoading,
+                },
+              ]
+            : []
+        }
       >
         {error ? (
           <div className='flex h-full flex-col items-center justify-center gap-2'>
@@ -599,7 +626,9 @@ export function MCP() {
             </p>
           </div>
         ) : serversLoading ? null : !hasServers ? (
-          <SettingsEmptyState>Click &quot;Add server&quot; above to get started</SettingsEmptyState>
+          <SettingsEmptyState>
+            {canEdit ? 'Click "Add server" above to get started' : 'No MCP servers configured'}
+          </SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-2'>
             {filteredServers.map((server) => {
@@ -613,6 +642,7 @@ export function MCP() {
               return (
                 <ServerListItem
                   key={server.id}
+                  canManage={canEdit}
                   server={server}
                   tools={tools}
                   isDeleting={deletingServers.has(server.id)}
@@ -635,41 +665,45 @@ export function MCP() {
         )}
       </SettingsPanel>
 
-      <McpServerFormModal
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-        mode='add'
-        onSubmit={async (config) => {
-          const result = await createServerMutation.mutateAsync({
-            workspaceId,
-            config: { ...config, enabled: true },
-          })
-          if (result.authType === 'oauth') {
-            await startOauthForServer(result.serverId)
-          }
-        }}
-        workspaceId={workspaceId}
-        availableEnvVars={availableEnvVars}
-        allowedMcpDomains={allowedMcpDomains}
-      />
+      {canEdit && (
+        <McpServerFormModal
+          open={showAddModal}
+          onOpenChange={setShowAddModal}
+          mode='add'
+          onSubmit={async (config) => {
+            const result = await createServerMutation.mutateAsync({
+              workspaceId,
+              config: { ...config, enabled: true },
+            })
+            if (result.authType === 'oauth') {
+              await startOauthForServer(result.serverId)
+            }
+          }}
+          workspaceId={workspaceId}
+          availableEnvVars={availableEnvVars}
+          allowedMcpDomains={allowedMcpDomains}
+        />
+      )}
 
-      <ChipConfirmModal
-        open={showDeleteDialog}
-        onOpenChange={(open) => {
-          if (!open) setServerToDeleteId(null)
-        }}
-        srTitle='Delete MCP Server'
-        title='Delete MCP Server'
-        text={[
-          'Are you sure you want to delete ',
-          {
-            text: servers.find((s) => s.id === serverToDeleteId)?.name || 'this server',
-            bold: true,
-          },
-          '? This action cannot be undone.',
-        ]}
-        confirm={{ label: 'Delete', onClick: confirmDeleteServer }}
-      />
+      {canEdit && (
+        <ChipConfirmModal
+          open={showDeleteDialog}
+          onOpenChange={(open) => {
+            if (!open) setServerToDeleteId(null)
+          }}
+          srTitle='Delete MCP Server'
+          title='Delete MCP Server'
+          text={[
+            'Are you sure you want to delete ',
+            {
+              text: servers.find((s) => s.id === serverToDeleteId)?.name || 'this server',
+              bold: true,
+            },
+            '? This action cannot be undone.',
+          ]}
+          confirm={{ label: 'Delete', onClick: confirmDeleteServer }}
+        />
+      )}
     </>
   )
 }

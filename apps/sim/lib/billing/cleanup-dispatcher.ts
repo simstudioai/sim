@@ -13,6 +13,7 @@ import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 import { isOrganizationWorkspace, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
@@ -300,6 +301,15 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
   chunkCount: number
   workspaceCount: number
 }> {
+  /**
+   * Plan-based retention is a hosted billing policy. Billing-disabled
+   * deployments must never delete user data on the hosted defaults.
+   */
+  if (!isBillingEnabled) {
+    logger.info(`[${jobType}] Skipping cleanup dispatch: billing is disabled`)
+    return { jobIds: [], jobCount: 0, chunkCount: 0, workspaceCount: 0 }
+  }
+
   const jobIds: string[] = []
   let succeeded = 0
   let failed = 0

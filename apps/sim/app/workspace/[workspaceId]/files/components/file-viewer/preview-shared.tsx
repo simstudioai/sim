@@ -2,6 +2,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { cn } from '@sim/emcn'
+import { Loader } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('FilePreview')
@@ -87,13 +88,20 @@ export function resolvePreviewError(
   return renderError
 }
 
+/** Canonical content-area loading spinner, matching the rest of the app. */
+const PREVIEW_LOADING_SPINNER = (
+  <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
+)
+
 /**
- * Canonical blank loading overlay for previews that render into a
- * `--surface-1` canvas. Absolutely covers the canvas (with `z-10` so it
- * paints above in-flow render targets) until the preview is ready.
+ * Canonical loading overlay for previews that render into a `--surface-1`
+ * canvas. Absolutely covers the canvas (with `z-10` so it paints above
+ * in-flow render targets) with a centered spinner until the preview is ready.
  */
 export const PREVIEW_LOADING_OVERLAY = (
-  <div className='absolute inset-0 z-10 bg-[var(--surface-1)]' />
+  <div className='absolute inset-0 z-10 flex items-center justify-center bg-[var(--surface-1)]'>
+    {PREVIEW_LOADING_SPINNER}
+  </div>
 )
 
 interface PreviewLoadingFrameProps {
@@ -104,14 +112,21 @@ interface PreviewLoadingFrameProps {
 }
 
 /**
- * Canonical in-flow blank loading frame shown while a preview is fetching or
- * rendering. The `tone` must match the background of the loaded state it is
- * standing in for, so mount completion does not flash a different token.
+ * Canonical in-flow loading frame with a centered spinner, shown while a
+ * preview is fetching or rendering. The `tone` must match the background of
+ * the loaded state it is standing in for, so mount completion does not flash
+ * a different token.
  */
 export function PreviewLoadingFrame({ className, tone = 'bg' }: PreviewLoadingFrameProps) {
   return (
     <div
-      className={cn(tone === 'surface' ? 'bg-[var(--surface-1)]' : 'bg-[var(--bg)]', className)}
-    />
+      className={cn(
+        'flex items-center justify-center',
+        tone === 'surface' ? 'bg-[var(--surface-1)]' : 'bg-[var(--bg)]',
+        className
+      )}
+    >
+      {PREVIEW_LOADING_SPINNER}
+    </div>
   )
 }

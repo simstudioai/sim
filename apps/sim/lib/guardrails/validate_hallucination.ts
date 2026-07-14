@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { BILLING_ATTRIBUTION_HEADER } from '@/lib/billing/core/billing-attribution'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { executeProviderRequest } from '@/providers'
@@ -40,6 +41,7 @@ export interface HallucinationValidationInput {
   authHeaders?: {
     cookie?: string
     authorization?: string
+    billingAttribution?: string
   }
   requestId: string
 }
@@ -53,7 +55,7 @@ async function queryKnowledgeBase(
   topK: number,
   requestId: string,
   workflowId?: string,
-  authHeaders?: { cookie?: string; authorization?: string }
+  authHeaders?: { cookie?: string; authorization?: string; billingAttribution?: string }
 ): Promise<string[]> {
   try {
     // Call the knowledge base search API directly
@@ -65,6 +67,9 @@ async function queryKnowledgeBase(
         'Content-Type': 'application/json',
         ...(authHeaders?.cookie ? { Cookie: authHeaders.cookie } : {}),
         ...(authHeaders?.authorization ? { Authorization: authHeaders.authorization } : {}),
+        ...(authHeaders?.billingAttribution
+          ? { [BILLING_ATTRIBUTION_HEADER]: authHeaders.billingAttribution }
+          : {}),
       },
       body: JSON.stringify({
         knowledgeBaseIds: [knowledgeBaseId],

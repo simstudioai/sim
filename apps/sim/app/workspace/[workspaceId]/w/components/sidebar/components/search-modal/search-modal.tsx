@@ -97,6 +97,7 @@ export function SearchModal({
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
+  const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const [mounted, setMounted] = useState(false)
   const { navigateToSettings } = useSettingsNavigation()
@@ -581,23 +582,25 @@ export function SearchModal({
    */
   const filteredBlocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
+    // A custom block is hidden on its own source workflow's canvas — placing it
+    // there recurses (same exclusion as the toolbar).
     return filterAndCap(
-      blocks,
+      blocks.filter((b) => !b.sourceWorkflowId || b.sourceWorkflowId !== currentWorkflowId),
       (b) => b.name,
       deferredSearch,
       (b) => b.searchValue
     )
-  }, [isOnWorkflowPage, blocks, deferredSearch])
+  }, [isOnWorkflowPage, blocks, deferredSearch, currentWorkflowId])
 
   const filteredTools = useMemo(() => {
     if (!isOnWorkflowPage) return []
     return filterAndCap(
-      tools,
+      tools.filter((t) => !t.sourceWorkflowId || t.sourceWorkflowId !== currentWorkflowId),
       (t) => t.name,
       deferredSearch,
       (t) => t.searchValue
     )
-  }, [isOnWorkflowPage, tools, deferredSearch])
+  }, [isOnWorkflowPage, tools, deferredSearch, currentWorkflowId])
 
   const filteredTriggers = useMemo(() => {
     if (!isOnWorkflowPage) return []

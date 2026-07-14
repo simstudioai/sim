@@ -7,6 +7,8 @@
 
 import { db } from '@sim/db'
 import {
+  account,
+  credential,
   invitation,
   member,
   organization,
@@ -20,26 +22,55 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { normalizeEmail } from '@sim/utils/string'
+import { and, count, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import {
+  assertNoUnresolvedEnterpriseIssuance,
+  resolveEnterpriseMetadataIntent,
+} from '@/lib/billing/enterprise-outbox'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { changeOrganizationWorkspaceBilledAccountsInTx } from '@/lib/billing/storage/payer-transfer'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  getEffectiveSeats,
+} from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx } from '@/lib/db/types'
+import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
   WorkspaceBillingAccountRemovalError,
 } from '@/lib/workspaces/utils'
 
+export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
 
 const logger = createLogger('OrganizationMembership')
 
 const ORG_MEMBERSHIP_LOCK_TIMEOUT_MS = 5_000
+
+export const MEMBER_BILLING_RECONCILIATION_EVENT_TYPE = 'billing.reconcile-member-after-org-leave'
+
+/** Serializes organization-wide owner, seat, move, and membership decisions. */
+export async function acquireOrganizationMutationLock(
+  tx: DbOrTx,
+  organizationId: string
+): Promise<void> {
+  await tx.execute(
+    sql`select set_config('lock_timeout', ${`${ORG_MEMBERSHIP_LOCK_TIMEOUT_MS}ms`}, true)`
+  )
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`organization-mutation:${organizationId}`}, 0))`
+  )
+}
 
 /**
  * Serialize concurrent membership changes for a `(user, org)` pair via a
@@ -172,25 +203,50 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
     usageRestored: false,
   }
 
-  const [personalPro] = await db
-    .select()
-    .from(subscriptionTable)
-    .where(
-      and(
-        eq(subscriptionTable.referenceId, userId),
-        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
-        sqlIsPro(subscriptionTable.plan)
-      )
-    )
-    .limit(1)
-
-  if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) {
-    return result
-  }
-
-  result.subscriptionId = personalPro.id
-
   await db.transaction(async (tx) => {
+    await acquireUserBillingIdentityLock(tx, userId)
+    // The personal subscription row is the cross-organization serialization
+    // point shared with paid-org joins. Lock and re-read it before deciding to
+    // restore so a concurrent join cannot commit membership while this path
+    // leaves the user's personal Pro unpaused.
+    const [personalPro] = await tx
+      .select()
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, userId),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPro(subscriptionTable.plan)
+        )
+      )
+      .for('update')
+      .limit(1)
+
+    if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) return
+    result.subscriptionId = personalPro.id
+
+    const organizationMemberships = await tx
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, userId))
+    if (organizationMemberships.length > 0) {
+      const paidOrganizationSubscriptions = await tx
+        .select({ plan: subscriptionTable.plan })
+        .from(subscriptionTable)
+        .where(
+          and(
+            inArray(
+              subscriptionTable.referenceId,
+              organizationMemberships.map((membership) => membership.organizationId)
+            ),
+            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
+      if (paidOrganizationSubscriptions.some((orgSubscription) => isPaid(orgSubscription.plan))) {
+        return
+      }
+    }
+
     await tx
       .update(subscriptionTable)
       .set({ cancelAtPeriodEnd: false })
@@ -245,11 +301,13 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
     })
   })
 
-  logger.info('Restored personal Pro subscription (DB committed, Stripe queued)', {
-    userId,
-    subscriptionId: personalPro.id,
-    usageRestored: result.usageRestored,
-  })
+  if (result.restored) {
+    logger.info('Restored personal Pro subscription (DB committed, Stripe queued)', {
+      userId,
+      subscriptionId: result.subscriptionId,
+      usageRestored: result.usageRestored,
+    })
+  }
 
   return result
 }
@@ -452,6 +510,169 @@ export async function ensureUserInOrganization(
 }
 
 /**
+ * Transaction-enlisted invitation acceptance path. Membership, personal-Pro
+ * handling, invitation status, and workspace permissions all commit or roll
+ * back together in the caller's transaction.
+ */
+export async function ensureUserInOrganizationTx(
+  tx: DbOrTx,
+  params: AddMemberParams
+): Promise<EnsureMemberResult> {
+  const {
+    userId,
+    organizationId,
+    role,
+    skipBillingLogic = false,
+    skipSeatValidation = false,
+  } = params
+  const emptyBillingActions = {
+    proUsageSnapshotted: false,
+    proCancelledAtPeriodEnd: false,
+  }
+
+  await acquireOrganizationMutationLock(tx, organizationId)
+  await acquireUserBillingIdentityLock(tx, userId)
+  await acquireOrgMembershipLock(tx, userId, organizationId)
+
+  const existingMemberships = await tx
+    .select({ id: member.id, organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+
+  const sameOrganization = existingMemberships.find(
+    (membership) => membership.organizationId === organizationId
+  )
+  if (sameOrganization) {
+    return {
+      success: true,
+      memberId: sameOrganization.id,
+      alreadyMember: true,
+      billingActions: emptyBillingActions,
+    }
+  }
+  if (existingMemberships.length > 0) {
+    return {
+      success: false,
+      alreadyMember: false,
+      existingOrgId: existingMemberships[0].organizationId,
+      failureCode: 'already-in-other-organization',
+      error:
+        'User is already a member of another organization. Users can only belong to one organization at a time.',
+      billingActions: emptyBillingActions,
+    }
+  }
+
+  const [[userRow], [organizationRow]] = await Promise.all([
+    tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1),
+    tx
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1),
+  ])
+  if (!userRow) {
+    return {
+      success: false,
+      alreadyMember: false,
+      failureCode: 'user-not-found',
+      error: 'User not found',
+      billingActions: emptyBillingActions,
+    }
+  }
+  if (!organizationRow) {
+    return {
+      success: false,
+      alreadyMember: false,
+      failureCode: 'organization-not-found',
+      error: 'Organization not found',
+      billingActions: emptyBillingActions,
+    }
+  }
+
+  if (isBillingEnabled && !skipSeatValidation) {
+    const [organizationSubscription] = await tx
+      .select()
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, organizationId),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1)
+    if (!organizationSubscription || !isPaid(organizationSubscription.plan)) {
+      return {
+        success: false,
+        alreadyMember: false,
+        failureCode: 'no-seats-available',
+        error: 'No active paid organization subscription found',
+        billingActions: emptyBillingActions,
+      }
+    }
+
+    // Acceptance validates only committed members. Pending invitations never
+    // reserve Enterprise capacity; serialized acceptances consume seats one by one.
+    const [memberCountRow] = await tx
+      .select({ value: count() })
+      .from(member)
+      .where(eq(member.organizationId, organizationId))
+    const canonicalSeats = getEffectiveSeats(organizationSubscription)
+    const metadataIntent =
+      organizationSubscription.plan === 'enterprise'
+        ? await resolveEnterpriseMetadataIntent(
+            tx,
+            organizationSubscription.id,
+            organizationSubscription.metadata
+          )
+        : null
+    const effectiveSeats = metadataIntent?.effectiveSeatCapacity ?? canonicalSeats
+    if ((memberCountRow?.value ?? 0) >= effectiveSeats) {
+      return {
+        success: false,
+        alreadyMember: false,
+        failureCode: 'no-seats-available',
+        error: 'No available organization seats',
+        billingActions: emptyBillingActions,
+      }
+    }
+  }
+
+  const memberId = generateId()
+  await tx.insert(member).values({
+    id: memberId,
+    userId,
+    organizationId,
+    role,
+    createdAt: new Date(),
+  })
+
+  const billingActions = skipBillingLogic
+    ? emptyBillingActions
+    : await (async () => {
+        const [organizationSubscription] = await tx
+          .select({ plan: subscriptionTable.plan })
+          .from(subscriptionTable)
+          .where(
+            and(
+              eq(subscriptionTable.referenceId, organizationId),
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1)
+        return organizationSubscription && isPaid(organizationSubscription.plan)
+          ? applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+          : emptyBillingActions
+      })()
+
+  return {
+    success: true,
+    memberId,
+    alreadyMember: false,
+    billingActions,
+  }
+}
+
+/**
  * Validate if a user can be added to an organization.
  * Checks single-org constraint and seat availability.
  */
@@ -544,13 +765,15 @@ interface PaidOrgJoinBillingActions {
  *   - snapshots current Pro usage so new usage attributes to the org;
  *   - marks personal Pro subscription `cancelAtPeriodEnd=true` and enqueues
  *     the Stripe sync via the outbox;
- *   - transfers personal storage bytes into the org's pool.
  *
- * Idempotent: re-running is a no-op when Pro is already flagged cancel-at-period-end
- * and the user's storage is already transferred (zeroed).
+ * Storage follows each workspace's routed payer independently. The workspace
+ * payer-change transaction transfers that workspace's durable byte ledger; a
+ * membership change must never move the user's account-wide storage counter.
+ *
+ * Idempotent: re-running is a no-op when Pro is already flagged cancel-at-period-end.
  */
 async function applyPaidOrgJoinBillingTx(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tx: DbOrTx,
   userId: string,
   organizationId: string
 ): Promise<PaidOrgJoinBillingActions> {
@@ -569,20 +792,10 @@ async function applyPaidOrgJoinBillingTx(
         sqlIsPro(subscriptionTable.plan)
       )
     )
+    .for('update')
     .limit(1)
 
   if (personalPro && !personalPro.cancelAtPeriodEnd) {
-    // Lock the personal Pro subscription before userStats (snapshotted below) so
-    // this matches restoreUserProSubscription's subscription → userStats order
-    // and cannot deadlock against a concurrent Pro restore for the same user.
-    // The cancel update further down re-locks this row (no-op).
-    await tx
-      .select({ id: subscriptionTable.id })
-      .from(subscriptionTable)
-      .where(eq(subscriptionTable.id, personalPro.id))
-      .for('update')
-      .limit(1)
-
     const [userStatsRow] = await tx
       .select({ currentPeriodCost: userStats.currentPeriodCost })
       .from(userStats)
@@ -633,31 +846,6 @@ async function applyPaidOrgJoinBillingTx(
     })
   }
 
-  const storageRows = await tx
-    .select({ storageUsedBytes: userStats.storageUsedBytes })
-    .from(userStats)
-    .where(eq(userStats.userId, userId))
-    .for('update')
-    .limit(1)
-
-  const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
-  if (bytesToTransfer > 0) {
-    await tx
-      .update(organization)
-      .set({
-        storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytesToTransfer}`,
-      })
-      .where(eq(organization.id, organizationId))
-
-    await tx.update(userStats).set({ storageUsedBytes: 0 }).where(eq(userStats.userId, userId))
-
-    logger.info('Transferred personal storage bytes to org pool on join', {
-      userId,
-      organizationId,
-      bytes: bytesToTransfer,
-    })
-  }
-
   return actions
 }
 
@@ -676,23 +864,51 @@ export async function reapplyPaidOrgJoinBillingForExistingMember(
   organizationId: string
 ): Promise<PaidOrgJoinBillingActions> {
   return db.transaction(async (tx) => {
-    const [orgSub] = await tx
-      .select({ plan: subscriptionTable.plan })
-      .from(subscriptionTable)
-      .where(
-        and(
-          eq(subscriptionTable.referenceId, organizationId),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
-        )
-      )
+    await acquireOrganizationMutationLock(tx, organizationId)
+    const [existingMembership] = await tx
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
       .limit(1)
-
-    if (!orgSub || !isPaid(orgSub.plan)) {
+    if (!existingMembership) {
       return { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false }
     }
-
-    return applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+    return reapplyPaidOrgJoinBillingForExistingMemberTx(tx, userId, organizationId)
   })
+}
+
+/**
+ * Transaction-enlisted variant used by subscription webhooks. Keeping the
+ * subscription upsert, effective-limit update, provisioning completion, and
+ * existing-member Pro handling in one transaction prevents a partially
+ * applied Enterprise entitlement when Stripe retries a failed delivery.
+ *
+ * The caller must hold the organization mutation lock before invoking this
+ * helper so a concurrent member removal cannot fall between the member census
+ * and the personal-Pro transition.
+ */
+export async function reapplyPaidOrgJoinBillingForExistingMemberTx(
+  tx: DbOrTx,
+  userId: string,
+  organizationId: string
+): Promise<PaidOrgJoinBillingActions> {
+  await acquireUserBillingIdentityLock(tx, userId)
+  const [orgSub] = await tx
+    .select({ plan: subscriptionTable.plan })
+    .from(subscriptionTable)
+    .where(
+      and(
+        eq(subscriptionTable.referenceId, organizationId),
+        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+      )
+    )
+    .limit(1)
+
+  if (!orgSub || !isPaid(orgSub.plan)) {
+    return { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false }
+  }
+
+  return applyPaidOrgJoinBillingTx(tx, userId, organizationId)
 }
 
 /**
@@ -764,41 +980,28 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       }
     }
 
-    let memberId = ''
-
-    await db.transaction(async (tx) => {
-      memberId = generateId()
-      await tx.insert(member).values({
-        id: memberId,
+    const added = await db.transaction((tx) =>
+      ensureUserInOrganizationTx(tx, {
         userId,
         organizationId,
         role,
-        createdAt: new Date(),
+        skipBillingLogic,
+        skipSeatValidation,
+        acceptingInvitationId,
       })
-
-      if (skipBillingLogic) {
-        return
+    )
+    if (!added.success || !added.memberId || added.alreadyMember) {
+      return {
+        success: false,
+        error: added.alreadyMember ? 'User is already a member of this organization' : added.error,
+        failureCode: added.alreadyMember ? 'already-member' : added.failureCode,
+        billingActions: added.billingActions,
       }
+    }
 
-      const [orgSub] = await tx
-        .select({ plan: subscriptionTable.plan })
-        .from(subscriptionTable)
-        .where(
-          and(
-            eq(subscriptionTable.referenceId, organizationId),
-            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
-          )
-        )
-        .limit(1)
-
-      if (!orgSub || !isPaid(orgSub.plan)) {
-        return
-      }
-
-      const joinBillingActions = await applyPaidOrgJoinBillingTx(tx, userId, organizationId)
-      billingActions.proUsageSnapshotted = joinBillingActions.proUsageSnapshotted
-      billingActions.proCancelledAtPeriodEnd = joinBillingActions.proCancelledAtPeriodEnd
-    })
+    const memberId = added.memberId
+    billingActions.proUsageSnapshotted = added.billingActions.proUsageSnapshotted
+    billingActions.proCancelledAtPeriodEnd = added.billingActions.proCancelledAtPeriodEnd
 
     logger.info('Added user to organization', {
       userId,
@@ -812,6 +1015,380 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
   } catch (error) {
     logger.error('Failed to add user to organization', { userId, organizationId, error })
     return { success: false, error: 'Failed to add user to organization', billingActions }
+  }
+}
+
+type InvitationRemovalScope = 'all' | 'external'
+
+interface InvitationRemovalLockSnapshot {
+  email: string | null
+  invitationIds: string[]
+  workspaceIds: string[]
+}
+
+class InvitationRemovalLockSetChangedError extends Error {
+  constructor(readonly snapshot: InvitationRemovalLockSnapshot) {
+    super('Invitation or workspace set changed while acquiring removal locks')
+    this.name = 'InvitationRemovalLockSetChangedError'
+  }
+}
+
+async function getInvitationRemovalLockSnapshot(
+  executor: DbOrTx,
+  params: { userId: string; organizationId: string; scope: InvitationRemovalScope }
+): Promise<InvitationRemovalLockSnapshot> {
+  const [targetUser] = await executor
+    .select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, params.userId))
+    .limit(1)
+  const workspaceRows = await executor
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.organizationId, params.organizationId))
+
+  let invitationIds: string[] = []
+  if (targetUser?.email) {
+    const invitationRows = await executor
+      .select({ id: invitation.id })
+      .from(invitation)
+      .where(
+        and(
+          eq(invitation.organizationId, params.organizationId),
+          eq(invitation.status, 'pending'),
+          ...(params.scope === 'external' ? [eq(invitation.membershipIntent, 'external')] : []),
+          sql`lower(${invitation.email}) = lower(${targetUser.email})`
+        )
+      )
+    invitationIds = [...new Set(invitationRows.map((row) => row.id))].sort()
+  }
+
+  return {
+    email: targetUser ? normalizeEmail(targetUser.email) : null,
+    invitationIds,
+    workspaceIds: [...new Set(workspaceRows.map((row) => row.id))].sort(),
+  }
+}
+
+export async function withInvitationSafeOrganizationAccessMutation<T>(
+  params: {
+    userId: string
+    organizationId: string
+    scope: InvitationRemovalScope
+    additionalOrganizationIds?: string[]
+  },
+  operation: (tx: DbOrTx, locked: { workspaceIds: string[]; invitationIds: string[] }) => Promise<T>
+): Promise<T> {
+  let candidate = await getInvitationRemovalLockSnapshot(db, params)
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await db.transaction(async (tx) => {
+        await acquireInvitationMutationLocks(tx, {
+          invitationIds: candidate.invitationIds,
+          workspaceIds: candidate.workspaceIds,
+        })
+        const organizationIds = [
+          ...new Set([params.organizationId, ...(params.additionalOrganizationIds ?? [])]),
+        ].sort()
+        for (const organizationId of organizationIds) {
+          await acquireOrganizationMutationLock(tx, organizationId)
+        }
+        await acquireUserBillingIdentityLock(tx, params.userId)
+        for (const organizationId of organizationIds) {
+          await acquireOrgMembershipLock(tx, params.userId, organizationId)
+        }
+
+        const current = await getInvitationRemovalLockSnapshot(tx, params)
+        const candidateInvitations = new Set(candidate.invitationIds)
+        const candidateWorkspaces = new Set(candidate.workspaceIds)
+        const lockSetExpanded =
+          current.email !== candidate.email ||
+          current.invitationIds.some((id) => !candidateInvitations.has(id)) ||
+          current.workspaceIds.some((id) => !candidateWorkspaces.has(id))
+        if (lockSetExpanded) throw new InvitationRemovalLockSetChangedError(current)
+
+        return operation(tx, {
+          workspaceIds: current.workspaceIds,
+          // Rows that stopped being pending while we waited are harmless: the
+          // status predicate below turns them into no-ops, while their accepted
+          // permissions are removed in this same transaction.
+          invitationIds: candidate.invitationIds,
+        })
+      })
+    } catch (error) {
+      if (error instanceof InvitationRemovalLockSetChangedError) {
+        candidate = error.snapshot
+        continue
+      }
+      throw error
+    }
+  }
+
+  throw new Error('Pending invitations changed repeatedly while removing organization access')
+}
+
+export interface OrganizationTransferCredentialDependency {
+  id: string
+  displayName: string
+  type: string
+  workspaceId: string
+}
+
+async function getOrganizationTransferCredentialDependenciesTx(
+  executor: DbOrTx,
+  userId: string,
+  organizationId: string
+): Promise<OrganizationTransferCredentialDependency[]> {
+  return executor
+    .select({
+      id: credential.id,
+      displayName: credential.displayName,
+      type: credential.type,
+      workspaceId: credential.workspaceId,
+    })
+    .from(credential)
+    .innerJoin(workspace, eq(workspace.id, credential.workspaceId))
+    .leftJoin(account, eq(account.id, credential.accountId))
+    .where(
+      and(
+        eq(workspace.organizationId, organizationId),
+        or(
+          and(eq(credential.type, 'oauth'), eq(account.userId, userId)),
+          and(eq(credential.type, 'env_personal'), eq(credential.envOwnerUserId, userId))
+        )
+      )
+    )
+}
+
+/**
+ * Source-organization credentials whose backing identity belongs to the user
+ * being transferred. Ordinary credential memberships are not blockers; those
+ * are revoked together with the user's source-workspace permissions.
+ */
+export async function getOrganizationTransferCredentialDependencies(
+  userId: string,
+  organizationId: string
+): Promise<OrganizationTransferCredentialDependency[]> {
+  return getOrganizationTransferCredentialDependenciesTx(db, userId, organizationId)
+}
+
+export interface TransferOrganizationMemberParams {
+  userId: string
+  sourceOrganizationId: string
+  destinationOrganizationId: string
+  role: 'admin' | 'member'
+  usageLimitDollars?: number | null
+  setBy?: string
+}
+
+export interface TransferOrganizationMemberResult {
+  success: boolean
+  memberId?: string
+  error?: string
+  workspaceAccessRevoked: number
+  credentialMembershipsRevoked: number
+  pendingInvitationsCancelled: number
+  usageCaptured: number
+}
+
+/**
+ * Atomically transfers a non-owner between organizations. Source access and
+ * departed usage are cleaned up using the same primitives as member removal;
+ * the destination membership uses the canonical paid-org join path so seat
+ * checks and personal-Pro handling remain webhook/outbox compatible.
+ */
+export async function transferUserBetweenOrganizations(
+  params: TransferOrganizationMemberParams
+): Promise<TransferOrganizationMemberResult> {
+  const emptyResult = {
+    workspaceAccessRevoked: 0,
+    credentialMembershipsRevoked: 0,
+    pendingInvitationsCancelled: 0,
+    usageCaptured: 0,
+  }
+  if (params.sourceOrganizationId === params.destinationOrganizationId) {
+    return {
+      success: false,
+      error: 'Source and destination organizations must differ',
+      ...emptyResult,
+    }
+  }
+
+  try {
+    return await withInvitationSafeOrganizationAccessMutation(
+      {
+        userId: params.userId,
+        organizationId: params.sourceOrganizationId,
+        additionalOrganizationIds: [params.destinationOrganizationId],
+        scope: 'all',
+      },
+      async (tx, { workspaceIds, invitationIds }) => {
+        const [sourceMembership] = await tx
+          .select({ id: member.id, role: member.role })
+          .from(member)
+          .where(
+            and(
+              eq(member.userId, params.userId),
+              eq(member.organizationId, params.sourceOrganizationId)
+            )
+          )
+          .for('update')
+          .limit(1)
+        if (!sourceMembership) throw new Error('Source organization membership not found')
+        if (sourceMembership.role === 'owner') {
+          throw new Error('Transfer organization ownership before moving this user')
+        }
+
+        const credentialDependencies = await getOrganizationTransferCredentialDependenciesTx(
+          tx,
+          params.userId,
+          params.sourceOrganizationId
+        )
+        if (credentialDependencies.length > 0) {
+          throw new Error(
+            'Reconnect or remove source-organization credentials owned by this user before transfer'
+          )
+        }
+
+        const [destinationSubscription] = await tx
+          .select({ plan: subscriptionTable.plan })
+          .from(subscriptionTable)
+          .where(
+            and(
+              eq(subscriptionTable.referenceId, params.destinationOrganizationId),
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1)
+
+        const deleted = await tx
+          .delete(member)
+          .where(and(eq(member.id, sourceMembership.id), ne(member.role, 'owner')))
+          .returning({ id: member.id })
+        if (deleted.length === 0) {
+          throw new Error('Member could not be transferred because their role changed')
+        }
+
+        const cancelledInvitations = invitationIds.length
+          ? await tx
+              .update(invitation)
+              .set({ status: 'cancelled', updatedAt: new Date() })
+              .where(
+                and(
+                  inArray(invitation.id, invitationIds),
+                  eq(invitation.organizationId, params.sourceOrganizationId),
+                  eq(invitation.status, 'pending')
+                )
+              )
+              .returning({ id: invitation.id })
+          : []
+
+        await tx
+          .delete(permissionGroupMember)
+          .where(
+            and(
+              eq(permissionGroupMember.userId, params.userId),
+              eq(permissionGroupMember.organizationId, params.sourceOrganizationId)
+            )
+          )
+
+        await setOrgMemberUsageLimit(
+          params.sourceOrganizationId,
+          params.userId,
+          null,
+          params.setBy,
+          tx
+        )
+
+        let workspaceAccessRevoked = 0
+        let credentialMembershipsRevoked = 0
+        if (workspaceIds.length > 0) {
+          await reassignOwnedOrganizationWorkspacesTx({
+            tx,
+            userId: params.userId,
+            organizationId: params.sourceOrganizationId,
+            workspaceIds,
+          })
+          const workflowOwnershipReassignment =
+            await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+              tx,
+              workspaceIds,
+              departingUserId: params.userId,
+            })
+          if (workflowOwnershipReassignment.unresolved.length > 0) {
+            throw new WorkspaceBillingAccountRemovalError()
+          }
+          const deletedPermissions = await tx
+            .delete(permissions)
+            .where(
+              and(
+                eq(permissions.userId, params.userId),
+                eq(permissions.entityType, 'workspace'),
+                inArray(permissions.entityId, workspaceIds)
+              )
+            )
+            .returning({ id: permissions.id })
+          workspaceAccessRevoked = deletedPermissions.length
+          credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx(
+            tx,
+            workspaceIds,
+            params.userId
+          )
+        }
+
+        const [stats] = await tx
+          .select({ currentPeriodCost: userStats.currentPeriodCost })
+          .from(userStats)
+          .where(eq(userStats.userId, params.userId))
+          .for('update')
+          .limit(1)
+        const usageCaptured = toNumber(toDecimal(stats?.currentPeriodCost))
+        if (usageCaptured > 0) {
+          await tx
+            .update(organization)
+            .set({
+              departedMemberUsage: sql`${organization.departedMemberUsage} + ${usageCaptured}`,
+            })
+            .where(eq(organization.id, params.sourceOrganizationId))
+          await tx
+            .update(userStats)
+            .set({ currentPeriodCost: '0' })
+            .where(eq(userStats.userId, params.userId))
+        }
+
+        const added = await ensureUserInOrganizationTx(tx, {
+          userId: params.userId,
+          organizationId: params.destinationOrganizationId,
+          role: params.role,
+          skipSeatValidation: destinationSubscription?.plan.startsWith('team') ?? false,
+        })
+        if (!added.success || !added.memberId || added.alreadyMember) {
+          throw new Error(added.error ?? 'Failed to add member to destination organization')
+        }
+        if (params.usageLimitDollars !== undefined) {
+          await setOrgMemberUsageLimit(
+            params.destinationOrganizationId,
+            params.userId,
+            params.usageLimitDollars,
+            params.setBy,
+            tx
+          )
+        }
+
+        return {
+          success: true,
+          memberId: added.memberId,
+          workspaceAccessRevoked,
+          credentialMembershipsRevoked,
+          pendingInvitationsCancelled: cancelledInvitations.length,
+          usageCaptured,
+        }
+      }
+    )
+  } catch (error) {
+    logger.error('Failed to transfer organization member', { ...params, error })
+    return { success: false, error: getErrorMessage(error), ...emptyResult }
   }
 }
 
@@ -865,25 +1442,131 @@ export async function removeUserFromOrganization(
       return { success: false, error: 'Cannot remove organization owner', billingActions }
     }
 
-    const result = await db.transaction(async (tx) => {
-      /**
-       * Serialize against a concurrent invite acceptance for this user+org so
-       * the remaining-access check below and the deletions are atomic with the
-       * accept's membership re-check + workspace grant — preventing a
-       * "workspace access but no membership" (or the inverse) interleaving.
-       */
-      await acquireOrgMembershipLock(tx, userId, organizationId)
+    const result = await withInvitationSafeOrganizationAccessMutation(
+      { userId, organizationId, scope: 'all' },
+      async (tx, { workspaceIds, invitationIds }) => {
+        if (requireNoOrgWorkspaceAccess && workspaceIds.length > 0) {
+          const [remainingAccess] = await tx
+            .select({ id: permissions.id })
+            .from(permissions)
+            .where(
+              and(
+                eq(permissions.userId, userId),
+                eq(permissions.entityType, 'workspace'),
+                inArray(permissions.entityId, workspaceIds)
+              )
+            )
+            .limit(1)
 
-      const orgWorkspaces = await tx
-        .select({ id: workspace.id })
-        .from(workspace)
-        .where(eq(workspace.organizationId, organizationId))
-      const workspaceIds = orgWorkspaces.map((w) => w.id)
+          if (remainingAccess) {
+            return { skipped: true as const }
+          }
+        }
 
-      if (requireNoOrgWorkspaceAccess && workspaceIds.length > 0) {
-        const [remainingAccess] = await tx
-          .select({ id: permissions.id })
-          .from(permissions)
+        const deletedMember = await tx
+          .delete(member)
+          .where(and(eq(member.id, memberId), ne(member.role, 'owner')))
+          .returning({ id: member.id })
+
+        if (deletedMember.length === 0) {
+          throw new Error(
+            'Member could not be removed — they may have been promoted to owner concurrently'
+          )
+        }
+
+        if (!skipBillingLogic) {
+          await enqueueOutboxEvent(tx, MEMBER_BILLING_RECONCILIATION_EVENT_TYPE, {
+            userId,
+            organizationId,
+          })
+        }
+
+        const cancelledInvitations = invitationIds.length
+          ? await tx
+              .update(invitation)
+              .set({ status: 'cancelled', updatedAt: new Date() })
+              .where(
+                and(
+                  inArray(invitation.id, invitationIds),
+                  eq(invitation.organizationId, organizationId),
+                  eq(invitation.status, 'pending')
+                )
+              )
+              .returning({ id: invitation.id })
+          : []
+
+        const captureDepartedUsage = async () => {
+          if (skipBillingLogic) return 0
+
+          const [departingUserStats] = await tx
+            .select({ currentPeriodCost: userStats.currentPeriodCost })
+            .from(userStats)
+            .where(eq(userStats.userId, userId))
+            .for('update')
+            .limit(1)
+
+          const usage = toNumber(toDecimal(departingUserStats?.currentPeriodCost))
+          if (usage <= 0) return 0
+
+          await tx
+            .update(organization)
+            .set({
+              departedMemberUsage: sql`${organization.departedMemberUsage} + ${usage}`,
+            })
+            .where(eq(organization.id, organizationId))
+
+          await tx
+            .update(userStats)
+            .set({ currentPeriodCost: '0' })
+            .where(eq(userStats.userId, userId))
+
+          return usage
+        }
+
+        // Permission groups are organization-scoped, so a departing member's group
+        // membership must be cleared whenever they leave the org — including the
+        // zero-workspace early return below (a group can exist with members but no
+        // workspaces).
+        await tx
+          .delete(permissionGroupMember)
+          .where(
+            and(
+              eq(permissionGroupMember.userId, userId),
+              eq(permissionGroupMember.organizationId, organizationId)
+            )
+          )
+
+        if (workspaceIds.length === 0) {
+          const capturedUsage = await captureDepartedUsage()
+
+          return {
+            skipped: false as const,
+            workspaceIdsToRevoke: [] as string[],
+            usageCaptured: capturedUsage,
+            credentialMembershipsRevoked: 0,
+            pendingInvitationsCancelled: cancelledInvitations.length,
+          }
+        }
+
+        await reassignOwnedOrganizationWorkspacesTx({
+          tx,
+          userId,
+          organizationId,
+          workspaceIds,
+        })
+
+        const workflowOwnershipReassignment =
+          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+            tx,
+            workspaceIds,
+            departingUserId: userId,
+          })
+        if (workflowOwnershipReassignment.unresolved.length > 0) {
+          throw new WorkspaceBillingAccountRemovalError()
+        }
+
+        const deletedPerms = await tx
+          .delete(permissions)
           .where(
             and(
               eq(permissions.userId, userId),
@@ -891,140 +1574,24 @@ export async function removeUserFromOrganization(
               inArray(permissions.entityId, workspaceIds)
             )
           )
-          .limit(1)
+          .returning({ entityId: permissions.entityId })
 
-        if (remainingAccess) {
-          return { skipped: true as const }
-        }
-      }
-
-      const deletedMember = await tx
-        .delete(member)
-        .where(and(eq(member.id, memberId), ne(member.role, 'owner')))
-        .returning({ id: member.id })
-
-      if (deletedMember.length === 0) {
-        throw new Error(
-          'Member could not be removed — they may have been promoted to owner concurrently'
+        const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx(
+          tx,
+          workspaceIds,
+          userId
         )
-      }
-
-      const [targetUser] = await tx
-        .select({ email: user.email })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1)
-
-      const cancelledInvitations = targetUser?.email
-        ? await tx
-            .update(invitation)
-            .set({ status: 'cancelled', updatedAt: new Date() })
-            .where(
-              and(
-                eq(invitation.organizationId, organizationId),
-                eq(invitation.status, 'pending'),
-                sql`lower(${invitation.email}) = lower(${targetUser.email})`
-              )
-            )
-            .returning({ id: invitation.id })
-        : []
-
-      const captureDepartedUsage = async () => {
-        if (skipBillingLogic) return 0
-
-        const [departingUserStats] = await tx
-          .select({ currentPeriodCost: userStats.currentPeriodCost })
-          .from(userStats)
-          .where(eq(userStats.userId, userId))
-          .for('update')
-          .limit(1)
-
-        const usage = toNumber(toDecimal(departingUserStats?.currentPeriodCost))
-        if (usage <= 0) return 0
-
-        await tx
-          .update(organization)
-          .set({
-            departedMemberUsage: sql`${organization.departedMemberUsage} + ${usage}`,
-          })
-          .where(eq(organization.id, organizationId))
-
-        await tx
-          .update(userStats)
-          .set({ currentPeriodCost: '0' })
-          .where(eq(userStats.userId, userId))
-
-        return usage
-      }
-
-      // Permission groups are organization-scoped, so a departing member's group
-      // membership must be cleared whenever they leave the org — including the
-      // zero-workspace early return below (a group can exist with members but no
-      // workspaces).
-      await tx
-        .delete(permissionGroupMember)
-        .where(
-          and(
-            eq(permissionGroupMember.userId, userId),
-            eq(permissionGroupMember.organizationId, organizationId)
-          )
-        )
-
-      if (workspaceIds.length === 0) {
         const capturedUsage = await captureDepartedUsage()
 
         return {
           skipped: false as const,
-          workspaceIdsToRevoke: [] as string[],
+          workspaceIdsToRevoke: deletedPerms.map((row) => row.entityId),
           usageCaptured: capturedUsage,
-          credentialMembershipsRevoked: 0,
+          credentialMembershipsRevoked,
           pendingInvitationsCancelled: cancelledInvitations.length,
         }
       }
-
-      await reassignOwnedOrganizationWorkspacesTx({
-        tx,
-        userId,
-        organizationId,
-        workspaceIds,
-      })
-
-      const workflowOwnershipReassignment =
-        await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
-          tx,
-          workspaceIds,
-          departingUserId: userId,
-        })
-      if (workflowOwnershipReassignment.unresolved.length > 0) {
-        throw new WorkspaceBillingAccountRemovalError()
-      }
-
-      const deletedPerms = await tx
-        .delete(permissions)
-        .where(
-          and(
-            eq(permissions.userId, userId),
-            eq(permissions.entityType, 'workspace'),
-            inArray(permissions.entityId, workspaceIds)
-          )
-        )
-        .returning({ entityId: permissions.entityId })
-
-      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx(
-        tx,
-        workspaceIds,
-        userId
-      )
-      const capturedUsage = await captureDepartedUsage()
-
-      return {
-        skipped: false as const,
-        workspaceIdsToRevoke: deletedPerms.map((row) => row.entityId),
-        usageCaptured: capturedUsage,
-        credentialMembershipsRevoked,
-        pendingInvitationsCancelled: cancelledInvitations.length,
-      }
-    })
+    )
 
     if (result.skipped) {
       logger.info('Skipped org removal: member still has workspace access', {
@@ -1087,11 +1654,14 @@ export async function removeUserFromOrganization(
           await syncUsageLimitsFromSubscription(userId)
         }
       } catch (postRemoveError) {
-        logger.error('Post-removal personal Pro restore check failed', {
-          organizationId,
-          userId,
-          error: postRemoveError,
-        })
+        logger.error(
+          'Immediate post-removal personal Pro restore failed; durable retry remains queued',
+          {
+            organizationId,
+            userId,
+            error: postRemoveError,
+          }
+        )
       }
     }
 
@@ -1144,94 +1714,92 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
       permissionGroupsRevoked,
       credentialMembershipsRevoked,
       pendingInvitationsCancelled,
-    } = await db.transaction(async (tx) => {
-      const orgWorkspaces = await tx
-        .select({ id: workspace.id })
-        .from(workspace)
-        .where(eq(workspace.organizationId, organizationId))
+    } = await withInvitationSafeOrganizationAccessMutation(
+      { userId, organizationId, scope: 'external' },
+      async (tx, { workspaceIds, invitationIds }) => {
+        const [currentMember] = await tx
+          .select({ id: member.id })
+          .from(member)
+          .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+          .limit(1)
+        if (currentMember) throw new Error('User is an organization member')
 
-      if (orgWorkspaces.length === 0) {
-        return {
-          workspaceAccessRevoked: 0,
-          permissionGroupsRevoked: 0,
-          credentialMembershipsRevoked: 0,
-          pendingInvitationsCancelled: 0,
+        const cancelledInvitations = invitationIds.length
+          ? await tx
+              .update(invitation)
+              .set({ status: 'cancelled', updatedAt: new Date() })
+              .where(
+                and(
+                  inArray(invitation.id, invitationIds),
+                  eq(invitation.organizationId, organizationId),
+                  eq(invitation.status, 'pending'),
+                  eq(invitation.membershipIntent, 'external')
+                )
+              )
+              .returning({ id: invitation.id })
+          : []
+
+        const deletedPermissionGroups = await tx
+          .delete(permissionGroupMember)
+          .where(
+            and(
+              eq(permissionGroupMember.userId, userId),
+              eq(permissionGroupMember.organizationId, organizationId)
+            )
+          )
+          .returning({ id: permissionGroupMember.id })
+
+        if (workspaceIds.length === 0) {
+          return {
+            workspaceAccessRevoked: 0,
+            permissionGroupsRevoked: deletedPermissionGroups.length,
+            credentialMembershipsRevoked: 0,
+            pendingInvitationsCancelled: cancelledInvitations.length,
+          }
         }
-      }
 
-      const workspaceIds = orgWorkspaces.map((w) => w.id)
-      const [targetUser] = await tx
-        .select({ email: user.email })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1)
+        await reassignOwnedOrganizationWorkspacesTx({
+          tx,
+          userId,
+          organizationId,
+          workspaceIds,
+        })
 
-      await reassignOwnedOrganizationWorkspacesTx({
-        tx,
-        userId,
-        organizationId,
-        workspaceIds,
-      })
+        const workflowOwnershipReassignment =
+          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+            tx,
+            workspaceIds,
+            departingUserId: userId,
+          })
+        if (workflowOwnershipReassignment.unresolved.length > 0) {
+          throw new WorkspaceBillingAccountRemovalError()
+        }
 
-      const workflowOwnershipReassignment =
-        await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+        const deletedPermissions = await tx
+          .delete(permissions)
+          .where(
+            and(
+              eq(permissions.userId, userId),
+              eq(permissions.entityType, 'workspace'),
+              inArray(permissions.entityId, workspaceIds)
+            )
+          )
+          .returning({ entityId: permissions.entityId })
+
+        const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx(
           tx,
           workspaceIds,
-          departingUserId: userId,
-        })
-      if (workflowOwnershipReassignment.unresolved.length > 0) {
-        throw new WorkspaceBillingAccountRemovalError()
-      }
-
-      const deletedPermissions = await tx
-        .delete(permissions)
-        .where(
-          and(
-            eq(permissions.userId, userId),
-            eq(permissions.entityType, 'workspace'),
-            inArray(permissions.entityId, workspaceIds)
-          )
+          userId
         )
-        .returning({ entityId: permissions.entityId })
 
-      const deletedPermissionGroups = await tx
-        .delete(permissionGroupMember)
-        .where(
-          and(
-            eq(permissionGroupMember.userId, userId),
-            eq(permissionGroupMember.organizationId, organizationId)
-          )
-        )
-        .returning({ id: permissionGroupMember.id })
-
-      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx(
-        tx,
-        workspaceIds,
-        userId
-      )
-
-      const cancelledInvitations = targetUser?.email
-        ? await tx
-            .update(invitation)
-            .set({ status: 'cancelled', updatedAt: new Date() })
-            .where(
-              and(
-                eq(invitation.organizationId, organizationId),
-                eq(invitation.status, 'pending'),
-                eq(invitation.membershipIntent, 'external'),
-                sql`lower(${invitation.email}) = lower(${targetUser.email})`
-              )
-            )
-            .returning({ id: invitation.id })
-        : []
-
-      return {
-        workspaceAccessRevoked: deletedPermissions.length,
-        permissionGroupsRevoked: deletedPermissionGroups.length,
-        credentialMembershipsRevoked,
-        pendingInvitationsCancelled: cancelledInvitations.length,
+        return {
+          workspaceAccessRevoked: deletedPermissions.length,
+          permissionGroupsRevoked: deletedPermissionGroups.length,
+          credentialMembershipsRevoked,
+          pendingInvitationsCancelled: cancelledInvitations.length,
+        }
       }
-    })
+    )
 
     if (
       workspaceAccessRevoked === 0 &&
@@ -1327,6 +1895,8 @@ export async function transferOrganizationOwnership(
 
   try {
     await db.transaction(async (tx) => {
+      await acquireOrganizationMutationLock(tx, organizationId)
+      await assertNoUnresolvedEnterpriseIssuance(tx, organizationId)
       const [currentOwnerMember] = await tx
         .select({ id: member.id, role: member.role })
         .from(member)
@@ -1357,18 +1927,13 @@ export async function transferOrganizationOwnership(
 
       await tx.update(member).set({ role: 'owner' }).where(eq(member.id, newOwnerMember.id))
 
-      const billedUpdate = await tx
-        .update(workspace)
-        .set({ billedAccountUserId: newOwnerUserId })
-        .where(
-          and(
-            eq(workspace.organizationId, organizationId),
-            eq(workspace.billedAccountUserId, currentOwnerUserId)
-          )
-        )
-        .returning({ id: workspace.id })
+      const billedWorkspaceIds = await changeOrganizationWorkspaceBilledAccountsInTx(tx, {
+        organizationId,
+        expectedCurrentBilledAccountUserId: currentOwnerUserId,
+        billedAccountUserId: newOwnerUserId,
+      })
 
-      result.billedAccountReassigned = billedUpdate.length
+      result.billedAccountReassigned = billedWorkspaceIds.length
 
       const ownerUpdate = await tx
         .update(workspace)
@@ -1384,7 +1949,7 @@ export async function transferOrganizationOwnership(
       result.workspacesReassigned = ownerUpdate.length
 
       const reassignedWorkspaceIds = Array.from(
-        new Set([...billedUpdate.map((w) => w.id), ...ownerUpdate.map((w) => w.id)])
+        new Set([...billedWorkspaceIds, ...ownerUpdate.map((workspaceRow) => workspaceRow.id)])
       )
 
       if (reassignedWorkspaceIds.length > 0) {
@@ -1598,9 +2163,10 @@ export async function isUserMemberOfOrganization(
  * Get user's current organization membership (if any).
  */
 export async function getUserOrganization(
-  userId: string
+  userId: string,
+  executor: DbOrTx = db
 ): Promise<{ organizationId: string; role: string; memberId: string } | null> {
-  const [memberRecord] = await db
+  const [memberRecord] = await executor
     .select({
       organizationId: member.organizationId,
       role: member.role,

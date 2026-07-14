@@ -1,22 +1,21 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Chip, ChipInput, ChipModalTabs } from '@sim/emcn'
 import { Folder, Search, Workflow } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
-import { debounce, useQueryStates } from 'nuqs'
+import { useQueryStates } from 'nuqs'
+import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
-  DEFAULT_RECENTLY_DELETED_SORT_COLUMN,
-  DEFAULT_RECENTLY_DELETED_SORT_DIRECTION,
-  RECENTLY_DELETED_SORT_COLUMNS,
-  type RecentlyDeletedSortColumn,
   type RecentlyDeletedTab,
   recentlyDeletedParsers,
+  recentlyDeletedSortParams,
   recentlyDeletedUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -31,6 +30,8 @@ import {
   useWorkspaceFileFolders,
 } from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
+import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
@@ -64,18 +65,6 @@ function getResourceHref(
       return `${base}/files?folderId=${id}`
   }
 }
-
-type SortColumn = 'deleted' | 'name' | 'type'
-
-interface SortConfig {
-  column: SortColumn
-  direction: 'asc' | 'desc'
-}
-
-const DEFAULT_SORT: SortConfig = { column: 'deleted', direction: 'desc' }
-
-/** Debounce window for `search` URL writes; the input itself stays instant. */
-const SEARCH_DEBOUNCE_MS = 300 as const
 
 const SORT_OPTIONS: ColumnOption[] = [
   { id: 'deleted', label: 'Deleted' },
@@ -155,35 +144,28 @@ export function RecentlyDeleted() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
-  const [
-    { tab: activeTab, sort: sortColumn, dir: sortDirection, search: urlSearchTerm },
-    setRecentlyDeletedFilters,
-  ] = useQueryStates(recentlyDeletedParsers, recentlyDeletedUrlKeys)
+  const workspacePermissions = useUserPermissionsContext()
+  const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
+  const [{ tab: activeTab, search: urlSearchTerm }, setRecentlyDeletedFilters] = useQueryStates(
+    recentlyDeletedParsers,
+    recentlyDeletedUrlKeys
+  )
+
+  const {
+    sort: sortColumn,
+    dir: sortDirection,
+    activeSort,
+    onSort,
+    onClear,
+  } = useUrlSort(recentlyDeletedSortParams, recentlyDeletedUrlKeys)
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
    * write is debounced. Filtering below is cheap in-memory over a small list, so
    * it reads the instant value too.
    */
-  const setSearchTerm = useCallback(
-    (value: string) => {
-      const trimmed = value.trim()
-      const next = trimmed.length > 0 ? trimmed : null
-      setRecentlyDeletedFilters(
-        { search: next },
-        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
-      )
-    },
-    [setRecentlyDeletedFilters]
-  )
-
-  const activeSort = useMemo<SortConfig | null>(
-    () =>
-      sortColumn === DEFAULT_RECENTLY_DELETED_SORT_COLUMN &&
-      sortDirection === DEFAULT_RECENTLY_DELETED_SORT_DIRECTION
-        ? null
-        : { column: sortColumn, direction: sortDirection },
-    [sortColumn, sortDirection]
+  const setSearchTerm = useDebouncedSearchSetter((value, options) =>
+    setRecentlyDeletedFilters({ search: value }, options)
   )
 
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
@@ -297,15 +279,13 @@ export function RecentlyDeleted() {
 
   const filtered = useMemo(() => {
     let items = resources.filter((resource) => matchesActiveTab(resource, activeTab))
-    if (urlSearchTerm.trim()) {
-      const normalized = urlSearchTerm.toLowerCase()
+    const normalized = urlSearchTerm.trim().toLowerCase()
+    if (normalized) {
       items = items.filter((r) => r.name.toLowerCase().includes(normalized))
     }
-    const col = (activeSort ?? DEFAULT_SORT).column
-    const dir = (activeSort ?? DEFAULT_SORT).direction
     items.sort((a, b) => {
       let cmp = 0
-      switch (col) {
+      switch (sortColumn) {
         case 'name':
           cmp = a.name.localeCompare(b.name)
           break
@@ -316,24 +296,21 @@ export function RecentlyDeleted() {
           cmp = a.deletedAt.getTime() - b.deletedAt.getTime()
           break
       }
-      return dir === 'asc' ? cmp : -cmp
+      return sortDirection === 'asc' ? cmp : -cmp
     })
 
     const itemIds = new Set(items.map((item) => item.id))
     for (const [id, entry] of restoredItems) {
       if (itemIds.has(id)) continue
       if (!matchesActiveTab(entry.resource, activeTab)) continue
-      if (
-        urlSearchTerm.trim() &&
-        !entry.resource.name.toLowerCase().includes(urlSearchTerm.toLowerCase())
-      ) {
+      if (normalized && !entry.resource.name.toLowerCase().includes(normalized)) {
         continue
       }
       items.splice(Math.min(entry.displayIndex, items.length), 0, entry.resource)
     }
 
     return items
-  }, [resources, activeTab, urlSearchTerm, activeSort, restoredItems])
+  }, [resources, activeTab, urlSearchTerm, sortColumn, sortDirection, restoredItems])
 
   const showNoResults = urlSearchTerm.trim() && filtered.length === 0 && resources.length > 0
 
@@ -423,17 +400,8 @@ export function RecentlyDeleted() {
           config={{
             options: SORT_OPTIONS,
             active: activeSort,
-            onSort: (column, direction) => {
-              const sort = (RECENTLY_DELETED_SORT_COLUMNS as readonly string[]).includes(column)
-                ? (column as RecentlyDeletedSortColumn)
-                : DEFAULT_RECENTLY_DELETED_SORT_COLUMN
-              setRecentlyDeletedFilters({ sort, dir: direction })
-            },
-            onClear: () =>
-              setRecentlyDeletedFilters({
-                sort: DEFAULT_RECENTLY_DELETED_SORT_COLUMN,
-                dir: DEFAULT_RECENTLY_DELETED_SORT_DIRECTION,
-              }),
+            onSort,
+            onClear,
           }}
         />
       </div>
@@ -477,7 +445,7 @@ export function RecentlyDeleted() {
                   </>
                 }
                 trailing={
-                  isRestoring ? (
+                  !canEdit ? null : isRestoring ? (
                     <Chip variant='primary' disabled className='shrink-0'>
                       Restoring...
                     </Chip>

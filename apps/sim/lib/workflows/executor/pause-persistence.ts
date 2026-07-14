@@ -11,6 +11,7 @@ interface HandlePostExecutionPauseStateArgs {
   result: ExecutionResult
   workflowId: string
   executionId: string
+  reservationId?: string
   loggingSession: LoggingSession
 }
 
@@ -28,6 +29,7 @@ export async function handlePostExecutionPauseState({
   result,
   workflowId,
   executionId,
+  reservationId = executionId,
   loggingSession,
 }: HandlePostExecutionPauseStateArgs): Promise<void> {
   if (result.status === 'paused') {
@@ -39,6 +41,7 @@ export async function handlePostExecutionPauseState({
         await PauseResumeManager.persistPauseResult({
           workflowId,
           executionId,
+          reservationId,
           pausePoints: result.pausePoints || [],
           snapshotSeed: result.snapshotSeed,
           executorUserId: result.metadata?.userId,

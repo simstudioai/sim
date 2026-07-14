@@ -9,15 +9,41 @@ import {
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const { mockExecutorExecute, mockCreateSnapshot } = vi.hoisted(() => ({
+const {
+  mockExecutorExecute,
+  mockCreateSnapshot,
+  mockResolveBillingAttribution,
+  mockGetCustomBlockAuthority,
+  mockGetPersonalAndWorkspaceEnv,
+  executorOptions,
+} = vi.hoisted(() => ({
   mockExecutorExecute: vi.fn(),
   mockCreateSnapshot: vi.fn(),
+  mockResolveBillingAttribution: vi.fn(),
+  mockGetCustomBlockAuthority: vi.fn(),
+  mockGetPersonalAndWorkspaceEnv: vi.fn(),
+  executorOptions: [] as Array<Record<string, any>>,
 }))
 
 vi.mock('@/executor', () => ({
   Executor: class {
+    constructor(options: Record<string, any>) {
+      executorOptions.push(options)
+    }
     execute = mockExecutorExecute
   },
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  resolveBillingAttribution: mockResolveBillingAttribution,
+}))
+
+vi.mock('@/lib/environment/utils', () => ({
+  getPersonalAndWorkspaceEnv: mockGetPersonalAndWorkspaceEnv,
+}))
+
+vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
+  getCustomBlockAuthority: mockGetCustomBlockAuthority,
 }))
 
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
@@ -92,6 +118,7 @@ describe('WorkflowBlockHandler', () => {
 
     // Reset all mocks
     vi.clearAllMocks()
+    executorOptions.length = 0
 
     // Setup default fetch mock
     mockFetch.mockResolvedValue({
@@ -273,6 +300,107 @@ describe('WorkflowBlockHandler', () => {
       expect(mockExecutorExecute).toHaveBeenCalledWith('child-workflow-id')
     })
 
+    it('threads the parent billing attribution into the child execution context', async () => {
+      const billingAttribution = {
+        actorUserId: 'actor-1',
+        workspaceId: 'workspace-parent',
+        organizationId: 'org-1',
+        billedAccountUserId: 'owner-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+        payerSubscription: null,
+      }
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-parent',
+        metadata: { ...mockContext.metadata, billingAttribution },
+      } as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.billingAttribution).toBe(billingAttribution)
+      expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
+    })
+
+    it('resolves a source-scoped billing attribution for custom block children', async () => {
+      const consumerAttribution = { actorUserId: 'consumer-1', workspaceId: 'workspace-consumer' }
+      const sourceAttribution = { actorUserId: 'owner-9', workspaceId: 'workspace-source' }
+      const customBlock = {
+        ...mockBlock,
+        metadata: { id: 'custom_block_abc', name: 'Published Block' },
+      }
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-consumer',
+        metadata: { ...mockContext.metadata, billingAttribution: consumerAttribution },
+      } as unknown as ExecutionContext
+
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: [],
+      })
+      mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      })
+      mockResolveBillingAttribution.mockResolvedValue(sourceAttribution)
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                name: 'Source Workflow',
+                workspaceId: 'workspace-source',
+                variables: {},
+              },
+            }),
+        }
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, customBlock, {})
+
+      expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.billingAttribution).toBe(sourceAttribution)
+      expect(executorOptions[0].contextExtensions.userId).toBe('owner-9')
+      expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
+    })
+
     it('should fail closed when the executing context has no workspace', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -387,6 +515,45 @@ describe('WorkflowBlockHandler', () => {
         childWorkflowName: 'Child Workflow',
         result: { nested: 'data' },
         childTraceSpans: [],
+      })
+    })
+  })
+
+  describe('projectCustomBlockOutput', () => {
+    const childResult = {
+      success: true,
+      output: { data: 'whole result' },
+      logs: [{ blockId: 'b1', success: true, output: { data: { x: 42 }, price: 999 } }],
+    }
+
+    it('maps each curated output to its named field plus system fields', () => {
+      const result = (handler as any).projectCustomBlockOutput(
+        childResult,
+        [{ blockId: 'b1', path: 'data.x', name: 'answer' }],
+        0.5
+      )
+
+      expect(result).toEqual({ answer: 42, success: true, cost: { total: 0.5 } })
+    })
+
+    it('never lets an exposed output named cost clobber the billed cost', () => {
+      const result = (handler as any).projectCustomBlockOutput(
+        childResult,
+        [{ blockId: 'b1', path: 'price', name: 'cost' }],
+        0.5
+      )
+
+      expect(result.cost).toEqual({ total: 0.5 })
+      expect(result.success).toBe(true)
+    })
+
+    it('exposes the whole child result when no outputs are curated', () => {
+      const result = (handler as any).projectCustomBlockOutput(childResult, [], 0.5)
+
+      expect(result).toEqual({
+        success: true,
+        result: { data: 'whole result' },
+        cost: { total: 0.5 },
       })
     })
   })

@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { NodeMetadata } from '@/executor/dag/types'
 import type {
@@ -16,6 +17,8 @@ export interface ExecutionMetadata {
   workflowId: string
   workspaceId: string
   userId: string
+  /** Immutable actor/payer decision captured before execution. */
+  billingAttribution?: BillingAttributionSnapshot
   sessionUserId?: string
   workflowUserId?: string
   triggerType: string
@@ -165,6 +168,13 @@ export interface ContextExtensions {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /**
+   * Immutable actor/payer decision for this execution. Child workflow
+   * executions receive it here (they carry no full metadata), so internal
+   * tool calls inside the child still attach the billing attribution header.
+   * Takes precedence over `metadata.billingAttribution` when both are set.
+   */
+  billingAttribution?: BillingAttributionSnapshot
   stream?: boolean
   selectedOutputs?: string[]
   edges?: Array<{ source: string; target: string }>

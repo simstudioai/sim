@@ -41,7 +41,7 @@ const PRODUCT_LINKS: FooterItem[] = [
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
-  { label: 'Compare', href: '/comparison' },
+  { label: 'Compare', href: '/comparisons' },
   { label: 'Careers', href: '/careers' },
   { label: 'Changelog', href: '/changelog' },
   { label: 'Contact', href: '/contact' },
@@ -89,7 +89,11 @@ const SOCIAL_LINKS: FooterItem[] = [
     href: 'https://www.linkedin.com/company/simstudioai/',
     external: true,
   },
-  { label: 'Discord', href: 'https://discord.gg/Hr4UWYEcTT', external: true },
+  {
+    label: 'Slack',
+    href: 'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
+    external: true,
+  },
   {
     label: 'GitHub',
     href: 'https://github.com/simstudioai/sim',

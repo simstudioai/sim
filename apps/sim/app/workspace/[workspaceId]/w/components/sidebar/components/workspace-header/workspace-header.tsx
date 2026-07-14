@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, type ReactElement, useEffect, useRef, useState } from 'react'
 import {
   ChevronDown,
   Chip,
@@ -14,20 +14,46 @@ import {
   Plus,
   Send,
   Skeleton,
+  Tooltip,
 } from '@sim/emcn'
 import { ManageWorkspace, PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal } from 'lucide-react'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useActiveOrganization } from '@/lib/auth/auth-client'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
+import {
+  CreateWorkspaceModal,
+  type CreateWorkspaceTarget,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
+
+interface DisabledReasonTooltipProps {
+  reason: string | null
+  children: ReactElement
+}
+
+/**
+ * Wraps a menu item in a tooltip explaining why the action is unavailable.
+ * Renders the child as-is when there is no reason to show.
+ */
+function DisabledReasonTooltip({ reason, children }: DisabledReasonTooltipProps) {
+  if (!reason) return children
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+      <Tooltip.Content>
+        <p>{reason}</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
 
 interface WorkspaceHeaderProps {
   /** The active workspace object */
@@ -120,6 +146,7 @@ function WorkspaceHeaderImpl({
     setIsMounted(true)
   }, [])
 
+  const { data: viewerActiveOrganization } = useActiveOrganization()
   const { navigateToSettings } = useSettingsNavigation()
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
@@ -130,6 +157,17 @@ function WorkspaceHeaderImpl({
   const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
+  const createWorkspaceTarget: CreateWorkspaceTarget =
+    workspaceCreationPolicy?.workspaceMode === 'organization' &&
+    workspaceCreationPolicy.organizationId
+      ? {
+          type: 'organization',
+          organizationName:
+            viewerActiveOrganization?.id === workspaceCreationPolicy.organizationId
+              ? viewerActiveOrganization.name
+              : 'your organization',
+        }
+      : { type: 'personal' }
 
   /**
    * Save and exit edit mode when popover closes
@@ -532,62 +570,67 @@ function WorkspaceHeaderImpl({
                 <DropdownMenuSeparator className='mx-0' />
 
                 <div className='flex flex-col gap-0.5'>
-                  <Chip
-                    leftIcon={Plus}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setIsWorkspaceMenuOpen(false)
-                      if (!canCreateWorkspace) {
-                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                        return
-                      }
-                      setIsCreateModalOpen(true)
-                    }}
-                    disabled={isCreatingWorkspace}
-                    title={createWorkspaceDisabledReason ?? undefined}
-                    fullWidth
-                    flush
-                    className='w-full select-none disabled:pointer-events-none disabled:opacity-50'
-                  >
-                    New workspace
-                  </Chip>
+                  <DisabledReasonTooltip reason={createWorkspaceDisabledReason}>
+                    <Chip
+                      leftIcon={Plus}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!canCreateWorkspace) return
+                        setIsWorkspaceMenuOpen(false)
+                        setIsCreateModalOpen(true)
+                      }}
+                      disabled={isCreatingWorkspace}
+                      aria-disabled={!canCreateWorkspace || undefined}
+                      fullWidth
+                      flush
+                      className={cn(
+                        'select-none',
+                        !canCreateWorkspace &&
+                          'cursor-not-allowed opacity-60 hover-hover:bg-transparent'
+                      )}
+                    >
+                      New workspace
+                    </Chip>
+                  </DisabledReasonTooltip>
                 </div>
 
                 <DropdownMenuSeparator className='mx-0' />
-                <Chip
-                  leftIcon={Send}
-                  onClick={() => {
-                    setIsWorkspaceMenuOpen(false)
-                    if (isInvitationsDisabled) {
-                      if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                      return
-                    }
-                    setIsInviteModalOpen(true)
-                  }}
-                  title={inviteDisabledReason ?? undefined}
-                  fullWidth
-                  flush
-                  className='w-full select-none'
-                >
-                  Invite teammates
-                </Chip>
-                <Chip
-                  leftIcon={ManageWorkspace}
-                  onClick={() => {
-                    setIsWorkspaceMenuOpen(false)
-                    if (isInvitationsDisabled) {
-                      if (isBillingEnabled) navigateToSettings({ section: 'billing' })
-                      return
-                    }
-                    navigateToSettings({ section: 'teammates' })
-                  }}
-                  title={inviteDisabledReason ?? undefined}
-                  fullWidth
-                  flush
-                  className='w-full select-none'
-                >
-                  Manage workspace
-                </Chip>
+                <DisabledReasonTooltip reason={inviteDisabledReason}>
+                  <Chip
+                    leftIcon={Send}
+                    onClick={() => {
+                      setIsWorkspaceMenuOpen(false)
+                      if (isInvitationsDisabled) {
+                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+                        return
+                      }
+                      setIsInviteModalOpen(true)
+                    }}
+                    fullWidth
+                    flush
+                    className='select-none'
+                  >
+                    Invite teammates
+                  </Chip>
+                </DisabledReasonTooltip>
+                <DisabledReasonTooltip reason={inviteDisabledReason}>
+                  <Chip
+                    leftIcon={ManageWorkspace}
+                    onClick={() => {
+                      setIsWorkspaceMenuOpen(false)
+                      if (isInvitationsDisabled) {
+                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+                        return
+                      }
+                      navigateToSettings({ section: 'teammates' })
+                    }}
+                    fullWidth
+                    flush
+                    className='select-none'
+                  >
+                    Manage workspace
+                  </Chip>
+                </DisabledReasonTooltip>
               </>
             )}
           </DropdownMenuContent>
@@ -667,6 +710,7 @@ function WorkspaceHeaderImpl({
           setIsCreateModalOpen(false)
         }}
         isCreating={isCreatingWorkspace}
+        target={createWorkspaceTarget}
       />
 
       <InviteModal

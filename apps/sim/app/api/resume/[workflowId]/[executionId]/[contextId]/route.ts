@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   getPauseContextDetailContract,
@@ -8,6 +9,10 @@ import {
 } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { AuthType } from '@/lib/auth/hybrid'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+} from '@/lib/billing/core/billing-attribution'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
@@ -16,31 +21,81 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import type { ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { SerializedSnapshot } from '@/executor/types'
 
 const logger = createLogger('WorkflowResumeAPI')
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function getStoredSnapshotConfig(pausedExecution: { executionSnapshot: unknown }): {
-  executionMode?: 'sync' | 'stream' | 'async'
-  selectedOutputs?: string[]
-} {
-  try {
-    const serialized = pausedExecution.executionSnapshot as SerializedSnapshot
-    const snapshot = ExecutionSnapshot.fromJSON(serialized.snapshot)
-    return {
-      executionMode: snapshot.metadata.executionMode,
-      selectedOutputs: snapshot.selectedOutputs,
-    }
-  } catch {
-    return {}
+const INVALID_PAUSED_SNAPSHOT_ERROR = 'Paused execution snapshot is invalid'
+const INVALID_PAUSED_ATTRIBUTION_ERROR =
+  'Paused execution billing attribution is missing or invalid'
+const PAUSED_EXECUTION_BINDING_ERROR =
+  'Paused execution snapshot does not match the requested workflow or execution'
+const PAUSED_ATTRIBUTION_BINDING_ERROR =
+  'Paused execution billing attribution does not match its workspace or actor'
+
+interface PausedExecutionSnapshotSource {
+  workflowId: string
+  executionId: string
+  executionSnapshot: unknown
+}
+
+interface PausedExecutionSnapshotBinding {
+  snapshot: ExecutionSnapshot
+  billingAttribution: BillingAttributionSnapshot
+}
+
+function loadPausedExecutionSnapshot(
+  pausedExecution: PausedExecutionSnapshotSource,
+  expected: { workflowId: string; executionId: string; workspaceId: string }
+): PausedExecutionSnapshotBinding {
+  if (
+    !isRecordLike(pausedExecution.executionSnapshot) ||
+    typeof pausedExecution.executionSnapshot.snapshot !== 'string'
+  ) {
+    throw new Error(INVALID_PAUSED_SNAPSHOT_ERROR)
   }
+
+  let snapshot: ExecutionSnapshot
+  try {
+    snapshot = ExecutionSnapshot.fromJSON(pausedExecution.executionSnapshot.snapshot)
+  } catch {
+    throw new Error(INVALID_PAUSED_SNAPSHOT_ERROR)
+  }
+
+  if (!isRecordLike(snapshot.metadata)) {
+    throw new Error(INVALID_PAUSED_SNAPSHOT_ERROR)
+  }
+
+  let billingAttribution: BillingAttributionSnapshot
+  try {
+    billingAttribution = assertBillingAttributionSnapshot(snapshot.metadata.billingAttribution)
+  } catch {
+    throw new Error(INVALID_PAUSED_ATTRIBUTION_ERROR)
+  }
+
+  if (
+    pausedExecution.workflowId !== expected.workflowId ||
+    pausedExecution.executionId !== expected.executionId ||
+    snapshot.metadata.workflowId !== expected.workflowId ||
+    snapshot.metadata.executionId !== expected.executionId
+  ) {
+    throw new Error(PAUSED_EXECUTION_BINDING_ERROR)
+  }
+
+  if (
+    snapshot.metadata.workspaceId !== expected.workspaceId ||
+    billingAttribution.workspaceId !== expected.workspaceId ||
+    snapshot.metadata.userId !== billingAttribution.actorUserId
+  ) {
+    throw new Error(PAUSED_ATTRIBUTION_BINDING_ERROR)
+  }
+
+  return { snapshot, billingAttribution }
 }
 
 export const POST = withRouteHandler(
@@ -50,16 +105,53 @@ export const POST = withRouteHandler(
       params: Promise<{ workflowId: string; executionId: string; contextId: string }>
     }
   ) => {
-    const parsed = await parseRequest(resumeWorkflowExecutionContextContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { workflowId, executionId, contextId } = parsed.data.params
-
-    const access = await validateWorkflowAccess(request, workflowId, false)
+    const { workflowId: requestedWorkflowId } = await context.params
+    const access = await validateWorkflowAccess(request, requestedWorkflowId, false)
     if (access.error) {
       return NextResponse.json({ error: access.error.message }, { status: access.error.status })
     }
 
+    const parsed = await parseRequest(resumeWorkflowExecutionContextContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { workflowId, executionId, contextId } = parsed.data.params
+    const requestId = generateRequestId()
+
     const workflow = access.workflow
+    if (!workflow?.workspaceId) {
+      logger.error(`[${requestId}] Authorized workflow has no workspace`, { workflowId })
+      return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
+    }
+    const userId = access.auth?.userId
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const pausedExecution = await PauseResumeManager.getPausedExecutionDetail({
+      workflowId,
+      executionId,
+    })
+    if (!pausedExecution) {
+      return NextResponse.json({ error: 'Paused execution not found' }, { status: 404 })
+    }
+
+    let snapshotBinding: PausedExecutionSnapshotBinding
+    try {
+      snapshotBinding = loadPausedExecutionSnapshot(pausedExecution, {
+        workflowId,
+        executionId,
+        workspaceId: workflow.workspaceId,
+      })
+    } catch (error) {
+      const message = toError(error).message
+      logger.error(`[${requestId}] Failed to validate paused execution snapshot`, {
+        workflowId,
+        executionId,
+        error: message,
+      })
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+
+    const { snapshot: persistedSnapshot, billingAttribution } = snapshotBinding
 
     let payload: unknown = {}
     try {
@@ -72,37 +164,21 @@ export const POST = withRouteHandler(
       typeof payload === 'object' && payload !== null && 'input' in payload
         ? payload.input
         : (payload ?? {})
-    const isPersonalApiKeyCaller =
-      access.auth?.authType === AuthType.API_KEY && access.auth?.apiKeyType === 'personal'
-
-    let userId: string
-    if (isPersonalApiKeyCaller && access.auth?.userId) {
-      userId = access.auth.userId
-    } else {
-      const billedAccountUserId = await getWorkspaceBilledAccountUserId(workflow.workspaceId)
-      if (!billedAccountUserId) {
-        logger.error('Unable to resolve workspace billed account for resume execution', {
-          workflowId,
-          workspaceId: workflow.workspaceId,
-        })
-        return NextResponse.json(
-          { error: 'Unable to resolve billing account for this workspace' },
-          { status: 500 }
-        )
-      }
-      userId = billedAccountUserId
-    }
-
     const resumeExecutionId = generateId()
-    const requestId = generateRequestId()
 
     logger.info(`[${requestId}] Preprocessing resume execution`, {
       workflowId,
       parentExecutionId: executionId,
       resumeExecutionId,
       userId,
+      actorUserId: billingAttribution.actorUserId,
     })
 
+    /**
+     * This preflight gives synchronous callers current block/usage feedback
+     * without reserving under a throwaway id. The claimed resume reruns every
+     * gate and reserves atomically under its persisted resume execution id.
+     */
     const preprocessResult = await preprocessExecution({
       workflowId,
       userId,
@@ -111,9 +187,10 @@ export const POST = withRouteHandler(
       requestId,
       checkRateLimit: false,
       checkDeployment: false,
-      skipUsageLimits: true,
-      useAuthenticatedUserAsActor: isPersonalApiKeyCaller,
-      workspaceId: workflow.workspaceId || undefined,
+      skipConcurrencyReservation: true,
+      logPreprocessingErrors: false,
+      workspaceId: workflow.workspaceId,
+      billingAttribution,
     })
 
     if (!preprocessResult.success) {
@@ -170,16 +247,15 @@ export const POST = withRouteHandler(
       }
 
       const isApiCaller = access.auth?.authType === AuthType.API_KEY
-      const snapshotConfig = isApiCaller
-        ? getStoredSnapshotConfig(enqueueResult.pausedExecution)
-        : {}
-      const executionMode = isApiCaller ? (snapshotConfig.executionMode ?? 'sync') : undefined
+      const executionMode = isApiCaller
+        ? (persistedSnapshot.metadata.executionMode ?? 'sync')
+        : undefined
 
       if (isApiCaller && executionMode === 'stream') {
         const stream = await createStreamingResponse({
           requestId,
           streamConfig: {
-            selectedOutputs: snapshotConfig.selectedOutputs,
+            selectedOutputs: persistedSnapshot.selectedOutputs,
             timeoutMs: preprocessResult.executionTimeout?.sync,
           },
           executionId: enqueueResult.resumeExecutionId,
@@ -298,9 +374,11 @@ export const POST = withRouteHandler(
         contextId,
         error,
       })
+      const statusCode =
+        isRecordLike(error) && typeof error.statusCode === 'number' ? error.statusCode : 400
       return NextResponse.json(
         { error: toError(error).message || 'Failed to queue resume request' },
-        { status: 400 }
+        { status: statusCode }
       )
     }
   }
@@ -313,14 +391,15 @@ export const GET = withRouteHandler(
       params: Promise<{ workflowId: string; executionId: string; contextId: string }>
     }
   ) => {
-    const parsed = await parseRequest(getPauseContextDetailContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { workflowId, executionId, contextId } = parsed.data.params
-
-    const access = await validateWorkflowAccess(request, workflowId, false)
+    const { workflowId: requestedWorkflowId } = await context.params
+    const access = await validateWorkflowAccess(request, requestedWorkflowId, false)
     if (access.error) {
       return NextResponse.json({ error: access.error.message }, { status: access.error.status })
     }
+
+    const parsed = await parseRequest(getPauseContextDetailContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { workflowId, executionId, contextId } = parsed.data.params
 
     const detail = await PauseResumeManager.getPauseContextDetail({
       workflowId,

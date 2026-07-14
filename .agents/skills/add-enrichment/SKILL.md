@@ -1,6 +1,7 @@
 ---
 name: add-enrichment
 description: Add a code-defined table enrichment (registry entry) under `apps/sim/enrichments/` backed by an ordered provider cascade, ensuring every provider tool it calls has hosted-key support. Use when adding a per-row table enrichment that fills cells via existing Sim tools.
+argument-hint: <enrichment-name>
 ---
 
 # Adding a Table Enrichment

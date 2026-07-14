@@ -1106,12 +1106,17 @@ export const simProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          'Plan-gated: synchronous API calls time out at 5 minutes on the free plan and 50 minutes on paid plans, async calls at 90 minutes on every plan, with 15 to 300 concurrent executions per billing entity depending on plan',
+          'Plan-gated: synchronous API calls time out at 5 minutes on the free plan and 50 minutes on paid plans, async calls at 90 minutes on every plan, with 10 to 1,000 concurrent executions per billing account depending on plan',
         detail:
-          'These limits are not published in docs; request bodies are separately capped at 10 MB.',
-        shortValue: '5-50 min sync timeout, 90 min async, 15-300 concurrent',
+          'Concurrency limits are published in the platform cost docs, and Enterprise limits are customizable. Request bodies are separately capped at 10 MB.',
+        shortValue: '5-50 min sync timeout, 90 min async, 10-1,000 concurrent',
         confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.sim.ai/platform/costs#concurrent-executions',
+            label: 'Sim Docs: Concurrent Executions',
+            asOf: '2026-07-13',
+          },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/core/execution-limits/types.ts',
             label: 'Sim codebase: per-plan execution timeouts',
@@ -1120,7 +1125,7 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/calculations/usage-reservation.ts',
             label: 'Sim codebase: max concurrent executions per plan',
-            asOf: '2026-07-02',
+            asOf: '2026-07-13',
           },
         ],
       },

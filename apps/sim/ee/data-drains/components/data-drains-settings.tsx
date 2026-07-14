@@ -22,13 +22,10 @@ import {
   toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
-import { useSession } from '@/lib/auth/auth-client'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -42,7 +39,6 @@ import {
   useTestDataDrain,
   useUpdateDataDrain,
 } from '@/ee/data-drains/hooks/data-drains'
-import { useOrganizations } from '@/hooks/queries/organization'
 
 const logger = createLogger('DataDrainsSettings')
 
@@ -77,17 +73,16 @@ const DESTINATION_OPTIONS = DESTINATION_TYPES.map((t) => ({
   label: DESTINATION_LABELS[t],
 }))
 
-export function DataDrainsSettings() {
-  const { data: session, isPending: sessionPending } = useSession()
-  const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
-  const activeOrganization = orgsData?.activeOrganization
-  const orgId = activeOrganization?.id
+interface DataDrainsSettingsProps {
+  organizationId: string
+}
 
-  const userEmail = session?.user?.email
-  const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = isOrgAdminRole(userRole)
-
-  const { data: drains, isLoading: drainsLoading, error: drainsError } = useDataDrains(orgId)
+export function DataDrainsSettings({ organizationId }: DataDrainsSettingsProps) {
+  const {
+    data: drains,
+    isLoading: drainsLoading,
+    error: drainsError,
+  } = useDataDrains(organizationId)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [expandedDrainId, setExpandedDrainId] = useState<string | null>(null)
@@ -105,25 +100,7 @@ export function DataDrainsSettings() {
         ].some((value) => value.toLowerCase().includes(query))
       )
 
-  if (sessionPending || orgsLoading || drainsLoading) {
-    return null
-  }
-
-  if (!orgId) {
-    return (
-      <SettingsEmptyState>
-        Data drains are configured per organization. Join or create one to continue.
-      </SettingsEmptyState>
-    )
-  }
-
-  if (!canManage) {
-    return (
-      <SettingsEmptyState>
-        Only organization owners and admins can configure data drains.
-      </SettingsEmptyState>
-    )
-  }
+  if (drainsLoading) return null
 
   return (
     <>
@@ -169,7 +146,7 @@ export function DataDrainsSettings() {
                       <DrainRow
                         key={drain.id}
                         drain={drain}
-                        organizationId={orgId}
+                        organizationId={organizationId}
                         expanded={expandedDrainId === drain.id}
                         onToggleExpand={() =>
                           setExpandedDrainId(expandedDrainId === drain.id ? null : drain.id)
@@ -191,7 +168,7 @@ export function DataDrainsSettings() {
       </SettingsPanel>
 
       {createOpen && (
-        <CreateDrainModal organizationId={orgId} onClose={() => setCreateOpen(false)} />
+        <CreateDrainModal organizationId={organizationId} onClose={() => setCreateOpen(false)} />
       )}
     </>
   )

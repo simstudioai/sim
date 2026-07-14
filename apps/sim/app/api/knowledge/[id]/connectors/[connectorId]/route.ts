@@ -14,7 +14,7 @@ import { updateKnowledgeConnectorContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
+import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
@@ -113,7 +113,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       body.syncIntervalMinutes > 0 &&
       body.syncIntervalMinutes < 60
     ) {
-      const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
+      const workspaceId = writeCheck.knowledgeBase.workspaceId
+      if (!workspaceId) {
+        return NextResponse.json(
+          { error: 'Knowledge base is missing workspace billing context' },
+          { status: 409 }
+        )
+      }
+      const canUseLiveSync = await hasWorkspaceLiveSyncAccess(workspaceId)
       if (!canUseLiveSync) {
         return NextResponse.json(
           { error: 'Live sync requires a Max or Enterprise plan' },

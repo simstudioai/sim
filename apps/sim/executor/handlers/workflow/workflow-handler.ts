@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
@@ -360,6 +361,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       let childUserId = ctx.userId
       let childWorkspaceId = ctx.workspaceId
       let childEnvVarValues = ctx.environmentVariables
+      let childBillingAttribution = ctx.metadata.billingAttribution
       if (isCustomBlock) {
         if (!loadUserId) {
           throw new Error('Custom block source workflow has no owner')
@@ -371,6 +373,15 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkspaceId = childWorkflow.workspaceId
         const ownerEnv = await getPersonalAndWorkspaceEnv(loadUserId, childWorkflow.workspaceId)
         childEnvVarValues = { ...ownerEnv.personalDecrypted, ...ownerEnv.workspaceDecrypted }
+        // Custom-block children authenticate internal tool calls as the source
+        // owner in the source workspace, so the consumer's snapshot would fail
+        // the internal routes' actor/workspace scope match. Resolve the
+        // source-scoped payer instead — the same decision those routes made
+        // themselves before attribution headers became required.
+        childBillingAttribution = await resolveBillingAttribution({
+          actorUserId: loadUserId,
+          workspaceId: childWorkflow.workspaceId,
+        })
       }
 
       const subExecutor = new Executor({
@@ -388,6 +399,10 @@ export class WorkflowBlockHandler implements BlockHandler {
           workspaceId: childWorkspaceId,
           userId: childUserId,
           executionId: ctx.executionId,
+          // Same-workspace children share the parent's frozen payer decision so
+          // internal tool calls (knowledge, guardrails, MCP, Mothership) can
+          // attach the required billing attribution header.
+          billingAttribution: childBillingAttribution,
           abortSignal: ctx.abortSignal,
           // Propagate in-flight block-output redaction into child workflows so
           // nested blocks mask outputs too (recurses: each child forwards it).
@@ -873,14 +888,15 @@ export class WorkflowBlockHandler implements BlockHandler {
       return { success: true, result: executionResult.output ?? {}, ...cost }
     }
     const logs = executionResult.logs ?? []
-    const output: Record<string, unknown> = { success: true, ...cost }
+    const output: Record<string, unknown> = {}
     for (const { blockId, path, name } of exposedOutputs) {
       const log =
         [...logs].reverse().find((l) => l.blockId === blockId && l.success) ??
         [...logs].reverse().find((l) => l.blockId === blockId)
       output[name] = log ? getValueAtPath(log.output, path) : undefined
     }
-    return output as BlockOutput
+    // System fields spread last — pre-validation rows may still name an output cost/success.
+    return { ...output, success: true, ...cost } as BlockOutput
   }
 
   private mapChildOutputToParent(

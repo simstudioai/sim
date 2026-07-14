@@ -6,10 +6,14 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { triggerKnowledgeConnectorSyncContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import {
+  requireBillingAttributionHeader,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
+import { dispatchSync } from '@/lib/knowledge/connectors/queue'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
@@ -59,9 +63,26 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
       return NextResponse.json({ error: 'Sync already in progress' }, { status: 409 })
     }
 
+    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId
+    if (!kbWorkspaceId) {
+      return NextResponse.json(
+        { error: 'Knowledge base is missing workspace billing context' },
+        { status: 409 }
+      )
+    }
+    const billingAttribution =
+      auth.authType === AuthType.INTERNAL_JWT
+        ? requireBillingAttributionHeader(request.headers, {
+            actorUserId: auth.userId,
+            workspaceId: kbWorkspaceId,
+          })
+        : await resolveBillingAttribution({
+            actorUserId: auth.userId,
+            workspaceId: kbWorkspaceId,
+          })
+
     logger.info(`[${requestId}] Manual sync triggered for connector ${connectorId}`)
 
-    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
     captureServerEvent(
       auth.userId,
       'knowledge_base_connector_synced',
@@ -93,7 +114,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
       request,
     })
 
-    dispatchSync(connectorId, { requestId }).catch((error) => {
+    dispatchSync(connectorId, { billingAttribution, requestId }).catch((error) => {
       logger.error(
         `[${requestId}] Failed to dispatch manual sync for connector ${connectorId}`,
         error

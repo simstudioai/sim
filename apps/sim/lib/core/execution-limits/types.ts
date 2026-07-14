@@ -61,12 +61,21 @@ const EXECUTION_TIMEOUTS: Record<SubscriptionPlan, ExecutionTimeoutConfig> = {
   },
 }
 
+/**
+ * Per-plan execution timeout in milliseconds; `0` means no timeout.
+ * Billing-disabled deployments run untimed unless the operator explicitly set
+ * the free-tier env var (`EXECUTION_TIMEOUT_FREE` /
+ * `EXECUTION_TIMEOUT_ASYNC_FREE`), which opts back into that bound.
+ */
 export function getExecutionTimeout(
   plan: SubscriptionPlan | string | undefined,
   type: 'sync' | 'async' = 'sync'
 ): number {
   if (!isBillingEnabled) {
-    return EXECUTION_TIMEOUTS.free[type]
+    const override = Number.parseInt(
+      (type === 'sync' ? env.EXECUTION_TIMEOUT_FREE : env.EXECUTION_TIMEOUT_ASYNC_FREE) || ''
+    )
+    return Number.isFinite(override) && override > 0 ? EXECUTION_TIMEOUTS.free[type] : 0
   }
   return EXECUTION_TIMEOUTS[getPlanTypeForLimits(plan)][type]
 }

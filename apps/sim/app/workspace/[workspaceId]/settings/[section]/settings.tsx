@@ -5,11 +5,14 @@ import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { useSettingsBeforeUnload } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-before-unload'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import {
+  getSettingsSectionMeta,
+  isBillingEnabled,
+  type SettingsSection,
+} from '@/app/workspace/[workspaceId]/settings/navigation'
 
 const Admin = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin)
@@ -100,9 +103,8 @@ interface SettingsPageProps {
 
 export function SettingsPage({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
+  const hostContext = useWorkspaceHostContext()
   const posthog = usePostHog()
-
-  useSettingsBeforeUnload()
 
   const isAdminRole = session?.user?.role === 'admin'
   const normalizedSection: SettingsSection =
@@ -115,27 +117,56 @@ export function SettingsPage({ section }: SettingsPageProps) {
         : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
           ? 'general'
           : normalizedSection
+  const organizationId = hostContext.hostOrganizationId
+  const meta = getSettingsSectionMeta(effectiveSection)
 
   useEffect(() => {
     if (sessionLoading) return
-    captureEvent(posthog, 'settings_tab_viewed', { section: effectiveSection })
+    captureEvent(posthog, 'settings_tab_viewed', {
+      plane: 'workspace',
+      section: effectiveSection,
+    })
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <SettingsSectionProvider section={effectiveSection}>
+    <SettingsSectionProvider section={effectiveSection} meta={meta ?? undefined}>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'secrets' && <Secrets />}
-      {effectiveSection === 'access-control' && <AccessControl />}
+      {effectiveSection === 'access-control' && organizationId && (
+        <AccessControl
+          organizationId={organizationId}
+          isOrganizationAdmin={hostContext.viewer.isHostOrganizationAdmin}
+        />
+      )}
       {effectiveSection === 'custom-blocks' && <CustomBlocks />}
-      {effectiveSection === 'audit-logs' && <AuditLogs />}
-      {effectiveSection === 'apikeys' && <ApiKeys />}
-      {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
+      {effectiveSection === 'audit-logs' && organizationId && (
+        <AuditLogs organizationId={organizationId} />
+      )}
+      {effectiveSection === 'apikeys' && <ApiKeys scope='combined' />}
+      {isBillingEnabled && effectiveSection === 'billing' && (
+        <Billing
+          scope={organizationId ? 'organization' : 'account'}
+          organizationId={organizationId ?? undefined}
+          creditUsageHref={`/workspace/${hostContext.workspace.id}/settings/billing/credit-usage`}
+        />
+      )}
       {effectiveSection === 'teammates' && <Teammates />}
-      {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
-      {effectiveSection === 'sso' && <SSO />}
-      {effectiveSection === 'data-retention' && <DataRetentionSettings />}
-      {effectiveSection === 'data-drains' && <DataDrainsSettings />}
-      {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
+      {isBillingEnabled && effectiveSection === 'organization' && organizationId && (
+        <TeamManagement
+          organizationId={organizationId}
+          billingHref={`/workspace/${hostContext.workspace.id}/settings/billing`}
+        />
+      )}
+      {effectiveSection === 'sso' && organizationId && <SSO organizationId={organizationId} />}
+      {effectiveSection === 'data-retention' && organizationId && (
+        <DataRetentionSettings organizationId={organizationId} />
+      )}
+      {effectiveSection === 'data-drains' && organizationId && (
+        <DataDrainsSettings organizationId={organizationId} />
+      )}
+      {effectiveSection === 'whitelabeling' && organizationId && (
+        <WhitelabelingSettings organizationId={organizationId} />
+      )}
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP />}
