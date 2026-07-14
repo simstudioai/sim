@@ -5,7 +5,11 @@ import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-ca
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
-import { getToolDisplayTitle, humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import {
+  getToolCompletedTitle,
+  getToolDisplayTitle,
+  humanizeToolName,
+} from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
@@ -101,8 +105,12 @@ function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): str
 
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
-  const displayTitle =
+  const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
+  const displayTitle =
+    tc.status === 'success'
+      ? (getToolCompletedTitle(resolvedTitle) ?? resolvedTitle)
+      : resolvedTitle
 
   return {
     id: tc.id,
@@ -129,13 +137,34 @@ function createAgentGroupSegment(name: string, id: string): AgentGroupSegment {
   }
 }
 
-function appendTextItem(group: AgentGroupSegment, content: string): void {
+type NarrationChannel = 'thinking' | 'assistant'
+
+/**
+ * Appends narration content to a group, merging into the previous text item.
+ * When a thinking run and a text run meet, their contents can glue together
+ * without any whitespace at the seam. The merge repairs only that semantic
+ * channel transition, and only at an unambiguous sentence boundary — trailing
+ * punctuation meeting a fresh alphanumeric start. Same-channel continuations
+ * (streamed chunks of one run, resume legs) are concatenated verbatim, so a
+ * token split like `v2.` + `1` is never mutated. `lastChannelByGroup` is the
+ * caller's per-parse tracker of each group's most recent narration channel.
+ */
+function appendTextItem(
+  group: AgentGroupSegment,
+  content: string,
+  channel: NarrationChannel,
+  lastChannelByGroup: Map<AgentGroupSegment, NarrationChannel>
+): void {
   const lastItem = group.items[group.items.length - 1]
   if (lastItem?.type === 'text') {
-    lastItem.content += content
+    const isChannelSeam = lastChannelByGroup.get(group) !== channel
+    const needsSpace =
+      isChannelSeam && /[.!?;:]$/.test(lastItem.content) && /^[A-Za-z0-9]/.test(content)
+    lastItem.content += (needsSpace ? ' ' : '') + content
   } else {
     group.items.push({ type: 'text', content })
   }
+  lastChannelByGroup.set(group, channel)
 }
 
 /**
@@ -149,6 +178,7 @@ function appendTextItem(group: AgentGroupSegment, content: string): void {
 function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsBySpanId = new Map<string, AgentGroupSegment>()
+  const lastNarrationChannel = new Map<AgentGroupSegment, NarrationChannel>()
   // Stable per-run counters for React keys. The Nth top-level text run / Nth
   // mothership group keeps the same key across re-parses (text runs and groups
   // are append-only at the top level), so React never remounts the streaming
@@ -255,7 +285,12 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       }
       if (!g) continue
       g.isDelegating = false
-      appendTextItem(g, block.content)
+      appendTextItem(
+        g,
+        block.content,
+        block.type === 'subagent_thinking' ? 'thinking' : 'assistant',
+        lastNarrationChannel
+      )
       continue
     }
 
@@ -271,7 +306,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
         if (!g) g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId)
         if (g) {
           g.isDelegating = false
-          appendTextItem(g, block.content)
+          appendTextItem(g, block.content, 'assistant', lastNarrationChannel)
           continue
         }
       }
@@ -400,6 +435,7 @@ export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsByKey = new Map<string, AgentGroupSegment>()
+  const lastNarrationChannel = new Map<AgentGroupSegment, NarrationChannel>()
   let activeGroupKey: string | null = null
 
   const groupKey = (name: string, parentToolCallId: string | undefined) =>
@@ -471,12 +507,12 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       const g = findGroupForSubagentChunk(block.parentToolCallId)
       if (!g) continue
       g.isDelegating = false
-      const lastItem = g.items[g.items.length - 1]
-      if (lastItem?.type === 'text') {
-        lastItem.content += block.content
-      } else {
-        g.items.push({ type: 'text', content: block.content })
-      }
+      appendTextItem(
+        g,
+        block.content,
+        block.type === 'subagent_thinking' ? 'thinking' : 'assistant',
+        lastNarrationChannel
+      )
       continue
     }
 
@@ -494,12 +530,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
         const g = groupsByKey.get(resolveGroupKey(block.subagent, block.parentToolCallId))
         if (g) {
           g.isDelegating = false
-          const lastItem = g.items[g.items.length - 1]
-          if (lastItem?.type === 'text') {
-            lastItem.content += block.content
-          } else {
-            g.items.push({ type: 'text', content: block.content })
-          }
+          appendTextItem(g, block.content, 'assistant', lastNarrationChannel)
           continue
         }
       }
