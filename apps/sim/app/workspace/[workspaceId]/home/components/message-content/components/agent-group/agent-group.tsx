@@ -262,7 +262,10 @@ function BoundedViewport({ children, isStreaming }: BoundedViewportProps) {
 
   return (
     <div className='relative'>
-      <div ref={ref} className={cn('max-h-[110px] overflow-y-auto pr-2', hasOverflow && 'py-1')}>
+      <div
+        ref={ref}
+        className={cn('scrollbar-hide max-h-[110px] overflow-y-auto pr-2', hasOverflow && 'py-1')}
+      >
         {children}
       </div>
       {hasOverflow && (
