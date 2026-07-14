@@ -12,6 +12,7 @@ import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
 import { Checkbox, CopyCodeButton, cn, highlight, languages } from '@sim/emcn'
+import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
@@ -144,6 +145,20 @@ const WSRES_LINK_KINDS: Record<string, ChatContextKind | undefined> = {
   file: 'file',
 }
 
+/**
+ * Label used to pick a file link's extension-aware document icon. The visible
+ * link text can be a custom title without an extension, so prefer the file
+ * name carried in the link's VFS path (its last extension-bearing segment).
+ */
+function fileIconLabel(ref: string, fallback: string): string {
+  const segments = ref.split('/').filter(Boolean)
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const decoded = decodeVfsSegmentSafe(segments[i])
+    if (decoded.includes('.')) return decoded
+  }
+  return fallback
+}
+
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
     return (
@@ -214,7 +229,10 @@ const MARKDOWN_COMPONENTS = {
   },
   a({ children, href }: { children?: React.ReactNode; href?: string }) {
     if (href?.startsWith('#wsres-')) {
-      const kind = WSRES_LINK_KINDS[href.match(/^#wsres-(\w+)-/)?.[1] ?? '']
+      const match = href.match(/^#wsres-(\w+)-(.+)$/)
+      const type = match?.[1]
+      const ref = match?.[2]
+      const kind = type ? WSRES_LINK_KINDS[type] : undefined
       const label = extractTextContent(children)
       return (
         <a
@@ -227,25 +245,21 @@ const MARKDOWN_COMPONENTS = {
           )}
           onClick={(e) => {
             e.preventDefault()
-            const match = href.match(/^#wsres-(\w+)-(.+)$/)
-            if (match) {
-              const type = match[1]
-              const ref = match[2]
-              const linkText = label || ref
-              window.dispatchEvent(
-                new CustomEvent('wsres-click', {
-                  detail:
-                    type === 'file'
-                      ? { type, path: ref, title: linkText }
-                      : { type, id: ref, title: linkText },
-                })
-              )
-            }
+            if (!type || !ref) return
+            const linkText = label || ref
+            window.dispatchEvent(
+              new CustomEvent('wsres-click', {
+                detail:
+                  type === 'file'
+                    ? { type, path: ref, title: linkText }
+                    : { type, id: ref, title: linkText },
+              })
+            )
           }}
         >
-          {kind && (
+          {kind && ref && (
             <ContextMentionIcon
-              context={{ kind, label }}
+              context={{ kind, label: kind === 'file' ? fileIconLabel(ref, label) : label }}
               className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
             />
           )}
