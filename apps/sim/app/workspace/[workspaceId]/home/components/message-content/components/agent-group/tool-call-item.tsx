@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { ShimmerText } from '@/components/ui'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { getToolCompletedTitle } from '@/lib/copilot/tools/tool-display'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon, resolveToolDisplayState } from '../../utils'
 
@@ -132,7 +133,13 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
   }, [toolName, streamingArgs])
 
   const isExecuting = resolveToolDisplayState(status) === 'spinner'
-  const title = liveWorkspaceFileTitle || displayTitle
+  const liveTitle = liveWorkspaceFileTitle || displayTitle
+  // The live workspace_file title bypasses toToolData's completed-title rewrite,
+  // so flip it to past tense here once the call succeeds.
+  const title =
+    status === 'success' && liveWorkspaceFileTitle
+      ? (getToolCompletedTitle(liveTitle) ?? liveTitle)
+      : liveTitle
 
   return (
     <div className='flex items-center gap-[8px] pl-[24px]'>

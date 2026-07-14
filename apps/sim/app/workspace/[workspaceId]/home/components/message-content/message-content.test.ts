@@ -266,3 +266,91 @@ describe('shouldSmoothTextSegment', () => {
     )
   })
 })
+
+describe('completed tool titles', () => {
+  function queryLogsCall(status: 'executing' | 'success' | 'error', displayTitle?: string) {
+    return {
+      type: 'tool_call' as const,
+      toolCall: { id: 't1', name: 'query_logs', status, displayTitle },
+      timestamp: 1,
+    }
+  }
+
+  function firstToolTitle(blocks: ContentBlock[]): string {
+    const segments = parseBlocks(blocks)
+    const group = segments.find((s) => s.type === 'agent_group')
+    if (!group || group.type !== 'agent_group') throw new Error('expected group')
+    const tool = group.items.find((i) => i.type === 'tool')
+    if (!tool || tool.type !== 'tool') throw new Error('expected tool')
+    return tool.data.displayTitle
+  }
+
+  it('rewrites query_logs to past tense on success', () => {
+    expect(firstToolTitle([queryLogsCall('success')])).toBe('Queried logs')
+  })
+
+  it('preserves the enriched workflow name in the past-tense title', () => {
+    expect(firstToolTitle([queryLogsCall('success', 'Querying logs for Invoice Bot')])).toBe(
+      'Queried logs for Invoice Bot'
+    )
+  })
+
+  it('keeps present tense while executing and on error', () => {
+    expect(firstToolTitle([queryLogsCall('executing')])).toBe('Querying logs')
+    expect(firstToolTitle([queryLogsCall('error')])).toBe('Querying logs')
+  })
+})
+
+describe('narration text seams', () => {
+  it('inserts a space between glued consecutive blocks', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('research', 'S1', 'main'),
+      {
+        type: 'subagent_thinking',
+        content: 'that triggered it.',
+        spanId: 'S1',
+        subagent: 'research',
+        timestamp: 2,
+      },
+      {
+        type: 'subagent_text',
+        content: 'The failing block is X.',
+        spanId: 'S1',
+        subagent: 'research',
+        timestamp: 3,
+      },
+    ]
+    const segments = parseBlocks(blocks)
+    const group = segments.find((s) => s.type === 'agent_group')
+    if (!group || group.type !== 'agent_group') throw new Error('expected group')
+    const text = group.items.find((i) => i.type === 'text')
+    if (!text || text.type !== 'text') throw new Error('expected text')
+    expect(text.content).toBe('that triggered it. The failing block is X.')
+  })
+
+  it('does not double-space when the seam already has whitespace', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('research', 'S1', 'main'),
+      {
+        type: 'subagent_text',
+        content: 'first sentence. ',
+        spanId: 'S1',
+        subagent: 'research',
+        timestamp: 2,
+      },
+      {
+        type: 'subagent_text',
+        content: 'second sentence.',
+        spanId: 'S1',
+        subagent: 'research',
+        timestamp: 3,
+      },
+    ]
+    const segments = parseBlocks(blocks)
+    const group = segments.find((s) => s.type === 'agent_group')
+    if (!group || group.type !== 'agent_group') throw new Error('expected group')
+    const text = group.items.find((i) => i.type === 'text')
+    if (!text || text.type !== 'text') throw new Error('expected text')
+    expect(text.content).toBe('first sentence. second sentence.')
+  })
+})

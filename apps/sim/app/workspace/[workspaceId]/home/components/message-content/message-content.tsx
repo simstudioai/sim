@@ -5,7 +5,11 @@ import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-ca
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
-import { getToolDisplayTitle, humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import {
+  getToolCompletedTitle,
+  getToolDisplayTitle,
+  humanizeToolName,
+} from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
@@ -101,8 +105,12 @@ function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): str
 
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
-  const displayTitle =
+  const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
+  const displayTitle =
+    tc.status === 'success'
+      ? (getToolCompletedTitle(resolvedTitle) ?? resolvedTitle)
+      : resolvedTitle
 
   return {
     id: tc.id,
@@ -132,7 +140,10 @@ function createAgentGroupSegment(name: string, id: string): AgentGroupSegment {
 function appendTextItem(group: AgentGroupSegment, content: string): void {
   const lastItem = group.items[group.items.length - 1]
   if (lastItem?.type === 'text') {
-    lastItem.content += content
+    // Distinct blocks (e.g. a thinking run followed by a text run) can meet
+    // without any whitespace at the seam — insert a space so sentences never glue.
+    const needsSpace = !/\s$/.test(lastItem.content) && !/^\s/.test(content)
+    lastItem.content += (needsSpace ? ' ' : '') + content
   } else {
     group.items.push({ type: 'text', content })
   }
