@@ -3,10 +3,18 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ContentBlock } from '../../types'
-import { parseBlocks, shouldSmoothTextSegment } from './message-content'
+import {
+  assistantMessageHasRunningWork,
+  parseBlocks,
+  shouldSmoothTextSegment,
+} from './message-content'
 
 function subagentStart(name: string, spanId: string, parentSpanId: string): ContentBlock {
   return { type: 'subagent', content: name, spanId, parentSpanId, timestamp: 1 }
+}
+
+function subagentEnd(spanId: string): ContentBlock {
+  return { type: 'subagent_end', spanId, timestamp: 2 }
 }
 
 function subagentToolCall(
@@ -392,5 +400,44 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
       { type: 'thinking', content: 'legacy reasoning' },
       { type: 'text', content: 'output' },
     ])
+  })
+})
+
+describe('assistantMessageHasRunningWork', () => {
+  it('reads an open subagent lane as running work', () => {
+    expect(assistantMessageHasRunningWork([subagentStart('workflow', 'S1', 'main')])).toBe(true)
+  })
+
+  it('reads a lane closed by its paired subagent_end (live path) as settled', () => {
+    const blocks: ContentBlock[] = [subagentStart('workflow', 'S1', 'main'), subagentEnd('S1')]
+    expect(assistantMessageHasRunningWork(blocks)).toBe(false)
+  })
+
+  it('reads a lane closed by a stamped endedAt (persisted path) as settled', () => {
+    const closed: ContentBlock = { ...subagentStart('workflow', 'S1', 'main'), endedAt: 5 }
+    expect(assistantMessageHasRunningWork([closed])).toBe(false)
+  })
+
+  it('keeps an executing tool as running work after every lane closed', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      subagentEnd('S1'),
+      {
+        type: 'tool_call',
+        toolCall: { id: 't1', name: 'grep', status: 'executing' },
+        timestamp: 3,
+      },
+    ]
+    expect(assistantMessageHasRunningWork(blocks)).toBe(true)
+  })
+
+  it('tracks parallel lanes independently — one still-open lane keeps the turn running', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      subagentStart('search', 'S2', 'main'),
+      subagentEnd('S1'),
+    ]
+    expect(assistantMessageHasRunningWork(blocks)).toBe(true)
+    expect(assistantMessageHasRunningWork([...blocks, subagentEnd('S2')])).toBe(false)
   })
 })
