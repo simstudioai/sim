@@ -60,14 +60,6 @@ export const isBillingEnabled =
     : isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
- * Block free-plan accounts from programmatic workflow execution (API key, public
- * API, MCP server, generic webhooks, cross-origin chat embeds).
- * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
- * dark and be enabled per-deployment once verified.
- */
-export const isFreeApiDeploymentGateEnabled = isTruthy(env.FREE_API_DEPLOYMENT_GATE_ENABLED)
-
-/**
  * Is email verification enabled
  */
 export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLED)
