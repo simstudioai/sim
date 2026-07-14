@@ -379,13 +379,16 @@ export class BlockExecutor {
       ? inputsForLog
       : ((block.config?.params as Record<string, any> | undefined) ?? {})
 
-    // Routine user Stop: don't paint a failed agent block (workflow is already cancelled).
-    // Timeouts abort with reason `'timeout'` (see createTimeoutAbortController).
+    // Routine user Stop on Agent streams: don't paint a failed agent block
+    // (workflow is already cancelled). Timeouts abort with reason `'timeout'`.
+    // Non-agent blocks (HTTP, Function, etc.) still fail normally on AbortError
+    // so logs don't show a green empty success.
     const isAbort =
       (error instanceof DOMException && error.name === 'AbortError') ||
       (error instanceof Error && error.name === 'AbortError')
     const isTimeout = ctx.abortSignal?.reason === 'timeout'
-    if (isAbort && !isTimeout && ctx.abortSignal?.aborted) {
+    const isAgentBlock = block.metadata?.id === BlockType.AGENT
+    if (isAbort && !isTimeout && ctx.abortSignal?.aborted && isAgentBlock) {
       const softOutput: NormalizedBlockOutput = {
         content: '',
       }

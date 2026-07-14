@@ -516,4 +516,41 @@ describe('projectStreamingExecutionToByteStream', () => {
     })
     expect(await readAllText(byteStream)).toBe('raw')
   })
+
+  it('aborts the agent pump when the projected byte stream is cancelled', async () => {
+    const { projectStreamingExecutionToByteStream } = await import('@/providers/stream-pump')
+    let sourceCancelled = false
+    let resolveHang!: () => void
+    const hang = new Promise<void>((resolve) => {
+      resolveHang = resolve
+    })
+
+    const source = new ReadableStream<AgentStreamEvent>({
+      start(c) {
+        c.enqueue({ type: 'text_delta', text: 'hi', turn: 'final' })
+      },
+      async pull() {
+        // Stay open until the pump cancels the source on client disconnect.
+        await hang
+      },
+      cancel() {
+        sourceCancelled = true
+        resolveHang()
+      },
+    })
+
+    const byteStream = projectStreamingExecutionToByteStream({
+      stream: source,
+      streamFormat: 'agent-events-v1',
+    })
+    const reader = byteStream.getReader()
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(new TextDecoder().decode(first.value)).toBe('hi')
+
+    await reader.cancel('client disconnect')
+    await hang
+
+    expect(sourceCancelled).toBe(true)
+  })
 })

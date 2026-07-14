@@ -387,6 +387,55 @@ describe('BlockExecutor', () => {
     )
     expect(state.getBlockOutput(block.id)).toEqual(output)
   })
+
+  it('does not soft-succeed non-agent blocks on user AbortError', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const abortController = new AbortController()
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async () => {
+        abortController.abort('user')
+        throw new DOMException('The operation was aborted.', 'AbortError')
+      },
+    }
+    const executor = new BlockExecutor(
+      [handler],
+      resolver,
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+      },
+      state
+    )
+    const ctx = createContext(state)
+    ctx.abortSignal = abortController.signal
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(/abort/i)
+
+    const output = state.getBlockOutput(block.id)
+    expect(output?.error).toBeTruthy()
+    expect(output).not.toEqual({ content: '' })
+  })
 })
 
 describe('BlockExecutor streaming pump (Step 3)', () => {

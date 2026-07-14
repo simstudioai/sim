@@ -387,6 +387,9 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
  * Project a {@link StreamingExecution} to a byte stream suitable for an HTTP
  * `Response` body. Agent-events object streams are pumped to final-turn answer
  * bytes; legacy `text` streams pass through unchanged.
+ *
+ * Cancelling the returned stream aborts the pump so provider work stops when
+ * the HTTP client disconnects (billing/provider reads do not continue).
  */
 export function projectStreamingExecutionToByteStream(streamingExec: {
   stream: ReadableStream<unknown>
@@ -397,19 +400,23 @@ export function projectStreamingExecutionToByteStream(streamingExec: {
     return streamingExec.stream as ReadableStream<Uint8Array>
   }
 
+  const abortController = new AbortController()
   const pump = createAgentStreamPump({
     source: streamingExec.stream,
     streamFormat,
+    abortSignal: abortController.signal,
   })
   const textStream = pump.textStream
   if (!textStream) {
     throw new Error('Agent stream pump expected a text projection stream')
   }
 
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       const runPromise = pump.run()
-      const reader = textStream.getReader()
+      reader = textStream.getReader()
       try {
         while (true) {
           const { done, value } = await reader.read()
@@ -419,15 +426,31 @@ export function projectStreamingExecutionToByteStream(streamingExec: {
         await runPromise
         controller.close()
       } catch (error) {
+        if (abortController.signal.aborted) {
+          try {
+            controller.close()
+          } catch {
+            // already closed/errored
+          }
+          return
+        }
         try {
           controller.error(error instanceof Error ? error : new Error(String(error)))
         } catch {
           // already closed/errored
         }
+      } finally {
+        try {
+          reader?.releaseLock()
+        } catch {
+          // ignore
+        }
       }
     },
     cancel(reason) {
-      void textStream.cancel(reason)
+      abortController.abort(reason ?? 'user')
+      void reader?.cancel(reason).catch(() => {})
+      void textStream.cancel(reason).catch(() => {})
     },
   })
 }
