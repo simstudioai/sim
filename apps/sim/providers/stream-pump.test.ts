@@ -337,6 +337,31 @@ describe('createAgentStreamPump', () => {
     expect(result.fullyDrained).toBe(false)
   })
 
+  it('preserves drained answerText when user abort surfaces as AbortError from reader', async () => {
+    const controller = new AbortController()
+    const source = new ReadableStream<AgentStreamEvent>({
+      start(c) {
+        c.enqueue({ type: 'text_delta', text: 'kept answer', turn: 'final' })
+        c.enqueue({ type: 'thinking_delta', text: 'still thinking' })
+        // Abort while the reader is waiting for more — cancel() rejects read().
+        queueMicrotask(() => controller.abort('user'))
+      },
+    })
+
+    const pump = createAgentStreamPump({
+      source,
+      streamFormat: 'agent-events-v1',
+      sinkMode: true,
+      abortSignal: controller.signal,
+    })
+
+    const result = await pump.run()
+    expect(result.cancelled).toBe(true)
+    expect(result.cancelReason).toBe('user')
+    expect(result.answerText).toBe('kept answer')
+    expect(result.fullyDrained).toBe(false)
+  })
+
   it('does not start until run() — subscribe-before-pull', async () => {
     let pulled = false
     const source = new ReadableStream<AgentStreamEvent>({

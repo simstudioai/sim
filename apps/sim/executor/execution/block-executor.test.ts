@@ -596,23 +596,6 @@ describe('BlockExecutor streaming pump (Step 3)', () => {
         { type: 'thinking_delta', text: 'more' },
       ],
     })
-    // Override execute to abort mid-stream after first text chunk is projected.
-    const originalExecute = handler.execute.bind(handler)
-    handler.execute = async (ctx, block, inputs) => {
-      const result = (await originalExecute(ctx, block, inputs)) as {
-        stream: ReadableStream
-        streamFormat: 'agent-events-v1'
-        execution: {
-          success: boolean
-          output: Record<string, unknown>
-          logs: unknown[]
-          metadata: Record<string, unknown>
-        }
-      }
-      // Abort after a tick so the pump can project the first text_delta.
-      queueMicrotask(() => abortController.abort('user'))
-      return result
-    }
 
     const { executor, block, state } = createExecutor(handler)
     const ctx = createContext(state)
@@ -621,6 +604,10 @@ describe('BlockExecutor streaming pump (Step 3)', () => {
       streamingExec.subscribe?.({ onEvent: async () => {} })
       const reader = streamingExec.stream.getReader()
       try {
+        // Drain the first projected answer chunk, then Stop — pump must keep it.
+        const first = await reader.read()
+        expect(first.done).toBe(false)
+        abortController.abort('user')
         while (true) {
           const { done } = await reader.read()
           if (done) break
@@ -634,7 +621,8 @@ describe('BlockExecutor streaming pump (Step 3)', () => {
 
     const output = state.getBlockOutput(block.id)
     expect(output?.error).toBeUndefined()
-    // May or may not have content depending on race; must not be a failed error output.
+    // Soft-complete must keep text already projected before Stop — not empty content.
+    expect(output?.content).toBe('partial answer')
     expect(output).not.toMatchObject({ error: expect.any(String) })
   })
 

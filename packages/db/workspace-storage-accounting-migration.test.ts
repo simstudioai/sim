@@ -68,6 +68,6 @@ describe('workspace storage accounting migration', () => {
       readFileSync(new URL('./migrations/meta/_journal.json', import.meta.url), 'utf8')
     ) as { entries: Array<{ idx: number; tag: string }> }
     const lastEntry = journal.entries[journal.entries.length - 1]
-    expect(lastEntry).toMatchObject({ idx: 260, tag: '0260_unknown_sinister_six' })
+    expect(lastEntry).toMatchObject({ idx: 261, tag: '0261_chat_include_thinking' })
   })
 })

@@ -335,6 +335,16 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
       }
     }
 
+    // reader.cancel() / aborted read often surfaces as AbortError. That is the
+    // cancel path, not a hard drain failure — keep accumulated answerText.
+    const isAbortError =
+      (drainError instanceof DOMException && drainError.name === 'AbortError') ||
+      (drainError instanceof Error && drainError.name === 'AbortError')
+    if (!cancelled && isAbortError && abortSignal?.aborted) {
+      cancelled = true
+      cancelReason = resolveCancelReason(abortSignal)
+    }
+
     // Synthesize tool ends — enqueue-then-error in provider loops can drop
     // settlement frames (WHATWG resets the queue on error).
     if (cancelled) {
@@ -343,7 +353,7 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
       await settleOpenTools('error')
     }
 
-    if (drainError) {
+    if (drainError && !cancelled) {
       closeTextStream(drainError)
       throw drainError instanceof Error ? drainError : new Error(String(drainError))
     }
