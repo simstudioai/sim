@@ -103,6 +103,16 @@ export function EmailFooter({
                               />
                             </Link>
                           </td>
+                          <td align='left' style={{ padding: '0 8px' }}>
+                            <Link href={`${baseUrl}/slack`} rel='noopener noreferrer'>
+                              <Img
+                                src={`${baseUrl}/static/slack-icon.png`}
+                                width='20'
+                                height='20'
+                                alt='Slack'
+                              />
+                            </Link>
+                          </td>
                         </tr>
                       </tbody>
                     </table>

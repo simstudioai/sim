@@ -1,7 +1,7 @@
 <p align="center">
   <a href="https://sim.ai" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Sim-sim.ai-3B3B3B?labelColor=1A1A1A" alt="Sim.ai"></a>
   <a href="https://docs.sim.ai" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Docs-Read-E6E6E6?labelColor=C3C3C3&color=E6E6E6" alt="Documentation"></a>
-  <a href="https://discord.gg/Hr4UWYEcTT" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Discord-Join-E6E6E6?logo=discord&logoColor=1A1A1A&labelColor=C3C3C3&color=E6E6E6" alt="Discord"></a>
+  <a href="https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Slack-Join-E6E6E6?logo=slack&logoColor=1A1A1A&labelColor=C3C3C3&color=E6E6E6" alt="Slack"></a>
   <a href="https://x.com/simdotai" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/X-%40simdotai-525252?logo=x&logoColor=white&labelColor=1A1A1A" alt="X"></a>
 </p>
 
