@@ -366,7 +366,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     }
     const reserved = exposedOutputs.find((o) => isReservedOutputName(o.name))
     if (reserved) {
-      setError(`"${reserved.name}" is a reserved output name (success, error, result, cost)`)
+      setError(`"${reserved.name}" is a reserved output name (success, error, cost)`)
       return
     }
     // Only the placeholder and required flag are authored; the field set/name/type

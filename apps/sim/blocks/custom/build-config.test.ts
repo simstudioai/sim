@@ -40,7 +40,7 @@ describe('isReservedOutputName', () => {
     expect(isReservedOutputName('Cost')).toBe(true)
     expect(isReservedOutputName(' success ')).toBe(true)
     expect(isReservedOutputName('error')).toBe(true)
-    expect(isReservedOutputName('result')).toBe(true)
+    expect(isReservedOutputName('result')).toBe(false)
     expect(isReservedOutputName('cost_2')).toBe(false)
     expect(isReservedOutputName('summary')).toBe(false)
   })

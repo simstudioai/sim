@@ -63,12 +63,13 @@ export const RESERVED_PARAMS = new Set([
 ])
 
 /**
- * Output names the block projects itself (`success`/`error`/`result` from
- * `buildOutputs`, `cost` from the executor's billing aggregation). A user-named
- * exposed output must never shadow these — an output literally named `cost`
- * would clobber the billed cost.
+ * Output names the block projects itself (`success`/`error` from `buildOutputs`,
+ * `cost` from the executor's billing aggregation). A user-named exposed output
+ * must never shadow these — an output literally named `cost` would clobber the
+ * billed cost. `result` is deliberately NOT reserved: it only exists as a system
+ * field when no outputs are curated, which cannot co-occur with a named output.
  */
-export const RESERVED_OUTPUT_NAMES = new Set(['success', 'error', 'result', 'cost'])
+export const RESERVED_OUTPUT_NAMES = new Set(['success', 'error', 'cost'])
 
 /** Whether an exposed-output name collides with a system output field. */
 export function isReservedOutputName(name: string): boolean {

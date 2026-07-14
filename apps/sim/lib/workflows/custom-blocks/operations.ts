@@ -370,7 +370,7 @@ function assertNoReservedOutputNames(exposedOutputs: CustomBlockOutput[] | undef
   const reserved = exposedOutputs?.find((o) => isReservedOutputName(o.name))
   if (reserved) {
     throw new CustomBlockValidationError(
-      `"${reserved.name}" is a reserved output name (success, error, result, cost)`
+      `"${reserved.name}" is a reserved output name (success, error, cost)`
     )
   }
 }

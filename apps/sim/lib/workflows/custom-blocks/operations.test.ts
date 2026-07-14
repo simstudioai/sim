@@ -54,13 +54,13 @@ describe('reserved exposed-output names', () => {
         ...publishParams,
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'Success' }],
       })
-    ).rejects.toThrow('"Success" is a reserved output name (success, error, result, cost)')
+    ).rejects.toThrow('"Success" is a reserved output name (success, error, cost)')
   })
 
   it('updateCustomBlock rejects a reserved output name', async () => {
     await expect(
       updateCustomBlock('cb-1', {
-        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'result' }],
+        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'error' }],
       })
     ).rejects.toThrow(CustomBlockValidationError)
   })

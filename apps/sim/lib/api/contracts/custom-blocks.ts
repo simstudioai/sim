@@ -39,8 +39,8 @@ const exposedOutputSchema = z.object({
 
 /**
  * Publish/update variant: rejects reserved system output names (`success`,
- * `error`, `result`, `cost`) that would shadow the block's own projected fields.
- * The read schema stays lenient so rows that predate this validation still parse.
+ * `error`, `cost`) that would shadow the block's own projected fields. The
+ * read schema stays lenient so rows that predate this validation still parse.
  */
 const exposedOutputWriteSchema = exposedOutputSchema.extend({
   name: z
@@ -48,7 +48,7 @@ const exposedOutputWriteSchema = exposedOutputSchema.extend({
     .min(1)
     .max(60)
     .refine((name) => !isReservedOutputName(name), {
-      message: 'Output name is reserved (success, error, result, cost)',
+      message: 'Output name is reserved (success, error, cost)',
     }),
 })
 
