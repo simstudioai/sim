@@ -1070,6 +1070,41 @@ export function useWorkflowExecution() {
         Map<string, import('@/components/agent-stream/agent-stream-chrome').AgentStreamToolCall>
       >()
       const agentStreamToolOrder = new Map<string, string[]>()
+      const settleAgentStreamChrome = (
+        blockId: string,
+        status: 'success' | 'error' | 'cancelled'
+      ) => {
+        const map = agentStreamToolCalls.get(blockId)
+        const order = agentStreamToolOrder.get(blockId)
+        if (map && order) {
+          for (const [key, tool] of map) {
+            if (tool.status === 'running') {
+              map.set(key, { ...tool, status })
+            }
+          }
+          updateConsole(
+            blockId,
+            {
+              agentStreamActive: false,
+              agentStreamToolCalls: order
+                .map((k) => map.get(k))
+                .filter((t): t is NonNullable<typeof t> => Boolean(t)),
+            },
+            executionIdRef.current
+          )
+        } else {
+          updateConsole(blockId, { agentStreamActive: false }, executionIdRef.current)
+        }
+      }
+      const settleAllAgentStreamChrome = (status: 'success' | 'error' | 'cancelled') => {
+        const blockIds = new Set<string>([
+          ...agentStreamThinking.keys(),
+          ...agentStreamToolCalls.keys(),
+        ])
+        for (const blockId of blockIds) {
+          settleAgentStreamChrome(blockId, status)
+        }
+      }
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map<string, BlockState>()
       const executedBlockIds = new Set<string>()
@@ -1141,7 +1176,11 @@ export function useWorkflowExecution() {
 
             onBlockStarted: blockHandlers.onBlockStarted,
             onBlockCompleted: blockHandlers.onBlockCompleted,
-            onBlockError: blockHandlers.onBlockError,
+            onBlockError: (data) => {
+              // Failures often skip stream:done — settle thinking/tool chrome here.
+              settleAgentStreamChrome(data.blockId, 'error')
+              blockHandlers.onBlockError(data)
+            },
             onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
             onStreamChunk: (data) => {
@@ -1236,27 +1275,7 @@ export function useWorkflowExecution() {
 
             onStreamDone: (data) => {
               logger.info('Stream done for block:', data.blockId)
-              const map = agentStreamToolCalls.get(data.blockId)
-              const order = agentStreamToolOrder.get(data.blockId)
-              if (map && order) {
-                for (const [key, tool] of map) {
-                  if (tool.status === 'running') {
-                    map.set(key, { ...tool, status: 'success' })
-                  }
-                }
-                updateConsole(
-                  data.blockId,
-                  {
-                    agentStreamActive: false,
-                    agentStreamToolCalls: order
-                      .map((k) => map.get(k))
-                      .filter((t): t is NonNullable<typeof t> => Boolean(t)),
-                  },
-                  executionIdRef.current
-                )
-              } else {
-                updateConsole(data.blockId, { agentStreamActive: false }, executionIdRef.current)
-              }
+              settleAgentStreamChrome(data.blockId, 'success')
             },
 
             onExecutionCompleted: (data) => {
@@ -1268,6 +1287,8 @@ export function useWorkflowExecution() {
                   executionIdRef.current
               )
                 return
+
+              settleAllAgentStreamChrome(data.success ? 'success' : 'error')
 
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
@@ -1366,6 +1387,8 @@ export function useWorkflowExecution() {
               )
                 return
 
+              settleAllAgentStreamChrome('success')
+
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
                 reconcileFinalBlockLogs(
@@ -1410,6 +1433,8 @@ export function useWorkflowExecution() {
               )
                 return
 
+              settleAllAgentStreamChrome('error')
+
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
               }
@@ -1451,6 +1476,8 @@ export function useWorkflowExecution() {
                   executionIdRef.current
               )
                 return
+
+              settleAllAgentStreamChrome('cancelled')
 
               if (activeWorkflowId) {
                 setCurrentExecutionId(activeWorkflowId, null)
