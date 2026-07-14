@@ -25,7 +25,6 @@ export interface NestedAgentGroup {
 
 export type AgentGroupItem =
   | { type: 'text'; content: string }
-  | { type: 'thinking'; content: string }
   | { type: 'tool'; data: ToolCallData }
   | { type: 'agent_group'; group: NestedAgentGroup }
 
@@ -151,16 +150,6 @@ export function AgentGroup({
                       </div>
                     )
                   }
-                  if (item.type === 'thinking') {
-                    return (
-                      <span
-                        key={`thinking-${idx}`}
-                        className='pl-6 text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-50'
-                      >
-                        {item.content.trim()}
-                      </span>
-                    )
-                  }
                   return (
                     <NarrationText
                       key={`text-${idx}`}
@@ -185,7 +174,7 @@ interface NarrationTextProps {
 }
 
 /**
- * A narration (thinking/text) row inside an agent group. The live tail row is
+ * A narration row inside an agent group. The live tail row is
  * paced with {@link useSmoothText} so streamed chunks reveal word-by-word
  * instead of popping in, matching the top-level text treatment.
  */

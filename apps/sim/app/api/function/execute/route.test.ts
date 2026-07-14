@@ -954,6 +954,10 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
+      expect(mockExecuteInIsolatedVM).toHaveBeenCalledWith(
+        expect.objectContaining({ timeoutMs: 10000 }),
+        expect.any(Object)
+      )
     })
 
     it.concurrent('should handle empty parameters object', async () => {

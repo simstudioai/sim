@@ -265,7 +265,7 @@ describe('parseBlocks span-identity tree', () => {
     expect(nested.group.agentName).toBe('file')
   })
 
-  it('renders subagent thinking as a muted thinking item and keeps the delegating spinner', () => {
+  it('suppresses subagent thinking while keeping the delegating spinner', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),
       {
@@ -280,13 +280,12 @@ describe('parseBlocks span-identity tree', () => {
     const segments = parseBlocks(blocks)
     expect(segments).toHaveLength(1)
     if (segments[0].type !== 'agent_group') throw new Error('expected workflow group')
-    // Thinking renders in the lane…
-    expect(segments[0].items).toEqual([{ type: 'thinking', content: 'reasoning about the fix' }])
-    // …but does not clear the delegating spinner (no real output yet).
+    expect(segments[0].items).toEqual([])
+    // Suppressed reasoning does not count as visible output or clear activity.
     expect(segments[0].isDelegating).toBe(true)
   })
 
-  it('creates the lane on demand when thinking arrives before its subagent start', () => {
+  it('does not create visible output when thinking arrives before its subagent start', () => {
     const blocks: ContentBlock[] = [
       {
         type: 'subagent_thinking',
@@ -303,10 +302,10 @@ describe('parseBlocks span-identity tree', () => {
     const group = segments.find((s) => s.type === 'agent_group')
     if (!group || group.type !== 'agent_group') throw new Error('expected workflow group')
     expect(group.agentName).toBe('workflow')
-    expect(group.items).toEqual([{ type: 'thinking', content: 'early reasoning' }])
+    expect(group.items).toEqual([])
   })
 
-  it('orders thinking before the lane text that follows it', () => {
+  it('renders only assistant text after suppressed subagent thinking', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),
       {
@@ -321,10 +320,7 @@ describe('parseBlocks span-identity tree', () => {
 
     const segments = parseBlocks(blocks)
     if (segments[0].type !== 'agent_group') throw new Error('expected workflow group')
-    expect(segments[0].items).toEqual([
-      { type: 'thinking', content: 'planning' },
-      { type: 'text', content: 'done' },
-    ])
+    expect(segments[0].items).toEqual([{ type: 'text', content: 'done' }])
     expect(segments[0].isDelegating).toBe(false)
   })
 
@@ -542,7 +538,7 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     expect(groups).toHaveLength(2)
   })
 
-  it('still breaks subagent lanes on main thinking', () => {
+  it('does not let main thinking affect subagent lane grouping', () => {
     const blocks: ContentBlock[] = [
       { type: 'subagent', content: 'workflow', parentToolCallId: 'd1', timestamp: 1 },
       { type: 'subagent_text', content: 'working', parentToolCallId: 'd1', timestamp: 1 },
@@ -553,11 +549,15 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     const groups = segments.filter((s) => s.type === 'agent_group')
     expect(groups).toHaveLength(1)
     if (groups[0].type !== 'agent_group') throw new Error('expected group')
-    // The untagged chunk after thinking must NOT merge into the flushed lane.
+    // Thinking is absent from persistence, so it cannot split the live lane.
     expect(groups[0].items).toHaveLength(1)
+    expect(groups[0].items[0]).toEqual({
+      type: 'text',
+      content: 'workinglater chunk with no lane tag',
+    })
   })
 
-  it('renders subagent thinking inside the legacy lane', () => {
+  it('suppresses subagent thinking inside the legacy lane', () => {
     const blocks: ContentBlock[] = [
       { type: 'subagent', content: 'workflow', parentToolCallId: 'd1', timestamp: 1 },
       {
@@ -572,10 +572,7 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
     const groups = segments.filter((s) => s.type === 'agent_group')
     expect(groups).toHaveLength(1)
     if (groups[0].type !== 'agent_group') throw new Error('expected group')
-    expect(groups[0].items).toEqual([
-      { type: 'thinking', content: 'legacy reasoning' },
-      { type: 'text', content: 'output' },
-    ])
+    expect(groups[0].items).toEqual([{ type: 'text', content: 'output' }])
   })
 })
 

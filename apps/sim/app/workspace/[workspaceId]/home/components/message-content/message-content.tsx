@@ -51,8 +51,8 @@ type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | Stopped
 function getAgentGroupActivityKey(items: AgentGroupItem[]): string {
   return items
     .map((item) => {
-      if (item.type === 'text' || item.type === 'thinking') {
-        return `${item.type}:${item.content.length}`
+      if (item.type === 'text') {
+        return `text:${item.content.length}`
       }
       if (item.type === 'tool') {
         return [
@@ -199,42 +199,17 @@ function createAgentGroupSegment(name: string, id: string): AgentGroupSegment {
   }
 }
 
-type NarrationChannel = 'thinking' | 'assistant'
-
 /**
  * Appends narration content to a group, merging into the previous text item.
- * When a thinking run and a text run meet, their contents can glue together
- * without any whitespace at the seam. The merge repairs only that semantic
- * channel transition, and only at an unambiguous sentence boundary — trailing
- * punctuation meeting a fresh alphanumeric start. Same-channel continuations
- * (streamed chunks of one run, resume legs) are concatenated verbatim, so a
- * token split like `v2.` + `1` is never mutated. `lastChannelByGroup` is the
- * caller's per-parse tracker of each group's most recent narration channel.
+ * Streamed chunks and resume legs are concatenated verbatim, so a token split
+ * like `v2.` + `1` is never mutated.
  */
-function appendTextItem(
-  group: AgentGroupSegment,
-  content: string,
-  channel: NarrationChannel,
-  lastChannelByGroup: Map<AgentGroupSegment, NarrationChannel>
-): void {
+function appendTextItem(group: AgentGroupSegment, content: string): void {
   const lastItem = group.items[group.items.length - 1]
   if (lastItem?.type === 'text') {
-    const isChannelSeam = lastChannelByGroup.get(group) !== channel
-    const needsSpace =
-      isChannelSeam && /[.!?;:]$/.test(lastItem.content) && /^[A-Za-z0-9]/.test(content)
-    lastItem.content += (needsSpace ? ' ' : '') + content
-  } else {
-    group.items.push({ type: 'text', content })
-  }
-  lastChannelByGroup.set(group, channel)
-}
-
-function appendThinkingItem(group: AgentGroupSegment, content: string): void {
-  const lastItem = group.items[group.items.length - 1]
-  if (lastItem?.type === 'thinking') {
     lastItem.content += content
   } else {
-    group.items.push({ type: 'thinking', content })
+    group.items.push({ type: 'text', content })
   }
 }
 
@@ -249,7 +224,6 @@ function appendThinkingItem(group: AgentGroupSegment, content: string): void {
 function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsBySpanId = new Map<string, AgentGroupSegment>()
-  const lastNarrationChannel = new Map<AgentGroupSegment, NarrationChannel>()
   // Stable per-run counters for React keys. The Nth top-level text run / Nth
   // mothership group keeps the same key across re-parses (text runs and groups
   // are append-only at the top level), so React never remounts the streaming
@@ -279,8 +253,8 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
 
   // Top-level (mothership) tool calls render in a collapsible group. Reuse that
   // group only while it is still the most recent segment so consecutive tools
-  // stay together; once any other segment (main text, a spawned subagent,
-  // thinking, etc.) breaks the run, the next tool opens a fresh group below it
+  // stay together; once another visible segment (main text or a spawned
+  // subagent) breaks the run, the next tool opens a fresh group below it
   // instead of jumping back up into the original one. This keeps the mothership's
   // tools and prose interleaved in the order they actually happened.
   const ensureMothership = (): AgentGroupSegment => {
@@ -345,26 +319,10 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    // Main-agent thinking is not rendered — a display-only omission; the
-    // reasoning is still reduced upstream (and stripped at persistence).
-    if (block.type === 'thinking') continue
-
-    // Subagent thinking renders in the lane as muted reasoning prose so a long
-    // thinking round (extended thinking after a tool result can run for
-    // minutes) reads as visible progress instead of a hung spinner. It does
-    // NOT clear isDelegating: the header spinner keeps signaling activity
-    // until real output or a tool arrives.
-    if (block.type === 'subagent_thinking') {
-      if (!block.content?.trim() || !block.spanId) continue
-      let g = groupsBySpanId.get(block.spanId)
-      // Out-of-order safety: see subagent_text branch below.
-      if (!g && block.subagent) {
-        g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId)
-      }
-      if (!g) continue
-      appendThinkingItem(g, block.content)
-      continue
-    }
+    // Thinking is intentionally absent from the transcript. Ignore both lanes
+    // so rollout-skewed or replayed streams cannot surface reasoning or affect
+    // layout differently from the persisted message, which strips it.
+    if (block.type === 'thinking' || block.type === 'subagent_thinking') continue
 
     if (block.type === 'subagent_text') {
       if (!block.content || !block.spanId) continue
@@ -377,9 +335,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       }
       if (!g) continue
       g.isDelegating = false
-      // Thinking blocks are skipped above (lanes render them separately), so
-      // everything reaching this append is assistant narration.
-      appendTextItem(g, block.content, 'assistant', lastNarrationChannel)
+      appendTextItem(g, block.content)
       continue
     }
 
@@ -391,7 +347,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
         if (!g) g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId)
         if (g) {
           g.isDelegating = false
-          appendTextItem(g, block.content, 'assistant', lastNarrationChannel)
+          appendTextItem(g, block.content)
           continue
         }
       }
@@ -420,7 +376,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // emits its first content or tool (or ends). The legacy path derived this
       // from the dispatch tool_call, which the span path absorbs, so we set it
       // here. It is cleared in the subagent_text, scoped text, tool_call, and
-      // subagent_end branches (thinking renders but keeps the spinner).
+      // subagent_end branches; suppressed thinking leaves it unchanged.
       g.isDelegating = true
       g.isOpen = true
       continue
@@ -520,7 +476,6 @@ export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsByKey = new Map<string, AgentGroupSegment>()
-  const lastNarrationChannel = new Map<AgentGroupSegment, NarrationChannel>()
   let activeGroupKey: string | null = null
   // Run-ordinal keys, mirroring parseBlocksWithSpanTree. A turn starts in this
   // parser and flips to the span-tree parser when the first spanId-carrying
@@ -600,47 +555,16 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
-    // Subagent thinking renders in the lane as muted reasoning prose (same
-    // rationale as the span-tree parser); it keeps the delegating spinner.
-    if (block.type === 'subagent_thinking') {
-      if (!block.content?.trim()) continue
-      const g = findGroupForSubagentChunk(block.parentToolCallId)
-      if (!g) continue
-      const lastItem = g.items[g.items.length - 1]
-      if (lastItem?.type === 'thinking') {
-        lastItem.content += block.content
-      } else {
-        g.items.push({ type: 'thinking', content: block.content })
-      }
-      continue
-    }
+    // See the span-tree parser: thinking is neither visible nor allowed to
+    // influence grouping because it is absent from persisted transcripts.
+    if (block.type === 'thinking' || block.type === 'subagent_thinking') continue
 
     if (block.type === 'subagent_text') {
       if (!block.content) continue
       const g = findGroupForSubagentChunk(block.parentToolCallId)
       if (!g) continue
       g.isDelegating = false
-      // Thinking blocks are skipped above (lanes render them separately), so
-      // everything reaching this append is assistant narration.
-      appendTextItem(g, block.content, 'assistant', lastNarrationChannel)
-      continue
-    }
-
-    if (block.type === 'thinking') {
-      // Main-agent thinking is not rendered. It still breaks open SUBAGENT
-      // lanes so later chunks don't merge across them, but it must not
-      // fracture the top-level (mothership) tool run: models stream reasoning
-      // between consecutive tool rounds (Anthropic thinking, OpenAI per-round
-      // summaries), and splitting on it renders back-to-back top-level tools
-      // as separate groups. Thinking is also stripped at persistence, so a
-      // live split would disagree with the reloaded transcript. Every other
-      // segment kind still breaks the run via its own branch.
-      if (!block.content?.trim()) continue
-      const mothershipKey = groupKey('mothership', undefined)
-      const mothership = groupsByKey.get(mothershipKey)
-      if (mothership) groupsByKey.delete(mothershipKey)
-      flushLanes()
-      if (mothership) groupsByKey.set(mothershipKey, mothership)
+      appendTextItem(g, block.content)
       continue
     }
 
@@ -650,7 +574,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
         const g = groupsByKey.get(resolveGroupKey(block.subagent, block.parentToolCallId))
         if (g) {
           g.isDelegating = false
-          appendTextItem(g, block.content, 'assistant', lastNarrationChannel)
+          appendTextItem(g, block.content)
           continue
         }
       }

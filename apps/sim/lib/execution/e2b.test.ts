@@ -88,6 +88,28 @@ describe('e2b sandbox inputs', () => {
     expect(fetchCall?.[1].user).toBe('root')
   })
 
+  it('passes the requested timeout to shell execution and returns timeout failures', async () => {
+    mockCommandsRun.mockRejectedValueOnce(
+      Object.assign(new Error('Execution timed out'), {
+        stderr: 'Execution timed out',
+        exitCode: 1,
+      })
+    )
+
+    const result = await executeShellInE2B({
+      code: 'sleep 60',
+      envs: {},
+      timeoutMs: 7000,
+    })
+
+    expect(mockCommandsRun).toHaveBeenCalledWith(
+      'sleep 60',
+      expect.objectContaining({ timeoutMs: 7000 })
+    )
+    expect(result.error).toContain('Execution timed out')
+    expect(mockKill).toHaveBeenCalled()
+  })
+
   it('throws a clear error and kills the sandbox when the fetch fails', async () => {
     mockCommandsRun.mockRejectedValueOnce(new Error('curl: (22) 403'))
 
