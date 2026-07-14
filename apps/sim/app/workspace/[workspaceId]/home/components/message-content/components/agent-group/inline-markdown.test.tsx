@@ -73,6 +73,11 @@ describe('renderInlineMarkdown', () => {
     expect(renderInlineMarkdown('2 * 3 * 4')).toEqual(['2 * 3 * 4'])
   })
 
+  it('never reclassifies plain text the tokenizer rejected', () => {
+    expect(renderInlineMarkdown('* x *')).toEqual(['* x *'])
+    expect(renderInlineMarkdown('** spaced bullets **')).toEqual(['** spaced bullets **'])
+  })
+
   it('passes plain text through untouched', () => {
     expect(renderInlineMarkdown('no markup here.')).toEqual(['no markup here.'])
   })

@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react'
 
 const INLINE_TOKEN =
-  /(\*{3}[^*\n]+\*{3}|\*\*[^*\n]+\*\*|\*[^\s*](?:[^*\n]*[^\s*])?\*|`[^`\n]+`|\[[^\]\n]+\]\([^\s)]+\))/g
+  /(\*{3}[^\s*](?:[^*\n]*[^\s*])?\*{3}|\*\*[^\s*](?:[^*\n]*[^\s*])?\*\*|\*[^\s*](?:[^*\n]*[^\s*])?\*|`[^`\n]+`|\[[^\]\n]+\]\([^\s)]+\))/g
 
 const LINK_TOKEN = /^\[([^\]\n]+)\]\([^\s)]+\)$/
 
@@ -13,9 +13,14 @@ const LINK_TOKEN = /^\[([^\]\n]+)\]\([^\s)]+\)$/
  * nested markers resolve; code spans stay verbatim. Everything else,
  * including unterminated markers, renders as-is. Full Streamdown rendering is
  * intentionally avoided here — these rows re-render on every streaming frame.
+ *
+ * Splitting on a single capturing group alternates plain text (even indices)
+ * and matched tokens (odd indices), so index parity is the exact
+ * discriminator — plain text that merely resembles a marker (e.g. `* x *`,
+ * rejected by the tokenizer's boundary rules) is never reclassified.
  */
 export function renderInlineMarkdown(text: string): ReactNode[] {
-  return text.split(INLINE_TOKEN).map(renderToken)
+  return text.split(INLINE_TOKEN).map((part, i) => (i % 2 === 1 ? renderToken(part, i) : part))
 }
 
 function renderToken(part: string, key: number): ReactNode {
