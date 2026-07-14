@@ -615,6 +615,12 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const targets = stringArrayArg(args, 'paths').map(pathLeaf)
       return `Deleting ${summarizeTargets(targets, 'folder')}`
     }
+    case 'share_file': {
+      const action = stringArg(args, 'action') || 'share'
+      const path = stringArg(args, 'path')
+      const target = firstStringArg(args, 'toolTitle', 'title') || (path ? pathLeaf(path) : 'file')
+      return action === 'unshare' ? `Unsharing ${target}` : `Sharing ${target}`
+    }
     case 'create_workflow': {
       const target = firstStringArg(args, 'name', 'workflowName', 'title')
       return `Creating ${target || 'workflow'}`
@@ -864,11 +870,13 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Scraping: 'Scraped',
   Searching: 'Searched',
   Setting: 'Set',
+  Sharing: 'Shared',
   Summarizing: 'Summarized',
   Syncing: 'Synced',
   Toggling: 'Toggled',
   Trimming: 'Trimmed',
   Undeploying: 'Undeployed',
+  Unsharing: 'Unshared',
   Updating: 'Updated',
   Validating: 'Validated',
   Viewing: 'Viewed',
