@@ -65,7 +65,7 @@ export function InboxTaskList() {
   const filteredTasks = useMemo(() => {
     if (!tasksData?.tasks) return []
     if (!searchTerm.trim()) return tasksData.tasks
-    const term = searchTerm.toLowerCase()
+    const term = searchTerm.trim().toLowerCase()
     return tasksData.tasks.filter(
       (t) =>
         t.subject?.toLowerCase().includes(term) ||

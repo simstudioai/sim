@@ -169,7 +169,8 @@ export function useScheduledTasks({
   const selectedTask = taskId ? (taskById.get(taskId)?.task ?? null) : null
 
   const openTask = useCallback((task: ScheduledTask) => setTaskId(task.id), [setTaskId])
-  const closeTask = useCallback(() => setTaskId(null), [setTaskId])
+  /** Closing replaces the URL — Back should leave the calendar, not reopen the modal. */
+  const closeTask = useCallback(() => setTaskId(null, { history: 'replace' }), [setTaskId])
 
   /**
    * Mutation-driven closes replace the URL instead of pushing — Back must not

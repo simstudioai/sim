@@ -416,28 +416,36 @@ export default function Logs() {
   }, [])
 
   /**
+   * The single write path for user-driven `executionId` changes. Cancels any
+   * in-flight deep-link resolution first — an explicit interaction supersedes
+   * it, otherwise the resolved row would open over the user's selection and
+   * leave the URL pointing at a different run than the panel shows.
+   */
+  const writeExecutionId = useCallback(
+    (value: string | null) => {
+      setPendingExecutionId(null)
+      void setExecutionId(value, executionIdWriteOptions)
+    },
+    [setExecutionId]
+  )
+
+  /**
    * Mirrors the reducer's TOGGLE_LOG branch: clicking the already-open row
    * closes the sidebar (strip `executionId`); any other click opens the row
    * (sync `executionId` to it so the URL always deep-links the open run).
    */
   const handleLogClick = useCallback(
     (rowId: string) => {
-      /**
-       * An explicit click supersedes an in-flight deep-link resolution —
-       * otherwise the resolved row would open over the user's selection and
-       * leave the URL pointing at a different run than the panel shows.
-       */
-      setPendingExecutionId(null)
       const opens = !(selectedLogIdRef.current === rowId && isSidebarOpenRef.current)
       dispatch({ type: 'TOGGLE_LOG', logId: rowId })
       if (opens) {
         const log = logsRef.current.find((l) => l.id === rowId)
-        setExecutionId(log?.executionId ?? null, executionIdWriteOptions)
+        writeExecutionId(log?.executionId ?? null)
       } else {
-        setExecutionId(null, executionIdWriteOptions)
+        writeExecutionId(null)
       }
     },
-    [setExecutionId]
+    [writeExecutionId]
   )
 
   const handleNavigateNext = useCallback(() => {
@@ -448,7 +456,7 @@ export default function Logs() {
       shouldScrollIntoViewRef.current = true
       dispatch({ type: 'SELECT_LOG', logId: nextLog.id })
       if (isSidebarOpenRef.current) {
-        setExecutionId(nextLog.executionId ?? null, executionIdWriteOptions)
+        writeExecutionId(nextLog.executionId ?? null)
       }
     }
   }, [setExecutionId])
@@ -460,14 +468,14 @@ export default function Logs() {
       shouldScrollIntoViewRef.current = true
       dispatch({ type: 'SELECT_LOG', logId: prevLog.id })
       if (isSidebarOpenRef.current) {
-        setExecutionId(prevLog.executionId ?? null, executionIdWriteOptions)
+        writeExecutionId(prevLog.executionId ?? null)
       }
     }
   }, [setExecutionId])
 
   const handleCloseSidebar = useCallback(() => {
     dispatch({ type: 'CLOSE_SIDEBAR' })
-    setExecutionId(null, executionIdWriteOptions)
+    writeExecutionId(null)
     activeLogTabRef.current = 'overview'
   }, [setExecutionId])
 
@@ -699,7 +707,7 @@ export default function Logs() {
   const handleNavigateNextEvent = useEffectEvent(handleNavigateNext)
   const handleNavigatePrevEvent = useEffectEvent(handleNavigatePrev)
   const writeExecutionIdEvent = useEffectEvent((value: string | null) => {
-    setExecutionId(value, executionIdWriteOptions)
+    writeExecutionId(value)
   })
 
   useEffect(() => {

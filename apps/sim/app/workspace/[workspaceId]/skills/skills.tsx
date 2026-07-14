@@ -97,7 +97,7 @@ export function Skills() {
 
   const filteredSkills = skills.filter((s) => {
     if (!searchTerm.trim()) return true
-    const searchLower = searchTerm.toLowerCase()
+    const searchLower = searchTerm.trim().toLowerCase()
     return (
       s.name.toLowerCase().includes(searchLower) ||
       s.description.toLowerCase().includes(searchLower)

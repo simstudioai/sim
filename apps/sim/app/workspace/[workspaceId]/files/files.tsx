@@ -388,10 +388,9 @@ export function Files() {
 
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
-    const searched = debouncedSearchTerm
-      ? siblings.filter((folder) =>
-          folder.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-        )
+    const needle = debouncedSearchTerm.trim().toLowerCase()
+    const searched = needle
+      ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
       : siblings
     const col = activeSort?.column ?? 'name'
     const dir = activeSort?.direction ?? 'asc'
@@ -409,11 +408,10 @@ export function Files() {
   }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
 
   const filteredFiles = useMemo(() => {
-    let result = debouncedSearchTerm
+    const needle = debouncedSearchTerm.trim().toLowerCase()
+    let result = needle
       ? files.filter(
-          (f) =>
-            (f.folderId ?? null) === currentFolderId &&
-            f.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+          (f) => (f.folderId ?? null) === currentFolderId && f.name.toLowerCase().includes(needle)
         )
       : files.filter((f) => (f.folderId ?? null) === currentFolderId)
 
