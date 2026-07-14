@@ -34,7 +34,11 @@ vi.mock('@/components/ui', () => ({
   },
 }))
 
-import { AgentStreamThinkingChrome } from '@/components/agent-stream/agent-stream-chrome'
+import {
+  AgentStreamThinkingChrome,
+  type AgentStreamToolCall,
+  AgentStreamToolCallsChrome,
+} from '@/components/agent-stream/agent-stream-chrome'
 
 function renderChrome(props: { thinking: string; isStreaming?: boolean }): {
   container: HTMLDivElement
@@ -182,5 +186,101 @@ describe('AgentStreamThinkingChrome', () => {
     rerender({ thinking: 'first then more', isStreaming: true })
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
     expect(toggle.textContent).toContain('Thinking…')
+  })
+})
+
+const sampleTools: AgentStreamToolCall[] = [
+  {
+    key: 'agent-1:t1',
+    id: 't1',
+    name: 'http_request',
+    displayName: 'Http Request',
+    status: 'success',
+  },
+]
+
+function renderToolsChrome(props: { toolCalls?: AgentStreamToolCall[]; isStreaming?: boolean }): {
+  container: HTMLDivElement
+  rerender: (next: { toolCalls?: AgentStreamToolCall[]; isStreaming?: boolean }) => void
+  unmount: () => void
+} {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root: Root = createRoot(container)
+
+  const mount = (p: { toolCalls?: AgentStreamToolCall[]; isStreaming?: boolean }) => {
+    act(() => {
+      root.render(
+        <AgentStreamToolCallsChrome
+          toolCalls={p.toolCalls ?? sampleTools}
+          isStreaming={p.isStreaming}
+        />
+      )
+    })
+  }
+
+  mount(props)
+
+  return {
+    container,
+    rerender: (next) => mount(next),
+    unmount: () => {
+      act(() => {
+        root.unmount()
+      })
+      container.remove()
+    },
+  }
+}
+
+describe('AgentStreamToolCallsChrome', () => {
+  const mounts: Array<() => void> = []
+
+  afterEach(() => {
+    while (mounts.length) {
+      mounts.pop()?.()
+    }
+  })
+
+  it('opens while tools are streaming and auto-collapses when they finish', () => {
+    const { container, rerender, unmount } = renderToolsChrome({
+      isStreaming: true,
+      toolCalls: [{ ...sampleTools[0], status: 'running' }],
+    })
+    mounts.push(unmount)
+
+    const toggle = container.querySelector(
+      '[data-testid="agent-stream-tools-toggle"]'
+    ) as HTMLButtonElement
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(toggle.textContent).toContain('Using tools…')
+    expect(container.textContent).toContain('Http Request')
+
+    rerender({ isStreaming: false, toolCalls: sampleTools })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle.textContent).toContain('Tools')
+    expect(container.textContent).not.toContain('Http Request')
+  })
+
+  it('stays open after manual reopen once collapsed', () => {
+    const { container, rerender, unmount } = renderToolsChrome({ isStreaming: true })
+    mounts.push(unmount)
+
+    rerender({ isStreaming: false })
+
+    const toggle = container.querySelector(
+      '[data-testid="agent-stream-tools-toggle"]'
+    ) as HTMLButtonElement
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+
+    act(() => {
+      toggle.click()
+    })
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(container.textContent).toContain('Http Request')
+
+    rerender({ isStreaming: false })
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
   })
 })

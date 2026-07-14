@@ -197,20 +197,46 @@ export function AgentStreamToolCallsChrome({
   isStreaming?: boolean
 }) {
   const [open, setOpen] = useState(!!isStreaming)
+  /** After auto-collapse, a manual open pins the panel until the user closes it. */
+  const [userPinnedOpen, setUserPinnedOpen] = useState(false)
+  const wasStreamingRef = useRef(!!isStreaming)
 
   useEffect(() => {
+    const wasStreaming = wasStreamingRef.current
+    wasStreamingRef.current = !!isStreaming
+
     if (isStreaming) {
       setOpen(true)
+      setUserPinnedOpen(false)
+      return
     }
-  }, [isStreaming])
+
+    // Auto-collapse when tools finish, unless the user pinned the panel open.
+    if (wasStreaming && !isStreaming && !userPinnedOpen) {
+      setOpen(false)
+    }
+  }, [isStreaming, userPinnedOpen])
+
+  const handleToggle = () => {
+    setOpen((prev) => {
+      const next = !prev
+      if (!isStreaming) {
+        setUserPinnedOpen(next)
+      } else {
+        setUserPinnedOpen(false)
+      }
+      return next
+    })
+  }
 
   return (
     <div className='mb-3'>
       <button
         type='button'
         className='flex items-center gap-1 text-[var(--text-muted)] text-sm transition-colors hover:text-[var(--text-secondary)]'
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={handleToggle}
         aria-expanded={open}
+        data-testid='agent-stream-tools-toggle'
       >
         <ChevronDown
           className={cn('size-3.5 transition-transform', open ? 'rotate-0' : '-rotate-90')}
