@@ -183,6 +183,66 @@ async function normalizeCopilotFileParams(
   }
 }
 
+/**
+ * Matches a string that is exactly one {{ENV_VAR}} reference (same charset the
+ * executor's exact-match resolver accepts). Embedded references are
+ * intentionally not matched.
+ */
+const COPILOT_ENV_REFERENCE_PATTERN = /^\{\{([^}]+)\}\}$/
+
+/**
+ * Resolves whole-value {{ENV_VAR}} references in user-only params for copilot
+ * tool executions. Chat agents never see secret values (the workspace VFS
+ * exposes env var names only), so they pass references; workflow runs resolve
+ * these in the executor, and this is the equivalent step for direct tool
+ * calls. Resolution is deliberately restricted to params declared
+ * `visibility: 'user-only'` (API keys and other operator-supplied secrets)
+ * and to values that are exactly one reference, so LLM-writable params (URLs,
+ * headers, bodies) can never be used to extract secret values.
+ *
+ * Mutates only the given params object — callers pass the per-execution copy,
+ * never the copilot-side tool-call state, so decrypted values cannot leak
+ * into failure logs or persisted chat state.
+ */
+async function resolveCopilotEnvReferences(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  scope: ToolExecutionScope
+): Promise<void> {
+  if (!scope.copilotToolExecution || !scope.userId) {
+    return
+  }
+
+  const pending: Array<{ paramId: string; envKey: string }> = []
+  for (const [paramId, paramDef] of Object.entries(tool.params || {})) {
+    if (paramDef?.visibility !== 'user-only') continue
+    const value = params[paramId]
+    if (typeof value !== 'string') continue
+    const match = COPILOT_ENV_REFERENCE_PATTERN.exec(value)
+    if (match) {
+      pending.push({ paramId, envKey: match[1].trim() })
+    }
+  }
+
+  if (pending.length === 0) {
+    return
+  }
+
+  const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
+  const envVars = await getEffectiveDecryptedEnv(scope.userId, scope.workspaceId)
+
+  for (const { paramId, envKey } of pending) {
+    const resolved = envVars[envKey]
+    if (resolved === undefined) {
+      throw new Error(
+        `Environment variable "${envKey}" referenced by parameter "${paramId}" was not found. ` +
+          `Check environment/variables.json for available variable names.`
+      )
+    }
+    params[paramId] = resolved
+  }
+}
+
 function readExplicitCredentialSelector(params: Record<string, unknown>): string | undefined {
   for (const key of ['credentialId', 'oauthCredential', 'credential'] as const) {
     const value = params[key]
@@ -1025,6 +1085,7 @@ export async function executeTool(
     await normalizeCopilotFileParams(tool, contextParams, scope)
     normalizeCopilotCredentialParams(contextParams)
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
+    await resolveCopilotEnvReferences(tool, contextParams, scope)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(

@@ -31,6 +31,7 @@ const {
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
+  mockGetEffectiveDecryptedEnv,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
   mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
@@ -46,6 +47,7 @@ const {
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockGetEffectiveDecryptedEnv: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -105,6 +107,10 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
+}))
+
+vi.mock('@/lib/environment/utils', () => ({
+  getEffectiveDecryptedEnv: (...args: unknown[]) => mockGetEffectiveDecryptedEnv(...args),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -228,6 +234,26 @@ vi.mock('@/tools/registry', () => {
         method: 'POST',
         headers: () => ({ 'Content-Type': 'application/json' }),
         body: (p: any) => ({ attachment: p.attachment }),
+      },
+      transformResponse: async (response: any) => {
+        const data = await response.json()
+        return { success: true, output: data }
+      },
+    },
+    test_env_ref_tool: {
+      id: 'test_env_ref_tool',
+      name: 'Test Env Reference Tool',
+      description: 'Accepts a user-only API key and an llm-writable note',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: true, visibility: 'user-only' },
+        note: { type: 'string', required: false, visibility: 'user-or-llm' },
+      },
+      request: {
+        url: '/api/tools/test/env-ref',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (p: any) => ({ apiKey: p.apiKey, note: p.note }),
       },
       transformResponse: async (response: any) => {
         const data = await response.json()
@@ -1256,6 +1282,142 @@ describe('Copilot OAuth Credential Enforcement', () => {
     expect(result.error).toContain('credentialId')
     expect(result.error).toContain('environment/credentials.json')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('Copilot Env Variable Reference Resolution', () => {
+  let cleanupEnvVars: () => void
+
+  function mockJsonFetch() {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      json: () => Promise.resolve({ ok: true }),
+      text: () => Promise.resolve(JSON.stringify({ ok: true })),
+      clone: vi.fn().mockReturnThis(),
+    })
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+    return fetchMock
+  }
+
+  function sentRequestBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+    return JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+  }
+
+  const copilotContext = () =>
+    createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      userId: 'user-123',
+      copilotToolExecution: true,
+    } as any)
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    mockGetEffectiveDecryptedEnv.mockReset()
+    mockGetEffectiveDecryptedEnv.mockResolvedValue({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  it('resolves a whole-value {{VAR}} reference in a user-only param', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(sentRequestBody(fetchMock).apiKey).toBe('sntrys_real_token')
+  })
+
+  it('trims whitespace inside the braces like the executor resolver', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{ SENTRY_AUTH_TOKEN }}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(true)
+    expect(sentRequestBody(fetchMock).apiKey).toBe('sntrys_real_token')
+  })
+
+  it('never resolves references in llm-writable (user-or-llm) params', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}', note: '{{SENTRY_AUTH_TOKEN}}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(true)
+    expect(sentRequestBody(fetchMock).note).toBe('{{SENTRY_AUTH_TOKEN}}')
+  })
+
+  it('leaves embedded references untouched in user-only params', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: 'Bearer {{SENTRY_AUTH_TOKEN}}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(true)
+    expect(sentRequestBody(fetchMock).apiKey).toBe('Bearer {{SENTRY_AUTH_TOKEN}}')
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+  })
+
+  it('fails with a clear error before any request when the variable is missing', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{MISSING_VAR}}' },
+      { executionContext: copilotContext() }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('MISSING_VAR')
+    expect(result.error).toContain('apiKey')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not resolve references outside copilot execution', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      { executionContext: createToolExecutionContext({ userId: 'user-123' } as any) }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(sentRequestBody(fetchMock).apiKey).toBe('{{SENTRY_AUTH_TOKEN}}')
+  })
+
+  it('never mutates the caller-owned params object (log-leak guard)', async () => {
+    mockJsonFetch()
+    const callerParams = { apiKey: '{{SENTRY_AUTH_TOKEN}}' }
+
+    const result = await executeTool('test_env_ref_tool', callerParams, {
+      executionContext: copilotContext(),
+    })
+
+    expect(result.success).toBe(true)
+    expect(callerParams.apiKey).toBe('{{SENTRY_AUTH_TOKEN}}')
   })
 })
 
