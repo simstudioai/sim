@@ -92,7 +92,7 @@ describe('SEO canonical URLs', () => {
         if (!hasBareSimAi) continue
 
         const isAllowlisted =
-          line.includes('https://sim.ai/careers') || line.includes('https://sim.ai/discord')
+          line.includes('https://sim.ai/careers') || line.includes('https://sim.ai/slack')
 
         if (isAllowlisted) continue
 
