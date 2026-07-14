@@ -377,12 +377,9 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       }
       if (!g) continue
       g.isDelegating = false
-      appendTextItem(
-        g,
-        block.content,
-        block.type === 'subagent_thinking' ? 'thinking' : 'assistant',
-        lastNarrationChannel
-      )
+      // Thinking blocks are skipped above (lanes render them separately), so
+      // everything reaching this append is assistant narration.
+      appendTextItem(g, block.content, 'assistant', lastNarrationChannel)
       continue
     }
 
@@ -623,12 +620,9 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       const g = findGroupForSubagentChunk(block.parentToolCallId)
       if (!g) continue
       g.isDelegating = false
-      appendTextItem(
-        g,
-        block.content,
-        block.type === 'subagent_thinking' ? 'thinking' : 'assistant',
-        lastNarrationChannel
-      )
+      // Thinking blocks are skipped above (lanes render them separately), so
+      // everything reaching this append is assistant narration.
+      appendTextItem(g, block.content, 'assistant', lastNarrationChannel)
       continue
     }
 
