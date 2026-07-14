@@ -46,9 +46,18 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
 export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
 
 /**
- * Is billing enforcement enabled
+ * Is billing enforcement enabled.
+ *
+ * Server code reads `BILLING_ENABLED`. Server-only vars never reach browser
+ * bundles, so client evaluation reads the `NEXT_PUBLIC_BILLING_ENABLED` twin
+ * (via `window.__ENV`, populated by `<PublicEnvScript>`) — reading
+ * `env.BILLING_ENABLED` in client code is always `undefined`. Deployments must
+ * set both vars together.
  */
-export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
+export const isBillingEnabled =
+  typeof window === 'undefined'
+    ? isTruthy(env.BILLING_ENABLED)
+    : isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
  * Block free-plan accounts from programmatic workflow execution (API key, public
