@@ -305,6 +305,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Editing: 'Edited',
   Executing: 'Executed',
   Finding: 'Found',
+  Gathering: 'Gathered',
   Generating: 'Generated',
   Getting: 'Got',
   Listing: 'Listed',
