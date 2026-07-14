@@ -1394,6 +1394,48 @@ describe('Copilot Env Variable Reference Resolution', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('fails fast instead of forwarding the placeholder when user context is missing', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}' },
+      {
+        executionContext: createToolExecutionContext({
+          workspaceId: 'workspace-456',
+          userId: undefined,
+          copilotToolExecution: true,
+        } as any),
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('authenticated user context')
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('explains the personal-only scope when a variable is missing without a workspace context', async () => {
+    const fetchMock = mockJsonFetch()
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{MISSING_VAR}}' },
+      {
+        executionContext: createToolExecutionContext({
+          workspaceId: undefined,
+          userId: 'user-123',
+          copilotToolExecution: true,
+        } as any),
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('only personal variables are available')
+    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', undefined)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('does not resolve references outside copilot execution', async () => {
     const fetchMock = mockJsonFetch()
 

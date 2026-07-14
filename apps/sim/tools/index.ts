@@ -204,7 +204,7 @@ async function resolveCopilotEnvReferences(
   params: Record<string, unknown>,
   scope: ToolExecutionScope
 ): Promise<void> {
-  if (!scope.copilotToolExecution || !scope.userId) {
+  if (!scope.copilotToolExecution) {
     return
   }
 
@@ -221,6 +221,12 @@ async function resolveCopilotEnvReferences(
     return
   }
 
+  if (!scope.userId) {
+    throw new Error(
+      `Cannot resolve environment variable reference in parameter "${pending[0].paramId}" without an authenticated user context.`
+    )
+  }
+
   const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
   const envVars = await getEffectiveDecryptedEnv(scope.userId, scope.workspaceId)
 
@@ -231,8 +237,11 @@ async function resolveCopilotEnvReferences(
       missingKeys,
     })
     if (missingKeys.length > 0) {
+      const scopeHint = scope.workspaceId
+        ? ''
+        : ' (no workspace context — only personal variables are available here)'
       throw new Error(
-        `Environment variable "${missingKeys[0]}" referenced by parameter "${paramId}" was not found. ` +
+        `Environment variable "${missingKeys[0]}" referenced by parameter "${paramId}" was not found${scopeHint}. ` +
           `Check environment/variables.json for available variable names.`
       )
     }
