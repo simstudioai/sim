@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ContentBlock } from '../../types'
 import {
-  assistantMessageHasRunningWork,
+  assistantMessageHasVisibleExecutingTool,
   parseBlocks,
   shouldShowTrailingThinking,
   shouldSmoothTextSegment,
@@ -12,10 +12,6 @@ import {
 
 function subagentStart(name: string, spanId: string, parentSpanId: string): ContentBlock {
   return { type: 'subagent', content: name, spanId, parentSpanId, timestamp: 1 }
-}
-
-function subagentEnd(spanId: string): ContentBlock {
-  return { type: 'subagent_end', spanId, timestamp: 2 }
 }
 
 function subagentToolCall(
@@ -584,41 +580,46 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
   })
 })
 
-describe('assistantMessageHasRunningWork', () => {
-  it('reads an open subagent lane as running work', () => {
-    expect(assistantMessageHasRunningWork([subagentStart('workflow', 'S1', 'main')])).toBe(true)
+describe('assistantMessageHasVisibleExecutingTool', () => {
+  it('does not treat an open subagent lane as an executing tool row', () => {
+    expect(assistantMessageHasVisibleExecutingTool([subagentStart('workflow', 'S1', 'main')])).toBe(
+      false
+    )
   })
 
-  it('reads a lane closed by its paired subagent_end (live path) as settled', () => {
-    const blocks: ContentBlock[] = [subagentStart('workflow', 'S1', 'main'), subagentEnd('S1')]
-    expect(assistantMessageHasRunningWork(blocks)).toBe(false)
-  })
-
-  it('reads a lane closed by a stamped endedAt (persisted path) as settled', () => {
-    const closed: ContentBlock = { ...subagentStart('workflow', 'S1', 'main'), endedAt: 5 }
-    expect(assistantMessageHasRunningWork([closed])).toBe(false)
-  })
-
-  it('keeps an executing tool as running work after every lane closed', () => {
+  it('keeps a visible executing tool as active work', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),
-      subagentEnd('S1'),
       {
         type: 'tool_call',
-        toolCall: { id: 't1', name: 'grep', status: 'executing' },
+        toolCall: { id: 't1', name: 'grep', status: 'executing', calledBy: 'workflow' },
+        spanId: 'S1',
         timestamp: 3,
       },
     ]
-    expect(assistantMessageHasRunningWork(blocks)).toBe(true)
+    expect(assistantMessageHasVisibleExecutingTool(blocks)).toBe(true)
   })
 
-  it('tracks parallel lanes independently — one still-open lane keeps the turn running', () => {
+  it('does not let open parallel lanes suppress the single turn-level indicator', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),
       subagentStart('search', 'S2', 'main'),
-      subagentEnd('S1'),
     ]
-    expect(assistantMessageHasRunningWork(blocks)).toBe(true)
-    expect(assistantMessageHasRunningWork([...blocks, subagentEnd('S2')])).toBe(false)
+    expect(assistantMessageHasVisibleExecutingTool(blocks)).toBe(false)
+  })
+
+  it('ignores the executing dispatch tool represented by its subagent lane', () => {
+    const blocks: ContentBlock[] = [
+      {
+        type: 'tool_call',
+        toolCall: { id: 'dispatch-1', name: 'workspace_file', status: 'executing' },
+        timestamp: 1,
+      },
+      {
+        ...subagentStart('file', 'S1', 'main'),
+        parentToolCallId: 'dispatch-1',
+      },
+    ]
+    expect(assistantMessageHasVisibleExecutingTool(blocks)).toBe(false)
   })
 })

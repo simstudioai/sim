@@ -792,27 +792,23 @@ export function assistantMessageHasRenderableContent(
   return segments.length > 0
 }
 
-/**
- * True while any wire-declared work in the turn is still running: a tool row
- * still `executing`, or a subagent lane that has not closed. A lane closes via
- * its paired `subagent_end` block (live serializer) or a stamped `endedAt`
- * (Sim-backend persistence / turn-terminal sweep). The live path never stamps
- * `endedAt` on `subagent` blocks, so checking `endedAt` alone reads every
- * finished subagent as still running for the rest of the turn — permanently
- * suppressing the between-steps thinking indicator after the first delegation.
- */
-export function assistantMessageHasRunningWork(blocks: ContentBlock[]): boolean {
-  const closedSpanIds = new Set<string>()
+/** True when the transcript is already rendering an executing tool row. */
+export function assistantMessageHasVisibleExecutingTool(blocks: ContentBlock[]): boolean {
+  const subagentDispatchCallIds = new Set<string>()
   for (const block of blocks) {
-    if (block.type === 'subagent_end' && block.spanId) closedSpanIds.add(block.spanId)
+    if (block.type === 'subagent' && block.parentToolCallId) {
+      subagentDispatchCallIds.add(block.parentToolCallId)
+    }
   }
-  return blocks.some(
-    (block) =>
-      block.toolCall?.status === 'executing' ||
-      (block.type === 'subagent' &&
-        block.endedAt === undefined &&
-        !(block.spanId && closedSpanIds.has(block.spanId)))
-  )
+
+  return blocks.some((block) => {
+    const toolCall = block.toolCall
+    if (!toolCall || toolCall.status !== 'executing') return false
+    if (isHiddenToolCall(toolCall.name)) return false
+    if (toolCall.name === ReadTool.id && isToolResultRead(toolCall.params)) return false
+    if (SUBAGENT_KEYS.has(toolCall.name)) return false
+    return !subagentDispatchCallIds.has(toolCall.id)
+  })
 }
 
 export function shouldSmoothTextSegment({
@@ -928,7 +924,7 @@ function MessageContentInner({
   // not suppress the turn-level indicator: once its latest visible chunk has
   // settled, the loader can bridge the wait until that lane (or a parallel
   // sibling) emits again.
-  const hasExecutingTool = blocks.some((b) => b.toolCall?.status === 'executing')
+  const hasExecutingTool = assistantMessageHasVisibleExecutingTool(blocks)
   const showTrailingThinking = shouldShowTrailingThinking({
     isStreaming: phase === 'streaming',
     isStreamIdle,
