@@ -87,9 +87,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Bake the GLiNER weights at build time (cached layer) so startup never
 # touches the network. HF_HUB_OFFLINE makes a missing/overridden
 # PII_GLINER_MODEL fail fast at startup instead of silently downloading.
+# The predict_entities smoke assert (labels from engines.py's
+# GLINER_ENTITY_MAPPING) fails the build if a transformers/gliner bump loads
+# the model fine but silently stops returning detections.
 ENV HF_HOME=/opt/hf-cache
 ARG GLINER_MODEL=urchade/gliner_multi_pii-v1
-RUN python -c "from gliner import GLiNER; GLiNER.from_pretrained('${GLINER_MODEL}')" && \
+RUN python -c "from gliner import GLiNER; \
+model = GLiNER.from_pretrained('${GLINER_MODEL}'); \
+ents = model.predict_entities('John Smith flew to Paris on 4 May 2021.', ['person', 'location', 'date']); \
+labels = {e['label'] for e in ents}; \
+assert {'person', 'location'} <= labels, f'GLiNER smoke inference failed, got: {ents}'" && \
     chmod -R a+rX /opt/hf-cache
 ENV HF_HUB_OFFLINE=1
 
