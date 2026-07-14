@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isCustomBlocksEligible } from '@/lib/workflows/custom-blocks/operations'
 
 const logger = createLogger('CopilotEntitlements')
@@ -10,6 +11,11 @@ const logger = createLogger('CopilotEntitlements')
  * its `core.Entitlement*` constants to gate agent surfaces.
  */
 export const CUSTOM_BLOCKS_ENTITLEMENT = 'custom-blocks'
+export const SUBAGENT_NARRATION_ENTITLEMENT = 'mothership-subagent-narration'
+
+function isSubagentNarrationEnabled(_workspaceId: string, userId?: string): Promise<boolean> {
+  return isFeatureEnabled('mothership-subagent-narration', { userId })
+}
 
 /**
  * Workspace entitlements — plan/flag-gated org capabilities sent to the
@@ -33,6 +39,7 @@ const ENTITLEMENT_EVALUATORS: Record<
   (workspaceId: string, userId?: string) => Promise<boolean>
 > = {
   [CUSTOM_BLOCKS_ENTITLEMENT]: isCustomBlocksEligible,
+  [SUBAGENT_NARRATION_ENTITLEMENT]: isSubagentNarrationEnabled,
 }
 
 const entitlementsCache = new LRUCache<string, Promise<string[]>>({
