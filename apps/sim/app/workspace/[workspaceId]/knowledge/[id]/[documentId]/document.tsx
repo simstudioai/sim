@@ -157,7 +157,8 @@ export function Document({
     (value, options) => void setDocumentParams({ search: value }, options),
     { debounceMs: CHUNK_SEARCH_DEBOUNCE_MS }
   )
-  const debouncedSearchQuery = useDebounce(searchQuery, CHUNK_SEARCH_DEBOUNCE_MS)
+  /** Raw URL value drives the input; the chunk search query always sees it trimmed. */
+  const debouncedSearchQuery = useDebounce(searchQuery, CHUNK_SEARCH_DEBOUNCE_MS).trim()
   const [enabledFilter, setEnabledFilter] = useState<string[]>([])
   const {
     activeSort,
@@ -200,7 +201,7 @@ export function Document({
       search: debouncedSearchQuery,
     },
     {
-      enabled: Boolean(debouncedSearchQuery.trim()),
+      enabled: Boolean(debouncedSearchQuery),
     }
   )
 
@@ -230,7 +231,7 @@ export function Document({
   const saveStatusRef = useRef<SaveStatus>('idle')
   saveStatusRef.current = saveStatus
 
-  const isSearching = debouncedSearchQuery.trim().length > 0
+  const isSearching = debouncedSearchQuery.length > 0
   const showingSearch = isSearching && searchQuery.trim().length > 0 && searchResults.length > 0
   const SEARCH_PAGE_SIZE = 50
   const maxSearchPages = Math.ceil(searchResults.length / SEARCH_PAGE_SIZE)
