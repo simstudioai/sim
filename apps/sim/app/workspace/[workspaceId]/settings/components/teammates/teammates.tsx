@@ -169,7 +169,7 @@ export function Teammates() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: (value) => void setSearchTerm(value),
+          onChange: setSearchTerm,
           placeholder: 'Search teammates...',
         }}
         actions={

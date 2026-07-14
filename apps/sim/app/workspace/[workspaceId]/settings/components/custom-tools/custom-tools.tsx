@@ -109,7 +109,7 @@ export function CustomTools() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: (value) => void setSearchTerm(value),
+          onChange: setSearchTerm,
           placeholder: 'Search tools...',
           disabled: isLoading,
         }}

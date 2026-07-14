@@ -970,7 +970,7 @@ export function WorkflowMcpServers() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: (value) => void setSearchTerm(value),
+          onChange: setSearchTerm,
           placeholder: 'Search servers...',
         }}
         actions={actions}

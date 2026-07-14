@@ -124,7 +124,7 @@ export function Copilot() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: (value) => void setSearchTerm(value),
+          onChange: setSearchTerm,
           placeholder: 'Search API keys...',
         }}
         actions={actions}

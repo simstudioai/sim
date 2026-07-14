@@ -619,7 +619,7 @@ export function MCP() {
       <SettingsPanel
         search={{
           value: searchTerm,
-          onChange: (value) => void setSearchTerm(value),
+          onChange: setSearchTerm,
           placeholder: 'Search MCPs...',
         }}
         actions={

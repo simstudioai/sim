@@ -422,6 +422,12 @@ export default function Logs() {
    */
   const handleLogClick = useCallback(
     (rowId: string) => {
+      /**
+       * An explicit click supersedes an in-flight deep-link resolution —
+       * otherwise the resolved row would open over the user's selection and
+       * leave the URL pointing at a different run than the panel shows.
+       */
+      setPendingExecutionId(null)
       const opens = !(selectedLogIdRef.current === rowId && isSidebarOpenRef.current)
       dispatch({ type: 'TOGGLE_LOG', logId: rowId })
       if (opens) {

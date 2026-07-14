@@ -952,7 +952,7 @@ export function SecretsManager() {
         scrollContainerRef={scrollContainerRef}
         search={{
           value: searchTerm,
-          onChange: (value) => void setSearchTerm(value),
+          onChange: setSearchTerm,
           placeholder: 'Search secrets...',
         }}
         actions={[
