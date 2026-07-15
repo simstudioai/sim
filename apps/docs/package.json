@@ -15,13 +15,10 @@
     "format:check": "biome format ."
   },
   "dependencies": {
-    "@ai-sdk/openai": "2.0.107",
-    "@ai-sdk/react": "2.0.205",
     "@sim/db": "workspace:*",
     "@sim/emcn": "workspace:*",
     "@sim/workflow-renderer": "workspace:*",
     "@vercel/og": "^0.6.5",
-    "ai": "5.0.203",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
@@ -37,7 +34,6 @@
     "react-dom": "19.2.4",
     "remark-breaks": "^4.0.0",
     "shiki": "4.3.1",
-    "streamdown": "2.5.0",
     "tailwind-merge": "^3.0.2",
     "reactflow": "^11.11.4",
     "framer-motion": "^12.5.0",
