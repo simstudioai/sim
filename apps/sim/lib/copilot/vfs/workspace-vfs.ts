@@ -25,7 +25,10 @@ import {
 } from '@/lib/copilot/chat/workspace-context'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import {
+  filterExposedIntegrationTools,
+  getExposedIntegrationTools,
+} from '@/lib/copilot/integration-tools'
 import { recordVfsMaterialize } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
@@ -219,9 +222,11 @@ function getStaticComponentFiles(): Map<string, string> {
 
   // Raw registry, never the visibility-projected getAllBlocks: this map is a
   // process-global shared cache, so it must hold the deterministic ungated
-  // universe. Preview blocks get schema files here (path-filterable at stamp
-  // time for revealed viewers) but are EXCLUDED from the shared aggregate
-  // files (overviews, oauth/api-key summaries) that all viewers receive.
+  // universe. Per-file schema entries (block/integration/trigger) are stamped
+  // ungated here and include/exclude-filtered per viewer at stamp time. Files
+  // whose CONTENT summarizes a viewer-dependent set (triggers.md, the oauth/
+  // api-key summaries) are NOT built here — {@link buildViewerScopedComponentFiles}
+  // rebuilds them per materialize so a revealed preview block shows up in them.
   const allBlocks = Object.values(BLOCK_REGISTRY)
   const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
 
@@ -234,9 +239,6 @@ function getStaticComponentFiles(): Map<string, string> {
 
   let integrationCount = 0
 
-  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
-  const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
-
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
   // deferred callable tools — so discovery and execution can never drift.
@@ -246,42 +248,7 @@ function getStaticComponentFiles(): Map<string, string> {
     files.set(path, serializeIntegrationSchema(tool))
     integrationPathOwners.set(path, { type: blockType, preview })
     integrationCount++
-
-    // Preview-owned tools stay out of the shared oauth/api-key aggregates —
-    // those files are identical for every viewer.
-    if (preview) continue
-
-    if (tool.oauth?.required) {
-      const existing = oauthServices.get(service)
-      if (existing) {
-        existing.operations.push(operation)
-      } else {
-        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
-      }
-    } else if (tool.hosting?.apiKeyParam) {
-      const existing = apiKeyServices.get(service)
-      if (existing) {
-        if (!existing.params.includes(tool.hosting.apiKeyParam)) {
-          existing.params.push(tool.hosting.apiKeyParam)
-        }
-        existing.operations.push(operation)
-      } else {
-        apiKeyServices.set(service, {
-          params: [tool.hosting.apiKeyParam],
-          operations: [operation],
-        })
-      }
-    }
   }
-
-  files.set(
-    'environment/oauth-integrations.json',
-    JSON.stringify(Object.fromEntries(oauthServices), null, 2)
-  )
-  files.set(
-    'environment/api-key-integrations.json',
-    JSON.stringify(Object.fromEntries(apiKeyServices), null, 2)
-  )
 
   files.set(
     'components/blocks/loop.json',
@@ -390,34 +357,6 @@ function getStaticComponentFiles(): Map<string, string> {
     externalTriggerCount++
   }
 
-  files.set(
-    'components/triggers/triggers.md',
-    serializeTriggerOverview(
-      // The overview is a shared file — preview trigger blocks stay out of it
-      // (their per-type schema file remains discoverable for revealed viewers).
-      builtinTriggerBlocks
-        .filter((b) => !b.preview)
-        .map((b) => ({
-          id: b.type,
-          name: b.name,
-          provider: 'sim',
-          description: b.description,
-        })),
-      // Same for external triggers: a trigger owned solely by preview blocks is
-      // hidden under the null (no-viewer) state this shared file is built with.
-      Object.entries(TRIGGER_REGISTRY)
-        .filter(
-          ([id, t]) => !isStaticFileHidden(`components/triggers/${t.provider}/${id}.json`, null)
-        )
-        .map(([id, t]) => ({
-          id,
-          name: t.name,
-          provider: t.provider,
-          description: t.description,
-        }))
-    )
-  )
-
   logger.info('Static component files built', {
     blocks: visibleBlocks.length,
     blocksFiltered,
@@ -429,6 +368,80 @@ function getStaticComponentFiles(): Map<string, string> {
 
   staticComponentFiles = files
   return staticComponentFiles
+}
+
+/**
+ * Overview/aggregate component files whose CONTENT depends on the viewer's
+ * visibility. A per-file schema entry can be gated by include/exclude (the
+ * shared build holds it ungated; the stamp loop drops it for viewers who can't
+ * see it), but an overview summarizes a viewer-dependent SET into a single file
+ * — include/exclude can't express "this viewer sees a different list". So these
+ * are rebuilt per materialize from the ungated registries filtered through
+ * `vis`, which is what lets a revealed preview block appear in the overview for
+ * the viewer who revealed it, matching the per-file schema its stamp filter
+ * already exposes.
+ *
+ * Reuses the same predicates the stamp filter uses ({@link isHiddenUnder} for
+ * builtin trigger blocks, {@link isStaticFileHidden} for external triggers,
+ * {@link filterExposedIntegrationTools} for integration tools), so an overview
+ * entry appears exactly when its per-file schema does. Depends on the owner maps
+ * populated by {@link getStaticComponentFiles}, so it forces that build first
+ * (idempotent — normally already warm by materialize time).
+ */
+function buildViewerScopedComponentFiles(vis: BlockVisibilityState | null): Map<string, string> {
+  getStaticComponentFiles()
+
+  const files = new Map<string, string>()
+
+  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
+  const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
+  for (const { config: tool, service, operation } of filterExposedIntegrationTools(
+    getExposedIntegrationTools(),
+    vis
+  )) {
+    if (tool.oauth?.required) {
+      const existing = oauthServices.get(service)
+      if (existing) {
+        existing.operations.push(operation)
+      } else {
+        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
+      }
+    } else if (tool.hosting?.apiKeyParam) {
+      const existing = apiKeyServices.get(service)
+      if (existing) {
+        if (!existing.params.includes(tool.hosting.apiKeyParam)) {
+          existing.params.push(tool.hosting.apiKeyParam)
+        }
+        existing.operations.push(operation)
+      } else {
+        apiKeyServices.set(service, {
+          params: [tool.hosting.apiKeyParam],
+          operations: [operation],
+        })
+      }
+    }
+  }
+  files.set(
+    'environment/oauth-integrations.json',
+    JSON.stringify(Object.fromEntries(oauthServices), null, 2)
+  )
+  files.set(
+    'environment/api-key-integrations.json',
+    JSON.stringify(Object.fromEntries(apiKeyServices), null, 2)
+  )
+
+  const builtinTriggers = Object.values(BLOCK_REGISTRY)
+    .filter((b) => b.category === 'triggers' && !isHiddenUnder(vis, b))
+    .map((b) => ({ id: b.type, name: b.name, provider: 'sim', description: b.description }))
+  const externalTriggers = Object.entries(TRIGGER_REGISTRY)
+    .filter(([id, t]) => !isStaticFileHidden(`components/triggers/${t.provider}/${id}.json`, vis))
+    .map(([id, t]) => ({ id, name: t.name, provider: t.provider, description: t.description }))
+  files.set(
+    'components/triggers/triggers.md',
+    serializeTriggerOverview(builtinTriggers, externalTriggers)
+  )
+
+  return files
 }
 
 /**
@@ -730,6 +743,12 @@ export class WorkspaceVFS {
             const blockVisibility = overlayVisibility()
             for (const [path, content] of getStaticComponentFiles()) {
               if (isStaticFileHidden(path, blockVisibility)) continue
+              this.files.set(path, content)
+            }
+            // Overview files summarize a viewer-dependent set, so their CONTENT
+            // (not just presence) is rebuilt per viewer — the stamp loop above
+            // can only include/exclude whole files, not re-derive a list.
+            for (const [path, content] of buildViewerScopedComponentFiles(blockVisibility)) {
               this.files.set(path, content)
             }
 
