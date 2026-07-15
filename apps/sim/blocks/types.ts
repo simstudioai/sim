@@ -469,6 +469,12 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   }
   hideFromToolbar?: boolean
   /**
+   * For published custom blocks only: the bound source workflow's id. Discovery
+   * surfaces use it to hide a workflow's own block on that workflow's canvas
+   * (placing it would recurse).
+   */
+  sourceWorkflowId?: string
+  /**
    * Marks an unreleased block. Preview blocks are hidden from every discovery
    * surface (toolbar, search, mentions, copilot/VFS, docs) in every environment —
    * hosted, self-hosted, dev, and SSR — until revealed via the hosted

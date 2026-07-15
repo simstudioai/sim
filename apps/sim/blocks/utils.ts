@@ -159,6 +159,17 @@ function getProviderFromStore(model: string): string | null {
   return null
 }
 
+/**
+ * Whether an Ollama instance is available. `isOllamaConfigured` reads the
+ * server-only `OLLAMA_URL` env var, which is always undefined in the browser —
+ * there the providers store (populated from the server's model list, which is
+ * non-empty only when Ollama is configured) is the signal.
+ */
+function isOllamaAvailable(): boolean {
+  if (isOllamaConfigured) return true
+  return useProvidersStore.getState().providers.ollama.models.length > 0
+}
+
 function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
   if (!model) {
     return { field: 'model', value: '__no_model_selected__' }
@@ -197,7 +208,7 @@ function shouldRequireApiKeyForModel(model: string): boolean {
     return false
   if (storeProvider) return true
 
-  if (isOllamaConfigured) {
+  if (isOllamaAvailable()) {
     if (normalizedModel.includes('/')) return true
     if (normalizedModel in getBaseModelProviders()) return true
     return false

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { isReservedOutputName } from '@/blocks/custom/build-config'
 
 const inputFieldSchema = z.object({
   /** Stable per-field id — preserved so client block configs key sub-blocks on it
@@ -34,6 +35,21 @@ const exposedOutputSchema = z.object({
   blockId: z.string().min(1),
   path: z.string().min(1),
   name: z.string().min(1).max(60),
+})
+
+/**
+ * Publish/update variant: rejects reserved system output names (`success`,
+ * `error`, `cost`) that would shadow the block's own projected fields. The
+ * read schema stays lenient so rows that predate this validation still parse.
+ */
+const exposedOutputWriteSchema = exposedOutputSchema.extend({
+  name: z
+    .string()
+    .min(1)
+    .max(60)
+    .refine((name) => !isReservedOutputName(name), {
+      message: 'Output name is reserved (success, error, cost)',
+    }),
 })
 
 export const customBlockSchema = z.object({
@@ -87,7 +103,7 @@ export const publishCustomBlockBodySchema = z.object({
   /** Per-input placeholder hints keyed by Start field id; the field set itself is always derived from the deployment. */
   inputs: z.array(inputPlaceholderSchema).max(50).optional(),
   /** Curated outputs; omit/empty to expose the child's whole result. */
-  exposedOutputs: z.array(exposedOutputSchema).max(50).optional(),
+  exposedOutputs: z.array(exposedOutputWriteSchema).max(50).optional(),
 })
 
 export type PublishCustomBlockBody = z.input<typeof publishCustomBlockBodySchema>
@@ -104,7 +120,7 @@ export const updateCustomBlockBodySchema = z
     /** A URL (https or internal serve path) sets/replaces the icon; `null` clears it (default icon). */
     iconUrl: iconUrlSchema.nullable().optional(),
     inputs: z.array(inputPlaceholderSchema).max(50).optional(),
-    exposedOutputs: z.array(exposedOutputSchema).max(50).optional(),
+    exposedOutputs: z.array(exposedOutputWriteSchema).max(50).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'At least one field is required' })
 

@@ -32,7 +32,11 @@ import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
-import type { CustomBlockInput, CustomBlockOutput } from '@/blocks/custom/build-config'
+import {
+  type CustomBlockInput,
+  type CustomBlockOutput,
+  isReservedOutputName,
+} from '@/blocks/custom/build-config'
 import { SettingRow } from '@/ee/components/setting-row'
 import {
   useCustomBlocks,
@@ -56,12 +60,12 @@ const decodeOutput = (value: string) => {
     : { blockId: value.slice(0, i), path: value.slice(i + OUTPUT_SEP.length) }
 }
 
-/** Derive a unique, friendly output name from a dot-path, avoiding collisions. */
+/** Derive a unique, friendly output name from a dot-path, avoiding collisions and reserved names. */
 function deriveOutputName(path: string, taken: Set<string>): string {
   const base = (path.split('.').pop() || path).replace(/[^a-zA-Z0-9_]/g, '_')
   let name = base
   let n = 2
-  while (taken.has(name)) name = `${base}_${n++}`
+  while (taken.has(name) || isReservedOutputName(name)) name = `${base}_${n++}`
   taken.add(name)
   return name
 }
@@ -358,6 +362,11 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     }
     if (new Set(exposedOutputs.map((o) => o.name)).size !== exposedOutputs.length) {
       setError('Output names must be unique')
+      return
+    }
+    const reserved = exposedOutputs.find((o) => isReservedOutputName(o.name))
+    if (reserved) {
+      setError(`"${reserved.name}" is a reserved output name (success, error, cost)`)
       return
     }
     // Only the placeholder and required flag are authored; the field set/name/type
