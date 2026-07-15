@@ -139,4 +139,21 @@ describe('validateShopifyServiceAccount', () => {
       status: 502,
     })
   })
+
+  it('maps an auth-shaped GraphQL error in a 200 response to invalid_credentials', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        errors: [
+          { message: 'Invalid API key or access token (unrecognized login or wrong password)' },
+        ],
+      })
+    )
+    await expect(
+      validateShopifyServiceAccount({ apiToken: 'shpat_bad', domain: 'my-store.myshopify.com' })
+    ).rejects.toMatchObject({
+      name: 'TokenServiceAccountValidationError',
+      code: 'invalid_credentials',
+      status: 401,
+    })
+  })
 })

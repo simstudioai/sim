@@ -27,6 +27,11 @@ const SHOPIFY_HOST_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/
 
 const SHOP_QUERY = '{ shop { name myshopifyDomain } }'
 
+interface ShopifyGraphqlError {
+  message?: string
+  extensions?: { code?: string }
+}
+
 interface ShopifyShopResponse {
   data?: {
     shop?: {
@@ -34,7 +39,20 @@ interface ShopifyShopResponse {
       myshopifyDomain?: string
     }
   }
-  errors?: unknown
+  errors?: ShopifyGraphqlError[] | unknown
+}
+
+/**
+ * Shopify can reject invalid or revoked `shpat_` tokens with HTTP 200 and a
+ * GraphQL error body instead of a 401, so auth-shaped GraphQL errors must map
+ * to `invalid_credentials` rather than a provider outage.
+ */
+function hasShopifyAuthError(errors: unknown): boolean {
+  if (!Array.isArray(errors)) return false
+  return errors.some((error: ShopifyGraphqlError) => {
+    const haystack = `${error?.message ?? ''} ${error?.extensions?.code ?? ''}`
+    return /access.?denied|unauthorized|invalid api key or access token|401/i.test(haystack)
+  })
 }
 
 /** Strips the protocol and trailing slashes and lowercases the store domain. */
@@ -89,6 +107,13 @@ export async function validateShopifyServiceAccount(
   const payload = await parseProviderJson<ShopifyShopResponse>(res, 'shop_query')
 
   const shop = payload.data?.shop
+  if (hasShopifyAuthError(payload.errors)) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 401, {
+      step: 'shop_query',
+      domain,
+      reason: 'auth-shaped GraphQL error in 200 response',
+    })
+  }
   if (payload.errors || !shop) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'shop_query',
