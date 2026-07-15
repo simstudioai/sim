@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Chip } from '@sim/emcn'
 import { CircleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -27,13 +27,22 @@ function isStaleSessionError(error: unknown): boolean {
   return isApiClientError(error) && error.status === 401
 }
 
-async function recoverFromStaleSession(): Promise<void> {
+/**
+ * Signs out (clearing every auth cookie server-side), wipes per-user client
+ * state, and navigates to login. Returns false without navigating when the
+ * sign-out request fails — the cookies are still set, so going to /login
+ * would only get bounced back to /workspace by the middleware.
+ */
+async function recoverFromStaleSession(): Promise<boolean> {
   try {
-    await Promise.all([signOut(), clearUserData()])
+    await signOut()
   } catch (error) {
     logger.error('Failed to sign out while recovering from a stale session:', error)
+    return false
   }
+  await clearUserData()
   window.location.assign('/login')
+  return true
 }
 
 export default function WorkspacePage() {
@@ -42,6 +51,7 @@ export default function WorkspacePage() {
   const isAuthenticated = !isSessionPending && !!session?.user
   const hasRedirectedRef = useRef(false)
   const isRecoveringRef = useRef(false)
+  const [recoveryFailed, setRecoveryFailed] = useState(false)
 
   const {
     data,
@@ -50,11 +60,15 @@ export default function WorkspacePage() {
   } = useWorkspacesWithMetadata(isAuthenticated)
 
   useEffect(() => {
-    if (!isStaleSessionError(workspacesError) || isRecoveringRef.current) return
+    if (!isAuthenticated || !isStaleSessionError(workspacesError) || isRecoveringRef.current) return
     isRecoveringRef.current = true
     logger.warn('Session cookies are stale (authenticated session but 401 API); signing out')
-    void recoverFromStaleSession()
-  }, [workspacesError])
+    void recoverFromStaleSession().then((recovered) => {
+      if (recovered) return
+      isRecoveringRef.current = false
+      setRecoveryFailed(true)
+    })
+  }, [isAuthenticated, workspacesError])
 
   useEffect(() => {
     if (isSessionPending || hasRedirectedRef.current) return
@@ -98,7 +112,9 @@ export default function WorkspacePage() {
   }, [session, isSessionPending, sessionError, isWorkspacesLoading, workspacesError, data, router])
 
   const failedToLoad =
-    Boolean(sessionError) || (Boolean(workspacesError) && !isStaleSessionError(workspacesError))
+    recoveryFailed ||
+    Boolean(sessionError) ||
+    (isAuthenticated && Boolean(workspacesError) && !isStaleSessionError(workspacesError))
 
   if (failedToLoad) {
     return (
