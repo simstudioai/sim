@@ -26,7 +26,7 @@ export const tiktokQueryCreatorInfoTool: ToolConfig<
   id: 'tiktok_query_creator_info',
   name: 'TikTok Query Creator Info',
   description:
-    'Check if the authenticated TikTok user can post content and retrieve their available privacy options, interaction settings, and maximum video duration. Required before any post per TikTok UX guidelines.',
+    "Inspect the authenticated creator's Direct Post capabilities, privacy options, interaction settings, and maximum video duration. Direct Post is currently unavailable in Sim; Upload Video Draft does not require this step.",
   version: '1.0.0',
 
   oauth: {
@@ -80,6 +80,13 @@ export const tiktokQueryCreatorInfoTool: ToolConfig<
       success: true,
       output: {
         creatorAvatarUrl: creatorInfo.creator_avatar_url ?? null,
+        ...(creatorInfo.creator_avatar_url && {
+          creatorAvatarFile: {
+            name: `${creatorInfo.creator_username || 'tiktok-creator'}-avatar.jpg`,
+            mimeType: 'image/jpeg',
+            url: creatorInfo.creator_avatar_url,
+          },
+        }),
         creatorUsername: creatorInfo.creator_username ?? null,
         creatorNickname: creatorInfo.creator_nickname ?? null,
         privacyLevelOptions: creatorInfo.privacy_level_options ?? [],
@@ -94,7 +101,14 @@ export const tiktokQueryCreatorInfoTool: ToolConfig<
   outputs: {
     creatorAvatarUrl: {
       type: 'string',
-      description: 'URL of the creator avatar',
+      description:
+        'Temporary URL of the current creator avatar. TikTok documents this URL as expiring two hours after it is returned.',
+      optional: true,
+    },
+    creatorAvatarFile: {
+      type: 'file',
+      description:
+        'Durable workflow-file copy of the current creator avatar, suitable for chaining into file-consuming blocks such as email attachments.',
       optional: true,
     },
     creatorUsername: {
@@ -111,6 +125,10 @@ export const tiktokQueryCreatorInfoTool: ToolConfig<
       type: 'array',
       description:
         'Available privacy levels for posting (e.g., PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY)',
+      items: {
+        type: 'string',
+        description: 'Privacy level currently available to the authenticated creator',
+      },
     },
     commentDisabled: {
       type: 'boolean',

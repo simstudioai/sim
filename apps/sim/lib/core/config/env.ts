@@ -405,6 +405,8 @@ export const env = createEnv({
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
     LINKEDIN_CLIENT_ID:                    z.string().optional(),                  // LinkedIn OAuth client ID
     LINKEDIN_CLIENT_SECRET:                z.string().optional(),                  // LinkedIn OAuth client secret
+    INSTAGRAM_CLIENT_ID:                   z.string().optional(),                  // Instagram App ID (Business Login)
+    INSTAGRAM_CLIENT_SECRET:               z.string().optional(),                  // Instagram App Secret (Business Login)
     SHOPIFY_CLIENT_ID:                     z.string().optional(),                  // Shopify OAuth client ID
     SHOPIFY_CLIENT_SECRET:                 z.string().optional(),                  // Shopify OAuth client secret
     ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID
