@@ -268,7 +268,7 @@ export const CallIntegrationTool: ToolCatalogEntry = {
       },
       description: {
         description:
-          'Short present-progressive UI phrase describing this invocation, without the integration name (for example "Searching for invoice emails").',
+          'Short base-form verb phrase describing this invocation, without the integration name (for example "Search for invoice emails").',
         type: 'string',
       },
       toolId: { description: 'Exact toolId returned by search_integration_tools.', type: 'string' },

@@ -1039,7 +1039,6 @@ describe('sse-handlers tool lifecycle', () => {
         payload: {
           toolCallId: 'gateway-gmail',
           toolName: 'call_integration_tool',
-          arguments: { toolId: 'gmail_read_v2' },
           executor: MothershipStreamV1ToolExecutor.go,
           mode: MothershipStreamV1ToolMode.sync,
           phase: MothershipStreamV1ToolPhase.call,
@@ -1050,6 +1049,43 @@ describe('sse-handlers tool lifecycle', () => {
       context,
       execContext,
       { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.toolCalls.get('gateway-gmail')).toEqual(
+      expect.objectContaining({
+        name: 'call_integration_tool',
+        displayTitle: 'Calling integration',
+      })
+    )
+
+    for (const argumentsDelta of [
+      '{"toolId":"gmail_read_v2",',
+      '"description":"Searching for invoice emails",',
+    ]) {
+      await sseHandlers.tool(
+        {
+          type: MothershipStreamV1EventType.tool,
+          payload: {
+            toolCallId: 'gateway-gmail',
+            toolName: 'call_integration_tool',
+            argumentsDelta,
+            executor: MothershipStreamV1ToolExecutor.go,
+            mode: MothershipStreamV1ToolMode.sync,
+            phase: MothershipStreamV1ToolPhase.args_delta,
+          },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+    }
+
+    expect(context.toolCalls.get('gateway-gmail')).toEqual(
+      expect.objectContaining({
+        name: 'call_integration_tool',
+        displayTitle: 'Searching for invoice emails',
+        streamingArgs: '{"toolId":"gmail_read_v2","description":"Searching for invoice emails",',
+      })
     )
 
     await sseHandlers.tool(
@@ -1071,6 +1107,13 @@ describe('sse-handlers tool lifecycle', () => {
       context,
       execContext,
       { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.toolCalls.get('gateway-gmail')).toEqual(
+      expect.objectContaining({
+        name: 'call_integration_tool',
+        displayTitle: 'Searching for invoice emails',
+      })
     )
 
     await sseHandlers.tool(
@@ -1101,7 +1144,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.toolCalls.get('gateway-gmail')).toEqual(
       expect.objectContaining({
         name: 'gmail_read_v2',
-        displayTitle: 'Gmail: Searching for invoice emails',
+        displayTitle: 'Searching for invoice emails',
         params: { maxResults: 10, credentialId: 'cred-gmail' },
       })
     )

@@ -49,12 +49,30 @@ describe('ToolCallItem', () => {
     const markup = renderToStaticMarkup(
       <ToolCallItem
         toolName='gmail_read_v2'
-        displayTitle='Gmail: Searching for invoice emails'
+        displayTitle='Searching for invoice emails'
         status='executing'
       />
     )
 
     expect(markup).toContain('<svg')
-    expect(markup).toContain('Gmail: Searching for invoice emails')
+    expect(markup).toContain('Searching for invoice emails')
+  })
+
+  it('renders the integration icon from a provisional gateway toolId', () => {
+    vi.mocked(getBlockByToolName).mockReturnValueOnce({
+      name: 'Gmail',
+      icon: (props: SVGProps<SVGSVGElement>) => <svg {...props} data-testid='gmail-icon' />,
+    } as ReturnType<typeof getBlockByToolName>)
+    const markup = renderToStaticMarkup(
+      <ToolCallItem
+        toolName='call_integration_tool'
+        displayTitle='Read recent emails'
+        status='executing'
+        streamingArgs='{"toolId":"gmail_read_v2","description":"Read recent emails"'
+      />
+    )
+
+    expect(markup).toContain('<svg')
+    expect(markup).toContain('Read recent emails')
   })
 })

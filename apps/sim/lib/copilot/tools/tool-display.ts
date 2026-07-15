@@ -166,6 +166,10 @@ function workspaceFileTitle(args: ToolArgs): string {
 
 /** Static fallback titles for tools without an argument-aware title. */
 const TOOL_TITLES: Record<string, string> = {
+  // Gateway rows brand from the streamed toolId as soon as it resolves; this
+  // covers only the instant before the integration is known. The raw
+  // humanized name ("Call Integration Tool") must never render.
+  call_integration_tool: 'Calling integration',
   read: 'Reading file',
   search_library_docs: 'Searching library docs',
   user_table: 'Managing table',
@@ -497,6 +501,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Accessing: 'Accessed',
   Adding: 'Added',
   Applying: 'Applied',
+  Calling: 'Called',
   Checking: 'Checked',
   Comparing: 'Compared',
   Completing: 'Completed',
@@ -540,7 +545,9 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
  * completed tool call (e.g. "Querying logs for X" -> "Queried logs for X").
  * Operates on the already-resolved title so enriched and persisted titles both
  * work. Returns undefined when the title has no leading gerund rewrite — the
- * caller keeps the original.
+ * caller keeps the original. Integration gateway descriptions are base-form
+ * verb phrases ("Read recent emails") whose first word never matches a gerund
+ * key, so they intentionally pass through unchanged.
  */
 export function getToolCompletedTitle(title: string): string | undefined {
   const spaceIndex = title.indexOf(' ')

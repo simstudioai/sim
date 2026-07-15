@@ -51,7 +51,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         description: {
           description:
-            'Short present-progressive UI phrase describing this invocation, without the integration name (for example "Searching for invoice emails").',
+            'Short base-form verb phrase describing this invocation, without the integration name (for example "Search for invoice emails").',
           type: 'string',
         },
         toolId: {

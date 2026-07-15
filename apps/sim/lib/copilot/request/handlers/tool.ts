@@ -30,7 +30,8 @@ import type {
 } from '@/lib/copilot/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
-import { getToolDisplayTitle, humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolScope } from './types'
@@ -54,10 +55,28 @@ const logger = createLogger('CopilotToolHandler')
 
 function applyToolDisplay(toolCall: ToolCallState | undefined): void {
   if (!toolCall?.name) return
+  // Integration rows show only the model-authored activity phrase; the trusted
+  // integration branding is the icon, derived client-side from the operation
+  // name (or streamed toolId) via the block registry. With no description yet,
+  // fall back to the integration name so the humanized gateway name never
+  // renders.
+  if (toolCall.name === INTEGRATION_GATEWAY_TOOL) {
+    const toolId = toolCall.params?.toolId
+    const description = toolCall.params?.description
+    if (typeof description === 'string' && description.trim()) {
+      toolCall.displayTitle = description.trim()
+      return
+    }
+    if (typeof toolId === 'string') {
+      const integration = getBlockByToolName(toolId)
+      if (integration) {
+        toolCall.displayTitle = integration.name
+        return
+      }
+    }
+  }
   if (toolCall.integrationDescription) {
-    const integrationName =
-      getBlockByToolName(toolCall.name)?.name ?? humanizeToolName(toolCall.name)
-    toolCall.displayTitle = `${integrationName}: ${toolCall.integrationDescription}`
+    toolCall.displayTitle = toolCall.integrationDescription
     return
   }
   toolCall.displayTitle = getToolDisplayTitle(
@@ -67,6 +86,27 @@ function applyToolDisplay(toolCall: ToolCallState | undefined): void {
 }
 
 const INTEGRATION_GATEWAY_TOOL = 'call_integration_tool'
+
+function handleToolArgsDelta(
+  data: { argumentsDelta: string; toolCallId: string; toolName: string },
+  context: StreamingContext
+): void {
+  const toolCall = context.toolCalls.get(data.toolCallId)
+  if (!toolCall) return
+  toolCall.streamingArgs = `${toolCall.streamingArgs ?? ''}${data.argumentsDelta}`
+  if (toolCall.name !== INTEGRATION_GATEWAY_TOOL) return
+
+  const toolId = extractStreamingStringArgument(toolCall.streamingArgs, 'toolId')
+  const description = extractStreamingStringArgument(toolCall.streamingArgs, 'description')
+  if (toolId || description) {
+    toolCall.params = {
+      ...toolCall.params,
+      ...(toolId ? { toolId } : {}),
+      ...(description ? { description } : {}),
+    }
+    applyToolDisplay(toolCall)
+  }
+}
 
 /**
  * The model first streams the stable gateway call. Once Go resolves its exact
@@ -172,6 +212,7 @@ export async function handleToolEvent(
   }
 
   if (isToolArgsDeltaStreamEvent(event)) {
+    handleToolArgsDelta(event.payload, context)
     return
   }
 

@@ -73,6 +73,8 @@ export interface ToolCallInfo {
   name: string
   status: ToolCallStatus
   displayTitle?: string
+  /** Model-authored activity phrase for a gateway-resolved integration call. */
+  integrationDescription?: string
   params?: Record<string, unknown>
   calledBy?: string
   result?: ToolCallResult

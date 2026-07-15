@@ -1,5 +1,6 @@
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import {
+  resolveIntegrationToolDisplayTitle,
   resolveStreamingToolDisplayTitle,
   resolveToolDisplayTitle,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
@@ -38,10 +39,14 @@ function toolStatusToNode(status: ToolCallStatus): NodeStatus {
 
 /**
  * Resolves a tool row's display title with the same precedence the live handler
- * used: the streaming-args title wins while args stream, then the arg-derived
- * title, then the explicit `ui.title`.
+ * used: the integration gateway's model-authored activity description first
+ * (live even mid-argument-stream; the integration brand is the row icon), then
+ * the streaming-args title while args stream, then the arg-derived title, then
+ * the explicit `ui.title`.
  */
 function toolDisplayTitle(node: ToolNode): string | undefined {
+  const integrationTitle = resolveIntegrationToolDisplayTitle(node)
+  if (integrationTitle) return integrationTitle
   const streamingTitle = node.streamingArgs
     ? resolveStreamingToolDisplayTitle(node.name, node.streamingArgs)
     : undefined
@@ -126,6 +131,9 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
             name: node.name,
             status: nodeToToolStatus(node.status),
             ...(displayTitle ? { displayTitle } : {}),
+            ...(node.integrationDescription
+              ? { integrationDescription: node.integrationDescription }
+              : {}),
             ...(node.args ? { params: node.args } : {}),
             ...(node.streamingArgs ? { streamingArgs: node.streamingArgs } : {}),
             ...(node.result
@@ -292,6 +300,11 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
             arguments: tc.params,
             // Preserve a server-provided title that isn't derivable from args.
             ...(tc.displayTitle ? { ui: { title: tc.displayTitle } } : {}),
+            // Rebound gateway rows keep their model-authored activity phrase
+            // across a snapshot rebuild (the resolved args no longer carry it).
+            ...(tc.integrationDescription
+              ? { integrationDescription: tc.integrationDescription }
+              : {}),
           },
           scopeFor(block),
           block.timestamp

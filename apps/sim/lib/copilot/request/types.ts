@@ -25,6 +25,8 @@ export interface ToolCallState {
   displayTitle?: string
   /** Model-authored activity text for a gateway-resolved integration call. */
   integrationDescription?: string
+  /** Accumulated partial JSON of the arguments while the model streams them. */
+  streamingArgs?: string
   params?: Record<string, unknown>
   result?: ToolCallStateResult
   error?: string

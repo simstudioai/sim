@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import {
+  CallIntegrationTool,
   CrawlWebsite,
   CreateFile,
   CreateWorkflow,
@@ -29,6 +30,7 @@ import {
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
+import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/copilot/tools/tool-display'
 import type { ContentBlock, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
@@ -214,6 +216,33 @@ function resolveWorkspaceFileDisplayTitle(
 
 function functionExecuteTitle(title: string | undefined): string {
   return title ?? 'Running code'
+}
+
+/**
+ * Row text for an integration-gateway tool call: the model-authored activity
+ * `description`, readable the moment it completes in the still-streaming
+ * argument buffer — the same pattern `read`/`workspace_file` use for their
+ * streaming VFS targets. The trusted integration branding is the ICON, which
+ * the row component derives deterministically from the streamed `toolId` (or
+ * the rebound operation name) via Sim's block registry — the text carries no
+ * integration name. After Go's authoritative frame rebinds the row to the
+ * exact operation (e.g. `gmail_read_v2`), the preserved
+ * `integrationDescription` keeps the same text. Returns undefined until a
+ * description is readable (callers fall back to the neutral gateway label).
+ */
+export function resolveIntegrationToolDisplayTitle(tool: {
+  name: string
+  args?: Record<string, unknown>
+  streamingArgs?: string
+  integrationDescription?: string
+}): string | undefined {
+  if (tool.name === CallIntegrationTool.id) {
+    const description =
+      stringParam(tool.args?.description) ??
+      extractStreamingStringArgument(tool.streamingArgs, 'description')?.trim()
+    return description || undefined
+  }
+  return tool.integrationDescription
 }
 
 export function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
