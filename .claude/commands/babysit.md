@@ -54,25 +54,29 @@ round. Always check both conditions freshly after every push.
    If `mergeable` comes back `CONFLICTING`, go fix that first (step 2) before evaluating review
    state — a conflicting PR can't run CI, and this can happen mid-loop even on a PR that was
    clean at creation, since staging moves several times a day. If `mergeable` is `UNKNOWN`
-   (GitHub still computing it), don't treat it as either state — skip the rest of this list and
-   go straight to step 9 to wait and recheck next round (see step 10 for when to stop waiting on
-   a persistently `UNKNOWN` result). Otherwise, if `mergeable` is `MERGEABLE`, Greptile is 5/5,
-   and every thread across all pages has `isResolved: true`, stop — report the outcome (see
+   (GitHub still computing it), don't treat it as either state — but before waiting, check step
+   10's two-consecutive-rounds condition first: if it was also `UNKNOWN` on the immediately
+   preceding round (recall that from this session, not a fresh query), stop now and surface it
+   instead of scheduling another wakeup; otherwise skip the rest of this list and go straight to
+   step 9 to wait and recheck next round. Otherwise, if `mergeable` is `MERGEABLE`, Greptile is
+   5/5, and every thread across all pages has `isResolved: true`, stop — report the outcome (see
    "Reporting" below) and skip the rest of this list.
 
 2. **If the PR has a merge conflict**, fix it: `git fetch origin staging`, `git merge
-   origin/staging`, resolve the conflicts for real (don't just take one side blindly). If step
-   1 also found unresolved review threads, don't push the conflict fix alone and leave those
-   findings unaddressed — triage and fix them now too (step 4), replying/resolving each (step
-   5), in the same pass. The merge is this round's sync check (it already pulls in current
-   `origin/staging`) — no need to also run step 6's stash/rebase/cherry-pick machinery, which is
-   for a different problem (local stray commits) — but do spot-check
-   `git log --oneline --reverse origin/staging..HEAD` still shows only commits you recognize
-   before pushing, same as step 6 would. Then run the same pre-push checks as step 6 (lint,
-   boundary validation, and the conditional cleanup/db-migrate gates) before a plain `git push`
-   — a merge commit doesn't rewrite already-published history, so this never needs
-   `--force-with-lease` — and verify the push landed the same way step 7 does. Skip step 3 and
-   go straight to step 8 to trigger a fresh review of the resolved code.
+   origin/staging`, resolve the conflicts for real (don't just take one side blindly), `git add`
+   the resolved files, then `git commit` to complete the merge commit — a merge with conflicts
+   stays uncommitted until you do this. If step 1 also found unresolved review threads, don't
+   push the conflict fix alone and leave those findings unaddressed — triage and fix them now
+   too (step 4), replying/resolving each (step 5), then `git add`/`git commit` those as their
+   own commit same as step 7 would (keep it separate from the merge commit). The merge is this
+   round's sync check (it already pulls in current `origin/staging`) — no need to also run step
+   6's stash/rebase/cherry-pick machinery, which is for a different problem (local stray
+   commits) — but do spot-check `git log --oneline --reverse origin/staging..HEAD` still shows
+   only commits you recognize before pushing, same as step 6 would. Then run the same pre-push
+   checks as step 6 (lint, boundary validation, and the conditional cleanup/db-migrate gates)
+   before a plain `git push` — a merge commit doesn't rewrite already-published history, so this
+   never needs `--force-with-lease` — and verify the push landed the same way step 7 does. Skip
+   step 3 and go straight to step 8 to trigger a fresh review of the resolved code.
 
 3. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
    automatically on PR open — confirm via `gh pr checks <n>` (look for `Cursor Bugbot` /
