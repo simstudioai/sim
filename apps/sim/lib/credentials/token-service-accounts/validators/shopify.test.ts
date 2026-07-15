@@ -112,9 +112,7 @@ describe('validateShopifyServiceAccount', () => {
   })
 
   it('throws provider_unavailable when a 200 body carries GraphQL errors', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, { errors: [{ message: 'Internal error' }] })
-    )
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { errors: [{ message: 'Internal error' }] }))
 
     await expect(
       validateShopifyServiceAccount({ apiToken: 'shpat_abc', domain: 'acme.myshopify.com' })

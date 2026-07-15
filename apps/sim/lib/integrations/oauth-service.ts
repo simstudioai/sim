@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
+import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
-import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'

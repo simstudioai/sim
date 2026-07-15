@@ -105,6 +105,40 @@ describe('validateMondayServiceAccount', () => {
     expect(error.status).toBe(502)
   })
 
+  it('throws provider_unavailable when the provider-side error is not first in the array', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        errors: [
+          { message: 'Field deprecation warning' },
+          {
+            message: 'Rate limit exceeded',
+            extensions: { code: 'RATE_LIMIT_EXCEEDED', status_code: 429 },
+          },
+        ],
+      })
+    )
+
+    const error = await validateMondayServiceAccount({ apiToken: 'tok' }).catch((e) => e)
+
+    expect(error).toBeInstanceOf(TokenServiceAccountValidationError)
+    expect(error.code).toBe('provider_unavailable')
+    expect(error.status).toBe(502)
+  })
+
+  it('omits mondayAccountId from auditMetadata when account is absent', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        data: { me: { id: '12345', name: 'Jane Ops', email: 'jane@example.com' } },
+      })
+    )
+
+    const result = await validateMondayServiceAccount({ apiToken: 'eyJtoken' })
+
+    expect(result.auditMetadata).toEqual({})
+    expect(result.auditMetadata).not.toHaveProperty('mondayAccountId')
+    expect(result.displayName).toBe('Jane Ops')
+  })
+
   it('throws provider_unavailable on 500', async () => {
     mockFetch.mockResolvedValueOnce(new Response('server error', { status: 500 }))
 

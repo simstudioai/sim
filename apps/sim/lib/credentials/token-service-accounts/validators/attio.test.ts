@@ -73,6 +73,18 @@ describe('validateAttioServiceAccount', () => {
     )
   })
 
+  it('maps a 400 (malformed token not recognised) to invalid_credentials', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ status_code: 400, type: 'invalid_request_error' }, 400)
+    )
+
+    const error = await expectValidationError(
+      validateAttioServiceAccount({ apiToken: 'not-a-real-key' }),
+      'invalid_credentials'
+    )
+    expect(error.status).toBe(400)
+  })
+
   it('maps a 500 to provider_unavailable', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ error: 'boom' }, 500))
 

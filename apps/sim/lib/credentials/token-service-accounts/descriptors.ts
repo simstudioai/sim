@@ -303,7 +303,7 @@ export const TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, TokenServiceA
 export function isTokenServiceAccountProviderId(
   value: string | null | undefined
 ): value is TokenServiceAccountProviderId {
-  return Boolean(value && value in TOKEN_SERVICE_ACCOUNT_DESCRIPTORS)
+  return Boolean(value && Object.hasOwn(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS, value))
 }
 
 export function getTokenServiceAccountDescriptor(

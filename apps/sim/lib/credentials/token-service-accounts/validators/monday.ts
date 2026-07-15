@@ -1,8 +1,8 @@
 import {
   fetchProvider,
   parseProviderJson,
-  throwForProviderResponse,
   TokenServiceAccountValidationError,
+  throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
   TokenServiceAccountFields,
@@ -24,19 +24,24 @@ interface MondayValidationBody {
   error_message?: string
 }
 
-const SERVER_SIDE_ERROR_CODE = /internal|server_error|unavailable/i
+const SERVER_SIDE_ERROR_CODE = /internal|server_error|unavailable|rate_limit|complexity/i
 
 /**
  * Detects a monday GraphQL error that signals a provider-side failure rather
  * than a rejected token. monday marks these via `extensions.status_code`
- * (>= 500) or an `extensions.code` such as `INTERNAL_SERVER_ERROR`, per the
- * monday API error documentation.
+ * (>= 500) or an `extensions.code` such as `INTERNAL_SERVER_ERROR`,
+ * `RATE_LIMIT_EXCEEDED`, or a complexity budget error, per the monday API
+ * error documentation. All entries are scanned — the provider-side error is
+ * not guaranteed to be first in the array.
  */
 function isProviderSideError(body: MondayValidationBody): boolean {
-  const extensions = body.errors?.[0]?.extensions
-  if (!extensions) return false
-  if (typeof extensions.status_code === 'number' && extensions.status_code >= 500) return true
-  return typeof extensions.code === 'string' && SERVER_SIDE_ERROR_CODE.test(extensions.code)
+  if (!Array.isArray(body.errors)) return false
+  return body.errors.some((error) => {
+    const extensions = error?.extensions
+    if (!extensions) return false
+    if (typeof extensions.status_code === 'number' && extensions.status_code >= 500) return true
+    return typeof extensions.code === 'string' && SERVER_SIDE_ERROR_CODE.test(extensions.code)
+  })
 }
 
 /**
@@ -110,10 +115,14 @@ export async function validateMondayServiceAccount(
   if (account?.slug) {
     storedMetadata.accountSlug = account.slug
   }
+  const auditMetadata: Record<string, string> = {}
+  if (accountId) {
+    auditMetadata.mondayAccountId = accountId
+  }
 
   return {
     displayName: account?.name || me.name || me.email || `monday user ${userId}`,
-    auditMetadata: { mondayAccountId: accountId },
+    auditMetadata,
     storedMetadata,
   }
 }

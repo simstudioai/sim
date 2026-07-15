@@ -325,25 +325,19 @@ export async function getAtlassianServiceAccountSecret(
 }
 
 /**
- * For Atlassian service accounts, the API token IS the access token —
- * blocks call api.atlassian.com/ex/jira/{cloudId}/... with `Authorization: Bearer {apiToken}`.
- * No exchange or refresh is needed; we just decrypt and return the raw token.
+ * Result of resolving a `service_account` credential into a usable token. For
+ * Atlassian and the token-paste providers, the stored token IS the access
+ * token — no exchange or refresh is needed; Google mints a short-lived token
+ * via the JWT-bearer flow instead.
  */
 export interface ServiceAccountTokenResult {
   accessToken: string
   /** Atlassian only — the resolved Jira/Confluence cloud id. */
   cloudId?: string
-  /** Atlassian only — the site domain. */
+  /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
 }
 
-/**
- * Single dispatch point for turning a `service_account` credential into an
- * access token, keyed on `providerId`. Both `refreshAccessTokenIfNeeded` and the
- * `POST /api/auth/oauth/token` route go through here, so a new service-account
- * provider is one edit and an unknown provider fails loudly instead of silently
- * attempting a Google JWT.
- */
 /**
  * Loads and parses the decrypted secret blob for a token service-account
  * credential (pasted long-lived provider token). Throws if the credential is
@@ -402,6 +396,13 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   },
 }
 
+/**
+ * Single dispatch point for turning a `service_account` credential into an
+ * access token, keyed on `providerId`. Both `refreshAccessTokenIfNeeded` and the
+ * `POST /api/auth/oauth/token` route go through here, so a new service-account
+ * provider is one registry entry and an unknown provider fails loudly instead
+ * of silently attempting a Google JWT.
+ */
 export async function resolveServiceAccountToken(
   credentialId: string,
   providerId: string | null | undefined,

@@ -1,8 +1,8 @@
 import {
   fetchProvider,
   parseProviderJson,
-  throwForProviderResponse,
   TokenServiceAccountValidationError,
+  throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
   TokenServiceAccountFields,
@@ -22,7 +22,10 @@ interface AttioSelfResponse {
  * Validates an Attio workspace access token against the identify endpoint
  * (`GET /v2/self`). Attio returns a minimal `{ active: false }` body for a
  * revoked/deleted token, so a 2xx alone is never trusted — the body must
- * assert `active === true` and carry the workspace identifiers.
+ * assert `active === true` and carry the workspace identifiers. Attio replies
+ * HTTP 400 ("Token was not recognised") for a malformed pasted key; since the
+ * request carries no user input besides the bearer token, a 400 here is
+ * treated as `invalid_credentials` rather than a provider fault.
  */
 export async function validateAttioServiceAccount(
   fields: TokenServiceAccountFields
@@ -37,6 +40,12 @@ export async function validateAttioServiceAccount(
     },
     'self'
   )
+  if (res.status === 400) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', res.status, {
+      step: 'self',
+      reason: 'token was not recognised (HTTP 400)',
+    })
+  }
   await throwForProviderResponse(res, 'self')
 
   const self = await parseProviderJson<AttioSelfResponse | null>(res, 'self')

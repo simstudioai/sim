@@ -58,7 +58,9 @@ describe('validateLinearServiceAccount', () => {
   it('throws invalid_credentials on 401', async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse(401, {
-        errors: [{ message: 'Authentication required', extensions: { type: 'authentication_error' } }],
+        errors: [
+          { message: 'Authentication required', extensions: { type: 'authentication_error' } },
+        ],
       })
     )
 
@@ -76,7 +78,9 @@ describe('validateLinearServiceAccount', () => {
       })
     )
 
-    await expect(validateLinearServiceAccount({ apiToken: 'lin_api_revoked' })).rejects.toMatchObject({
+    await expect(
+      validateLinearServiceAccount({ apiToken: 'lin_api_revoked' })
+    ).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',
       code: 'invalid_credentials',
       status: 200,

@@ -4,11 +4,13 @@ import {
   ATTIO_SERVICE_ACCOUNT_PROVIDER_ID,
   CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
   HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
+  isTokenServiceAccountProviderId,
   LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
   MONDAY_SERVICE_ACCOUNT_PROVIDER_ID,
   NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+  type TokenServiceAccountProviderId,
   TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
   WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID,
   WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -56,7 +58,10 @@ export type TokenServiceAccountValidator = (
  * must stay in lockstep with `TOKEN_SERVICE_ACCOUNT_DESCRIPTORS` — a
  * descriptor without a validator fails loudly at create time.
  */
-const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<string, TokenServiceAccountValidator> = {
+const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
+  TokenServiceAccountProviderId,
+  TokenServiceAccountValidator
+> = {
   [HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID]: validateHubspotServiceAccount,
   [AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID]: validateAirtableServiceAccount,
   [NOTION_SERVICE_ACCOUNT_PROVIDER_ID]: validateNotionServiceAccount,
@@ -74,7 +79,9 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<string, TokenServiceAccountValida
 export function getTokenServiceAccountValidator(
   providerId: string
 ): TokenServiceAccountValidator | undefined {
-  return TOKEN_SERVICE_ACCOUNT_VALIDATORS[providerId]
+  return isTokenServiceAccountProviderId(providerId)
+    ? TOKEN_SERVICE_ACCOUNT_VALIDATORS[providerId]
+    : undefined
 }
 
 /**

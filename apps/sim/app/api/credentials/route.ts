@@ -21,13 +21,13 @@ import {
   SHARED_CREDENTIAL_TYPES,
 } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
-import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { getWorkspaceMembership } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'

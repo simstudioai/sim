@@ -73,9 +73,7 @@ describe('validateNotionServiceAccount', () => {
   })
 
   it('throws invalid_credentials on 401', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse(401, { object: 'error', code: 'unauthorized' })
-    )
+    mockFetch.mockResolvedValueOnce(jsonResponse(401, { object: 'error', code: 'unauthorized' }))
 
     await expect(validateNotionServiceAccount({ apiToken: 'ntn_bad' })).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',

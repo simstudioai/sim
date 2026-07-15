@@ -26,7 +26,11 @@ describe('validateAirtableServiceAccount', () => {
 
   it('returns email display name and metadata on success with email', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, { id: 'usrABC123', email: 'svc@example.com', scopes: ['data.records:read'] })
+      jsonResponse(200, {
+        id: 'usrABC123',
+        email: 'svc@example.com',
+        scopes: ['data.records:read'],
+      })
     )
 
     const result = await validateAirtableServiceAccount({ apiToken: 'pat123.secret' })

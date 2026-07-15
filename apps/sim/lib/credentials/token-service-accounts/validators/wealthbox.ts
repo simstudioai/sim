@@ -2,8 +2,8 @@ import {
   fetchProvider,
   parseProviderJson,
   readProviderErrorSnippet,
-  throwForProviderResponse,
   TokenServiceAccountValidationError,
+  throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
   TokenServiceAccountFields,
@@ -91,8 +91,7 @@ export async function validateWealthboxServiceAccount(
   const me = await parseProviderJson<WealthboxMeResponse>(res, 'me')
 
   const displayName = me.name || me.email || 'Wealthbox account'
-  const userId =
-    typeof me.current_user?.id === 'number' ? String(me.current_user.id) : undefined
+  const userId = typeof me.current_user?.id === 'number' ? String(me.current_user.id) : undefined
   const email = me.email || me.current_user?.email
 
   const auditMetadata: Record<string, string> = {}

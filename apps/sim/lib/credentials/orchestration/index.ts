@@ -8,7 +8,6 @@ import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
-import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
 import {
   deleteWorkspaceEnvCredentials,
@@ -18,6 +17,7 @@ import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
@@ -117,7 +117,8 @@ export async function performUpdateCredential(
       updates.encryptedServiceAccountKey = encrypted
     }
 
-    // Reconnect: rotate a Slack/Atlassian service-account secret in place. The
+    // Reconnect: rotate a service-account secret (Slack, Atlassian, or any
+    // token-paste provider) in place. The
     // secret is re-verified against the provider and re-encrypted; the display
     // name is preserved (the user may have renamed it).
     const hasRotationSecret =
