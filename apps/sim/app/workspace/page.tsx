@@ -9,10 +9,10 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
-import { signOut, useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/auth-client'
+import { recoverFromStaleSession } from '@/lib/auth/stale-session-recovery'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { useWorkspacesWithMetadata, type WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
-import { clearUserData } from '@/stores'
 
 const logger = createLogger('WorkspacePage')
 
@@ -25,24 +25,6 @@ const logger = createLogger('WorkspacePage')
  */
 function isStaleSessionError(error: unknown): boolean {
   return isApiClientError(error) && error.status === 401
-}
-
-/**
- * Signs out (clearing every auth cookie server-side), wipes per-user client
- * state, and navigates to login. Returns false without navigating when the
- * sign-out request fails — the cookies are still set, so going to /login
- * would only get bounced back to /workspace by the middleware.
- */
-async function recoverFromStaleSession(): Promise<boolean> {
-  try {
-    await signOut()
-  } catch (error) {
-    logger.error('Failed to sign out while recovering from a stale session:', error)
-    return false
-  }
-  await clearUserData()
-  window.location.assign('/login')
-  return true
 }
 
 export default function WorkspacePage() {
