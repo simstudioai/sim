@@ -39,12 +39,20 @@ const SITE_JSON_LD = {
         'https://www.linkedin.com/company/simstudioai/',
         'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
       ],
-      contactPoint: {
-        '@type': 'ContactPoint',
-        contactType: 'customer support',
-        url: `${SITE_URL}/contact`,
-        availableLanguage: ['en'],
-      },
+      contactPoint: [
+        {
+          '@type': 'ContactPoint',
+          contactType: 'customer support',
+          url: `${SITE_URL}/contact`,
+          availableLanguage: ['en'],
+        },
+        {
+          '@type': 'ContactPoint',
+          contactType: 'sales',
+          url: `${SITE_URL}/contact`,
+          availableLanguage: ['en'],
+        },
+      ],
     },
     {
       '@type': 'WebSite',
