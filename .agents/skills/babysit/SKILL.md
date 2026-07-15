@@ -55,10 +55,11 @@ round. Always check both conditions freshly after every push.
    If `mergeable` comes back `CONFLICTING`, go fix that first (step 2) before evaluating review
    state — a conflicting PR can't run CI, and this can happen mid-loop even on a PR that was
    clean at creation, since staging moves several times a day. If `mergeable` is `UNKNOWN`
-   (GitHub still computing it), don't stop and don't treat it as either state — just wait for
-   the next round (step 9) and recheck then. Otherwise, if `mergeable` is `MERGEABLE`, Greptile
-   is 5/5, and every thread across all pages has `isResolved: true`, stop — report the outcome
-   (see "Reporting" below) and skip the rest of this list.
+   (GitHub still computing it), don't treat it as either state — skip the rest of this list and
+   go straight to step 9 to wait and recheck next round (see step 10 for when to stop waiting on
+   a persistently `UNKNOWN` result). Otherwise, if `mergeable` is `MERGEABLE`, Greptile is 5/5,
+   and every thread across all pages has `isResolved: true`, stop — report the outcome (see
+   "Reporting" below) and skip the rest of this list.
 
 2. **If the PR has a merge conflict**, fix it: `git fetch origin staging`, `git rebase
    origin/staging`, resolve the conflicts for real (don't just take one side blindly), then run
@@ -134,9 +135,9 @@ round. Always check both conditions freshly after every push.
    in a sleep loop. Pass the same `/loop babysit PR <n>` prompt on each wakeup so the loop
    resumes correctly.
 
-10. **Stop conditions**: clean state reached (see above), or the same unresolved finding or
-    merge conflict survives two consecutive rounds with no new information (surface it to the
-    user instead of looping forever), or the user interrupts.
+10. **Stop conditions**: clean state reached (see above), or the same unresolved finding, merge
+    conflict, or `UNKNOWN` mergeable result survives two consecutive rounds with no new
+    information (surface it to the user instead of looping forever), or the user interrupts.
 
 ## Reporting
 
