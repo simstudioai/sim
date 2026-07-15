@@ -27,6 +27,7 @@ import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -432,6 +433,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           {
             code: 'duplicate_display_name',
             error: `A Slack bot named "${resolvedDisplayName}" already exists in this workspace. Give this bot a different name.`,
+          },
+          { status: 409 }
+        )
+      }
+
+      // Token service-account creates always carry a fresh token that must be
+      // stored — falling through to the existing-credential path would return
+      // the old credential as success and silently drop the submitted token.
+      if (resolvedProviderId && isTokenServiceAccountProviderId(resolvedProviderId)) {
+        return NextResponse.json(
+          {
+            code: 'duplicate_display_name',
+            error: `A credential named "${resolvedDisplayName}" already exists in this workspace. Give this one a different name.`,
           },
           { status: 409 }
         )
