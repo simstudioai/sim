@@ -48,7 +48,7 @@ export async function executeCheckDeploymentStatus(
 
     const [apiDeploy, chatDeploy, deploymentSummary] = await Promise.all([
       db
-        .select({ isDeployed: workflow.isDeployed, deployedAt: workflow.deployedAt })
+        .select({ deployedAt: workflow.deployedAt })
         .from(workflow)
         .where(eq(workflow.id, workflowId))
         .limit(1),
@@ -70,7 +70,12 @@ export async function executeCheckDeploymentStatus(
       getWorkflowDeploymentSummary(workflowId),
     ])
 
-    const isApiDeployed = apiDeploy[0]?.isDeployed || false
+    /**
+     * Deployed means an active version snapshot exists; the legacy
+     * `workflow.isDeployed` flag is not consulted so this can never
+     * contradict the attached `activeDeployment` summary.
+     */
+    const isApiDeployed = deploymentSummary.activeDeployment !== null
     const needsRedeployment = isApiDeployed ? await checkNeedsRedeployment(workflowId) : false
     const apiDetails = {
       isDeployed: isApiDeployed,

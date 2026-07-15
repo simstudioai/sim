@@ -253,6 +253,61 @@ describe('deployment operation persistence', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
+  it('reuses an in-flight operation for a duplicate request', async () => {
+    const inFlight = operationRow({
+      idempotencyKey: 'deploy-1',
+      requestHash: 'hash-1',
+      status: 'preparing',
+    })
+    dbChainMockFns.for.mockResolvedValueOnce([{ id: WORKFLOW_ID, archivedAt: null }])
+    dbChainMockFns.limit.mockResolvedValueOnce([inFlight])
+
+    const result = await prepareWorkflowDeployment({
+      workflowId: WORKFLOW_ID,
+      actorId: 'user-1',
+      requestHash: 'hash-1',
+      idempotencyKey: 'deploy-1',
+      workflowState: workflowState(),
+    })
+
+    expect(result).toEqual({ success: true, operation: inFlight, reused: true })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('releases a spent idempotency key and admits a fresh attempt after a failed operation', async () => {
+    const failed = operationRow({
+      id: 'operation-failed',
+      idempotencyKey: 'deploy-1',
+      requestHash: 'hash-1',
+      status: 'failed',
+      generation: 2,
+    })
+    const fresh = operationRow({ id: 'operation-fresh', generation: 3 })
+    mockGenerateId.mockReturnValueOnce('version-fresh').mockReturnValueOnce('operation-fresh')
+    dbChainMockFns.for.mockResolvedValueOnce([{ id: WORKFLOW_ID, archivedAt: null }])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([failed])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ maxVersion: 2 }])
+      .mockResolvedValueOnce([{ maxGeneration: 2 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([fresh])
+
+    const result = await prepareWorkflowDeployment({
+      workflowId: WORKFLOW_ID,
+      actorId: 'user-1',
+      requestHash: 'hash-1',
+      idempotencyKey: 'deploy-1',
+      workflowState: workflowState(),
+      readinessComponents: ['webhooks'],
+    })
+
+    expect(result).toEqual({ success: true, operation: fresh, reused: false })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: null })
+    )
+    expect(dbChainMockFns.insert).toHaveBeenCalled()
+  })
+
   it('rejects stale generation callbacks before mutating legacy deployment state', async () => {
     dbChainMockFns.for
       .mockResolvedValueOnce([{ id: WORKFLOW_ID }])

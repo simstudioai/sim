@@ -727,7 +727,20 @@ async function prepareOperation(
             error: 'Idempotency key was already used for a different deployment request',
           }
         }
-        return { success: true, operation: existing, reused: true }
+        if (existing.status !== 'failed' && existing.status !== 'superseded') {
+          return { success: true, operation: existing, reused: true }
+        }
+        /**
+         * A terminally failed or superseded attempt releases its idempotency
+         * key: duplicate-submission protection must never pin a retry to a
+         * spent attempt — the caller would get success with no live work
+         * behind it. The key moves to the fresh operation created below so
+         * later duplicates of the same request reuse that one instead.
+         */
+        await tx
+          .update(workflowDeploymentOperation)
+          .set({ idempotencyKey: null, updatedAt: now })
+          .where(eq(workflowDeploymentOperation.id, existing.id))
       }
     }
 

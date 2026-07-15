@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, inArray, isNull } from 'drizzle-orm'
+import { generateRequestId } from '@/lib/core/utils/request'
 import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
@@ -62,7 +63,11 @@ type RollbackOp =
  */
 export async function rollbackFork(params: RollbackForkParams): Promise<RollbackForkResult> {
   const { targetWorkspaceId, otherWorkspaceId, userId } = params
-  const requestId = params.requestId ?? 'unknown'
+  /**
+   * The request id seeds reactivation idempotency keys; a generated fallback
+   * keeps distinct rollback invocations from colliding on a shared literal.
+   */
+  const requestId = params.requestId ?? generateRequestId()
 
   const edge = await resolveForkEdge(targetWorkspaceId, otherWorkspaceId)
   if (!edge) {

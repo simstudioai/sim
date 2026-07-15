@@ -344,10 +344,17 @@ describe('executeCheckDeploymentStatus', () => {
   })
 
   it('uses the shared redeployment freshness helper for deployed APIs', async () => {
+    getWorkflowDeploymentSummaryMock.mockResolvedValue({
+      activeDeployment: {
+        deploymentVersionId: 'dv-1',
+        version: 1,
+        deployedAt: '2026-05-28T00:00:00.000Z',
+      },
+      latestDeploymentAttempt: null,
+      warnings: [],
+    })
     vi.mocked(db.select)
-      .mockReturnValueOnce(
-        selectChain([{ isDeployed: true, deployedAt: new Date('2026-05-28') }]) as never
-      )
+      .mockReturnValueOnce(selectChain([{ deployedAt: new Date('2026-05-28') }]) as never)
       .mockReturnValueOnce(selectChain([]) as never)
       .mockReturnValueOnce(selectChain([], true) as never)
     checkNeedsRedeploymentMock.mockResolvedValueOnce(true)
@@ -370,7 +377,7 @@ describe('executeCheckDeploymentStatus', () => {
 
   it('does not check redeployment freshness for undeployed APIs', async () => {
     vi.mocked(db.select)
-      .mockReturnValueOnce(selectChain([{ isDeployed: false, deployedAt: null }]) as never)
+      .mockReturnValueOnce(selectChain([{ deployedAt: null }]) as never)
       .mockReturnValueOnce(selectChain([]) as never)
       .mockReturnValueOnce(selectChain([], true) as never)
 
