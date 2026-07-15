@@ -336,6 +336,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   google_vault: GoogleVaultIcon,
   grafana: GrafanaIcon,
   grain: GrainIcon,
+  grain_v2: GrainIcon,
   granola: GranolaIcon,
   greenhouse: GreenhouseIcon,
   greptile: GreptileIcon,

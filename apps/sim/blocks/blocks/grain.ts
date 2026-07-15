@@ -2,7 +2,21 @@ import { GrainIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
-import { grainTriggerOptions } from '@/triggers/grain/utils'
+import { GRAIN_HOOK_TYPE_OPTIONS, grainTriggerOptions } from '@/triggers/grain/utils'
+
+const GRAIN_V2_TRIGGER_IDS = [
+  'grain_recording_added_v2',
+  'grain_recording_updated_v2',
+  'grain_recording_deleted_v2',
+  'grain_highlight_added_v2',
+  'grain_highlight_updated_v2',
+  'grain_highlight_deleted_v2',
+  'grain_story_added_v2',
+  'grain_story_updated_v2',
+  'grain_story_deleted_v2',
+  'grain_upload_status_v2',
+  'grain_all_events_v2',
+] as const
 
 export const GrainBlock: BlockConfig = {
   type: 'grain',
@@ -10,6 +24,9 @@ export const GrainBlock: BlockConfig = {
   description: 'Access meeting recordings, transcripts, and AI summaries',
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
+  // Superseded by grain_v2 (Grain API v1 sunsets 2026-09-07); existing blocks
+  // keep rendering, new blocks come from the v2 entry.
+  hideFromToolbar: true,
   longDescription:
     'Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.',
   category: 'tools',
@@ -462,6 +479,184 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
   },
 }
 
+/**
+ * grain_v2 — the go-forward Grain block on the v2 Public API (v1 sunsets
+ * 2026-09-07). Data operations are identical to v1 (already on v2 endpoints);
+ * the webhook operations move to the v2 hooks API (hook_type-scoped, no
+ * views), and the trigger set is replaced by the event-type-based
+ * `grain_events` trigger.
+ */
+export const GrainV2Block: BlockConfig = {
+  ...GrainBlock,
+  type: 'grain_v2',
+  hideFromToolbar: false,
+  subBlocks: [
+    ...GrainBlock.subBlocks.flatMap((sb) => {
+      // Drop v1 trigger subblocks (matched per source trigger), the v1
+      // trigger picker, and the v1-only view-based fields/operations.
+      if (
+        sb.mode === 'trigger' ||
+        sb.id === 'selectedTriggerId' ||
+        sb.id === 'viewId' ||
+        sb.id === 'hookUrl' ||
+        sb.id === 'hookId'
+      ) {
+        return []
+      }
+      if (sb.id === 'operation') {
+        return [
+          {
+            ...sb,
+            options: [
+              { label: 'List Recordings', id: 'grain_list_recordings' },
+              { label: 'Get Recording', id: 'grain_get_recording' },
+              { label: 'Get Transcript', id: 'grain_get_transcript' },
+              { label: 'List Teams', id: 'grain_list_teams' },
+              { label: 'List Meeting Types', id: 'grain_list_meeting_types' },
+              { label: 'Create Webhook', id: 'grain_create_hook_v2' },
+              { label: 'List Webhooks', id: 'grain_list_hooks_v2' },
+              { label: 'Delete Webhook', id: 'grain_delete_hook_v2' },
+            ],
+          },
+        ]
+      }
+      return [sb]
+    }),
+    {
+      id: 'hookUrl',
+      title: 'Webhook URL',
+      type: 'short-input',
+      placeholder: 'Enter webhook endpoint URL',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['grain_create_hook_v2'],
+      },
+    },
+    {
+      id: 'hookType',
+      title: 'Event Type',
+      type: 'dropdown',
+      options: GRAIN_HOOK_TYPE_OPTIONS,
+      value: () => 'recording_added',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['grain_create_hook_v2'],
+      },
+    },
+    {
+      id: 'hookTypeFilter',
+      title: 'Event Type Filter',
+      type: 'dropdown',
+      options: [{ label: 'All', id: '' }, ...GRAIN_HOOK_TYPE_OPTIONS],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grain_list_hooks_v2'],
+      },
+    },
+    {
+      id: 'hookState',
+      title: 'State Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Enabled', id: 'enabled' },
+        { label: 'Disabled', id: 'disabled' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grain_list_hooks_v2'],
+      },
+    },
+    {
+      id: 'hookId',
+      title: 'Webhook ID',
+      type: 'short-input',
+      placeholder: 'Enter webhook UUID to delete',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['grain_delete_hook_v2'],
+      },
+    },
+    ...GRAIN_V2_TRIGGER_IDS.flatMap((triggerId) => getTrigger(triggerId).subBlocks),
+  ],
+  tools: {
+    access: [
+      'grain_list_recordings',
+      'grain_get_recording',
+      'grain_get_transcript',
+      'grain_list_teams',
+      'grain_list_meeting_types',
+      'grain_create_hook_v2',
+      'grain_list_hooks_v2',
+      'grain_delete_hook_v2',
+    ],
+    config: {
+      tool: (params) => {
+        return params.operation || 'grain_list_recordings'
+      },
+      params: (params) => {
+        const baseParams: Record<string, unknown> = {
+          apiKey: params.apiKey,
+        }
+
+        switch (params.operation) {
+          case 'grain_create_hook_v2':
+            if (!params.hookUrl?.trim()) {
+              throw new Error('Webhook URL is required.')
+            }
+            if (!params.hookType?.trim()) {
+              throw new Error('Event type is required.')
+            }
+            return {
+              ...baseParams,
+              hookUrl: params.hookUrl.trim(),
+              hookType: params.hookType.trim(),
+            }
+
+          case 'grain_list_hooks_v2':
+            return {
+              ...baseParams,
+              hookType: params.hookTypeFilter || undefined,
+              state: params.hookState || undefined,
+            }
+
+          case 'grain_delete_hook_v2':
+            if (!params.hookId?.trim()) {
+              throw new Error('Webhook ID is required.')
+            }
+            return {
+              ...baseParams,
+              hookId: params.hookId.trim(),
+            }
+
+          default:
+            return GrainBlock.tools!.config!.params!(params)
+        }
+      },
+    },
+  },
+  inputs: {
+    ...Object.fromEntries(Object.entries(GrainBlock.inputs).filter(([key]) => key !== 'viewId')),
+    hookType: { type: 'string', description: 'Grain event type for the webhook' },
+    hookTypeFilter: { type: 'string', description: 'Filter listed webhooks by event type' },
+    hookState: { type: 'string', description: 'Filter listed webhooks by enabled/disabled state' },
+  },
+  outputs: {
+    ...Object.fromEntries(Object.entries(GrainBlock.outputs).filter(([key]) => key !== 'views')),
+  },
+  triggers: {
+    enabled: true,
+    available: [...GRAIN_V2_TRIGGER_IDS],
+  },
+}
+
 export const GrainBlockMeta = {
   tags: ['meeting', 'note-taking'],
   url: 'https://grain.com',
@@ -558,3 +753,5 @@ export const GrainBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GrainV2BlockMeta = GrainBlockMeta

@@ -127,7 +127,7 @@ import { GoogleTasksBlock, GoogleTasksBlockMeta } from '@/blocks/blocks/google_t
 import { GoogleTranslateBlock, GoogleTranslateBlockMeta } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock, GoogleVaultBlockMeta } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock, GrafanaBlockMeta } from '@/blocks/blocks/grafana'
-import { GrainBlock, GrainBlockMeta } from '@/blocks/blocks/grain'
+import { GrainBlock, GrainBlockMeta, GrainV2Block, GrainV2BlockMeta } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
 import { GreenhouseBlock, GreenhouseBlockMeta } from '@/blocks/blocks/greenhouse'
 import { GreptileBlock, GreptileBlockMeta } from '@/blocks/blocks/greptile'
@@ -459,6 +459,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   google_vault: GoogleVaultBlock,
   grafana: GrafanaBlock,
   grain: GrainBlock,
+  grain_v2: GrainV2Block,
   granola: GranolaBlock,
   greenhouse: GreenhouseBlock,
   greptile: GreptileBlock,
@@ -761,6 +762,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   google_vault: GoogleVaultBlockMeta,
   grafana: GrafanaBlockMeta,
   grain: GrainBlockMeta,
+  grain_v2: GrainV2BlockMeta,
   granola: GranolaBlockMeta,
   greenhouse: GreenhouseBlockMeta,
   greptile: GreptileBlockMeta,

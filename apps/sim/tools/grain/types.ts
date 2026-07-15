@@ -216,3 +216,63 @@ export interface GrainDeleteHookResponse extends ToolResponse {
     success: true
   }
 }
+
+/** Hook notification types supported by the Grain v2 hooks endpoints. */
+export const GRAIN_HOOK_TYPES = [
+  'recording_added',
+  'recording_updated',
+  'recording_deleted',
+  'highlight_added',
+  'highlight_updated',
+  'highlight_deleted',
+  'story_added',
+  'story_updated',
+  'story_deleted',
+  'upload_status',
+] as const
+
+export type GrainHookType = (typeof GRAIN_HOOK_TYPES)[number]
+
+/** Hook object returned by the Grain v2 hooks endpoints. */
+interface GrainHookV2 {
+  id: string
+  enabled: boolean
+  hook_url: string
+  hook_type: GrainHookType
+  include: Record<string, unknown>
+  inserted_at: string
+}
+
+export interface GrainCreateHookV2Params {
+  apiKey: string
+  hookUrl: string
+  hookType: GrainHookType
+  include?: Record<string, unknown>
+}
+
+export interface GrainCreateHookV2Response extends ToolResponse {
+  output: GrainHookV2
+}
+
+export interface GrainListHooksV2Params {
+  apiKey: string
+  hookType?: GrainHookType
+  state?: 'enabled' | 'disabled'
+}
+
+export interface GrainListHooksV2Response extends ToolResponse {
+  output: {
+    hooks: GrainHookV2[]
+  }
+}
+
+export interface GrainDeleteHookV2Params {
+  apiKey: string
+  hookId: string
+}
+
+export interface GrainDeleteHookV2Response extends ToolResponse {
+  output: {
+    success: true
+  }
+}
