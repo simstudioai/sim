@@ -8,6 +8,10 @@ import { executeProviderContract } from '@/lib/api/contracts/providers'
 import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  BILLING_ATTRIBUTION_HEADER,
+  requireBillingAttributionHeader,
+} from '@/lib/billing/core/billing-attribution'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -177,11 +181,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    /**
+     * Nested tool calls made by the LLM (e.g. knowledge search) hit internal
+     * routes that require the upstream billing decision. This route is
+     * internal-JWT-only, so the caller's attribution arrives as a header;
+     * validate it against the authenticated scope and thread it through.
+     */
+    const billingAttribution =
+      workspaceId && request.headers.get(BILLING_ATTRIBUTION_HEADER)
+        ? requireBillingAttributionHeader(request.headers, {
+            actorUserId: auth.userId,
+            workspaceId,
+          })
+        : undefined
+
     logger.info(`[${requestId}] Executing provider request`, {
       provider,
       model,
       workflowId,
       hasApiKey: !!finalApiKey,
+      hasBillingAttribution: !!billingAttribution,
     })
 
     const response = await executeProviderRequest(provider, {
@@ -209,6 +228,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowVariables,
       blockData,
       blockNameMapping,
+      billingAttribution,
       reasoningEffort,
       verbosity,
     })
