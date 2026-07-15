@@ -58,8 +58,9 @@ function hasShopifyAuthError(errors: unknown): boolean {
 /** Strips the protocol and trailing slashes and lowercases the store domain. */
 function normalizeShopifyDomain(rawDomain: string): string {
   return rawDomain
+    .trim()
     .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '')
+    .replace(/[/?#].*$/, '')
     .toLowerCase()
 }
 

@@ -86,7 +86,13 @@ export async function validateMondayServiceAccount(
 
   const body = await parseProviderJson<MondayValidationBody>(res, 'me')
 
-  const bodyError = extractBodyError(body)
+  const me = body.data?.me
+  const account = body.data?.account
+
+  // monday can attach warning-class GraphQL errors (e.g. deprecations) to an
+  // otherwise successful response — a present `me.id` proves the token
+  // authenticated, so errors are only classified when the data is missing.
+  const bodyError = me?.id ? undefined : extractBodyError(body)
   if (bodyError) {
     if (isProviderSideError(body)) {
       throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
@@ -100,8 +106,6 @@ export async function validateMondayServiceAccount(
     })
   }
 
-  const me = body.data?.me
-  const account = body.data?.account
   if (!me?.id) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'me',

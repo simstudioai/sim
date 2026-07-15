@@ -54,7 +54,7 @@ function normalizeDomainInput(raw: string): string {
   return raw
     .trim()
     .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '')
+    .replace(/[/?#].*$/, '')
 }
 
 function openDocs(url: string): void {

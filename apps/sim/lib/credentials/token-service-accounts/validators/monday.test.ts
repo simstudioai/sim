@@ -148,4 +148,16 @@ describe('validateMondayServiceAccount', () => {
     expect(error.code).toBe('provider_unavailable')
     expect(error.status).toBe(500)
   })
+
+  it('accepts a valid token when warnings accompany successful me data', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        data: { me: { id: 77, name: 'Bot User' }, account: { id: 5, name: 'Acme', slug: 'acme' } },
+        errors: [{ message: 'Deprecated field usage', extensions: { code: 'DEPRECATED' } }],
+      })
+    )
+    const result = await validateMondayServiceAccount({ apiToken: 'token' })
+    expect(result.displayName).toBe('Acme')
+    expect(result.storedMetadata?.userId).toBe('77')
+  })
 })

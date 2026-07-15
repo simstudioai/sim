@@ -156,4 +156,16 @@ describe('validateShopifyServiceAccount', () => {
       status: 401,
     })
   })
+
+  it('normalizes a pasted admin URL down to the bare store host', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, { data: { shop: { name: 'Probe', myshopifyDomain: 'my-store.myshopify.com' } } })
+    )
+    const result = await validateShopifyServiceAccount({
+      apiToken: 'shpat_ok',
+      domain: 'https://my-store.myshopify.com/admin/settings?x=1',
+    })
+    expect(result.normalizedDomain).toBe('my-store.myshopify.com')
+    expect(mockFetch.mock.calls[0][0]).toContain('https://my-store.myshopify.com/admin/api')
+  })
 })

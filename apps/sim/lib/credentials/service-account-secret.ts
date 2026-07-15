@@ -234,5 +234,10 @@ export async function verifyAndBuildServiceAccountSecret(
   if (isTokenServiceAccountProviderId(providerId)) {
     return buildTokenServiceAccountSecret(providerId, fields)
   }
-  return buildGoogleServiceAccountSecret(fields)
+  if (!providerId) {
+    // Legacy Google creates omit providerId entirely (the original flow
+    // predates multi-provider support).
+    return buildGoogleServiceAccountSecret(fields)
+  }
+  throw new ServiceAccountSecretError(`Unsupported service-account provider: ${providerId}`)
 }

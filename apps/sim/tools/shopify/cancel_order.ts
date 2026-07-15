@@ -64,7 +64,7 @@ export const shopifyCancelOrderTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.shopDomain || params.domain || params.idToken}/admin/api/2024-10/graphql.json`,
+      `https://${params.domain || params.shopDomain || params.idToken}/admin/api/2024-10/graphql.json`,
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
