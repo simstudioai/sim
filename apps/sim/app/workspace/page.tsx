@@ -1,27 +1,65 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { Chip } from '@sim/emcn'
+import { CircleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
-import { useSession } from '@/lib/auth/auth-client'
+import { signOut, useSession } from '@/lib/auth/auth-client'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { useWorkspacesWithMetadata, type WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
+import { clearUserData } from '@/stores'
 
 const logger = createLogger('WorkspacePage')
 
+/**
+ * A 401 while the session claims we're authenticated means the auth cookies
+ * are stale or inconsistent (e.g. after an impersonation session expired or
+ * was switched). The only reliable recovery is a full sign-out, which clears
+ * every auth cookie server-side — matching what "clear browser cache" did
+ * manually — followed by a clean login.
+ */
+function isStaleSessionError(error: unknown): boolean {
+  return isApiClientError(error) && error.status === 401
+}
+
+async function recoverFromStaleSession(): Promise<void> {
+  try {
+    await Promise.all([signOut(), clearUserData()])
+  } catch (error) {
+    logger.error('Failed to sign out while recovering from a stale session:', error)
+  }
+  window.location.assign('/login')
+}
+
 export default function WorkspacePage() {
   const router = useRouter()
-  const { data: session, isPending: isSessionPending } = useSession()
+  const { data: session, isPending: isSessionPending, error: sessionError } = useSession()
   const isAuthenticated = !isSessionPending && !!session?.user
   const hasRedirectedRef = useRef(false)
+  const isRecoveringRef = useRef(false)
 
-  const { data, isLoading: isWorkspacesLoading } = useWorkspacesWithMetadata(isAuthenticated)
+  const {
+    data,
+    isLoading: isWorkspacesLoading,
+    error: workspacesError,
+  } = useWorkspacesWithMetadata(isAuthenticated)
+
+  useEffect(() => {
+    if (!isStaleSessionError(workspacesError) || isRecoveringRef.current) return
+    isRecoveringRef.current = true
+    logger.warn('Session cookies are stale (authenticated session but 401 API); signing out')
+    void recoverFromStaleSession()
+  }, [workspacesError])
 
   useEffect(() => {
     if (isSessionPending || hasRedirectedRef.current) return
+
+    if (sessionError) return
 
     if (!session?.user) {
       logger.info('User not authenticated, redirecting to login')
@@ -29,7 +67,7 @@ export default function WorkspacePage() {
       return
     }
 
-    if (isWorkspacesLoading || !data) return
+    if (isWorkspacesLoading || workspacesError || !data) return
 
     hasRedirectedRef.current = true
 
@@ -57,26 +95,52 @@ export default function WorkspacePage() {
 
     logger.info(`Redirecting to workspace: ${targetWorkspace.id}`)
     router.replace(`/workspace/${targetWorkspace.id}/home`)
-  }, [session, isSessionPending, isWorkspacesLoading, data, router])
+  }, [session, isSessionPending, sessionError, isWorkspacesLoading, workspacesError, data, router])
 
-  if (isSessionPending || isWorkspacesLoading) {
+  const failedToLoad =
+    Boolean(sessionError) || (Boolean(workspacesError) && !isStaleSessionError(workspacesError))
+
+  if (failedToLoad) {
     return (
-      <div className='flex h-screen w-full items-center justify-center'>
-        <div
-          className='size-[18px] animate-spin rounded-full'
-          style={{
-            background:
-              'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-            mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-            WebkitMask:
-              'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-          }}
-        />
-      </div>
+      <main className='flex h-screen w-full items-center justify-center bg-[var(--surface-1)] p-6'>
+        <div className='flex max-w-md flex-col items-center gap-3 text-center'>
+          <div className='flex size-10 items-center justify-center rounded-full bg-[var(--surface-3)]'>
+            <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
+          </div>
+          <div className='space-y-1'>
+            <h1 className='font-medium text-[var(--text-primary)] text-lg'>
+              Could not load your workspaces
+            </h1>
+            <p className='text-[var(--text-muted)] text-sm'>
+              Something went wrong while loading your account. Try again, or sign out and log back
+              in.
+            </p>
+          </div>
+          <div className='flex items-center gap-2'>
+            <Chip variant='primary' onClick={() => window.location.reload()}>
+              Try again
+            </Chip>
+            <Chip onClick={() => void recoverFromStaleSession()}>Sign out</Chip>
+          </div>
+        </div>
+      </main>
     )
   }
 
-  return null
+  return (
+    <div className='flex h-screen w-full items-center justify-center'>
+      <div
+        className='size-[18px] animate-spin rounded-full'
+        style={{
+          background:
+            'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+          mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+          WebkitMask:
+            'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+        }}
+      />
+    </div>
+  )
 }
 
 async function handleWorkflowRedirect(

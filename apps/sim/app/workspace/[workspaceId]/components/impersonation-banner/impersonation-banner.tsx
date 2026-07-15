@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Banner } from '@sim/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useStopImpersonating } from '@/hooks/queries/admin-users'
+import { clearUserData } from '@/stores'
 
 function getImpersonationBannerText(userLabel: string, userEmail?: string) {
   return `Impersonating ${userLabel}${userEmail ? ` (${userEmail})` : ''}. Changes will apply to this account until you switch back.`
@@ -35,8 +36,9 @@ export function ImpersonationBanner() {
           onError: () => {
             setIsRedirecting(false)
           },
-          onSuccess: () => {
+          onSuccess: async () => {
             setIsRedirecting(true)
+            await clearUserData()
             window.location.assign('/workspace')
           },
         })
