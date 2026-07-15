@@ -72,7 +72,11 @@ describe('Chat Edit API Route', () => {
     })
 
     mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' })
-    mockPerformFullDeploy.mockResolvedValue({ success: true, version: 1 })
+    mockPerformFullDeploy.mockResolvedValue({
+      success: true,
+      version: 1,
+      latestDeploymentAttempt: { status: 'active' },
+    })
     mockNotifySocketDeploymentChanged.mockResolvedValue(undefined)
   })
 

@@ -152,6 +152,19 @@ export const PATCH = withRouteHandler(
               : 500
         return createErrorResponse(deployResult.error || 'Failed to redeploy workflow', status)
       }
+      /**
+       * Deploys settle asynchronously: `success` only admits the attempt. The
+       * chat record must not advance until cutover finished, otherwise a later
+       * preparation failure strands the chat on the previous version with no
+       * error. Mirrors the gate in performChatDeploy.
+       */
+      if (deployResult.latestDeploymentAttempt?.status !== 'active') {
+        return createErrorResponse(
+          deployResult.warnings?.[0] ??
+            'Workflow deployment is still preparing. Retry the chat update after it becomes active.',
+          409
+        )
+      }
       logger.info(
         `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
       )
