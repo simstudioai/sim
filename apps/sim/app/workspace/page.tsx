@@ -73,9 +73,10 @@ export default function WorkspacePage() {
   useEffect(() => {
     if (isSessionPending || hasRedirectedRef.current) return
 
-    if (sessionError) return
-
     if (!session?.user) {
+      // Indeterminate auth (errored session query, no cached identity): show
+      // the error card — /login would bounce back while a session cookie exists.
+      if (sessionError) return
       logger.info('User not authenticated, redirecting to login')
       router.replace('/login')
       return
@@ -113,7 +114,7 @@ export default function WorkspacePage() {
 
   const failedToLoad =
     recoveryFailed ||
-    Boolean(sessionError) ||
+    (Boolean(sessionError) && !session?.user) ||
     (isAuthenticated && Boolean(workspacesError) && !isStaleSessionError(workspacesError))
 
   if (failedToLoad) {
