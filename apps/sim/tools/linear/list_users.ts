@@ -1,5 +1,6 @@
 import type { LinearListUsersParams, LinearListUsersResponse } from '@/tools/linear/types'
 import { PAGE_INFO_OUTPUT, USER_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListUsersTool: ToolConfig<LinearListUsersParams, LinearListUsersResponse> = {
@@ -43,7 +44,7 @@ export const linearListUsersTool: ToolConfig<LinearListUsersParams, LinearListUs
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

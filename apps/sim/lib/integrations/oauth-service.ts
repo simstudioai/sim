@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
@@ -38,7 +39,8 @@ function asServiceAccountProviderId(
   if (
     value === 'google-service-account' ||
     value === 'atlassian-service-account' ||
-    value === SLACK_CUSTOM_BOT_PROVIDER_ID
+    value === SLACK_CUSTOM_BOT_PROVIDER_ID ||
+    isTokenServiceAccountProviderId(value)
   ) {
     return value
   }
