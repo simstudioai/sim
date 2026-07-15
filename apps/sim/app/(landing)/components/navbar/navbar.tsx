@@ -34,6 +34,7 @@ import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
  * chip-height slot, chip-text color) → the {@link NAV_MENUS} mega-menus
  * (pure-CSS hover/focus dropdowns) → Pricing → GitHub stars. Right side: Log in
  * (default chip), Contact sales (outline chip), Sign up (filled chip).
+ * Enterprise lives inside the Resources mega-menu, not as a standalone chip.
  */
 
 interface NavbarProps {
@@ -75,9 +76,6 @@ export function Navbar({ stars, logoOnly = false }: NavbarProps) {
               {NAV_MENUS.map((menu) => (
                 <NavMenuChip key={menu.label} menu={menu} />
               ))}
-              <ChipLink href='/enterprise' itemProp='url'>
-                Enterprise
-              </ChipLink>
               <ChipLink href='/pricing' itemProp='url'>
                 Pricing
               </ChipLink>

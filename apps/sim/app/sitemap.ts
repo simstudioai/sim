@@ -105,6 +105,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/solutions/it`,
     },
     {
+      url: `${baseUrl}/solutions/sales`,
+    },
+    {
       url: `${baseUrl}/blog`,
       lastModified: latestPostDateValue,
     },
