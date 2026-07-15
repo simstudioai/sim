@@ -99,7 +99,7 @@ export function EnterpriseFeatureGrid({ rows }: EnterpriseFeatureGridProps) {
                 TABLET_HEADER_ORDER[rowIndex]
               )}
             >
-              <SolutionsCardRowHeader row={row} headingId={headingId} variant='feature' />
+              <SolutionsCardRowHeader row={row} headingId={headingId} />
             </div>
             {row.cards.map((card, cardIndex) => (
               <div
@@ -109,7 +109,6 @@ export function EnterpriseFeatureGrid({ rows }: EnterpriseFeatureGridProps) {
                 <SolutionsCard
                   card={card}
                   headingId={`solutions-row-${row.id}-card-${cardIndex}-heading`}
-                  variant='featureTile'
                 />
               </div>
             ))}

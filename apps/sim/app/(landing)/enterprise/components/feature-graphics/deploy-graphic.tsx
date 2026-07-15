@@ -59,8 +59,36 @@ const DEPLOY_LOADER_INK = {
  * `bottom-5`), keeping the tile row horizontally aligned; both connector
  * lines are `flex-1` with mirrored margins, so the Deploy button stays
  * equidistant between the agent pill and the browser at any tile height.
+ *
+ * Every label is parametrizable so other landing pages (engineering,
+ * IT, finance, workflows) can retell the click-to-live moment with their
+ * own agent and outcome; the defaults keep the enterprise page's
+ * Support-agent deploy byte-identical. Geometry, motion, and inks never
+ * change with the copy.
  */
-export function DeployGraphic() {
+interface DeployGraphicProps {
+  /** Agent pill label. */
+  agentName?: string
+  /** Version tag beside the agent name. */
+  versionTag?: string
+  /** Action button label. */
+  buttonLabel?: string
+  /** Address-bar URL of the deployed agent. */
+  url?: string
+  /** Status line inside the dark browser window. */
+  statusLabel?: string
+  /** Right-aligned status timestamp. */
+  timeLabel?: string
+}
+
+export function DeployGraphic({
+  agentName = 'Support agent',
+  versionTag = 'v3',
+  buttonLabel = 'Deploy',
+  url = 'sim.ai/agents/support',
+  statusLabel = 'Live in production',
+  timeLabel = 'Just now',
+}: DeployGraphicProps = {}) {
   return (
     <FeatureGraphicShell>
       <div
@@ -68,10 +96,8 @@ export function DeployGraphic() {
         className='absolute inset-0 flex flex-col items-center pr-8 max-lg:pr-6'
       >
         <div className='mt-1 flex items-center gap-1.5 rounded-[12px] bg-[var(--surface-2)] py-1.5 pr-1.5 pl-2.5 shadow-sm'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>
-            Support agent
-          </span>
-          <ChipTag variant='mono'>v3</ChipTag>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>{agentName}</span>
+          <ChipTag variant='mono'>{versionTag}</ChipTag>
         </div>
 
         <span className='relative mt-1.5 min-h-3 w-px flex-1 overflow-hidden bg-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'>
@@ -85,7 +111,9 @@ export function DeployGraphic() {
           )}
         >
           <ThinkingLoader variant='relay' size={18} style={DEPLOY_LOADER_INK} />
-          <span className={cn(chipContentLabelClass, 'text-[15px] text-current')}>Deploy</span>
+          <span className={cn(chipContentLabelClass, 'text-[15px] text-current')}>
+            {buttonLabel}
+          </span>
         </span>
 
         <span className='relative mt-2.5 mb-1.5 min-h-3 w-px flex-1 overflow-hidden bg-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'>
@@ -125,17 +153,17 @@ export function DeployGraphic() {
             </span>
             <span className='flex min-w-0 flex-1 items-center gap-1.5 rounded-md bg-[var(--text-muted)] px-2 py-1'>
               <Lock className='size-[10px] shrink-0 text-[var(--text-muted-inverse)]' />
-              <span className='truncate text-[var(--text-inverse)] text-caption'>
-                sim.ai/agents/support
-              </span>
+              <span className='truncate text-[var(--text-inverse)] text-caption'>{url}</span>
             </span>
           </div>
           <div className='flex items-center gap-2 px-3 pt-2.5 pb-4'>
             <CircleCheck className='size-[14px] shrink-0 text-[var(--text-muted-inverse)]' />
             <span className='min-w-0 flex-1 font-medium text-[var(--text-inverse)] text-small'>
-              Live in production
+              {statusLabel}
             </span>
-            <span className='shrink-0 text-[var(--text-muted-inverse)] text-caption'>Just now</span>
+            <span className='shrink-0 text-[var(--text-muted-inverse)] text-caption'>
+              {timeLabel}
+            </span>
           </div>
         </div>
       </div>

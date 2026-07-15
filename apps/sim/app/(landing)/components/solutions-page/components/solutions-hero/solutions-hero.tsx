@@ -121,7 +121,7 @@ export function SolutionsHero({ hero, align = 'left', variant = 'solutions' }: S
         </div>
       </div>
 
-      <SolutionsVisualFrame size='hero'>{hero.visual}</SolutionsVisualFrame>
+      <SolutionsVisualFrame>{hero.visual}</SolutionsVisualFrame>
     </section>
   )
 }
