@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Chip, ChipInput, ChipModalTabs } from '@sim/emcn'
-import { Folder, Search, Workflow } from '@sim/emcn/icons'
+import { Search } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
@@ -72,12 +72,12 @@ const SORT_OPTIONS: ColumnOption[] = [
   { id: 'type', label: 'Type' },
 ]
 
-const ICON_CLASS = 'size-5'
+const ICON_CLASS = 'size-5 shrink-0'
 
-const RESOURCE_TYPE_TO_MOTHERSHIP: Partial<
-  Record<Exclude<ResourceType, 'all'>, MothershipResourceType>
-> = {
+const RESOURCE_TYPE_TO_MOTHERSHIP: Record<Exclude<ResourceType, 'all'>, MothershipResourceType> = {
   workflow: 'workflow',
+  folder: 'folder',
+  workspace_folder: 'filefolder',
   table: 'table',
   knowledge: 'knowledgebase',
   file: 'file',
@@ -89,7 +89,6 @@ interface DeletedResource {
   type: Exclude<ResourceType, 'all'>
   deletedAt: Date
   workspaceId: string
-  color?: string
 }
 
 interface RestoredResourceEntry {
@@ -116,17 +115,7 @@ const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
 }
 
 function ResourceIcon({ resource }: { resource: DeletedResource }) {
-  if (resource.type === 'workflow') {
-    return <Workflow className={`${ICON_CLASS} shrink-0 text-[var(--text-icon)]`} />
-  }
-
-  if (resource.type === 'folder' || resource.type === 'workspace_folder') {
-    const color = resource.color ?? '#6B7280'
-    return <Folder className={ICON_CLASS} style={{ color }} />
-  }
-
   const mothershipType = RESOURCE_TYPE_TO_MOTHERSHIP[resource.type]
-  if (!mothershipType) return null
   const config = RESOURCE_REGISTRY[mothershipType]
   return config.renderTabIcon(
     { type: mothershipType, id: resource.id, title: resource.name },
@@ -222,7 +211,6 @@ export function RecentlyDeleted() {
         type: 'folder',
         deletedAt: folder.archivedAt ? new Date(folder.archivedAt) : new Date(folder.updatedAt),
         workspaceId: folder.workspaceId,
-        color: folder.color,
       })
     }
 
