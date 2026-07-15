@@ -43,7 +43,6 @@ const EXPECTED_PROVIDER_BY_SLUG: Record<string, string> = {
   jira: 'jira',
   'jira-service-management': 'jira',
   linear: 'linear',
-  instagram: 'instagram',
   linkedin: 'linkedin',
   'microsoft-dataverse': 'microsoft-dataverse',
   'microsoft-excel': 'microsoft-excel',
