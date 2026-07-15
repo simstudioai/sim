@@ -64,9 +64,13 @@ round. Always check both conditions freshly after every push.
    origin/staging`, resolve the conflicts for real (don't just take one side blindly). If step
    1 also found unresolved review threads, don't push the conflict fix alone and leave those
    findings unaddressed — triage and fix them now too (step 4), replying/resolving each (step
-   5), in the same pass. Then run the same pre-push checks as step 6 (lint, boundary
-   validation, and the conditional cleanup/db-migrate gates) before a plain `git push` — a
-   merge commit doesn't rewrite already-published history, so this never needs
+   5), in the same pass. The merge is this round's sync check (it already pulls in current
+   `origin/staging`) — no need to also run step 6's stash/rebase/cherry-pick machinery, which is
+   for a different problem (local stray commits) — but do spot-check
+   `git log --oneline --reverse origin/staging..HEAD` still shows only commits you recognize
+   before pushing, same as step 6 would. Then run the same pre-push checks as step 6 (lint,
+   boundary validation, and the conditional cleanup/db-migrate gates) before a plain `git push`
+   — a merge commit doesn't rewrite already-published history, so this never needs
    `--force-with-lease` — and verify the push landed the same way step 7 does. Skip step 3 and
    go straight to step 8 to trigger a fresh review of the resolved code.
 
