@@ -26,9 +26,12 @@ const { mockCheckChatAccess } = vi.hoisted(() => ({
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+const mockCheckNeedsRedeployment = workflowsApiUtilsMockFns.mockCheckNeedsRedeployment
 const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 const mockPerformFullDeploy = workflowsOrchestrationMockFns.mockPerformFullDeploy
 const mockPerformChatUndeploy = workflowsOrchestrationMockFns.mockPerformChatUndeploy
+const mockGetWorkflowDeploymentSummary =
+  workflowsOrchestrationMockFns.mockGetWorkflowDeploymentSummary
 const mockNotifySocketDeploymentChanged =
   workflowsOrchestrationMockFns.mockNotifySocketDeploymentChanged
 
@@ -72,6 +75,12 @@ describe('Chat Edit API Route', () => {
     })
 
     mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' })
+    mockGetWorkflowDeploymentSummary.mockResolvedValue({
+      activeDeployment: null,
+      latestDeploymentAttempt: null,
+      warnings: [],
+    })
+    mockCheckNeedsRedeployment.mockResolvedValue(false)
     mockPerformFullDeploy.mockResolvedValue({
       success: true,
       version: 1,
@@ -202,6 +211,58 @@ describe('Chat Edit API Route', () => {
       expect(data.id).toBe('chat-123')
       expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
       expect(data.message).toBe('Chat deployment updated successfully')
+    })
+
+    it('rejects the update without admitting a new deploy while an attempt is in flight', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-id' } })
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: { id: 'chat-123', identifier: 'test-chat', workflowId: 'workflow-123' },
+        workspaceId: 'workspace-123',
+      })
+      mockGetWorkflowDeploymentSummary.mockResolvedValue({
+        activeDeployment: null,
+        latestDeploymentAttempt: { status: 'preparing' },
+        warnings: [],
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
+        method: 'PATCH',
+        body: JSON.stringify({ title: 'Updated Chat' }),
+      })
+      const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
+
+      expect(response.status).toBe(409)
+      expect(mockPerformFullDeploy).not.toHaveBeenCalled()
+    })
+
+    it('skips redeploying when the active version already matches the draft', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-id' } })
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: { id: 'chat-123', identifier: 'test-chat', workflowId: 'workflow-123' },
+        workspaceId: 'workspace-123',
+      })
+      mockGetWorkflowDeploymentSummary.mockResolvedValue({
+        activeDeployment: {
+          deploymentVersionId: 'dv-1',
+          version: 3,
+          deployedAt: '2026-07-15T00:00:00.000Z',
+        },
+        latestDeploymentAttempt: { status: 'active' },
+        warnings: [],
+      })
+      mockCheckNeedsRedeployment.mockResolvedValue(false)
+
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
+        method: 'PATCH',
+        body: JSON.stringify({ title: 'Updated Chat' }),
+      })
+      const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
+
+      expect(response.status).toBe(200)
+      expect(mockPerformFullDeploy).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).toHaveBeenCalled()
     })
 
     it('should handle identifier conflicts', async () => {
