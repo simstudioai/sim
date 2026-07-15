@@ -44,7 +44,7 @@ export interface QueuedOperation {
 export interface OperationQueueState {
   operations: QueuedOperation[]
   workflowOperationVersions: Record<string, number>
-  isProcessing: boolean
+  processingOperationId: string | null
   hasOperationError: boolean
 
   addToQueue: (operation: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>) => void
