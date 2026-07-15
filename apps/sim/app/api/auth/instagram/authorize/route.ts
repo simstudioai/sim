@@ -28,6 +28,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const clientId = env.INSTAGRAM_CLIENT_ID
+    if (!clientId) {
+      logger.error('INSTAGRAM_CLIENT_ID not configured')
+      return NextResponse.json({ error: 'Instagram client ID not configured' }, { status: 500 })
+    }
+
     const parsed = await parseRequest(authorizeInstagramContract, request, {})
     if (!parsed.success) return parsed.response
     const { returnUrl, workspaceId } = parsed.data.query
@@ -42,12 +48,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         workspaceId,
         providerId: 'instagram',
       })
-    }
-
-    const clientId = env.INSTAGRAM_CLIENT_ID
-    if (!clientId) {
-      logger.error('INSTAGRAM_CLIENT_ID not configured')
-      return NextResponse.json({ error: 'Instagram client ID not configured' }, { status: 500 })
     }
 
     const baseUrl = getBaseUrl()
