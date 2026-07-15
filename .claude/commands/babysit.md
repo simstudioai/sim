@@ -60,10 +60,11 @@ round. Always check both conditions freshly after every push.
    and every thread across all pages has `isResolved: true`, stop — report the outcome (see
    "Reporting" below) and skip the rest of this list.
 
-2. **If the PR has a merge conflict**, fix it: `git fetch origin staging`, `git rebase
+2. **If the PR has a merge conflict**, fix it: `git fetch origin staging`, `git merge
    origin/staging`, resolve the conflicts for real (don't just take one side blindly), then run
    the same pre-push checks as step 6 (lint, boundary validation, and the conditional
-   cleanup/db-migrate gates) before pushing with `--force-with-lease`, and verify the push
+   cleanup/db-migrate gates) before a plain `git push` — a merge commit doesn't rewrite
+   already-published history, so this never needs `--force-with-lease` — and verify the push
    landed the same way step 7 does. Skip steps 3–7 and go straight to step 8 to trigger a fresh
    review of the resolved code.
 
