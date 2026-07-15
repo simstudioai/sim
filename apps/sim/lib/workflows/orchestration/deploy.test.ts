@@ -449,8 +449,13 @@ describe('performFullDeploy workspace event emission', () => {
 
     expect(result).toMatchObject({
       success: true,
-      deploymentVersionId: 'dv-live',
-      version: 4,
+      /**
+       * Top-level version identifies the snapshot this call admitted, while
+       * activeDeployment keeps reporting what is actually live during the
+       * pending cutover.
+       */
+      deploymentVersionId: 'dv-candidate',
+      version: 5,
       activeDeployment: {
         deploymentVersionId: 'dv-live',
         version: 4,

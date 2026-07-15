@@ -209,7 +209,18 @@ async function performStableFullDeploy(params: {
   const deploymentStatus = await getWorkflowDeploymentStatus(params.params.workflowId)
   const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, deploymentStatus)
   if (inlineFailure) return inlineFailure
-  return buildStableDeploymentResult(deploymentStatus, processResult)
+  const result = buildStableDeploymentResult(deploymentStatus, processResult)
+  /**
+   * The top-level version identifies the snapshot THIS call admitted, even
+   * while cutover is still pending — otherwise callers would attribute the
+   * deploy to the previous live version. `activeDeployment` keeps reporting
+   * what is actually live.
+   */
+  return {
+    ...result,
+    version: prepared.operation.version,
+    deploymentVersionId: prepared.operation.deploymentVersionId,
+  }
 }
 
 /**
