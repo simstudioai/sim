@@ -1304,19 +1304,22 @@ describe('prepareToolExecution', () => {
       payerSubscription: null,
     }
 
-    it.concurrent('should include billingAttribution in _context when the request carries it', () => {
-      const tool = { params: {} }
-      const request = {
-        workflowId: 'wf-123',
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        billingAttribution,
+    it.concurrent(
+      'should include billingAttribution in _context when the request carries it',
+      () => {
+        const tool = { params: {} }
+        const request = {
+          workflowId: 'wf-123',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          billingAttribution,
+        }
+
+        const { executionParams } = prepareToolExecution(tool, {}, request)
+
+        expect(executionParams._context.billingAttribution).toEqual(billingAttribution)
       }
-
-      const { executionParams } = prepareToolExecution(tool, {}, request)
-
-      expect(executionParams._context.billingAttribution).toEqual(billingAttribution)
-    })
+    )
 
     it.concurrent('should omit billingAttribution from _context when the request lacks it', () => {
       const tool = { params: {} }
@@ -1326,6 +1329,25 @@ describe('prepareToolExecution', () => {
 
       expect(executionParams._context).toBeDefined()
       expect(executionParams._context).not.toHaveProperty('billingAttribution')
+    })
+
+    it.concurrent('should carry billingAttribution even when the request has no workflowId', () => {
+      const tool = { params: {} }
+      const request = { workspaceId: 'workspace-1', billingAttribution }
+
+      const { executionParams } = prepareToolExecution(tool, {}, request)
+
+      expect(executionParams._context.billingAttribution).toEqual(billingAttribution)
+      expect(executionParams._context.workspaceId).toBe('workspace-1')
+      expect(executionParams._context).not.toHaveProperty('workflowId')
+    })
+
+    it.concurrent('should not build _context when there is no workflowId or attribution', () => {
+      const tool = { params: {} }
+
+      const { executionParams } = prepareToolExecution(tool, {}, { workspaceId: 'workspace-1' })
+
+      expect(executionParams).not.toHaveProperty('_context')
     })
   })
 

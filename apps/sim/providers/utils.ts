@@ -1312,10 +1312,10 @@ export function prepareToolExecution(
 
   const executionParams = {
     ...toolParams,
-    ...(request.workflowId
+    ...(request.workflowId || request.billingAttribution
       ? {
           _context: {
-            workflowId: request.workflowId,
+            ...(request.workflowId ? { workflowId: request.workflowId } : {}),
             ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
             ...(request.chatId ? { chatId: request.chatId } : {}),
             ...(request.userId ? { userId: request.userId } : {}),
