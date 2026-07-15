@@ -52,12 +52,16 @@ export async function getWorkspaceBilledAccountUserId(workspaceId: string): Prom
  * Workspaces the user administers purely through organization owner/admin role,
  * with no explicit permission row required. Empty when the user is not an org
  * owner/admin. Implements the workspace-permission inheritance model.
+ *
+ * Accepts an optional executor so callers already inside a transaction (e.g. a
+ * workspace-archival safety check) can run this against `tx` instead of `db`.
  */
 export async function getOrgAdminWorkspaceRows(
   userId: string,
-  scope: WorkspaceScope = 'active'
+  scope: WorkspaceScope = 'active',
+  executor: DbOrTx = db
 ): Promise<Array<typeof workspaceTable.$inferSelect>> {
-  const [membership] = await db
+  const [membership] = await executor
     .select({ organizationId: member.organizationId, role: member.role })
     .from(member)
     .where(eq(member.userId, userId))
@@ -75,20 +79,24 @@ export async function getOrgAdminWorkspaceRows(
         ? and(orgFilter, sql`${workspaceTable.archivedAt} IS NOT NULL`)
         : and(orgFilter, isNull(workspaceTable.archivedAt))
 
-  return db.select().from(workspaceTable).where(where).orderBy(desc(workspaceTable.createdAt))
+  return executor.select().from(workspaceTable).where(where).orderBy(desc(workspaceTable.createdAt))
 }
 
 /**
  * Every workspace a user can access: explicit permission grants plus workspaces
  * derived from organization owner/admin role. Deduped with explicit rows first.
+ *
+ * Accepts an optional executor so callers already inside a transaction can run
+ * this against `tx` instead of `db`.
  */
 export async function listAccessibleWorkspaceRowsForUser(
   userId: string,
-  scope: WorkspaceScope = 'active'
+  scope: WorkspaceScope = 'active',
+  executor: DbOrTx = db
 ): Promise<
   Array<{ workspace: typeof workspaceTable.$inferSelect; permissionType: PermissionType }>
 > {
-  const explicit = await db
+  const explicit = await executor
     .select({ workspace: workspaceTable, permissionType: permissions.permissionType })
     .from(permissions)
     .innerJoin(workspaceTable, eq(permissions.entityId, workspaceTable.id))
@@ -109,7 +117,7 @@ export async function listAccessibleWorkspaceRowsForUser(
     )
     .orderBy(desc(workspaceTable.createdAt))
 
-  const orgRows = await getOrgAdminWorkspaceRows(userId, scope)
+  const orgRows = await getOrgAdminWorkspaceRows(userId, scope, executor)
   if (orgRows.length === 0) {
     return explicit
   }
