@@ -229,7 +229,9 @@ export async function verifyAndBuildServiceAccountSecret(
   providerId: string,
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
-  const builder = SERVICE_ACCOUNT_SECRET_BUILDERS[providerId]
+  const builder = Object.hasOwn(SERVICE_ACCOUNT_SECRET_BUILDERS, providerId)
+    ? SERVICE_ACCOUNT_SECRET_BUILDERS[providerId]
+    : undefined
   if (builder) return builder(fields)
   if (isTokenServiceAccountProviderId(providerId)) {
     return buildTokenServiceAccountSecret(providerId, fields)

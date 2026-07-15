@@ -45,6 +45,7 @@ describe('validateAsanaServiceAccount', () => {
           Authorization: 'Bearer token-1',
           Accept: 'application/json',
         },
+        signal: expect.any(AbortSignal),
       }
     )
   })

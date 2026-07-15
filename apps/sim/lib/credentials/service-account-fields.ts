@@ -14,10 +14,11 @@ export type ServiceAccountFieldId =
   | 'botToken'
 
 /**
- * Required create-body fields per service-account provider — the single
- * client-safe source of truth consumed by the `createCredentialBodySchema`
- * superRefine and by field checks in `verifyAndBuildServiceAccountSecret`.
- * Token-paste providers contribute their entries from
+ * Required create-body fields per service-account provider — the client-safe
+ * source of truth consumed by the `createCredentialBodySchema` superRefine.
+ * (Server-side builders re-derive their own requirements: token-paste
+ * providers from descriptor fields, bespoke providers inline.) Token-paste
+ * providers contribute their entries from
  * `TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS`; the three bespoke providers are
  * declared here.
  */
@@ -40,7 +41,7 @@ export const FALLBACK_SERVICE_ACCOUNT_REQUIRED_FIELDS: readonly ServiceAccountFi
 export function getServiceAccountRequiredFields(
   providerId: string | null | undefined
 ): readonly ServiceAccountFieldId[] {
-  return (
-    SERVICE_ACCOUNT_REQUIRED_FIELDS[providerId ?? ''] ?? FALLBACK_SERVICE_ACCOUNT_REQUIRED_FIELDS
-  )
+  return providerId && Object.hasOwn(SERVICE_ACCOUNT_REQUIRED_FIELDS, providerId)
+    ? SERVICE_ACCOUNT_REQUIRED_FIELDS[providerId]
+    : FALLBACK_SERVICE_ACCOUNT_REQUIRED_FIELDS
 }

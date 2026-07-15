@@ -56,6 +56,7 @@ describe('validateAttioServiceAccount', () => {
         Authorization: 'Bearer attio-token',
         Accept: 'application/json',
       },
+      signal: expect.any(AbortSignal),
     })
     expect(result).toEqual({
       displayName: 'Acme CRM',

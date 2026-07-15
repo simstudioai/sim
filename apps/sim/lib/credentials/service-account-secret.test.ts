@@ -138,4 +138,12 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       })
     ).rejects.toThrow('Unsupported service-account provider')
   })
+
+  it('rejects prototype-chain providerIds with a validation error, not a TypeError', async () => {
+    for (const providerId of ['__proto__', 'constructor', 'toString']) {
+      await expect(
+        verifyAndBuildServiceAccountSecret(providerId, { serviceAccountJson: '{}' })
+      ).rejects.toThrow('Unsupported service-account provider')
+    }
+  })
 })

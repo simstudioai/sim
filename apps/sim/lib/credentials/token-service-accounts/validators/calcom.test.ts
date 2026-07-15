@@ -44,6 +44,7 @@ describe('validateCalcomServiceAccount', () => {
         Authorization: 'Bearer cal_live_token',
         Accept: 'application/json',
       },
+      signal: expect.any(AbortSignal),
     })
   })
 

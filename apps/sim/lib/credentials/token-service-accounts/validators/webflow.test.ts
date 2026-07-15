@@ -43,6 +43,7 @@ describe('validateWebflowServiceAccount', () => {
         Authorization: 'Bearer wf-token',
         Accept: 'application/json',
       },
+      signal: expect.any(AbortSignal),
     })
   })
 

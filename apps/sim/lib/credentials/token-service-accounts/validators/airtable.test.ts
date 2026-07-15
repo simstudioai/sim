@@ -45,6 +45,7 @@ describe('validateAirtableServiceAccount', () => {
         Authorization: 'Bearer pat123.secret',
         Accept: 'application/json',
       },
+      signal: expect.any(AbortSignal),
     })
   })
 

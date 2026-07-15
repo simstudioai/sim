@@ -29,13 +29,15 @@ const ERROR_SNIPPET_MAX_LENGTH = 500
  * as raw undici errors — whose `cause` can carry connection details — and are
  * never blamed on the pasted token.
  */
+const PROVIDER_FETCH_TIMEOUT_MS = 10_000
+
 export async function fetchProvider(
   url: string,
   init: RequestInit,
   step: string
 ): Promise<Response> {
   try {
-    return await fetch(url, init)
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS) })
   } catch {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step,

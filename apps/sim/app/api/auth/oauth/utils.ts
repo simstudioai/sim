@@ -413,7 +413,10 @@ export async function resolveServiceAccountToken(
     const secret = await getTokenServiceAccountSecret(credentialId, providerId)
     return { accessToken: secret.apiToken, domain: secret.domain }
   }
-  const resolver = providerId ? SERVICE_ACCOUNT_TOKEN_RESOLVERS[providerId] : undefined
+  const resolver =
+    providerId && Object.hasOwn(SERVICE_ACCOUNT_TOKEN_RESOLVERS, providerId)
+      ? SERVICE_ACCOUNT_TOKEN_RESOLVERS[providerId]
+      : undefined
   if (!resolver) {
     throw new Error(`Unsupported service-account provider: ${providerId ?? 'unknown'}`)
   }

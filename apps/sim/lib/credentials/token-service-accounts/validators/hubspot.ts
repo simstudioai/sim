@@ -91,9 +91,11 @@ export async function validateHubspotServiceAccount(
     },
     'access_token_info'
   )
-  if (res.status === 404 || res.status === 400) {
+  if (res.status === 404 || res.status === 400 || res.status === 403) {
     // Ambiguous: HubSpot 404s unrecognized tokens on this route (and 400s
-    // malformed ones). Resolve via a regular API route with JSON errors.
+    // malformed ones); a 403 here is unexpected since the route needs no
+    // scopes, so it also defers to the fallback rather than blaming the
+    // token. Resolve via a regular API route with JSON errors.
     await readProviderErrorSnippet(res)
     return verifyViaAccountInfo(accessToken)
   }

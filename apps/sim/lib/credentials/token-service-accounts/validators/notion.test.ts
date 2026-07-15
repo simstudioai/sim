@@ -48,6 +48,7 @@ describe('validateNotionServiceAccount', () => {
         'Notion-Version': '2022-06-28',
         Accept: 'application/json',
       },
+      signal: expect.any(AbortSignal),
     })
   })
 
