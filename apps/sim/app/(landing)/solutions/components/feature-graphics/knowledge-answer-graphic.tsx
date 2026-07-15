@@ -7,8 +7,10 @@ import styles from '@/app/(landing)/solutions/components/feature-graphics/knowle
  * An internal help-desk agent answering from the team's own docs, told
  * as a frameless chat vignette (the audit and monitoring tiles'
  * composition — no window chrome): the employee's question sits
- * right-aligned in the build tile's chat-bubble treatment (`--surface-3`
- * fill, rounded), the agent's grounded answer reads back as plain
+ * right-aligned as a chat bubble in the family's white card chrome
+ * (`--white` fill, 1px `--border-1` hairline — the build tile's
+ * `--surface-3` bubble would vanish against this tile's own
+ * `--surface-3` fill), the agent's grounded answer reads back as plain
  * `--text-primary` prose, and the tile's highlight is the citation — a
  * white source card in the audit tile's exact chrome (`--white` fill,
  * 1px `--border-1` hairline, `rounded-xl`, `shadow-sm`) pairing a
@@ -57,7 +59,7 @@ export function KnowledgeAnswerGraphic({
         <div className='flex w-full max-w-[312px] flex-col gap-3 sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div
             className={cn(
-              'max-w-[85%] self-end rounded-lg bg-[var(--surface-3)] px-3 py-2 text-[var(--text-primary)] text-caption leading-[1.5]',
+              'max-w-[85%] self-end rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 text-[var(--text-primary)] text-caption leading-[1.5]',
               styles.stepQuestion
             )}
           >

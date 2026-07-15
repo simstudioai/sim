@@ -1,6 +1,5 @@
 'use client'
 
-import { EditorLoop, type EditorLoopContent } from '@/app/(landing)/components/shared/editor-loop'
 import {
   AgentIcon,
   ConditionalIcon,
@@ -9,6 +8,7 @@ import {
   StartIcon,
   TableIcon,
 } from '@/components/icons'
+import { EditorLoop, type EditorLoopContent } from '@/app/(landing)/components/shared/editor-loop'
 
 /**
  * The workflows hero's content for the shared {@link EditorLoop}: a builder's
