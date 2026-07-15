@@ -229,11 +229,39 @@ export function isEntitySupportedForLanguage(
   return PII_ENTITIES_BY_LANGUAGE[language].has(entity)
 }
 
-/** {@link PII_ENTITY_GROUPS} filtered to entities the language recognizes (empty groups dropped). */
-export function getEntityGroupsForLanguage(language: PIILanguage) {
+/**
+ * The spaCy-NER entity types — the only ones detected by the NLP model, vs the
+ * regex/checksum pattern recognizers. The block-output redaction stage is
+ * restricted to the non-NER (regex) entities so it runs on the Presidio
+ * spaCy-free fast path without the per-leaf NER cost. Mirrors `NER_ENTITIES` in
+ * `apps/pii/server.py`.
+ */
+export const NER_PII_ENTITIES: ReadonlySet<PIIEntityType> = new Set<PIIEntityType>([
+  'PERSON',
+  'LOCATION',
+  'NRP',
+  'DATE_TIME',
+])
+
+/** Drop the spaCy-NER entities ({@link NER_PII_ENTITIES}) from a selection. */
+export function stripNerEntities(entities: readonly string[]): string[] {
+  return entities.filter((e) => !NER_PII_ENTITIES.has(e as PIIEntityType))
+}
+
+/**
+ * {@link PII_ENTITY_GROUPS} filtered to entities the language recognizes (empty
+ * groups dropped). With `regexOnly`, the spaCy-NER entities are also excluded —
+ * used for the block-output stage.
+ */
+export function getEntityGroupsForLanguage(language: PIILanguage, opts?: { regexOnly?: boolean }) {
+  const regexOnly = opts?.regexOnly ?? false
   return PII_ENTITY_GROUPS.map((group) => ({
     label: group.label,
-    entities: group.entities.filter((e) => isEntitySupportedForLanguage(e.value, language)),
+    entities: group.entities.filter(
+      (e) =>
+        isEntitySupportedForLanguage(e.value, language) &&
+        (!regexOnly || !NER_PII_ENTITIES.has(e.value))
+    ),
   })).filter((group) => group.entities.length > 0)
 }
 
@@ -319,9 +347,17 @@ export function normalizeRuleStages(rule: {
   })
 
   if (rule.stages) {
+    // Block outputs are regex-only (no spaCy NER) — strip NER from any stored
+    // rule so hydrated drafts never carry it; a stage left empty becomes disabled.
+    const blockOutputs = sanitize(rule.stages.blockOutputs)
+    const blockOutputsEntities = stripNerEntities(blockOutputs.entityTypes)
     return {
       input: sanitize(rule.stages.input),
-      blockOutputs: sanitize(rule.stages.blockOutputs),
+      blockOutputs: {
+        ...blockOutputs,
+        entityTypes: blockOutputsEntities,
+        enabled: blockOutputs.enabled && blockOutputsEntities.length > 0,
+      },
       logs: sanitize(rule.stages.logs),
     }
   }
