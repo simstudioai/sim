@@ -21,6 +21,11 @@ interface ReactivateDeployedVersionParams {
 export interface ReactivateDeployedVersionResult {
   deploymentVersionId: string
   /**
+   * Deployment operation admitted (or reused) for this reactivation. The
+   * caller checks it post-commit to learn whether cutover completed.
+   */
+  operationId: string
+  /**
    * Newly enqueued event. Reused idempotent operations already own a durable event.
    */
   outboxEventId?: string
@@ -137,5 +142,5 @@ export async function reactivateDeployedVersionInTx(
   if (!prepared.success) {
     throw new Error(prepared.error)
   }
-  return { deploymentVersionId: versionRow.id, outboxEventId }
+  return { deploymentVersionId: versionRow.id, operationId: prepared.operation.id, outboxEventId }
 }

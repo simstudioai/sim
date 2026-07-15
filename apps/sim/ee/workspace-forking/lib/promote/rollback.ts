@@ -7,6 +7,7 @@ import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
 } from '@/lib/workflows/deployment-outbox'
+import { getWorkflowDeploymentStatus } from '@/lib/workflows/persistence/deployment-operations'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import {
@@ -33,6 +34,13 @@ export interface RollbackForkParams {
 }
 
 export interface RollbackForkResult {
+  /**
+   * Workflows whose restored version has not finished (or has failed) its
+   * activation cutover. Their drafts are restored but live traffic stays on
+   * the pre-rollback version until the pending attempt completes; the undo
+   * point is preserved so the rollback can be re-run.
+   */
+  pendingActivations: string[]
   restored: number
   archived: number
   unarchived: number
@@ -60,6 +68,11 @@ type RollbackOp =
  * retried by the outbox cron/reaper if this process dies first), so the locked
  * transaction never holds across a network call. No draft blobs are stored - the
  * deployed version is the source of truth.
+ *
+ * Activation cutovers settle asynchronously, so the undo point is deleted only
+ * after every restored version is verified live; while any activation is still
+ * pending (or failed), the undo point survives and re-running the rollback
+ * re-drives the remaining activations.
  */
 export async function rollbackFork(params: RollbackForkParams): Promise<RollbackForkResult> {
   const { targetWorkspaceId, otherWorkspaceId, userId } = params
@@ -116,6 +129,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
 
   const skipped = new Set<string>()
   const outboxEventIds: string[] = []
+  const reactivations: Array<{ workflowId: string; operationId: string }> = []
 
   await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
@@ -176,6 +190,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
           skipped.add(op.workflowId)
           continue
         }
+        reactivations.push({ workflowId: op.workflowId, operationId: result.operationId })
         if (result.outboxEventId) outboxEventIds.push(result.outboxEventId)
         continue
       }
@@ -230,10 +245,6 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
         created
       )
     }
-
-    // Single-level undo: drop every undo point for this target so no older sibling
-    // sync becomes undoable once this one is undone.
-    await deleteAllPromoteRunsForTarget(tx, targetWorkspaceId)
   })
 
   // After commit: process the enqueued side-effects (webhooks / schedules / MCP). These
@@ -248,6 +259,59 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
         { eventId, error }
       )
     }
+  }
+
+  /**
+   * Reactivation cutovers settle asynchronously: the inline processing above
+   * completes them in the common case (a previously-live config reuses its
+   * registrations without provider calls), but a provider failure leaves an
+   * attempt pending or failed with live traffic still on the pre-rollback
+   * version. The undo point is deleted — enforcing single-level undo — only
+   * once every restored version is actually live; otherwise it is preserved
+   * so re-running the rollback re-drives the remaining activations
+   * (reactivation is idempotent by design).
+   */
+  const pendingActivations: string[] = []
+  for (const reactivation of reactivations) {
+    try {
+      const status = await getWorkflowDeploymentStatus(reactivation.workflowId)
+      const operation = status.latestOperation
+      const activated =
+        operation?.id === reactivation.operationId
+          ? operation.status === 'active'
+          : /**
+             * A different latest operation means something newer superseded
+             * our attempt (e.g. a manual promote); treat it as settled — the
+             * newer intent owns the workflow now.
+             */
+            true
+      if (!activated) pendingActivations.push(reactivation.workflowId)
+    } catch (error) {
+      logger.warn(`[${requestId}] Could not verify rollback activation status`, {
+        workflowId: reactivation.workflowId,
+        error,
+      })
+      pendingActivations.push(reactivation.workflowId)
+    }
+  }
+
+  if (pendingActivations.length === 0) {
+    // Single-level undo: drop every undo point for this target so no older sibling
+    // sync becomes undoable once this one is undone. Re-checked under the fork lock
+    // because a promote may have landed since our commit — its fresh undo point must
+    // survive, so deletion only proceeds while our run is still the newest.
+    await db.transaction(async (tx) => {
+      await setForkLockTimeout(tx)
+      await acquireForkTargetLock(tx, targetWorkspaceId)
+      const current = await getLatestPromoteRunForTarget(tx, targetWorkspaceId)
+      if (current && current.id !== run.id) return
+      await deleteAllPromoteRunsForTarget(tx, targetWorkspaceId)
+    })
+  } else {
+    logger.warn(
+      `[${requestId}] Rollback restored drafts but ${pendingActivations.length} activation(s) are still settling; undo point preserved for retry`,
+      { targetWorkspaceId, pendingActivations }
+    )
   }
 
   if (skipped.size > 0) {
@@ -287,6 +351,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
   const unarchived = archived.length - skippedArchived
 
   const result: RollbackForkResult = {
+    pendingActivations,
     restored,
     archived: archivedCount,
     unarchived,
@@ -299,6 +364,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
     archived: result.archived,
     unarchived: result.unarchived,
     skipped: result.skipped,
+    pendingActivations: result.pendingActivations.length,
   })
 
   return result

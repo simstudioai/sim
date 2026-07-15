@@ -15,6 +15,7 @@ const {
   mockEnqueueUndeploy,
   mockProcessOutbox,
   mockNotify,
+  mockGetDeploymentStatus,
 } = vi.hoisted(() => ({
   mockResolveForkEdge: vi.fn(),
   mockAcquireTargetLock: vi.fn(),
@@ -27,6 +28,7 @@ const {
   mockEnqueueUndeploy: vi.fn(),
   mockProcessOutbox: vi.fn(),
   mockNotify: vi.fn(),
+  mockGetDeploymentStatus: vi.fn(),
 }))
 
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
@@ -47,6 +49,10 @@ vi.mock('@/ee/workspace-forking/lib/promote/reactivate-in-tx', () => ({
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   undeployWorkflow: mockUndeploy,
+}))
+
+vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
+  getWorkflowDeploymentStatus: mockGetDeploymentStatus,
 }))
 
 vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
@@ -101,7 +107,15 @@ describe('rollbackFork', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveForkEdge.mockResolvedValue(EDGE)
-    mockReactivate.mockResolvedValue({ deploymentVersionId: 'dv', outboxEventId: 'evt' })
+    mockReactivate.mockImplementation(async ({ workflowId }: { workflowId: string }) => ({
+      deploymentVersionId: `dv-${workflowId}`,
+      operationId: `op-${workflowId}`,
+      outboxEventId: `evt-${workflowId}`,
+    }))
+    mockGetDeploymentStatus.mockImplementation(async (workflowId: string) => ({
+      activeDeployment: null,
+      latestOperation: { id: `op-${workflowId}`, status: 'active' },
+    }))
     mockUndeploy.mockResolvedValue({ success: true })
     mockProcessOutbox.mockResolvedValue('completed')
     setTx([])
@@ -119,10 +133,6 @@ describe('rollbackFork', () => {
       },
     })
     mockGetLatestRun.mockResolvedValue(run)
-    mockReactivate.mockImplementation(async ({ workflowId }: { workflowId: string }) => ({
-      deploymentVersionId: `dv-${workflowId}`,
-      outboxEventId: `evt-${workflowId}`,
-    }))
 
     const result = await rollbackFork({
       targetWorkspaceId: 'target-ws',
@@ -136,6 +146,7 @@ describe('rollbackFork', () => {
       unarchived: 0,
       skipped: 0,
       skippedIds: [],
+      pendingActivations: [],
     })
     // Deterministic (sorted) order: wf-a before wf-b.
     expect(mockReactivate.mock.calls.map((c) => c[0].workflowId)).toEqual(['wf-a', 'wf-b'])
@@ -151,7 +162,6 @@ describe('rollbackFork', () => {
       snapshot: { updated: [], created: [], archived: [{ workflowId: 'wf-x', priorVersion: 2 }] },
     })
     mockGetLatestRun.mockResolvedValue(run)
-    mockReactivate.mockResolvedValue({ deploymentVersionId: 'dv-x', outboxEventId: 'evt-x' })
 
     const result = await rollbackFork({
       targetWorkspaceId: 'target-ws',
@@ -166,7 +176,7 @@ describe('rollbackFork', () => {
     expect(mockReactivate).toHaveBeenCalledWith(
       expect.objectContaining({ workflowId: 'wf-x', version: 2 })
     )
-    expect(mockProcessOutbox).toHaveBeenCalledWith('evt-x')
+    expect(mockProcessOutbox).toHaveBeenCalledWith('evt-wf-x')
     expect(mockNotify).toHaveBeenCalledWith('wf-x')
   })
 
@@ -205,7 +215,9 @@ describe('rollbackFork', () => {
     })
     mockGetLatestRun.mockResolvedValue(run)
     mockReactivate.mockImplementation(async ({ workflowId }: { workflowId: string }) =>
-      workflowId === 'wf-b' ? null : { deploymentVersionId: 'dv', outboxEventId: 'evt-wf-a' }
+      workflowId === 'wf-b'
+        ? null
+        : { deploymentVersionId: 'dv', operationId: 'op-wf-a', outboxEventId: 'evt-wf-a' }
     )
 
     const result = await rollbackFork({
@@ -275,5 +287,67 @@ describe('rollbackFork', () => {
     expect(result.skipped).toBe(1)
     expect(result.skippedIds).toEqual(['wf-c'])
     expect(result.archived).toBe(0)
+  })
+
+  it('preserves the undo point and reports pending activations while cutover settles', async () => {
+    const run = makeRun({
+      snapshot: { updated: [{ workflowId: 'wf-a', priorVersion: 3 }], created: [], archived: [] },
+    })
+    mockGetLatestRun.mockResolvedValue(run)
+    mockGetDeploymentStatus.mockResolvedValue({
+      activeDeployment: null,
+      latestOperation: { id: 'op-wf-a', status: 'preparing' },
+    })
+
+    const result = await rollbackFork({
+      targetWorkspaceId: 'target-ws',
+      otherWorkspaceId: 'other-ws',
+      userId: 'user-1',
+    })
+
+    expect(result.pendingActivations).toEqual(['wf-a'])
+    expect(result.restored).toBe(1)
+    expect(mockDeleteAllRuns).not.toHaveBeenCalled()
+  })
+
+  it('treats a superseding operation as settled and consumes the undo point', async () => {
+    const run = makeRun({
+      snapshot: { updated: [{ workflowId: 'wf-a', priorVersion: 3 }], created: [], archived: [] },
+    })
+    mockGetLatestRun.mockResolvedValue(run)
+    mockGetDeploymentStatus.mockResolvedValue({
+      activeDeployment: null,
+      latestOperation: { id: 'op-other', status: 'preparing' },
+    })
+
+    const result = await rollbackFork({
+      targetWorkspaceId: 'target-ws',
+      otherWorkspaceId: 'other-ws',
+      userId: 'user-1',
+    })
+
+    expect(result.pendingActivations).toEqual([])
+    expect(mockDeleteAllRuns).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not delete the undo point when a newer sync landed after the rollback committed', async () => {
+    const run = makeRun({
+      snapshot: { updated: [{ workflowId: 'wf-a', priorVersion: 3 }], created: [], archived: [] },
+    })
+    // Unlocked read + in-tx recheck see our run; the post-commit deletion recheck
+    // sees a newer sync's run, whose fresh undo point must survive.
+    mockGetLatestRun
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce(run)
+      .mockResolvedValueOnce(makeRun({ id: 'run-2' }))
+
+    const result = await rollbackFork({
+      targetWorkspaceId: 'target-ws',
+      otherWorkspaceId: 'other-ws',
+      userId: 'user-1',
+    })
+
+    expect(result.pendingActivations).toEqual([])
+    expect(mockDeleteAllRuns).not.toHaveBeenCalled()
   })
 })
