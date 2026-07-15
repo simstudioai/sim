@@ -127,7 +127,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/notion-service-account',
     helpText:
-      'Remember to connect the integration to the pages and databases it should access — a valid secret with no page connections can read nothing.',
+      'Newer Notion UIs label the secret "installation access token". Remember to connect the integration to the pages and databases it should access — a valid secret with no page connections can read nothing.',
   },
   [ASANA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ASANA_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -217,7 +217,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/shopify-service-account',
     helpText:
-      'Shopify reveals the Admin API token only once at app creation, and new custom apps are created from the Dev Dashboard or CLI. The token is store-bound and does not expire.',
+      'Legacy admin-created custom apps reveal the shpat_ token once; new Dev Dashboard apps issue tokens via OAuth, not a UI reveal. The token is store-bound and does not expire.',
   },
   [WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -283,7 +283,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/wealthbox-service-account',
-    helpText: 'API access must be enabled for your Wealthbox account before tokens can be created.',
+    helpText:
+      'Trial accounts cannot use the Wealthbox API; contact Wealthbox support if API Access is missing from your Settings.',
   },
 }
 
