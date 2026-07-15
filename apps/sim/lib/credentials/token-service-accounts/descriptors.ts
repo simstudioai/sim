@@ -35,6 +35,12 @@ export interface TokenServiceAccountDescriptor {
   serviceLabel: string
   /** Vendor noun for the pasted secret (e.g. "private app access token"). */
   tokenNoun: string
+  /**
+   * Short vendor-accurate noun for connect-surface labels ("Add {connectNoun}").
+   * These providers don't have literal "service accounts" — the UI uses the
+   * vendor's own vocabulary for the credential.
+   */
+  connectNoun: string
   fields: TokenServiceAccountField[]
   /** Sim setup guide, docked bottom-left of the connect modal. */
   docsUrl: string
@@ -79,6 +85,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'HubSpot',
     tokenNoun: 'private app access token',
+    connectNoun: 'private app token',
     fields: [
       {
         id: 'apiToken',
@@ -97,6 +104,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Airtable',
     tokenNoun: 'personal access token',
+    connectNoun: 'personal access token',
     fields: [
       {
         id: 'apiToken',
@@ -115,6 +123,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Notion',
     tokenNoun: 'internal integration secret',
+    connectNoun: 'integration secret',
     fields: [
       {
         id: 'apiToken',
@@ -133,6 +142,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: ASANA_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Asana',
     tokenNoun: 'access token',
+    connectNoun: 'access token',
     fields: [
       {
         id: 'apiToken',
@@ -149,6 +159,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: ATTIO_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Attio',
     tokenNoun: 'API key',
+    connectNoun: 'API key',
     fields: [
       {
         id: 'apiToken',
@@ -165,6 +176,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Linear',
     tokenNoun: 'API key',
+    connectNoun: 'API key',
     fields: [
       {
         id: 'apiToken',
@@ -181,6 +193,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: MONDAY_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'monday.com',
     tokenNoun: 'API token',
+    connectNoun: 'API token',
     fields: [
       {
         id: 'apiToken',
@@ -197,6 +210,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Shopify',
     tokenNoun: 'Admin API access token',
+    connectNoun: 'admin API token',
     fields: [
       {
         id: 'apiToken',
@@ -223,6 +237,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Webflow',
     tokenNoun: 'site API token',
+    connectNoun: 'site token',
     fields: [
       {
         id: 'apiToken',
@@ -239,6 +254,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Trello',
     tokenNoun: 'API token',
+    connectNoun: 'API token',
     fields: [
       {
         id: 'apiToken',
@@ -257,6 +273,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Cal.com',
     tokenNoun: 'API key',
+    connectNoun: 'API key',
     fields: [
       {
         id: 'apiToken',
@@ -274,6 +291,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     providerId: WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Wealthbox',
     tokenNoun: 'API access token',
+    connectNoun: 'access token',
     fields: [
       {
         id: 'apiToken',

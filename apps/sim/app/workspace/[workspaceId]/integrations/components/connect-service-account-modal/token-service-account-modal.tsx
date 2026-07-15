@@ -23,7 +23,7 @@ import {
 
 const logger = createLogger('TokenServiceAccountModal')
 
-const FALLBACK_ERROR_MESSAGE = "We couldn't add this service account. Try again in a moment."
+const FALLBACK_ERROR_MESSAGE = "We couldn't add this credential. Try again in a moment."
 
 /**
  * Maps server `error.code` values from token service-account verification to
@@ -159,10 +159,10 @@ export function TokenServiceAccountModal({
     <ChipModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle={`Add ${serviceName} service account`}
+      srTitle={`Add ${serviceName} ${descriptor.connectNoun}`}
     >
       <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
-        Add {serviceName} service account
+        Add {serviceName} {descriptor.connectNoun}
       </ChipModalHeader>
       <ChipModalBody>
         {tokenField && (
@@ -235,7 +235,7 @@ export function TokenServiceAccountModal({
           },
         ]}
         primaryAction={{
-          label: isPending ? 'Adding...' : 'Add service account',
+          label: isPending ? 'Adding...' : `Add ${descriptor.connectNoun}`,
           onClick: handleSubmit,
           disabled: isDisabled,
         }}
