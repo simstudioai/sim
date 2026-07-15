@@ -49,14 +49,18 @@ round. Always check both conditions freshly after every push.
    stopping on a partial page would silently miss unresolved ones past the cutoff.
    If `mergeable` comes back `CONFLICTING`, go fix that first (step 2) before evaluating review
    state — a conflicting PR can't run CI, and this can happen mid-loop even on a PR that was
-   clean at creation, since staging moves several times a day. Otherwise, if Greptile is 5/5 and
-   every thread across all pages has `isResolved: true`, stop — report the outcome (see
-   "Reporting" below) and skip the rest of this list.
+   clean at creation, since staging moves several times a day. If `mergeable` is `UNKNOWN`
+   (GitHub still computing it), don't stop and don't treat it as either state — just wait for
+   the next round (step 9) and recheck then. Otherwise, if `mergeable` is `MERGEABLE`, Greptile
+   is 5/5, and every thread across all pages has `isResolved: true`, stop — report the outcome
+   (see "Reporting" below) and skip the rest of this list.
 
 2. **If the PR has a merge conflict**, fix it: `git fetch origin staging`, `git rebase
-   origin/staging`, resolve the conflicts for real (don't just take one side blindly), then push
-   with `--force-with-lease`. Continue on to step 8 to trigger a fresh review of the resolved
-   code.
+   origin/staging`, resolve the conflicts for real (don't just take one side blindly), then run
+   the same pre-push checks as step 6 (lint, boundary validation, and the conditional
+   cleanup/db-migrate gates) before pushing with `--force-with-lease`, and verify the push
+   landed the same way step 7 does. Skip steps 3–7 and go straight to step 8 to trigger a fresh
+   review of the resolved code.
 
 3. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
    automatically on PR open — confirm via `gh pr checks <n>` (look for `Cursor Bugbot` /
