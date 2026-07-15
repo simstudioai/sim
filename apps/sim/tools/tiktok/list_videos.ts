@@ -1,4 +1,4 @@
-import { tiktokVideosApiDataSchema } from '@/tools/tiktok/api-schemas'
+import { tiktokListVideosApiDataSchema } from '@/tools/tiktok/api-schemas'
 import {
   TIKTOK_VIDEO_OUTPUT_PROPERTIES,
   type TikTokListVideosParams,
@@ -66,7 +66,7 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
   },
 
   transformResponse: async (response: Response): Promise<TikTokListVideosResponse> => {
-    const { data, error } = await readTikTokApiResponse(response, tiktokVideosApiDataSchema)
+    const { data, error } = await readTikTokApiResponse(response, tiktokListVideosApiDataSchema)
 
     if (error) {
       return {
@@ -80,14 +80,26 @@ export const tiktokListVideosTool: ToolConfig<TikTokListVideosParams, TikTokList
       }
     }
 
-    const videos: TikTokVideo[] = (data?.videos ?? []).map(mapTikTokVideo)
+    if (!data) {
+      return {
+        success: false,
+        output: {
+          videos: [],
+          cursor: null,
+          hasMore: false,
+        },
+        error: 'No video list data returned',
+      }
+    }
+
+    const videos: TikTokVideo[] = data.videos.map(mapTikTokVideo)
 
     return {
       success: true,
       output: {
         videos,
-        cursor: data?.cursor ?? null,
-        hasMore: data?.has_more ?? false,
+        cursor: data.cursor,
+        hasMore: data.has_more,
       },
     }
   },

@@ -176,6 +176,8 @@ export interface DownloadFileFromUrlOptions {
   timeoutMs?: number
   /** Hard cap on the number of bytes read from the source. */
   maxBytes?: number
+  /** Cancels an external download when the surrounding request or execution stops. */
+  signal?: AbortSignal
   /**
    * Principal the download is performed on behalf of. Required to authorize
    * internal (`/api/files/serve/...`) URLs: the resolved storage key is checked
@@ -203,7 +205,9 @@ export async function downloadFileFromUrl(
   fileUrl: string,
   options: DownloadFileFromUrlOptions = {}
 ): Promise<Buffer> {
-  const { timeoutMs = getMaxExecutionTimeout(), maxBytes, userId } = options
+  const { timeoutMs = getMaxExecutionTimeout(), maxBytes, signal, userId } = options
+
+  signal?.throwIfAborted()
 
   if (isInternalFileUrl(fileUrl)) {
     if (!userId) {
@@ -237,6 +241,7 @@ export async function downloadFileFromUrl(
   const response = await secureFetchWithPinnedIP(fileUrl, urlValidation.resolvedIP!, {
     timeout: timeoutMs,
     maxResponseBytes: maxBytes,
+    signal,
   })
 
   if (!response.ok) {

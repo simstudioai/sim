@@ -24,16 +24,21 @@ import { FinanceHeroLoop } from '@/app/(landing)/solutions/finance/components/fi
  * routing, approval gates, spend monitoring, the finance audit ledger),
  * plus one finance-specific vignette, the reconciliation match ledger.
  */
+/** Meta description shared between the page metadata and the page JSON-LD. */
+export const FINANCE_PAGE_DESCRIPTION =
+  'AI agents for finance teams: automate invoice processing, reconciliation, and financial reporting. Built in Sim, the open-source AI workspace.'
+
 const FINANCE_CONFIG: SolutionsPageConfig = {
   module: 'Finance',
   path: '/solutions/finance',
+  seoDescription: FINANCE_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Finance',
-    heading: 'Automate invoice processing, reconciliation, and close with Sim agents.',
+    heading: 'Automate invoice processing, reconciliation, and close with AI agents in Sim.',
     description:
-      'Finance teams build AI agents in Sim, the open-source AI workspace, with human approvals, anomaly detection, and full audit trails, across 1,000+ integrations and every major LLM.',
+      'Sim is the open-source AI workspace where finance teams build AI agents for invoice processing, reconciliation, and close. Human approvals, anomaly detection, and full audit trails guard every run.',
     summary:
-      'Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents that automate reconciliation, invoice processing, and reporting, with human approvals, anomaly detection, and full audit trails across 1,000+ integrations.',
+      'Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents for invoice processing, reconciliation, and financial reporting. Agents run with human approvals, anomaly detection, and full audit trails across 1,000+ integrations.',
     visual: (
       <PlatformHeroVisual>
         <FinanceHeroLoop />

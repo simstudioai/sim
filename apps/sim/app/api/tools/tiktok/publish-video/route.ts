@@ -5,127 +5,36 @@ import { tiktokPublishVideoContract } from '@/lib/api/contracts/tiktok-tools'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
   processSingleFileToUserFile,
+  resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import {
+  computeTikTokChunkPlan,
+  getStoredVideoSize,
+  streamStoredVideoToTikTok,
+  TIKTOK_MAX_VIDEO_BYTES,
+} from '@/app/api/tools/tiktok/publish-video/upload'
 import type { UserFile } from '@/executor/types'
 import { tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import { readTikTokApiResponse } from '@/tools/tiktok/utils'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 900
 
 const logger = createLogger('TikTokPublishVideoAPI')
 
 const TIKTOK_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm'])
 
-/** TikTok requires each chunk between 5MB and 64MB; the final chunk absorbs the remainder (up to ~2x this size, well under the 128MB cap). Capped at 1000 chunks total, which this default comfortably satisfies up to TikTok's 4GB video size limit. */
-const DEFAULT_CHUNK_SIZE = 10_000_000
-const TIKTOK_ERROR_RESPONSE_MAX_BYTES = 64 * 1024
-
-/** Maximum size this route will buffer in memory for a single file-upload request. TikTok's
- * own limit is 4GB, but relaying that much through this server's memory per request isn't
- * safe under concurrent load. Enforced before downloading the file so an oversized upload
- * fails fast with a clean 413 instead of materializing hundreds of MB to multiple GB
- * in-process. */
-const TIKTOK_MAX_VIDEO_BYTES = 250 * 1024 * 1024
-
-function computeChunkPlan(totalBytes: number): { chunkSize: number; totalChunkCount: number } {
-  if (totalBytes <= DEFAULT_CHUNK_SIZE) {
-    return { chunkSize: totalBytes, totalChunkCount: 1 }
-  }
-  const totalChunkCount = Math.floor(totalBytes / DEFAULT_CHUNK_SIZE)
-  return { chunkSize: DEFAULT_CHUNK_SIZE, totalChunkCount }
-}
-
 function resolveVideoMimeType(fileName: string, fileType: string | undefined): string | null {
   if (fileType && TIKTOK_VIDEO_MIME_TYPES.has(fileType)) return fileType
   const fromExtension = getMimeTypeFromExtension(getFileExtension(fileName))
   return TIKTOK_VIDEO_MIME_TYPES.has(fromExtension) ? fromExtension : null
-}
-
-async function validateDirectPostSettings(
-  accessToken: string,
-  postInfo: { privacy_level: string; brand_content_toggle: boolean },
-  requestId: string
-): Promise<string | null> {
-  if (postInfo.brand_content_toggle && postInfo.privacy_level === 'SELF_ONLY') {
-    return 'Branded content cannot use Only Me privacy.'
-  }
-
-  const response = await fetch('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json; charset=UTF-8',
-    },
-    body: '{}',
-  })
-  const data = await response.json()
-  if (!response.ok || (data.error?.code && data.error.code !== 'ok')) {
-    logger.warn(`[${requestId}] TikTok creator-info preflight failed`, {
-      status: response.status,
-      code: data.error?.code,
-    })
-    return data.error?.message || 'TikTok creator information could not be verified.'
-  }
-
-  const privacyOptions: unknown = data.data?.privacy_level_options
-  if (
-    !Array.isArray(privacyOptions) ||
-    !privacyOptions.some((option) => option === postInfo.privacy_level)
-  ) {
-    return `The selected privacy level (${postInfo.privacy_level}) is not currently available for this TikTok account. Run Query Creator Info and choose one of the returned options.`
-  }
-
-  return null
-}
-
-async function uploadChunks(
-  uploadUrl: string,
-  buffer: Buffer,
-  mimeType: string,
-  requestId: string
-): Promise<void> {
-  const totalBytes = buffer.length
-  const { chunkSize, totalChunkCount } = computeChunkPlan(totalBytes)
-
-  for (let i = 0; i < totalChunkCount; i++) {
-    const start = i * chunkSize
-    const isLastChunk = i === totalChunkCount - 1
-    const end = isLastChunk ? totalBytes - 1 : start + chunkSize - 1
-    const chunk = buffer.subarray(start, end + 1)
-
-    const response = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': mimeType,
-        'Content-Length': String(chunk.length),
-        'Content-Range': `bytes ${start}-${end}/${totalBytes}`,
-      },
-      body: new Uint8Array(chunk),
-    })
-
-    if (!response.ok) {
-      const errorText = await readResponseTextWithLimit(response, {
-        maxBytes: TIKTOK_ERROR_RESPONSE_MAX_BYTES,
-        label: 'TikTok upload error response',
-      }).catch(() => 'Error response exceeded the allowed size')
-      logger.error(`[${requestId}] TikTok chunk upload failed`, {
-        chunkIndex: i,
-        status: response.status,
-        errorText,
-      })
-      throw new Error(
-        `TikTok rejected video chunk ${i + 1}/${totalChunkCount}: ${response.status} ${errorText || response.statusText}`
-      )
-    }
-  }
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -145,6 +54,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const data = parsed.data.body
 
+    if (data.mode === 'direct') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'TikTok Direct Post is not available until per-post human approval is implemented. Use Upload Video Draft instead.',
+        },
+        { status: 400 }
+      )
+    }
+
     let userFile: UserFile
     try {
       userFile = processSingleFileToUserFile(data.file, requestId, logger)
@@ -158,17 +78,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
 
-    if (data.mode === 'direct') {
-      const settingsError = await validateDirectPostSettings(
-        data.accessToken,
-        data.postInfo,
-        requestId
-      )
-      if (settingsError) {
-        return NextResponse.json({ success: false, error: settingsError }, { status: 400 })
-      }
-    }
-
     const mimeType = resolveVideoMimeType(userFile.name, userFile.type)
     if (!mimeType) {
       return NextResponse.json(
@@ -180,57 +89,58 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    logger.info(`[${requestId}] Downloading video from storage`, {
-      fileName: userFile.name,
-      size: userFile.size,
+    const context = resolveTrustedFileContext(userFile.key, userFile.context)
+    const videoSize = await getStoredVideoSize({
+      key: userFile.key,
+      context,
+      signal: request.signal,
     })
-
-    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger, {
-      maxBytes: TIKTOK_MAX_VIDEO_BYTES,
-    })
-    if (fileBuffer.length === 0) {
+    if (videoSize === 0) {
       return NextResponse.json(
         { success: false, error: 'The video file is empty.' },
         { status: 400 }
       )
     }
-    const { chunkSize, totalChunkCount } = computeChunkPlan(fileBuffer.length)
 
-    const initUrl =
-      data.mode === 'draft'
-        ? 'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/'
-        : 'https://open.tiktokapis.com/v2/post/publish/video/init/'
+    logger.info(`[${requestId}] Resolved video from storage`, {
+      fileName: userFile.name,
+      declaredSize: userFile.size,
+      storageSize: videoSize,
+    })
 
-    const initBody: Record<string, unknown> = {
+    const { chunkSize, totalChunkCount } = computeTikTokChunkPlan(videoSize)
+    const initBody = {
       source_info: {
         source: 'FILE_UPLOAD',
-        video_size: fileBuffer.length,
+        video_size: videoSize,
         chunk_size: chunkSize,
         total_chunk_count: totalChunkCount,
       },
     }
-    if (data.mode === 'direct') {
-      initBody.post_info = data.postInfo
-    }
 
-    logger.info(`[${requestId}] Initializing TikTok video ${data.mode}`, {
-      videoSize: fileBuffer.length,
+    logger.info(`[${requestId}] Initializing TikTok video draft`, {
+      videoSize,
       chunkSize,
       totalChunkCount,
     })
 
-    const initResponse = await fetch(initUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${data.accessToken}`,
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: JSON.stringify(initBody),
-    })
+    const initResponse = await fetch(
+      'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${data.accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify(initBody),
+        signal: request.signal,
+      }
+    )
 
     const { data: initData, error: initError } = await readTikTokApiResponse(
       initResponse,
-      tiktokPublishInitApiDataSchema
+      tiktokPublishInitApiDataSchema,
+      { signal: request.signal }
     )
 
     if (initError) {
@@ -252,8 +162,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     try {
-      await uploadChunks(uploadUrl, fileBuffer, mimeType, requestId)
+      await streamStoredVideoToTikTok({
+        key: userFile.key,
+        context,
+        uploadUrl,
+        totalBytes: videoSize,
+        mimeType,
+        requestId,
+        signal: request.signal,
+      })
     } catch (error) {
+      if (request.signal.aborted) throw error
       return NextResponse.json(
         { success: false, error: getErrorMessage(error, 'Failed to upload video to TikTok') },
         { status: 502 }
@@ -276,6 +195,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           error: `Video exceeds the ${maxMb}MB limit for file uploads.`,
         },
         { status: 413 }
+      )
+    }
+    if (request.signal.aborted) {
+      return NextResponse.json(
+        { success: false, error: 'TikTok video upload was cancelled.' },
+        { status: 499 }
       )
     }
     logger.error(`[${requestId}] Error publishing video to TikTok:`, error)

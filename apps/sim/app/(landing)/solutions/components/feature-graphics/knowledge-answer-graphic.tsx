@@ -46,7 +46,7 @@ interface KnowledgeAnswerGraphicProps {
 
 export function KnowledgeAnswerGraphic({
   question = 'How do I reset my SSO password?',
-  answer = 'Head to id.acme.com, choose "Forgot password", and follow the email link — no ticket needed.',
+  answer = 'Head to id.acme.com, choose "Forgot password", and follow the email link. No ticket needed.',
   sourceLabel = 'IT handbook',
   sourceDetail = 'Answered from your docs',
 }: KnowledgeAnswerGraphicProps = {}) {

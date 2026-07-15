@@ -1828,6 +1828,42 @@ describe('AgentBlockHandler', () => {
       expect(providerCallArgs.callChain).toEqual(['wf-parent', 'test-workflow-456'])
     })
 
+    it('should pass billingAttribution to executeProviderRequest so LLM tool calls carry it', async () => {
+      const billingAttribution = {
+        actorUserId: 'user-1',
+        workspaceId: 'test-workspace-123',
+        organizationId: 'organization-1',
+        billedAccountUserId: 'owner-1',
+        billingEntity: { type: 'organization', id: 'organization-1' },
+        billingPeriod: {
+          start: '2026-07-01T00:00:00.000Z',
+          end: '2026-08-01T00:00:00.000Z',
+        },
+        payerSubscription: null,
+      }
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Search the knowledge base',
+        apiKey: 'test-api-key',
+      }
+
+      const contextWithAttribution = {
+        ...mockContext,
+        workspaceId: 'test-workspace-123',
+        workflowId: 'test-workflow-456',
+        metadata: { ...mockContext.metadata, billingAttribution },
+      } as ExecutionContext
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(contextWithAttribution, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalled()
+      const providerCallArgs = mockExecuteProviderRequest.mock.calls[0][1]
+      expect(providerCallArgs.billingAttribution).toEqual(billingAttribution)
+    })
+
     it('should handle multiple MCP tools from the same server efficiently', async () => {
       const fetchCalls: any[] = []
 

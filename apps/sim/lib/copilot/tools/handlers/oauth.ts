@@ -115,6 +115,12 @@ async function generateOAuthLink(
   if (providerId === 'trello') {
     return { url: `${baseUrl}/api/auth/trello/authorize`, providerId, serviceName }
   }
+  if (providerId === 'instagram') {
+    const authorizeUrl = new URL(`${baseUrl}/api/auth/instagram/authorize`)
+    authorizeUrl.searchParams.set('returnUrl', callbackURL)
+    authorizeUrl.searchParams.set('workspaceId', workspaceId)
+    return { url: authorizeUrl.toString(), providerId, serviceName }
+  }
   if (providerId === 'shopify') {
     const returnUrl = encodeURIComponent(callbackURL)
     return {

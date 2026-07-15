@@ -8,14 +8,23 @@ import {
   workflowDeploymentVersion,
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, like, or } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, like, or } from 'drizzle-orm'
 
 const logger = createLogger('TikTokWebhookTargets')
 const ACCOUNT_ID_UUID_SUFFIX = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const ACCOUNT_ID_UUID_LIKE_SUFFIX = '________-____-____-____-____________'
+
+export const TIKTOK_WEBHOOK_TARGET_PAGE_SIZE = 100
 
 export interface TikTokWebhookTarget {
   webhook: typeof webhook.$inferSelect
   workflow: typeof workflow.$inferSelect
+}
+
+export interface TikTokWebhookTargetPage {
+  hasMore: boolean
+  nextCursor: string | null
+  targets: TikTokWebhookTarget[]
 }
 
 function escapeLikePattern(value: string): string {
@@ -27,18 +36,23 @@ function openIdFromAccountId(accountId: string): string {
 }
 
 /**
- * Resolves a TikTok user_openid to active webhook targets through the credential ID persisted in
- * providerConfig. The workflow-workspace equality prevents cross-tenant event routing.
+ * Resolves one deterministic page of active webhook targets for the TikTok background ingress.
+ * The workflow-workspace equality prevents cross-tenant event routing, while the webhook ID cursor
+ * keeps each query and retained result set bounded without offset drift.
  */
-export async function findTikTokWebhookTargets(
+export async function findTikTokWebhookTargetPage(
   userOpenId: string,
-  requestId: string
-): Promise<TikTokWebhookTarget[]> {
-  if (!userOpenId) return []
+  requestId: string,
+  afterWebhookId?: string
+): Promise<TikTokWebhookTargetPage> {
+  if (!userOpenId) {
+    return { hasMore: false, nextCursor: null, targets: [] }
+  }
 
   const rows = await db
     .select({
       accountId: account.accountId,
+      webhookId: webhook.id,
       webhook,
       workflow,
     })
@@ -78,13 +92,16 @@ export async function findTikTokWebhookTargets(
     .where(
       and(
         eq(account.providerId, 'tiktok'),
-        like(account.accountId, `${escapeLikePattern(userOpenId)}-%`),
+        like(account.accountId, `${escapeLikePattern(userOpenId)}-${ACCOUNT_ID_UUID_LIKE_SUFFIX}`),
         or(
           eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
           and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
-        )
+        ),
+        afterWebhookId ? gt(webhook.id, afterWebhookId) : undefined
       )
     )
+    .orderBy(asc(webhook.id))
+    .limit(TIKTOK_WEBHOOK_TARGET_PAGE_SIZE)
 
   const targets = rows
     .filter((row) => openIdFromAccountId(row.accountId) === userOpenId)
@@ -92,11 +109,14 @@ export async function findTikTokWebhookTargets(
       webhook: webhookRecord,
       workflow: workflowRecord,
     }))
+  const nextCursor = rows.at(-1)?.webhookId ?? null
+  const hasMore = rows.length === TIKTOK_WEBHOOK_TARGET_PAGE_SIZE
 
-  logger.info(`[${requestId}] Resolved TikTok webhook targets`, {
+  logger.info(`[${requestId}] Resolved TikTok webhook target page`, {
+    hasMore,
     userOpenIdPrefix: userOpenId.slice(0, 12),
-    webhookCount: targets.length,
+    targetCount: targets.length,
   })
 
-  return targets
+  return { hasMore, nextCursor, targets }
 }

@@ -27,16 +27,21 @@ import { SalesHeroLoop } from '@/app/(landing)/solutions/sales/components/sales-
  * outreach drafting, CRM stage updates, meeting prep, and the pipeline
  * digest.
  */
+/** Meta description shared between the page metadata and the page JSON-LD. */
+export const SALES_PAGE_DESCRIPTION =
+  'AI agents for sales teams: automate lead research, personalized outreach, and CRM updates. Built in Sim, the open-source AI workspace.'
+
 const SALES_CONFIG: SolutionsPageConfig = {
   module: 'Sales',
   path: '/solutions/sales',
+  seoDescription: SALES_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Sales',
-    heading: 'Automate lead research, outreach, and CRM updates with Sim agents.',
+    heading: 'Automate lead research, outreach, and CRM updates with AI agents in Sim.',
     description:
-      'Sales teams build AI agents in Sim, the open-source AI workspace, wired into Salesforce, HubSpot, and 1,000+ integrations, so reps spend their time selling, not updating records.',
+      'Sim is the open-source AI workspace where sales teams build AI agents for lead research, outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and 1,000+ integrations to keep the pipeline current.',
     summary:
-      'Sim is the open-source AI workspace where sales teams build, deploy, and manage AI agents that automate lead research, personalized outreach, and CRM updates, wired into Salesforce, HubSpot, and 1,000+ integrations so the pipeline stays current and reps spend their time selling.',
+      'Sim is the open-source AI workspace where sales teams build, deploy, and manage AI agents for lead research, personalized outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and 1,000+ integrations so the pipeline stays current.',
     visual: (
       <PlatformHeroVisual>
         <SalesHeroLoop />

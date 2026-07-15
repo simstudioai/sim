@@ -745,6 +745,18 @@ export const fileExportContract = defineRouteContract({
   response: { mode: 'binary' },
 })
 
+export const fileStorageStatusResponseSchema = z.object({
+  cloudConfigured: z.boolean(),
+})
+
+export const fileStorageStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/files/storage-status',
+  response: { mode: 'json', schema: fileStorageStatusResponseSchema },
+})
+
+export type FileStorageStatusResponse = ContractJsonResponse<typeof fileStorageStatusContract>
+
 export type BoxUploadBody = ContractBodyInput<typeof boxUploadContract>
 export type BoxUploadResponse = ContractJsonResponse<typeof boxUploadContract>
 export type DropboxUploadBody = ContractBodyInput<typeof dropboxUploadContract>
