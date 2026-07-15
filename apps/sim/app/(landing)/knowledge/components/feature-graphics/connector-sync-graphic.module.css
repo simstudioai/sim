@@ -1,0 +1,63 @@
+/**
+ * The ConnectorSyncGraphic's motion: the connector rows stamp in top to
+ * bottom one after another — the audit tile's one-shot settle, never
+ * re-played — then the syncing row's icon box carries the family's
+ * shared quiet 6s ring-pulse beat. The status dot blink is Tailwind's
+ * `animate-pulse`, disabled through its own `motion-reduce:animate-none`.
+ * Under prefers-reduced-motion the rows render fully settled.
+ */
+
+.row0,
+.row1,
+.row2 {
+  animation: connector-sync-row-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.row0 {
+  animation-delay: 0.35s;
+}
+
+.row1 {
+  animation-delay: 0.55s;
+}
+
+.row2 {
+  animation-delay: 0.75s;
+}
+
+@keyframes connector-sync-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.iconPulse {
+  animation: connector-sync-icon-pulse 6s ease-out 1.4s infinite;
+}
+
+@keyframes connector-sync-icon-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row0,
+  .row1,
+  .row2,
+  .iconPulse {
+    animation: none;
+  }
+}

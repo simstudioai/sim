@@ -7,7 +7,13 @@ import { and, desc, eq } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  parseTokenServiceAccountSecretBlob,
+  type TokenServiceAccountSecretBlob,
+} from '@/lib/credentials/token-service-accounts/server'
 import { refreshOAuthToken } from '@/lib/oauth'
+import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
@@ -320,24 +326,83 @@ export async function getAtlassianServiceAccountSecret(
 }
 
 /**
- * For Atlassian service accounts, the API token IS the access token —
- * blocks call api.atlassian.com/ex/jira/{cloudId}/... with `Authorization: Bearer {apiToken}`.
- * No exchange or refresh is needed; we just decrypt and return the raw token.
+ * Result of resolving a `service_account` credential into a usable token. For
+ * Atlassian and the token-paste providers, the stored token IS the access
+ * token — no exchange or refresh is needed; Google mints a short-lived token
+ * via the JWT-bearer flow instead.
  */
 export interface ServiceAccountTokenResult {
   accessToken: string
   /** Atlassian only — the resolved Jira/Confluence cloud id. */
   cloudId?: string
-  /** Atlassian only — the site domain. */
+  /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
+}
+
+/**
+ * Loads and parses the decrypted secret blob for a token service-account
+ * credential (pasted long-lived provider token). Throws if the credential is
+ * missing or the blob doesn't belong to the expected provider.
+ */
+async function getTokenServiceAccountSecret(
+  credentialId: string,
+  providerId: string
+): Promise<TokenServiceAccountSecretBlob> {
+  const [credentialRow] = await db
+    .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (!credentialRow?.encryptedServiceAccountKey) {
+    throw new Error('Token service account secret not found')
+  }
+
+  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+  return parseTokenServiceAccountSecretBlob(decrypted, providerId)
+}
+
+interface ServiceAccountTokenOptions {
+  scopes?: string[]
+  impersonateEmail?: string
+}
+
+type ServiceAccountTokenResolver = (
+  credentialId: string,
+  options: ServiceAccountTokenOptions
+) => Promise<ServiceAccountTokenResult>
+
+/**
+ * Resolver registry for the bespoke service-account providers. Token-paste
+ * providers (registered in `TOKEN_SERVICE_ACCOUNT_DESCRIPTORS`) resolve
+ * generically: the stored token IS the access token.
+ */
+const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
+    const secret = await getAtlassianServiceAccountSecret(credentialId)
+    return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+  },
+  [SLACK_CUSTOM_BOT_PROVIDER_ID]: async (credentialId) => {
+    const botCredential = await getSlackBotCredential(credentialId)
+    if (!botCredential) {
+      throw new Error('Slack bot credential not found')
+    }
+    return { accessToken: botCredential.botToken }
+  },
+  [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, { scopes, impersonateEmail }) => {
+    if (!scopes?.length) {
+      throw new Error('Scopes are required for service account credentials')
+    }
+    return { accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail) }
+  },
 }
 
 /**
  * Single dispatch point for turning a `service_account` credential into an
  * access token, keyed on `providerId`. Both `refreshAccessTokenIfNeeded` and the
  * `POST /api/auth/oauth/token` route go through here, so a new service-account
- * provider is one edit and an unknown provider fails loudly instead of silently
- * attempting a Google JWT.
+ * provider is one registry entry and an unknown provider fails loudly instead
+ * of silently attempting a Google JWT.
  */
 export async function resolveServiceAccountToken(
   credentialId: string,
@@ -345,24 +410,18 @@ export async function resolveServiceAccountToken(
   scopes?: string[],
   impersonateEmail?: string
 ): Promise<ServiceAccountTokenResult> {
-  if (providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
-    const secret = await getAtlassianServiceAccountSecret(credentialId)
-    return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+  if (providerId && isTokenServiceAccountProviderId(providerId)) {
+    const secret = await getTokenServiceAccountSecret(credentialId, providerId)
+    return { accessToken: secret.apiToken, domain: secret.domain }
   }
-  if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
-    const botCredential = await getSlackBotCredential(credentialId)
-    if (!botCredential) {
-      throw new Error('Slack bot credential not found')
-    }
-    return { accessToken: botCredential.botToken }
+  const resolver =
+    providerId && Object.hasOwn(SERVICE_ACCOUNT_TOKEN_RESOLVERS, providerId)
+      ? SERVICE_ACCOUNT_TOKEN_RESOLVERS[providerId]
+      : undefined
+  if (!resolver) {
+    throw new Error(`Unsupported service-account provider: ${providerId ?? 'unknown'}`)
   }
-  if (providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID) {
-    if (!scopes?.length) {
-      throw new Error('Scopes are required for service account credentials')
-    }
-    return { accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail) }
-  }
-  throw new Error(`Unsupported service-account provider: ${providerId ?? 'unknown'}`)
+  return resolver(credentialId, { scopes, impersonateEmail })
 }
 
 /**
@@ -546,6 +605,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       accessTokenExpiresAt: account.accessTokenExpiresAt,
       idToken: account.idToken,
       scope: account.scope,
+      updatedAt: account.updatedAt,
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
@@ -559,19 +619,33 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 
   const credential = connections[0]
 
-  // Determine whether we should refresh: missing token OR expired token
+  // Determine whether we should refresh: missing/expired token, or Instagram
+  // long-lived token nearing expiry (Meta cannot refresh after expiry).
   const now = new Date()
   const tokenExpiry = credential.accessTokenExpiresAt
-  const shouldAttemptRefresh =
+  const accessTokenNeedsRefresh =
     !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
+  const instagramNeedsProactiveRefresh =
+    !!credential.refreshToken &&
+    isInstagramProvider(providerId) &&
+    shouldProactivelyRefreshInstagramToken({
+      accessTokenExpiresAt: credential.accessTokenExpiresAt,
+      updatedAt: credential.updatedAt,
+      now,
+    })
 
-  if (shouldAttemptRefresh) {
-    return performCoalescedRefresh({
+  if (accessTokenNeedsRefresh || instagramNeedsProactiveRefresh) {
+    const fresh = await performCoalescedRefresh({
       accountId: credential.id,
       providerId,
       refreshToken: credential.refreshToken!,
       userId,
     })
+    if (fresh) return fresh
+    if (!accessTokenNeedsRefresh && credential.accessToken) {
+      return credential.accessToken
+    }
+    return null
   }
 
   if (!credential.accessToken) {
@@ -645,7 +719,18 @@ export async function refreshAccessTokenIfNeeded(
     refreshTokenExpiresAt &&
     refreshTokenExpiresAt <= proactiveRefreshThreshold
 
-  const shouldRefresh = accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh
+  // Instagram long-lived tokens can only be refreshed while still valid.
+  const instagramNeedsProactiveRefresh =
+    !!credential.refreshToken &&
+    isInstagramProvider(credential.providerId) &&
+    shouldProactivelyRefreshInstagramToken({
+      accessTokenExpiresAt,
+      updatedAt: credential.updatedAt,
+      now,
+    })
+
+  const shouldRefresh =
+    accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh || instagramNeedsProactiveRefresh
 
   const accessToken = credential.accessToken
 
@@ -662,8 +747,8 @@ export async function refreshAccessTokenIfNeeded(
     })
     if (fresh) return fresh
 
-    // If refresh was only triggered proactively (Microsoft refresh-token aging),
-    // the still-valid access token is a fine fallback.
+    // If refresh was only triggered proactively (Microsoft refresh-token aging /
+    // Instagram long-lived nearing expiry), the still-valid access token is fine.
     if (!accessTokenNeedsRefresh && accessToken) {
       logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
       return accessToken
@@ -711,7 +796,18 @@ export async function refreshTokenIfNeeded(
     refreshTokenExpiresAt &&
     refreshTokenExpiresAt <= proactiveRefreshThreshold
 
-  const shouldRefresh = accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh
+  // Instagram long-lived tokens can only be refreshed while still valid.
+  const instagramNeedsProactiveRefresh =
+    !!credential.refreshToken &&
+    isInstagramProvider(credential.providerId) &&
+    shouldProactivelyRefreshInstagramToken({
+      accessTokenExpiresAt,
+      updatedAt: credential.updatedAt,
+      now,
+    })
+
+  const shouldRefresh =
+    accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh || instagramNeedsProactiveRefresh
 
   // If token appears valid and present, return it directly
   if (!shouldRefresh) {

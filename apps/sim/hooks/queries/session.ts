@@ -1,4 +1,4 @@
-import { type QueryClient, useQuery } from '@tanstack/react-query'
+import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
 import {
   type AppSession,
@@ -12,8 +12,14 @@ export const sessionKeys = {
   detail: () => [...sessionKeys.all, 'detail'] as const,
 }
 
-async function fetchSession(signal?: AbortSignal): Promise<AppSession> {
-  const res = await client.getSession({ fetchOptions: { signal } })
+async function fetchSession(
+  signal?: AbortSignal,
+  disableCookieCache?: boolean
+): Promise<AppSession> {
+  const res = await client.getSession({
+    ...(disableCookieCache ? { query: { disableCookieCache: true } } : {}),
+    fetchOptions: { signal },
+  })
   return extractSessionDataFromAuthClientResult(res) as AppSession
 }
 
@@ -35,6 +41,8 @@ export async function refreshSessionQuery(queryClient: QueryClient): Promise<App
   return fresh
 }
 
+export const IMPERSONATION_REFETCH_INTERVAL = 60 * 1000
+
 /**
  * Reads the current Better Auth session via the client SDK.
  *
@@ -44,12 +52,29 @@ export async function refreshSessionQuery(queryClient: QueryClient): Promise<App
  * `retry: false` preserves the prior fail-fast contract: an auth failure (expired
  * token, startup network partition) surfaces immediately rather than retrying a
  * request that won't succeed.
+ *
+ * While the session is an impersonation session, the query polls and refetches
+ * on focus (overriding the global `refetchOnWindowFocus: false`) so an expiry —
+ * including one slept through with the laptop closed — settles the query to
+ * `null` and surfaces the impersonation-expired recovery screen. Those
+ * refetches also bypass Better Auth's cookie cache: it can otherwise keep
+ * vouching for a session that was expired or revoked server-side, and the
+ * expiry detection shouldn't depend on the cache's own TTL details.
+ * Impersonation sessions are short-lived and admin-only, so none of these
+ * overrides affect normal sessions.
  */
 export function useSessionQuery() {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: sessionKeys.detail(),
-    queryFn: ({ signal }) => fetchSession(signal),
+    queryFn: ({ signal }) => {
+      const cached = queryClient.getQueryData<AppSession>(sessionKeys.detail())
+      return fetchSession(signal, Boolean(cached?.session?.impersonatedBy))
+    },
     staleTime: SESSION_STALE_TIME,
     retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.session?.impersonatedBy ? IMPERSONATION_REFETCH_INTERVAL : false,
+    refetchOnWindowFocus: (query) => Boolean(query.state.data?.session?.impersonatedBy),
   })
 }

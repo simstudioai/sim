@@ -123,4 +123,27 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     expect(result.displayName).toBe('svc@proj.iam')
     expect(result.encryptedServiceAccountKey).toBe(json)
   })
+
+  it('accepts a legacy Google create with an empty providerId', async () => {
+    const json = JSON.stringify({ type: 'service_account', client_email: 'svc@proj.iam' })
+    const result = await verifyAndBuildServiceAccountSecret('', { serviceAccountJson: json })
+    expect(result.providerId).toBe('google-service-account')
+  })
+
+  it('rejects an unknown non-empty providerId instead of persisting it as Google', async () => {
+    const json = JSON.stringify({ type: 'service_account', client_email: 'svc@proj.iam' })
+    await expect(
+      verifyAndBuildServiceAccountSecret('hubspot-service-acount-typo', {
+        serviceAccountJson: json,
+      })
+    ).rejects.toThrow('Unsupported service-account provider')
+  })
+
+  it('rejects prototype-chain providerIds with a validation error, not a TypeError', async () => {
+    for (const providerId of ['__proto__', 'constructor', 'toString']) {
+      await expect(
+        verifyAndBuildServiceAccountSecret(providerId, { serviceAccountJson: '{}' })
+      ).rejects.toThrow('Unsupported service-account provider')
+    }
+  })
 })

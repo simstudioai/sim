@@ -5,23 +5,8 @@ import type {
 import { readTikTokPublishInitResponse, toTikTokPublishToolResponse } from '@/tools/tiktok/utils'
 import type { ToolConfig } from '@/tools/types'
 
-function buildPostInfo(params: TikTokDirectPostVideoParams): Record<string, unknown> {
-  const postInfo: Record<string, unknown> = {
-    brand_content_toggle: params.brandContentToggle,
-    brand_organic_toggle: params.brandOrganicToggle ?? false,
-    privacy_level: params.privacyLevel,
-    disable_duet: params.disableDuet,
-    disable_stitch: params.disableStitch,
-    disable_comment: params.disableComment,
-  }
-
-  if (params.title) postInfo.title = params.title
-  if (params.videoCoverTimestampMs !== undefined) {
-    postInfo.video_cover_timestamp_ms = params.videoCoverTimestampMs
-  }
-  if (params.isAigc !== undefined) postInfo.is_aigc = params.isAigc
-  return postInfo
-}
+const DIRECT_POST_UNAVAILABLE_MESSAGE =
+  'TikTok Direct Post is unavailable until Sim can bind TikTok-required human review and consent to one exact upload. Use Upload Video Draft for review and publishing in TikTok.'
 
 export const tiktokDirectPostVideoTool: ToolConfig<
   TikTokDirectPostVideoParams,
@@ -30,7 +15,7 @@ export const tiktokDirectPostVideoTool: ToolConfig<
   id: 'tiktok_direct_post_video',
   name: 'TikTok Direct Post Video',
   description:
-    'Publish a video to TikTok by uploading a file from the workflow. Rate limit: 6 requests per minute per user.',
+    'Unavailable compatibility tool. Use Upload Video Draft so the account owner can review and publish in TikTok.',
   version: '1.0.0',
 
   oauth: {
@@ -123,16 +108,8 @@ export const tiktokDirectPostVideoTool: ToolConfig<
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: TikTokDirectPostVideoParams) => {
-      const postInfo = buildPostInfo(params)
-
-      return {
-        accessToken: params.accessToken,
-        mode: 'direct',
-        file: params.file,
-        postInfo,
-        musicUsageConsent: params.musicUsageConsent,
-      }
+    body: () => {
+      throw new Error(DIRECT_POST_UNAVAILABLE_MESSAGE)
     },
   },
 

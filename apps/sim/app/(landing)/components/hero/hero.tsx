@@ -86,11 +86,11 @@ export function Hero() {
         headingId='hero-heading'
         heading={
           <>
-            Sim is your AI workspace <br />
-            for building agentic workflows.
+            Sim is the AI workspace <br />
+            for building AI agents.
           </>
         }
-        description='The open-source workspace where teams build, deploy, and manage AI agents.'
+        description='Open source, with 1,000+ integrations and every major LLM. Build, deploy, and manage agents visually, conversationally, or with code.'
       />
 
       <div

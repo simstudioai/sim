@@ -27,6 +27,7 @@ import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -591,6 +592,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error: unknown) {
     if (error instanceof AtlassianValidationError) {
       logger.warn(`[${requestId}] Atlassian credential rejected: ${error.code}`, {
+        code: error.code,
+        upstreamStatus: error.status,
+        ...error.logDetail,
+      })
+      return NextResponse.json({ code: error.code, error: error.code }, { status: 400 })
+    }
+    if (error instanceof TokenServiceAccountValidationError) {
+      logger.warn(`[${requestId}] Token service-account credential rejected: ${error.code}`, {
         code: error.code,
         upstreamStatus: error.status,
         ...error.logDetail,

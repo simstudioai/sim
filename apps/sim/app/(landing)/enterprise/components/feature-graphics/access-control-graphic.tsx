@@ -96,11 +96,10 @@ function edgePath(edge: Edge): string {
  * shrink at narrow tile widths its absolutely-positioned columns (fixed
  * `left-*` coordinates) would drift right of the box's true midline;
  * instead it keeps its geometry and overflows both edges equally, so the
- * Support → Review axis always sits on the tile's center. On the narrow
- * grid bands where the tile drops below the canvas width (small two-column
- * screens and the 3-up row just past `lg`) the whole canvas scales down via
- * transform — preserving that centering — so the outer team labels are
- * never cropped.
+ * Support → Review axis always sits on the tile's center. Narrow grid
+ * columns are handled by the feature tile itself, which zooms its whole
+ * design-space canvas down proportionally (see `SOLUTIONS_VISUAL`), so
+ * this graphic never needs its own breakpoint scaling.
  */
 export function AccessControlGraphic() {
   return (
@@ -109,7 +108,7 @@ export function AccessControlGraphic() {
         aria-hidden='true'
         className='absolute inset-0 flex items-center justify-center pr-8 max-lg:pr-6'
       >
-        <div className='relative h-[250px] w-[320px] shrink-0 max-sm:scale-100 max-md:scale-[0.8] lg:max-[1180px]:scale-[0.8]'>
+        <div className='relative h-[250px] w-[320px] shrink-0'>
           <svg
             className='absolute inset-0'
             fill='none'

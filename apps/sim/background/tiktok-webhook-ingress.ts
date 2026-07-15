@@ -2,8 +2,9 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { NextRequest } from 'next/server'
 import type { TikTokWebhookEnvelope } from '@/lib/api/contracts/webhooks'
+import { getJobQueue } from '@/lib/core/async-jobs'
 import { dispatchResolvedWebhookTarget } from '@/lib/webhooks/processor'
-import { findTikTokWebhookTargets } from '@/lib/webhooks/providers/tiktok-targets'
+import { findTikTokWebhookTargetPage } from '@/background/tiktok-webhook-targets'
 
 const logger = createLogger('TikTokWebhookIngressTask')
 
@@ -11,6 +12,7 @@ export const TIKTOK_WEBHOOK_INGRESS_CONCURRENCY_LIMIT = 50
 export const TIKTOK_WEBHOOK_INGRESS_MAX_ATTEMPTS = 3
 
 export interface TikTokWebhookIngressPayload {
+  afterWebhookId?: string
   envelope: TikTokWebhookEnvelope
   headers: {
     'content-type': string
@@ -21,38 +23,41 @@ export interface TikTokWebhookIngressPayload {
 
 export interface TikTokWebhookIngressResult {
   ignored: number
+  nextCursor?: string
   processed: number
   targetCount: number
 }
 
 /**
- * Resolves and dispatches all active workflow targets for one verified TikTok delivery. Throwing
- * after any retryable target failure lets Trigger.dev replay the fanout; workflow-level
- * idempotency prevents already-queued targets from executing twice.
+ * Resolves and dispatches one fixed-size keyset page for a verified TikTok delivery. Each page is a
+ * separate durable job, so retries replay at most one bounded page and successful pages continue
+ * from their last webhook ID.
  */
 export async function executeTikTokWebhookIngress(
   payload: TikTokWebhookIngressPayload
 ): Promise<TikTokWebhookIngressResult> {
-  const targets = await findTikTokWebhookTargets(payload.envelope.user_openid, payload.requestId)
-  if (targets.length === 0) {
-    logger.info(`[${payload.requestId}] No TikTok webhook targets found`, {
-      event: payload.envelope.event,
-      userOpenIdPrefix: payload.envelope.user_openid.slice(0, 12),
-    })
-    return { ignored: 0, processed: 0, targetCount: 0 }
-  }
-
   const request = new NextRequest('http://internal/api/webhooks/tiktok', {
     method: 'POST',
     headers: payload.headers,
     body: JSON.stringify(payload.envelope),
   })
 
+  const page = await findTikTokWebhookTargetPage(
+    payload.envelope.user_openid,
+    payload.requestId,
+    payload.afterWebhookId
+  )
+  const nextCursor = page.hasMore ? page.nextCursor : null
+  if (page.hasMore && (!nextCursor || nextCursor === payload.afterWebhookId)) {
+    throw new Error('TikTok webhook target pagination did not advance')
+  }
+
   let ignored = 0
   let processed = 0
   let failed = 0
+  const targetCount = page.targets.length
 
-  for (const { webhook, workflow } of targets) {
+  for (const { webhook, workflow } of page.targets) {
     const result = await dispatchResolvedWebhookTarget(
       webhook,
       workflow,
@@ -76,17 +81,55 @@ export async function executeTikTokWebhookIngress(
   }
 
   if (failed > 0) {
-    throw new Error(`Failed to dispatch ${failed} of ${targets.length} TikTok webhook targets`)
+    throw new Error(`Failed to dispatch ${failed} of ${targetCount} TikTok webhook targets`)
   }
 
-  logger.info(`[${payload.requestId}] TikTok webhook fanout completed`, {
+  if (targetCount === 0) {
+    logger.info(`[${payload.requestId}] No TikTok webhook targets found in page`, {
+      event: payload.envelope.event,
+      userOpenIdPrefix: payload.envelope.user_openid.slice(0, 12),
+    })
+    return {
+      ignored: 0,
+      processed: 0,
+      targetCount: 0,
+      ...(nextCursor ? { nextCursor } : {}),
+    }
+  }
+
+  logger.info(`[${payload.requestId}] TikTok webhook fanout page completed`, {
     event: payload.envelope.event,
     ignored,
+    nextCursor,
     processed,
-    targetCount: targets.length,
+    targetCount,
   })
 
-  return { ignored, processed, targetCount: targets.length }
+  return { ignored, processed, targetCount, ...(nextCursor ? { nextCursor } : {}) }
+}
+
+async function runTikTokWebhookIngressJob(payload: TikTokWebhookIngressPayload): Promise<void> {
+  const result = await executeTikTokWebhookIngress(payload)
+  if (!result.nextCursor) return
+
+  await enqueueTikTokWebhookIngress({
+    ...payload,
+    afterWebhookId: result.nextCursor,
+  })
+}
+
+/** Enqueues one bounded TikTok webhook fanout page with stable continuation identity. */
+export async function enqueueTikTokWebhookIngress(
+  payload: TikTokWebhookIngressPayload
+): Promise<string> {
+  const jobQueue = await getJobQueue()
+  return jobQueue.enqueue('tiktok-webhook-ingress', payload, {
+    jobId: `tiktok-webhook-ingress:${payload.requestId}:${payload.afterWebhookId ?? 'root'}`,
+    maxAttempts: TIKTOK_WEBHOOK_INGRESS_MAX_ATTEMPTS,
+    concurrencyKey: 'tiktok-webhook-ingress',
+    concurrencyLimit: TIKTOK_WEBHOOK_INGRESS_CONCURRENCY_LIMIT,
+    runner: async () => runTikTokWebhookIngressJob(payload),
+  })
 }
 
 export const tiktokWebhookIngressTask = task({
@@ -101,5 +144,5 @@ export const tiktokWebhookIngressTask = task({
   queue: {
     concurrencyLimit: TIKTOK_WEBHOOK_INGRESS_CONCURRENCY_LIMIT,
   },
-  run: async (payload: TikTokWebhookIngressPayload) => executeTikTokWebhookIngress(payload),
+  run: async (payload: TikTokWebhookIngressPayload) => runTikTokWebhookIngressJob(payload),
 })

@@ -55,17 +55,37 @@ import styles from '@/app/(landing)/enterprise/components/feature-graphics/stand
  * bled slot's center. The canvas itself is centered with a transform
  * (`left-1/2` + `-translate-x-1/2`) rather than flex `justify-center`
  * because an overflowing fixed-size flex item start-aligns instead of
- * centering once the tile gets narrower than the canvas. On the narrow
- * grid bands where the tile drops below the canvas width (small
- * two-column screens and the 3-up row just past `lg`) the canvas scales
- * down via transform so the SOC 2 / Open source chips are never cropped.
+ * centering once the tile gets narrower than the canvas. Narrow grid
+ * columns are handled by the feature tile itself, which zooms its whole
+ * design-space canvas down proportionally (see `SOLUTIONS_VISUAL`), so
+ * the SOC 2 / Open source chips are never cropped without this graphic
+ * carrying its own breakpoint scaling.
+ *
+ * The two claim chips and the seal's state pill are parametrizable so
+ * other landing pages (compliance) can retell the certification seal
+ * with their own standards; the defaults keep the enterprise page's
+ * SOC 2 / Open source seal byte-identical. Geometry, motion, and inks
+ * never change with the copy.
  */
-export function StandardsGraphic() {
+interface StandardsGraphicProps {
+  /** Left claim chip, anchored to the seal's left connector. */
+  leftLabel?: string
+  /** Right claim chip, anchored to the seal's right connector. */
+  rightLabel?: string
+  /** State pill beneath the seal. */
+  sealLabel?: string
+}
+
+export function StandardsGraphic({
+  leftLabel = 'SOC 2',
+  rightLabel = 'Open source',
+  sealLabel = 'Verified',
+}: StandardsGraphicProps = {}) {
   return (
     <FeatureGraphicShell>
       <div aria-hidden='true' className='absolute inset-0 pr-8 max-lg:pr-6'>
         <div className='relative h-full'>
-          <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[250px] w-[320px] max-sm:scale-100 max-md:scale-[0.8] lg:max-[1180px]:scale-[0.8]'>
+          <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-[250px] w-[320px]'>
             <div className='absolute top-0 left-[48px] size-[224px] rounded-full border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_22%,transparent)] [mask-image:linear-gradient(to_bottom,black_30%,transparent_92%)]' />
             <div className='absolute top-[36px] left-[84px] size-[152px] rounded-full border border-[color:color-mix(in_srgb,var(--text-muted-inverse)_35%,transparent)]' />
 
@@ -147,14 +167,14 @@ export function StandardsGraphic() {
             </div>
 
             <span className='-translate-x-full -translate-y-1/2 absolute top-[112px] left-[90px] whitespace-nowrap'>
-              <ChipTag variant='mono'>SOC 2</ChipTag>
+              <ChipTag variant='mono'>{leftLabel}</ChipTag>
             </span>
             <span className='-translate-y-1/2 absolute top-[112px] left-[230px] whitespace-nowrap'>
-              <ChipTag variant='mono'>Open source</ChipTag>
+              <ChipTag variant='mono'>{rightLabel}</ChipTag>
             </span>
 
             <span className='-translate-x-1/2 absolute top-[172px] left-1/2 flex h-5 items-center rounded-md bg-[var(--text-muted)] px-1.5 font-medium text-[var(--text-inverse)] text-caption'>
-              Verified
+              {sealLabel}
             </span>
           </div>
         </div>
