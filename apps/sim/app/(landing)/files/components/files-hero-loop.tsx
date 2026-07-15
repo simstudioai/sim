@@ -1,12 +1,13 @@
 'use client'
 
-import type { ReactNode, SVGProps } from 'react'
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ArrowUpDown, File, ListFilter, Plus, Search } from '@sim/emcn/icons'
 import { AgentIcon } from '@/components/icons'
 import { CsvIcon, DocxIcon, PdfIcon } from '@/components/icons/document-icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
+import { ZipIcon } from '@/app/(landing)/components/shared/zip-icon'
 import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
@@ -26,28 +27,6 @@ const SIDEBAR_WORKFLOWS = [
   'Asset export',
   'Data-room sync',
 ] as const
-
-/** Generic zip-archive glyph - no dedicated component exists in the icon set. */
-function ZipIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox='0 0 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.5'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      {...props}
-    >
-      <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
-      <path d='M14 2v4a2 2 0 0 0 2 2h4' />
-      <path d='M10 6h1' />
-      <path d='M10 10h1' />
-      <path d='M10 14h1' />
-      <path d='M9 18h2v2h-2z' />
-    </svg>
-  )
-}
 
 interface FileOwner {
   /** Display name in the owner cell. */
