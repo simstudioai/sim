@@ -59,8 +59,7 @@ export interface SolutionsCardConfig {
    */
   visual: ReactNode
   /**
-   * Feature-tile surface tone - only read when the row renders
-   * `cardVariant='featureTile'`. Defaults to `'light'` so tiles can mix light
+   * Feature-tile surface tone. Defaults to `'light'` so tiles can mix light
    * and dark backgrounds within the same row.
    */
   featureTileTone?: SolutionsFeatureTileTone

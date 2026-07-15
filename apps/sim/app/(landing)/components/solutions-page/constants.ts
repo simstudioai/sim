@@ -42,20 +42,15 @@ export const SOLUTIONS_SPACING = {
   heroToVisual: 'gap-12',
   /** Gap between a card row's header block and the card grid beneath it. */
   cardRowHeaderToGrid: 'gap-12',
-  /** Vertical stack gap inside a card row's header (title → subtitle → CTA). */
-  cardRowHeaderStack: 'gap-5',
   /**
-   * Extra top separation for the header CTA over the stack gap. Title and
-   * subtitle are one copy group and stay tight; the CTA is a separate action
-   * group, so its subtitle→CTA gap lands at 2× the title→subtitle gap
-   * (standard: 20px + 20px = 40px; feature: 12px + 12px = 24px).
+   * Extra top separation for the header CTA over the header's gap-3 stack.
+   * Title and subtitle are one copy group and stay tight; the CTA is a
+   * separate action group, so its subtitle→CTA gap lands at 2× the
+   * title→subtitle gap (12px + 12px = 24px).
    */
-  cardRowHeaderCtaGap: 'mt-5',
   cardRowHeaderCtaGapFeature: 'mt-3',
   /** Gap between cards within a card-row grid (both axes). */
   cardGridGap: 'gap-8',
-  /** Minimum gap between a card's text block and its visual panel. */
-  cardTextToVisual: 'gap-5',
   /** Vertical stack gap inside a card's text block (title → description). */
   cardTextStack: 'gap-2',
   /** Inner padding for feature tiles where copy and the visual slot share one frame. */
@@ -71,8 +66,6 @@ export const SOLUTIONS_SPACING = {
 export const SOLUTIONS_TEXT_MEASURE = {
   /** Hero support copy: broad enough for the primary value prop, still under long-form prose width. */
   heroDescription: 'w-full min-w-0 max-w-[58ch]',
-  /** Section subtitles: slightly tighter than hero copy so centered headers feel intentional. */
-  rowSubtitle: 'w-full min-w-0 max-w-[52ch]',
   /** Card descriptions: short scan lines inside three-up card grids. */
   cardDescription: 'min-w-0 max-w-[38ch]',
 } as const
