@@ -48,8 +48,15 @@ export const GET = withRouteHandler(
         return createErrorResponse(error.message, error.status)
       }
 
+      /**
+       * A workflow is deployed only when an active version snapshot exists —
+       * the same definition POST and the v1 routes use. The legacy
+       * `workflow.isDeployed` flag is deliberately not consulted: when it
+       * disagrees with the version table the workflow cannot actually serve
+       * traffic, so reporting it as live would be untruthful.
+       */
       const deploymentSummary = await getWorkflowDeploymentSummary(id)
-      const isDeployed = deploymentSummary.activeDeployment !== null || workflowData.isDeployed
+      const isDeployed = deploymentSummary.activeDeployment !== null
 
       if (!isDeployed) {
         logger.info(`[${requestId}] Workflow is not deployed: ${id}`)

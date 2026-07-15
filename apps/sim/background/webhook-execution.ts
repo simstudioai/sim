@@ -413,7 +413,25 @@ async function executeWebhookJobInternal(
     throw new Error(`Workflow ${payload.workflowId} not found during preprocessing`)
   }
   if (!workflowRecord.isDeployed || workflowRecord.archivedAt) {
-    throw new Error(`Workflow ${payload.workflowId} is no longer deployed`)
+    /**
+     * A queued delivery racing an undeploy/archive is an expected terminal
+     * condition, not a job fault: acknowledge and skip so workers do not
+     * record a failed job (or burn retries) for work that must never run.
+     */
+    logger.info(`[${requestId}] Skipping webhook execution for undeployed workflow`, {
+      workflowId: payload.workflowId,
+      archived: Boolean(workflowRecord.archivedAt),
+    })
+    await releaseExecutionSlot(executionId)
+    return {
+      success: false,
+      skipped: true,
+      workflowId: payload.workflowId,
+      executionId,
+      output: {},
+      executedAt: new Date().toISOString(),
+      provider: payload.provider,
+    }
   }
 
   const workspaceId = workflowRecord.workspaceId

@@ -293,7 +293,7 @@ describe('executeWebhookJob fault vs error handling', () => {
     )
   })
 
-  it('does not start queued webhook work after the workflow is undeployed', async () => {
+  it('acknowledges and skips queued webhook work after the workflow is undeployed', async () => {
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
       success: true,
       actorUserId: 'user-1',
@@ -308,10 +308,11 @@ describe('executeWebhookJob fault vs error handling', () => {
       executionTimeout: { async: 120_000 },
     })
 
-    await expect(executeWebhookJob(payload)).rejects.toThrow(
-      'Workflow workflow-1 is no longer deployed'
-    )
+    const result = await executeWebhookJob(payload)
+
+    expect(result).toMatchObject({ skipped: true, success: false, workflowId: 'workflow-1' })
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalled()
   })
 
   it('releases the reservation when idempotency returns a cached result', async () => {

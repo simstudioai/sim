@@ -17,6 +17,7 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
   Tooltip,
+  toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -357,13 +358,22 @@ export function DeployModal({
     }
 
     try {
-      await undeployMutation.mutateAsync({ workflowId: targetWorkflowId })
+      const result = await undeployMutation.mutateAsync({ workflowId: targetWorkflowId })
       if (!isWorkflowStillActive(targetWorkflowId)) return
       setUndeployTargetWorkflowId(null)
       onOpenChange(false)
+      /**
+       * Partial cleanup warnings (e.g. external subscription teardown left to
+       * background retries) surface as a toast so closing the modal does not
+       * silently swallow them.
+       */
+      if (result.warnings?.length) {
+        toast.warning('Workflow undeployed', { description: result.warnings.join(' ') })
+      }
     } catch (error: unknown) {
       if (!isWorkflowStillActive(targetWorkflowId)) return
       logger.error('Error undeploying workflow:', { error })
+      toast.error('Failed to undeploy workflow', { description: toError(error).message })
     }
   }
 
