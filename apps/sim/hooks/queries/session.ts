@@ -35,6 +35,8 @@ export async function refreshSessionQuery(queryClient: QueryClient): Promise<App
   return fresh
 }
 
+export const IMPERSONATION_REFETCH_INTERVAL = 60 * 1000
+
 /**
  * Reads the current Better Auth session via the client SDK.
  *
@@ -44,6 +46,13 @@ export async function refreshSessionQuery(queryClient: QueryClient): Promise<App
  * `retry: false` preserves the prior fail-fast contract: an auth failure (expired
  * token, startup network partition) surfaces immediately rather than retrying a
  * request that won't succeed.
+ *
+ * While the session is an impersonation session, the query polls and refetches
+ * on focus (overriding the global `refetchOnWindowFocus: false`) so an expiry —
+ * including one slept through with the laptop closed — settles the query to
+ * `null` and surfaces the impersonation-expired recovery screen. Impersonation
+ * sessions are short-lived and admin-only, so neither override affects normal
+ * sessions.
  */
 export function useSessionQuery() {
   return useQuery({
@@ -51,5 +60,8 @@ export function useSessionQuery() {
     queryFn: ({ signal }) => fetchSession(signal),
     staleTime: SESSION_STALE_TIME,
     retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.session?.impersonatedBy ? IMPERSONATION_REFETCH_INTERVAL : false,
+    refetchOnWindowFocus: (query) => Boolean(query.state.data?.session?.impersonatedBy),
   })
 }

@@ -4,7 +4,10 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
+import {
+  ImpersonationBanner,
+  ImpersonationExpired,
+} from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
@@ -66,6 +69,7 @@ export default async function WorkspaceLayout({
             <GlobalCommandsProvider>
               <div className='flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
                 <ImpersonationBanner />
+                <ImpersonationExpired />
                 <WorkspacePermissionsProvider>
                   <WorkspaceScopeSync />
                   <WorkspaceChrome initialSidebarCollapsed={initialSidebarCollapsed}>

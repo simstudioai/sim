@@ -77,8 +77,17 @@ export default function WorkspacePage() {
       // Indeterminate auth (errored session query, no cached identity): show
       // the error card — /login would bounce back while a session cookie exists.
       if (sessionError) return
-      logger.info('User not authenticated, redirecting to login')
-      router.replace('/login')
+      // A clean null session can still have stale auth cookies behind it (an
+      // expired impersonation session's cookies are never cleared server-side),
+      // and the middleware bounces /login back here while any session cookie
+      // exists — a bare replace('/login') loops forever on the spinner. Recover
+      // the same way as the 401 path: sign out (clears the cookies without
+      // needing a live session), then navigate.
+      hasRedirectedRef.current = true
+      logger.info('User not authenticated, signing out stale cookies and redirecting to login')
+      void recoverFromStaleSession().then((recovered) => {
+        if (!recovered) setRecoveryFailed(true)
+      })
       return
     }
 
