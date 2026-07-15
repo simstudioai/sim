@@ -33,16 +33,21 @@ import { LogsHeroLoop } from '@/app/(landing)/logs/components/logs-hero-loop'
  * to the platform page's (`WebPage` + `BreadcrumbList` +
  * `WebApplication`), so the feature-tile treatment is SEO-neutral.
  */
+/** Shared meta + JSON-LD description for the Logs page — one string, zero drift. */
+export const LOGS_PAGE_DESCRIPTION =
+  'Sim gives teams AI agent observability — trace every run step by step, search and filter across runs, and catch failures with alerts.'
+
 const LOGS_CONFIG: SolutionsPageConfig = {
   module: 'Logs',
   path: '/logs',
+  seoDescription: LOGS_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Logs',
-    heading: 'Trace every agent decision, block by block, in Sim.',
+    heading: 'Trace every agent run with full observability in Sim.',
     description:
-      'Logs give teams full visibility into every run in Sim, the open-source AI workspace. Follow each agent run block by block, filter and search across every run, and catch failures the moment they happen.',
+      'Logs is the AI agent observability layer in Sim, the open-source AI workspace. Follow each run block by block, search across every run, and catch failures with alerts.',
     summary:
-      'Logs is the visibility layer in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Sim records every agent run block by block, so teams trace each decision, tool call, and output, filter and search across every run, and catch failures with alerts.',
+      'Logs is the AI agent observability layer in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Sim records every step of every run, so teams trace each decision, tool call, and output, and catch failures with alerts.',
     visual: (
       <PlatformHeroVisual>
         <LogsHeroLoop />
@@ -54,13 +59,13 @@ const LOGS_CONFIG: SolutionsPageConfig = {
       id: 'trace',
       title: 'See exactly what every agent did.',
       subtitle:
-        'Sim records every agent run block by block, so teams can follow each decision, tool call, and output on one timeline.',
+        'Sim records every step of every agent run, so teams can follow each decision, tool call, and output on one timeline.',
       cta: { label: 'Explore Logs in Sim', href: '/signup' },
       cards: [
         {
           title: 'Trace runs block by block',
           description:
-            'Sim captures every step of a run, each block, tool call, and model response with its duration, so no agent decision is a black box.',
+            'Sim captures every step of a run — each block, tool call, and model response, with its duration.',
           featureTileTone: 'dark',
           featureTileDescriptionTone: 'soft',
           visual: <RunTraceGraphic />,
@@ -135,13 +140,13 @@ const LOGS_CONFIG: SolutionsPageConfig = {
         {
           title: 'Filter to the runs that matter',
           description:
-            'Search and filter every run in Sim by workflow, status, trigger, and time, so one failure is never buried under a thousand successes.',
+            'Search and filter every run in Sim by workflow, status, trigger, and time, so failed runs surface fast.',
           visual: <FilterRunsGraphic />,
         },
         {
           title: 'Debug with full context',
           description:
-            'Sim snapshots each run, so teams open a failed run with its inputs, outputs, and trace intact and see exactly which block broke.',
+            'Sim snapshots each run, so teams open a failed run with inputs, outputs, and trace intact and see which block broke.',
           visual: (
             <StagingGraphic
               title='Nightly data sync'

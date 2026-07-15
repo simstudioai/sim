@@ -25,16 +25,21 @@ import { EngineeringHeroLoop } from '@/app/(landing)/solutions/engineering/compo
  * CI/CD deploys, runbook docs) - so the page shares the enterprise design
  * language without any new visual vocabulary.
  */
+/** Meta description shared between the page metadata and the page JSON-LD. */
+export const ENGINEERING_PAGE_DESCRIPTION =
+  'AI agents for engineering teams: automate code review, on-call triage, and documentation. Built in Sim, the open-source AI workspace.'
+
 const ENGINEERING_CONFIG: SolutionsPageConfig = {
   module: 'Engineering',
   path: '/solutions/engineering',
+  seoDescription: ENGINEERING_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Engineering',
-    heading: 'Automate code review, on-call, and docs with Sim agents.',
+    heading: 'Automate code review, on-call, and docs with AI agents in Sim.',
     description:
-      'Engineering teams build AI agents in Sim, the open-source AI workspace, wired into GitHub, CI/CD, and 1,000+ integrations, visually, conversationally, or with code.',
+      'Sim is the open-source AI workspace where engineering teams build AI agents for code review, on-call, and docs. Agents wire into GitHub, CI/CD, and 1,000+ integrations across the software lifecycle.',
     summary:
-      'Sim is the open-source AI workspace where engineering teams build, deploy, and manage AI agents across the software lifecycle, automating code review, on-call triage, and documentation, wired into GitHub, CI/CD, and 1,000+ integrations.',
+      'Sim is the open-source AI workspace where engineering teams build, deploy, and manage AI agents for code review, on-call triage, and documentation. Agents wire into GitHub, CI/CD, and 1,000+ integrations across the software lifecycle.',
     visual: (
       <PlatformHeroVisual>
         <EngineeringHeroLoop />

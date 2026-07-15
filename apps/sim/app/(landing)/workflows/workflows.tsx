@@ -34,16 +34,21 @@ import { WorkflowsEditorLoop } from '@/app/(landing)/workflows/components/workfl
  * to the platform page's (`WebPage` + `BreadcrumbList` +
  * `WebApplication`), so the switch to feature tiles is SEO-neutral.
  */
+/** Shared meta + JSON-LD description for the Workflows page — one string, zero drift. */
+export const WORKFLOWS_PAGE_DESCRIPTION =
+  "Sim's AI workflow builder connects blocks, every major LLM, and 1,000+ integrations into agents — build Slack bots and data pipelines visually or in code."
+
 const WORKFLOWS_CONFIG: SolutionsPageConfig = {
   module: 'Workflows',
   path: '/workflows',
+  seoDescription: WORKFLOWS_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Workflows',
-    heading: 'Build Slack bots, compliance agents, and data pipelines in Sim.',
+    heading: 'Build AI agent workflows visually in Sim.',
     description:
-      'Connect blocks, every major LLM, and 1,000+ integrations into agent logic, the visual builder in Sim, the open-source AI workspace. Build visually, conversationally, or with code.',
+      'Workflows is the visual AI workflow builder in Sim, the open-source AI workspace. Connect blocks, every major LLM, and 1,000+ integrations into Slack bots, compliance agents, and data pipelines.',
     summary:
-      'Workflows is the visual builder in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Wire blocks, every major LLM, and 1,000+ integrations into agent logic, then deploy and run it without leaving Sim, visually, conversationally, or with code.',
+      'Workflows is the visual AI workflow builder in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams wire blocks, every major LLM, and 1,000+ integrations into agent logic, then deploy and trace every run without leaving Sim.',
     visual: (
       <PlatformHeroVisual>
         <WorkflowsEditorLoop />

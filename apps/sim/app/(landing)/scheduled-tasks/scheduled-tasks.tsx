@@ -32,16 +32,21 @@ import { DocumentDraftGraphic } from '@/app/(landing)/solutions/components/featu
  * The JSON-LD emitted by {@link SolutionsPage} is structurally identical to
  * the workflows page's (`WebPage` + `BreadcrumbList` + `WebApplication`).
  */
+/** Shared meta + JSON-LD description for the Scheduled Tasks page — one string, zero drift. */
+export const SCHEDULED_TASKS_PAGE_DESCRIPTION =
+  'Schedule AI agents in Sim to run every 15 minutes, daily, monthly, or on a custom cron — timezone-aware, with every run traced on the calendar.'
+
 const SCHEDULED_TASKS_CONFIG: SolutionsPageConfig = {
   module: 'Scheduled Tasks',
   path: '/scheduled-tasks',
+  seoDescription: SCHEDULED_TASKS_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Scheduled Tasks',
-    heading: 'Set agents to run on a schedule, and let the work happen on its own.',
+    heading: 'Schedule AI agents to run on their own.',
     description:
-      'Scheduled Tasks runs your agents on a cadence in Sim, the open-source AI workspace. Pick a time from every 15 minutes to monthly or write a cron, timezone-aware, with every run traced.',
+      'Scheduled Tasks is the scheduler in Sim, the open-source AI workspace. Run any agent every 15 minutes, daily, monthly, or on a custom cron — timezone-aware, every run traced.',
     summary:
-      'Scheduled Tasks is the scheduler in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Put any workflow on a cadence, from 15-minute intervals to daily, weekly, and monthly runs or custom cron, timezone-aware, then watch every scheduled run land on the workspace calendar with full run history.',
+      'Scheduled Tasks is the scheduler in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams schedule any workflow to run every 15 minutes, daily, weekly, monthly, or on a custom cron in your timezone, and every run lands on the calendar with full history.',
     visual: (
       <PlatformHeroVisual>
         <ScheduledTasksCalendarLoop />
@@ -51,7 +56,7 @@ const SCHEDULED_TASKS_CONFIG: SolutionsPageConfig = {
   rows: [
     {
       id: 'schedule',
-      title: 'Put any agent on a cadence.',
+      title: 'Put any agent on a schedule.',
       subtitle:
         'Sim turns a workflow into a scheduled task with one trigger, from 15-minute intervals to monthly closes, in your timezone.',
       cta: { label: 'Schedule your first agent', href: '/signup' },
@@ -132,7 +137,7 @@ const SCHEDULED_TASKS_CONFIG: SolutionsPageConfig = {
         {
           title: 'Keep it running',
           description:
-            'Schedules stay live in production. Pause, resume, or retune the cadence without redeploying.',
+            'Schedules stay live in production. Pause, resume, or retune the timing without redeploying.',
           featureTileTone: 'dark',
           featureTileDescriptionTone: 'soft',
           visual: (

@@ -16,6 +16,14 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
  * - All claims must also appear as visible text on the page.
  * - Do not add `aggregateRating` without real, verifiable review data.
  */
+/**
+ * The home page's canonical description - the single string shared by the
+ * `<meta name="description">`, OG/Twitter cards (`page.tsx`), and the JSON-LD
+ * `WebPage.description` below, so the three surfaces never drift.
+ */
+export const HOME_PAGE_DESCRIPTION =
+  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents across 1,000+ integrations and every major LLM — visually or with code.'
+
 const HOME_JSON_LD = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -27,8 +35,7 @@ const HOME_JSON_LD = {
       isPartOf: { '@id': `${SITE_URL}#website` },
       about: { '@id': `${SITE_URL}#software` },
       datePublished: '2024-01-01T00:00:00+00:00',
-      description:
-        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
+      description: HOME_PAGE_DESCRIPTION,
       breadcrumb: { '@id': `${SITE_URL}#breadcrumb` },
       inLanguage: 'en-US',
       speakable: {
@@ -93,7 +100,7 @@ const HOME_JSON_LD = {
       ],
       featureList: [
         'AI workspace for teams',
-        'Mothership: natural language agent creation',
+        'Chat: build and manage agents in natural language',
         'Visual workflow builder',
         '1,000+ integrations',
         'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',

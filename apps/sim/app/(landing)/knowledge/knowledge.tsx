@@ -31,14 +31,19 @@ import { KnowledgeAnswerGraphic } from '@/app/(landing)/solutions/components/fea
  * to the platform page's (`WebPage` + `BreadcrumbList` +
  * `WebApplication`), so the feature-tile treatment is SEO-neutral.
  */
+/** Shared meta + JSON-LD description for the Knowledge Base page — one string, zero drift. */
+export const KNOWLEDGE_PAGE_DESCRIPTION =
+  'Give AI agents a knowledge base in Sim. Upload docs, sync Notion, Google Drive, and Confluence, and get answers grounded in your data — with citations.'
+
 const KNOWLEDGE_CONFIG: SolutionsPageConfig = {
   module: 'Knowledge Base',
   path: '/knowledge',
+  seoDescription: KNOWLEDGE_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Knowledge Base',
-    heading: "Give your agents memory of your company's data in Sim.",
+    heading: 'The knowledge base that gives AI agents memory of your data.',
     description:
-      "Knowledge Base is your agents' memory in Sim, the open-source AI workspace. Upload docs, sync sources like Notion and Google Drive, and get answers grounded in your own data, with citations.",
+      "Knowledge Base is your agents' memory in Sim, the open-source AI workspace. Upload docs, sync sources like Notion and Google Drive, and get answers grounded in your data — with citations.",
     summary:
       'Knowledge Base is the agent-memory module in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams upload docs or sync sources like Notion, Google Drive, and Confluence, and every agent answers from that data with citations, kept fresh automatically.',
     visual: (

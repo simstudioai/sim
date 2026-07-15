@@ -32,16 +32,21 @@ import { TablesHeroLoop } from '@/app/(landing)/tables/components/tables-hero-lo
  * to the platform page's (`WebPage` + `BreadcrumbList` +
  * `WebApplication`), so the switch to feature tiles is SEO-neutral.
  */
+/** Shared meta + JSON-LD description for the Tables page — one string, zero drift. */
+export const TABLES_PAGE_DESCRIPTION =
+  'Tables is the AI agent database built into Sim. Store leads, tickets, and invoices as rows agents read and write, and carry state from one run to the next.'
+
 const TABLES_CONFIG: SolutionsPageConfig = {
   module: 'Tables',
   path: '/tables',
+  seoDescription: TABLES_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Tables',
-    heading: 'Power agents with structured data in Sim.',
+    heading: 'Give AI agents a database built into Sim.',
     description:
-      'Tables is the database built into Sim, the open-source AI workspace. Store the records agents read and write, let enrichments fill empty cells, and carry state from one run to the next.',
+      'Tables is the database built into Sim, the open-source AI workspace. Store the records agents read and write, fill empty cells with enrichments, and keep state between runs.',
     summary:
-      'Tables is the built-in database in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams store records agents read and write, run enrichments that fill cells automatically, query rows from agent logic, and keep state between runs, all in one workspace.',
+      'Tables is the AI agent database built into Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams store records agents read and write, run enrichments that fill cells automatically, query rows from agent logic, and keep state between runs, all in one workspace.',
     visual: (
       <PlatformHeroVisual>
         <TablesHeroLoop />
@@ -53,7 +58,7 @@ const TABLES_CONFIG: SolutionsPageConfig = {
       id: 'records',
       title: 'Give agents structured data to act on.',
       subtitle:
-        'Sim stores the records agents work with, leads, tickets, and invoices, as tables that live in the same workspace as the agents themselves.',
+        'Sim stores the records agents work with — leads, tickets, invoices — as tables in the same workspace as the agents.',
       cta: { label: 'Explore Tables', href: '/signup' },
       cards: [
         {

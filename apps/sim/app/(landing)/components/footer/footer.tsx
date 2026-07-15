@@ -27,12 +27,20 @@ interface FooterItem {
   external?: boolean
 }
 
+/**
+ * Platform modules link to their local landing pages (internal link equity
+ * stays on the ranking pages); docs-only surfaces (MCP, API, Self Hosting)
+ * and Status remain external.
+ */
 const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Enterprise', href: '/enterprise' },
-  { label: 'Mothership', href: 'https://docs.sim.ai/mothership', external: true },
-  { label: 'Workflows', href: 'https://docs.sim.ai', external: true },
-  { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
-  { label: 'Tables', href: 'https://docs.sim.ai/tables', external: true },
+  { label: 'Chat', href: 'https://docs.sim.ai/mothership', external: true },
+  { label: 'Workflows', href: '/workflows' },
+  { label: 'Knowledge Base', href: '/knowledge' },
+  { label: 'Tables', href: '/tables' },
+  { label: 'Files', href: '/files' },
+  { label: 'Logs', href: '/logs' },
+  { label: 'Scheduled Tasks', href: '/scheduled-tasks' },
   { label: 'MCP', href: 'https://docs.sim.ai/agents/mcp', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/platform/self-hosting', external: true },
