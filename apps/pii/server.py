@@ -40,6 +40,7 @@ from presidio_analyzer.predefined_recognizers import (
     PlPeselRecognizer,
     SgFinRecognizer,
     SgUenRecognizer,
+    SpacyRecognizer,
     UkNinoRecognizer,
 )
 from presidio_anonymizer import AnonymizerEngine
@@ -174,10 +175,18 @@ analyzer = build_analyzer()
 batch_analyzer = BatchAnalyzerEngine(analyzer_engine=analyzer)
 anonymizer = AnonymizerEngine()
 
-# The 4 spaCy-NER entity types. A request that names entities but none of these
-# needs no NLP pass — the regex/checksum recognizers match on the raw text. The
-# block-output redaction stage is restricted to exactly this case (regex-only).
-NER_ENTITIES = frozenset({"PERSON", "LOCATION", "NRP", "DATE_TIME"})
+# Every entity the spaCy NER recognizers can produce. A request touching any of
+# these must run spaCy; a request naming only non-NER (regex/checksum) entities can
+# skip it. Derived from the live registry so it stays authoritative if Presidio's
+# default entity set changes (e.g. ORGANIZATION), unioned with a known floor so an
+# unexpectedly empty derivation can never let an NER request skip the NLP pass.
+_SPACY_NER_FLOOR = frozenset({"PERSON", "LOCATION", "NRP", "DATE_TIME", "ORGANIZATION"})
+NER_ENTITIES = _SPACY_NER_FLOOR | frozenset(
+    entity
+    for recognizer in analyzer.registry.recognizers
+    if isinstance(recognizer, SpacyRecognizer)
+    for entity in recognizer.supported_entities
+)
 
 # One blank NlpArtifacts per language, built once at startup. Passing these to
 # analyze() skips nlp_engine.process_text (the spaCy tok2vec+ner pass) entirely:
@@ -192,10 +201,17 @@ _BLANK_ARTIFACTS = {
 }
 
 
-def _regex_only(entities: list[str] | None) -> bool:
-    """True when a request names entities and none are spaCy-NER, so the spaCy NLP
-    pass can be skipped."""
-    return bool(entities) and NER_ENTITIES.isdisjoint(entities)
+def _regex_only(entities: list[str] | None, score_threshold: float | None) -> bool:
+    """True when the spaCy NLP pass can be skipped: the request names entities, none
+    require spaCy NER, and no positive score_threshold is set. The blank-artifacts
+    fast path drops context-based score boosting, which can only change what is
+    returned when a threshold gates a match between its base and context-boosted
+    score — so fall back to the full path whenever a threshold is in play."""
+    return (
+        bool(entities)
+        and NER_ENTITIES.isdisjoint(entities)
+        and (score_threshold is None or score_threshold <= 0)
+    )
 
 
 def _analyze_one(
@@ -207,7 +223,9 @@ def _analyze_one(
 ):
     # Regex-only requests reuse a blank NlpArtifacts to skip the spaCy NLP pass;
     # otherwise analyze() computes artifacts (runs spaCy) as usual.
-    nlp_artifacts = _BLANK_ARTIFACTS.get(language) if _regex_only(entities) else None
+    nlp_artifacts = (
+        _BLANK_ARTIFACTS.get(language) if _regex_only(entities, score_threshold) else None
+    )
     return analyzer.analyze(
         text=text,
         language=language,
@@ -225,7 +243,7 @@ def _analyze_many(
     score_threshold: float | None,
 ):
     """Analyze many texts, skipping the spaCy pass for regex-only requests."""
-    if _regex_only(entities):
+    if _regex_only(entities, score_threshold):
         blank = _BLANK_ARTIFACTS.get(language)
         return [
             analyzer.analyze(
@@ -467,7 +485,7 @@ def redact_batch(req: RedactBatchRequest) -> dict[str, list[str]]:
         req.language,
         len(req.texts),
         len(req.entities) if req.entities else "all",
-        "skip" if _regex_only(req.entities) else "full",
+        "skip" if _regex_only(req.entities, req.score_threshold) else "full",
         total_spans,
         (time.perf_counter() - started) * 1000,
     )
