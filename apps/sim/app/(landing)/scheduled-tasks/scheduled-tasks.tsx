@@ -10,7 +10,7 @@ import {
   OperationsTeamsGraphic,
   RunMonitoringGraphic,
 } from '@/app/(landing)/enterprise/components/feature-graphics'
-import { ScheduledTasksHeroLoop } from '@/app/(landing)/scheduled-tasks/components/scheduled-tasks-hero-loop'
+import { ScheduledTasksCalendarLoop } from '@/app/(landing)/scheduled-tasks/components/scheduled-tasks-calendar-loop'
 import { DocumentDraftGraphic } from '@/app/(landing)/solutions/components/feature-graphics'
 
 /**
@@ -21,7 +21,9 @@ import { DocumentDraftGraphic } from '@/app/(landing)/solutions/components/featu
  * schedule triggers (from every-15-minutes intervals through daily, weekly,
  * and monthly cadences to custom cron, timezone-aware), and the workspace's
  * Scheduled Tasks calendar shows every upcoming and finished run with
- * pause/resume and full run history. Every visual slot reuses a
+ * pause/resume and full run history. The hero replays that calendar itself -
+ * the month grid filling with recurring task pills as a new schedule lands
+ * on its cadence. Every card visual slot reuses a
  * parametrized enterprise feature graphic retold for recurring runs - the
  * policy checklist as a schedule card, the routing fan as the delivery
  * fan-out, the drafted document as the digest that arrives on time, the
@@ -42,7 +44,7 @@ const SCHEDULED_TASKS_CONFIG: SolutionsPageConfig = {
       'Scheduled Tasks is the scheduler in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Put any workflow on a cadence, from 15-minute intervals to daily, weekly, and monthly runs or custom cron, timezone-aware, then watch every scheduled run land on the workspace calendar with full run history.',
     visual: (
       <PlatformHeroVisual>
-        <ScheduledTasksHeroLoop />
+        <ScheduledTasksCalendarLoop />
       </PlatformHeroVisual>
     ),
   },

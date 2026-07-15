@@ -41,8 +41,8 @@ export const PLATFORM_MENU: NavMenu = {
 }
 
 /**
- * The Resources menu - learning and reference surfaces. Six items in a
- * three-column grid. Docs is the one off-site link.
+ * The Resources menu - learning and reference surfaces plus the Enterprise
+ * page. Six items in a three-column grid. Docs is the one off-site link.
  */
 export const RESOURCES_MENU: NavMenu = {
   label: 'Resources',
@@ -59,9 +59,9 @@ export const RESOURCES_MENU: NavMenu = {
       href: '/blog',
     },
     {
-      title: 'Library',
-      description: 'Comparisons, how-tos, and roundups',
-      href: '/library',
+      title: 'Enterprise',
+      description: 'Govern AI agents at enterprise scale',
+      href: '/enterprise',
     },
     {
       title: 'Changelog',
@@ -82,15 +82,16 @@ export const RESOURCES_MENU: NavMenu = {
 }
 
 /**
- * The Solutions menu - agent use cases by team. Six items in a three-column grid.
+ * The Solutions menu - agent use cases by team, Sales first. Six items in a
+ * three-column grid.
  */
 export const SOLUTIONS_MENU: NavMenu = {
   label: 'Solutions',
   items: [
     {
-      title: 'Enterprise',
-      description: 'Govern AI agents at enterprise scale',
-      href: '/enterprise',
+      title: 'Sales',
+      description: 'Automate outreach and CRM upkeep',
+      href: '/solutions/sales',
     },
     {
       title: 'Engineering',

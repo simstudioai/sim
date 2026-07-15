@@ -1,0 +1,28 @@
+/**
+ * The ScheduledTasksCalendarLoop's motion: a newly scheduled task pill stamps
+ * in once when the parent clock mounts it on its calendar day. A one-shot
+ * mount animation - the loop's restart unmounts and remounts the pills, so a
+ * new cycle replays them naturally. Under prefers-reduced-motion the parent
+ * renders the finished frame and this never plays.
+ */
+
+.pillIn {
+  animation: scheduled-tasks-pill-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes scheduled-tasks-pill-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pillIn {
+    animation: none;
+  }
+}
