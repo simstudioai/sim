@@ -11,6 +11,17 @@ tags: [Open Source, AI Agents, LangGraph, CrewAI, Dify, Sim]
 ogImage: /library/open-source-ai-agent-platforms/cover.jpg
 canonical: https://www.sim.ai/library/open-source-ai-agent-platforms
 draft: false
+faq:
+  - q: "What is the difference between an AI agent framework and an AI agent platform?"
+    a: "An AI agent framework is a code library that provides primitives for building agents: tool use, multi-step reasoning, memory, and orchestration. You write code and own everything else. An AI agent platform bundles those primitives with deployment infrastructure, observability, collaboration features, and often a visual interface. The practical difference is how much your team builds versus how much comes out of the box."
+  - q: "Can I self-host all of these open-source AI agent platforms?"
+    a: "Most, but not all, support full self-hosting. LangGraph, CrewAI, Dify, and Sim can all be self-hosted via Docker or Kubernetes. AutoGen is now in maintenance mode and will not receive new features, but remains self-hostable. n8n supports self-hosting under its Sustainable Use License, which has specific commercial-use restrictions worth reviewing. Always check the license terms, since some platforms label enterprise features like RBAC, SSO, and advanced observability as paid add-ons even when the core is open source."
+  - q: "Which open-source AI agent platform is best for non-developers?"
+    a: "Visual builders like Dify and workspace platforms like Sim are the best starting points for non-developers. Both offer drag-and-drop interfaces that don't require writing code. Code-first frameworks like LangGraph, CrewAI, and AutoGen are a poor fit without engineering support since they require Python proficiency and comfort with infrastructure management. If your team is mixed (some developers, some not), a workspace like Sim lets both groups contribute in the same environment."
+  - q: "How does LangGraph compare to CrewAI for production use?"
+    a: "LangGraph gives you explicit, stateful control over every decision branch in your agent's workflow, making it the stronger choice for complex conditional logic. Crews provide autonomous agent collaboration ideal for tasks requiring flexible decision-making, while Flows offer precise, event-driven control ideal for managing detailed execution paths and secure state management. The real differentiator in production is the deployment layer: both frameworks leave production infrastructure, monitoring, and team collaboration as exercises for the builder, so your choice may hinge on which ecosystem your team prefers to invest in."
+  - q: "What should I look for in an open-source AI agent platform before committing?"
+    a: "Evaluate six things: license type (MIT, Apache 2.0, or a custom license with restrictions), self-hosting support (Docker/Kubernetes readiness and local model compatibility via Ollama), observability (built-in logging and tracing versus requiring a paid add-on like LangSmith), LLM flexibility (multi-provider support so you're not locked into one model vendor), community activity (commit frequency, issue response time, contributor count), and enterprise feature gating (whether RBAC, SSO, and audit logs require a paid tier). That last point matters most: an open-source label doesn't guarantee the features you need in production are in the free tier."
 ---
 
 This guide splits open-source AI agent platforms into three clear categories, compares the leading options within each, and offers a decision framework based on your team's situation rather than by feature count.
@@ -179,34 +190,3 @@ Visual builders like Dify and n8n lower the barrier to entry but trade away arch
 Start with the decision paths above. Identify which category fits your team, then evaluate within that category. Trying to compare a Python framework against a visual workspace on the same checklist is how teams end up six months into a tool that doesn't fit.
 
 If your team needs collaboration, multi-model support, and a visual builder with production-grade deployment, [explore Sim](https://sim.ai) and see whether the workspace model matches how your team actually works.
-
-## FAQ
-
-### What is the difference between an AI agent framework and an AI agent platform?
-
-An AI agent framework is a code library that provides primitives for building agents: tool use, multi-step reasoning, memory, and orchestration. You write code and own everything else. An AI agent platform bundles those primitives with deployment infrastructure, observability, collaboration features, and often a visual interface. The practical difference is how much your team builds versus how much comes out of the box.
-
-### Can I self-host all of these open-source AI agent platforms?
-
-Most, but not all, support full self-hosting. LangGraph, CrewAI, Dify, and Sim can all be self-hosted via Docker or Kubernetes. AutoGen is now in maintenance mode and will not receive new features, but remains self-hostable. n8n supports self-hosting under its Sustainable Use License, which has specific commercial-use restrictions worth reviewing. Always check the license terms. Some platforms label enterprise features (RBAC, SSO, advanced observability) as paid add-ons even when the core is open source.
-
-### Which open-source AI agent platform is best for non-developers?
-
-Visual builders like Dify and workspace platforms like Sim are the best starting points for non-developers. Both offer drag-and-drop interfaces that don't require writing code. Code-first frameworks like LangGraph, CrewAI, and AutoGen are a poor fit without engineering support since they require Python proficiency and comfort with infrastructure management. If your team is mixed (some developers, some not), a workspace like Sim lets both groups contribute in the same environment.
-
-### How does LangGraph compare to CrewAI for production use?
-
-LangGraph gives you explicit, stateful control over every decision branch in your agent's workflow, making it the stronger choice for complex conditional logic. Crews provide autonomous agent collaboration ideal for tasks requiring flexible decision-making, while Flows offer precise, event-driven control ideal for managing detailed execution paths and secure state management. The real differentiator in production is the deployment layer: both frameworks leave production infrastructure, monitoring, and team collaboration as exercises for the builder, so your choice may hinge on which ecosystem (LangChain vs. CrewAI Enterprise) your team prefers to invest in.
-
-### What should I look for in an open-source AI agent platform before committing?
-
-Six things to evaluate before committing:
-
-1. **License type** (MIT, Apache 2.0, or a custom license with restrictions)
-2. **Self-hosting support** (Docker/Kubernetes readiness and local model compatibility via Ollama)
-3. **Observability** (built-in logging and tracing vs. requiring a paid add-on like LangSmith)
-4. **LLM flexibility** (multi-provider support so you're not locked into one model vendor)
-5. **Community activity** (commit frequency, issue response time, contributor count)
-6. **Enterprise feature gating** (whether RBAC, SSO, and audit logs require a paid tier)
-
-The last point is especially important: an open-source label doesn't guarantee that the features you need in production are in the free tier.
