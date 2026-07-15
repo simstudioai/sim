@@ -159,7 +159,9 @@ describe('validateShopifyServiceAccount', () => {
 
   it('normalizes a pasted admin URL down to the bare store host', async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, { data: { shop: { name: 'Probe', myshopifyDomain: 'my-store.myshopify.com' } } })
+      jsonResponse(200, {
+        data: { shop: { name: 'Probe', myshopifyDomain: 'my-store.myshopify.com' } },
+      })
     )
     const result = await validateShopifyServiceAccount({
       apiToken: 'shpat_ok',
