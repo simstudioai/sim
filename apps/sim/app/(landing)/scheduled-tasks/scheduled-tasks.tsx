@@ -32,9 +32,9 @@ import { DocumentDraftGraphic } from '@/app/(landing)/solutions/components/featu
  * The JSON-LD emitted by {@link SolutionsPage} is structurally identical to
  * the workflows page's (`WebPage` + `BreadcrumbList` + `WebApplication`).
  */
-/** Shared meta + JSON-LD description for the Scheduled Tasks page — one string, zero drift. */
+/** Shared meta + JSON-LD description for the Scheduled Tasks page (one string, zero drift). */
 export const SCHEDULED_TASKS_PAGE_DESCRIPTION =
-  'Schedule AI agents in Sim to run every 15 minutes, daily, monthly, or on a custom cron — timezone-aware, with every run traced on the calendar.'
+  'Schedule AI agents in Sim to run every 15 minutes, daily, monthly, or on a custom cron, timezone-aware, with every run traced on the calendar.'
 
 const SCHEDULED_TASKS_CONFIG: SolutionsPageConfig = {
   module: 'Scheduled Tasks',
@@ -44,7 +44,7 @@ const SCHEDULED_TASKS_CONFIG: SolutionsPageConfig = {
     eyebrow: 'Scheduled Tasks',
     heading: 'Schedule AI agents to run on their own.',
     description:
-      'Scheduled Tasks is the scheduler in Sim, the open-source AI workspace. Run any agent every 15 minutes, daily, monthly, or on a custom cron — timezone-aware, every run traced.',
+      'Scheduled Tasks is the scheduler in Sim, the open-source AI workspace. Run any agent every 15 minutes, daily, monthly, or on a custom cron, timezone-aware, with every run traced.',
     summary:
       'Scheduled Tasks is the scheduler in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams schedule any workflow to run every 15 minutes, daily, weekly, monthly, or on a custom cron in your timezone, and every run lands on the calendar with full history.',
     visual: (

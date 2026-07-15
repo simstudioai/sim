@@ -34,9 +34,9 @@ import { WorkflowsEditorLoop } from '@/app/(landing)/workflows/components/workfl
  * to the platform page's (`WebPage` + `BreadcrumbList` +
  * `WebApplication`), so the switch to feature tiles is SEO-neutral.
  */
-/** Shared meta + JSON-LD description for the Workflows page — one string, zero drift. */
+/** Shared meta + JSON-LD description for the Workflows page (one string, zero drift). */
 export const WORKFLOWS_PAGE_DESCRIPTION =
-  "Sim's AI workflow builder connects blocks, every major LLM, and 1,000+ integrations into agents — build Slack bots and data pipelines visually or in code."
+  "Sim's AI workflow builder connects blocks, every major LLM, and 1,000+ integrations into agents. Build Slack bots and data pipelines visually or in code."
 
 const WORKFLOWS_CONFIG: SolutionsPageConfig = {
   module: 'Workflows',
@@ -119,7 +119,7 @@ const WORKFLOWS_CONFIG: SolutionsPageConfig = {
           visual: (
             <KnowledgeAnswerGraphic
               question='@sim how do refunds work for annual plans?'
-              answer='Annual plans are refunded pro-rata — the refund workflow checks the policy, computes the credit, and files it in Zendesk automatically.'
+              answer='Annual plans are refunded pro-rata. The refund workflow checks the policy, computes the credit, and files it in Zendesk automatically.'
               sourceLabel='Support playbook'
               sourceDetail='Answered in #support'
             />

@@ -22,7 +22,7 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
  * `WebPage.description` below, so the three surfaces never drift.
  */
 export const HOME_PAGE_DESCRIPTION =
-  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents across 1,000+ integrations and every major LLM — visually or with code.'
+  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents across 1,000+ integrations and every major LLM, visually or with code.'
 
 const HOME_JSON_LD = {
   '@context': 'https://schema.org',

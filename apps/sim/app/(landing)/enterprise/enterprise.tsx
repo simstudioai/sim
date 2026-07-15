@@ -50,7 +50,7 @@ import {
  * `WebPage.description` via {@link SolutionsPageConfig.seoDescription}.
  */
 export const ENTERPRISE_SEO_DESCRIPTION =
-  'Sim is the AI workspace where teams build, deploy, and govern enterprise AI agents — SOC2, role-based access, audit trails, and 1,000+ integrations.'
+  'Sim is the AI workspace where teams build, deploy, and govern enterprise AI agents with SOC2, role-based access, audit trails, and 1,000+ integrations.'
 
 const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   module: 'Enterprise',
@@ -60,7 +60,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   hero: {
     heading: 'Sim is the AI workspace for enterprise AI agents.',
     description:
-      'IT, operations, and technical teams build, deploy, and govern agents in Sim — with SOC2, role-based access, approvals, and full audit trails.',
+      'IT, operations, and technical teams build, deploy, and govern agents in Sim, with SOC2, role-based access, approvals, and full audit trails.',
     summary:
       'Sim is the open-source AI workspace where IT, operations, and technical teams build, deploy, and govern enterprise AI agents. Connect 1,000+ integrations and every major LLM, with role-based access, approvals, versioning, and full audit trails.',
     /**
@@ -137,7 +137,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       id: 'deploy',
       title: 'Deploy Enterprise Workflow Agents with Confidence',
       subtitle:
-        'Test in staging, watch live runs, and roll back in seconds — Sim versions every deployment.',
+        'Test in staging, watch live runs, and roll back in seconds. Sim versions every deployment.',
       cta: { label: 'Explore deployment', href: SIGNUP_HREF },
       cards: [
         {

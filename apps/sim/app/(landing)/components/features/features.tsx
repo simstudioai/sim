@@ -54,7 +54,7 @@ export function Features() {
         <FeatureCard
           eyebrow='Context'
           title='Give Sim data it can reason over.'
-          description='Sim stores your data in tables, files, and knowledge bases — semantic memory agents read to ground every answer.'
+          description='Sim stores your data in tables, files, and knowledge bases, the semantic memory agents read to ground every answer.'
           backdropSrc='/landing/feature-context-backdrop.jpg'
           mediaSide='right'
         >

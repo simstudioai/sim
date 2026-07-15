@@ -33,9 +33,9 @@ import { LogsHeroLoop } from '@/app/(landing)/logs/components/logs-hero-loop'
  * to the platform page's (`WebPage` + `BreadcrumbList` +
  * `WebApplication`), so the feature-tile treatment is SEO-neutral.
  */
-/** Shared meta + JSON-LD description for the Logs page — one string, zero drift. */
+/** Shared meta + JSON-LD description for the Logs page (one string, zero drift). */
 export const LOGS_PAGE_DESCRIPTION =
-  'Sim gives teams AI agent observability — trace every run step by step, search and filter across runs, and catch failures with alerts.'
+  'Sim gives teams AI agent observability: trace every run step by step, search and filter across runs, and catch failures with alerts.'
 
 const LOGS_CONFIG: SolutionsPageConfig = {
   module: 'Logs',
@@ -65,7 +65,7 @@ const LOGS_CONFIG: SolutionsPageConfig = {
         {
           title: 'Trace runs block by block',
           description:
-            'Sim captures every step of a run — each block, tool call, and model response, with its duration.',
+            'Sim captures every step of a run: each block, tool call, and model response, with its duration.',
           featureTileTone: 'dark',
           featureTileDescriptionTone: 'soft',
           visual: <RunTraceGraphic />,

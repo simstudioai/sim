@@ -31,9 +31,9 @@ import { KnowledgeAnswerGraphic } from '@/app/(landing)/solutions/components/fea
  * to the platform page's (`WebPage` + `BreadcrumbList` +
  * `WebApplication`), so the feature-tile treatment is SEO-neutral.
  */
-/** Shared meta + JSON-LD description for the Knowledge Base page — one string, zero drift. */
+/** Shared meta + JSON-LD description for the Knowledge Base page (one string, zero drift). */
 export const KNOWLEDGE_PAGE_DESCRIPTION =
-  'Give AI agents a knowledge base in Sim. Upload docs, sync Notion, Google Drive, and Confluence, and get answers grounded in your data — with citations.'
+  'Give AI agents a knowledge base in Sim. Upload docs, sync Notion, Google Drive, and Confluence, and get answers grounded in your data, with citations.'
 
 const KNOWLEDGE_CONFIG: SolutionsPageConfig = {
   module: 'Knowledge Base',
@@ -43,7 +43,7 @@ const KNOWLEDGE_CONFIG: SolutionsPageConfig = {
     eyebrow: 'Knowledge Base',
     heading: 'The knowledge base that gives AI agents memory of your data.',
     description:
-      "Knowledge Base is your agents' memory in Sim, the open-source AI workspace. Upload docs, sync sources like Notion and Google Drive, and get answers grounded in your data — with citations.",
+      "Knowledge Base is your agents' memory in Sim, the open-source AI workspace. Upload docs, sync sources like Notion and Google Drive, and get answers grounded in your data, with citations.",
     summary:
       'Knowledge Base is the agent-memory module in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams upload docs or sync sources like Notion, Google Drive, and Confluence, and every agent answers from that data with citations, kept fresh automatically.',
     visual: (
@@ -73,7 +73,7 @@ const KNOWLEDGE_CONFIG: SolutionsPageConfig = {
           visual: (
             <KnowledgeAnswerGraphic
               question='What is our refund policy for annual plans?'
-              answer='Annual plans are refunded pro-rata within 30 days of renewal — after that, the remaining term converts to account credit.'
+              answer='Annual plans are refunded pro-rata within 30 days of renewal. After that, the remaining term converts to account credit.'
               sourceLabel='Billing policy'
               sourceDetail='Cited from your knowledge base'
             />
@@ -160,7 +160,7 @@ const KNOWLEDGE_CONFIG: SolutionsPageConfig = {
         {
           title: 'One memory for every agent',
           description:
-            'Every agent in Sim reads from the same knowledge base — in Chat, in workflows, and in deployed agents — so answers stay consistent.',
+            'Every agent in Sim reads from the same knowledge base, in Chat, in workflows, and in deployed agents, so answers stay consistent.',
           featureTileTone: 'dark',
           featureTileDescriptionTone: 'soft',
           visual: (

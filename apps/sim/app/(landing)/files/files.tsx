@@ -28,9 +28,9 @@ import { DocumentDraftGraphic } from '@/app/(landing)/solutions/components/featu
  * document draft retold for file routing, file history, parse runs, and
  * agent-written reports.
  */
-/** Shared meta + JSON-LD description for the Files page — one string, zero drift. */
+/** Shared meta + JSON-LD description for the Files page (one string, zero drift). */
 export const FILES_PAGE_DESCRIPTION =
-  'Files is the file storage for AI agents and teams in Sim. Upload, create, and share in one store — agents read files as inputs and write outputs back.'
+  'Files is the file storage for AI agents and teams in Sim. Upload, create, and share in one store, and agents read files as inputs and write outputs back.'
 
 const FILES_CONFIG: SolutionsPageConfig = {
   module: 'Files',
@@ -40,7 +40,7 @@ const FILES_CONFIG: SolutionsPageConfig = {
     eyebrow: 'Files',
     heading: 'One file store for your team and every agent in Sim.',
     description:
-      'Files is the file storage for teams and every AI agent in Sim, the open-source AI workspace. Upload, create, and share — agents read files as inputs and produce new files as outputs.',
+      'Files is the file storage for teams and every AI agent in Sim, the open-source AI workspace. Upload, create, and share. Agents read files as inputs and produce new files as outputs.',
     summary:
       'Files is the file storage for teams and AI agents in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams upload, create, and share files, and agents read them as inputs, parse them, and produce new files as outputs.',
     visual: (

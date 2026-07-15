@@ -32,7 +32,7 @@ import { TablesHeroLoop } from '@/app/(landing)/tables/components/tables-hero-lo
  * to the platform page's (`WebPage` + `BreadcrumbList` +
  * `WebApplication`), so the switch to feature tiles is SEO-neutral.
  */
-/** Shared meta + JSON-LD description for the Tables page — one string, zero drift. */
+/** Shared meta + JSON-LD description for the Tables page (one string, zero drift). */
 export const TABLES_PAGE_DESCRIPTION =
   'Tables is the AI agent database built into Sim. Store leads, tickets, and invoices as rows agents read and write, and carry state from one run to the next.'
 
@@ -58,7 +58,7 @@ const TABLES_CONFIG: SolutionsPageConfig = {
       id: 'records',
       title: 'Give agents structured data to act on.',
       subtitle:
-        'Sim stores the records agents work with — leads, tickets, invoices — as tables in the same workspace as the agents.',
+        'Sim stores the leads, tickets, and invoices agents work with as tables in the same workspace as the agents.',
       cta: { label: 'Explore Tables', href: '/signup' },
       cards: [
         {
