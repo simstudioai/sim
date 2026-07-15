@@ -152,12 +152,6 @@ export interface BuildTriggerSubBlocksOptions {
   extraFields?: SubBlockConfig[]
   /** Webhook URL placeholder text */
   webhookPlaceholder?: string
-  /**
-   * Hide the read-only Webhook URL display. Use for providers where the
-   * subscription is registered automatically via API, so the user never
-   * pastes the URL anywhere.
-   */
-  includeWebhookUrl?: boolean
 }
 
 /**
@@ -194,7 +188,6 @@ export function buildTriggerSubBlocks(options: BuildTriggerSubBlocksOptions): Su
     setupInstructions,
     extraFields = [],
     webhookPlaceholder = 'Webhook URL will be generated',
-    includeWebhookUrl = true,
   } = options
 
   const blocks: SubBlockConfig[] = []
@@ -212,21 +205,19 @@ export function buildTriggerSubBlocks(options: BuildTriggerSubBlocksOptions): Su
     })
   }
 
-  // Webhook URL display (common to manually-registered triggers)
+  // Webhook URL display (common to all triggers)
   // ID will be namespaced by getTrigger() when merged into blocks
-  if (includeWebhookUrl) {
-    blocks.push({
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: webhookPlaceholder,
-      mode: 'trigger',
-      condition: { field: 'selectedTriggerId', value: triggerId },
-    })
-  }
+  blocks.push({
+    id: 'webhookUrlDisplay',
+    title: 'Webhook URL',
+    type: 'short-input',
+    readOnly: true,
+    showCopyButton: true,
+    useWebhookUrl: true,
+    placeholder: webhookPlaceholder,
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  })
 
   // Insert any extra fields (campaign filters, event types, etc.)
   if (extraFields.length > 0) {

@@ -21,7 +21,6 @@ export const grainRecordingAddedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_recording_added_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     includeDropdown: true,
     setupInstructions: grainV2EventSetupInstructions('Recording Added'),
     extraFields: buildGrainV2ExtraFields('grain_recording_added_v2'),
@@ -40,7 +39,6 @@ export const grainRecordingUpdatedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_recording_updated_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Recording Updated'),
     extraFields: buildGrainV2ExtraFields('grain_recording_updated_v2'),
   }),
@@ -58,7 +56,6 @@ export const grainRecordingDeletedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_recording_deleted_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Recording Deleted'),
     extraFields: buildGrainV2ExtraFields('grain_recording_deleted_v2'),
   }),
@@ -76,7 +73,6 @@ export const grainHighlightAddedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_highlight_added_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Highlight Added'),
     extraFields: buildGrainV2ExtraFields('grain_highlight_added_v2'),
   }),
@@ -94,7 +90,6 @@ export const grainHighlightUpdatedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_highlight_updated_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Highlight Updated'),
     extraFields: buildGrainV2ExtraFields('grain_highlight_updated_v2'),
   }),
@@ -112,7 +107,6 @@ export const grainHighlightDeletedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_highlight_deleted_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Highlight Deleted'),
     extraFields: buildGrainV2ExtraFields('grain_highlight_deleted_v2'),
   }),
@@ -130,7 +124,6 @@ export const grainStoryAddedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_story_added_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Story Added'),
     extraFields: buildGrainV2ExtraFields('grain_story_added_v2'),
   }),
@@ -148,7 +141,6 @@ export const grainStoryUpdatedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_story_updated_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Story Updated'),
     extraFields: buildGrainV2ExtraFields('grain_story_updated_v2'),
   }),
@@ -166,7 +158,6 @@ export const grainStoryDeletedV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_story_deleted_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Story Deleted'),
     extraFields: buildGrainV2ExtraFields('grain_story_deleted_v2'),
   }),
@@ -184,7 +175,6 @@ export const grainUploadStatusV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_upload_status_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('Upload Status'),
     extraFields: buildGrainV2ExtraFields('grain_upload_status_v2'),
   }),
@@ -202,7 +192,6 @@ export const grainAllEventsV2Trigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'grain_all_events_v2',
     triggerOptions: grainV2TriggerOptions,
-    includeWebhookUrl: false,
     setupInstructions: grainV2EventSetupInstructions('All Events'),
     extraFields: buildGrainV2ExtraFields('grain_all_events_v2'),
   }),
