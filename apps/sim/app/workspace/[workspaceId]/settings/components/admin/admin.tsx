@@ -21,6 +21,7 @@ import {
 } from '@/hooks/queries/admin-users'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
+import { clearUserData } from '@/stores'
 
 const PAGE_SIZE = 20 as const
 
@@ -109,7 +110,8 @@ export function Admin() {
         onError: () => {
           setImpersonatingUserId(null)
         },
-        onSuccess: () => {
+        onSuccess: async () => {
+          await clearUserData()
           window.location.assign('/workspace')
         },
       }
