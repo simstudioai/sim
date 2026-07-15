@@ -41,7 +41,7 @@ const KNOWLEDGE_CONFIG: SolutionsPageConfig = {
   seoDescription: KNOWLEDGE_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Knowledge Base',
-    heading: 'The knowledge base that gives AI agents memory of your data.',
+    heading: "Give AI agents memory of your data with Sim's knowledge base.",
     description:
       "Knowledge Base is your agents' memory in Sim, the open-source AI workspace. Upload docs, sync sources like Notion and Google Drive, and get answers grounded in your data, with citations.",
     summary:
