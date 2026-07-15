@@ -1290,6 +1290,67 @@ describe('prepareToolExecution', () => {
     })
   })
 
+  describe('_context propagation', () => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      organizationId: 'organization-1',
+      billedAccountUserId: 'owner-1',
+      billingEntity: { type: 'organization' as const, id: 'organization-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+
+    it.concurrent(
+      'should include billingAttribution in _context when the request carries it',
+      () => {
+        const tool = { params: {} }
+        const request = {
+          workflowId: 'wf-123',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          billingAttribution,
+        }
+
+        const { executionParams } = prepareToolExecution(tool, {}, request)
+
+        expect(executionParams._context.billingAttribution).toEqual(billingAttribution)
+      }
+    )
+
+    it.concurrent('should omit billingAttribution from _context when the request lacks it', () => {
+      const tool = { params: {} }
+      const request = { workflowId: 'wf-123', workspaceId: 'workspace-1' }
+
+      const { executionParams } = prepareToolExecution(tool, {}, request)
+
+      expect(executionParams._context).toBeDefined()
+      expect(executionParams._context).not.toHaveProperty('billingAttribution')
+    })
+
+    it.concurrent('should carry billingAttribution even when the request has no workflowId', () => {
+      const tool = { params: {} }
+      const request = { workspaceId: 'workspace-1', billingAttribution }
+
+      const { executionParams } = prepareToolExecution(tool, {}, request)
+
+      expect(executionParams._context.billingAttribution).toEqual(billingAttribution)
+      expect(executionParams._context.workspaceId).toBe('workspace-1')
+      expect(executionParams._context).not.toHaveProperty('workflowId')
+    })
+
+    it.concurrent('should not build _context when there is no workflowId or attribution', () => {
+      const tool = { params: {} }
+
+      const { executionParams } = prepareToolExecution(tool, {}, { workspaceId: 'workspace-1' })
+
+      expect(executionParams).not.toHaveProperty('_context')
+    })
+  })
+
   describe('inputMapping deep merge for workflow tools', () => {
     it.concurrent('should deep merge inputMapping when user provides empty object', () => {
       const tool = {
