@@ -62,7 +62,7 @@ const CODE_TOTAL_CHARS = CODE_LINE_LENGTHS.reduce((total, length) => total + len
 
 const PROMPT = 'Create a support agent that answers customer questions'
 const REPLY =
-  'On it — scaffolding a support agent with Zendesk and Slack that answers customer questions.'
+  'On it. Scaffolding a support agent with Zendesk and Slack that answers customer questions.'
 const REPLY_WORDS = REPLY.split(' ')
 
 const CODE_START_MS = 500

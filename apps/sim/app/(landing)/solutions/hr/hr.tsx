@@ -26,16 +26,21 @@ import { HrHeroLoop } from '@/app/(landing)/solutions/hr/components/hr-hero-loop
  * systems, a benefits answer grounded in the team's docs, offer-letter
  * drafting, PTO approvals, surveys, and people reports.
  */
+/** Meta description shared between the page metadata and the page JSON-LD. */
+export const HR_PAGE_DESCRIPTION =
+  'AI agents for HR teams: automate onboarding, employee questions, and approvals. Built in Sim, the open-source AI workspace.'
+
 const HR_CONFIG: SolutionsPageConfig = {
   module: 'HR',
   path: '/solutions/hr',
+  seoDescription: HR_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'HR',
-    heading: 'Automate onboarding, employee questions, and approvals with Sim agents.',
+    heading: 'Automate onboarding, employee questions, and approvals with AI agents in Sim.',
     description:
-      'HR teams build AI agents in Sim, the open-source AI workspace, wired into your HRIS and 1,000+ integrations, so the team spends time on people, not paperwork.',
+      'Sim is the open-source AI workspace where HR teams build AI agents for onboarding, employee questions, and approvals. Agents wire into your HRIS and 1,000+ integrations to keep people operations moving.',
     summary:
-      'Sim is the open-source AI workspace where HR teams build, deploy, and manage AI agents that automate onboarding, employee questions, and approvals, connecting your HRIS and 1,000+ integrations so the team focuses on people, not paperwork.',
+      'Sim is the open-source AI workspace where HR teams build, deploy, and manage AI agents for onboarding, employee questions, and approvals. Agents connect your HRIS and 1,000+ integrations so people operations keep moving.',
     visual: (
       <PlatformHeroVisual>
         <HrHeroLoop />

@@ -45,7 +45,7 @@ const AREAS: Area[] = [
     size: 180,
     definition: (
       <>
-        One catalog of 1,000+ integrations
+        Sim&apos;s catalog of 1,000+ integrations
         <br />
         your agents act through.
       </>
@@ -55,7 +55,7 @@ const AREAS: Area[] = [
     word: 'Context',
     Mark: IsoIngestIllustration,
     size: 170,
-    definition: 'Your data, stored semantically as the memory your agents reason over.',
+    definition: 'Your data, stored semantically in Sim as the memory your agents reason over.',
   },
   {
     word: 'Build',
@@ -67,7 +67,7 @@ const AREAS: Area[] = [
     word: 'Monitor',
     Mark: IsoMonitorIllustration,
     size: 174,
-    definition: 'See inside every run with live traces, logs, and real cost.',
+    definition: 'See inside every run in Sim: live traces, logs, and real cost.',
   },
 ]
 

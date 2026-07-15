@@ -46,7 +46,7 @@ export function ProductDemo() {
           </h2>
           <p className='mt-3 text-pretty text-[15px] text-[var(--text-muted)] leading-[1.6]'>
             Tell Sim what you need in plain English and it wires blocks, models, and integrations
-            into a working agent, ready to run.
+            into a working agent.
           </p>
         </div>
       </div>

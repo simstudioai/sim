@@ -25,16 +25,21 @@ import { DocumentDraftGraphic } from '@/app/(landing)/solutions/components/featu
  * framework monitoring, policy review) - so the page shares the enterprise
  * design language without any new visual vocabulary.
  */
+/** Meta description shared between the page metadata and the page JSON-LD. */
+export const COMPLIANCE_PAGE_DESCRIPTION =
+  'AI agents for compliance teams: automate evidence collection, control monitoring, and audit reports. Built in Sim, the open-source AI workspace.'
+
 const COMPLIANCE_CONFIG: SolutionsPageConfig = {
   module: 'Compliance',
   path: '/solutions/compliance',
+  seoDescription: COMPLIANCE_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Compliance',
-    heading: 'Automate evidence, control checks, and audit reports with Sim agents.',
+    heading: 'Automate evidence, control checks, and audit reports with AI agents in Sim.',
     description:
-      'Compliance teams build AI agents in Sim, the open-source AI workspace, that monitor controls and assemble a clean, defensible record, keeping the organization continuously audit-ready instead of scrambling once a year.',
+      'Sim is the open-source AI workspace where compliance teams build AI agents for evidence collection and control monitoring. Stay audit-ready year-round, across 1,000+ integrations.',
     summary:
-      'Sim is the open-source AI workspace where compliance teams build, deploy, and manage AI agents that automate evidence collection, control monitoring, and reporting, keeping the organization continuously audit-ready across 1,000+ integrations.',
+      'Sim is the open-source AI workspace where compliance teams build, deploy, and manage AI agents for evidence collection, control monitoring, and audit reports. Agents keep the organization audit-ready year-round across 1,000+ integrations.',
     visual: (
       <PlatformHeroVisual>
         <ComplianceHeroLoop />

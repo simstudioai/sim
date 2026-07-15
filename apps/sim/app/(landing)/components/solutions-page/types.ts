@@ -112,6 +112,18 @@ export interface SolutionsPageConfig {
   module: string
   /** Canonical path, e.g. "/workflows" - used to build the JSON-LD `url`/breadcrumb. */
   path: string
+  /**
+   * The page's meta description, shared with `page.tsx` so the JSON-LD
+   * `WebPage.description` and the `<meta name="description">` never drift.
+   * Falls back to `hero.summary` when absent.
+   */
+  seoDescription?: string
+  /**
+   * Whether the JSON-LD `WebApplication` advertises the free tier as an
+   * `Offer`. Defaults to true; sales-led pages (Enterprise) set false so a
+   * rich result never claims a $0 price for a quoted product.
+   */
+  offersFreeTier?: boolean
   /** The hero (the page's only `<h1>`). */
   hero: SolutionsHeroConfig
   /** Card rows rendered in order beneath the logos row. */

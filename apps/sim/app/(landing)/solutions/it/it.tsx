@@ -25,16 +25,21 @@ import { ItHeroLoop } from '@/app/(landing)/solutions/it/components/it-hero-loop
  * runbooks, infrastructure monitors) - so the page shares the enterprise
  * design language without any new visual vocabulary.
  */
+/** Meta description shared between the page metadata and the page JSON-LD. */
+export const IT_PAGE_DESCRIPTION =
+  'AI agents for IT teams: automate ticket triage, access provisioning, and infrastructure monitoring. Built in Sim, the open-source AI workspace.'
+
 const IT_CONFIG: SolutionsPageConfig = {
   module: 'IT',
   path: '/solutions/it',
+  seoDescription: IT_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'IT',
-    heading: 'Automate ticket triage, access, and monitoring with Sim agents.',
+    heading: 'Automate ticket triage, access, and monitoring with AI agents in Sim.',
     description:
-      'IT teams build AI agents in Sim, the open-source AI workspace, with the governance, access controls, and audit trails IT needs, across 1,000+ integrations and every major LLM.',
+      'Sim is the open-source AI workspace where IT teams build AI agents for ticket triage, access, and monitoring. Agents run with governance, access controls, and audit trails across 1,000+ integrations.',
     summary:
-      'Sim is the open-source AI workspace where IT teams build, deploy, and manage AI agents that automate ticket triage, access provisioning, and infrastructure monitoring, connecting 1,000+ integrations and every major LLM under IT-grade governance.',
+      'Sim is the open-source AI workspace where IT teams build, deploy, and manage AI agents for ticket triage, access provisioning, and infrastructure monitoring. Agents run with IT-grade governance and audit trails across 1,000+ integrations and every major LLM.',
     visual: (
       <PlatformHeroVisual>
         <ItHeroLoop />

@@ -44,14 +44,25 @@ import {
  * (each card), never skipped. Server Component; the interactive leaves live in
  * the shared landing components.
  */
+/**
+ * The enterprise page's canonical description - shared by `page.tsx` (the
+ * `<meta name="description">` and OG/Twitter cards) and the JSON-LD
+ * `WebPage.description` via {@link SolutionsPageConfig.seoDescription}.
+ */
+export const ENTERPRISE_SEO_DESCRIPTION =
+  'Sim is the AI workspace where teams build, deploy, and govern enterprise AI agents with SOC2, role-based access, audit trails, and 1,000+ integrations.'
+
 const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   module: 'Enterprise',
   path: '/enterprise',
+  seoDescription: ENTERPRISE_SEO_DESCRIPTION,
+  offersFreeTier: false,
   hero: {
-    heading: 'The AI Agent Platform for Enterprise Teams',
-    description: 'Build, deploy, and govern enterprise AI agents in one workspace.',
+    heading: 'Sim is the AI workspace for enterprise AI agents.',
+    description:
+      'IT, operations, and technical teams build, deploy, and govern agents in Sim, with SOC2, role-based access, approvals, and full audit trails.',
     summary:
-      'Sim is the open-source enterprise AI agent platform where IT, operations, and technical teams build, deploy, and govern enterprise AI agents in one AI workspace. Connect 1,000+ integrations and every major LLM, with security, role-based access, approvals, observability, versioning, and audit trails for reliable deployment across teams.',
+      'Sim is the open-source AI workspace where IT, operations, and technical teams build, deploy, and govern enterprise AI agents. Connect 1,000+ integrations and every major LLM, with role-based access, approvals, versioning, and full audit trails.',
     /**
      * The shared {@link PlatformHeroVisual} backdrop-plus-demo-window
      * composition, filled by the {@link EnterprisePlatformLoop} - a sibling of
@@ -69,14 +80,14 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
   rows: [
     {
       id: 'build',
-      title: 'Build, Deploy, and Manage Enterprise AI Agents in One Workspace',
+      title: 'Build, Deploy, and Manage AI Agents in One Workspace',
       subtitle:
-        'Build enterprise AI agents, ship to production, and manage every version from one workspace.',
+        'Sim carries agents from first draft to production, with versioning and monitoring built in.',
       cta: { label: 'Start building', href: SIGNUP_HREF },
       cards: [
         {
           title: 'Build visually or with code',
-          description: 'Create agents in the visual builder, through chat, or directly in code.',
+          description: "Create agents in Sim's visual builder, through chat, or directly in code.",
           visual: <BuildMethodsGraphic />,
         },
         {
@@ -89,7 +100,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Manage the full lifecycle',
-          description: 'Version, monitor, and edit every agent as your workflows evolve.',
+          description: 'Version, monitor, and edit every agent in Sim as your workflows evolve.',
           visual: <LifecycleGraphic />,
         },
       ],
@@ -98,7 +109,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       id: 'governance',
       title: 'Governance and Security for Enterprise AI Agents',
       subtitle:
-        'Security, approvals, and controls keep enterprise AI agents trusted in production.',
+        'Sim gives security teams role-based access, approval paths, and a complete audit trail for every deployment.',
       cta: { label: 'See security', href: DEMO_HREF },
       cards: [
         {
@@ -109,13 +120,13 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Prove every action',
-          description: 'Trace every run block by block with a complete audit trail.',
+          description: 'Sim traces every run block by block with a complete audit trail.',
           visual: <AuditTrailGraphic />,
         },
         {
           title: 'Meet enterprise standards',
           description:
-            'SOC2 compliance and open source give security teams a clear path to review.',
+            'Sim is SOC2 compliant and open source, giving security teams a clear path to review.',
           visual: <StandardsGraphic />,
           featureTileTone: 'dark',
           featureTileDescriptionTone: 'soft',
@@ -125,7 +136,8 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
     {
       id: 'deploy',
       title: 'Deploy Enterprise Workflow Agents with Confidence',
-      subtitle: 'Stage, observe, and version workflow agents before they reach production.',
+      subtitle:
+        'Test in staging, watch live runs, and roll back in seconds. Sim versions every deployment.',
       cta: { label: 'Explore deployment', href: SIGNUP_HREF },
       cards: [
         {
@@ -135,12 +147,12 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Watch every run',
-          description: 'See live logs, run history, and monitoring in one place.',
+          description: 'Sim shows live logs, run history, and monitoring in one place.',
           visual: <RunMonitoringGraphic />,
         },
         {
           title: 'Roll back safely',
-          description: 'Version workflows and roll back production agents in seconds.',
+          description: 'Sim versions workflows so you can roll back production agents in seconds.',
           visual: <RollbackGraphic />,
         },
       ],
@@ -149,7 +161,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
       id: 'teams',
       title: 'Built for Enterprise Teams',
       subtitle:
-        'Built for the teams that own enterprise AI agents across IT, operations, and engineering.',
+        'IT, operations, and engineering teams share one Sim workspace, each with the controls their role needs.',
       cta: { label: 'Talk to sales', href: DEMO_HREF },
       cards: [
         {
@@ -166,7 +178,7 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
         },
         {
           title: 'Technical teams',
-          description: 'Let technical teams ship, review, and maintain agents together.',
+          description: 'Technical teams ship, review, and maintain agents together in Sim.',
           visual: <TechnicalTeamsGraphic />,
         },
       ],
