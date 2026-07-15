@@ -265,6 +265,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     })
 
     set({ operations: newOperations })
+    if (state.processingOperationId === null) {
+      get().processNextOperation()
+      return
+    }
     advanceQueueAfterRelease(operationId)
   },
 

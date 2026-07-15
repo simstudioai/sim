@@ -182,6 +182,42 @@ describe('operation queue room gating', () => {
     expect(useOperationQueueStore.getState().operations).toEqual([])
   })
 
+  it('advances when an acknowledgement arrives during retry backoff', async () => {
+    vi.useFakeTimers()
+    try {
+      const workflowEmit = vi.fn(() => true)
+      registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+      addWorkflowOperation('op-1')
+      addWorkflowOperation('op-2')
+
+      useOperationQueueStore.getState().failOperation('op-1', true)
+
+      expect(workflowEmit).toHaveBeenCalledTimes(1)
+      expect(useOperationQueueStore.getState().processingOperationId).toBeNull()
+      expect(useOperationQueueStore.getState().operations).toEqual([
+        expect.objectContaining({ id: 'op-1', status: 'pending', retryCount: 1 }),
+        expect.objectContaining({ id: 'op-2', status: 'pending', retryCount: 0 }),
+      ])
+
+      useOperationQueueStore.getState().confirmOperation('op-1')
+
+      expect(workflowEmit).toHaveBeenCalledTimes(2)
+      expect(useOperationQueueStore.getState().processingOperationId).toBe('op-2')
+      expect(useOperationQueueStore.getState().operations).toEqual([
+        expect.objectContaining({ id: 'op-2', status: 'processing' }),
+      ])
+
+      await vi.advanceTimersByTimeAsync(2000)
+
+      expect(workflowEmit).toHaveBeenCalledTimes(2)
+      expect(useOperationQueueStore.getState().processingOperationId).toBe('op-2')
+      useOperationQueueStore.getState().confirmOperation('op-2')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not release the active operation for an unknown acknowledgement', () => {
     const workflowEmit = vi.fn(() => true)
     registerEmitFunctions(workflowEmit, vi.fn(), vi.fn(), 'workflow-a')
