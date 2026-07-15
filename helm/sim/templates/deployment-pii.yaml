@@ -45,13 +45,7 @@ spec:
               containerPort: {{ .Values.pii.service.targetPort }}
               protocol: TCP
           env:
-            - name: PII_ENGINE
-              value: {{ .Values.pii.engine | quote }}
-            {{- if .Values.pii.device }}
-            - name: PII_DEVICE
-              value: {{ .Values.pii.device | quote }}
-            {{- end }}
-            {{- range $key, $value := omit (.Values.pii.env | default dict) "PII_ENGINE" "PII_DEVICE" }}
+            {{- range $key, $value := .Values.pii.env | default dict }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
