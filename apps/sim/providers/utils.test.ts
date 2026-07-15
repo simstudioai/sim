@@ -1290,6 +1290,45 @@ describe('prepareToolExecution', () => {
     })
   })
 
+  describe('_context propagation', () => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      organizationId: 'organization-1',
+      billedAccountUserId: 'owner-1',
+      billingEntity: { type: 'organization' as const, id: 'organization-1' },
+      billingPeriod: {
+        start: '2026-07-01T00:00:00.000Z',
+        end: '2026-08-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    }
+
+    it.concurrent('should include billingAttribution in _context when the request carries it', () => {
+      const tool = { params: {} }
+      const request = {
+        workflowId: 'wf-123',
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        billingAttribution,
+      }
+
+      const { executionParams } = prepareToolExecution(tool, {}, request)
+
+      expect(executionParams._context.billingAttribution).toEqual(billingAttribution)
+    })
+
+    it.concurrent('should omit billingAttribution from _context when the request lacks it', () => {
+      const tool = { params: {} }
+      const request = { workflowId: 'wf-123', workspaceId: 'workspace-1' }
+
+      const { executionParams } = prepareToolExecution(tool, {}, request)
+
+      expect(executionParams._context).toBeDefined()
+      expect(executionParams._context).not.toHaveProperty('billingAttribution')
+    })
+  })
+
   describe('inputMapping deep merge for workflow tools', () => {
     it.concurrent('should deep merge inputMapping when user provides empty object', () => {
       const tool = {
