@@ -8,6 +8,7 @@ import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
 import {
   deleteWorkspaceEnvCredentials,
@@ -145,6 +146,14 @@ export async function performUpdateCredential(
         if (error instanceof AtlassianValidationError) {
           // Surface the provider code so the client maps it to the specific
           // token/domain message (create returns it too).
+          return {
+            success: false,
+            error: error.code,
+            errorCode: 'validation',
+            providerErrorCode: error.code,
+          }
+        }
+        if (error instanceof TokenServiceAccountValidationError) {
           return {
             success: false,
             error: error.code,

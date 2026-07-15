@@ -7,6 +7,14 @@ import {
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
 import {
+  getTokenServiceAccountDescriptor,
+  TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+} from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  getTokenServiceAccountValidator,
+  type TokenServiceAccountSecretBlob,
+} from '@/lib/credentials/token-service-accounts/server'
+import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
@@ -117,6 +125,40 @@ export async function verifyAndBuildServiceAccountSecret(
       displayName: teamName || 'Slack bot',
       auditMetadata: { slackTeamId: teamId },
       botUserId,
+    }
+  }
+
+  const tokenDescriptor = getTokenServiceAccountDescriptor(providerId)
+  if (tokenDescriptor) {
+    const apiToken = fields.apiToken?.trim()
+    const domain = fields.domain?.trim()
+    const requiresDomain = tokenDescriptor.fields.some((field) => field.id === 'domain')
+    if (!apiToken || (requiresDomain && !domain)) {
+      const required = tokenDescriptor.fields.map((field) => field.id).join(' and ')
+      throw new ServiceAccountSecretError(
+        `${required} ${tokenDescriptor.fields.length > 1 ? 'are' : 'is'} required for ${tokenDescriptor.serviceLabel} service account credentials`
+      )
+    }
+    const validator = getTokenServiceAccountValidator(providerId)
+    if (!validator) {
+      throw new ServiceAccountSecretError(
+        `No validator registered for service-account provider ${providerId}`
+      )
+    }
+    const validation = await validator({ apiToken, domain })
+    const blob: TokenServiceAccountSecretBlob = {
+      type: TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+      providerId,
+      apiToken,
+      ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
+      ...(validation.storedMetadata ? { metadata: validation.storedMetadata } : {}),
+    }
+    const { encrypted } = await encryptSecret(JSON.stringify(blob))
+    return {
+      providerId,
+      encryptedServiceAccountKey: encrypted,
+      displayName: validation.displayName,
+      auditMetadata: validation.auditMetadata,
     }
   }
 

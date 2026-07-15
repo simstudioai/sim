@@ -21,6 +21,7 @@ import {
   SHARED_CREDENTIAL_TYPES,
 } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { getWorkspaceMembership } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
@@ -591,6 +592,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error: unknown) {
     if (error instanceof AtlassianValidationError) {
       logger.warn(`[${requestId}] Atlassian credential rejected: ${error.code}`, {
+        code: error.code,
+        upstreamStatus: error.status,
+        ...error.logDetail,
+      })
+      return NextResponse.json({ code: error.code, error: error.code }, { status: 400 })
+    }
+    if (error instanceof TokenServiceAccountValidationError) {
+      logger.warn(`[${requestId}] Token service-account credential rejected: ${error.code}`, {
         code: error.code,
         upstreamStatus: error.status,
         ...error.logDetail,

@@ -7,6 +7,11 @@ import { and, desc, eq } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
+import {
+  parseTokenServiceAccountSecretBlob,
+  type TokenServiceAccountSecretBlob,
+} from '@/lib/credentials/token-service-accounts/server'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -339,12 +344,39 @@ export interface ServiceAccountTokenResult {
  * provider is one edit and an unknown provider fails loudly instead of silently
  * attempting a Google JWT.
  */
+/**
+ * Loads and parses the decrypted secret blob for a token service-account
+ * credential (pasted long-lived provider token). Throws if the credential is
+ * missing or the blob doesn't belong to the expected provider.
+ */
+async function getTokenServiceAccountSecret(
+  credentialId: string,
+  providerId: string
+): Promise<TokenServiceAccountSecretBlob> {
+  const [credentialRow] = await db
+    .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (!credentialRow?.encryptedServiceAccountKey) {
+    throw new Error('Token service account secret not found')
+  }
+
+  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+  return parseTokenServiceAccountSecretBlob(decrypted, providerId)
+}
+
 export async function resolveServiceAccountToken(
   credentialId: string,
   providerId: string | null | undefined,
   scopes?: string[],
   impersonateEmail?: string
 ): Promise<ServiceAccountTokenResult> {
+  if (providerId && isTokenServiceAccountProviderId(providerId)) {
+    const secret = await getTokenServiceAccountSecret(credentialId, providerId)
+    return { accessToken: secret.apiToken, domain: secret.domain }
+  }
   if (providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
     const secret = await getAtlassianServiceAccountSecret(credentialId)
     return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }

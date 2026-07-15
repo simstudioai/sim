@@ -15,10 +15,15 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import {
+  getTokenServiceAccountDescriptor,
+  type TokenServiceAccountProviderId,
+} from '@/lib/credentials/token-service-accounts/descriptors'
+import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
+import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import {
   useCreateWorkspaceCredential,
   useUpdateWorkspaceCredential,
@@ -32,6 +37,7 @@ export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SLACK_CUSTOM_BOT_PROVIDER_ID
+  | TokenServiceAccountProviderId
 
 /** Sim setup guides for each provider, docked bottom-left of each modal. */
 const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
@@ -121,6 +127,22 @@ export function ConnectServiceAccountModal({
   credentialDisplayName,
   credentialDescription,
 }: ConnectServiceAccountModalProps) {
+  const tokenDescriptor = getTokenServiceAccountDescriptor(serviceAccountProviderId)
+  if (tokenDescriptor) {
+    return (
+      <TokenServiceAccountModal
+        open={open}
+        onOpenChange={onOpenChange}
+        workspaceId={workspaceId}
+        descriptor={tokenDescriptor}
+        serviceName={serviceName}
+        serviceIcon={serviceIcon}
+        credentialId={credentialId}
+        initialDisplayName={credentialDisplayName}
+        initialDescription={credentialDescription}
+      />
+    )
+  }
   if (serviceAccountProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
     return (
       <ConnectSlackBotModal

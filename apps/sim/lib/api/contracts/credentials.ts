@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthProvider,
@@ -192,6 +193,19 @@ export const createCredentialBodySchema = z
             message: 'botToken is required for a custom Slack bot credential',
             path: ['botToken'],
           })
+        }
+        return
+      }
+      const tokenRequiredFields = TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS[data.providerId ?? '']
+      if (tokenRequiredFields) {
+        for (const field of tokenRequiredFields) {
+          if (!data[field]) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `${field} is required for ${data.providerId} credentials`,
+              path: [field],
+            })
+          }
         }
         return
       }
