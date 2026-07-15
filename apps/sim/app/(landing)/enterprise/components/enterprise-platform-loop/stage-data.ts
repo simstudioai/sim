@@ -207,8 +207,6 @@ export const BUILD_STEP_MS = 620
 const REPLY_AFTER_MS = 500
 /** The finished scene (reply + built canvas) holds this long. */
 const REPLY_HOLD_MS = 4800
-/** Fade-out length before the cycle restarts. */
-export const RESET_FADE_MS = 300
 
 /** Derived phase starts for one loop pass. */
 export interface LoopTimeline {

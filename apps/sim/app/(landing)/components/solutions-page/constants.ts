@@ -79,8 +79,6 @@ export const SOLUTIONS_TEXT_MEASURE = {
 export const SOLUTIONS_VISUAL = {
   /** Full-width hero visual aspect ratio - reserves height before paint. */
   heroAspect: 'aspect-[16/9]',
-  /** Fixed height of a card's visual panel - uniform across every card. */
-  cardHeight: 'h-[240px]',
   /**
    * The feature-tile proportional-scaling system. Tiles are authored against a
    * fixed design space - `352px` wide (the 3-up column at the widest desktop

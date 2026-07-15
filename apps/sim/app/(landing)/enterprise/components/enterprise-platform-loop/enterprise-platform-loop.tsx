@@ -11,8 +11,8 @@ import {
   ENTERPRISE_LOOP_CONTENT,
   type EnterpriseLoopContent,
   type EnterpriseLoopPhase,
-  RESET_FADE_MS,
 } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/stage-data'
+import { RESET_FADE_MS } from '@/app/(landing)/hooks/use-design-scale'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 interface EnterprisePlatformLoopProps {
