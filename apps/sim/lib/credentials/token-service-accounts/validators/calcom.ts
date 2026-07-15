@@ -1,4 +1,6 @@
 import {
+  fetchProvider,
+  parseProviderJson,
   throwForProviderResponse,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -29,15 +31,19 @@ interface CalcomMeResponse {
 export async function validateCalcomServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {
-  const res = await fetch(CALCOM_ME_URL, {
-    headers: {
-      Authorization: `Bearer ${fields.apiToken}`,
-      Accept: 'application/json',
+  const res = await fetchProvider(
+    CALCOM_ME_URL,
+    {
+      headers: {
+        Authorization: `Bearer ${fields.apiToken}`,
+        Accept: 'application/json',
+      },
     },
-  })
+    'me'
+  )
   await throwForProviderResponse(res, 'me')
 
-  const body = (await res.json()) as CalcomMeResponse
+  const body = await parseProviderJson<CalcomMeResponse>(res, 'me')
   if (body.status !== 'success' || body.data?.id === undefined) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'me',

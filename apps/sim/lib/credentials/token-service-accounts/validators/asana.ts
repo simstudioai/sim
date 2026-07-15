@@ -1,4 +1,6 @@
 import {
+  fetchProvider,
+  parseProviderJson,
   throwForProviderResponse,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -26,15 +28,19 @@ interface AsanaMeResponse {
 export async function validateAsanaServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {
-  const res = await fetch(ASANA_ME_URL, {
-    headers: {
-      Authorization: `Bearer ${fields.apiToken}`,
-      Accept: 'application/json',
+  const res = await fetchProvider(
+    ASANA_ME_URL,
+    {
+      headers: {
+        Authorization: `Bearer ${fields.apiToken}`,
+        Accept: 'application/json',
+      },
     },
-  })
+    'users_me'
+  )
   await throwForProviderResponse(res, 'users_me')
 
-  const body = (await res.json()) as AsanaMeResponse
+  const body = await parseProviderJson<AsanaMeResponse>(res, 'users_me')
   const gid = body.data?.gid
   if (!gid) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {

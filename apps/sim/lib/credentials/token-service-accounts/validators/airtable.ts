@@ -1,4 +1,6 @@
 import {
+  fetchProvider,
+  parseProviderJson,
   throwForProviderResponse,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -21,19 +23,23 @@ import type {
 export async function validateAirtableServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {
-  const whoamiRes = await fetch('https://api.airtable.com/v0/meta/whoami', {
-    headers: {
-      Authorization: `Bearer ${fields.apiToken}`,
-      Accept: 'application/json',
+  const whoamiRes = await fetchProvider(
+    'https://api.airtable.com/v0/meta/whoami',
+    {
+      headers: {
+        Authorization: `Bearer ${fields.apiToken}`,
+        Accept: 'application/json',
+      },
     },
-  })
+    'whoami'
+  )
   await throwForProviderResponse(whoamiRes, 'whoami')
 
-  const whoami = (await whoamiRes.json()) as {
+  const whoami = await parseProviderJson<{
     id?: string
     email?: string
     scopes?: string[]
-  }
+  }>(whoamiRes, 'whoami')
   if (!whoami.id) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'whoami',

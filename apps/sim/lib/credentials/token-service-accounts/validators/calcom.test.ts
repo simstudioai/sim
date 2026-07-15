@@ -67,6 +67,21 @@ describe('validateCalcomServiceAccount', () => {
     expect(error.status).toBe(500)
   })
 
+  it('maps a 200 response with a non-JSON body to provider_unavailable', async () => {
+    mockFetch.mockResolvedValue(
+      new Response('<html>gateway timeout</html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      })
+    )
+
+    const error = await validateCalcomServiceAccount({ apiToken: 'cal_token' }).catch((e) => e)
+
+    expect(error).toBeInstanceOf(TokenServiceAccountValidationError)
+    expect(error.code).toBe('provider_unavailable')
+    expect(error.status).toBe(502)
+  })
+
   it('maps a 200 response with a non-success envelope to provider_unavailable', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { status: 'error', data: { id: 42 } }))
 

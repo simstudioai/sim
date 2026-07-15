@@ -1,4 +1,6 @@
 import {
+  fetchProvider,
+  parseProviderJson,
   throwForProviderResponse,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -25,21 +27,23 @@ interface AttioSelfResponse {
 export async function validateAttioServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {
-  const res = await fetch(ATTIO_SELF_URL, {
-    headers: {
-      Authorization: `Bearer ${fields.apiToken}`,
-      Accept: 'application/json',
+  const res = await fetchProvider(
+    ATTIO_SELF_URL,
+    {
+      headers: {
+        Authorization: `Bearer ${fields.apiToken}`,
+        Accept: 'application/json',
+      },
     },
-  })
+    'self'
+  )
   await throwForProviderResponse(res, 'self')
 
-  let self: AttioSelfResponse
-  try {
-    self = (await res.json()) as AttioSelfResponse
-  } catch {
+  const self = await parseProviderJson<AttioSelfResponse | null>(res, 'self')
+  if (typeof self !== 'object' || self === null) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'self',
-      reason: 'non-JSON response body',
+      reason: 'non-object response body',
     })
   }
 

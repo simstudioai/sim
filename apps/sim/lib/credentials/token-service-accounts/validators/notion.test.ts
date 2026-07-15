@@ -84,6 +84,16 @@ describe('validateNotionServiceAccount', () => {
     })
   })
 
+  it('throws provider_unavailable when a 200 body is not JSON', async () => {
+    mockFetch.mockResolvedValueOnce(new Response('<html>gateway</html>', { status: 200 }))
+
+    const error = await validateNotionServiceAccount({ apiToken: 'ntn_abc' }).catch((e) => e)
+
+    expect(error).toBeInstanceOf(TokenServiceAccountValidationError)
+    expect(error.code).toBe('provider_unavailable')
+    expect(error.status).toBe(502)
+  })
+
   it('throws provider_unavailable on 502', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(502, { object: 'error' }))
 

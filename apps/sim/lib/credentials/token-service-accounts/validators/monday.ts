@@ -1,4 +1,6 @@
 import {
+  fetchProvider,
+  parseProviderJson,
   throwForProviderResponse,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -15,8 +17,26 @@ interface MondayValidationBody {
     me?: { id?: string | number; name?: string; email?: string }
     account?: { id?: string | number; name?: string; slug?: string }
   }
-  errors?: Array<{ message?: string }>
+  errors?: Array<{
+    message?: string
+    extensions?: { code?: string; status_code?: number }
+  }>
   error_message?: string
+}
+
+const SERVER_SIDE_ERROR_CODE = /internal|server_error|unavailable/i
+
+/**
+ * Detects a monday GraphQL error that signals a provider-side failure rather
+ * than a rejected token. monday marks these via `extensions.status_code`
+ * (>= 500) or an `extensions.code` such as `INTERNAL_SERVER_ERROR`, per the
+ * monday API error documentation.
+ */
+function isProviderSideError(body: MondayValidationBody): boolean {
+  const extensions = body.errors?.[0]?.extensions
+  if (!extensions) return false
+  if (typeof extensions.status_code === 'number' && extensions.status_code >= 500) return true
+  return typeof extensions.code === 'string' && SERVER_SIDE_ERROR_CODE.test(extensions.code)
 }
 
 /**
@@ -48,25 +68,27 @@ function extractBodyError(body: MondayValidationBody): string | null {
 export async function validateMondayServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {
-  const res = await fetch(MONDAY_API_URL, {
-    method: 'POST',
-    headers: mondayHeaders(fields.apiToken),
-    body: JSON.stringify({ query: VALIDATION_QUERY }),
-  })
+  const res = await fetchProvider(
+    MONDAY_API_URL,
+    {
+      method: 'POST',
+      headers: mondayHeaders(fields.apiToken),
+      body: JSON.stringify({ query: VALIDATION_QUERY }),
+    },
+    'me'
+  )
   await throwForProviderResponse(res, 'me')
 
-  let body: MondayValidationBody
-  try {
-    body = (await res.json()) as MondayValidationBody
-  } catch {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
-      step: 'me',
-      reason: 'non-JSON response body',
-    })
-  }
+  const body = await parseProviderJson<MondayValidationBody>(res, 'me')
 
   const bodyError = extractBodyError(body)
   if (bodyError) {
+    if (isProviderSideError(body)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'me',
+        body: bodyError,
+      })
+    }
     throw new TokenServiceAccountValidationError('invalid_credentials', res.status, {
       step: 'me',
       body: bodyError,

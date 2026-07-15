@@ -91,6 +91,16 @@ describe('validateAttioServiceAccount', () => {
     )
   })
 
+  it('maps a JSON-valid but non-object 200 body (null) to provider_unavailable', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(null))
+
+    const error = await expectValidationError(
+      validateAttioServiceAccount({ apiToken: 'attio-token' }),
+      'provider_unavailable'
+    )
+    expect(error.logDetail).toEqual({ step: 'self', reason: 'non-object response body' })
+  })
+
   it('maps a revoked token (active === false) to invalid_credentials', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ active: false }))
 

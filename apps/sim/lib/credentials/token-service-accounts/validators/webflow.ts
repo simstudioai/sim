@@ -1,4 +1,6 @@
 import {
+  fetchProvider,
+  parseProviderJson,
   throwForProviderResponse,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -26,15 +28,19 @@ interface WebflowSite {
 export async function validateWebflowServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {
-  const sitesRes = await fetch('https://api.webflow.com/v2/sites', {
-    headers: {
-      Authorization: `Bearer ${fields.apiToken}`,
-      Accept: 'application/json',
+  const sitesRes = await fetchProvider(
+    'https://api.webflow.com/v2/sites',
+    {
+      headers: {
+        Authorization: `Bearer ${fields.apiToken}`,
+        Accept: 'application/json',
+      },
     },
-  })
+    'list_sites'
+  )
   await throwForProviderResponse(sitesRes, 'list_sites')
 
-  const payload = (await sitesRes.json()) as { sites?: WebflowSite[] }
+  const payload = await parseProviderJson<{ sites?: WebflowSite[] }>(sitesRes, 'list_sites')
   const site = payload.sites?.[0]
   if (!site?.id) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {

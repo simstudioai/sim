@@ -84,6 +84,16 @@ describe('validateAsanaServiceAccount', () => {
     expect(error.status).toBe(500)
   })
 
+  it('maps a non-JSON 200 response to provider_unavailable', async () => {
+    mockFetch.mockResolvedValue(new Response('<html>gateway</html>', { status: 200 }))
+
+    const error = await validateAsanaServiceAccount({ apiToken: 'token-5' }).catch((e) => e)
+
+    expect(error).toBeInstanceOf(TokenServiceAccountValidationError)
+    expect(error.code).toBe('provider_unavailable')
+    expect(error.status).toBe(502)
+  })
+
   it('maps a 200 response missing data.gid to provider_unavailable', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { data: { name: 'No Gid' } }))
 

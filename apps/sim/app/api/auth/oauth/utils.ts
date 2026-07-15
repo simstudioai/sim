@@ -367,6 +367,41 @@ async function getTokenServiceAccountSecret(
   return parseTokenServiceAccountSecretBlob(decrypted, providerId)
 }
 
+interface ServiceAccountTokenOptions {
+  scopes?: string[]
+  impersonateEmail?: string
+}
+
+type ServiceAccountTokenResolver = (
+  credentialId: string,
+  options: ServiceAccountTokenOptions
+) => Promise<ServiceAccountTokenResult>
+
+/**
+ * Resolver registry for the bespoke service-account providers. Token-paste
+ * providers (registered in `TOKEN_SERVICE_ACCOUNT_DESCRIPTORS`) resolve
+ * generically: the stored token IS the access token.
+ */
+const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
+    const secret = await getAtlassianServiceAccountSecret(credentialId)
+    return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+  },
+  [SLACK_CUSTOM_BOT_PROVIDER_ID]: async (credentialId) => {
+    const botCredential = await getSlackBotCredential(credentialId)
+    if (!botCredential) {
+      throw new Error('Slack bot credential not found')
+    }
+    return { accessToken: botCredential.botToken }
+  },
+  [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, { scopes, impersonateEmail }) => {
+    if (!scopes?.length) {
+      throw new Error('Scopes are required for service account credentials')
+    }
+    return { accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail) }
+  },
+}
+
 export async function resolveServiceAccountToken(
   credentialId: string,
   providerId: string | null | undefined,
@@ -377,24 +412,11 @@ export async function resolveServiceAccountToken(
     const secret = await getTokenServiceAccountSecret(credentialId, providerId)
     return { accessToken: secret.apiToken, domain: secret.domain }
   }
-  if (providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
-    const secret = await getAtlassianServiceAccountSecret(credentialId)
-    return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
+  const resolver = providerId ? SERVICE_ACCOUNT_TOKEN_RESOLVERS[providerId] : undefined
+  if (!resolver) {
+    throw new Error(`Unsupported service-account provider: ${providerId ?? 'unknown'}`)
   }
-  if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
-    const botCredential = await getSlackBotCredential(credentialId)
-    if (!botCredential) {
-      throw new Error('Slack bot credential not found')
-    }
-    return { accessToken: botCredential.botToken }
-  }
-  if (providerId === GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID) {
-    if (!scopes?.length) {
-      throw new Error('Scopes are required for service account credentials')
-    }
-    return { accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail) }
-  }
-  throw new Error(`Unsupported service-account provider: ${providerId ?? 'unknown'}`)
+  return resolver(credentialId, { scopes, impersonateEmail })
 }
 
 /**

@@ -1,7 +1,9 @@
 import {
-  TokenServiceAccountValidationError,
+  fetchProvider,
+  parseProviderJson,
   readProviderErrorSnippet,
   throwForProviderResponse,
+  TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
   TokenServiceAccountFields,
@@ -28,9 +30,11 @@ interface WealthboxMeResponse {
  */
 async function probeAccessTokenHeader(apiToken: string): Promise<boolean> {
   try {
-    const res = await fetch(ME_URL, {
-      headers: { ACCESS_TOKEN: apiToken, Accept: 'application/json' },
-    })
+    const res = await fetchProvider(
+      ME_URL,
+      { headers: { ACCESS_TOKEN: apiToken, Accept: 'application/json' } },
+      'me-access-token-probe'
+    )
     return res.ok
   } catch {
     return false
@@ -44,15 +48,28 @@ async function probeAccessTokenHeader(apiToken: string): Promise<boolean> {
  * existing tool code. If Bearer is rejected but the documented `ACCESS_TOKEN`
  * header succeeds, the token is real yet unusable by Sim's tools, so it is
  * still rejected as `invalid_credentials` with a distinguishing log detail.
+ *
+ * A 402 is documented by Wealthbox as "Wealthbox trial account has expired"
+ * and maps to `invalid_credentials` — retrying later would never succeed, so
+ * the user is prompted to check their Wealthbox account instead.
  */
 export async function validateWealthboxServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {
   const apiToken = fields.apiToken
 
-  const res = await fetch(ME_URL, {
-    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
-  })
+  const res = await fetchProvider(
+    ME_URL,
+    { headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' } },
+    'me'
+  )
+
+  if (res.status === 402) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', res.status, {
+      step: 'me',
+      reason: 'wealthbox trial expired (402)',
+    })
+  }
 
   if (res.status === 401 || res.status === 403) {
     const body = await readProviderErrorSnippet(res)
@@ -71,15 +88,7 @@ export async function validateWealthboxServiceAccount(
   }
   await throwForProviderResponse(res, 'me')
 
-  let me: WealthboxMeResponse
-  try {
-    me = (await res.json()) as WealthboxMeResponse
-  } catch {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
-      step: 'me',
-      reason: 'response body is not valid JSON',
-    })
-  }
+  const me = await parseProviderJson<WealthboxMeResponse>(res, 'me')
 
   const displayName = me.name || me.email || 'Wealthbox account'
   const userId =

@@ -216,6 +216,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/shopify-service-account',
+    helpText:
+      'Shopify reveals the Admin API token only once at app creation, and new custom apps are created from the Dev Dashboard or CLI. The token is store-bound and does not expire.',
   },
   [WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -231,7 +233,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/webflow-service-account',
     helpText:
-      'Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
+      'Create the token with at least the sites:read and CMS read/write scopes. Site tokens expire after 365 days without API activity, and each token grants access to a single site.',
   },
   [TRELLO_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,

@@ -24,6 +24,43 @@ export class TokenServiceAccountValidationError extends Error {
 const ERROR_SNIPPET_MAX_LENGTH = 500
 
 /**
+ * Fetches a provider verification endpoint, mapping network-level failures
+ * (DNS, TLS, connection reset) to `provider_unavailable` so they never escape
+ * as raw undici errors — whose `cause` can carry connection details — and are
+ * never blamed on the pasted token.
+ */
+export async function fetchProvider(
+  url: string,
+  init: RequestInit,
+  step: string
+): Promise<Response> {
+  try {
+    return await fetch(url, init)
+  } catch {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step,
+      reason: 'network error reaching provider',
+    })
+  }
+}
+
+/**
+ * Parses a provider response body as JSON, mapping malformed bodies (proxy
+ * error pages, truncated responses) to `provider_unavailable` instead of an
+ * unhandled SyntaxError that would surface as a generic 500.
+ */
+export async function parseProviderJson<T>(res: Response, step: string): Promise<T> {
+  try {
+    return (await res.json()) as T
+  } catch {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step,
+      reason: 'provider returned a non-JSON response body',
+    })
+  }
+}
+
+/**
  * Reads a bounded snippet of a provider error body for server logs. Never
  * throws — an unreadable body logs as an empty string.
  */

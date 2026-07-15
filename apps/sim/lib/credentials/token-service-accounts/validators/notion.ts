@@ -1,6 +1,8 @@
 import {
-  TokenServiceAccountValidationError,
+  fetchProvider,
+  parseProviderJson,
   throwForProviderResponse,
+  TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
   TokenServiceAccountFields,
@@ -32,16 +34,20 @@ interface NotionBotUser {
 export async function validateNotionServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {
-  const res = await fetch('https://api.notion.com/v1/users/me', {
-    headers: {
-      Authorization: `Bearer ${fields.apiToken}`,
-      'Notion-Version': NOTION_VERSION,
-      Accept: 'application/json',
+  const res = await fetchProvider(
+    'https://api.notion.com/v1/users/me',
+    {
+      headers: {
+        Authorization: `Bearer ${fields.apiToken}`,
+        'Notion-Version': NOTION_VERSION,
+        Accept: 'application/json',
+      },
     },
-  })
+    'users_me'
+  )
   await throwForProviderResponse(res, 'users_me')
 
-  const me = (await res.json()) as NotionBotUser
+  const me = await parseProviderJson<NotionBotUser>(res, 'users_me')
   if (!me.id) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'users_me',

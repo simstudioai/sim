@@ -77,6 +77,21 @@ describe('validateWebflowServiceAccount', () => {
     expect(error.status).toBe(500)
   })
 
+  it('throws provider_unavailable on a 200 with a non-JSON body', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response('<html>gateway timeout</html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      })
+    )
+
+    const error = await validateWebflowServiceAccount({ apiToken: 'wf-token' }).catch((e) => e)
+
+    expect(error).toBeInstanceOf(TokenServiceAccountValidationError)
+    expect(error.code).toBe('provider_unavailable')
+    expect(error.status).toBe(502)
+  })
+
   it('throws provider_unavailable on 200 with empty sites array', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(200, { sites: [] }))
 

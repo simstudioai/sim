@@ -30,7 +30,7 @@ export const shopifyGetProductTool: ToolConfig<ShopifyGetProductParams, ShopifyP
 
   request: {
     url: (params) =>
-      `https://${params.shopDomain || params.idToken}/admin/api/2024-10/graphql.json`,
+      `https://${params.shopDomain || params.domain || params.idToken}/admin/api/2024-10/graphql.json`,
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {

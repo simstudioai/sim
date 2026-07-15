@@ -1,5 +1,7 @@
 import {
   TokenServiceAccountValidationError,
+  fetchProvider,
+  parseProviderJson,
   readProviderErrorSnippet,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -9,8 +11,10 @@ import type {
 } from '@/lib/credentials/token-service-accounts/server'
 
 /**
- * Pinned to the same Admin API version every Sim Shopify tool uses so
- * validation and tool runtime can never diverge.
+ * Pinned to match the Admin API version hardcoded in every Sim Shopify tool
+ * (`apps/sim/tools/shopify/*`) — bump both together. Note 2024-10 is retired;
+ * Shopify silently serves the oldest supported version for retired versions,
+ * so validation and tool runtime still hit the same effective API.
  */
 const SHOPIFY_API_VERSION = '2024-10'
 
@@ -21,14 +25,13 @@ const SHOPIFY_API_VERSION = '2024-10'
  */
 const SHOPIFY_HOST_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/
 
-const SHOP_QUERY = '{ shop { name myshopifyDomain email } }'
+const SHOP_QUERY = '{ shop { name myshopifyDomain } }'
 
 interface ShopifyShopResponse {
   data?: {
     shop?: {
       name?: string
       myshopifyDomain?: string
-      email?: string
     }
   }
   errors?: unknown
@@ -61,14 +64,18 @@ export async function validateShopifyServiceAccount(
     })
   }
 
-  const res = await fetch(`https://${domain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': fields.apiToken,
+  const res = await fetchProvider(
+    `https://${domain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': fields.apiToken,
+      },
+      body: JSON.stringify({ query: SHOP_QUERY }),
     },
-    body: JSON.stringify({ query: SHOP_QUERY }),
-  })
+    'shop_query'
+  )
 
   if (res.status === 404) {
     throw new TokenServiceAccountValidationError('site_not_found', 404, {
@@ -79,16 +86,7 @@ export async function validateShopifyServiceAccount(
   }
   await throwForProviderResponse(res, 'shop_query', { domain })
 
-  let payload: ShopifyShopResponse
-  try {
-    payload = (await res.json()) as ShopifyShopResponse
-  } catch {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
-      step: 'shop_query',
-      domain,
-      reason: 'response body is not valid JSON',
-    })
-  }
+  const payload = await parseProviderJson<ShopifyShopResponse>(res, 'shop_query')
 
   const shop = payload.data?.shop
   if (payload.errors || !shop) {

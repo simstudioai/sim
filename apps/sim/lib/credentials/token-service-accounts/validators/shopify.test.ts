@@ -31,7 +31,6 @@ describe('validateShopifyServiceAccount', () => {
           shop: {
             name: 'Acme Store',
             myshopifyDomain: 'acme-store.myshopify.com',
-            email: 'ops@acme.com',
           },
         },
       })
@@ -56,7 +55,7 @@ describe('validateShopifyServiceAccount', () => {
           'Content-Type': 'application/json',
           'X-Shopify-Access-Token': 'shpat_abc',
         },
-        body: JSON.stringify({ query: '{ shop { name myshopifyDomain email } }' }),
+        body: JSON.stringify({ query: '{ shop { name myshopifyDomain } }' }),
       }
     )
   })
@@ -110,5 +109,36 @@ describe('validateShopifyServiceAccount', () => {
     expect(error).toBeInstanceOf(TokenServiceAccountValidationError)
     expect(error.code).toBe('provider_unavailable')
     expect(error.status).toBe(500)
+  })
+
+  it('throws provider_unavailable when a 200 body carries GraphQL errors', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, { errors: [{ message: 'Internal error' }] })
+    )
+
+    await expect(
+      validateShopifyServiceAccount({ apiToken: 'shpat_abc', domain: 'acme.myshopify.com' })
+    ).rejects.toMatchObject({
+      name: 'TokenServiceAccountValidationError',
+      code: 'provider_unavailable',
+      status: 502,
+    })
+  })
+
+  it('throws provider_unavailable when a 200 body is not JSON', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response('<html>gateway error</html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      })
+    )
+
+    await expect(
+      validateShopifyServiceAccount({ apiToken: 'shpat_abc', domain: 'acme.myshopify.com' })
+    ).rejects.toMatchObject({
+      name: 'TokenServiceAccountValidationError',
+      code: 'provider_unavailable',
+      status: 502,
+    })
   })
 })

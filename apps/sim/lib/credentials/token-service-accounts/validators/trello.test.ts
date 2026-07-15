@@ -59,13 +59,52 @@ describe('validateTrelloServiceAccount', () => {
     expect(parsed.searchParams.get('fields')).toBe('id,fullName,username')
   })
 
-  it('throws invalid_credentials on 401', async () => {
+  it('throws invalid_credentials on 401 with an invalid token body', async () => {
     mockFetch.mockResolvedValue(jsonResponse(401, 'invalid token'))
 
     await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
       name: 'TokenServiceAccountValidationError',
       code: 'invalid_credentials',
       status: 401,
+    })
+  })
+
+  it('throws provider_unavailable on 401 with an invalid key body', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(401, 'invalid key'))
+
+    await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
+      name: 'TokenServiceAccountValidationError',
+      code: 'provider_unavailable',
+      status: 401,
+      logDetail: { step: 'members_me', reason: 'Trello rejected the server API key' },
+    })
+  })
+
+  it('throws invalid_credentials on 401 with any other body', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(401, 'unauthorized'))
+
+    await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
+      name: 'TokenServiceAccountValidationError',
+      code: 'invalid_credentials',
+      status: 401,
+    })
+  })
+
+  it('throws provider_unavailable on a non-JSON 200 body', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: '',
+      json: async () => {
+        throw new SyntaxError('Unexpected token < in JSON')
+      },
+      text: async () => '<html>proxy error</html>',
+    } as unknown as Response)
+
+    await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
+      name: 'TokenServiceAccountValidationError',
+      code: 'provider_unavailable',
+      status: 502,
     })
   })
 

@@ -64,6 +64,16 @@ describe('validateAirtableServiceAccount', () => {
     expect(error.status).toBe(401)
   })
 
+  it('throws provider_unavailable when a 200 body is missing id', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { email: 'svc@example.com' }))
+
+    const error = await validateAirtableServiceAccount({ apiToken: 'pat' }).catch((e) => e)
+
+    expect(error).toBeInstanceOf(TokenServiceAccountValidationError)
+    expect(error.code).toBe('provider_unavailable')
+    expect(error.status).toBe(502)
+  })
+
   it('throws provider_unavailable on 500', async () => {
     mockFetch.mockResolvedValueOnce(new Response('server error', { status: 500 }))
 

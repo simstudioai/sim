@@ -1,6 +1,9 @@
 import { env } from '@/lib/core/config/env'
 import {
   TokenServiceAccountValidationError,
+  fetchProvider,
+  parseProviderJson,
+  readProviderErrorSnippet,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
@@ -22,7 +25,10 @@ interface TrelloMember {
  * key that authorized them, so a token minted under any other key 401s here
  * exactly as it would at execution time. Both secrets travel as URL query
  * params, so no request URL is ever included in error `logDetail` (only the
- * step name and a body snippet, which never echoes the credentials).
+ * step name and a body snippet, which never echoes the credentials). A 401 is
+ * disambiguated by body: Trello's `invalid key` means Sim's own key was
+ * rejected (`provider_unavailable`), while `invalid token` — or any other 401
+ * body — blames the pasted token (`invalid_credentials`).
  */
 export async function validateTrelloServiceAccount(
   fields: TokenServiceAccountFields
@@ -39,20 +45,33 @@ export async function validateTrelloServiceAccount(
   url.searchParams.set('token', fields.apiToken)
   url.searchParams.set('fields', 'id,fullName,username')
 
-  const res = await fetch(url.toString(), {
-    headers: { Accept: 'application/json' },
-  })
-  await throwForProviderResponse(res, 'members_me')
-
-  let member: TrelloMember
-  try {
-    member = (await res.json()) as TrelloMember
-  } catch {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+  const res = await fetchProvider(
+    url.toString(),
+    { headers: { Accept: 'application/json' } },
+    'members_me'
+  )
+  if (res.status === 401) {
+    const body = await readProviderErrorSnippet(res)
+    if (body.includes('invalid token')) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 401, {
+        step: 'members_me',
+        body,
+      })
+    }
+    if (body.includes('invalid key')) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 401, {
+        step: 'members_me',
+        reason: 'Trello rejected the server API key',
+      })
+    }
+    throw new TokenServiceAccountValidationError('invalid_credentials', 401, {
       step: 'members_me',
-      reason: 'response body is not valid JSON',
+      body,
     })
   }
+  await throwForProviderResponse(res, 'members_me')
+
+  const member = await parseProviderJson<TrelloMember>(res, 'members_me')
   if (typeof member?.id !== 'string' || !member.id) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'members_me',

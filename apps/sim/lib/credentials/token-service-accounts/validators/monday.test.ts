@@ -86,6 +86,25 @@ describe('validateMondayServiceAccount', () => {
     expect(error.status).toBe(200)
   })
 
+  it('throws provider_unavailable on 200 with INTERNAL_SERVER_ERROR extensions', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        errors: [
+          {
+            message: 'Internal server error',
+            extensions: { code: 'INTERNAL_SERVER_ERROR', status_code: 500 },
+          },
+        ],
+      })
+    )
+
+    const error = await validateMondayServiceAccount({ apiToken: 'tok' }).catch((e) => e)
+
+    expect(error).toBeInstanceOf(TokenServiceAccountValidationError)
+    expect(error.code).toBe('provider_unavailable')
+    expect(error.status).toBe(502)
+  })
+
   it('throws provider_unavailable on 500', async () => {
     mockFetch.mockResolvedValueOnce(new Response('server error', { status: 500 }))
 

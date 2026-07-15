@@ -83,6 +83,19 @@ describe('validateWealthboxServiceAccount', () => {
     })
   })
 
+  it('throws invalid_credentials on 402 (expired Wealthbox trial)', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(402, { error: 'Wealthbox trial account has expired' }))
+
+    await expect(validateWealthboxServiceAccount(FIELDS)).rejects.toMatchObject({
+      name: 'TokenServiceAccountValidationError',
+      code: 'invalid_credentials',
+      status: 402,
+      logDetail: { step: 'me', reason: 'wealthbox trial expired (402)' },
+    })
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
   it('throws provider_unavailable on 503', async () => {
     mockFetch.mockResolvedValue(jsonResponse(503, { message: 'unavailable' }))
 
