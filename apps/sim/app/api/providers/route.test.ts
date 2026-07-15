@@ -111,7 +111,7 @@ describe('POST /api/providers', () => {
     )
   })
 
-  it('ignores the attribution header when the body has no workspaceId to validate against', async () => {
+  it('rejects an attribution header when the body has no workspaceId to validate against', async () => {
     const res = await POST(
       createMockRequest(
         'POST',
@@ -120,15 +120,12 @@ describe('POST /api/providers', () => {
       )
     )
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(400)
     expect(mockRequireBillingAttributionHeader).not.toHaveBeenCalled()
-    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
-      'openai',
-      expect.objectContaining({ billingAttribution: undefined })
-    )
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
-  it('fails when the attribution header does not match the authenticated scope', async () => {
+  it('rejects with 400 when the attribution header does not match the authenticated scope', async () => {
     mockRequireBillingAttributionHeader.mockImplementation(() => {
       throw new Error('Billing attribution header does not match the authenticated request scope')
     })
@@ -141,7 +138,11 @@ describe('POST /api/providers', () => {
       )
     )
 
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe(
+      'Billing attribution header does not match the authenticated request scope'
+    )
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 })

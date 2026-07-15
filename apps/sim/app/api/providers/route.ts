@@ -10,6 +10,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   BILLING_ATTRIBUTION_HEADER,
+  type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -185,15 +186,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * Nested tool calls made by the LLM (e.g. knowledge search) hit internal
      * routes that require the upstream billing decision. This route is
      * internal-JWT-only, so the caller's attribution arrives as a header;
-     * validate it against the authenticated scope and thread it through.
+     * validate it against the authenticated scope and thread it through. A
+     * header the route cannot validate is a caller protocol error (400), never
+     * silently dropped.
      */
-    const billingAttribution =
-      workspaceId && request.headers.get(BILLING_ATTRIBUTION_HEADER)
-        ? requireBillingAttributionHeader(request.headers, {
-            actorUserId: auth.userId,
-            workspaceId,
-          })
-        : undefined
+    let billingAttribution: BillingAttributionSnapshot | undefined
+    if (request.headers.get(BILLING_ATTRIBUTION_HEADER)) {
+      if (!workspaceId) {
+        return NextResponse.json(
+          { error: 'workspaceId is required when billing attribution is supplied' },
+          { status: 400 }
+        )
+      }
+      try {
+        billingAttribution = requireBillingAttributionHeader(request.headers, {
+          actorUserId: auth.userId,
+          workspaceId,
+        })
+      } catch (error) {
+        return NextResponse.json(
+          { error: getErrorMessage(error, 'Invalid billing attribution header') },
+          { status: 400 }
+        )
+      }
+    }
 
     logger.info(`[${requestId}] Executing provider request`, {
       provider,
