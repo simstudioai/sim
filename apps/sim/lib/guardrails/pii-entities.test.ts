@@ -10,8 +10,10 @@ import {
 } from '@/lib/guardrails/pii-entities'
 
 describe('NER_PII_ENTITIES', () => {
-  it('is exactly the 4 spaCy-NER entities', () => {
-    expect(new Set(NER_PII_ENTITIES)).toEqual(new Set(['PERSON', 'LOCATION', 'NRP', 'DATE_TIME']))
+  it('covers the spaCy-NER entities including ORGANIZATION', () => {
+    expect(new Set(NER_PII_ENTITIES)).toEqual(
+      new Set(['PERSON', 'LOCATION', 'NRP', 'DATE_TIME', 'ORGANIZATION'])
+    )
   })
 })
 
@@ -23,6 +25,7 @@ describe('stripNerEntities', () => {
         'EMAIL_ADDRESS',
         'DATE_TIME',
         'US_SSN',
+        'ORGANIZATION',
         'LOCATION',
         'PHONE_NUMBER',
       ])

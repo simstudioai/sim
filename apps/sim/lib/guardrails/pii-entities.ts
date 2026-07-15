@@ -230,22 +230,26 @@ export function isEntitySupportedForLanguage(
 }
 
 /**
- * The spaCy-NER entity types — the only ones detected by the NLP model, vs the
- * regex/checksum pattern recognizers. The block-output redaction stage is
- * restricted to the non-NER (regex) entities so it runs on the Presidio
- * spaCy-free fast path without the per-leaf NER cost. Mirrors `NER_ENTITIES` in
- * `apps/pii/server.py`.
+ * Entity types produced by the spaCy NER model (vs the regex/checksum pattern
+ * recognizers). The block-output redaction stage is restricted to the non-NER
+ * (regex) entities so it runs on the Presidio spaCy-free fast path without the
+ * per-leaf NER cost. Includes ORGANIZATION — which Presidio's spaCy recognizer
+ * emits but the user-facing catalog above does not list — so it too is stripped
+ * from block-output selections, keeping this in sync with the derived
+ * `NER_ENTITIES` in `apps/pii/server.py`. Typed as strings because ORGANIZATION
+ * isn't a catalog `PIIEntityType`.
  */
-export const NER_PII_ENTITIES: ReadonlySet<PIIEntityType> = new Set<PIIEntityType>([
+export const NER_PII_ENTITIES: ReadonlySet<string> = new Set<string>([
   'PERSON',
   'LOCATION',
   'NRP',
   'DATE_TIME',
+  'ORGANIZATION',
 ])
 
 /** Drop the spaCy-NER entities ({@link NER_PII_ENTITIES}) from a selection. */
 export function stripNerEntities(entities: readonly string[]): string[] {
-  return entities.filter((e) => !NER_PII_ENTITIES.has(e as PIIEntityType))
+  return entities.filter((e) => !NER_PII_ENTITIES.has(e))
 }
 
 /**
