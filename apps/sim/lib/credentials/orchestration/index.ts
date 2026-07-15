@@ -17,6 +17,7 @@ import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
@@ -116,7 +117,8 @@ export async function performUpdateCredential(
       updates.encryptedServiceAccountKey = encrypted
     }
 
-    // Reconnect: rotate a Slack/Atlassian service-account secret in place. The
+    // Reconnect: rotate a service-account secret (Slack, Atlassian, or any
+    // token-paste provider) in place. The
     // secret is re-verified against the provider and re-encrypted; the display
     // name is preserved (the user may have renamed it).
     const hasRotationSecret =
@@ -145,6 +147,14 @@ export async function performUpdateCredential(
         if (error instanceof AtlassianValidationError) {
           // Surface the provider code so the client maps it to the specific
           // token/domain message (create returns it too).
+          return {
+            success: false,
+            error: error.code,
+            errorCode: 'validation',
+            providerErrorCode: error.code,
+          }
+        }
+        if (error instanceof TokenServiceAccountValidationError) {
           return {
             success: false,
             error: error.code,

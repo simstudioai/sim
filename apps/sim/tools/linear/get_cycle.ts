@@ -1,5 +1,6 @@
 import type { LinearGetCycleParams, LinearGetCycleResponse } from '@/tools/linear/types'
 import { CYCLE_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearGetCycleTool: ToolConfig<LinearGetCycleParams, LinearGetCycleResponse> = {
@@ -31,7 +32,7 @@ export const linearGetCycleTool: ToolConfig<LinearGetCycleParams, LinearGetCycle
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

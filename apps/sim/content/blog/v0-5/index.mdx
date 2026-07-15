@@ -15,6 +15,19 @@ timeRequired: PT8M
 canonical: https://www.sim.ai/blog/v0-5
 featured: true
 draft: false
+faq:
+  - q: "What is new in Sim v0.5?"
+    a: "Sim v0.5 adds a context-aware Copilot, MCP server deployment for any workflow, full execution logs with cost attribution, realtime multi-user collaboration, workflow versioning with rollback, and 100+ integrations spanning 300+ actions."
+  - q: "How does Sim's Copilot differ from a general-purpose AI assistant?"
+    a: "Copilot is embedded in the Sim editor and has direct access to your workspace: workflows, block configurations, execution logs, connected credentials, and documentation. It uses hybrid retrieval over an index of your workspace to ground answers in your actual workflow state, and supports slash commands like /fast, /research, and /actions for specialized tasks."
+  - q: "Can I turn a Sim workflow into an MCP server?"
+    a: "Yes. Any workflow can be deployed as an MCP server, and it becomes a callable tool for MCP-compatible agents like Claude Desktop or Cursor. Sim auto-generates the tool definition and JSON schema from your Start block, uses Streamable HTTP transport, and supports authentication via API key headers or public access."
+  - q: "What kind of observability does Sim provide for workflow executions?"
+    a: "Every execution generates a full trace capturing each block's start/end time, inputs, outputs, and errors, plus token usage and cost per LLM call. The dashboard surfaces this as trace spans, cost attribution, error context with stack traces, filterable queries, and execution snapshots you can restore to see the exact workflow state at run time."
+  - q: "Does Sim support real-time collaboration on workflows?"
+    a: "Yes. Multiple users can edit the same workflow at the same time, with cursors, block additions, and configuration changes syncing live across all connected clients. The editor also adds full undo/redo history and copy-paste for individual blocks, groups, or entire subflows."
+  - q: "How many integrations does Sim v0.5 support, and how is versioning handled?"
+    a: "v0.5 adds 100+ integrations with 300+ actions covering CRMs, communication tools, databases, developer tools, and more. Every deployment also creates a new version, and you can roll back to any previous version with one click, with a full audit trail of who deployed what and when."
 ---
 
 **Sim v0.5** is the next evolution of our agent workflow platform—built for teams shipping AI agents to production.

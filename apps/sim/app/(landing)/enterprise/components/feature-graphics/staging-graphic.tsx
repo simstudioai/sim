@@ -5,7 +5,11 @@ import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/featu
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/staging-graphic.module.css'
 
 /** Named pre-promotion checks, each rendered as a passing row. */
-const CHECKS = ['Evals passed', 'No breaking changes', 'Approved by Ops'] as const
+const CHECKS: readonly [string, string, string] = [
+  'Evals passed',
+  'No breaking changes',
+  'Approved by Ops',
+] as const
 
 /**
  * A GitHub-style promotion surface compressed to tile scale, on the
@@ -47,8 +51,45 @@ const CHECKS = ['Evals passed', 'No breaking changes', 'Approved by Ops'] as con
  * tile widths — text rows truncate instead of clipping, and the
  * `Staging → Live` tags yield below `xl` so the promotion bar keeps the
  * Promote button inside the window.
+ *
+ * Every label is parametrizable so other landing pages (engineering,
+ * finance, HR, workflows) can retell the gated-promotion moment for
+ * their own domain — a PR merge, an invoice approval, a PTO request;
+ * the defaults keep the enterprise page's Support-agent promotion
+ * byte-identical. Chrome, motion, and layout never change with the copy.
  */
-export function StagingGraphic() {
+interface StagingGraphicProps {
+  /** Window title. */
+  title?: string
+  /** Mono tag beside the title. */
+  headerTag?: string
+  /** Mono chip leading the highlighted change card. */
+  changeTag?: string
+  /** Change summary beside the chip. */
+  changeTitle?: string
+  /** "Actor · time" attribution line under the change. */
+  attribution?: string
+  /** The three pre-promotion check rows. */
+  checks?: readonly [string, string, string]
+  /** Left environment tag in the promotion bar. */
+  fromLabel?: string
+  /** Right environment tag in the promotion bar. */
+  toLabel?: string
+  /** Solid action button label. */
+  actionLabel?: string
+}
+
+export function StagingGraphic({
+  title = 'Support agent',
+  headerTag = 'v4',
+  changeTag = 'a3f8c21',
+  changeTitle = 'Tighten refund policy checks',
+  attribution = 'Maya Chen · 2h ago',
+  checks = CHECKS,
+  fromLabel = 'Staging',
+  toLabel = 'Live',
+  actionLabel = 'Promote',
+}: StagingGraphicProps = {}) {
   return (
     <FeatureGraphicShell>
       <div
@@ -58,19 +99,19 @@ export function StagingGraphic() {
         <div className='w-full max-w-[312px] rounded-xl border border-[var(--border-1)]'>
           <div className='flex h-10 items-center gap-2 border-[var(--border-1)] border-b px-4'>
             <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-base'>
-              Support agent
+              {title}
             </span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
-              v4
+              {headerTag}
             </ChipTag>
           </div>
 
           <div className='px-3 py-2.5'>
             <div className='rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
               <span className='flex items-center gap-2'>
-                <ChipTag variant='mono'>a3f8c21</ChipTag>
+                <ChipTag variant='mono'>{changeTag}</ChipTag>
                 <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-small'>
-                  Tighten refund policy checks
+                  {changeTitle}
                 </span>
               </span>
               <span className='mt-1.5 flex items-center gap-1.5'>
@@ -83,13 +124,13 @@ export function StagingGraphic() {
                     className='size-full scale-110 object-cover'
                   />
                 </span>
-                <span className='text-[var(--text-muted)] text-caption'>Maya Chen · 2h ago</span>
+                <span className='text-[var(--text-muted)] text-caption'>{attribution}</span>
               </span>
             </div>
           </div>
 
           <div className='flex flex-col gap-2 border-[var(--border-1)] border-t px-4 py-2.5'>
-            {CHECKS.map((check) => (
+            {checks.map((check) => (
               <span key={check} className='flex items-center gap-2'>
                 <CircleCheck className='size-[13px] text-[var(--text-icon)]' />
                 <span className='text-[var(--text-secondary)] text-caption'>{check}</span>
@@ -100,11 +141,11 @@ export function StagingGraphic() {
           <div className='flex items-center justify-between gap-3 border-[var(--border-1)] border-t px-4 py-2.5'>
             <span className='hidden min-w-0 items-center gap-1.5 xl:flex'>
               <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
-                Staging
+                {fromLabel}
               </ChipTag>
               <ArrowRight className='size-[12px] shrink-0 text-[var(--text-icon)]' />
               <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
-                Live
+                {toLabel}
               </ChipTag>
             </span>
             <Button
@@ -113,7 +154,7 @@ export function StagingGraphic() {
               tabIndex={-1}
               className={cn('pointer-events-none ml-auto', styles.promotePulse)}
             >
-              Promote
+              {actionLabel}
             </Button>
           </div>
         </div>

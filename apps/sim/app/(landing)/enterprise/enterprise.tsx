@@ -1,7 +1,7 @@
 import { cn } from '@sim/emcn'
-import Image from 'next/image'
 import { Cta } from '@/app/(landing)/components/cta/cta'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
+import { PlatformHeroVisual } from '@/app/(landing)/components/platform-hero-visual'
 import {
   SolutionsHero,
   SolutionsLogosRow,
@@ -31,9 +31,9 @@ import {
  * Enterprise landing page (`/enterprise`) - the flagship surface for teams
  * evaluating Sim as their enterprise AI agent platform.
  *
- * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows) but
- * composes its own `<main>` so it can append the shared homepage CTA that
- * `SolutionsPage` does not render. The four feature rows render through
+ * Structurally it mirrors {@link SolutionsPage} (hero → logos → card rows →
+ * shared homepage CTA) but composes its own `<main>` so the hero can render
+ * full-bleed in its `home` variant. The four feature rows render through
  * {@link EnterpriseFeatureGrid} - one shared grid that regroups the 12 cards
  * into 4/4/2/2 in the two-column band so no section leaves an orphan cell.
  * The shared `SOLUTIONS_SPACING` constants own the enterprise content gutter
@@ -53,31 +53,17 @@ const ENTERPRISE_CONFIG: SolutionsPageConfig = {
     summary:
       'Sim is the open-source enterprise AI agent platform where IT, operations, and technical teams build, deploy, and govern enterprise AI agents in one AI workspace. Connect 1,000+ integrations and every major LLM, with security, role-based access, approvals, observability, versioning, and audit trails for reliable deployment across teams.',
     /**
-     * The enterprise architectural backdrop with the enterprise-specific
-     * platform loop framed in front of it: the same white demo window the
-     * homepage hero uses, filled by the {@link EnterprisePlatformLoop} - a
-     * sibling of the homepage `HeroPlatformLoop` that renders the whole
-     * interior live (Brightwave sidebar + the real new-chat home view) and
-     * replays an enterprise prompt. The `variant='home'` hero renders this
-     * into the same `aspect-[1300/720]` media frame the homepage uses.
+     * The shared {@link PlatformHeroVisual} backdrop-plus-demo-window
+     * composition, filled by the {@link EnterprisePlatformLoop} - a sibling of
+     * the homepage `HeroPlatformLoop` that renders the whole interior live
+     * (Brightwave sidebar + the real new-chat home view) and replays an
+     * enterprise prompt. The `variant='home'` hero renders this into the same
+     * `aspect-[1300/720]` media frame the homepage uses.
      */
     visual: (
-      <>
-        <Image
-          fill
-          priority
-          fetchPriority='high'
-          alt=''
-          className='object-cover object-center'
-          sizes='(max-width: 1024px) 100vw, 1300px'
-          src='/landing/enterprise-hero-background.webp'
-        />
-        <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex aspect-[1080/620] w-[83.08%] flex-col overflow-hidden rounded-[10px] bg-[var(--surface-1)] shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_2px_6px_0_rgba(0,0,0,0.05),0_4px_42px_0_rgba(0,0,0,0.06)]'>
-          <div className='relative flex-1'>
-            <EnterprisePlatformLoop />
-          </div>
-        </div>
-      </>
+      <PlatformHeroVisual>
+        <EnterprisePlatformLoop />
+      </PlatformHeroVisual>
     ),
   },
   rows: [

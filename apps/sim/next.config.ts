@@ -485,6 +485,44 @@ const nextConfig: NextConfig = {
       }
     )
 
+    /**
+     * Stray crawler/artifact URLs picked up in an external SEO audit — no
+     * page ever existed at these paths, but they were indexed or linked
+     * somewhere with junk characters/casing. Send them home instead of 404.
+     */
+    redirects.push(
+      {
+        source: '/$',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/&',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/Sim',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/homepage',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/logo',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/en-US',
+        destination: '/',
+        permanent: true,
+      }
+    )
+
     return redirects
   },
   async rewrites() {

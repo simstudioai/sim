@@ -1,23 +1,44 @@
-import { SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
+import {
+  PlatformHeroVisual,
+  SolutionsPage,
+  type SolutionsPageConfig,
+} from '@/app/(landing)/components'
+import {
+  AuditTrailGraphic,
+  OperationsTeamsGraphic,
+  RunMonitoringGraphic,
+  StagingGraphic,
+} from '@/app/(landing)/enterprise/components/feature-graphics'
+import { DocumentDraftGraphic } from '@/app/(landing)/solutions/components/feature-graphics'
+import { ReconcileGraphic } from '@/app/(landing)/solutions/finance/components/feature-graphics/reconcile-graphic'
+import { FinanceHeroLoop } from '@/app/(landing)/solutions/finance/components/finance-hero-loop'
 
 /**
- * Finance solution page - a reference consumer of {@link SolutionsPage}.
+ * Finance solution page - a consumer of {@link SolutionsPage} rendered with
+ * the enterprise page's feature-tile treatment.
  *
- * The whole page is one typed {@link SolutionsPageConfig}; the shared
- * route-group layout provides the chrome. Visual slots are `null`, so each
- * renders the layout's reserved placeholder panel; a real page swaps in its own
- * client island without touching the layout.
+ * The whole page is one typed {@link SolutionsPageConfig} rendered inside
+ * the shared route-group layout's chrome. Every visual slot carries a
+ * feature graphic in the enterprise design language - enterprise graphics
+ * retold through their content props for finance's use cases (invoice
+ * routing, approval gates, spend monitoring, the finance audit ledger),
+ * plus one finance-specific vignette, the reconciliation match ledger.
  */
 const FINANCE_CONFIG: SolutionsPageConfig = {
   module: 'Finance',
   path: '/solutions/finance',
   hero: {
+    eyebrow: 'Finance',
     heading: 'Automate invoice processing, reconciliation, and close with Sim agents.',
     description:
       'Finance teams build AI agents in Sim, the open-source AI workspace, with human approvals, anomaly detection, and full audit trails, across 1,000+ integrations and every major LLM.',
     summary:
       'Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents that automate reconciliation, invoice processing, and reporting, with human approvals, anomaly detection, and full audit trails across 1,000+ integrations.',
-    visual: null,
+    visual: (
+      <PlatformHeroVisual>
+        <FinanceHeroLoop />
+      </PlatformHeroVisual>
+    ),
   },
   rows: [
     {
@@ -30,19 +51,33 @@ const FINANCE_CONFIG: SolutionsPageConfig = {
           title: 'Reconcile accounts',
           description:
             'Sim matches transactions across systems and flags only the exceptions for review.',
-          visual: null,
+          visual: <ReconcileGraphic />,
         },
         {
           title: 'Process invoices',
           description:
             'Sim reads, codes, and routes invoices for approval without manual data entry.',
-          visual: null,
+          featureTileTone: 'dark',
+          featureTileDescriptionTone: 'soft',
+          visual: (
+            <OperationsTeamsGraphic
+              sourceLabels={['Gmail', 'Drive', 'Stripe']}
+              destinationLabels={['NetSuite', 'Approvals', 'Sheets']}
+            />
+          ),
         },
         {
           title: 'Build reports',
           description:
             'Sim assembles recurring financial reports from your source systems on schedule.',
-          visual: null,
+          visual: (
+            <DocumentDraftGraphic
+              title='Monthly close'
+              statusTag='On schedule'
+              footerLabel='Sent to controller'
+              footerDetail='Aug 1'
+            />
+          ),
         },
       ],
     },
@@ -55,17 +90,76 @@ const FINANCE_CONFIG: SolutionsPageConfig = {
         {
           title: 'Route approvals',
           description: 'Sim sends the right items to the right approver and waits before it acts.',
-          visual: null,
+          visual: (
+            <StagingGraphic
+              title='Invoice'
+              headerTag='#2041'
+              changeTag='Acme Co'
+              changeTitle='$12,400 · Net 30'
+              attribution='Routed by Sim · 2m ago'
+              checks={['Within approval limit', 'Vendor verified', 'GL code matched']}
+              fromLabel='Pending'
+              toLabel='Approved'
+              actionLabel='Approve'
+            />
+          ),
         },
         {
           title: 'Detect anomalies',
           description: 'Sim watches spend and flags unusual transactions before they post.',
-          visual: null,
+          visual: (
+            <RunMonitoringGraphic
+              title='Spend monitor'
+              fields={[
+                { label: 'Account', value: 'Corporate cards', variant: 'strong' },
+                { label: 'Alert', value: 'Duplicate charge', variant: 'chip' },
+                { label: 'Amount', value: '$1,982.00', variant: 'mono' },
+                { label: 'Confidence', value: '98%', variant: 'mono' },
+              ]}
+              outputPairs={[
+                { key: 'status', value: '"flagged"' },
+                { key: 'holds', value: '2' },
+              ]}
+            />
+          ),
         },
         {
           title: 'Keep audit trails',
           description: 'Sim logs every run block by block, so finance can prove every control.',
-          visual: null,
+          visual: (
+            <AuditTrailGraphic
+              entries={[
+                {
+                  action: 'Invoice approved',
+                  actor: 'Maya Chen',
+                  resource: 'Acme Co · $12,400',
+                  time: 'Now',
+                  avatar: '/landing/team-avatar-1.jpg',
+                },
+                {
+                  action: 'Journal entry posted',
+                  actor: 'Jordan Lee',
+                  resource: 'GL 6010',
+                  time: '14 min ago',
+                  avatar: '/landing/team-avatar-2.jpg',
+                },
+                {
+                  action: 'Credential accessed',
+                  actor: 'Sam Ortiz',
+                  resource: 'NetSuite OAuth',
+                  time: '1h ago',
+                  avatar: '/landing/team-avatar-3.jpg',
+                },
+                {
+                  action: 'Workflow created',
+                  actor: 'Maya Chen',
+                  resource: 'Close agent',
+                  time: 'Jun 2',
+                  avatar: '/landing/team-avatar-1.jpg',
+                },
+              ]}
+            />
+          ),
         },
       ],
     },

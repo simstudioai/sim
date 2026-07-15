@@ -1,23 +1,45 @@
-import { SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
+import {
+  PlatformHeroVisual,
+  SolutionsPage,
+  type SolutionsPageConfig,
+} from '@/app/(landing)/components'
+import {
+  AccessControlGraphic,
+  AuditTrailGraphic,
+  ItPlatformTeamsGraphic,
+  OperationsTeamsGraphic,
+  RunMonitoringGraphic,
+} from '@/app/(landing)/enterprise/components/feature-graphics'
+import { KnowledgeAnswerGraphic } from '@/app/(landing)/solutions/components/feature-graphics'
+import { ItHeroLoop } from '@/app/(landing)/solutions/it/components/it-hero-loop'
 
 /**
- * IT solution page - a reference consumer of {@link SolutionsPage}.
+ * IT solution page - a consumer of {@link SolutionsPage} rendered with the
+ * enterprise page's feature-tile treatment.
  *
- * The whole page is one typed {@link SolutionsPageConfig} rendered inside the
- * shared route-group layout's chrome. Visual slots are `null`, so each renders
- * the layout's reserved placeholder panel; a real page swaps in its own client
- * island without touching the layout.
+ * The whole page is one typed {@link SolutionsPageConfig} rendered inside
+ * the shared route-group layout's chrome. Every visual slot carries an
+ * enterprise feature graphic - reused directly where its story fits the
+ * card (the access-control role graph, the audit ledger) or retold through
+ * the graphics' content props for IT's use cases (ticket routing, incident
+ * runbooks, infrastructure monitors) - so the page shares the enterprise
+ * design language without any new visual vocabulary.
  */
 const IT_CONFIG: SolutionsPageConfig = {
   module: 'IT',
   path: '/solutions/it',
   hero: {
+    eyebrow: 'IT',
     heading: 'Automate ticket triage, access, and monitoring with Sim agents.',
     description:
       'IT teams build AI agents in Sim, the open-source AI workspace, with the governance, access controls, and audit trails IT needs, across 1,000+ integrations and every major LLM.',
     summary:
       'Sim is the open-source AI workspace where IT teams build, deploy, and manage AI agents that automate ticket triage, access provisioning, and infrastructure monitoring, connecting 1,000+ integrations and every major LLM under IT-grade governance.',
-    visual: null,
+    visual: (
+      <PlatformHeroVisual>
+        <ItHeroLoop />
+      </PlatformHeroVisual>
+    ),
   },
   rows: [
     {
@@ -30,18 +52,25 @@ const IT_CONFIG: SolutionsPageConfig = {
           title: 'Triage tickets',
           description:
             'Sim routes, tags, and resolves incoming tickets across your help desk automatically.',
-          visual: null,
+          featureTileTone: 'dark',
+          featureTileDescriptionTone: 'soft',
+          visual: (
+            <OperationsTeamsGraphic
+              sourceLabels={['Gmail', 'Zendesk', 'Slack']}
+              destinationLabels={['Jira', 'ServiceNow', 'Linear']}
+            />
+          ),
         },
         {
           title: 'Provision access',
           description:
             'Sim grants and revokes access by policy, so requests are handled in seconds, not days.',
-          visual: null,
+          visual: <AccessControlGraphic />,
         },
         {
           title: 'Answer common questions',
           description: 'Sim deploys an internal help-desk agent that answers from your own docs.',
-          visual: null,
+          visual: <KnowledgeAnswerGraphic />,
         },
       ],
     },
@@ -55,19 +84,45 @@ const IT_CONFIG: SolutionsPageConfig = {
           title: 'Monitor infrastructure',
           description:
             'Sim agents watch logs and metrics and flag anomalies the moment they appear.',
-          visual: null,
+          visual: (
+            <RunMonitoringGraphic
+              fields={[
+                { label: 'Workflow', value: 'Infra monitor', variant: 'strong' },
+                { label: 'Run ID', value: '9b3fe127', variant: 'chip' },
+                { label: 'Trigger', value: 'Alert', variant: 'chip' },
+                { label: 'Duration', value: '0.82s', variant: 'mono' },
+              ]}
+              outputPairs={[
+                { key: 'status', value: '"healthy"' },
+                { key: 'checks', value: '42' },
+              ]}
+            />
+          ),
         },
         {
           title: 'Respond to incidents',
           description:
             'Sim runs your runbooks automatically and escalates to the right on-call engineer.',
-          visual: null,
+          visual: (
+            <ItPlatformTeamsGraphic
+              title='Incident'
+              badgeLabel='Runbook'
+              cardTitle='API latency · Sev 2'
+              cardSubtitle='Runbook running now'
+              cardTag='Active'
+              controls={[
+                { label: 'Service restarted', detail: 'Done' },
+                { label: 'On-call paged', detail: 'Sent' },
+                { label: 'Status page updated', detail: 'Done' },
+              ]}
+            />
+          ),
         },
         {
           title: 'Audit every action',
           description:
             'Sim logs every agent run block by block, so IT can prove exactly what happened.',
-          visual: null,
+          visual: <AuditTrailGraphic />,
         },
       ],
     },

@@ -1,0 +1,74 @@
+/**
+ * The DocumentDraftGraphic's motion: the greeked prose bars draw in
+ * left-to-right one after another — a one-shot write, never re-typed,
+ * like the audit tile's stamp-in — and the header's status tag then
+ * carries the family's shared quiet 6s ring-pulse beat. Under
+ * prefers-reduced-motion everything renders fully drawn and static.
+ */
+
+.bar0,
+.bar1,
+.bar2,
+.bar3,
+.bar4 {
+  animation: document-draft-bar 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.bar0 {
+  animation-delay: 0.35s;
+}
+
+.bar1 {
+  animation-delay: 0.55s;
+}
+
+.bar2 {
+  animation-delay: 0.75s;
+}
+
+.bar3 {
+  animation-delay: 0.95s;
+}
+
+.bar4 {
+  animation-delay: 1.15s;
+}
+
+@keyframes document-draft-bar {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.statusPulse {
+  animation: document-draft-status-pulse 6s ease-out infinite;
+}
+
+@keyframes document-draft-status-pulse {
+  0%,
+  20% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  }
+  36% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar0,
+  .bar1,
+  .bar2,
+  .bar3,
+  .bar4,
+  .statusPulse {
+    animation: none;
+  }
+}

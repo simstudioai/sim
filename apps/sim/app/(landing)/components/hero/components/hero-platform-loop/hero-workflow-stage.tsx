@@ -29,6 +29,13 @@ interface HeroWorkflowStageProps {
   edges?: ReadonlyArray<readonly [string, string]>
   /** Design-space bounding box of the block layout. Defaults with them. */
   canvas?: { width: number; height: number }
+  /**
+   * Block to dress with the selection ring - graphite (`--text-secondary`)
+   * rather than the real canvas's blue, per the landing pages' grayscale
+   * language - the workflows hero uses this for its "being edited" beat.
+   * Off by default, so existing stages are unchanged.
+   */
+  selectedId?: string
 }
 
 /**
@@ -55,6 +62,7 @@ export function HeroWorkflowStage({
   blocks = STAGE_BLOCKS,
   edges = STAGE_EDGES,
   canvas = STAGE_CANVAS,
+  selectedId,
 }: HeroWorkflowStageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(MAX_STAGE_SCALE)
@@ -154,6 +162,13 @@ export function HeroWorkflowStage({
                 style={{ left: block.x, top: block.y, width: BLOCK_WIDTH }}
               >
                 <StageBlockCard block={block} />
+                <span
+                  aria-hidden
+                  className={cn(
+                    'pointer-events-none absolute inset-0 rounded-[13px] ring-[1.75px] ring-[var(--text-secondary)] transition-opacity duration-300 ease-out',
+                    selectedId === block.id && built ? 'opacity-100' : 'opacity-0'
+                  )}
+                />
               </div>
             )
           })}

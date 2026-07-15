@@ -60,6 +60,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/workflows`,
     },
     {
+      url: `${baseUrl}/knowledge`,
+    },
+    {
+      url: `${baseUrl}/tables`,
+    },
+    {
+      url: `${baseUrl}/files`,
+    },
+    {
+      url: `${baseUrl}/logs`,
+    },
+    {
+      url: `${baseUrl}/scheduled-tasks`,
+    },
+    {
       url: `${baseUrl}/pricing`,
     },
     {
@@ -88,6 +103,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/solutions/it`,
+    },
+    {
+      url: `${baseUrl}/solutions/sales`,
     },
     {
       url: `${baseUrl}/blog`,

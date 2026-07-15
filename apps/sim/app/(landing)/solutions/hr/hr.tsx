@@ -1,23 +1,46 @@
-import { SolutionsPage, type SolutionsPageConfig } from '@/app/(landing)/components'
+import {
+  PlatformHeroVisual,
+  SolutionsPage,
+  type SolutionsPageConfig,
+} from '@/app/(landing)/components'
+import {
+  ItPlatformTeamsGraphic,
+  OperationsTeamsGraphic,
+  RunMonitoringGraphic,
+  StagingGraphic,
+} from '@/app/(landing)/enterprise/components/feature-graphics'
+import {
+  DocumentDraftGraphic,
+  KnowledgeAnswerGraphic,
+} from '@/app/(landing)/solutions/components/feature-graphics'
+import { HrHeroLoop } from '@/app/(landing)/solutions/hr/components/hr-hero-loop'
 
 /**
- * HR solution page - a reference consumer of {@link SolutionsPage}.
+ * HR solution page - a consumer of {@link SolutionsPage} rendered with the
+ * enterprise page's feature-tile treatment.
  *
- * The whole page is one typed {@link SolutionsPageConfig} rendered inside the
- * shared route-group layout. Visual slots are `null`, so each renders the
- * layout's reserved placeholder panel; a real page swaps in its own client
- * island without touching the layout.
+ * The whole page is one typed {@link SolutionsPageConfig} rendered inside
+ * the shared route-group layout's chrome. Every visual slot carries a
+ * feature graphic in the enterprise design language, retold through the
+ * graphics' content props for HR's use cases - onboarding fan-out across
+ * systems, a benefits answer grounded in the team's docs, offer-letter
+ * drafting, PTO approvals, surveys, and people reports.
  */
 const HR_CONFIG: SolutionsPageConfig = {
   module: 'HR',
   path: '/solutions/hr',
   hero: {
+    eyebrow: 'HR',
     heading: 'Automate onboarding, employee questions, and approvals with Sim agents.',
     description:
       'HR teams build AI agents in Sim, the open-source AI workspace, wired into your HRIS and 1,000+ integrations, so the team spends time on people, not paperwork.',
     summary:
       'Sim is the open-source AI workspace where HR teams build, deploy, and manage AI agents that automate onboarding, employee questions, and approvals, connecting your HRIS and 1,000+ integrations so the team focuses on people, not paperwork.',
-    visual: null,
+    visual: (
+      <PlatformHeroVisual>
+        <HrHeroLoop />
+      </PlatformHeroVisual>
+    ),
   },
   rows: [
     {
@@ -30,19 +53,39 @@ const HR_CONFIG: SolutionsPageConfig = {
           title: 'Onboard new hires',
           description:
             'Sim runs the onboarding checklist across every system so day one just works.',
-          visual: null,
+          featureTileTone: 'dark',
+          featureTileDescriptionTone: 'soft',
+          visual: (
+            <OperationsTeamsGraphic
+              sourceLabels={['Greenhouse', 'Workday', 'Gmail']}
+              destinationLabels={['Okta', 'Slack', 'Calendar']}
+            />
+          ),
         },
         {
           title: 'Answer HR questions',
           description:
             'Sim deploys an agent that answers policy and benefits questions from your docs.',
-          visual: null,
+          visual: (
+            <KnowledgeAnswerGraphic
+              question='How much parental leave do we get?'
+              answer='Sixteen weeks fully paid, plus four flexible weeks in the first year. Your manager approves the schedule.'
+              sourceLabel='Benefits policy'
+            />
+          ),
         },
         {
           title: 'Generate documents',
           description:
             'Sim drafts offer letters and policy docs from your templates automatically.',
-          visual: null,
+          visual: (
+            <DocumentDraftGraphic
+              title='Offer letter'
+              statusTag='From template'
+              footerLabel='Ready for signature'
+              footerDetail='Just now'
+            />
+          ),
         },
       ],
     },
@@ -56,17 +99,56 @@ const HR_CONFIG: SolutionsPageConfig = {
           title: 'Route approvals',
           description:
             'Sim sends PTO and expense requests to the right manager and tracks the response.',
-          visual: null,
+          visual: (
+            <StagingGraphic
+              title='PTO request'
+              headerTag='5 days'
+              changeTag='Aug 4–8'
+              changeTitle='Vacation · Maya Chen'
+              attribution='Routed to manager · 1m ago'
+              checks={['Balance available', 'No team conflicts', 'Policy met']}
+              fromLabel='Requested'
+              toLabel='Approved'
+              actionLabel='Approve'
+            />
+          ),
         },
         {
           title: 'Run surveys',
           description: 'Sim collects and summarizes engagement feedback so trends surface early.',
-          visual: null,
+          visual: (
+            <ItPlatformTeamsGraphic
+              title='Surveys'
+              badgeLabel='Quarterly'
+              cardTitle='Q3 engagement pulse'
+              cardSubtitle='318 of 412 responses in'
+              cardTag='Live'
+              controls={[
+                { label: 'Sent to every team', detail: 'Done' },
+                { label: 'Reminders scheduled', detail: 'Aug 12' },
+                { label: 'Themes summarized', detail: 'Weekly' },
+              ]}
+            />
+          ),
         },
         {
           title: 'Build reports',
           description: 'Sim assembles headcount and people reports from your HRIS on schedule.',
-          visual: null,
+          visual: (
+            <RunMonitoringGraphic
+              title='People report'
+              fields={[
+                { label: 'Report', value: 'Headcount · Q3', variant: 'strong' },
+                { label: 'Source', value: 'HRIS', variant: 'chip' },
+                { label: 'Trigger', value: 'Schedule', variant: 'chip' },
+                { label: 'Duration', value: '3.02s', variant: 'mono' },
+              ]}
+              outputPairs={[
+                { key: 'headcount', value: '412' },
+                { key: 'open_roles', value: '23' },
+              ]}
+            />
+          ),
         },
       ],
     },

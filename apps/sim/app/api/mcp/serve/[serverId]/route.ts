@@ -31,10 +31,6 @@ import {
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import {
-  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
-  isWorkspaceApiExecutionEntitled,
-} from '@/lib/billing/core/api-access'
-import {
   assertBillingAttributionSnapshot,
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
@@ -341,15 +337,6 @@ async function authorizeMcpServeRequest(
   server: WorkflowMcpServeServer,
   options: { requireAuthForPublic?: boolean } = {}
 ): Promise<{ response?: NextResponse; executeAuthContext?: ExecuteAuthContext }> {
-  if (!(await isWorkspaceApiExecutionEntitled(server.workspaceId))) {
-    return {
-      response: NextResponse.json(
-        { error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE },
-        { status: 402 }
-      ),
-    }
-  }
-
   if (server.isPublic && !options.requireAuthForPublic) return {}
 
   const auth = await checkHybridAuth(request, { requireWorkflowId: false })

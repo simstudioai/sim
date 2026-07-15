@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/it-platform-teams-graphic.module.css'
 
-interface PolicyControl {
+export interface PolicyControl {
   /** Enforced control name, one per pillar of the tile's claim. */
   label: string
   /** Right-aligned enforcement detail. */
@@ -16,7 +16,7 @@ interface PolicyControl {
  * access controls (SSO), governance (reviewer approval), and audit
  * trails (retention).
  */
-const CONTROLS: readonly PolicyControl[] = [
+const CONTROLS: readonly [PolicyControl, PolicyControl, PolicyControl] = [
   { label: 'Single sign-on', detail: 'Enforced' },
   { label: 'Reviewer approval', detail: 'Required' },
   { label: 'Audit history', detail: '90 days' },
@@ -51,8 +51,37 @@ const CONTROLS: readonly PolicyControl[] = [
  * slot's center. The column is fluid (`w-full max-w-[312px]`) so it
  * never exceeds the compensated slot at narrow tile widths — the policy
  * name truncates instead of clipping.
+ *
+ * Every label is parametrizable so other landing pages (IT, HR,
+ * compliance) can retell the checklist-under-a-highlight composition for
+ * their own domain — an incident runbook, an onboarding plan, an
+ * evidence schedule; the defaults keep the enterprise page's workspace
+ * policy vignette byte-identical. Chrome, motion, and layout never
+ * change with the copy.
  */
-export function ItPlatformTeamsGraphic() {
+interface ItPlatformTeamsGraphicProps {
+  /** Header title. */
+  title?: string
+  /** Mono badge on the header's right side, beside the avatar. */
+  badgeLabel?: string
+  /** Title line of the highlighted white card. */
+  cardTitle?: string
+  /** Scope line beneath the card title. */
+  cardSubtitle?: string
+  /** Grey tag carrying the card's pulsing state. */
+  cardTag?: string
+  /** The three checked rows beneath the card. */
+  controls?: readonly [PolicyControl, PolicyControl, PolicyControl]
+}
+
+export function ItPlatformTeamsGraphic({
+  title = 'Workspace',
+  badgeLabel = 'Managed by IT',
+  cardTitle = 'Production policy',
+  cardSubtitle = 'Applies to every workspace',
+  cardTag = 'Active',
+  controls = CONTROLS,
+}: ItPlatformTeamsGraphicProps = {}) {
   return (
     <FeatureGraphicShell>
       <div
@@ -62,7 +91,7 @@ export function ItPlatformTeamsGraphic() {
         <div className='w-full max-w-[312px]'>
           <div className='mb-3 flex items-center justify-between gap-2'>
             <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-base'>
-              Workspace
+              {title}
             </span>
             <span className='flex shrink-0 items-center gap-1.5'>
               <span className='relative size-4 overflow-hidden rounded-full shadow-sm'>
@@ -75,7 +104,7 @@ export function ItPlatformTeamsGraphic() {
                 />
               </span>
               <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
-                Managed by IT
+                {badgeLabel}
               </ChipTag>
             </span>
           </div>
@@ -83,19 +112,19 @@ export function ItPlatformTeamsGraphic() {
           <div className='flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
             <span className='min-w-0 flex-1'>
               <span className='block truncate font-medium text-[var(--text-primary)] text-small'>
-                Production policy
+                {cardTitle}
               </span>
               <span className='block truncate text-[var(--text-muted)] text-caption'>
-                Applies to every workspace
+                {cardSubtitle}
               </span>
             </span>
             <ChipTag variant='gray' className={cn('shrink-0 shadow-none', styles.activePulse)}>
-              Active
+              {cardTag}
             </ChipTag>
           </div>
 
           <div className='mt-1.5 px-3'>
-            {CONTROLS.map((control, index) => (
+            {controls.map((control, index) => (
               <div
                 key={control.label}
                 className={cn(
