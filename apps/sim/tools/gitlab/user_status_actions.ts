@@ -59,9 +59,10 @@ function createUserStatusActionTool(
         }
       }
 
-      // These endpoints return either `true` or the updated user object.
+      // These endpoints return `true`, `{ message: 'Success' }`, or the updated
+      // user object. Only surface objects that are actually a user record.
       const data = await response.json().catch(() => null)
-      const user = data && typeof data === 'object' ? data : undefined
+      const user = data && typeof data === 'object' && 'id' in data ? data : undefined
 
       return {
         success: true,

@@ -39,13 +39,23 @@ export const gitlabDeleteSamlGroupLinkTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The name of the SAML group link to delete',
     },
+    provider: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Provider name of the link to delete. Required when multiple links share the same SAML group name.',
+    },
   },
 
   request: {
     url: (params) => {
       const encodedId = encodeURIComponent(String(params.groupId).trim())
       const encodedName = encodeURIComponent(String(params.samlGroupName).trim())
-      return `${getGitLabApiBase(params.host)}/groups/${encodedId}/saml_group_links/${encodedName}`
+      const queryParams = new URLSearchParams()
+      if (params.provider) queryParams.append('provider', params.provider.trim())
+      const query = queryParams.toString()
+      return `${getGitLabApiBase(params.host)}/groups/${encodedId}/saml_group_links/${encodedName}${query ? `?${query}` : ''}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -774,6 +774,7 @@ interface GitLabInvitation {
   created_at?: string
   expires_at?: string | null
   user_name?: string
+  created_by_name?: string
   invite_token?: string
   member_role_id?: number | null
 }
@@ -792,6 +793,7 @@ interface GitLabSamlGroupLink {
   name: string
   access_level: number
   member_role_id?: number | null
+  provider?: string | null
 }
 
 interface GitLabUser {
@@ -886,11 +888,14 @@ export interface GitLabAddSamlGroupLinkParams extends GitLabBaseParams {
   samlGroupName: string
   accessLevel: number
   memberRoleId?: number
+  provider?: string
 }
 
 export interface GitLabDeleteSamlGroupLinkParams extends GitLabBaseParams {
   groupId: string | number
   samlGroupName: string
+  /** Provider name; required by GitLab when multiple links share the same SAML group name. */
+  provider?: string
 }
 
 export interface GitLabSearchUsersParams extends GitLabBaseParams {

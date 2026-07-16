@@ -95,7 +95,7 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
   longDescription:
-    'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.',
+    'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments, plus project/group membership, invitations, access requests, SAML group links, and instance user administration. Supports all core GitLab DevOps operations.',
   docsLink: 'https://docs.sim.ai/integrations/gitlab',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
@@ -991,6 +991,18 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: EMAIL_OPS,
       },
     },
+    // Filter for member / invitation listings
+    {
+      id: 'query',
+      title: 'Filter',
+      type: 'short-input',
+      placeholder: 'Filter members by name/username, or invitations by email',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_members', 'gitlab_list_invitations'],
+      },
+    },
     // Direct members only toggle (list members)
     {
       id: 'directMembersOnly',
@@ -1022,6 +1034,18 @@ Return ONLY the commit message - no explanations, no extra text.`,
       type: 'short-input',
       placeholder: 'Name of the SAML group as sent by the identity provider',
       required: true,
+      condition: {
+        field: 'operation',
+        value: SAML_NAME_OPS,
+      },
+    },
+    // SAML provider name (add/delete SAML group link)
+    {
+      id: 'samlProvider',
+      title: 'SAML Provider',
+      type: 'short-input',
+      placeholder: 'Provider name (required when multiple links share a group name)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: SAML_NAME_OPS,
@@ -1644,6 +1668,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
               directOnly: params.directMembersOnly || undefined,
+              query: params.query?.trim() || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1709,6 +1734,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               ...baseParams,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
+              query: params.query?.trim() || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1795,6 +1821,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               samlGroupName: params.samlGroupName.trim(),
               accessLevel: Number(params.accessLevel),
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
+              provider: params.samlProvider?.trim() || undefined,
             }
 
           case 'gitlab_delete_saml_group_link':
@@ -1805,6 +1832,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               ...baseParams,
               groupId: params.groupId.trim(),
               samlGroupName: params.samlGroupName.trim(),
+              provider: params.samlProvider?.trim() || undefined,
             }
 
           case 'gitlab_search_users':
@@ -1954,8 +1982,16 @@ Return ONLY the commit message - no explanations, no extra text.`,
     memberRoleId: { type: 'number', description: 'Custom member role ID (Ultimate)' },
     email: { type: 'string', description: 'Email address for invitations' },
     directMembersOnly: { type: 'boolean', description: 'Exclude inherited members' },
+    query: {
+      type: 'string',
+      description: 'Filter members by name/username, or invitations by email',
+    },
     userSearch: { type: 'string', description: 'User search query' },
     samlGroupName: { type: 'string', description: 'SAML group name' },
+    samlProvider: {
+      type: 'string',
+      description: 'SAML provider name for a group link (disambiguates duplicate link names)',
+    },
     provider: { type: 'string', description: 'External identity provider name' },
     hardDelete: { type: 'boolean', description: 'Hard-delete a user' },
     userAdminEmail: { type: 'string', description: "User's email (create/update user)" },

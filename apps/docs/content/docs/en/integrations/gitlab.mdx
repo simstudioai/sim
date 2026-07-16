@@ -27,7 +27,7 @@ Using Sim’s GitLab integration, your agents can programmatically interact with
 
 ## Usage Instructions
 
-Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.
+Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments, plus project/group membership, invitations, access requests, SAML group links, and instance user administration. Supports all core GitLab DevOps operations.
 
 
 
@@ -1680,6 +1680,7 @@ Add a SAML group link that maps an identity-provider group to a GitLab group at 
 | `samlGroupName` | string | Yes | The name of the SAML group as sent by the identity provider |
 | `accessLevel` | number | Yes | Access level granted to members of the SAML group: 10 \(Guest\), 20 \(Reporter\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
 | `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
+| `provider` | string | No | Unique provider name that must match for this group link to be applied |
 
 #### Output
 
@@ -1698,6 +1699,7 @@ Delete a SAML group link from a GitLab group
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `groupId` | string | Yes | Group ID or URL-encoded path |
 | `samlGroupName` | string | Yes | The name of the SAML group link to delete |
+| `provider` | string | No | Provider name of the link to delete. Required when multiple links share the same SAML group name. |
 
 #### Output
 

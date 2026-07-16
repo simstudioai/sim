@@ -53,6 +53,12 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Custom member role ID (GitLab Ultimate only)',
     },
+    provider: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Unique provider name that must match for this group link to be applied',
+    },
   },
 
   request: {
@@ -72,6 +78,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
       }
 
       if (params.memberRoleId !== undefined) body.member_role_id = params.memberRoleId
+      if (params.provider) body.provider = params.provider.trim()
 
       return body
     },
