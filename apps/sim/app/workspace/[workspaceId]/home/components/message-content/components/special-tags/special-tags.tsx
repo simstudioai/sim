@@ -20,6 +20,7 @@ import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import type {
@@ -878,9 +879,13 @@ function CredentialLinkDisplay({ data }: { data: CredentialTagData }) {
   // render it as a clickable link when it resolves to a real http(s) URL.
   if (!data.value || !isSafeHttpUrl(data.value)) return null
   const Icon = getCredentialIcon(data.provider) ?? LockIcon
+  const integrationName =
+    getServiceConfigByProviderId(data.provider)?.name ??
+    OAUTH_PROVIDERS[data.provider.toLowerCase()]?.name ??
+    data.provider
   const label = reconnectCredentialId
-    ? `Reconnect ${reconnectCredential?.displayName ?? data.provider}`
-    : `Connect ${data.provider}`
+    ? `Reconnect ${reconnectCredential?.displayName ?? integrationName}`
+    : `Connect ${integrationName}`
   return (
     <a
       href={data.value}

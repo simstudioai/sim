@@ -19,7 +19,10 @@ import type {
 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
+import {
+  getAccessibleEnvCredentials,
+  getAccessibleOAuthCredentials,
+} from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -350,6 +353,7 @@ async function buildWorkspaceMdData(
       tables,
       files,
       credentials,
+      envCredentials,
       customTools,
       mcpServerRows,
       skillRows,
@@ -405,6 +409,8 @@ async function buildWorkspaceMdData(
       listWorkspaceFiles(workspaceId),
 
       getAccessibleOAuthCredentials(workspaceId, userId),
+
+      getAccessibleEnvCredentials(workspaceId, userId),
 
       listCustomTools({ userId, workspaceId }),
 
@@ -511,7 +517,13 @@ async function buildWorkspaceMdData(
         displayName: c.displayName,
         role: c.role,
       })),
-      envVariables: [],
+      // Names only: make newly saved personal/workspace secrets visible to the
+      // next Mothership turn without ever putting their values on the wire.
+      // De-duplicate conflicts (the same key may exist in both scopes) and sort
+      // for byte-stable prompt snapshots.
+      envVariables: [...new Set(envCredentials.map((credential) => credential.envKey))].sort(
+        stableCompare
+      ),
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       customBlocks: customBlockSummaries,
       mcpServers: mcpServerRows,

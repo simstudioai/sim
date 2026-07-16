@@ -115,6 +115,16 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
     const md = buildWorkspaceMd(baseData({ oauthIntegrations: [] }))
     expect(md).toContain('## Connected Integrations\n(none)')
   })
+
+  it('injects available environment credential names into markdown and the typed snapshot', () => {
+    const data = baseData({ envVariables: ['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'] })
+
+    const md = buildWorkspaceMd(data)
+    expect(md).toContain('## Environment Variables (2)')
+    expect(md).toContain('- OPENAI_API_KEY')
+    expect(md).toContain('- STRIPE_SECRET_KEY')
+    expect(buildVfsSnapshot(data).envVars).toEqual(['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'])
+  })
 })
 
 describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
