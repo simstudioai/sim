@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-13",
+  "updatedAt": "2026-07-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -15088,6 +15088,281 @@
       "category": "tools",
       "integrationType": "hr",
       "tags": ["hiring"]
+    },
+    {
+      "type": "rocketlane",
+      "slug": "rocketlane",
+      "name": "Rocketlane",
+      "description": "Manage client onboarding projects, tasks, time tracking, and invoices",
+      "longDescription": "Integrate Rocketlane into your workflow. Rocketlane is a professional-services automation platform for client onboarding and project delivery. Create and manage projects, tasks, phases, custom fields, time entries, time-offs, spaces, documents, resource allocations, and invoices.",
+      "bgColor": "#000000",
+      "iconName": "RocketlaneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/rocketlane",
+      "operations": [
+        {
+          "name": "Create Project",
+          "description": "Create a new Rocketlane project with a customer, owner, dates, team members, templates, financials, and custom fields"
+        },
+        {
+          "name": "Get Project",
+          "description": "Retrieve a Rocketlane project by its unique identifier"
+        },
+        {
+          "name": "List Projects",
+          "description": "List Rocketlane projects with optional filters, sorting, and token-based pagination"
+        },
+        {
+          "name": "Update Project",
+          "description": "Update a Rocketlane project by ID, including name, dates, visibility, owner, status, and custom fields"
+        },
+        {
+          "name": "Archive Project",
+          "description": "Archive a Rocketlane project by ID, making it dormant while preserving its details and history"
+        },
+        {
+          "name": "Delete Project",
+          "description": "Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super Users, and Project Owners can delete)"
+        },
+        {
+          "name": "Add Project Members",
+          "description": "Add team members and customer stakeholders to a Rocketlane project"
+        },
+        {
+          "name": "Remove Project Members",
+          "description": "Remove team members from a Rocketlane project"
+        },
+        {
+          "name": "Import Template",
+          "description": "Import a project template into an existing Rocketlane project"
+        },
+        {
+          "name": "List Placeholders",
+          "description": "List the placeholders of a Rocketlane project"
+        },
+        {
+          "name": "Assign Placeholder",
+          "description": "Assign a placeholder in a Rocketlane project to a user"
+        },
+        {
+          "name": "Unassign Placeholder",
+          "description": "Unassign a placeholder from its user in a Rocketlane project"
+        },
+        {
+          "name": "Create Task",
+          "description": "Create a new task in a Rocketlane project"
+        },
+        {
+          "name": "Get Task",
+          "description": "Retrieve detailed information about a Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "List Tasks",
+          "description": "Retrieve all Rocketlane tasks with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Task",
+          "description": "Update the properties of an existing Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Permanently delete a Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "Move Task to Phase",
+          "description": "Move a Rocketlane task to a given phase, associating the task with that phase"
+        },
+        {
+          "name": "Add Task Assignees",
+          "description": "Add members as assignees to a Rocketlane task"
+        },
+        {
+          "name": "Remove Task Assignees",
+          "description": "Remove assignees from a Rocketlane task"
+        },
+        {
+          "name": "Add Task Followers",
+          "description": "Add members as followers to a Rocketlane task"
+        },
+        {
+          "name": "Remove Task Followers",
+          "description": "Remove followers from a Rocketlane task"
+        },
+        {
+          "name": "Add Task Dependencies",
+          "description": "Add finish-to-start dependencies between a Rocketlane task and other tasks"
+        },
+        {
+          "name": "Remove Task Dependencies",
+          "description": "Remove dependencies from a Rocketlane task"
+        },
+        {
+          "name": "Create Phase",
+          "description": "Create a new phase in a Rocketlane project"
+        },
+        {
+          "name": "Get Phase",
+          "description": "Retrieve a single Rocketlane phase by ID"
+        },
+        {
+          "name": "List Phases",
+          "description": "List phases of a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Phase",
+          "description": "Update the name, dates, status, or privacy of an existing Rocketlane phase"
+        },
+        {
+          "name": "Delete Phase",
+          "description": "Permanently delete a Rocketlane phase by ID"
+        },
+        {
+          "name": "Create Field",
+          "description": "Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE and MULTIPLE_CHOICE field types"
+        },
+        {
+          "name": "Get Field",
+          "description": "Retrieve a single Rocketlane field by ID"
+        },
+        {
+          "name": "List Fields",
+          "description": "List fields in your Rocketlane account, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Field",
+          "description": "Update the label, description, enabled state, or privacy of an existing Rocketlane field"
+        },
+        {
+          "name": "Delete Field",
+          "description": "Permanently delete a Rocketlane field by ID"
+        },
+        {
+          "name": "Add Field Option",
+          "description": "Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field"
+        },
+        {
+          "name": "Update Field Option",
+          "description": "Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field"
+        },
+        {
+          "name": "Create Time Entry",
+          "description": "Create a time entry in Rocketlane against an adhoc activity, task, project phase, or project"
+        },
+        {
+          "name": "Get Time Entry",
+          "description": "Get a single Rocketlane time entry by ID"
+        },
+        {
+          "name": "List Time Entries",
+          "description": "List Rocketlane time entries with optional filters, sorting, and cursor-based pagination"
+        },
+        {
+          "name": "Search Time Entries",
+          "description": "Search Rocketlane time entries with filters, sorting, and pagination (deprecated by Rocketlane in favor of listing time entries with filters)"
+        },
+        {
+          "name": "Update Time Entry",
+          "description": "Update a Rocketlane time entry by ID. The activityName, notes, billable, and minutes properties can be updated"
+        },
+        {
+          "name": "Delete Time Entry",
+          "description": "Permanently delete a Rocketlane time entry by ID"
+        },
+        {
+          "name": "List Time Entry Categories",
+          "description": "List the time entry categories configured in Rocketlane"
+        },
+        {
+          "name": "Create Time-Off",
+          "description": "Create a time-off for a team member in Rocketlane. Holidays and weekends within the date range are automatically excluded from the duration."
+        },
+        {
+          "name": "Get Time-Off",
+          "description": "Retrieve a Rocketlane time-off by its ID"
+        },
+        {
+          "name": "List Time-Offs",
+          "description": "List time-offs in Rocketlane with optional date, type, and user filters, sorting, and pagination"
+        },
+        {
+          "name": "Delete Time-Off",
+          "description": "Permanently delete a Rocketlane time-off by its ID"
+        },
+        {
+          "name": "Get User",
+          "description": "Retrieve a Rocketlane user by their ID"
+        },
+        {
+          "name": "List Users",
+          "description": "List users in your Rocketlane account, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Create Space",
+          "description": "Create a new space in a Rocketlane project"
+        },
+        {
+          "name": "Get Space",
+          "description": "Retrieve a Rocketlane space by its ID"
+        },
+        {
+          "name": "List Spaces",
+          "description": "List spaces in a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Space",
+          "description": "Update a Rocketlane space by its ID"
+        },
+        {
+          "name": "Delete Space",
+          "description": "Permanently delete a Rocketlane space by its ID"
+        },
+        {
+          "name": "Create Space Document",
+          "description": "Create a new space document in a Rocketlane space"
+        },
+        {
+          "name": "Get Space Document",
+          "description": "Retrieve a Rocketlane space document by its ID"
+        },
+        {
+          "name": "List Space Documents",
+          "description": "List space documents in a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Space Document",
+          "description": "Update a Rocketlane space document by its ID"
+        },
+        {
+          "name": "Delete Space Document",
+          "description": "Permanently delete a Rocketlane space document by its ID"
+        },
+        {
+          "name": "List Resource Allocations",
+          "description": "List resource allocations in Rocketlane within a date range, with optional member, project, and placeholder filters, sorting, and pagination"
+        },
+        {
+          "name": "Get Invoice",
+          "description": "Retrieve a Rocketlane invoice by its ID"
+        },
+        {
+          "name": "List Invoices",
+          "description": "Search invoices in Rocketlane with date, amount, company, invoice-number, and status filters, sorting, and pagination"
+        },
+        {
+          "name": "Get Invoice Line Items",
+          "description": "List line items of a Rocketlane invoice"
+        },
+        {
+          "name": "Get Invoice Payments",
+          "description": "List payments recorded against a Rocketlane invoice"
+        }
+      ],
+      "operationCount": 64,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "automation"]
     },
     {
       "type": "rootly",

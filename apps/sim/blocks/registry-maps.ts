@@ -254,6 +254,7 @@ import { ResendBlock, ResendBlockMeta } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RevenueCatBlock, RevenueCatBlockMeta } from '@/blocks/blocks/revenuecat'
 import { RipplingBlock, RipplingBlockMeta } from '@/blocks/blocks/rippling'
+import { RocketlaneBlock, RocketlaneBlockMeta } from '@/blocks/blocks/rocketlane'
 import { RootlyBlock, RootlyBlockMeta } from '@/blocks/blocks/rootly'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock, RssBlockMeta } from '@/blocks/blocks/rss'
@@ -566,6 +567,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   response: ResponseBlock,
   revenuecat: RevenueCatBlock,
   rippling: RipplingBlock,
+  rocketlane: RocketlaneBlock,
   rootly: RootlyBlock,
   router: RouterBlock,
   router_v2: RouterV2Block,
@@ -853,6 +855,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   resend: ResendBlockMeta,
   revenuecat: RevenueCatBlockMeta,
   rippling: RipplingBlockMeta,
+  rocketlane: RocketlaneBlockMeta,
   rootly: RootlyBlockMeta,
   rss: RssBlockMeta,
   s3: S3BlockMeta,
