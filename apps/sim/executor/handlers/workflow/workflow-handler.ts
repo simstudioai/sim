@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
@@ -17,12 +18,13 @@ import { Executor } from '@/executor'
 import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import type { WorkflowNodeMetadata } from '@/executor/execution/types'
-import type {
-  BlockHandler,
-  ExecutionContext,
-  ExecutionResult,
-  StartBlockRunMetadata,
-  StreamingExecution,
+import {
+  type BlockHandler,
+  type ExecutionContext,
+  type ExecutionResult,
+  START_BLOCK_METADATA_FIELD,
+  type StartBlockRunMetadata,
+  type StreamingExecution,
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
@@ -41,6 +43,22 @@ function getValueAtPath(source: unknown, path: string): unknown {
     if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[key]
     return undefined
   }, source)
+}
+
+/**
+ * Recover the trusted run metadata from the executing workflow's seeded
+ * start-block output. Resume restores block states from the snapshot but never
+ * rebuilds `ctx.startRunMetadata`, so the seeded output is the surviving copy.
+ */
+function readSeededStartRunMetadata(ctx: ExecutionContext): StartBlockRunMetadata | undefined {
+  const resolution = resolveExecutorStartBlock(ctx.workflow?.blocks ?? [], {
+    execution: 'manual',
+    isChildWorkflow: false,
+  })
+  if (!resolution || !isRunMetadataEnabled(resolution.block)) return undefined
+
+  const seeded = ctx.blockStates.get(resolution.blockId)?.output?.[START_BLOCK_METADATA_FIELD]
+  return isRecordLike(seeded) ? (seeded as StartBlockRunMetadata) : undefined
 }
 
 /**
@@ -396,7 +414,10 @@ export class WorkflowBlockHandler implements BlockHandler {
         execution: 'manual',
         isChildWorkflow: false,
       })
-      const inherited = ctx.startRunMetadata
+      // Resumed executions never rebuild `ctx.startRunMetadata`, so fall back to
+      // the parent's own seeded start-block output — the persisted copy of the
+      // same trusted object, restored from the snapshot on resume.
+      const inherited = ctx.startRunMetadata ?? readSeededStartRunMetadata(ctx)
       if (childStartResolution && isRunMetadataEnabled(childStartResolution.block)) {
         // When the parent run already carries trusted metadata, propagate ALL of
         // it so nested children see one consistent invoking identity (the
