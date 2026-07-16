@@ -6,6 +6,7 @@ import type {
   BlockLog,
   BlockState,
   NormalizedBlockOutput,
+  StartBlockRunMetadata,
   StreamingExecution,
 } from '@/executor/types'
 import type { RunFromBlockContext } from '@/executor/utils/run-from-block'
@@ -192,6 +193,12 @@ export interface ContextExtensions {
   dagIncomingEdges?: Record<string, string[]>
   snapshotState?: SerializableExecutionState
   metadata?: ExecutionMetadata
+  /**
+   * Trusted run metadata injected into the Start block output when its
+   * "Add run metadata" toggle is enabled. Built server-side at the two
+   * Executor construction sites — never from caller-supplied input.
+   */
+  startRunMetadata?: StartBlockRunMetadata
   /**
    * AbortSignal for cancellation support.
    * When aborted, the execution should stop gracefully.
