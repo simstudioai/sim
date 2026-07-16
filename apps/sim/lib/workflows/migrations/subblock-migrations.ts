@@ -51,7 +51,7 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   clickup: {
     workspaceId: 'workspaceSelector',
     spaceId: 'spaceSelector',
-    listSpaceId: 'spaceSelector',
+    listSpaceId: 'listSpaceSelector',
     folderId: 'folderSelector',
     listId: 'listSelector',
   },

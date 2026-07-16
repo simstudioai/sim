@@ -92,6 +92,7 @@ export interface SelectorContext {
   impersonateUserEmail?: string
   boardId?: string
   spaceId?: string
+  listSpaceId?: string
   folderId?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string

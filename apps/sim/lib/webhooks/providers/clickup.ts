@@ -250,7 +250,16 @@ export const clickupHandler: WebhookProviderHandler = {
           `[${requestId}] ClickUp webhook created but no secret returned for webhook ${webhookRecord.id}. Rolling back.`,
           { response: redactedResponse }
         )
-        await deleteClickUpWebhook(accessToken, externalId).catch(() => undefined)
+        const rollback = await deleteClickUpWebhook(accessToken, externalId).catch(() => undefined)
+        if (!rollback || (!rollback.ok && rollback.status !== 404)) {
+          logger.error(
+            `[${requestId}] Failed to roll back ClickUp webhook ${externalId} after missing secret`,
+            { clickupWebhookId: externalId, status: rollback?.status }
+          )
+          throw new Error(
+            `ClickUp webhook creation succeeded but no signing secret was returned, and rolling back the webhook failed. Delete webhook ${externalId} manually in ClickUp before retrying.`
+          )
+        }
         throw new Error('ClickUp webhook creation succeeded but no signing secret was returned')
       }
 

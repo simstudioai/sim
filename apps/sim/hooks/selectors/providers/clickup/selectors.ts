@@ -64,18 +64,20 @@ export const clickupSelectors = {
       'selectors',
       'clickup.folders',
       context.oauthCredential ?? 'none',
-      context.spaceId ?? 'none',
+      context.spaceId ?? context.listSpaceId ?? 'none',
     ],
-    enabled: ({ context }) => Boolean(context.oauthCredential && context.spaceId),
+    enabled: ({ context }) =>
+      Boolean(context.oauthCredential && (context.spaceId || context.listSpaceId)),
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'clickup.folders')
-      if (!context.spaceId) {
+      const spaceId = context.spaceId || context.listSpaceId
+      if (!spaceId) {
         throw new Error('Missing space ID for clickup.folders selector')
       }
       const data = await requestJson(selectorContracts.clickupFoldersSelectorContract, {
         body: {
           credential: credentialId,
-          spaceId: context.spaceId,
+          spaceId,
           workflowId: context.workflowId,
         },
         signal,

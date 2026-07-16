@@ -800,7 +800,7 @@ Trigger workflow when a folder is created in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `folderId` | string | ID of the affected folder |
 
@@ -816,7 +816,7 @@ Trigger workflow when a folder is deleted in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `folderId` | string | ID of the affected folder |
 
@@ -832,7 +832,7 @@ Trigger workflow when a folder is updated in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `folderId` | string | ID of the affected folder |
 
@@ -848,7 +848,7 @@ Trigger workflow when a goal is created in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
 
@@ -863,7 +863,7 @@ Trigger workflow when a goal is deleted in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
 
@@ -878,7 +878,7 @@ Trigger workflow when a goal is updated in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
 
@@ -893,7 +893,7 @@ Trigger workflow when a key result is created in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
 
@@ -908,7 +908,7 @@ Trigger workflow when a key result is deleted in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
 
@@ -923,7 +923,7 @@ Trigger workflow when a key result is updated in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 
 
@@ -938,7 +938,7 @@ Trigger workflow when a list is created in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `listId` | string | ID of the affected list |
 
@@ -954,7 +954,7 @@ Trigger workflow when a list is deleted in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `listId` | string | ID of the affected list |
 
@@ -970,7 +970,7 @@ Trigger workflow when a list is updated in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `listId` | string | ID of the affected list |
 
@@ -986,7 +986,7 @@ Trigger workflow when a space is created in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `spaceId` | string | ID of the affected space |
 
@@ -1002,7 +1002,7 @@ Trigger workflow when a space is deleted in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `spaceId` | string | ID of the affected space |
 
@@ -1018,7 +1018,7 @@ Trigger workflow when a space is updated in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `spaceId` | string | ID of the affected space |
 
@@ -1034,7 +1034,7 @@ Trigger workflow when the assignees of a task change in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1050,7 +1050,7 @@ Trigger workflow when a comment is posted on a task in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1066,7 +1066,7 @@ Trigger workflow when a task comment is updated in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1082,7 +1082,7 @@ Trigger workflow when a task is created in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1098,7 +1098,7 @@ Trigger workflow when a task is deleted in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1114,7 +1114,7 @@ Trigger workflow when the due date of a task changes in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1130,7 +1130,7 @@ Trigger workflow when a task is moved to a different list in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1146,7 +1146,7 @@ Trigger workflow when the priority of a task changes in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1162,7 +1162,7 @@ Trigger workflow when the status of a task changes in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1178,7 +1178,7 @@ Trigger workflow when the tags of a task change in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1194,7 +1194,7 @@ Trigger workflow when the time estimate of a task changes in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1210,7 +1210,7 @@ Trigger workflow when the tracked time of a task changes in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1226,7 +1226,7 @@ Trigger workflow when a task is updated in ClickUp
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task |
 
@@ -1242,7 +1242,7 @@ Trigger workflow on any ClickUp event (subscribes to all events)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `eventType` | string | The ClickUp event name \(e.g. taskCreated\) |
-| `historyItems` | json | History items describing what changed \(id, type, date, user, before, after\) |
+| `historyItems` | json | History items describing what changed \(id, type, date, source, user, before, after\) |
 | `payload` | json | Full raw ClickUp webhook payload |
 | `taskId` | string | ID of the affected task \(task events only\) |
 | `listId` | string | ID of the affected list \(list events only\) |

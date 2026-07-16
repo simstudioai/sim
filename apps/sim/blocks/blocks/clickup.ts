@@ -195,7 +195,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: [...CLICKUP_SPACE_OPS, ...CLICKUP_LIST_PARENT_OPS, ...CLICKUP_LIST_OPS],
+        value: [...CLICKUP_SPACE_OPS, ...CLICKUP_LIST_OPS],
       },
       required: { field: 'operation', value: CLICKUP_SPACE_OPS },
     },
@@ -209,7 +209,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: [...CLICKUP_SPACE_OPS, ...CLICKUP_LIST_PARENT_OPS, ...CLICKUP_LIST_OPS],
+        value: [...CLICKUP_SPACE_OPS, ...CLICKUP_LIST_OPS],
       },
       required: { field: 'operation', value: CLICKUP_SPACE_OPS },
     },
@@ -228,6 +228,39 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       },
     },
     {
+      id: 'listSpaceSelector',
+      title: 'Space',
+      type: 'project-selector',
+      canonicalParamId: 'listSpaceId',
+      serviceId: 'clickup',
+      selectorKey: 'clickup.spaces',
+      placeholder: 'Select a space',
+      description: 'Required for folderless lists; used to browse folders in folder mode',
+      dependsOn: ['credential', 'workspaceSelector'],
+      mode: 'basic',
+      condition: { field: 'operation', value: CLICKUP_LIST_PARENT_OPS },
+      required: {
+        field: 'operation',
+        value: CLICKUP_LIST_PARENT_OPS,
+        and: { field: 'listParent', value: 'space' },
+      },
+    },
+    {
+      id: 'manualListSpaceId',
+      title: 'Space ID',
+      type: 'short-input',
+      canonicalParamId: 'listSpaceId',
+      placeholder: 'Enter space ID',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: { field: 'operation', value: CLICKUP_LIST_PARENT_OPS },
+      required: {
+        field: 'operation',
+        value: CLICKUP_LIST_PARENT_OPS,
+        and: { field: 'listParent', value: 'space' },
+      },
+    },
+    {
       id: 'folderSelector',
       title: 'Folder',
       type: 'project-selector',
@@ -236,11 +269,16 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       selectorKey: 'clickup.folders',
       placeholder: 'Select a folder',
       description: 'Leave empty for folderless lists that live directly in the space',
-      dependsOn: ['credential', 'spaceSelector'],
+      dependsOn: { all: ['credential'], any: ['spaceSelector', 'listSpaceSelector'] },
       mode: 'basic',
       condition: {
         field: 'operation',
         value: [...CLICKUP_LIST_PARENT_OPS, ...CLICKUP_LIST_OPS],
+      },
+      required: {
+        field: 'operation',
+        value: CLICKUP_LIST_PARENT_OPS,
+        and: { field: 'listParent', value: 'folder' },
       },
     },
     {
@@ -254,6 +292,11 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       condition: {
         field: 'operation',
         value: [...CLICKUP_LIST_PARENT_OPS, ...CLICKUP_LIST_OPS],
+      },
+      required: {
+        field: 'operation',
+        value: CLICKUP_LIST_PARENT_OPS,
+        and: { field: 'listParent', value: 'folder' },
       },
     },
     {
@@ -1405,7 +1448,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
             return {
               ...baseParams,
               folderId: params.listParent === 'space' ? undefined : params.folderId || undefined,
-              spaceId: params.listParent === 'space' ? params.spaceId || undefined : undefined,
+              spaceId: params.listParent === 'space' ? params.listSpaceId || undefined : undefined,
               archived: params.archived ? true : undefined,
             }
           case 'create_folder':
@@ -1418,7 +1461,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
             return {
               ...baseParams,
               folderId: params.listParent === 'space' ? undefined : params.folderId || undefined,
-              spaceId: params.listParent === 'space' ? params.spaceId || undefined : undefined,
+              spaceId: params.listParent === 'space' ? params.listSpaceId || undefined : undefined,
               name: params.name,
               content: params.content || undefined,
               markdownContent: params.markdownContent || undefined,
@@ -1564,6 +1607,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
     oauthCredential: { type: 'string', description: 'ClickUp OAuth credential' },
     teamId: { type: 'string', description: 'Workspace (team) ID' },
     spaceId: { type: 'string', description: 'Space ID' },
+    listSpaceId: { type: 'string', description: 'Space ID for folderless list operations' },
     listParent: {
       type: 'string',
       description: 'Where lists live for list operations (folder or space)',

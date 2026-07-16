@@ -30,6 +30,7 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'impersonateUserEmail',
   'boardId',
   'spaceId',
+  'listSpaceId',
   'folderId',
   'awsAccessKeyId',
   'awsSecretAccessKey',
