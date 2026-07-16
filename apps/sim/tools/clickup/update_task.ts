@@ -162,6 +162,10 @@ export const clickupUpdateTaskTool: ToolConfig<ClickUpUpdateTaskParams, ClickUpT
         }
       }
 
+      if (Object.keys(body).length === 0) {
+        throw new Error('At least one field to update is required to update a task')
+      }
+
       return body
     },
   },
