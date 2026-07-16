@@ -296,18 +296,18 @@ describe('ClickUp webhook provider', () => {
 
     it('throws a friendly error on 401 from ClickUp', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(401, { err: 'Token invalid' }))
-      await expect(
-        clickupHandler.createSubscription!(createContext(validConfig))
-      ).rejects.toThrow(/authentication failed/i)
+      await expect(clickupHandler.createSubscription!(createContext(validConfig))).rejects.toThrow(
+        /authentication failed/i
+      )
     })
 
     it('rolls back the created webhook and throws when no secret is returned', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: 'ext-3', webhook: { id: 'ext-3' } }))
       fetchMock.mockResolvedValueOnce(jsonResponse(200, {}))
 
-      await expect(
-        clickupHandler.createSubscription!(createContext(validConfig))
-      ).rejects.toThrow(/no signing secret/i)
+      await expect(clickupHandler.createSubscription!(createContext(validConfig))).rejects.toThrow(
+        /no signing secret/i
+      )
 
       expect(fetchMock).toHaveBeenCalledTimes(2)
       const [deleteUrl, deleteInit] = fetchMock.mock.calls[1]
