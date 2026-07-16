@@ -36,6 +36,34 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  call_integration_tool: {
+    parameters: {
+      properties: {
+        arguments: {
+          additionalProperties: true,
+          description: "Inputs matching the selected operation's server-owned inputSchema.",
+          type: 'object',
+        },
+        credentialId: {
+          description:
+            'Optional OAuth credential ID convenience field. It is injected into operation arguments when that schema accepts credentialId.',
+          type: 'string',
+        },
+        description: {
+          description:
+            'Short base-form verb phrase describing this invocation, without the integration name (for example "Search for invoice emails").',
+          type: 'string',
+        },
+        toolId: {
+          description: 'Exact toolId returned by search_integration_tools.',
+          type: 'string',
+        },
+      },
+      required: ['toolId', 'description', 'arguments'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   check_deployment_status: {
     parameters: {
       type: 'object',
@@ -58,6 +86,33 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['jobId'],
+    },
+    resultSchema: undefined,
+  },
+  cp: {
+    parameters: {
+      type: 'object',
+      properties: {
+        destination: {
+          type: 'string',
+          description:
+            'Target path under workflows/. An existing folder (or a path ending in "/") duplicates sources into it keeping their names; otherwise the last segment names the copy and the preceding segments are the target folder (created automatically when missing).',
+        },
+        sources: {
+          type: 'array',
+          description:
+            'Canonical workflow VFS paths to duplicate, e.g. ["workflows/My%20Workflow"]. Copy paths verbatim from glob/grep/read output.',
+          items: {
+            type: 'string',
+          },
+        },
+        toolTitle: {
+          type: 'string',
+          description:
+            'Target-only UI phrase for the action row, e.g. "My Workflow" or "Template to Archive", not a full sentence like "Copying My Workflow".',
+        },
+      },
+      required: ['sources', 'destination', 'toolTitle'],
     },
     resultSchema: undefined,
   },
@@ -117,7 +172,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             files: {
               type: 'array',
               description:
-                'Files to create or overwrite. Parent folders must already exist for create mode.',
+                'Files to create or overwrite. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -161,24 +216,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['success', 'message'],
     },
-  },
-  create_file_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        path: {
-          type: 'string',
-          description:
-            'Canonical folder VFS path to create, e.g. "files/Images" or "files/Reports/2026".',
-        },
-        workspaceId: {
-          type: 'string',
-          description: 'Optional workspace ID. Defaults to the current workspace.',
-        },
-      },
-      required: ['path'],
-    },
-    resultSchema: undefined,
   },
   create_workflow: {
     parameters: {
@@ -854,7 +891,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             files: {
               type: 'array',
               description:
-                'Files to create or overwrite. Parent folders must already exist for create mode.',
+                'Files to create or overwrite. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1124,7 +1161,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1291,7 +1329,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1323,6 +1362,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
             },
           },
+        },
+        timeout: {
+          type: 'number',
+          description:
+            'Maximum execution time in seconds. The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds; the platform execution limit still applies.',
+          default: 10,
         },
         title: {
           type: 'string',
@@ -1452,7 +1497,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1589,7 +1635,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -1747,7 +1794,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           properties: {
             files: {
               type: 'array',
-              description: 'File outputs. Parent folders must already exist for create mode.',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
               items: {
                 type: 'object',
                 properties: {
@@ -2233,18 +2281,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  list_file_folders: {
-    parameters: {
-      type: 'object',
-      properties: {
-        workspaceId: {
-          type: 'string',
-          description: 'Optional workspace ID. Defaults to the current workspace.',
-        },
-      },
-    },
-    resultSchema: undefined,
-  },
   list_integration_tools: {
     parameters: {
       properties: {
@@ -2428,35 +2464,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        destinationPath: {
-          type: 'string',
-          description:
-            'Destination parent folder\'s VFS path for move/create. Omit (or pass "workflows") to target the workspace root.',
-        },
         folderId: {
           type: 'string',
           description:
             'Target folder ID, used as a fallback when path is not given. Readable from a contained workflow\'s meta.json "folderId".',
         },
-        name: {
-          type: 'string',
-          description:
-            'Folder name. Required for rename (the new name); for create when you pass a destination parent instead of a full path.',
-        },
         operation: {
           type: 'string',
           description: 'The operation to perform.',
-          enum: ['create', 'rename', 'move', 'delete'],
-        },
-        parentId: {
-          type: 'string',
-          description:
-            'Destination parent folder ID, used as a fallback when destinationPath is not given.',
+          enum: ['delete'],
         },
         path: {
           type: 'string',
           description:
-            'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path. Identifies the folder for rename/move/delete; for create it is the new folder\'s full path (its parent must already exist).',
+            'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path.',
         },
       },
       required: ['operation'],
@@ -2660,62 +2681,52 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  move_file: {
+  mkdir: {
     parameters: {
       type: 'object',
       properties: {
-        destinationPath: {
-          type: 'string',
-          description:
-            'Canonical target folder path, e.g. "files/Images". Omit or pass "files" for root.',
-        },
         paths: {
           type: 'array',
-          description: 'Canonical workspace file VFS paths to move, e.g. ["files/photo.png"].',
+          description:
+            'Canonical folder VFS paths to create, e.g. ["files/Reports/2026"]. Missing parent segments are created automatically.',
           items: {
             type: 'string',
           },
         },
-      },
-      required: ['paths'],
-    },
-    resultSchema: undefined,
-  },
-  move_file_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        destinationPath: {
+        toolTitle: {
           type: 'string',
           description:
-            'Canonical target parent folder path, e.g. "files/Archive". Omit or pass "files" for root.',
-        },
-        path: {
-          type: 'string',
-          description: 'Canonical folder VFS path to move, e.g. "files/Reports/2026".',
+            'Target-only UI phrase for the action row, e.g. "Reports/2026" or "2 folders", not a full sentence like "Creating Reports".',
         },
       },
-      required: ['path'],
+      required: ['paths', 'toolTitle'],
     },
     resultSchema: undefined,
   },
-  move_workflow: {
+  mv: {
     parameters: {
       type: 'object',
       properties: {
-        folderId: {
+        destination: {
           type: 'string',
-          description: 'Target folder ID. Omit or pass empty string to move to workspace root.',
+          description:
+            'Target path. A path ending in "/" (or naming an existing folder) moves sources into it keeping their names — always use the trailing "/" form when targeting a folder. Otherwise the last segment is the new name and the preceding segments are the target folder (created automatically when missing).',
         },
-        workflowIds: {
+        sources: {
           type: 'array',
-          description: 'The workflow IDs to move.',
+          description:
+            'Canonical VFS paths to move or rename, e.g. ["files/draft.md"]. All sources must share one category. Copy paths verbatim from glob/grep/read output.',
           items: {
             type: 'string',
           },
         },
+        toolTitle: {
+          type: 'string',
+          description:
+            'Target-only UI phrase for the action row, e.g. "draft.md to Reports" or "3 files to Images", not a full sentence like "Moving draft.md".',
+        },
       },
-      required: ['workflowIds'],
+      required: ['sources', 'destination', 'toolTitle'],
     },
     resultSchema: undefined,
   },
@@ -2723,6 +2734,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        credentialId: {
+          type: 'string',
+          description:
+            'Optional. The id of an EXISTING credential (from environment/credentials.json) to reconnect/re-authorize in place. Only when the user explicitly asks to reconnect or repair that credential — never for adding another account.',
+        },
         providerName: {
           type: 'string',
           description:
@@ -2911,6 +2927,68 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  query_user_table: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            filter: {
+              type: 'object',
+              description: 'MongoDB-style filter for query_rows',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum rows to return (optional, default 100, max 1000 per call)',
+            },
+            offset: {
+              type: 'number',
+              description: 'Number of rows to skip (optional for query_rows, default 0)',
+            },
+            rowId: {
+              type: 'string',
+              description: 'Row ID (required for get_row)',
+            },
+            sort: {
+              type: 'object',
+              description:
+                "Sort specification as { field: 'asc' | 'desc' } (optional for query_rows)",
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for all operations)',
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The read operation to perform',
+          enum: ['get', 'get_schema', 'get_row', 'query_rows'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
   read: {
     parameters: {
       type: 'object',
@@ -3017,89 +3095,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  rename_file: {
-    parameters: {
-      type: 'object',
-      properties: {
-        newName: {
-          type: 'string',
-          description:
-            'New filename including extension, e.g. "draft_v2.md". Use move_file to move files between folders.',
-        },
-        path: {
-          type: 'string',
-          description:
-            'Canonical workspace file VFS path to rename, e.g. "files/Reports/draft.md".',
-        },
-      },
-      required: ['path', 'newName'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          description: 'Contains id and the new name.',
-        },
-        message: {
-          type: 'string',
-          description: 'Human-readable outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the rename succeeded.',
-        },
-      },
-      required: ['success', 'message'],
-    },
-  },
-  rename_file_folder: {
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description: 'New folder name.',
-        },
-        path: {
-          type: 'string',
-          description: 'Canonical folder VFS path to rename, e.g. "files/Reports/Old".',
-        },
-      },
-      required: ['path', 'name'],
-    },
-    resultSchema: undefined,
-  },
-  rename_workflow: {
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description: 'The new name for the workflow.',
-        },
-        workflowId: {
-          type: 'string',
-          description: 'The workflow ID to rename.',
-        },
-      },
-      required: ['workflowId', 'name'],
-    },
-    resultSchema: undefined,
-  },
-  research: {
-    parameters: {
-      properties: {
-        topic: {
-          description: 'The topic to research.',
-          type: 'string',
-        },
-      },
-      required: ['topic'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
   respond: {
     parameters: {
       additionalProperties: true,
@@ -3108,6 +3103,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'The result — facts, status, VFS paths to persisted data, whatever the caller needs to act on.',
           type: 'string',
+        },
+        paths: {
+          description:
+            'Affected VFS file paths. Required when the File Agent reports a successful file mutation.',
+          items: {
+            type: 'string',
+          },
+          type: 'array',
         },
         success: {
           description: 'Whether the task completed successfully',
@@ -3187,6 +3190,99 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['blockId'],
+    },
+    resultSchema: undefined,
+  },
+  run_code: {
+    parameters: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description:
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
+        },
+        inputs: {
+          type: 'object',
+          description:
+            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          properties: {
+            directories: {
+              type: 'array',
+              description:
+                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            files: {
+              type: 'array',
+              description: 'Workspace files to mount into the sandbox.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            tables: {
+              type: 'array',
+              description: 'Workspace tables to mount as CSV files.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description: 'Canonical VFS table path when available.',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description: 'Optional full sandbox path for the mounted CSV.',
+                  },
+                  tableId: {
+                    type: 'string',
+                    description: 'Workspace table ID.',
+                  },
+                },
+              },
+            },
+          },
+        },
+        language: {
+          type: 'string',
+          description: 'Execution language.',
+          enum: ['javascript', 'python', 'shell'],
+        },
+        title: {
+          type: 'string',
+          description:
+            'Short user-visible label for this execution, e.g. "Sum June invoices" or "Verify email formats".',
+        },
+      },
+      required: ['code'],
     },
     resultSchema: undefined,
   },
@@ -3337,6 +3433,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  search: {
+    parameters: {
+      properties: {
+        task: {
+          description:
+            "One short scoping sentence — the search agent has full conversation context. Example: 'find current Stripe metered-billing API limits' or 'count how many rows in the leads table have invalid emails'.",
+          type: 'string',
+        },
+      },
+      required: ['task'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   search_documentation: {
     parameters: {
       type: 'object',
@@ -3353,6 +3463,80 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['query'],
     },
     resultSchema: undefined,
+  },
+  search_integration_tools: {
+    parameters: {
+      properties: {
+        limit: {
+          description: 'Maximum matches to return. Defaults to 5.',
+          maximum: 10,
+          minimum: 1,
+          type: 'integer',
+        },
+        query: {
+          description: 'What the service operation must do, in plain language.',
+          type: 'string',
+        },
+        service: {
+          description:
+            'Optional canonical service name, such as "gmail", "slack", or "google_sheets".',
+          type: 'string',
+        },
+      },
+      required: ['query'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
+  search_knowledge_base: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            knowledgeBaseId: {
+              type: 'string',
+              description: 'Knowledge base ID (required for all operations)',
+            },
+            query: {
+              type: 'string',
+              description: "Search query text (required for 'query')",
+            },
+            topK: {
+              type: 'number',
+              description: 'Number of results to return (1-50, default: 5)',
+              default: 5,
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The read operation to perform',
+          enum: ['get', 'query', 'list_tags'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   search_library_docs: {
     parameters: {
@@ -3534,20 +3718,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  superagent: {
-    parameters: {
-      properties: {
-        task: {
-          description:
-            "A single sentence — the agent has full conversation context. Do NOT pre-read credentials or look up configs. Example: 'send the email we discussed' or 'check my calendar for tomorrow'.",
-          type: 'string',
-        },
-      },
-      required: ['task'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
   table: {
     parameters: {
       properties: {
@@ -3630,55 +3800,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['serverId'],
-    },
-    resultSchema: undefined,
-  },
-  user_memory: {
-    parameters: {
-      type: 'object',
-      properties: {
-        confidence: {
-          type: 'number',
-          description: 'Confidence level 0-1 (default 1.0 for explicit, 0.8 for inferred)',
-        },
-        correct_value: {
-          type: 'string',
-          description:
-            "The correct value to replace the wrong one (for 'correct' operation). Requires `key` (the memory to replace).",
-        },
-        key: {
-          type: 'string',
-          description: "Unique key for the memory (e.g., 'preferred_model', 'slack_credential')",
-        },
-        limit: {
-          type: 'number',
-          description: 'Number of results for search (default 10)',
-        },
-        memory_type: {
-          type: 'string',
-          description: "Type of memory: 'preference', 'entity', 'history', or 'correction'",
-          enum: ['preference', 'entity', 'history', 'correction'],
-        },
-        operation: {
-          type: 'string',
-          description: "Operation: 'add', 'search', 'delete', 'correct', or 'list'",
-          enum: ['add', 'search', 'delete', 'correct', 'list'],
-        },
-        query: {
-          type: 'string',
-          description: 'Search query to find relevant memories',
-        },
-        source: {
-          type: 'string',
-          description: "Source: 'explicit' (user told you) or 'inferred' (you observed)",
-          enum: ['explicit', 'inferred'],
-        },
-        value: {
-          type: 'string',
-          description: 'Value to remember',
-        },
-      },
-      required: ['operation'],
     },
     resultSchema: undefined,
   },
@@ -4050,10 +4171,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         prompt: {
           description:
-            "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+            'Optional brief instruction (one short sentence) to add scoping that the conversation does not convey. Usually omit it: a new session inherits the current conversation, and a resumed session receives the parent messages it has not yet seen. Do NOT restate or rewrite conversation content.',
+          type: 'string',
+        },
+        sessionId: {
+          description:
+            'Reusable session ID returned by an earlier workflow call in this chat. Supply it only on a later user message that continues the same task, and at most once per user message — never re-pass a sessionId already used this turn; the agent resumes from its saved transcript and receives unseen parent conversation messages. Omit it for a new or independent task.',
+          type: 'string',
+        },
+        title: {
+          description:
+            "Required private orchestration label (3–8 words) for this session's stable objective. It is stored in the request-local, chat-scoped Subagent Registry supplied only to the main orchestrator and is not shown to or used as an instruction for the workflow agent. When resuming with sessionId, copy the registry title unchanged.",
+          maxLength: 120,
+          minLength: 1,
           type: 'string',
         },
       },
+      required: ['title'],
       type: 'object',
     },
     resultSchema: undefined,

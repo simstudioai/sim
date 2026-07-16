@@ -53,8 +53,8 @@ import {
 
 const ENFORCED = { userId: 'user-1', enforce: true }
 
-// resolveSkillContent is the shared resolver invoked when the mothership calls
-// load_user_skill (and when a workflow agent block calls load_skill).
+// resolveSkillContent is the shared resolver invoked when a workflow agent
+// block calls load_skill.
 beforeEach(() => {
   vi.clearAllMocks()
   dbState.results = []

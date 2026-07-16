@@ -21,6 +21,8 @@ import {
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
+import { mcpService } from '@/lib/mcp/service'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { getSkillActorContext } from '@/lib/skills/access'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -83,6 +85,24 @@ export async function processContextsServer(
           ctx.label ? `@${ctx.label}` : '@',
           userId
         )
+      }
+      if (ctx.kind === 'mcp' && ctx.serverId && currentWorkspaceId) {
+        const tools = await mcpService.discoverServerTools(userId, ctx.serverId, currentWorkspaceId)
+        if (tools.length === 0) return null
+        const toolLines = tools.map((tool) => {
+          const name = createMcpToolId(tool.serverId, tool.name)
+          return `- ${name}: ${tool.description || tool.name}`
+        })
+        return {
+          type: 'mcp',
+          tag: ctx.label ? `/${ctx.label}` : '/',
+          content: [
+            `The user explicitly enabled the MCP server "${ctx.label || ctx.serverId}" for this turn.`,
+            'Its request-scoped tools are listed below. Load a tool with load_custom_tool({ type: "mcp", name: "<exact name>" }) before calling it.',
+            'Do not narrate discovery, loading, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+            ...toolLines,
+          ].join('\n'),
+        }
       }
       if (ctx.kind === 'past_chat' && ctx.chatId) {
         return await processPastChatFromDb(

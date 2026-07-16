@@ -63,6 +63,7 @@ export interface PerformCredentialResult {
   providerErrorCode?: string
   workspaceId?: string
   updatedFields?: string[]
+  previousDisplayName?: string
 }
 
 export async function performUpdateCredential(
@@ -223,7 +224,12 @@ export async function performUpdateCredential(
       request: params.request,
     })
 
-    return { success: true, workspaceId: access.credential.workspaceId, updatedFields }
+    return {
+      success: true,
+      workspaceId: access.credential.workspaceId,
+      updatedFields,
+      previousDisplayName: access.credential.displayName,
+    }
   } catch (error) {
     if (error instanceof Error && error.message.includes('unique')) {
       return {

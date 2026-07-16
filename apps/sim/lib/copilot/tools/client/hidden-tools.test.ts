@@ -12,9 +12,7 @@ describe('isToolHiddenInUi', () => {
     expect(isToolHiddenInUi('load_agent_skill')).toBe(true)
   })
 
-  it('does not hide user skill loads, ordinary tools, or undefined', () => {
-    // load_user_skill renders like the old per-skill loaders so the load is visible.
-    expect(isToolHiddenInUi('load_user_skill')).toBe(false)
+  it('does not hide ordinary tools or undefined', () => {
     expect(isToolHiddenInUi('read')).toBe(false)
     expect(isToolHiddenInUi(undefined)).toBe(false)
   })

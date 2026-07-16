@@ -28,7 +28,7 @@ export const gitlabListReleasesTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or URL-encoded path',
+      description: 'Project ID or path (e.g. mygroup/myproject)',
     },
     orderBy: {
       type: 'string',

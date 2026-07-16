@@ -6,12 +6,14 @@ import { dbChainMock, dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatContext } from '@/stores/panel'
 
-const { getSkillById, getSkillActorContext } = vi.hoisted(() => ({
+const { discoverServerTools, getSkillById, getSkillActorContext } = vi.hoisted(() => ({
+  discoverServerTools: vi.fn(),
   getSkillById: vi.fn(),
   getSkillActorContext: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
+vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
 vi.mock('@/lib/skills/access', () => ({ getSkillActorContext }))
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
@@ -95,6 +97,40 @@ describe('processContextsServer - skill contexts', () => {
 
     expect(getSkillById).not.toHaveBeenCalled()
     expect(result).toEqual([])
+  })
+})
+
+describe('processContextsServer - MCP contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('lists only the tools from the slash-selected MCP server', async () => {
+    discoverServerTools.mockResolvedValue([
+      {
+        serverId: 'mcp-server-1',
+        serverName: 'Docs',
+        name: 'search',
+        description: 'Search documentation',
+        inputSchema: { type: 'object', properties: {} },
+      },
+    ])
+
+    const result = await processContextsServer(
+      [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
+      'user-1',
+      '/Docs find auth docs',
+      'ws-1'
+    )
+
+    expect(discoverServerTools).toHaveBeenCalledWith('user-1', 'mcp-server-1', 'ws-1')
+    expect(result).toEqual([
+      expect.objectContaining({
+        type: 'mcp',
+        tag: '/Docs',
+        content: expect.stringContaining('mcp-server-1-search'),
+      }),
+    ])
   })
 })
 

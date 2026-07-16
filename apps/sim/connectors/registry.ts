@@ -2,6 +2,7 @@ import { airtableConnectorMeta } from '@/connectors/airtable/meta'
 import { asanaConnectorMeta } from '@/connectors/asana/meta'
 import { ashbyConnectorMeta } from '@/connectors/ashby/meta'
 import { azureDevopsConnectorMeta } from '@/connectors/azure-devops/meta'
+import { clickupConnectorMeta } from '@/connectors/clickup/meta'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { discordConnectorMeta } from '@/connectors/discord/meta'
 import { docusignConnectorMeta } from '@/connectors/docusign/meta'
@@ -63,6 +64,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   asana: asanaConnectorMeta,
   ashby: ashbyConnectorMeta,
   azure_devops: azureDevopsConnectorMeta,
+  clickup: clickupConnectorMeta,
   confluence: confluenceConnectorMeta,
   discord: discordConnectorMeta,
   docusign: docusignConnectorMeta,

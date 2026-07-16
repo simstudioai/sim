@@ -281,6 +281,96 @@ describe('resource writer workflow aliases', () => {
     )
   })
 
+  it('auto-creates missing parent folders for plain workspace file creates', async () => {
+    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue(null)
+    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-nested')
+    mocks.getWorkspaceFileByName.mockResolvedValue(null)
+    mocks.uploadWorkspaceFile.mockResolvedValue({
+      id: 'file-report',
+      name: 'summary.csv',
+      size: 7,
+      type: 'text/csv',
+      url: '/download',
+    })
+
+    const result = await writeWorkspaceFileByPath({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      target: {
+        path: 'files/Reports/2026/summary.csv',
+        mode: 'create',
+      },
+      buffer: Buffer.from('content'),
+      inferredMimeType: 'text/csv',
+    })
+
+    expect(mocks.ensureWorkspaceFileFolderPath).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      pathSegments: ['Reports', '2026'],
+    })
+    expect(mocks.findWorkspaceFileFolderIdByPath).not.toHaveBeenCalled()
+    expect(mocks.uploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      Buffer.from('content'),
+      'summary.csv',
+      'text/csv',
+      { folderId: 'folder-nested' }
+    )
+    expect(result).toMatchObject({
+      id: 'file-report',
+      vfsPath: 'files/Reports/2026/summary.csv',
+      mode: 'create',
+    })
+  })
+
+  it('validates create targets read-only, resolving existing parent folders without creating', async () => {
+    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue(null)
+    mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue('folder-nested')
+    mocks.getWorkspaceFileByName.mockResolvedValue(null)
+
+    const validation = await validateWorkspaceFileWriteTarget({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      target: {
+        path: 'files/Reports/2026/summary.csv',
+        mode: 'create',
+      },
+    })
+
+    expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+    expect(validation).toMatchObject({
+      mode: 'create',
+      vfsPath: 'files/Reports/2026/summary.csv',
+      fileName: 'summary.csv',
+      folderId: 'folder-nested',
+    })
+  })
+
+  it('accepts create targets with missing parent folders during validation without creating them', async () => {
+    mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue(null)
+    mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
+
+    const validation = await validateWorkspaceFileWriteTarget({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      target: {
+        path: 'files/Reports/2026/summary.csv',
+        mode: 'create',
+      },
+    })
+
+    expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+    expect(mocks.getWorkspaceFileByName).not.toHaveBeenCalled()
+    expect(validation).toMatchObject({
+      mode: 'create',
+      vfsPath: 'files/Reports/2026/summary.csv',
+      fileName: 'summary.csv',
+      folderId: null,
+    })
+  })
+
   it('reports alias path when exact-name alias backing creation conflicts', async () => {
     mocks.resolveWorkflowAliasForWorkspace.mockResolvedValue({
       kind: 'plan_file',

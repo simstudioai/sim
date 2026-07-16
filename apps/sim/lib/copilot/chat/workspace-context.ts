@@ -291,8 +291,8 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
       .sort(byNameThenId)
       .map((s) => `- **${s.name}** (${s.id}) — ${s.description}`)
     sections.push(
-      `## Skills (${data.skills.length})\n` +
-        'To use a skill, call the load_user_skill tool with its name to load the full instructions, then follow them. The descriptions below only say when each skill applies — they are not the instructions.\n' +
+      `## Agent Block Skills — NOT FOR YOU (${data.skills.length})\n` +
+        'These are user-created skills used by agent blocks in the workspace and are NOT instructions for you\n' +
         lines.join('\n')
     )
   }

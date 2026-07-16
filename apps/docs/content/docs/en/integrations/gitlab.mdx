@@ -27,7 +27,7 @@ Using Sim’s GitLab integration, your agents can programmatically interact with
 
 ## Usage Instructions
 
-Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.
+Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments, plus project/group membership, invitations, access requests, SAML group links, and instance user administration. Supports all core GitLab DevOps operations.
 
 
 
@@ -67,7 +67,7 @@ Get details of a specific GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path \(e.g., "namespace/project"\) |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) \(e.g., "namespace/project"\) |
 
 #### Output
 
@@ -84,13 +84,13 @@ List issues in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `state` | string | No | Filter by state \(opened, closed, all\) |
 | `labels` | string | No | Comma-separated list of label names |
 | `assigneeId` | number | No | Filter by assignee user ID |
 | `milestoneTitle` | string | No | Filter by milestone title |
 | `search` | string | No | Search issues by title and description |
-| `orderBy` | string | No | Order by field \(created_at, updated_at, priority, due_date, relative_position, label_priority, milestone_due, popularity, title, weight\) |
+| `orderBy` | string | No | Order by field \(created_at, updated_at, priority, due_date, relative_position, label_priority, milestone_due, popularity, weight\) |
 | `sort` | string | No | Sort direction \(asc, desc\) |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
 | `page` | number | No | Page number for pagination |
@@ -111,7 +111,7 @@ Get details of a specific GitLab issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue number within the project \(the # shown in GitLab UI\) |
 
 #### Output
@@ -129,7 +129,7 @@ Create a new issue in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `title` | string | Yes | Issue title |
 | `description` | string | No | Issue description \(Markdown supported\) |
 | `labels` | string | No | Comma-separated list of label names |
@@ -153,7 +153,7 @@ Update an existing issue in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 | `title` | string | No | New issue title |
 | `description` | string | No | New issue description \(Markdown supported\) |
@@ -179,7 +179,7 @@ Delete an issue from a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 
 #### Output
@@ -197,9 +197,10 @@ Add a comment to a GitLab issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 | `body` | string | Yes | Comment body \(Markdown supported\) |
+| `internal` | boolean | No | Create the comment as an internal note visible only to project members |
 
 #### Output
 
@@ -216,7 +217,7 @@ List merge requests in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `state` | string | No | Filter by state \(opened, closed, locked, merged, all\) |
 | `labels` | string | No | Comma-separated list of label names |
 | `sourceBranch` | string | No | Filter by source branch |
@@ -242,7 +243,7 @@ Get details of a specific GitLab merge request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 
 #### Output
@@ -260,7 +261,7 @@ Create a new merge request in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `sourceBranch` | string | Yes | Source branch name |
 | `targetBranch` | string | Yes | Target branch name |
 | `title` | string | Yes | Merge request title |
@@ -270,7 +271,7 @@ Create a new merge request in a GitLab project
 | `milestoneId` | number | No | Milestone ID to assign |
 | `removeSourceBranch` | boolean | No | Delete source branch after merge |
 | `squash` | boolean | No | Squash commits on merge |
-| `draft` | boolean | No | Mark as draft \(work in progress\) |
+| `draft` | boolean | No | Mark as draft \(applied via the "Draft:" title prefix\) |
 
 #### Output
 
@@ -287,7 +288,7 @@ Update an existing merge request in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `title` | string | No | New merge request title |
 | `description` | string | No | New merge request description |
@@ -298,7 +299,7 @@ Update an existing merge request in a GitLab project
 | `targetBranch` | string | No | New target branch |
 | `removeSourceBranch` | boolean | No | Delete source branch after merge |
 | `squash` | boolean | No | Squash commits on merge |
-| `draft` | boolean | No | Mark as draft \(work in progress\) |
+| `draft` | boolean | No | Mark as draft or remove draft status \(applied via the "Draft:" title prefix; requires title to be set\) |
 
 #### Output
 
@@ -315,7 +316,7 @@ Merge a merge request in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `mergeCommitMessage` | string | No | Custom merge commit message |
 | `squashCommitMessage` | string | No | Custom squash commit message |
@@ -338,9 +339,10 @@ Add a comment to a GitLab merge request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `body` | string | Yes | Comment body \(Markdown supported\) |
+| `internal` | boolean | No | Create the comment as an internal note visible only to project members |
 
 #### Output
 
@@ -357,9 +359,9 @@ List pipelines in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `ref` | string | No | Filter by ref \(branch or tag\) |
-| `status` | string | No | Filter by status \(created, waiting_for_resource, preparing, pending, running, success, failed, canceled, skipped, manual, scheduled\) |
+| `status` | string | No | Filter by status \(created, waiting_for_resource, preparing, pending, running, success, failed, canceling, canceled, skipped, manual, scheduled, waiting_for_callback\) |
 | `orderBy` | string | No | Order by field \(id, status, ref, updated_at, user_id\) |
 | `sort` | string | No | Sort direction \(asc, desc\) |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
@@ -381,7 +383,7 @@ Get details of a specific GitLab pipeline
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `pipelineId` | number | Yes | Pipeline ID |
 
 #### Output
@@ -399,9 +401,10 @@ Trigger a new pipeline in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `ref` | string | Yes | Branch or tag to run the pipeline on |
 | `variables` | array | No | Array of variables for the pipeline \(each with key, value, and optional variable_type\) |
+| `inputs` | json | No | Pipeline inputs as a key/value object \(for pipelines with spec:inputs\) |
 
 #### Output
 
@@ -418,7 +421,7 @@ Retry a failed GitLab pipeline
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `pipelineId` | number | Yes | Pipeline ID |
 
 #### Output
@@ -436,7 +439,7 @@ Cancel a running GitLab pipeline
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `pipelineId` | number | Yes | Pipeline ID |
 
 #### Output
@@ -454,7 +457,7 @@ List files and directories in a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `path` | string | No | Path inside the repository to list |
 | `ref` | string | No | Branch, tag, or commit SHA to list from |
 | `recursive` | boolean | No | Whether to list files recursively |
@@ -477,7 +480,7 @@ Get the contents of a file from a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `filePath` | string | Yes | Path to the file in the repository |
 | `ref` | string | Yes | Branch, tag, or commit SHA |
 
@@ -491,7 +494,8 @@ Get the contents of a file from a GitLab project repository
 | `ref` | string | The branch, tag, or commit SHA |
 | `blobId` | string | The blob ID |
 | `lastCommitId` | string | The last commit ID that modified the file |
-| `content` | string | The decoded file content |
+| `content` | string | The decoded file content, truncated to 1M characters |
+| `truncated` | boolean | Whether the content was truncated |
 
 ### `gitlab_create_file`
 
@@ -502,10 +506,14 @@ Create a new file in a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `filePath` | string | Yes | Path to the file in the repository |
 | `branch` | string | Yes | Branch to commit the new file to |
 | `content` | string | Yes | File content |
+| `startBranch` | string | No | Name of the base branch to create the target branch from, if it does not exist |
+| `authorName` | string | No | Commit author name \(defaults to the token user\) |
+| `authorEmail` | string | No | Commit author email \(defaults to the token user\) |
+| `executeFilemode` | boolean | No | Enable the execute flag on the file |
 | `commitMessage` | string | Yes | Commit message |
 
 #### Output
@@ -524,10 +532,14 @@ Update an existing file in a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `filePath` | string | Yes | Path to the file in the repository |
 | `branch` | string | Yes | Branch to commit the update to |
 | `content` | string | Yes | New file content |
+| `startBranch` | string | No | Name of the base branch to create the target branch from, if it does not exist |
+| `authorName` | string | No | Commit author name \(defaults to the token user\) |
+| `authorEmail` | string | No | Commit author email \(defaults to the token user\) |
+| `executeFilemode` | boolean | No | Enable or disable the execute flag on the file |
 | `commitMessage` | string | Yes | Commit message |
 | `lastCommitId` | string | No | Last known commit ID for the file \(optimistic locking\) |
 
@@ -547,7 +559,7 @@ Create a new branch in a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `branch` | string | Yes | Name of the new branch |
 | `ref` | string | Yes | Source branch/tag/SHA |
 
@@ -569,7 +581,7 @@ Delete a branch from a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `branch` | string | Yes | Name of the branch to delete |
 
 #### Output
@@ -587,10 +599,12 @@ Compare two branches, tags, or commits in a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `from` | string | Yes | Commit SHA or branch/tag name to compare from |
 | `to` | string | Yes | Commit SHA or branch/tag name to compare to |
 | `straight` | boolean | No | Compare directly from..to instead of using the merge base \(defaults to false\) |
+| `fromProjectId` | string | No | ID of the project to compare from \(for cross-fork comparisons\) |
+| `unidiff` | boolean | No | Return diffs in unified diff format \(GitLab 16.5+\) |
 
 #### Output
 
@@ -612,7 +626,7 @@ List branches in a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `search` | string | No | Filter branches by name |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
 | `page` | number | No | Page number for pagination |
@@ -633,7 +647,7 @@ List commits in a GitLab project repository
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `refName` | string | No | Branch, tag, or revision range to list commits from |
 | `since` | string | No | Only commits after this ISO 8601 date |
 | `until` | string | No | Only commits before this ISO 8601 date |
@@ -647,7 +661,7 @@ List commits in a GitLab project repository
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `commits` | array | List of commits |
-| `total` | number | Total number of commits |
+| `total` | number | Number of commits returned on this page \(GitLab does not report a grand total for commits\) |
 
 ### `gitlab_get_merge_request_changes`
 
@@ -658,7 +672,7 @@ Get the file changes (diffs) of a GitLab merge request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 
 #### Output
@@ -667,7 +681,8 @@ Get the file changes (diffs) of a GitLab merge request
 | --------- | ---- | ----------- |
 | `mergeRequestIid` | number | The merge request internal ID \(IID\) |
 | `changes` | array | List of file changes \(diffs\) |
-| `changesCount` | number | Number of changed files returned |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether the merge request has more than 100 changed files \(results truncated\) |
 
 ### `gitlab_approve_merge_request`
 
@@ -678,7 +693,7 @@ Approve a GitLab merge request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `sha` | string | No | HEAD SHA of the merge request to approve |
 
@@ -699,7 +714,7 @@ List jobs for a GitLab pipeline
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `pipelineId` | number | Yes | Pipeline ID |
 | `scope` | string | No | Filter jobs by scope \(e.g. created, running, success, failed\) |
 | `includeRetried` | boolean | No | Whether to include retried jobs |
@@ -722,14 +737,15 @@ Get the log (trace) of a GitLab job
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `jobId` | number | Yes | Job ID |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `log` | string | The job log \(trace\) output |
+| `log` | string | The job log \(trace\) output, truncated to 200k characters |
+| `truncated` | boolean | Whether the log was truncated |
 
 ### `gitlab_play_job`
 
@@ -740,8 +756,9 @@ Trigger (play) a manual GitLab job
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `jobId` | number | Yes | Job ID |
+| `jobVariables` | array | No | Variables for the manual job \(array of objects with key and value\) |
 
 #### Output
 
@@ -761,7 +778,7 @@ List releases in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `orderBy` | string | No | Order by field \(released_at, created_at\) |
 | `sort` | string | No | Sort direction \(asc, desc\) |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
@@ -783,12 +800,14 @@ Create a new release in a GitLab project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
-| `projectId` | string | Yes | Project ID or URL-encoded path |
+| `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `tagName` | string | Yes | The Git tag for the release |
 | `name` | string | No | The release name |
 | `description` | string | No | Release description/notes \(Markdown supported\) |
 | `ref` | string | No | Commit SHA, branch, or tag to create the tag from if it does not already exist |
 | `releasedAt` | string | No | ISO 8601 date for an upcoming or historical release |
+| `tagMessage` | string | No | Annotation message to use if creating a new annotated tag |
+| `assetLinks` | array | No | Release asset links: array of objects with name, url, and optional link_type \(other, runbook, image, package\) |
 | `milestones` | array | No | Array of milestone titles to associate with the release |
 
 #### Output
@@ -796,6 +815,940 @@ Create a new release in a GitLab project
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `release` | object | The created GitLab release |
+
+### `gitlab_list_members`
+
+List members of a GitLab project or group. Includes members inherited from ancestor groups by default.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `directOnly` | boolean | No | When true, returns only direct members. Defaults to false, which also returns members inherited from ancestor groups. |
+| `query` | string | No | Filter members by name, email, or username |
+| `userIds` | string | No | Comma-separated user IDs to filter the results to |
+| `state` | string | No | Filter inherited-member results by state: 'awaiting' or 'active' \(Premium/Ultimate; only applies when inherited members are included\) |
+| `showSeatInfo` | boolean | No | Include seat information for each member |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | List of project or group members |
+| `total` | number | Total number of members |
+
+### `gitlab_add_member`
+
+Add an existing GitLab user to a project or group at a given access level
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `userId` | number | No | The ID of the user to add. Provide either userId or username. |
+| `username` | string | No | The username of the user to add. Provide either userId or username. |
+| `accessLevel` | number | Yes | Access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format |
+| `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | object | The added member |
+| `alreadyMember` | boolean | Whether the user was already a member \(add was a no-op\) |
+
+### `gitlab_update_member`
+
+Update a member's access level in a GitLab project or group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `userId` | number | Yes | The ID of the member to update |
+| `accessLevel` | number | Yes | New access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format. Pass an empty string to clear an existing expiration. |
+| `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\). Warning: when omitted, GitLab removes any custom role the member currently holds. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `member` | object | The updated member |
+
+### `gitlab_remove_member`
+
+Remove a member from a GitLab project or group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `userId` | number | Yes | The ID of the member to remove |
+| `skipSubresources` | boolean | No | Skip deleting the member from subgroups and projects below the target \(defaults to false\) |
+| `unassignIssuables` | boolean | No | Unassign the member from all issues and merge requests in the target \(defaults to false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the member was removed successfully |
+
+### `gitlab_invite_member`
+
+Invite a person to a GitLab project or group by email address
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `email` | string | Yes | Email address to invite \(comma-separated for multiple\) |
+| `accessLevel` | number | Yes | Access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format |
+| `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
+| `inviteSource` | string | No | Identifier recorded as the source of the invitation \(for attribution\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Invitation status returned by GitLab |
+| `message` | object | Per-email result detail, if any |
+
+### `gitlab_list_invitations`
+
+List pending email invitations for a GitLab project or group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `query` | string | No | Filter invitations by invited email |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invitations` | array | List of pending invitations |
+| `total` | number | Total number of invitations |
+
+### `gitlab_update_invitation`
+
+Update a pending invitation to a GitLab project or group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `email` | string | Yes | Email address of the invitation to update |
+| `accessLevel` | number | No | New access level: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `expiresAt` | string | No | Access expiration date \(ISO 8601, e.g. 2026-12-31T00:00:00Z; date-only also accepted\). At least one of accessLevel or expiresAt must be provided. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invitation` | object | The updated invitation |
+
+### `gitlab_revoke_invitation`
+
+Revoke a pending email invitation to a GitLab project or group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `email` | string | Yes | Email address of the invitation to revoke |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the invitation was revoked successfully |
+
+### `gitlab_list_access_requests`
+
+List pending access requests for a GitLab project or group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessRequests` | array | List of pending access requests |
+| `total` | number | Total number of access requests |
+
+### `gitlab_approve_access_request`
+
+Approve a pending access request for a GitLab project or group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `userId` | number | Yes | The user ID of the access requester |
+| `accessLevel` | number | No | Access level to grant: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\). Defaults to 30 \(Developer\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessRequest` | object | The approved access request |
+
+### `gitlab_deny_access_request`
+
+Deny (delete) a pending access request for a GitLab project or group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
+| `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
+| `userId` | number | Yes | The user ID of the access requester |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the access request was denied successfully |
+
+### `gitlab_list_saml_group_links`
+
+List SAML group links for a GitLab group. Use this to detect whether a group is governed by SAML group sync before provisioning members.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `groupId` | string | Yes | Group ID or path \(e.g. my-org/my-group\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `samlGroupLinks` | array | List of SAML group links |
+| `total` | number | Number of SAML group links |
+
+### `gitlab_search_users`
+
+Search for GitLab users by name, username, or email. Email matches must be exact; private emails match only with an admin token. Use this to resolve an email to a user ID before adding a member.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `search` | string | Yes | Name, username, or email to search for |
+| `perPage` | number | No | Number of results per page \(default 20, max 100\) |
+| `page` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of matching users |
+| `total` | number | Total number of matching users |
+
+### `gitlab_create_user`
+
+Create a new GitLab user. Requires an administrator token with admin_mode on the instance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `email` | string | Yes | The user's email address |
+| `username` | string | Yes | The user's username |
+| `name` | string | Yes | The user's display name |
+| `password` | string | No | The user's password. Omit and set resetPassword to email a reset link instead. |
+| `resetPassword` | boolean | No | Send the user a password reset link instead of setting a password |
+| `forceRandomPassword` | boolean | No | Set a random password without emailing a reset link \(useful for SSO-only accounts\). One of password, resetPassword, or forceRandomPassword is required. |
+| `admin` | boolean | No | Whether the new user is an administrator |
+| `skipConfirmation` | boolean | No | Skip email confirmation for the new user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | The created user |
+
+### `gitlab_update_user`
+
+Modify an existing GitLab user. Requires an administrator token with admin_mode on the instance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to modify |
+| `email` | string | No | The user's new email address \(GitLab only allows changing to one of the user's existing verified secondary emails\) |
+| `username` | string | No | The user's new username |
+| `name` | string | No | The user's new display name |
+| `admin` | boolean | No | Whether the user is an administrator |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | The updated user |
+
+### `gitlab_delete_user`
+
+Delete a GitLab user. Requires an administrator token with admin_mode on the instance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to delete |
+| `hardDelete` | boolean | No | When true, contributions, personal projects, AND groups owned solely by this user are deleted rather than moved to a Ghost User |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the user was deleted successfully |
+
+### `gitlab_block_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | json | List of projects |
+| `project` | json | Project details |
+| `issues` | json | List of issues |
+| `issue` | json | Issue details |
+| `mergeRequests` | json | List of merge requests |
+| `mergeRequest` | json | Merge request details |
+| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
+| `pipelines` | json | List of pipelines |
+| `pipeline` | json | Pipeline details |
+| `note` | json | Comment/note details |
+| `tree` | json | Repository tree entries |
+| `content` | string | File contents \(decoded\) |
+| `fileName` | string | File name |
+| `filePath` | string | Path to the file in the repository |
+| `branch` | string | Branch the file was committed to |
+| `branches` | json | List of branches |
+| `commits` | json | List of commits |
+| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
+| `name` | string | Created branch name |
+| `protected` | boolean | Whether the branch is protected |
+| `size` | number | File size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `webUrl` | string | Web URL |
+| `changes` | json | Merge request file changes/diffs |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
+| `approvalsRequired` | number | Approvals required |
+| `approvalsLeft` | number | Approvals remaining |
+| `approvedBy` | json | List of approvers |
+| `jobs` | json | Pipeline jobs |
+| `log` | string | Job log output |
+| `id` | number | Job ID |
+| `status` | string | Job status |
+| `diffs` | json | File diffs between two compared references |
+| `compareTimeout` | boolean | Whether the comparison timed out |
+| `compareSameRef` | boolean | Whether both compared references match |
+| `releases` | json | List of releases |
+| `release` | json | Release details |
+| `members` | json | List of project or group members |
+| `member` | json | A single member |
+| `alreadyMember` | boolean | Whether the user was already a member |
+| `invitations` | json | List of pending invitations |
+| `invitation` | json | A single invitation |
+| `accessRequests` | json | List of pending access requests |
+| `accessRequest` | json | A single access request |
+| `samlGroupLinks` | json | List of SAML group links |
+| `samlGroupLink` | json | A single SAML group link |
+| `message` | json | Per-email invitation result detail |
+| `users` | json | List of matching users |
+| `user` | json | User details |
+| `total` | number | Total number of items available across all pages |
+| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
+| `success` | boolean | Operation success status |
+
+### `gitlab_unblock_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | json | List of projects |
+| `project` | json | Project details |
+| `issues` | json | List of issues |
+| `issue` | json | Issue details |
+| `mergeRequests` | json | List of merge requests |
+| `mergeRequest` | json | Merge request details |
+| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
+| `pipelines` | json | List of pipelines |
+| `pipeline` | json | Pipeline details |
+| `note` | json | Comment/note details |
+| `tree` | json | Repository tree entries |
+| `content` | string | File contents \(decoded\) |
+| `fileName` | string | File name |
+| `filePath` | string | Path to the file in the repository |
+| `branch` | string | Branch the file was committed to |
+| `branches` | json | List of branches |
+| `commits` | json | List of commits |
+| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
+| `name` | string | Created branch name |
+| `protected` | boolean | Whether the branch is protected |
+| `size` | number | File size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `webUrl` | string | Web URL |
+| `changes` | json | Merge request file changes/diffs |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
+| `approvalsRequired` | number | Approvals required |
+| `approvalsLeft` | number | Approvals remaining |
+| `approvedBy` | json | List of approvers |
+| `jobs` | json | Pipeline jobs |
+| `log` | string | Job log output |
+| `id` | number | Job ID |
+| `status` | string | Job status |
+| `diffs` | json | File diffs between two compared references |
+| `compareTimeout` | boolean | Whether the comparison timed out |
+| `compareSameRef` | boolean | Whether both compared references match |
+| `releases` | json | List of releases |
+| `release` | json | Release details |
+| `members` | json | List of project or group members |
+| `member` | json | A single member |
+| `alreadyMember` | boolean | Whether the user was already a member |
+| `invitations` | json | List of pending invitations |
+| `invitation` | json | A single invitation |
+| `accessRequests` | json | List of pending access requests |
+| `accessRequest` | json | A single access request |
+| `samlGroupLinks` | json | List of SAML group links |
+| `samlGroupLink` | json | A single SAML group link |
+| `message` | json | Per-email invitation result detail |
+| `users` | json | List of matching users |
+| `user` | json | User details |
+| `total` | number | Total number of items available across all pages |
+| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
+| `success` | boolean | Operation success status |
+
+### `gitlab_deactivate_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | json | List of projects |
+| `project` | json | Project details |
+| `issues` | json | List of issues |
+| `issue` | json | Issue details |
+| `mergeRequests` | json | List of merge requests |
+| `mergeRequest` | json | Merge request details |
+| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
+| `pipelines` | json | List of pipelines |
+| `pipeline` | json | Pipeline details |
+| `note` | json | Comment/note details |
+| `tree` | json | Repository tree entries |
+| `content` | string | File contents \(decoded\) |
+| `fileName` | string | File name |
+| `filePath` | string | Path to the file in the repository |
+| `branch` | string | Branch the file was committed to |
+| `branches` | json | List of branches |
+| `commits` | json | List of commits |
+| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
+| `name` | string | Created branch name |
+| `protected` | boolean | Whether the branch is protected |
+| `size` | number | File size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `webUrl` | string | Web URL |
+| `changes` | json | Merge request file changes/diffs |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
+| `approvalsRequired` | number | Approvals required |
+| `approvalsLeft` | number | Approvals remaining |
+| `approvedBy` | json | List of approvers |
+| `jobs` | json | Pipeline jobs |
+| `log` | string | Job log output |
+| `id` | number | Job ID |
+| `status` | string | Job status |
+| `diffs` | json | File diffs between two compared references |
+| `compareTimeout` | boolean | Whether the comparison timed out |
+| `compareSameRef` | boolean | Whether both compared references match |
+| `releases` | json | List of releases |
+| `release` | json | Release details |
+| `members` | json | List of project or group members |
+| `member` | json | A single member |
+| `alreadyMember` | boolean | Whether the user was already a member |
+| `invitations` | json | List of pending invitations |
+| `invitation` | json | A single invitation |
+| `accessRequests` | json | List of pending access requests |
+| `accessRequest` | json | A single access request |
+| `samlGroupLinks` | json | List of SAML group links |
+| `samlGroupLink` | json | A single SAML group link |
+| `message` | json | Per-email invitation result detail |
+| `users` | json | List of matching users |
+| `user` | json | User details |
+| `total` | number | Total number of items available across all pages |
+| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
+| `success` | boolean | Operation success status |
+
+### `gitlab_activate_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | json | List of projects |
+| `project` | json | Project details |
+| `issues` | json | List of issues |
+| `issue` | json | Issue details |
+| `mergeRequests` | json | List of merge requests |
+| `mergeRequest` | json | Merge request details |
+| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
+| `pipelines` | json | List of pipelines |
+| `pipeline` | json | Pipeline details |
+| `note` | json | Comment/note details |
+| `tree` | json | Repository tree entries |
+| `content` | string | File contents \(decoded\) |
+| `fileName` | string | File name |
+| `filePath` | string | Path to the file in the repository |
+| `branch` | string | Branch the file was committed to |
+| `branches` | json | List of branches |
+| `commits` | json | List of commits |
+| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
+| `name` | string | Created branch name |
+| `protected` | boolean | Whether the branch is protected |
+| `size` | number | File size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `webUrl` | string | Web URL |
+| `changes` | json | Merge request file changes/diffs |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
+| `approvalsRequired` | number | Approvals required |
+| `approvalsLeft` | number | Approvals remaining |
+| `approvedBy` | json | List of approvers |
+| `jobs` | json | Pipeline jobs |
+| `log` | string | Job log output |
+| `id` | number | Job ID |
+| `status` | string | Job status |
+| `diffs` | json | File diffs between two compared references |
+| `compareTimeout` | boolean | Whether the comparison timed out |
+| `compareSameRef` | boolean | Whether both compared references match |
+| `releases` | json | List of releases |
+| `release` | json | Release details |
+| `members` | json | List of project or group members |
+| `member` | json | A single member |
+| `alreadyMember` | boolean | Whether the user was already a member |
+| `invitations` | json | List of pending invitations |
+| `invitation` | json | A single invitation |
+| `accessRequests` | json | List of pending access requests |
+| `accessRequest` | json | A single access request |
+| `samlGroupLinks` | json | List of SAML group links |
+| `samlGroupLink` | json | A single SAML group link |
+| `message` | json | Per-email invitation result detail |
+| `users` | json | List of matching users |
+| `user` | json | User details |
+| `total` | number | Total number of items available across all pages |
+| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
+| `success` | boolean | Operation success status |
+
+### `gitlab_ban_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | json | List of projects |
+| `project` | json | Project details |
+| `issues` | json | List of issues |
+| `issue` | json | Issue details |
+| `mergeRequests` | json | List of merge requests |
+| `mergeRequest` | json | Merge request details |
+| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
+| `pipelines` | json | List of pipelines |
+| `pipeline` | json | Pipeline details |
+| `note` | json | Comment/note details |
+| `tree` | json | Repository tree entries |
+| `content` | string | File contents \(decoded\) |
+| `fileName` | string | File name |
+| `filePath` | string | Path to the file in the repository |
+| `branch` | string | Branch the file was committed to |
+| `branches` | json | List of branches |
+| `commits` | json | List of commits |
+| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
+| `name` | string | Created branch name |
+| `protected` | boolean | Whether the branch is protected |
+| `size` | number | File size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `webUrl` | string | Web URL |
+| `changes` | json | Merge request file changes/diffs |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
+| `approvalsRequired` | number | Approvals required |
+| `approvalsLeft` | number | Approvals remaining |
+| `approvedBy` | json | List of approvers |
+| `jobs` | json | Pipeline jobs |
+| `log` | string | Job log output |
+| `id` | number | Job ID |
+| `status` | string | Job status |
+| `diffs` | json | File diffs between two compared references |
+| `compareTimeout` | boolean | Whether the comparison timed out |
+| `compareSameRef` | boolean | Whether both compared references match |
+| `releases` | json | List of releases |
+| `release` | json | Release details |
+| `members` | json | List of project or group members |
+| `member` | json | A single member |
+| `alreadyMember` | boolean | Whether the user was already a member |
+| `invitations` | json | List of pending invitations |
+| `invitation` | json | A single invitation |
+| `accessRequests` | json | List of pending access requests |
+| `accessRequest` | json | A single access request |
+| `samlGroupLinks` | json | List of SAML group links |
+| `samlGroupLink` | json | A single SAML group link |
+| `message` | json | Per-email invitation result detail |
+| `users` | json | List of matching users |
+| `user` | json | User details |
+| `total` | number | Total number of items available across all pages |
+| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
+| `success` | boolean | Operation success status |
+
+### `gitlab_unban_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | json | List of projects |
+| `project` | json | Project details |
+| `issues` | json | List of issues |
+| `issue` | json | Issue details |
+| `mergeRequests` | json | List of merge requests |
+| `mergeRequest` | json | Merge request details |
+| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
+| `pipelines` | json | List of pipelines |
+| `pipeline` | json | Pipeline details |
+| `note` | json | Comment/note details |
+| `tree` | json | Repository tree entries |
+| `content` | string | File contents \(decoded\) |
+| `fileName` | string | File name |
+| `filePath` | string | Path to the file in the repository |
+| `branch` | string | Branch the file was committed to |
+| `branches` | json | List of branches |
+| `commits` | json | List of commits |
+| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
+| `name` | string | Created branch name |
+| `protected` | boolean | Whether the branch is protected |
+| `size` | number | File size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `webUrl` | string | Web URL |
+| `changes` | json | Merge request file changes/diffs |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
+| `approvalsRequired` | number | Approvals required |
+| `approvalsLeft` | number | Approvals remaining |
+| `approvedBy` | json | List of approvers |
+| `jobs` | json | Pipeline jobs |
+| `log` | string | Job log output |
+| `id` | number | Job ID |
+| `status` | string | Job status |
+| `diffs` | json | File diffs between two compared references |
+| `compareTimeout` | boolean | Whether the comparison timed out |
+| `compareSameRef` | boolean | Whether both compared references match |
+| `releases` | json | List of releases |
+| `release` | json | Release details |
+| `members` | json | List of project or group members |
+| `member` | json | A single member |
+| `alreadyMember` | boolean | Whether the user was already a member |
+| `invitations` | json | List of pending invitations |
+| `invitation` | json | A single invitation |
+| `accessRequests` | json | List of pending access requests |
+| `accessRequest` | json | A single access request |
+| `samlGroupLinks` | json | List of SAML group links |
+| `samlGroupLink` | json | A single SAML group link |
+| `message` | json | Per-email invitation result detail |
+| `users` | json | List of matching users |
+| `user` | json | User details |
+| `total` | number | Total number of items available across all pages |
+| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
+| `success` | boolean | Operation success status |
+
+### `gitlab_approve_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | json | List of projects |
+| `project` | json | Project details |
+| `issues` | json | List of issues |
+| `issue` | json | Issue details |
+| `mergeRequests` | json | List of merge requests |
+| `mergeRequest` | json | Merge request details |
+| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
+| `pipelines` | json | List of pipelines |
+| `pipeline` | json | Pipeline details |
+| `note` | json | Comment/note details |
+| `tree` | json | Repository tree entries |
+| `content` | string | File contents \(decoded\) |
+| `fileName` | string | File name |
+| `filePath` | string | Path to the file in the repository |
+| `branch` | string | Branch the file was committed to |
+| `branches` | json | List of branches |
+| `commits` | json | List of commits |
+| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
+| `name` | string | Created branch name |
+| `protected` | boolean | Whether the branch is protected |
+| `size` | number | File size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `webUrl` | string | Web URL |
+| `changes` | json | Merge request file changes/diffs |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
+| `approvalsRequired` | number | Approvals required |
+| `approvalsLeft` | number | Approvals remaining |
+| `approvedBy` | json | List of approvers |
+| `jobs` | json | Pipeline jobs |
+| `log` | string | Job log output |
+| `id` | number | Job ID |
+| `status` | string | Job status |
+| `diffs` | json | File diffs between two compared references |
+| `compareTimeout` | boolean | Whether the comparison timed out |
+| `compareSameRef` | boolean | Whether both compared references match |
+| `releases` | json | List of releases |
+| `release` | json | Release details |
+| `members` | json | List of project or group members |
+| `member` | json | A single member |
+| `alreadyMember` | boolean | Whether the user was already a member |
+| `invitations` | json | List of pending invitations |
+| `invitation` | json | A single invitation |
+| `accessRequests` | json | List of pending access requests |
+| `accessRequest` | json | A single access request |
+| `samlGroupLinks` | json | List of SAML group links |
+| `samlGroupLink` | json | A single SAML group link |
+| `message` | json | Per-email invitation result detail |
+| `users` | json | List of matching users |
+| `user` | json | User details |
+| `total` | number | Total number of items available across all pages |
+| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
+| `success` | boolean | Operation success status |
+
+### `gitlab_reject_user`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | json | List of projects |
+| `project` | json | Project details |
+| `issues` | json | List of issues |
+| `issue` | json | Issue details |
+| `mergeRequests` | json | List of merge requests |
+| `mergeRequest` | json | Merge request details |
+| `mergeRequestIid` | number | Merge request internal ID \(IID\) |
+| `pipelines` | json | List of pipelines |
+| `pipeline` | json | Pipeline details |
+| `note` | json | Comment/note details |
+| `tree` | json | Repository tree entries |
+| `content` | string | File contents \(decoded\) |
+| `fileName` | string | File name |
+| `filePath` | string | Path to the file in the repository |
+| `branch` | string | Branch the file was committed to |
+| `branches` | json | List of branches |
+| `commits` | json | List of commits |
+| `commit` | json | A single commit \(e.g. latest commit in a comparison\) |
+| `name` | string | Created branch name |
+| `protected` | boolean | Whether the branch is protected |
+| `size` | number | File size in bytes |
+| `ref` | string | The branch, tag, or commit SHA |
+| `blobId` | string | The blob ID |
+| `lastCommitId` | string | The last commit ID that modified the file |
+| `webUrl` | string | Web URL |
+| `changes` | json | Merge request file changes/diffs |
+| `changesCount` | number | Number of changed files returned \(first 100\) |
+| `hasMore` | boolean | Whether more changed files exist beyond the first 100 |
+| `approvalsRequired` | number | Approvals required |
+| `approvalsLeft` | number | Approvals remaining |
+| `approvedBy` | json | List of approvers |
+| `jobs` | json | Pipeline jobs |
+| `log` | string | Job log output |
+| `id` | number | Job ID |
+| `status` | string | Job status |
+| `diffs` | json | File diffs between two compared references |
+| `compareTimeout` | boolean | Whether the comparison timed out |
+| `compareSameRef` | boolean | Whether both compared references match |
+| `releases` | json | List of releases |
+| `release` | json | Release details |
+| `members` | json | List of project or group members |
+| `member` | json | A single member |
+| `alreadyMember` | boolean | Whether the user was already a member |
+| `invitations` | json | List of pending invitations |
+| `invitation` | json | A single invitation |
+| `accessRequests` | json | List of pending access requests |
+| `accessRequest` | json | A single access request |
+| `samlGroupLinks` | json | List of SAML group links |
+| `samlGroupLink` | json | A single SAML group link |
+| `message` | json | Per-email invitation result detail |
+| `users` | json | List of matching users |
+| `user` | json | User details |
+| `total` | number | Total number of items available across all pages |
+| `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
+| `success` | boolean | Operation success status |
+
+### `gitlab_delete_user_identity`
+
+Delete a user's authentication identity (e.g. SAML or LDAP). Requires an administrator token with admin_mode on the instance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user |
+| `provider` | string | Yes | The external identity provider name \(e.g. saml, ldapmain\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the identity was deleted successfully |
+
+### `gitlab_add_saml_group_link`
+
+Add a SAML group link that maps an identity-provider group to a GitLab group at a given access level (GitLab Premium/Ultimate)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `groupId` | string | Yes | Group ID or path \(e.g. my-org/my-group\) |
+| `samlGroupName` | string | Yes | The name of the SAML group as sent by the identity provider |
+| `accessLevel` | number | Yes | Access level granted to members of the SAML group: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
+| `provider` | string | No | Unique provider name that must match for this group link to be applied \(GitLab 18.2+\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `samlGroupLink` | object | The created SAML group link |
+
+### `gitlab_delete_saml_group_link`
+
+Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `groupId` | string | Yes | Group ID or path \(e.g. my-org/my-group\) |
+| `samlGroupName` | string | Yes | The name of the SAML group link to delete |
+| `provider` | string | No | Provider name of the link to delete. Required when multiple links share the same SAML group name. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the SAML group link was deleted successfully |
 
 
 

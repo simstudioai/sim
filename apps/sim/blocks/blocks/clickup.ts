@@ -4,6 +4,7 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ClickUpResponse } from '@/tools/clickup/types'
+import { getTrigger } from '@/triggers'
 
 const TIMESTAMP_WAND_PROMPT = `Generate a Unix timestamp in milliseconds based on the user's description.
 Examples:
@@ -57,13 +58,35 @@ function billableFromAction(action: unknown): boolean | undefined {
   return action === 'billable' ? true : action === 'non_billable' ? false : undefined
 }
 
+const CLICKUP_TEAM_OPS = [
+  'search_tasks',
+  'get_spaces',
+  'get_time_entries',
+  'create_time_entry',
+  'update_time_entry',
+  'delete_time_entry',
+  'start_timer',
+  'stop_timer',
+  'get_running_timer',
+]
+const CLICKUP_SPACE_OPS = ['get_folders', 'create_folder', 'get_space_tags']
+const CLICKUP_LIST_PARENT_OPS = ['get_lists', 'create_list']
+const CLICKUP_LIST_OPS = ['create_task', 'get_tasks', 'get_list_members', 'get_custom_fields']
+const CLICKUP_HIERARCHY_OPS = [
+  ...CLICKUP_TEAM_OPS,
+  ...CLICKUP_SPACE_OPS,
+  ...CLICKUP_LIST_PARENT_OPS,
+  ...CLICKUP_LIST_OPS,
+]
+
 export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
   type: 'clickup',
   name: 'ClickUp',
   description: 'Interact with ClickUp',
   authMode: AuthMode.OAuth,
+  triggerAllowed: true,
   longDescription:
-    'Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields.',
+    'Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Can also trigger workflows on ClickUp events like task, list, folder, space, and goal changes.',
   docsLink: 'https://docs.sim.ai/integrations/clickup',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
@@ -137,36 +160,58 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       required: true,
     },
     {
-      id: 'workspaceId',
-      title: 'Workspace ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter workspace (team) ID',
-      condition: {
-        field: 'operation',
-        value: [
-          'search_tasks',
-          'get_spaces',
-          'get_time_entries',
-          'create_time_entry',
-          'update_time_entry',
-          'delete_time_entry',
-          'start_timer',
-          'stop_timer',
-          'get_running_timer',
-        ],
-      },
+      id: 'workspaceSelector',
+      title: 'Workspace',
+      type: 'project-selector',
+      canonicalParamId: 'teamId',
+      serviceId: 'clickup',
+      selectorKey: 'clickup.workspaces',
+      placeholder: 'Select a workspace',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: CLICKUP_HIERARCHY_OPS },
+      required: { field: 'operation', value: CLICKUP_TEAM_OPS },
     },
     {
-      id: 'spaceId',
-      title: 'Space ID',
+      id: 'manualWorkspaceId',
+      title: 'Workspace (Team) ID',
       type: 'short-input',
-      required: true,
-      placeholder: 'Enter space ID',
+      canonicalParamId: 'teamId',
+      placeholder: 'Enter workspace (team) ID',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: { field: 'operation', value: CLICKUP_HIERARCHY_OPS },
+      required: { field: 'operation', value: CLICKUP_TEAM_OPS },
+    },
+    {
+      id: 'spaceSelector',
+      title: 'Space',
+      type: 'project-selector',
+      canonicalParamId: 'spaceId',
+      serviceId: 'clickup',
+      selectorKey: 'clickup.spaces',
+      placeholder: 'Select a space',
+      dependsOn: ['credential', 'workspaceSelector'],
+      mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['get_folders', 'create_folder', 'get_space_tags'],
+        value: [...CLICKUP_SPACE_OPS, ...CLICKUP_LIST_OPS],
       },
+      required: { field: 'operation', value: CLICKUP_SPACE_OPS },
+    },
+    {
+      id: 'manualSpaceId',
+      title: 'Space ID',
+      type: 'short-input',
+      canonicalParamId: 'spaceId',
+      placeholder: 'Enter space ID',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [...CLICKUP_SPACE_OPS, ...CLICKUP_LIST_OPS],
+      },
+      required: { field: 'operation', value: CLICKUP_SPACE_OPS },
     },
     {
       id: 'listParent',
@@ -183,39 +228,100 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       },
     },
     {
-      id: 'folderId',
-      title: 'Folder ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter folder ID',
-      condition: {
+      id: 'listSpaceSelector',
+      title: 'Space',
+      type: 'project-selector',
+      canonicalParamId: 'listSpaceId',
+      serviceId: 'clickup',
+      selectorKey: 'clickup.spaces',
+      placeholder: 'Select a space',
+      description: 'Required for folderless lists; used to browse folders in folder mode',
+      dependsOn: ['credential', 'workspaceSelector'],
+      mode: 'basic',
+      condition: { field: 'operation', value: CLICKUP_LIST_PARENT_OPS },
+      required: {
         field: 'operation',
-        value: ['get_lists', 'create_list'],
-        and: { field: 'listParent', value: 'folder' },
-      },
-    },
-    {
-      id: 'listSpaceId',
-      title: 'Space ID',
-      type: 'short-input',
-      required: true,
-      placeholder: 'Enter space ID',
-      condition: {
-        field: 'operation',
-        value: ['get_lists', 'create_list'],
+        value: CLICKUP_LIST_PARENT_OPS,
         and: { field: 'listParent', value: 'space' },
       },
     },
     {
-      id: 'listId',
-      title: 'List ID',
+      id: 'manualListSpaceId',
+      title: 'Space ID',
       type: 'short-input',
-      required: true,
-      placeholder: 'Enter list ID',
+      canonicalParamId: 'listSpaceId',
+      placeholder: 'Enter space ID',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: { field: 'operation', value: CLICKUP_LIST_PARENT_OPS },
+      required: {
+        field: 'operation',
+        value: CLICKUP_LIST_PARENT_OPS,
+        and: { field: 'listParent', value: 'space' },
+      },
+    },
+    {
+      id: 'folderSelector',
+      title: 'Folder',
+      type: 'project-selector',
+      canonicalParamId: 'folderId',
+      serviceId: 'clickup',
+      selectorKey: 'clickup.folders',
+      placeholder: 'Select a folder',
+      description: 'Leave empty for folderless lists that live directly in the space',
+      dependsOn: { all: ['credential'], any: ['spaceSelector', 'listSpaceSelector'] },
+      mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['create_task', 'get_tasks', 'get_list_members', 'get_custom_fields'],
+        value: [...CLICKUP_LIST_PARENT_OPS, ...CLICKUP_LIST_OPS],
       },
+      required: {
+        field: 'operation',
+        value: CLICKUP_LIST_PARENT_OPS,
+        and: { field: 'listParent', value: 'folder' },
+      },
+    },
+    {
+      id: 'manualFolderId',
+      title: 'Folder ID',
+      type: 'short-input',
+      canonicalParamId: 'folderId',
+      placeholder: 'Enter folder ID',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [...CLICKUP_LIST_PARENT_OPS, ...CLICKUP_LIST_OPS],
+      },
+      required: {
+        field: 'operation',
+        value: CLICKUP_LIST_PARENT_OPS,
+        and: { field: 'listParent', value: 'folder' },
+      },
+    },
+    {
+      id: 'listSelector',
+      title: 'List',
+      type: 'project-selector',
+      canonicalParamId: 'listId',
+      serviceId: 'clickup',
+      selectorKey: 'clickup.lists',
+      placeholder: 'Select a list',
+      dependsOn: { all: ['credential'], any: ['spaceSelector', 'folderSelector'] },
+      mode: 'basic',
+      condition: { field: 'operation', value: CLICKUP_LIST_OPS },
+      required: { field: 'operation', value: CLICKUP_LIST_OPS },
+    },
+    {
+      id: 'manualListId',
+      title: 'List ID',
+      type: 'short-input',
+      canonicalParamId: 'listId',
+      placeholder: 'Enter list ID',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: { field: 'operation', value: CLICKUP_LIST_OPS },
+      required: { field: 'operation', value: CLICKUP_LIST_OPS },
     },
     {
       id: 'taskId',
@@ -1062,6 +1168,35 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
         value: ['upload_attachment'],
       },
     },
+    ...getTrigger('clickup_task_created').subBlocks,
+    ...getTrigger('clickup_task_updated').subBlocks,
+    ...getTrigger('clickup_task_deleted').subBlocks,
+    ...getTrigger('clickup_task_status_updated').subBlocks,
+    ...getTrigger('clickup_task_priority_updated').subBlocks,
+    ...getTrigger('clickup_task_assignee_updated').subBlocks,
+    ...getTrigger('clickup_task_due_date_updated').subBlocks,
+    ...getTrigger('clickup_task_tag_updated').subBlocks,
+    ...getTrigger('clickup_task_moved').subBlocks,
+    ...getTrigger('clickup_task_comment_posted').subBlocks,
+    ...getTrigger('clickup_task_comment_updated').subBlocks,
+    ...getTrigger('clickup_task_time_estimate_updated').subBlocks,
+    ...getTrigger('clickup_task_time_tracked_updated').subBlocks,
+    ...getTrigger('clickup_list_created').subBlocks,
+    ...getTrigger('clickup_list_updated').subBlocks,
+    ...getTrigger('clickup_list_deleted').subBlocks,
+    ...getTrigger('clickup_folder_created').subBlocks,
+    ...getTrigger('clickup_folder_updated').subBlocks,
+    ...getTrigger('clickup_folder_deleted').subBlocks,
+    ...getTrigger('clickup_space_created').subBlocks,
+    ...getTrigger('clickup_space_updated').subBlocks,
+    ...getTrigger('clickup_space_deleted').subBlocks,
+    ...getTrigger('clickup_goal_created').subBlocks,
+    ...getTrigger('clickup_goal_updated').subBlocks,
+    ...getTrigger('clickup_goal_deleted').subBlocks,
+    ...getTrigger('clickup_key_result_created').subBlocks,
+    ...getTrigger('clickup_key_result_updated').subBlocks,
+    ...getTrigger('clickup_key_result_deleted').subBlocks,
+    ...getTrigger('clickup_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -1206,7 +1341,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'search_tasks':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
               page: optionalNumber(params.page),
               orderBy: params.orderBy && params.orderBy !== 'none' ? params.orderBy : undefined,
               reverse: params.reverse ? true : undefined,
@@ -1300,7 +1435,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'get_spaces':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
               archived: params.archived ? true : undefined,
             }
           case 'get_folders':
@@ -1393,7 +1528,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'get_time_entries':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
               startDate: optionalNumber(params.timeStartDate),
               endDate: optionalNumber(params.timeEndDate),
               assignee: params.timerAssignee || undefined,
@@ -1415,7 +1550,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'create_time_entry':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
               start: optionalNumber(params.entryStart),
               duration: optionalNumber(params.entryDuration),
               description: params.entryDescription || undefined,
@@ -1426,7 +1561,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'update_time_entry':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
               timerId: params.timerId,
               description: params.entryDescription || undefined,
               start: optionalNumber(params.entryStart),
@@ -1438,13 +1573,13 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'delete_time_entry':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
               timerId: params.timerId,
             }
           case 'start_timer':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
               taskId: params.timerTaskId || undefined,
               description: params.entryDescription || undefined,
               billable: billableFromAction(params.billableAction),
@@ -1453,12 +1588,12 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'stop_timer':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
             }
           case 'get_running_timer':
             return {
               ...baseParams,
-              workspaceId: params.workspaceId,
+              workspaceId: params.teamId,
               assignee: optionalNumber(params.entryAssignee),
             }
           default:
@@ -1470,14 +1605,14 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'ClickUp OAuth credential' },
-    workspaceId: { type: 'string', description: 'Workspace (team) ID' },
+    teamId: { type: 'string', description: 'Workspace (team) ID' },
     spaceId: { type: 'string', description: 'Space ID' },
+    listSpaceId: { type: 'string', description: 'Space ID for folderless list operations' },
     listParent: {
       type: 'string',
       description: 'Where lists live for list operations (folder or space)',
     },
     folderId: { type: 'string', description: 'Folder ID' },
-    listSpaceId: { type: 'string', description: 'Space ID for folderless list operations' },
     listId: { type: 'string', description: 'List ID' },
     taskId: { type: 'string', description: 'Task ID' },
     commentId: { type: 'string', description: 'Comment ID' },
@@ -1595,6 +1730,40 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
     checklist: { type: 'json', description: 'Checklist details including its items' },
     timeEntry: { type: 'json', description: 'Time entry details' },
     timeEntries: { type: 'json', description: 'Array of time entries' },
+  },
+  triggers: {
+    enabled: true,
+    available: [
+      'clickup_task_created',
+      'clickup_task_updated',
+      'clickup_task_deleted',
+      'clickup_task_status_updated',
+      'clickup_task_priority_updated',
+      'clickup_task_assignee_updated',
+      'clickup_task_due_date_updated',
+      'clickup_task_tag_updated',
+      'clickup_task_moved',
+      'clickup_task_comment_posted',
+      'clickup_task_comment_updated',
+      'clickup_task_time_estimate_updated',
+      'clickup_task_time_tracked_updated',
+      'clickup_list_created',
+      'clickup_list_updated',
+      'clickup_list_deleted',
+      'clickup_folder_created',
+      'clickup_folder_updated',
+      'clickup_folder_deleted',
+      'clickup_space_created',
+      'clickup_space_updated',
+      'clickup_space_deleted',
+      'clickup_goal_created',
+      'clickup_goal_updated',
+      'clickup_goal_deleted',
+      'clickup_key_result_created',
+      'clickup_key_result_updated',
+      'clickup_key_result_deleted',
+      'clickup_webhook',
+    ],
   },
 }
 

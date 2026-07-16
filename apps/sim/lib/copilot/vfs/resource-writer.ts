@@ -57,6 +57,7 @@ export type WorkspaceFileWriteValidation =
       vfsPath: string
       backingVfsPath?: string
       fileName: string
+      /** Null for root targets AND for parent chains that don't exist yet — validation is read-only; missing folders are created at write time. */
       folderId: string | null
     }
   | {
@@ -97,22 +98,41 @@ export function parseWorkspaceFileCreatePath(path: string): {
   }
 }
 
+/**
+ * Resolve a create-mode write target. Pass `createFolders` (the write path) to
+ * create missing parent folders; without it (the validation path) resolution
+ * is read-only — a missing parent chain yields `folderId: null`, since the
+ * folders are created at write time and nothing can conflict there yet.
+ */
 async function resolveCreateTarget(
   workspaceId: string,
-  path: string
+  path: string,
+  createFolders?: { userId: string }
 ): Promise<ResolvedCreateTarget> {
   const parsed = parseWorkspaceFileCreatePath(path)
-  const folderId =
-    parsed.folderSegments.length > 0
-      ? await findWorkspaceFileFolderIdByPath(workspaceId, parsed.folderSegments, {
-          includeReservedSystemFolders: true,
-        })
-      : null
-
-  if (parsed.folderSegments.length > 0 && !folderId) {
-    throw new Error(
-      `Directory not yet created: ${displayFolderPath(parsed.folderSegments)}. Create the directory first, then retry the file write.`
-    )
+  let folderId: string | null = null
+  if (parsed.folderSegments.length > 0) {
+    if (createFolders) {
+      folderId = await ensureWorkspaceFileFolderPath({
+        workspaceId,
+        userId: createFolders.userId,
+        pathSegments: parsed.folderSegments,
+      })
+      if (!folderId) {
+        throw new Error(`Failed to create directory: ${displayFolderPath(parsed.folderSegments)}`)
+      }
+    } else {
+      folderId = await findWorkspaceFileFolderIdByPath(workspaceId, parsed.folderSegments, {
+        includeReservedSystemFolders: true,
+      })
+      if (!folderId) {
+        return {
+          fileName: parsed.fileName,
+          folderId: null,
+          vfsPath: parsed.vfsPath,
+        }
+      }
+    }
   }
 
   const existing = await getWorkspaceFileByName(workspaceId, parsed.fileName, { folderId })
@@ -388,7 +408,9 @@ export async function writeWorkspaceFileByPath(args: {
     }
   }
 
-  const createTarget = await resolveCreateTarget(args.workspaceId, args.target.path)
+  const createTarget = await resolveCreateTarget(args.workspaceId, args.target.path, {
+    userId: args.userId,
+  })
   const uploaded = await uploadWorkspaceFile(
     args.workspaceId,
     args.userId,

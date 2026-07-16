@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { getGitLabApiBase, normalizeGitLabHost, UnsafeGitLabHostError } from '@/tools/gitlab/utils'
+import {
+  getGitLabApiBase,
+  getGitLabResourcePath,
+  normalizeGitLabHost,
+  UnsafeGitLabHostError,
+} from '@/tools/gitlab/utils'
 
 describe('normalizeGitLabHost', () => {
   it('defaults to gitlab.com when the host is empty, blank, or not a string', () => {
@@ -67,5 +72,19 @@ describe('getGitLabApiBase', () => {
 
   it('propagates rejection of unsafe hosts', () => {
     expect(() => getGitLabApiBase('legit.com@evil.com')).toThrow(UnsafeGitLabHostError)
+  })
+})
+
+describe('getGitLabResourcePath', () => {
+  it('builds project and group path segments', () => {
+    expect(getGitLabResourcePath('project', 42)).toBe('projects/42')
+    expect(getGitLabResourcePath('group', 7)).toBe('groups/7')
+  })
+
+  it('URL-encodes namespaced paths and trims whitespace', () => {
+    expect(getGitLabResourcePath('project', '  mygroup/myproject  ')).toBe(
+      'projects/mygroup%2Fmyproject'
+    )
+    expect(getGitLabResourcePath('group', 'parent/child')).toBe('groups/parent%2Fchild')
   })
 })

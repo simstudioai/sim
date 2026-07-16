@@ -118,6 +118,7 @@ const ChatContextSchema = z.object({
     'scheduledtask',
     'integration',
     'skill',
+    'mcp',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -131,6 +132,7 @@ const ChatContextSchema = z.object({
   folderId: z.string().optional(),
   fileFolderId: z.string().optional(),
   skillId: z.string().optional(),
+  serverId: z.string().optional(),
   scheduleId: z.string().optional(),
 })
 
@@ -175,6 +177,7 @@ type UnifiedChatBranch =
         userMessageId: string
         chatId?: string
         contexts: Array<{ type: string; content: string; tag?: string; path?: string }>
+        mcpServerIds?: string[]
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         entitlements?: string[]
@@ -213,6 +216,7 @@ type UnifiedChatBranch =
         userMessageId: string
         chatId?: string
         contexts: Array<{ type: string; content: string; tag?: string; path?: string }>
+        mcpServerIds?: string[]
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         entitlements?: string[]
@@ -626,6 +630,7 @@ async function resolveBranch(params: {
             model: selectedModel,
             provider: payloadParams.provider,
             contexts: payloadParams.contexts,
+            mcpServerIds: payloadParams.mcpServerIds,
             fileAttachments: payloadParams.fileAttachments,
             commands: payloadParams.commands,
             chatId: payloadParams.chatId,
@@ -685,6 +690,7 @@ async function resolveBranch(params: {
           mode: 'agent',
           model: '',
           contexts: payloadParams.contexts,
+          mcpServerIds: payloadParams.mcpServerIds,
           fileAttachments: payloadParams.fileAttachments,
           chatId: payloadParams.chatId,
           workspaceContext: payloadParams.workspaceContext,
@@ -693,7 +699,6 @@ async function resolveBranch(params: {
           entitlements: payloadParams.entitlements,
           userTimezone: payloadParams.userTimezone,
           userMetadata: payloadParams.userMetadata,
-          includeMothershipTools: true,
         },
         { selectedModel: '' }
       ),
@@ -997,14 +1002,18 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           [TraceAttr.CopilotFileAttachmentsCount]: body.fileAttachments?.length ?? 0,
           [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
         },
-        () =>
-          branch.kind === 'workflow'
+        () => {
+          const mcpServerIds = normalizedContexts.flatMap((context) =>
+            context.kind === 'mcp' && context.serverId ? [context.serverId] : []
+          )
+          return branch.kind === 'workflow'
             ? branch.buildPayload({
                 message: body.message,
                 userId: authenticatedUserId,
                 userMessageId,
                 chatId: actualChatId,
                 contexts: agentContexts,
+                mcpServerIds,
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
                 entitlements,
@@ -1027,6 +1036,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userMessageId,
                 chatId: actualChatId,
                 contexts: agentContexts,
+                mcpServerIds,
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
                 entitlements,
@@ -1034,7 +1044,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userMetadata,
                 workspaceContext,
                 vfs,
-              }),
+              })
+        },
         activeOtelRoot.context
       )
 

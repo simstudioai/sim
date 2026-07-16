@@ -295,6 +295,26 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('forwards slash-selected MCP server ids to the request-local tool builder', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: '/Docs search auth',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          contexts: [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] }),
+      { selectedModel: '' }
+    )
+  })
+
   it('persists cancelled partial responses from the server lifecycle', async () => {
     await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

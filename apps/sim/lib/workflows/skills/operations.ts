@@ -43,8 +43,8 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof ski
  * real skills do. A workspace skill that shares a built-in's name overrides it.
  *
  * Pass `includeBuiltins: false` to return only user-created skills. The
- * mothership uses this for the skill registry it sees, since it loads workspace
- * skills via load_user_skill and never the code-only templates.
+ * mothership uses this for the workspace skill inventory it sees, which lists
+ * only user-created skills and never the code-only templates.
  */
 export async function listSkills(params: { workspaceId: string; includeBuiltins?: boolean }) {
   const dbRows = await db

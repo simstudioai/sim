@@ -45,7 +45,11 @@ export function extractContextTokens(contexts: ChatContext[]): string[] {
     .filter((c) => c.kind !== 'current_workflow' && c.label)
     .map((c) => {
       const prefix =
-        c.kind === 'skill' ? SKILL_CHIP_TRIGGER : c.kind === 'slash_command' ? '/' : '@'
+        c.kind === 'skill' || c.kind === 'mcp'
+          ? SKILL_CHIP_TRIGGER
+          : c.kind === 'slash_command'
+            ? '/'
+            : '@'
       return `${prefix}${c.label}`
     })
 }
@@ -185,6 +189,7 @@ type LogsContext = Extract<ChatContext, { kind: 'logs' }>
 type IntegrationContext = Extract<ChatContext, { kind: 'integration' }>
 type SlashCommandContext = Extract<ChatContext, { kind: 'slash_command' }>
 type SkillContext = Extract<ChatContext, { kind: 'skill' }>
+type McpContext = Extract<ChatContext, { kind: 'mcp' }>
 
 /**
  * Checks if two contexts of the same kind are equal by their ID fields.
@@ -243,6 +248,10 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
     case 'skill': {
       const ctx = context as SkillContext
       return c.skillId === ctx.skillId
+    }
+    case 'mcp': {
+      const ctx = context as McpContext
+      return c.serverId === ctx.serverId
     }
     default:
       return false
