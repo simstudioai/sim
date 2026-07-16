@@ -48,8 +48,8 @@ export const grainCreateHookV2Tool: ToolConfig<GrainCreateHookV2Params, GrainCre
       }),
       body: (params) => {
         const body: Record<string, unknown> = {
-          hook_url: params.hookUrl,
-          hook_type: params.hookType,
+          hook_url: params.hookUrl.trim(),
+          hook_type: params.hookType.trim(),
         }
         if (params.include && Object.keys(params.include).length > 0) {
           body.include = params.include

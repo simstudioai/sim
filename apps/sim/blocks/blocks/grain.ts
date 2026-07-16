@@ -225,6 +225,16 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
         value: ['grain_list_recordings', 'grain_get_recording'],
       },
     },
+    // Include AI action items
+    {
+      id: 'includeAiActionItems',
+      title: 'Include AI Action Items',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['grain_list_recordings', 'grain_get_recording'],
+      },
+    },
     {
       id: 'viewId',
       title: 'View ID',
@@ -333,6 +343,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
               includeHighlights: params.includeHighlights || false,
               includeParticipants: params.includeParticipants || false,
               includeAiSummary: params.includeAiSummary || false,
+              includeAiActionItems: params.includeAiActionItems || false,
             }
 
           case 'grain_get_recording':
@@ -345,6 +356,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
               includeHighlights: params.includeHighlights || false,
               includeParticipants: params.includeParticipants || false,
               includeAiSummary: params.includeAiSummary || false,
+              includeAiActionItems: params.includeAiActionItems || false,
               includeCalendarEvent: params.includeCalendarEvent || false,
               includeHubspot: params.includeHubspot || false,
             }
@@ -416,6 +428,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
     includeHighlights: { type: 'boolean', description: 'Include highlights/clips in response' },
     includeParticipants: { type: 'boolean', description: 'Include participant list in response' },
     includeAiSummary: { type: 'boolean', description: 'Include AI-generated summary' },
+    includeAiActionItems: { type: 'boolean', description: 'Include AI-detected action items' },
     includeCalendarEvent: { type: 'boolean', description: 'Include calendar event data' },
     includeHubspot: { type: 'boolean', description: 'Include HubSpot associations' },
     hookUrl: { type: 'string', description: 'Webhook endpoint URL' },
@@ -520,6 +533,10 @@ export const GrainV2Block: BlockConfig = {
           },
         ]
       }
+      // Pagination token: rarely hand-entered, belongs under Advanced.
+      if (sb.id === 'cursor') {
+        return [{ ...sb, mode: 'advanced' as const }]
+      }
       return [sb]
     }),
     {
@@ -540,6 +557,19 @@ export const GrainV2Block: BlockConfig = {
       options: GRAIN_HOOK_TYPE_OPTIONS,
       value: () => 'recording_added',
       required: true,
+      condition: {
+        field: 'operation',
+        value: ['grain_create_hook_v2'],
+      },
+    },
+    {
+      id: 'hookInclude',
+      title: 'Include Options',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '{"participants": true, "highlights": true, "ai_summary": true} (recording hooks) or {"transcript": true, "speakers": true} (highlight hooks)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['grain_create_hook_v2'],
@@ -607,18 +637,31 @@ export const GrainV2Block: BlockConfig = {
         }
 
         switch (params.operation) {
-          case 'grain_create_hook_v2':
+          case 'grain_create_hook_v2': {
             if (!params.hookUrl?.trim()) {
               throw new Error('Webhook URL is required.')
             }
             if (!params.hookType?.trim()) {
               throw new Error('Event type is required.')
             }
+            let include: unknown
+            if (params.hookInclude) {
+              try {
+                include =
+                  typeof params.hookInclude === 'string'
+                    ? JSON.parse(params.hookInclude)
+                    : params.hookInclude
+              } catch {
+                throw new Error('Invalid JSON for include options')
+              }
+            }
             return {
               ...baseParams,
               hookUrl: params.hookUrl.trim(),
               hookType: params.hookType.trim(),
+              include,
             }
+          }
 
           case 'grain_list_hooks_v2':
             return {
@@ -644,12 +687,53 @@ export const GrainV2Block: BlockConfig = {
   },
   inputs: {
     ...Object.fromEntries(Object.entries(GrainBlock.inputs).filter(([key]) => key !== 'viewId')),
+    apiKey: { type: 'string', description: 'Grain API key (Personal or Workspace Access Token)' },
     hookType: { type: 'string', description: 'Grain event type for the webhook' },
+    hookInclude: {
+      type: 'json',
+      description: 'Optional include object controlling webhook payload richness',
+    },
     hookTypeFilter: { type: 'string', description: 'Filter listed webhooks by event type' },
     hookState: { type: 'string', description: 'Filter listed webhooks by enabled/disabled state' },
   },
   outputs: {
-    ...Object.fromEntries(Object.entries(GrainBlock.outputs).filter(([key]) => key !== 'views')),
+    // Recording outputs (list + get; get returns the fields at top level)
+    recordings: { type: 'json', description: 'Array of recording objects' },
+    cursor: { type: 'string', description: 'Cursor for the next page (null when done)' },
+    id: { type: 'string', description: 'Recording or webhook UUID' },
+    title: { type: 'string', description: 'Recording title' },
+    start_datetime: { type: 'string', description: 'Recording start timestamp (ISO8601)' },
+    end_datetime: { type: 'string', description: 'Recording end timestamp (ISO8601)' },
+    duration_ms: { type: 'number', description: 'Duration in milliseconds' },
+    media_type: { type: 'string', description: 'Media type (audio/transcript/video)' },
+    source: { type: 'string', description: 'Recording source (zoom/meet/teams/etc)' },
+    url: { type: 'string', description: 'URL to view in Grain' },
+    thumbnail_url: { type: 'string', description: 'Thumbnail image URL' },
+    tags: { type: 'json', description: 'Array of tag strings' },
+    teams: { type: 'json', description: 'Teams ([{id, name}])' },
+    meeting_type: { type: 'json', description: 'Meeting type info (id, name, scope)' },
+    highlights: { type: 'json', description: 'Highlights/clips (if included)' },
+    participants: { type: 'json', description: 'Participants (if included)' },
+    ai_summary: { type: 'json', description: 'AI summary (if included)' },
+    ai_action_items: { type: 'json', description: 'AI action items (if included)' },
+    calendar_event: { type: 'json', description: 'Calendar event data (if included)' },
+    hubspot: { type: 'json', description: 'HubSpot associations (if included)' },
+    // Transcript outputs
+    transcript: { type: 'json', description: 'Array of transcript sections' },
+    // List outputs
+    meeting_types: { type: 'json', description: 'Array of meeting type objects' },
+    hooks: { type: 'json', description: 'Array of webhook objects' },
+    // Webhook outputs (create returns the hook fields at top level)
+    enabled: { type: 'boolean', description: 'Whether the created webhook is active' },
+    hook_url: { type: 'string', description: 'Webhook endpoint URL' },
+    hook_type: { type: 'string', description: 'Event type the webhook subscribes to' },
+    include: { type: 'json', description: 'Include object the webhook was created with' },
+    inserted_at: { type: 'string', description: 'Webhook creation timestamp (ISO8601)' },
+    success: { type: 'boolean', description: 'Operation success status' },
+    // Trigger outputs (v2 event payload envelope)
+    type: { type: 'string', description: 'Webhook event type (e.g., recording_added)' },
+    user_id: { type: 'string', description: 'User UUID who triggered the event' },
+    data: { type: 'json', description: 'Event data (recording, highlight, or story object)' },
   },
   triggers: {
     enabled: true,
@@ -743,13 +827,27 @@ export const GrainBlockMeta = {
       description:
         'Scan Grain sales-call transcripts for buying signals, objections, and competitor mentions.',
       content:
-        '# Extract Deal Signals\n\nMine sales transcripts for signals that move a deal forward.\n\n## Steps\n1. List recordings for the target time window, or filter by a view that holds sales calls.\n2. Get the transcript for each recording.\n3. Classify mentions into buying signals, objections/risks, competitor mentions, and next steps, capturing the verbatim quote and context.\n4. Apply a framework (e.g. MEDDIC or SPICED) if one is specified to tag each insight.\n\n## Output\nReturn a structured list of signals grouped by category, each with the quote, the call it came from, and a suggested follow-up. Useful for CRM notes or a deal review.',
+        '# Extract Deal Signals\n\nMine sales transcripts for signals that move a deal forward.\n\n## Steps\n1. List recordings for the target time window, filtering by meeting type or team to isolate sales calls (use List Meeting Types / List Teams to find the IDs).\n2. Get the transcript for each recording.\n3. Classify mentions into buying signals, objections/risks, competitor mentions, and next steps, capturing the verbatim quote and context.\n4. Apply a framework (e.g. MEDDIC or SPICED) if one is specified to tag each insight.\n\n## Output\nReturn a structured list of signals grouped by category, each with the quote, the call it came from, and a suggested follow-up. Useful for CRM notes or a deal review.',
     },
     {
       name: 'pull-transcript',
       description: 'Retrieve a specific Grain recording and its full transcript by ID.',
       content:
         '# Pull Transcript\n\nFetch a single recording and its transcript for downstream use.\n\n## Steps\n1. If only a title or date is known, list recordings and match to find the recording ID.\n2. Get the recording details for metadata (title, participants, duration, date).\n3. Get the transcript for the recording.\n4. Clean the transcript into readable speaker-labeled turns.\n\n## Output\nReturn the recording metadata plus the formatted transcript. This is the building block for summaries, follow-up emails, or knowledge base ingestion.',
+    },
+    {
+      name: 'audit-grain-webhooks',
+      description:
+        'List, create, and prune Grain webhook subscriptions so external systems only receive the events they need.',
+      content:
+        '# Audit Grain Webhooks\n\nKeep webhook subscriptions tidy and pointed at live endpoints.\n\n## Steps\n1. List webhooks, optionally filtered by event type or enabled/disabled state.\n2. Compare against the endpoints and event types that should exist; flag disabled hooks and hooks pointing at dead URLs.\n3. Delete stale or duplicate webhooks by ID.\n4. Create any missing webhooks with the right event type (note: the endpoint must respond 2xx to a reachability test on creation).\n\n## Output\nReturn a reconciliation summary: hooks kept, hooks deleted, hooks created, each with event type and URL.',
+    },
+    {
+      name: 'segment-calls-by-team',
+      description:
+        'Break down Grain call volume and content by team or meeting type for reporting.',
+      content:
+        '# Segment Calls By Team\n\nProduce a per-team or per-meeting-type view of call activity.\n\n## Steps\n1. List teams and meeting types to get their IDs.\n2. For each segment, list recordings filtered by that team or meeting type over the reporting window, paginating with the cursor.\n3. Aggregate counts, total duration, and notable calls per segment.\n\n## Output\nReturn a table-style summary per segment: call count, total hours, and links to representative recordings. Useful for weekly ops or enablement reporting.',
     },
   ],
 } as const satisfies BlockMeta

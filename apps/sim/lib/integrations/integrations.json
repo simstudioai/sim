@@ -8149,10 +8149,6 @@
           "description": "Get the full transcript of a recording"
         },
         {
-          "name": "List Views",
-          "description": "List available Grain views for webhook subscriptions"
-        },
-        {
           "name": "List Teams",
           "description": "List all teams in the workspace"
         },
@@ -8162,18 +8158,18 @@
         },
         {
           "name": "Create Webhook",
-          "description": "Create a webhook to receive recording events"
+          "description": "Create a webhook for a specific Grain event type (v2 API)"
         },
         {
           "name": "List Webhooks",
-          "description": "List all webhooks for the account"
+          "description": "List webhooks for the account (v2 API)"
         },
         {
           "name": "Delete Webhook",
-          "description": "Delete a webhook by ID"
+          "description": "Delete a webhook by ID (v2 API)"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 8,
       "triggers": [
         {
           "id": "grain_recording_added_v2",

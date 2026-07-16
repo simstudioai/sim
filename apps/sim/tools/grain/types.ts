@@ -45,7 +45,22 @@ interface GrainAiSummary {
 }
 
 interface GrainCalendarEvent {
-  ical_uid: string
+  ical_uid: string | null
+  scheduled_start_datetime: string | null
+  scheduled_end_datetime: string | null
+}
+
+interface GrainAiActionItemAssignee {
+  id: string
+  name: string
+  user_id: string | null
+}
+
+interface GrainAiActionItem {
+  status: 'pending' | 'completed'
+  timestamp: number
+  text: string
+  assignee: GrainAiActionItemAssignee | null
 }
 
 interface GrainHubspotData {
@@ -86,6 +101,7 @@ interface GrainRecording {
   highlights?: GrainHighlight[]
   participants?: GrainParticipant[]
   ai_summary?: GrainAiSummary
+  ai_action_items?: GrainAiActionItem[]
   calendar_event?: GrainCalendarEvent | null
   hubspot?: GrainHubspotData
   private_notes?: GrainPrivateNotes | null
@@ -131,6 +147,7 @@ export interface GrainListRecordingsParams {
   includeHighlights?: boolean
   includeParticipants?: boolean
   includeAiSummary?: boolean
+  includeAiActionItems?: boolean
 }
 
 export interface GrainListRecordingsResponse extends ToolResponse {
@@ -146,6 +163,7 @@ export interface GrainGetRecordingParams {
   includeHighlights?: boolean
   includeParticipants?: boolean
   includeAiSummary?: boolean
+  includeAiActionItems?: boolean
   includeCalendarEvent?: boolean
   includeHubspot?: boolean
 }

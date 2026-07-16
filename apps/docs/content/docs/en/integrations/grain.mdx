@@ -58,6 +58,7 @@ List recordings from Grain with optional filters and pagination
 | `includeHighlights` | boolean | No | Include highlights/clips in response |
 | `includeParticipants` | boolean | No | Include participant list in response |
 | `includeAiSummary` | boolean | No | Include AI-generated summary |
+| `includeAiActionItems` | boolean | No | Include AI-detected action items |
 
 #### Output
 
@@ -91,6 +92,7 @@ Get details of a single recording by ID
 | `includeHighlights` | boolean | No | Include highlights/clips |
 | `includeParticipants` | boolean | No | Include participant list |
 | `includeAiSummary` | boolean | No | Include AI summary |
+| `includeAiActionItems` | boolean | No | Include AI-detected action items |
 | `includeCalendarEvent` | boolean | No | Include calendar event data |
 | `includeHubspot` | boolean | No | Include HubSpot associations |
 
@@ -113,6 +115,7 @@ Get details of a single recording by ID
 | `highlights` | array | Highlights \(if included\) |
 | `participants` | array | Participants \(if included\) |
 | `ai_summary` | object | AI summary text \(if included\) |
+| `ai_action_items` | array | AI-detected action items with status, text, and assignee \(if included\) |
 | `calendar_event` | object | Calendar event data \(if included\) |
 | `hubspot` | object | HubSpot associations \(if included\) |
 
