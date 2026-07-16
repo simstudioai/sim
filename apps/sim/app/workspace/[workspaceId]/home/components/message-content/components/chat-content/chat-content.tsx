@@ -47,7 +47,7 @@ const PROSE_CLASSES = cn(
   'prose-li:text-base prose-li:leading-[25px] prose-li:text-[var(--text-primary)]',
   'prose-li:my-1',
   'prose-ul:my-4 prose-ol:my-4',
-  'prose-strong:font-[600] prose-strong:text-[var(--text-primary)]',
+  'prose-strong:font-[600] dark:prose-strong:font-[650] prose-strong:text-[var(--text-primary)]',
   'prose-a:text-[var(--text-primary)] prose-a:underline prose-a:decoration-dashed prose-a:underline-offset-4',
   'prose-hr:border-[var(--divider)] prose-hr:my-6',
   'prose-table:my-0'
@@ -163,7 +163,7 @@ function fileIconLabel(ref: string, fallback: string): string {
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
     return (
-      <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-[600]'>
+      <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-[600] dark:[&_strong]:font-[650]'>
         <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
           {children}
         </table>

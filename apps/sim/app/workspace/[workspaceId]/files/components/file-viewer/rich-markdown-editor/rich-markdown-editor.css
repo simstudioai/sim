@@ -105,6 +105,12 @@
   font-weight: 600;
 }
 
+/* Light-on-dark text renders perceptually heavier, compressing the bold/regular contrast —
+ * mirror the dark-mode bump the --font-weight-* tokens apply (e.g. semibold 500 → 550). */
+.dark .rich-markdown-prose strong {
+  font-weight: 650;
+}
+
 .rich-markdown-prose em {
   font-style: italic;
 }
