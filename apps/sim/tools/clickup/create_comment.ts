@@ -88,14 +88,20 @@ export const clickupCreateCommentTool: ToolConfig<
     const record = isRecordLike(data) ? data : {}
     const id = record.id
     const histId = record.hist_id
-    const date = record.date
+    const rawDate = record.date
+    const date =
+      typeof rawDate === 'number'
+        ? rawDate
+        : typeof rawDate === 'string' && Number.isFinite(Number(rawDate))
+          ? Number(rawDate)
+          : undefined
 
     return {
       success: true,
       output: {
         id: id === undefined || id === null ? undefined : String(id),
         histId: histId === undefined || histId === null ? undefined : String(histId),
-        date: typeof date === 'number' ? date : undefined,
+        date,
       },
     }
   },

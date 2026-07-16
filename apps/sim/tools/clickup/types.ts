@@ -135,6 +135,7 @@ export interface ClickUpChecklistItem {
   resolved: boolean | null
   parent: string | null
   dateCreated: string | null
+  children: string[]
 }
 
 export interface ClickUpChecklist {

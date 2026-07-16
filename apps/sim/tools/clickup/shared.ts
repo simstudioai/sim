@@ -510,6 +510,9 @@ function mapClickUpChecklistItem(value: unknown): ClickUpChecklistItem {
     resolved: getOptionalBoolean(value.resolved),
     parent: getOptionalString(value.parent),
     dateCreated: getOptionalString(value.date_created),
+    children: Array.isArray(value.children)
+      ? value.children.filter((child): child is string => typeof child === 'string')
+      : [],
   }
 }
 
@@ -589,6 +592,11 @@ const CLICKUP_CHECKLIST_ITEM_OUTPUT_PROPERTIES: Record<string, OutputProperty> =
   resolved: { type: 'boolean', description: 'Whether the item is resolved', nullable: true },
   parent: { type: 'string', description: 'Parent checklist item ID', nullable: true },
   dateCreated: { type: 'string', description: 'Creation timestamp (Unix ms)', nullable: true },
+  children: {
+    type: 'array',
+    description: 'IDs of nested child items',
+    items: { type: 'string', description: 'A checklist item ID' },
+  },
 }
 
 export const CLICKUP_CHECKLIST_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
