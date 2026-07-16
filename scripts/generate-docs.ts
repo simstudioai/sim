@@ -40,6 +40,7 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'a2a',
   'google-service-account',
   'atlassian-service-account',
+  'clickup-service-account',
   'hubspot-setup',
 ])
 
