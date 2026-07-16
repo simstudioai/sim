@@ -115,21 +115,36 @@ describe('GitLabBlock access operations', () => {
     expect(untouched?.admin).toBeUndefined()
   })
 
-  it('exposes the access-level dropdown for update invitation and coerces it', () => {
-    const accessLevel = block.subBlocks.find((s) => s.id === 'accessLevel')
-    const condition = accessLevel?.condition
-    const ops = condition && 'value' in condition ? condition.value : undefined
-    expect(ops).toContain('gitlab_update_invitation')
+  it('exposes an optional access-level dropdown for update invitation that defaults to unchanged', () => {
+    const invAccess = block.subBlocks.find((s) => s.id === 'invitationAccessLevel')
+    expect(invAccess?.type).toBe('dropdown')
+    expect(invAccess?.value?.()).toBe('')
+    const options = typeof invAccess?.options === 'function' ? undefined : invAccess?.options
+    expect(options?.[0]).toEqual({ label: 'Leave unchanged', id: '' })
 
-    const params = block.tools.config.params?.({
+    // Updating only the expiration must NOT send an access level (no silent reset).
+    const expiryOnly = block.tools.config.params?.({
       accessToken: 'pat',
       operation: 'gitlab_update_invitation',
       resourceType: 'group',
       resourceId: '42',
       email: 'a@b.com',
-      accessLevel: '40',
+      expiresAt: '2027-01-01',
+      invitationAccessLevel: '',
     })
-    expect(params).toMatchObject({ email: 'a@b.com', accessLevel: 40 })
+    expect(expiryOnly).toMatchObject({ email: 'a@b.com', expiresAt: '2027-01-01' })
+    expect(expiryOnly?.accessLevel).toBeUndefined()
+
+    // Choosing a level sends the coerced integer.
+    const withLevel = block.tools.config.params?.({
+      accessToken: 'pat',
+      operation: 'gitlab_update_invitation',
+      resourceType: 'group',
+      resourceId: '42',
+      email: 'a@b.com',
+      invitationAccessLevel: '40',
+    })
+    expect(withLevel).toMatchObject({ email: 'a@b.com', accessLevel: 40 })
   })
 
   it('throws when required access fields are missing', () => {

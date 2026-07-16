@@ -47,7 +47,6 @@ const ACCESS_LEVEL_OPS = [
   'gitlab_add_member',
   'gitlab_update_member',
   'gitlab_invite_member',
-  'gitlab_update_invitation',
   'gitlab_approve_access_request',
   'gitlab_add_saml_group_link',
 ]
@@ -933,6 +932,30 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: ACCESS_LEVEL_OPS,
       },
     },
+    // Optional access level for Update Invitation. Defaults to "Leave unchanged"
+    // so updating only the expiration does not silently reset the access level.
+    {
+      id: 'invitationAccessLevel',
+      title: 'Access Level',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: '' },
+        { label: 'No access', id: '0' },
+        { label: 'Minimal Access', id: '5' },
+        { label: 'Guest', id: '10' },
+        { label: 'Planner', id: '15' },
+        { label: 'Reporter', id: '20' },
+        { label: 'Security Manager', id: '25' },
+        { label: 'Developer', id: '30' },
+        { label: 'Maintainer', id: '40' },
+        { label: 'Owner', id: '50' },
+      ],
+      value: () => '',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_update_invitation'],
+      },
+    },
     // Access expiration date (first-class time-boxed grants)
     {
       id: 'expiresAt',
@@ -1699,7 +1722,11 @@ Return ONLY the commit message - no explanations, no extra text.`,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
               email: params.email.trim(),
-              accessLevel: params.accessLevel ? Number(params.accessLevel) : undefined,
+              // Only send access_level when a level is chosen; "Leave unchanged"
+              // ('') keeps the invitation's current level instead of resetting it.
+              accessLevel: params.invitationAccessLevel
+                ? Number(params.invitationAccessLevel)
+                : undefined,
               expiresAt: params.expiresAt?.trim() || undefined,
             }
 
@@ -1919,6 +1946,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
     groupId: { type: 'string', description: 'Group ID or URL-encoded path' },
     userId: { type: 'number', description: 'Target user ID' },
     accessLevel: { type: 'number', description: 'GitLab access level (10-50)' },
+    invitationAccessLevel: {
+      type: 'string',
+      description: 'Optional new access level for an invitation ("" leaves it unchanged)',
+    },
     expiresAt: { type: 'string', description: 'Access expiration date (YYYY-MM-DD)' },
     memberRoleId: { type: 'number', description: 'Custom member role ID (Ultimate)' },
     email: { type: 'string', description: 'Email address for invitations' },
