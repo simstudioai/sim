@@ -190,6 +190,25 @@ describe('OAuth Utils', () => {
       ).rejects.toThrow('invalid_grant (google: Token has been expired or revoked.)')
     })
 
+    it('should throw the generic error on transient failures without a provider code', async () => {
+      const mockCredential = {
+        id: 'credential-id',
+        accessToken: 'expired-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
+        providerId: 'google',
+      }
+
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: false,
+        message: 'fetch failed',
+      })
+
+      await expect(
+        refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
+      ).rejects.toThrow('Failed to refresh token')
+    })
+
     it('should not attempt refresh if no refresh token', async () => {
       const mockCredential = {
         id: 'credential-id',
@@ -349,6 +368,7 @@ describe('OAuth Utils', () => {
       expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe(
         'oauth:refresh:slack:T08CM6ZNYBE'
       )
+      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][2]).toBe(20)
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'live-rt')
       expect(mockSet).toHaveBeenCalledWith(
         expect.objectContaining({ accessToken: 'new-at', refreshToken: 'new-rt' })

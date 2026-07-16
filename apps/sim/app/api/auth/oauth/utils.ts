@@ -677,6 +677,15 @@ interface CoalescedRefreshOutcome {
   error?: OAuthRefreshError
 }
 
+/**
+ * Slack lock budgets sized past `TOKEN_REFRESH_TIMEOUT_MS` (15s) in
+ * lib/oauth/oauth.ts: installation-keyed locks make every sibling row's request
+ * a follower of one refresh, so followers must keep polling for the leader's
+ * full provider window and the lock must not expire under a live refresh.
+ */
+const SLACK_FOLLOWER_MAX_WAIT_MS = 16_000
+const SLACK_LOCK_TTL_SEC = 20
+
 async function performCoalescedRefresh({
   accountId,
   providerId,
@@ -715,6 +724,11 @@ async function performCoalescedRefresh({
   const refreshPromise = coalesceLocally(lockKey, () =>
     withLeaderLock<CoalescedRefreshOutcome>({
       key: lockKey,
+      // Installation-keyed Slack locks gather followers from every sibling row,
+      // so their wait and the lock TTL must outlast the 15s provider timeout —
+      // the 3s/10s defaults would fail followers early and let a second leader
+      // start a concurrent rotation mid-refresh.
+      ...(slackTeamId ? { maxWaitMs: SLACK_FOLLOWER_MAX_WAIT_MS, ttlSec: SLACK_LOCK_TTL_SEC } : {}),
       onLeader: async () => {
         try {
           let refreshTokenToUse = refreshToken
@@ -753,7 +767,17 @@ async function performCoalescedRefresh({
             }
             return {
               accessToken: null,
-              error: new OAuthRefreshError(providerId, result.errorCode, result.errorDescription),
+              // No errorCode = transient (timeout/network), not a provider rejection —
+              // stay errorless so callers keep their null-fallback behavior.
+              ...(result.errorCode
+                ? {
+                    error: new OAuthRefreshError(
+                      providerId,
+                      result.errorCode,
+                      result.errorDescription
+                    ),
+                  }
+                : {}),
             }
           }
 
