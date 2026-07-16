@@ -3349,11 +3349,7 @@
       "oauthServiceId": "clickup",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": [
-        "project-management",
-        "ticketing",
-        "automation"
-      ]
+      "tags": ["project-management", "ticketing", "automation"]
     },
     {
       "type": "cloudflare",
