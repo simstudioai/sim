@@ -20,6 +20,8 @@ import type {
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
+import { schemaFingerprint } from '@/lib/table/schema-fingerprint'
+import type { TableMetadata, TableSchema } from '@/lib/table/types'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -67,7 +69,14 @@ export interface WorkspaceMdData {
   // prompt prefix); kept optional so callers that still have it cheaply (the VFS
   // materializer via listTables) need not change, while generateWorkspaceContext
   // skips the per-table COUNT query entirely.
-  tables: Array<{ id: string; name: string; description?: string | null; rowCount?: number }>
+  tables: Array<{
+    id: string
+    name: string
+    description?: string | null
+    rowCount?: number
+    rowsVersion: number
+    schemaHash: string
+  }>
   files: Array<{ id: string; name: string; type: string; size: number; folderPath?: string | null }>
   oauthIntegrations: Array<{
     id: string
@@ -393,6 +402,9 @@ async function buildWorkspaceMdData(
           id: userTableDefinitions.id,
           name: userTableDefinitions.name,
           description: userTableDefinitions.description,
+          schema: userTableDefinitions.schema,
+          metadata: userTableDefinitions.metadata,
+          rowsVersion: userTableDefinitions.rowsVersion,
         })
         .from(userTableDefinitions)
         .where(
@@ -497,7 +509,15 @@ async function buildWorkspaceMdData(
         // delta and needlessly bust the prompt cache.
         connectorTypes: connectorTypesByKb.get(kb.id)?.sort(stableCompare),
       })),
-      tables: tables.map((t) => ({ id: t.id, name: t.name, description: t.description })),
+      tables: tables.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        rowsVersion: t.rowsVersion,
+        // Raw stored schema + metadata: columnOrder lives in metadata, so a
+        // pure reorder (metadata-only write) must still change the hash.
+        schemaHash: schemaFingerprint(t.schema as TableSchema, t.metadata as TableMetadata | null),
+      })),
       files: files.map((f) => ({
         id: f.id,
         name: f.name,
@@ -620,6 +640,10 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
       id: t.id,
       name: t.name,
       ...(t.description ? { description: t.description } : {}),
+      // Omission mirrors the Go contract's omitempty so sim-emitted and
+      // Go-remarshaled JSON stay byte-identical for the delta diff.
+      ...(t.rowsVersion ? { rowsVersion: t.rowsVersion } : {}),
+      ...(t.schemaHash ? { schemaHash: t.schemaHash } : {}),
     })),
     files: data.files.map((f) => ({
       id: f.id,

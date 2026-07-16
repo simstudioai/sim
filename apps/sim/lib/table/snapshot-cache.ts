@@ -11,7 +11,6 @@
  * contain — and be addressed by — its owning tenant.
  */
 
-import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -19,6 +18,7 @@ import { eq } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
 import { formatCsvValue, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
 import { selectExportRowPage } from '@/lib/table/jobs/service'
+import { schemaFingerprint } from '@/lib/table/schema-fingerprint'
 import type { TableDefinition } from '@/lib/table/types'
 import { createMultipartUpload, deleteFile, headObject } from '@/lib/uploads/core/storage-service'
 
@@ -50,18 +50,6 @@ export class TableSnapshotTooLargeError extends Error {
     )
     this.name = 'TableSnapshotTooLargeError'
   }
-}
-
-/**
- * Fingerprint of the table's column shape (id + display name + order). `rows_version` only advances
- * on row mutations (the trigger fires on `user_table_rows`), so without this a schema edit — rename,
- * add, remove, or reorder a column — would change the CSV header/columns but keep the same key and
- * serve a stale snapshot. Folding it into the key invalidates the cache on any schema change. This
- * is also the seam for a future column-subset / filtered projection (mix it into the same hash).
- */
-function schemaFingerprint(table: TableDefinition): string {
-  const shape = table.schema.columns.map((c) => [getColumnId(c), c.name])
-  return createHash('sha1').update(JSON.stringify(shape)).digest('hex').slice(0, 12)
 }
 
 /** Storage key for a table's snapshot at a given row version + column shape. */
@@ -153,7 +141,7 @@ export async function getOrCreateTableSnapshot(
   table: TableDefinition,
   requestId: string
 ): Promise<TableSnapshotRef> {
-  const shapeHash = schemaFingerprint(table)
+  const shapeHash = schemaFingerprint(table.schema)
   const version = await readRowsVersion(table.id)
   const key = snapshotKey(table.workspaceId, table.id, version, shapeHash)
 

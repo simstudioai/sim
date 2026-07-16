@@ -17,7 +17,12 @@ import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
+import {
+  applyColumnOrderToSchema,
+  generateColumnId,
+  getColumnId,
+  withGeneratedColumnIds,
+} from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
 import { nKeysBetween } from '@/lib/table/order-key'
@@ -77,37 +82,6 @@ export async function withLockedTable<T>(
 }
 
 /**
- * Returns `schema` with `columns` sorted by `metadata.columnOrder` (the user-
- * editable visible order). Columns missing from `columnOrder` are appended at
- * the end in their original (schema-creation) order — covers tables created
- * before `columnOrder` existed and any drift from out-of-band column adds.
- *
- * This makes `schema.columns` the single source of truth for column order on
- * the wire. The client doesn't have to join the two arrays itself — every
- * consumer (grid, sidebar, copilot, mothership) gets the same ordered list.
- */
-function applyColumnOrderToSchema(
-  schema: TableSchema,
-  metadata: TableMetadata | null
-): TableSchema {
-  const order = metadata?.columnOrder
-  if (!order || order.length === 0) return schema
-  // `columnOrder` holds stable column ids (legacy entries equal the name == id).
-  const byId = new Map<string, TableSchema['columns'][number]>()
-  for (const c of schema.columns) byId.set(getColumnId(c), c)
-  const ordered: TableSchema['columns'] = []
-  for (const id of order) {
-    const c = byId.get(id)
-    if (c) {
-      ordered.push(c)
-      byId.delete(id)
-    }
-  }
-  for (const c of byId.values()) ordered.push(c)
-  return { ...schema, columns: ordered }
-}
-
-/**
  * Gets a table by ID with full details.
  *
  * @param tableId - Table ID to fetch
@@ -133,6 +107,7 @@ export async function getTableById(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
+      rowsVersion: userTableDefinitions.rowsVersion,
     })
     .from(userTableDefinitions)
     .where(
@@ -154,6 +129,7 @@ export async function getTableById(
     schema: applyColumnOrderToSchema(table.schema as TableSchema, metadata),
     metadata,
     rowCount: Math.max(0, table.rowCount - pendingDeleteRemaining),
+    rowsVersion: table.rowsVersion,
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
     createdBy: table.createdBy,
@@ -189,6 +165,7 @@ export async function listTables(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
+      rowsVersion: userTableDefinitions.rowsVersion,
     })
     .from(userTableDefinitions)
     .where(
@@ -218,6 +195,7 @@ export async function listTables(
       schema: applyColumnOrderToSchema(t.schema as TableSchema, metadata),
       metadata,
       rowCount: Math.max(0, t.rowCount - pendingDeleteRemaining),
+      rowsVersion: t.rowsVersion,
       maxRows: t.maxRows,
       workspaceId: t.workspaceId,
       createdBy: t.createdBy,
@@ -389,6 +367,7 @@ export async function createTable(
     schema: newTable.schema as TableSchema,
     metadata: null,
     rowCount: data.initialRowCount ?? 0,
+    rowsVersion: 0,
     maxRows: newTable.maxRows,
     workspaceId: newTable.workspaceId,
     createdBy: newTable.createdBy,

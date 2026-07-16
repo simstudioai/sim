@@ -339,6 +339,12 @@ export interface TableDefinition {
   schema: TableSchema
   metadata?: TableMetadata | null
   rowCount: number
+  /**
+   * Monotonic counter bumped +1 per row-write statement by the `bump_user_table_rows_version`
+   * DB trigger (never written from app code). Does NOT advance on schema edits — pair with
+   * `schemaFingerprint` when full change detection is needed.
+   */
+  rowsVersion: number
   maxRows: number
   workspaceId: string
   createdBy: string

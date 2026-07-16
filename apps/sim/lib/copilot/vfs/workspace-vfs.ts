@@ -100,6 +100,7 @@ import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/executi
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
+import { schemaFingerprint } from '@/lib/table/schema-fingerprint'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -1647,6 +1648,7 @@ export class WorkspaceVFS {
             description: table.description,
             schema: table.schema,
             rowCount: table.rowCount,
+            rowsVersion: table.rowsVersion,
             maxRows: table.maxRows,
             createdAt: table.createdAt,
             updatedAt: table.updatedAt,
@@ -1659,6 +1661,8 @@ export class WorkspaceVFS {
         name: t.name,
         description: t.description,
         rowCount: t.rowCount,
+        rowsVersion: t.rowsVersion,
+        schemaHash: schemaFingerprint(t.schema),
       }))
     } catch (err) {
       logger.warn('Failed to materialize tables', {
@@ -2319,6 +2323,7 @@ export class WorkspaceVFS {
             description: table.description,
             schema: table.schema,
             rowCount: table.rowCount,
+            rowsVersion: table.rowsVersion,
             maxRows: table.maxRows,
             createdAt: table.createdAt,
             updatedAt: table.updatedAt,
