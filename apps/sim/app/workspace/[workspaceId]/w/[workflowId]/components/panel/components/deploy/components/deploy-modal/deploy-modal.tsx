@@ -194,6 +194,21 @@ export function DeployModal({
     }
   }
 
+  /**
+   * Post-activation warnings (dead-lettered or still-queued side effects)
+   * arrive with an `active` attempt, so the Live badge gives no signal —
+   * surface them as a toast. Pending/failed attempts are excluded: the
+   * status badge already covers those.
+   */
+  const toastPostActivationWarnings = (
+    title: string,
+    result: { latestDeploymentAttempt?: { status: string } | null; warnings?: string[] }
+  ) => {
+    if (result.latestDeploymentAttempt?.status !== 'active') return
+    if (!result.warnings?.length) return
+    toast.warning(title, { description: result.warnings.join(' ') })
+  }
+
   useEffect(() => {
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
@@ -310,6 +325,9 @@ export function DeployModal({
         if (result.latestDeploymentAttempt?.status === 'active') {
           await syncDraftAfterDeploy()
         }
+        if (isWorkflowStillActive(workflowId)) {
+          toastPostActivationWarnings('Workflow deployed', result)
+        }
       } finally {
         if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
@@ -338,7 +356,10 @@ export function DeployModal({
     setDeployError(null)
 
     try {
-      await activateVersionMutation.mutateAsync({ workflowId, version })
+      const result = await activateVersionMutation.mutateAsync({ workflowId, version })
+      if (isWorkflowStillActive(workflowId)) {
+        toastPostActivationWarnings(`Promoted v${version} to live`, result)
+      }
     } catch (error) {
       if (!isWorkflowStillActive(workflowId)) return
       logger.error('Error promoting version:', { error })
@@ -412,6 +433,9 @@ export function DeployModal({
         const result = await deployMutation.mutateAsync({ workflowId })
         if (result.latestDeploymentAttempt?.status === 'active') {
           await syncDraftAfterDeploy()
+        }
+        if (isWorkflowStillActive(workflowId)) {
+          toastPostActivationWarnings('Workflow redeployed', result)
         }
       } finally {
         if (deployActionIdRef.current === actionId) {

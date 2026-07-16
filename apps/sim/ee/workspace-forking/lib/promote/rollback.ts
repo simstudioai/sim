@@ -276,15 +276,25 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
     try {
       const status = await getWorkflowDeploymentStatus(reactivation.workflowId)
       const operation = status.latestOperation
-      const activated =
-        operation?.id === reactivation.operationId
-          ? operation.status === 'active'
-          : /**
-             * A different latest operation means something newer superseded
-             * our attempt (e.g. a manual promote); treat it as settled — the
-             * newer intent owns the workflow now.
-             */
-            true
+      let activated: boolean
+      if (!operation) {
+        /**
+         * No operation row at all — cutover cannot be verified (only a
+         * concurrent hard-delete of the workflow can cascade ours away), so
+         * keep the undo point. A re-run skips hard-deleted workflows and
+         * then consumes it.
+         */
+        activated = false
+      } else if (operation.id === reactivation.operationId) {
+        activated = operation.status === 'active'
+      } else {
+        /**
+         * A different latest operation means something newer superseded our
+         * attempt (e.g. a manual promote); treat it as settled — the newer
+         * intent owns the workflow now.
+         */
+        activated = true
+      }
       if (!activated) pendingActivations.push(reactivation.workflowId)
     } catch (error) {
       logger.warn(`[${requestId}] Could not verify rollback activation status`, {

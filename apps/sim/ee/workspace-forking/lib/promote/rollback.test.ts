@@ -310,6 +310,23 @@ describe('rollbackFork', () => {
     expect(mockDeleteAllRuns).not.toHaveBeenCalled()
   })
 
+  it('keeps the undo point when no operation row exists to verify cutover', async () => {
+    const run = makeRun({
+      snapshot: { updated: [{ workflowId: 'wf-a', priorVersion: 3 }], created: [], archived: [] },
+    })
+    mockGetLatestRun.mockResolvedValue(run)
+    mockGetDeploymentStatus.mockResolvedValue({ activeDeployment: null, latestOperation: null })
+
+    const result = await rollbackFork({
+      targetWorkspaceId: 'target-ws',
+      otherWorkspaceId: 'other-ws',
+      userId: 'user-1',
+    })
+
+    expect(result.pendingActivations).toEqual(['wf-a'])
+    expect(mockDeleteAllRuns).not.toHaveBeenCalled()
+  })
+
   it('treats a superseding operation as settled and consumes the undo point', async () => {
     const run = makeRun({
       snapshot: { updated: [{ workflowId: 'wf-a', priorVersion: 3 }], created: [], archived: [] },
