@@ -12,6 +12,10 @@ export type SelectorKey =
   | 'bigquery.tables'
   | 'calcom.eventTypes'
   | 'calcom.schedules'
+  | 'clickup.workspaces'
+  | 'clickup.spaces'
+  | 'clickup.folders'
+  | 'clickup.lists'
   | 'confluence.spaces'
   | 'google.tasks.lists'
   | 'jsm.requestTypes'
@@ -87,6 +91,8 @@ export interface SelectorContext {
   serviceDeskId?: string
   impersonateUserEmail?: string
   boardId?: string
+  spaceId?: string
+  folderId?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string
   awsRegion?: string
