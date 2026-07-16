@@ -241,7 +241,7 @@ const MARKDOWN_COMPONENTS = {
           className={cn(
             'text-[var(--text-primary)]',
             kind
-              ? 'not-prose inline-flex items-center gap-[5px] no-underline'
+              ? 'not-prose inline-flex items-baseline gap-1 no-underline'
               : 'underline decoration-dashed underline-offset-4'
           )}
           onClick={(e) => {
@@ -261,7 +261,7 @@ const MARKDOWN_COMPONENTS = {
           {kind && ref && (
             <ContextMentionIcon
               context={{ kind, label: kind === 'file' ? fileIconLabel(ref, label) : label }}
-              className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
+              className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
             />
           )}
           {children}
