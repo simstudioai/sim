@@ -35,6 +35,7 @@ import {
   type PiiStageKey,
   type PiiStagePolicy,
   type PiiStages,
+  stripNerEntities,
 } from '@/lib/guardrails/pii-entities'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
@@ -172,7 +173,10 @@ function anyStageHasContent(stages: PiiStages): boolean {
 /** Persist-time guarantee that `enabled` mirrors "has entity types" for every stage. */
 function withSyncedEnabled(stages: PiiStages): PiiStages {
   return PII_STAGES.reduce((acc, key) => {
-    acc[key] = { ...stages[key], enabled: stages[key].entityTypes.length > 0 }
+    // Block outputs are regex-only — strip any NER before persisting.
+    const entityTypes =
+      key === 'blockOutputs' ? stripNerEntities(stages[key].entityTypes) : stages[key].entityTypes
+    acc[key] = { ...stages[key], entityTypes, enabled: entityTypes.length > 0 }
     return acc
   }, {} as PiiStages)
 }
@@ -321,6 +325,7 @@ function PiiLanguageSelect({ value, onChange }: PiiLanguageSelectProps) {
 }
 
 interface PiiStagePanelProps {
+  stageKey: PiiStageKey
   description: string
   value: PiiStagePolicy
   onChange: (next: PiiStagePolicy) => void
@@ -331,8 +336,12 @@ interface PiiStagePanelProps {
  * stage is "on" purely by virtue of having entity types selected — `enabled` is
  * kept in sync with that, so there is no separate toggle.
  */
-function PiiStagePanel({ description, value, onChange }: PiiStagePanelProps) {
-  const groups = getEntityGroupsForLanguage(value.language)
+function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanelProps) {
+  // Block outputs run in-flight on large payloads, so they are restricted to the
+  // regex/checksum recognizers (no spaCy NER) — see the server fast path.
+  const groups = getEntityGroupsForLanguage(value.language, {
+    regexOnly: stageKey === 'blockOutputs',
+  })
 
   function update(entityTypes: string[], language = value.language) {
     onChange({ ...value, language, entityTypes, enabled: entityTypes.length > 0 })
@@ -570,6 +579,7 @@ function PolicyDetail({
                     />
                   )}
                   <PiiStagePanel
+                    stageKey={effectiveStage}
                     description={activeStageMeta.description}
                     value={draft.piiStages[effectiveStage]}
                     onChange={(next) =>

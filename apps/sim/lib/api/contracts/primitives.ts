@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { PII_LANGUAGE_CODES } from '@/lib/guardrails/pii-entities'
+import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
 
 export const unknownRecordSchema = z.record(z.string(), z.unknown())
 
@@ -134,12 +134,31 @@ export const piiStagePolicySchema = z
 
 export type PiiStagePolicy = z.output<typeof piiStagePolicySchema>
 
-/** The three redaction stages, each independently configured. */
-export const piiStagesSchema = z.object({
-  input: piiStagePolicySchema,
-  blockOutputs: piiStagePolicySchema,
-  logs: piiStagePolicySchema,
-})
+/**
+ * The three redaction stages, each independently configured.
+ *
+ * Block outputs are regex-only: they run in-flight on Presidio's spaCy-free fast
+ * path, so the spaCy-NER entities (PERSON/LOCATION/NRP/DATE_TIME) are stripped
+ * here rather than rejected — a stored rule that still selects NER stays saveable
+ * (migration-safe), and a blockOutputs stage left empty by the strip is disabled.
+ */
+export const piiStagesSchema = z
+  .object({
+    input: piiStagePolicySchema,
+    blockOutputs: piiStagePolicySchema,
+    logs: piiStagePolicySchema,
+  })
+  .transform((stages) => {
+    const entityTypes = stripNerEntities(stages.blockOutputs.entityTypes)
+    return {
+      ...stages,
+      blockOutputs: {
+        ...stages.blockOutputs,
+        entityTypes,
+        enabled: stages.blockOutputs.enabled && entityTypes.length > 0,
+      },
+    }
+  })
 
 export type PiiStages = z.output<typeof piiStagesSchema>
 

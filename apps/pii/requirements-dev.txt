@@ -1,5 +1,0 @@
-# Test-only deps. Unit tests need requirements.txt + this file (no models);
-# integration tests additionally need the models baked into the docker images
-# (see tests/test_integration.py).
-pytest==9.0.3
-httpx==0.28.1
