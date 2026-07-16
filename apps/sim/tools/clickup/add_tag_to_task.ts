@@ -46,7 +46,6 @@ export const clickupAddTagToTaskTool: ToolConfig<ClickUpTaskTagParams, ClickUpTa
       Authorization: clickupAuthorizationHeader(params.accessToken),
       'Content-Type': 'application/json',
     }),
-    body: () => ({}),
   },
 
   transformResponse: async (response, params) => {

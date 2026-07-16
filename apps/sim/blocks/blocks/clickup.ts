@@ -228,7 +228,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       title: 'Markdown Description',
       type: 'long-input',
       mode: 'advanced',
-      placeholder: 'Markdown description (overrides Description)',
+      placeholder: 'Markdown description (used instead of the plain description)',
       condition: {
         field: 'operation',
         value: ['create_task', 'update_task', 'create_list'],
@@ -355,7 +355,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       placeholder: 'Sprint points (number)',
       condition: {
         field: 'operation',
-        value: ['update_task'],
+        value: ['create_task', 'update_task'],
       },
     },
     {
@@ -427,12 +427,12 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
     },
     {
       id: 'includeMarkdownDescription',
-      title: 'Markdown Description',
+      title: 'Return Markdown Description',
       type: 'switch',
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['get_task'],
+        value: ['get_task', 'get_tasks', 'search_tasks'],
       },
     },
     {
@@ -452,12 +452,13 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       type: 'dropdown',
       mode: 'advanced',
       options: [
+        { label: 'Default (created)', id: 'none' },
         { label: 'Created', id: 'created' },
         { label: 'Updated', id: 'updated' },
         { label: 'Due date', id: 'due_date' },
         { label: 'ID', id: 'id' },
       ],
-      value: () => 'created',
+      value: () => 'none',
       condition: {
         field: 'operation',
         value: ['get_tasks', 'search_tasks'],
@@ -585,7 +586,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       id: 'commentText',
       title: 'Comment Text',
       type: 'long-input',
-      required: { field: 'operation', value: ['create_comment', 'update_comment'] },
+      required: { field: 'operation', value: ['create_comment'] },
       placeholder: 'Enter comment text',
       condition: {
         field: 'operation',
@@ -745,6 +746,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
               assignees: splitCommaSeparatedNumbers(params.assignees),
               tags: splitCommaSeparated(params.tags),
               timeEstimate: optionalNumber(params.timeEstimate),
+              points: optionalNumber(params.points),
               parent: params.parent || undefined,
               notifyAll: params.notifyAll ? true : undefined,
             }
@@ -790,10 +792,11 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
               ...baseParams,
               listId: params.listId,
               page: optionalNumber(params.page),
-              orderBy: params.orderBy || undefined,
+              orderBy: params.orderBy && params.orderBy !== 'none' ? params.orderBy : undefined,
               reverse: params.reverse ? true : undefined,
               subtasks: params.subtasks ? true : undefined,
               includeClosed: params.includeClosed ? true : undefined,
+              includeMarkdownDescription: params.includeMarkdownDescription ? true : undefined,
               archived: params.archived ? true : undefined,
               statuses: splitCommaSeparated(params.statuses),
               assignees: splitCommaSeparated(params.assignees),
@@ -806,10 +809,11 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
               ...baseParams,
               workspaceId: params.workspaceId,
               page: optionalNumber(params.page),
-              orderBy: params.orderBy || undefined,
+              orderBy: params.orderBy && params.orderBy !== 'none' ? params.orderBy : undefined,
               reverse: params.reverse ? true : undefined,
               subtasks: params.subtasks ? true : undefined,
               includeClosed: params.includeClosed ? true : undefined,
+              includeMarkdownDescription: params.includeMarkdownDescription ? true : undefined,
               listIds: splitCommaSeparated(params.listIds),
               spaceIds: splitCommaSeparated(params.spaceIds),
               folderIds: splitCommaSeparated(params.folderIds),

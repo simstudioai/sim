@@ -112,6 +112,12 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
       visibility: 'user-or-llm',
       description: 'Time estimate in milliseconds',
     },
+    points: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sprint points for the task',
+    },
     parent: {
       type: 'string',
       required: false,
@@ -150,6 +156,7 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
       if (params.assignees?.length) body.assignees = params.assignees
       if (params.tags?.length) body.tags = params.tags
       if (params.timeEstimate !== undefined) body.time_estimate = params.timeEstimate
+      if (params.points !== undefined) body.points = params.points
       if (params.parent) body.parent = params.parent
       if (params.notifyAll !== undefined) body.notify_all = params.notifyAll
 

@@ -39,6 +39,7 @@ Create a new task in a ClickUp list
 | `assignees` | array | No | User IDs to assign to the task |
 | `tags` | array | No | Tag names to apply to the task |
 | `timeEstimate` | number | No | Time estimate in milliseconds |
+| `points` | number | No | Sprint points for the task |
 | `parent` | string | No | Parent task ID to create this task as a subtask |
 | `notifyAll` | boolean | No | When true, creation notifications are sent to everyone, including the task creator |
 
@@ -128,6 +129,7 @@ List the tasks in a ClickUp list (100 tasks per page; increment page until an em
 | `reverse` | boolean | No | Return tasks in reverse order |
 | `subtasks` | boolean | No | Include subtasks \(excluded by default\) |
 | `includeClosed` | boolean | No | Include closed tasks \(excluded by default\) |
+| `includeMarkdownDescription` | boolean | No | Return task descriptions in Markdown format |
 | `archived` | boolean | No | Return archived tasks |
 | `statuses` | array | No | Filter tasks by status names |
 | `assignees` | array | No | Filter tasks by assignee user IDs |
@@ -155,6 +157,7 @@ Search tasks across a ClickUp workspace with filters for lists, folders, spaces,
 | `reverse` | boolean | No | Return tasks in reverse order |
 | `subtasks` | boolean | No | Include subtasks \(excluded by default\) |
 | `includeClosed` | boolean | No | Include closed tasks \(excluded by default\) |
+| `includeMarkdownDescription` | boolean | No | Return task descriptions in Markdown format |
 | `listIds` | array | No | Filter by list IDs |
 | `spaceIds` | array | No | Filter by space IDs |
 | `folderIds` | array | No | Filter by folder IDs |

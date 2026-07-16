@@ -277,6 +277,10 @@ function mapClickUpStatus(value: unknown): ClickUpStatus | null {
 }
 
 function mapClickUpPriority(value: unknown): ClickUpPriority | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return { id: String(value), priority: null, color: null }
+  }
+
   if (!isRecordLike(value)) {
     return null
   }

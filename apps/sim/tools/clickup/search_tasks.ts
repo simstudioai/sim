@@ -64,6 +64,12 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
         visibility: 'user-or-llm',
         description: 'Include closed tasks (excluded by default)',
       },
+      includeMarkdownDescription: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Return task descriptions in Markdown format',
+      },
       listIds: {
         type: 'array',
         required: false,
@@ -151,6 +157,12 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
         }
         if (params.includeClosed !== undefined) {
           url.searchParams.set('include_closed', String(params.includeClosed))
+        }
+        if (params.includeMarkdownDescription !== undefined) {
+          url.searchParams.set(
+            'include_markdown_description',
+            String(params.includeMarkdownDescription)
+          )
         }
         for (const listId of params.listIds ?? []) {
           url.searchParams.append('list_ids[]', listId)

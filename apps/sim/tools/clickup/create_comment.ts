@@ -86,13 +86,16 @@ export const clickupCreateCommentTool: ToolConfig<
     }
 
     const record = isRecordLike(data) ? data : {}
+    const id = record.id
+    const histId = record.hist_id
+    const date = record.date
 
     return {
       success: true,
       output: {
-        id: typeof record.id === 'string' ? record.id : String(record.id ?? ''),
-        histId: typeof record.hist_id === 'string' ? record.hist_id : String(record.hist_id ?? ''),
-        date: typeof record.date === 'number' ? record.date : Number(record.date ?? 0),
+        id: id === undefined || id === null ? undefined : String(id),
+        histId: histId === undefined || histId === null ? undefined : String(histId),
+        date: typeof date === 'number' ? date : undefined,
       },
     }
   },

@@ -53,9 +53,9 @@ export const clickupUploadAttachmentTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || 'Failed to upload ClickUp attachment')
+    const data = await response.json().catch(() => null)
+    if (!response.ok || !data?.success) {
+      throw new Error(data?.error || 'Failed to upload ClickUp attachment')
     }
 
     return {

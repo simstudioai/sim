@@ -142,6 +142,7 @@ export interface ClickUpCreateTaskParams {
   assignees?: number[]
   tags?: string[]
   timeEstimate?: number
+  points?: number
   parent?: string
   notifyAll?: boolean
 }
@@ -201,6 +202,7 @@ export interface ClickUpGetTasksParams {
   reverse?: boolean
   subtasks?: boolean
   includeClosed?: boolean
+  includeMarkdownDescription?: boolean
   archived?: boolean
   statuses?: string[]
   assignees?: string[]
@@ -224,6 +226,7 @@ export interface ClickUpSearchTasksParams {
   reverse?: boolean
   subtasks?: boolean
   includeClosed?: boolean
+  includeMarkdownDescription?: boolean
   listIds?: string[]
   spaceIds?: string[]
   folderIds?: string[]

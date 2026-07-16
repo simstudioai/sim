@@ -63,6 +63,12 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
       visibility: 'user-or-llm',
       description: 'Include closed tasks (excluded by default)',
     },
+    includeMarkdownDescription: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return task descriptions in Markdown format',
+    },
     archived: {
       type: 'boolean',
       required: false,
@@ -122,6 +128,12 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
       if (params.subtasks !== undefined) url.searchParams.set('subtasks', String(params.subtasks))
       if (params.includeClosed !== undefined) {
         url.searchParams.set('include_closed', String(params.includeClosed))
+      }
+      if (params.includeMarkdownDescription !== undefined) {
+        url.searchParams.set(
+          'include_markdown_description',
+          String(params.includeMarkdownDescription)
+        )
       }
       if (params.archived !== undefined) url.searchParams.set('archived', String(params.archived))
       for (const status of params.statuses ?? []) {
