@@ -47,6 +47,7 @@ const ACCESS_LEVEL_OPS = [
   'gitlab_add_member',
   'gitlab_update_member',
   'gitlab_invite_member',
+  'gitlab_update_invitation',
   'gitlab_approve_access_request',
   'gitlab_add_saml_group_link',
 ]
