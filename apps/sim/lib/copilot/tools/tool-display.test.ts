@@ -3,11 +3,44 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  FfmpegOperationValues,
+  KnowledgeBaseOperationValues,
+  MaterializeFileOperationValues,
+  QueryUserTableOperationValues,
+  SearchKnowledgeBaseOperationValues,
+  TOOL_CATALOG,
+  type ToolCatalogEntry,
+  UserTableOperationValues,
+} from '@/lib/copilot/generated/tool-catalog-v1'
+import { getHiddenToolNames } from '@/lib/copilot/tools/client/hidden-tools'
+import {
   getToolCompletedTitle,
   getToolDisplayTitle,
   humanizeToolName,
   mvDisplayVerb,
 } from '@/lib/copilot/tools/tool-display'
+
+function representativeToolArgs(entry: ToolCatalogEntry): Record<string, unknown> {
+  const args: Record<string, unknown> = {}
+  if (!entry.parameters || typeof entry.parameters !== 'object') return args
+  const properties = (entry.parameters as { properties?: unknown }).properties
+  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return args
+
+  for (const [key, rawSchema] of Object.entries(properties)) {
+    if (!rawSchema || typeof rawSchema !== 'object' || Array.isArray(rawSchema)) continue
+    const schema = rawSchema as { default?: unknown; enum?: unknown; type?: unknown }
+    if (schema.default !== undefined) {
+      args[key] = schema.default
+    } else if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+      args[key] = schema.enum[0]
+    } else if (schema.type === 'boolean') {
+      args[key] = true
+    } else if (schema.type === 'object') {
+      args[key] = {}
+    }
+  }
+  return args
+}
 
 describe('humanizeToolName', () => {
   it('title-cases snake_case names', () => {
@@ -35,6 +68,42 @@ describe('getToolDisplayTitle natural-language coverage', () => {
       'Crunching numbers'
     )
   })
+
+  it('has an intentional display title for every visible catalog tool', () => {
+    const hiddenToolNames = getHiddenToolNames()
+    const fallbackToolNames = Object.keys(TOOL_CATALOG).filter(
+      (name) => !hiddenToolNames.has(name) && getToolDisplayTitle(name) === humanizeToolName(name)
+    )
+
+    expect(fallbackToolNames).toEqual([])
+  })
+
+  it('has a completed-verb rewrite for every visible non-agent catalog tool', () => {
+    const hiddenToolNames = getHiddenToolNames()
+    const missingCompletedVerbs = Object.entries(TOOL_CATALOG).flatMap(([name, entry]) => {
+      if (entry.internal || hiddenToolNames.has(name)) return []
+      const title = getToolDisplayTitle(name, representativeToolArgs(entry))
+      return getToolCompletedTitle(title) ? [] : [`${name}: ${title}`]
+    })
+
+    expect(missingCompletedVerbs).toEqual([])
+  })
+})
+
+describe('getToolDisplayTitle for deployments', () => {
+  it.each([
+    ['deploy_api', undefined, 'Deploying API'],
+    ['deploy_api', { action: 'deploy' }, 'Deploying API'],
+    ['deploy_api', { action: 'undeploy' }, 'Undeploying API'],
+    ['deploy_chat', { action: 'deploy' }, 'Deploying chat'],
+    ['deploy_chat', { action: 'undeploy' }, 'Undeploying chat'],
+    ['deploy_custom_block', { action: 'deploy' }, 'Deploying custom block'],
+    ['deploy_custom_block', { action: 'undeploy' }, 'Undeploying custom block'],
+    ['deploy_mcp', undefined, 'Deploying MCP tool'],
+    ['redeploy', undefined, 'Redeploying API'],
+  ])('uses the action and deployment type for %s', (toolName, args, expected) => {
+    expect(getToolDisplayTitle(toolName, args)).toBe(expected)
+  })
 })
 
 describe('getToolCompletedTitle', () => {
@@ -49,6 +118,10 @@ describe('getToolCompletedTitle', () => {
     expect(getToolCompletedTitle('Creating workflow')).toBe('Created workflow')
     expect(getToolCompletedTitle('Running workflow')).toBe('Ran workflow')
     expect(getToolCompletedTitle('Reading file')).toBe('Read file')
+    expect(getToolCompletedTitle('Undeploying API')).toBe('Undeployed API')
+    expect(getToolCompletedTitle('Duplicating workflow')).toBe('Duplicated workflow')
+    expect(getToolCompletedTitle('Viewing custom tools')).toBe('Viewed custom tools')
+    expect(getToolCompletedTitle('Saving report.pdf')).toBe('Saved report.pdf')
   })
 
   it('returns undefined for non-gerund titles', () => {
@@ -93,6 +166,11 @@ describe('getToolDisplayTitle for the vfs verbs', () => {
       })
     ).toBe('Creating Quarterly Report.pdf')
     expect(getToolDisplayTitle('create_file', { fileName: 'notes.md' })).toBe('Creating notes.md')
+    expect(
+      getToolDisplayTitle('create_file', {
+        outputs: { files: [{ path: 'files/notes.md', mode: 'overwrite' }] },
+      })
+    ).toBe('Overwriting notes.md')
     expect(getToolDisplayTitle('create_file')).toBe('Creating file')
   })
 
@@ -195,6 +273,130 @@ describe('getToolDisplayTitle for managed resources', () => {
     ['manage_scheduled_task', { operation: 'list' }, 'Viewing scheduled tasks'],
   ])('uses verb + resource name for %s', (toolName, args, expected) => {
     expect(getToolDisplayTitle(toolName, args)).toBe(expected)
+  })
+})
+
+describe('getToolDisplayTitle for operation-driven tools', () => {
+  it('covers every FFmpeg operation with a specific activity', () => {
+    for (const operation of FfmpegOperationValues) {
+      expect(getToolDisplayTitle('ffmpeg', { operation })).not.toBe('Processing media')
+    }
+    expect(getToolDisplayTitle('ffmpeg', { operation: 'probe' })).toBe('Inspecting media')
+    expect(getToolDisplayTitle('ffmpeg', { operation: 'extract_audio' })).toBe('Extracting audio')
+  })
+
+  it('covers every knowledge-base operation with its actual verb and resource', () => {
+    for (const operation of KnowledgeBaseOperationValues) {
+      expect(getToolDisplayTitle('knowledge_base', { operation })).not.toBe(
+        'Managing knowledge base'
+      )
+    }
+    expect(getToolDisplayTitle('knowledge_base', { operation: 'query' })).toBe(
+      'Searching knowledge base'
+    )
+    expect(getToolDisplayTitle('knowledge_base', { operation: 'sync_connector' })).toBe(
+      'Syncing knowledge base connector'
+    )
+  })
+
+  it('covers every read-only table and knowledge-base operation', () => {
+    for (const operation of QueryUserTableOperationValues) {
+      expect(getToolDisplayTitle('query_user_table', { operation })).not.toBe('Query User Table')
+    }
+    for (const operation of SearchKnowledgeBaseOperationValues) {
+      expect(getToolDisplayTitle('search_knowledge_base', { operation })).not.toBe(
+        'Search Knowledge Base'
+      )
+    }
+    expect(getToolDisplayTitle('query_user_table', { operation: 'get_schema' })).toBe(
+      'Reading table schema'
+    )
+    expect(getToolDisplayTitle('search_knowledge_base', { operation: 'list_tags' })).toBe(
+      'Listing knowledge base tags'
+    )
+  })
+
+  it('covers every table operation with a specific activity', () => {
+    for (const operation of UserTableOperationValues) {
+      expect(getToolDisplayTitle('user_table', { operation })).not.toBe('Managing table')
+    }
+    expect(
+      getToolDisplayTitle('user_table', {
+        operation: 'rename_column',
+        args: { columnName: 'status', newName: 'stage' },
+      })
+    ).toBe('Renaming column status to stage')
+    expect(getToolDisplayTitle('user_table', { operation: 'cancel_table_runs' })).toBe(
+      'Cancelling table runs'
+    )
+  })
+
+  it('distinguishes saving uploads from importing workflows', () => {
+    for (const operation of MaterializeFileOperationValues) {
+      expect(
+        getToolDisplayTitle('materialize_file', { operation, fileNames: ['Lead Router.json'] })
+      ).not.toBe('Preparing file')
+    }
+    expect(
+      getToolDisplayTitle('materialize_file', {
+        operation: 'save',
+        fileNames: ['Quarterly Report.pdf'],
+      })
+    ).toBe('Saving Quarterly Report.pdf')
+    expect(
+      getToolDisplayTitle('materialize_file', {
+        operation: 'import',
+        fileNames: ['Lead Router.json'],
+      })
+    ).toBe('Importing Lead Router.json')
+  })
+
+  it('uses boolean and resource-type arguments where they change the action', () => {
+    expect(getToolDisplayTitle('set_block_enabled', { enabled: true })).toBe('Enabling block')
+    expect(getToolDisplayTitle('set_block_enabled', { enabled: false })).toBe('Disabling block')
+    expect(getToolDisplayTitle('restore_resource', { type: 'knowledgebase' })).toBe(
+      'Restoring knowledge base'
+    )
+    expect(getToolDisplayTitle('open_resource', { resources: [{ type: 'scheduledtask' }] })).toBe(
+      'Opening scheduled task'
+    )
+  })
+
+  it('includes deployment versions when available', () => {
+    expect(getToolDisplayTitle('load_deployment', { version: 'live' })).toBe(
+      'Loading live deployment'
+    )
+    expect(getToolDisplayTitle('load_deployment', { version: '5' })).toBe(
+      'Loading deployment version 5'
+    )
+    expect(getToolDisplayTitle('promote_to_live', { version: 5 })).toBe(
+      'Promoting version 5 to live'
+    )
+    expect(getToolDisplayTitle('update_deployment_version', { version: 5 })).toBe(
+      'Updating deployment version 5'
+    )
+  })
+
+  it('uses the integration, variable scope, and nested variable operations', () => {
+    expect(getToolDisplayTitle('list_integration_tools', { integration: 'google_sheets' })).toBe(
+      'Listing Google Sheets tools'
+    )
+    expect(getToolDisplayTitle('set_environment_variables', { scope: 'personal' })).toBe(
+      'Setting personal environment variables'
+    )
+    expect(
+      getToolDisplayTitle('set_global_workflow_variables', {
+        operations: [{ operation: 'delete', name: 'OLD_URL' }],
+      })
+    ).toBe('Deleting workflow variable OLD_URL')
+    expect(
+      getToolDisplayTitle('set_global_workflow_variables', {
+        operations: [
+          { operation: 'add', name: 'API_URL' },
+          { operation: 'edit', name: 'TIMEOUT' },
+        ],
+      })
+    ).toBe('Updating 2 workflow variables')
   })
 })
 
