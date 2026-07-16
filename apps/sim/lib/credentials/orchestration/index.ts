@@ -49,6 +49,10 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   /** Atlassian service-account secret rotation (reconnect). */
   apiToken?: string
   domain?: string
+  /** Client-credential service-account secret rotation (reconnect). */
+  clientId?: string
+  clientSecret?: string
+  orgId?: string
 }
 
 export interface PerformCredentialResult {
@@ -125,7 +129,10 @@ export async function performUpdateCredential(
       params.signingSecret !== undefined ||
       params.botToken !== undefined ||
       params.apiToken !== undefined ||
-      params.domain !== undefined
+      params.domain !== undefined ||
+      params.clientId !== undefined ||
+      params.clientSecret !== undefined ||
+      params.orgId !== undefined
     let rotatedSlackBotUserId: string | undefined
     if (hasRotationSecret && access.credential.type === 'service_account') {
       try {
@@ -136,6 +143,9 @@ export async function performUpdateCredential(
             botToken: params.botToken,
             apiToken: params.apiToken,
             domain: params.domain,
+            clientId: params.clientId,
+            clientSecret: params.clientSecret,
+            orgId: params.orgId,
           }
         )
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey

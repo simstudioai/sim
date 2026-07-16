@@ -1198,6 +1198,9 @@ export async function executeTool(
         if (data.domain && !contextParams.domain) {
           contextParams.domain = data.domain
         }
+        if (data.authStyle && !contextParams.authStyle) {
+          contextParams.authStyle = data.authStyle
+        }
 
         logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
 

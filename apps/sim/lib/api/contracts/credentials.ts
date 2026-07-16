@@ -130,6 +130,9 @@ export const createCredentialBodySchema = z
     id: z.string().uuid('id must be a valid UUID').optional(),
     signingSecret: z.string().trim().min(1).optional(),
     botToken: z.string().trim().min(1).optional(),
+    clientId: z.string().trim().min(1).max(512).optional(),
+    clientSecret: z.string().trim().min(1).max(1024).optional(),
+    orgId: z.string().trim().min(1).max(255).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -200,6 +203,10 @@ export const updateCredentialByIdBodySchema = z
     /** Atlassian service-account secret rotation (reconnect). */
     apiToken: z.string().trim().min(1).optional(),
     domain: z.string().trim().min(1).optional(),
+    /** Client-credential service-account secret rotation (reconnect). */
+    clientId: z.string().trim().min(1).max(512).optional(),
+    clientSecret: z.string().trim().min(1).max(1024).optional(),
+    orgId: z.string().trim().min(1).max(255).optional(),
   })
   .strict()
   .refine(
@@ -210,7 +217,10 @@ export const updateCredentialByIdBodySchema = z
       data.signingSecret !== undefined ||
       data.botToken !== undefined ||
       data.apiToken !== undefined ||
-      data.domain !== undefined,
+      data.domain !== undefined ||
+      data.clientId !== undefined ||
+      data.clientSecret !== undefined ||
+      data.orgId !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],

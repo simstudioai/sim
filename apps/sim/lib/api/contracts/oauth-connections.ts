@@ -88,6 +88,7 @@ const oauthTokenResponseSchema = z.object({
   instanceUrl: z.string().optional(),
   cloudId: z.string().optional(),
   domain: z.string().optional(),
+  authStyle: z.enum(['x-api-token']).optional(),
 })
 
 export const oauthTokenGetContract = defineRouteContract({
