@@ -46,9 +46,10 @@ jobs:
             echo "ℹ️ Not a release commit"
           fi
 
-  # Run database migrations before images are pushed: the ECR push triggers
-  # CodePipeline, so migrating first guarantees the schema is in place before
-  # the new app version deploys (replaces the removed ECS migration sidecar)
+  # Run database migrations before images are promoted: the ECR latest/staging
+  # tag push triggers CodePipeline, so migrating first guarantees the schema is
+  # in place before the new app version deploys (replaces the removed ECS
+  # migration sidecar)
   migrate:
     name: Migrate DB
     needs: [test-build]
@@ -173,10 +174,13 @@ jobs:
           fi
           bunx trigger.dev@4.4.3 deploy --env preview --branch dev-sim
 
-  # Main/staging: build AMD64 images and push to ECR + GHCR
+  # Main/staging: build AMD64 images and push sha-tagged images to ECR + GHCR.
+  # Runs in parallel with tests — only sha tags are pushed here, and the
+  # CodePipeline EventBridge triggers filter on exactly the latest/staging/dev
+  # ECR tags, so nothing deploys until promote-images retags after the gate.
   build-amd64:
     name: Build AMD64
-    needs: [test-build, detect-version, migrate]
+    needs: [detect-version]
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
@@ -238,6 +242,9 @@ jobs:
         env:
           ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
+      # Only sha tags here — the deploy tags (latest/staging) and the GHCR
+      # latest-amd64/version tags are applied by promote-images after tests
+      # and migrations pass.
       - name: Generate tags
         id: meta
         run: |
@@ -245,26 +252,10 @@ jobs:
           ECR_REPO="${{ steps.ecr-repo.outputs.name }}"
           GHCR_IMAGE="${{ matrix.ghcr_image }}"
 
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            ECR_TAG="latest"
-          else
-            ECR_TAG="staging"
-          fi
-          ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPO}:${ECR_TAG}"
-
-          TAGS="${ECR_IMAGE}"
+          TAGS="${ECR_REGISTRY}/${ECR_REPO}:${{ github.sha }}"
 
           if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$GHCR_IMAGE" ]; then
-            GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
-            GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
-            TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
-
-            if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
-              VERSION="${{ needs.detect-version.outputs.version }}"
-              GHCR_VERSION="${GHCR_IMAGE}:${VERSION}-amd64"
-              TAGS="${TAGS},$GHCR_VERSION"
-              echo "📦 Adding version tag: ${VERSION}-amd64"
-            fi
+            TAGS="${TAGS},${GHCR_IMAGE}:${{ github.sha }}-amd64"
           fi
 
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
@@ -279,6 +270,88 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           provenance: false
           sbom: false
+
+  # Promote the sha-tagged images to the deploy tags once tests and migrations
+  # pass. Pushing the ECR latest/staging tag is what triggers CodePipeline, so
+  # this seconds-long manifest retag is the deploy gate — the image builds
+  # themselves run in parallel with the tests.
+  promote-images:
+    name: Promote Images
+    needs: [detect-version, migrate, build-amd64]
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ghcr_image: ghcr.io/simstudioai/simstudio
+            ecr_repo_secret: ECR_APP
+          - ghcr_image: ghcr.io/simstudioai/migrations
+            ecr_repo_secret: ECR_MIGRATIONS
+          - ghcr_image: ghcr.io/simstudioai/realtime
+            ecr_repo_secret: ECR_REALTIME
+          - ghcr_image: ghcr.io/simstudioai/pii
+            ecr_repo_secret: ECR_PII
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Login to GHCR
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve ECR repo name
+        id: ecr-repo
+        run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
+        env:
+          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
+
+      - name: Promote images to deploy tags
+        run: |
+          ECR_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}"
+          GHCR_IMAGE="${{ matrix.ghcr_image }}"
+
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            ECR_TAG="latest"
+          else
+            ECR_TAG="staging"
+          fi
+
+          echo "🚀 Promoting ${ECR_IMAGE}:${{ github.sha }} to ${ECR_TAG}"
+          docker buildx imagetools create \
+            -t "${ECR_IMAGE}:${ECR_TAG}" \
+            "${ECR_IMAGE}:${{ github.sha }}"
+
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ -n "$GHCR_IMAGE" ]; then
+            docker buildx imagetools create \
+              -t "${GHCR_IMAGE}:latest-amd64" \
+              "${GHCR_IMAGE}:${{ github.sha }}-amd64"
+
+            if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
+              VERSION="${{ needs.detect-version.outputs.version }}"
+              echo "📦 Adding version tag: ${VERSION}-amd64"
+              docker buildx imagetools create \
+                -t "${GHCR_IMAGE}:${VERSION}-amd64" \
+                "${GHCR_IMAGE}:${{ github.sha }}-amd64"
+            fi
+          fi
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel)
   build-ghcr-arm64:
@@ -346,7 +419,7 @@ jobs:
   create-ghcr-manifests:
     name: Create GHCR Manifests
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    needs: [build-amd64, build-ghcr-arm64, detect-version]
+    needs: [promote-images, build-ghcr-arm64, detect-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       packages: write
@@ -412,10 +485,10 @@ jobs:
               - 'apps/sim/scripts/process-docs.ts'
               - 'apps/sim/lib/chunkers/**'
 
-  # Process docs embeddings (only when docs change, after ECR images are pushed)
+  # Process docs embeddings (only when docs change, after images are promoted)
   process-docs:
     name: Process Docs
-    needs: [build-amd64, check-docs-changes]
+    needs: [promote-images, check-docs-changes]
     if: needs.check-docs-changes.outputs.docs_changed == 'true'
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
