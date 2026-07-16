@@ -3,6 +3,7 @@ import type {
   LinearListAttachmentsResponse,
 } from '@/tools/linear/types'
 import { ATTACHMENT_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearListAttachmentsTool: ToolConfig<
@@ -49,7 +50,7 @@ export const linearListAttachmentsTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

@@ -45,7 +45,22 @@ interface GrainAiSummary {
 }
 
 interface GrainCalendarEvent {
-  ical_uid: string
+  ical_uid: string | null
+  scheduled_start_datetime: string | null
+  scheduled_end_datetime: string | null
+}
+
+interface GrainAiActionItemAssignee {
+  id: string
+  name: string
+  user_id: string | null
+}
+
+interface GrainAiActionItem {
+  status: 'pending' | 'completed'
+  timestamp: number
+  text: string
+  assignee: GrainAiActionItemAssignee | null
 }
 
 interface GrainHubspotData {
@@ -86,6 +101,7 @@ interface GrainRecording {
   highlights?: GrainHighlight[]
   participants?: GrainParticipant[]
   ai_summary?: GrainAiSummary
+  ai_action_items?: GrainAiActionItem[]
   calendar_event?: GrainCalendarEvent | null
   hubspot?: GrainHubspotData
   private_notes?: GrainPrivateNotes | null
@@ -131,6 +147,7 @@ export interface GrainListRecordingsParams {
   includeHighlights?: boolean
   includeParticipants?: boolean
   includeAiSummary?: boolean
+  includeAiActionItems?: boolean
 }
 
 export interface GrainListRecordingsResponse extends ToolResponse {
@@ -146,6 +163,7 @@ export interface GrainGetRecordingParams {
   includeHighlights?: boolean
   includeParticipants?: boolean
   includeAiSummary?: boolean
+  includeAiActionItems?: boolean
   includeCalendarEvent?: boolean
   includeHubspot?: boolean
 }
@@ -212,6 +230,66 @@ export interface GrainDeleteHookParams {
 }
 
 export interface GrainDeleteHookResponse extends ToolResponse {
+  output: {
+    success: true
+  }
+}
+
+/** Hook notification types supported by the Grain v2 hooks endpoints. */
+export const GRAIN_HOOK_TYPES = [
+  'recording_added',
+  'recording_updated',
+  'recording_deleted',
+  'highlight_added',
+  'highlight_updated',
+  'highlight_deleted',
+  'story_added',
+  'story_updated',
+  'story_deleted',
+  'upload_status',
+] as const
+
+export type GrainHookType = (typeof GRAIN_HOOK_TYPES)[number]
+
+/** Hook object returned by the Grain v2 hooks endpoints. */
+interface GrainHookV2 {
+  id: string
+  enabled: boolean
+  hook_url: string
+  hook_type: GrainHookType
+  include: Record<string, unknown>
+  inserted_at: string
+}
+
+export interface GrainCreateHookV2Params {
+  apiKey: string
+  hookUrl: string
+  hookType: GrainHookType
+  include?: Record<string, unknown>
+}
+
+export interface GrainCreateHookV2Response extends ToolResponse {
+  output: GrainHookV2
+}
+
+export interface GrainListHooksV2Params {
+  apiKey: string
+  hookType?: GrainHookType
+  state?: 'enabled' | 'disabled'
+}
+
+export interface GrainListHooksV2Response extends ToolResponse {
+  output: {
+    hooks: GrainHookV2[]
+  }
+}
+
+export interface GrainDeleteHookV2Params {
+  apiKey: string
+  hookId: string
+}
+
+export interface GrainDeleteHookV2Response extends ToolResponse {
   output: {
     success: true
   }

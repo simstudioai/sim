@@ -1,4 +1,5 @@
 import type { LinearMergeCustomersParams, LinearMergeCustomersResponse } from '@/tools/linear/types'
+import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const linearMergeCustomersTool: ToolConfig<
@@ -39,7 +40,7 @@ export const linearMergeCustomersTool: ToolConfig<
       }
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        Authorization: linearAuthorizationHeader(params.accessToken),
       }
     },
     body: (params) => ({

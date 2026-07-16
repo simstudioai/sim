@@ -59,8 +59,7 @@ export interface SolutionsCardConfig {
    */
   visual: ReactNode
   /**
-   * Feature-tile surface tone - only read when the row renders
-   * `cardVariant='featureTile'`. Defaults to `'light'` so tiles can mix light
+   * Feature-tile surface tone. Defaults to `'light'` so tiles can mix light
    * and dark backgrounds within the same row.
    */
   featureTileTone?: SolutionsFeatureTileTone
@@ -77,7 +76,8 @@ export type SolutionsFeatureTileTone = 'light' | 'dark'
 /**
  * A card row - the core repeating unit. A header (title + subtitle + CTA) above a
  * grid of 3 or 4 cards. The grid column count is derived from `cards.length`, so
- * the page never specifies layout.
+ * the page never specifies layout - except the optional {@link columns} density
+ * override for rows whose cards need more width than their count would grant.
  */
 export interface SolutionsCardRowConfig {
   /**
@@ -93,6 +93,13 @@ export interface SolutionsCardRowConfig {
   cta: SolutionsPillCta
   /** The cards in this row - 3 or 4. The grid derives its columns from this length. */
   cards: SolutionsCardConfig[]
+  /**
+   * Optional desktop column-count override. A 4-card row defaults to four-up,
+   * which squeezes tile vignettes; `columns: 2` renders it as a 2×2 grid
+   * instead (wrapping keeps the standard inter-tile gap on both axes).
+   * Breakpoint collapse (2-col under `lg`, 1-col under `sm`) is unchanged.
+   */
+  columns?: 2
 }
 
 /**
@@ -105,6 +112,18 @@ export interface SolutionsPageConfig {
   module: string
   /** Canonical path, e.g. "/workflows" - used to build the JSON-LD `url`/breadcrumb. */
   path: string
+  /**
+   * The page's meta description, shared with `page.tsx` so the JSON-LD
+   * `WebPage.description` and the `<meta name="description">` never drift.
+   * Falls back to `hero.summary` when absent.
+   */
+  seoDescription?: string
+  /**
+   * Whether the JSON-LD `WebApplication` advertises the free tier as an
+   * `Offer`. Defaults to true; sales-led pages (Enterprise) set false so a
+   * rich result never claims a $0 price for a quoted product.
+   */
+  offersFreeTier?: boolean
   /** The hero (the page's only `<h1>`). */
   hero: SolutionsHeroConfig
   /** Card rows rendered in order beneath the logos row. */

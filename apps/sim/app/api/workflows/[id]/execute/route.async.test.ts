@@ -31,7 +31,6 @@ const {
   mockGetWorkspaceBillingSettings,
   mockHandlePostExecutionPauseState,
   mockHasDurableExecutionOwner,
-  mockIsWorkspaceApiExecutionEntitled,
   mockReleaseExecutionIdClaim,
   mockReleaseExecutionSlot,
   mockRequireBillingAttributionHeader,
@@ -50,7 +49,6 @@ const {
   mockGetWorkspaceBillingSettings: vi.fn(),
   mockHandlePostExecutionPauseState: vi.fn(),
   mockHasDurableExecutionOwner: vi.fn(),
-  mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
@@ -58,11 +56,6 @@ const {
 }))
 
 vi.mock('@sim/db', () => dbChainMock)
-
-vi.mock('@/lib/billing/core/api-access', () => ({
-  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
-  isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
-}))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,

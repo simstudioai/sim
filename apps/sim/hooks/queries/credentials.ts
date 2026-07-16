@@ -140,6 +140,9 @@ export function useUpdateWorkspaceCredential() {
           botToken: payload.botToken,
           apiToken: payload.apiToken,
           domain: payload.domain,
+          clientId: payload.clientId,
+          clientSecret: payload.clientSecret,
+          orgId: payload.orgId,
         },
       })
     },

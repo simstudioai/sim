@@ -9,7 +9,6 @@ export interface AuthContext {
   requestId: string
   providerConfig: Record<string, unknown>
 }
-
 /** Context for event matching against trigger configuration. */
 export interface EventMatchContext {
   webhook: Record<string, unknown>
@@ -82,6 +81,11 @@ export interface DeleteSubscriptionContext {
 export interface PollingConfigContext {
   webhook: Record<string, unknown>
   requestId: string
+  /**
+   * Stable registration preparation supplies a generation-fenced persistence callback.
+   * Legacy callers omit it and retain the existing provider-owned write behavior.
+   */
+  persistProviderConfig?(providerConfig: Record<string, unknown>): Promise<boolean>
 }
 
 /**

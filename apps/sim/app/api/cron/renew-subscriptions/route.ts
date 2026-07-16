@@ -8,6 +8,7 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { runDetached } from '@/lib/core/utils/background'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 import { getCredentialOwner, getNotificationUrl } from '@/lib/webhooks/provider-subscription-utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -96,7 +97,7 @@ async function renewExpiringSubscriptions(): Promise<{
     .from(webhookTable)
     .where(
       and(
-        eq(webhookTable.isActive, true),
+        deliverableWebhookPredicate(webhookTable, 'active_only'),
         or(
           eq(webhookTable.provider, 'microsoft-teams'),
           eq(webhookTable.provider, 'microsoftteams')

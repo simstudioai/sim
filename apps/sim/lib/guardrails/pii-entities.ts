@@ -229,11 +229,43 @@ export function isEntitySupportedForLanguage(
   return PII_ENTITIES_BY_LANGUAGE[language].has(entity)
 }
 
-/** {@link PII_ENTITY_GROUPS} filtered to entities the language recognizes (empty groups dropped). */
-export function getEntityGroupsForLanguage(language: PIILanguage) {
+/**
+ * Entity types produced by the spaCy NER model (vs the regex/checksum pattern
+ * recognizers). The block-output redaction stage is restricted to the non-NER
+ * (regex) entities so it runs on the Presidio spaCy-free fast path without the
+ * per-leaf NER cost. Includes ORGANIZATION — which Presidio's spaCy recognizer
+ * emits but the user-facing catalog above does not list — so it too is stripped
+ * from block-output selections, keeping this in sync with the derived
+ * `NER_ENTITIES` in `apps/pii/server.py`. Typed as strings because ORGANIZATION
+ * isn't a catalog `PIIEntityType`.
+ */
+export const NER_PII_ENTITIES: ReadonlySet<string> = new Set<string>([
+  'PERSON',
+  'LOCATION',
+  'NRP',
+  'DATE_TIME',
+  'ORGANIZATION',
+])
+
+/** Drop the spaCy-NER entities ({@link NER_PII_ENTITIES}) from a selection. */
+export function stripNerEntities(entities: readonly string[]): string[] {
+  return entities.filter((e) => !NER_PII_ENTITIES.has(e))
+}
+
+/**
+ * {@link PII_ENTITY_GROUPS} filtered to entities the language recognizes (empty
+ * groups dropped). With `regexOnly`, the spaCy-NER entities are also excluded —
+ * used for the block-output stage.
+ */
+export function getEntityGroupsForLanguage(language: PIILanguage, opts?: { regexOnly?: boolean }) {
+  const regexOnly = opts?.regexOnly ?? false
   return PII_ENTITY_GROUPS.map((group) => ({
     label: group.label,
-    entities: group.entities.filter((e) => isEntitySupportedForLanguage(e.value, language)),
+    entities: group.entities.filter(
+      (e) =>
+        isEntitySupportedForLanguage(e.value, language) &&
+        (!regexOnly || !NER_PII_ENTITIES.has(e.value))
+    ),
   })).filter((group) => group.entities.length > 0)
 }
 
@@ -319,9 +351,17 @@ export function normalizeRuleStages(rule: {
   })
 
   if (rule.stages) {
+    // Block outputs are regex-only (no spaCy NER) — strip NER from any stored
+    // rule so hydrated drafts never carry it; a stage left empty becomes disabled.
+    const blockOutputs = sanitize(rule.stages.blockOutputs)
+    const blockOutputsEntities = stripNerEntities(blockOutputs.entityTypes)
     return {
       input: sanitize(rule.stages.input),
-      blockOutputs: sanitize(rule.stages.blockOutputs),
+      blockOutputs: {
+        ...blockOutputs,
+        entityTypes: blockOutputsEntities,
+        enabled: blockOutputs.enabled && blockOutputsEntities.length > 0,
+      },
       logs: sanitize(rule.stages.logs),
     }
   }

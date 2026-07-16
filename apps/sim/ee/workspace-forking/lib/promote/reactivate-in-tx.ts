@@ -1,7 +1,12 @@
 import { workflow, workflowDeploymentVersion } from '@sim/db/schema'
+import { sha256Hex } from '@sim/security/hash'
 import { and, eq } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { enqueueWorkflowDeploymentSideEffects } from '@/lib/workflows/deployment-outbox'
+import {
+  DEPLOYMENT_READINESS_COMPONENTS,
+  enqueueWorkflowDeploymentPreparation,
+} from '@/lib/workflows/deployment-outbox'
+import { prepareWorkflowVersionActivation } from '@/lib/workflows/persistence/deployment-operations'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -16,24 +21,25 @@ interface ReactivateDeployedVersionParams {
 export interface ReactivateDeployedVersionResult {
   deploymentVersionId: string
   /**
-   * Outbox event id enqueued inside the transaction. Process it AFTER the tx commits
-   * (or rely on the outbox cron/reaper if the process dies first).
+   * Deployment operation admitted (or reused) for this reactivation. The
+   * caller checks it post-commit to learn whether cutover completed.
    */
-  outboxEventId: string
+  operationId: string
+  /**
+   * Newly enqueued event. Reused idempotent operations already own a durable event.
+   */
+  outboxEventId?: string
 }
 
 /**
- * Reactivate a prior deployment version AND restore the workflow's draft to it using
- * ONLY DB writes against the provided transaction, enqueuing the deployment
- * side-effect (webhook / schedule / MCP re-subscription) to the outbox for processing
- * AFTER the tx commits. This composes the DB halves of {@link activateWorkflowVersion}
- * and `performRevertToVersion` so a fork rollback can run atomically under its fork
- * advisory lock - the heavy side-effects never run inside the locked tx.
+ * Prepare a prior deployment version for v2 activation and restore the workflow's
+ * draft to it using only DB writes against the provided transaction.
  *
  * Deliberately does NOT call `assertWorkflowMutable`: a rollback is an admin force-undo
  * and must not be blocked by a workflow/folder lock (that check is also not tx-safe).
- * Idempotent: deactivate-all + activate-target + overwrite-draft yield the same state
- * on retry.
+ * Idempotent: preparing the activation and overwriting the draft yield the same
+ * prepared operation and draft on retry; the cutover itself happens asynchronously
+ * through the deployment outbox.
  *
  * Returns null when the target version row no longer exists, so the caller can mark the
  * workflow skipped rather than failing the whole rollback.
@@ -80,25 +86,6 @@ export async function reactivateDeployedVersionInTx(
     )
   }
 
-  // Activate the target version (deactivate every other), mark the workflow deployed.
-  await tx
-    .update(workflowDeploymentVersion)
-    .set({ isActive: false })
-    .where(eq(workflowDeploymentVersion.workflowId, workflowId))
-  await tx
-    .update(workflowDeploymentVersion)
-    .set({ isActive: true })
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.version, version)
-      )
-    )
-  await tx
-    .update(workflow)
-    .set({ isDeployed: true, deployedAt: now })
-    .where(eq(workflow.id, workflowId))
-
   // Restore the draft to the deployed version's state.
   const hasVariables = Object.hasOwn(deployedState, 'variables')
   const restoredState: WorkflowState = {
@@ -126,13 +113,34 @@ export async function reactivateDeployedVersionInTx(
     })
     .where(eq(workflow.id, workflowId))
 
-  const outboxEventId = await enqueueWorkflowDeploymentSideEffects(tx, {
+  let outboxEventId: string | undefined
+  const prepared = await prepareWorkflowVersionActivation({
     workflowId,
     deploymentVersionId: versionRow.id,
-    userId,
-    requestId,
-    forceRecreateSubscriptions: true,
+    actorId: userId,
+    requestHash: sha256Hex(JSON.stringify({ action: 'activate', workflowId, version, userId })),
+    idempotencyKey: `${requestId}:${workflowId}:reactivate:${version}`,
+    readinessComponents: DEPLOYMENT_READINESS_COMPONENTS,
+    tx,
+    onPrepareTransaction: async (innerTx, operation) => {
+      if (!operation.deploymentVersionId || operation.version === null) {
+        throw new Error('Prepared rollback activation is missing its target version')
+      }
+      outboxEventId = await enqueueWorkflowDeploymentPreparation(innerTx, {
+        protocolVersion: operation.protocolVersion,
+        operationId: operation.id,
+        generation: operation.generation,
+        workflowId: operation.workflowId,
+        deploymentVersionId: operation.deploymentVersionId,
+        version: operation.version,
+        userId,
+        requestId,
+        checkpoints: {},
+      })
+    },
   })
-
-  return { deploymentVersionId: versionRow.id, outboxEventId }
+  if (!prepared.success) {
+    throw new Error(prepared.error)
+  }
+  return { deploymentVersionId: versionRow.id, operationId: prepared.operation.id, outboxEventId }
 }

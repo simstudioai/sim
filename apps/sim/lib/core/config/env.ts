@@ -87,7 +87,6 @@ export const env = createEnv({
     BILLING_CONCURRENCY_LIMIT_TEAM:         z.string().optional(),                  // In-flight executions per Max-tier billing account (Max and Max for Teams)
     BILLING_CONCURRENCY_LIMIT_ENTERPRISE:   z.string().optional(),                  // In-flight executions per Enterprise billing account (metadata-overridable)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
-    FREE_API_DEPLOYMENT_GATE_ENABLED:      z.boolean().optional(),                 // Block free-plan accounts from programmatic execution (API/MCP/A2A/generic webhooks/chat embeds). Requires BILLING_ENABLED. Off by default for dark rollout
     TABLE_SNAPSHOT_CACHE:                  z.boolean().optional(),                 // Mount tables into sandboxes by reference via a version-keyed CSV snapshot in object storage instead of draining the whole table into web-process heap
     PII_REDACTION:                         z.boolean().optional(),                 // Redact PII from workflow logs via configurable Data Retention rules (Presidio at the logger persist choke point) and expose the Data Retention config UI
     PII_GRANULAR_REDACTION:                z.boolean().optional(),                 // Expose the execution-altering PII redaction stages (redact workflow input + block outputs in-flight) in the Data Retention config; layered on top of PII_REDACTION
@@ -392,6 +391,8 @@ export const env = createEnv({
     PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
     LINEAR_CLIENT_SECRET:                  z.string().optional(),                  // Linear OAuth client secret
+    CLICKUP_CLIENT_ID:                     z.string().optional(),                  // ClickUp OAuth client ID
+    CLICKUP_CLIENT_SECRET:                 z.string().optional(),                  // ClickUp OAuth client secret
     BOX_CLIENT_ID:                         z.string().optional(),                  // Box OAuth client ID
     BOX_CLIENT_SECRET:                     z.string().optional(),                  // Box OAuth client secret
     DROPBOX_CLIENT_ID:                     z.string().optional(),                  // Dropbox OAuth client ID
@@ -406,6 +407,8 @@ export const env = createEnv({
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key
     LINKEDIN_CLIENT_ID:                    z.string().optional(),                  // LinkedIn OAuth client ID
     LINKEDIN_CLIENT_SECRET:                z.string().optional(),                  // LinkedIn OAuth client secret
+    INSTAGRAM_CLIENT_ID:                   z.string().optional(),                  // Instagram App ID (Business Login)
+    INSTAGRAM_CLIENT_SECRET:               z.string().optional(),                  // Instagram App Secret (Business Login)
     SHOPIFY_CLIENT_ID:                     z.string().optional(),                  // Shopify OAuth client ID
     SHOPIFY_CLIENT_SECRET:                 z.string().optional(),                  // Shopify OAuth client secret
     ZOOM_CLIENT_ID:                        z.string().optional(),                  // Zoom OAuth client ID

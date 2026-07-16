@@ -8,6 +8,7 @@ export const grainRecordingCreatedTrigger: TriggerConfig = {
   provider: 'grain',
   description: 'Trigger workflow when a new recording is added in Grain',
   version: '1.0.0',
+  deprecated: true,
   icon: GrainIcon,
 
   subBlocks: [

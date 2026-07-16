@@ -3,11 +3,23 @@ import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm'
 
 const logger = createLogger('OutboxService')
 
 const DEFAULT_MAX_ATTEMPTS = 10
+const MAX_PERSISTED_ERROR_LENGTH = 500
+
+/**
+ * Bounds a handler failure before persisting it to `last_error`. Driver
+ * errors ("Failed query: ...\nparams: ...") embed every bound parameter,
+ * which can include user credentials from handler payloads — the parameter
+ * tail is dropped and the rest is capped.
+ */
+function toPersistedHandlerError(error: unknown): string {
+  return truncate(toError(error).message.split(/\nparams: /)[0], MAX_PERSISTED_ERROR_LENGTH)
+}
 const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
 const MAX_BACKOFF_MS = 60 * 60 * 1000 // 1 hour
 const BASE_BACKOFF_MS = 1000 // 1 second, doubled per attempt
@@ -37,6 +49,13 @@ export interface OutboxEventContext {
   eventType: string
   /** How many times this event has been attempted (zero on first run). */
   attempts: number
+  /** Maximum attempts before this event is dead-lettered. */
+  maxAttempts: number
+  /**
+   * Aborted when the handler exceeds its lease-bound execution window.
+   * External-operation handlers must stop before performing another side effect.
+   */
+  signal: AbortSignal
   /**
    * Durably shallow-merge fields into this event's JSON payload while the
    * current processing lease is still held. Long-running handlers can
@@ -397,7 +416,7 @@ async function runHandler(
 
     const nextAttempts = event.attempts + 1
     const isDead = nextAttempts >= event.maxAttempts
-    const errMsg = toError(error).message
+    const errMsg = toPersistedHandlerError(error)
 
     if (isDead) {
       const updated = await updateIfLeaseHeld(event, {
@@ -558,13 +577,18 @@ function runHandlerWithTimeout(
   event: typeof outboxEvent.$inferSelect,
   timeoutMs: number = DEFAULT_HANDLER_TIMEOUT_MS
 ): Promise<void> {
+  const controller = new AbortController()
   const context: OutboxEventContext = {
     eventId: event.id,
     eventType: event.eventType,
     attempts: event.attempts,
+    maxAttempts: event.maxAttempts,
+    signal: controller.signal,
     checkpointPayload: async (patch) => {
+      controller.signal.throwIfAborted()
       const updated = await mergePayloadIfLeaseHeld(event, patch)
       if (!updated) {
+        controller.abort()
         throw new Error(`Outbox lease lost while checkpointing event ${event.id}`)
       }
       event.payload = {
@@ -576,6 +600,7 @@ function runHandlerWithTimeout(
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
+      controller.abort()
       reject(new OutboxHandlerTimeoutError(timeoutMs))
     }, timeoutMs)
 

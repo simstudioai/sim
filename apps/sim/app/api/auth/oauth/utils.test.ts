@@ -20,8 +20,15 @@ vi.mock('@/lib/core/security/encryption', () => ({
   encryptSecret: vi.fn(async (value: string) => ({ encrypted: value, iv: 'iv' })),
 }))
 
+const { mockMinter } = vi.hoisted(() => ({ mockMinter: vi.fn() }))
+vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
+  getClientCredentialAccountMinter: vi.fn(() => mockMinter),
+  parseClientCredentialAccountSecretBlob: vi.fn((decrypted: string) => JSON.parse(decrypted)),
+}))
+
 import { db } from '@sim/db'
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
+import { ZOOM_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -329,6 +336,131 @@ describe('OAuth Utils', () => {
       await expect(
         resolveServiceAccountToken('cred-1', GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID, [])
       ).rejects.toThrow(/Scopes are required/)
+    })
+  })
+
+  describe('resolveServiceAccountToken — client-credential mint cache', () => {
+    const ENCRYPTED_KEY_A = `${'a'.repeat(32)}rest-of-ciphertext`
+    const ENCRYPTED_KEY_B = `${'b'.repeat(32)}rest-of-ciphertext`
+    const BLOB_FIELDS = { clientId: 'cid', clientSecret: 'cs', orgId: 'org' }
+
+    let now: number
+    let dateNowSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      now = 1_750_000_000_000
+      dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+      mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(BLOB_FIELDS) })
+    })
+
+    afterEach(() => {
+      dateNowSpy.mockRestore()
+    })
+
+    function mockCredentialRow(encryptedServiceAccountKey: string) {
+      mockSelectChain([{ encryptedServiceAccountKey }])
+    }
+
+    it('mints once with skipIdentity, then serves cache hits preserving instanceUrl', async () => {
+      const credId = 'ccsa-cache-hit'
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({
+        accessToken: 'tok-1',
+        expiresInSeconds: 3600,
+        instanceUrl: 'https://org.my.salesforce.com',
+      })
+
+      const first = await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      expect(first).toEqual({
+        accessToken: 'tok-1',
+        instanceUrl: 'https://org.my.salesforce.com',
+      })
+      expect(mockMinter).toHaveBeenCalledWith(BLOB_FIELDS, { skipIdentity: true })
+
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      const second = await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      expect(second).toEqual({
+        accessToken: 'tok-1',
+        instanceUrl: 'https://org.my.salesforce.com',
+      })
+      expect(mockMinter).toHaveBeenCalledTimes(1)
+    })
+
+    it('re-mints when remaining validity is below the 5-minute serve floor', async () => {
+      const credId = 'ccsa-ttl-floor'
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({ accessToken: 'tok-1', expiresInSeconds: 240 })
+
+      await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({ accessToken: 'tok-2', expiresInSeconds: 3600 })
+      const second = await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      expect(second.accessToken).toBe('tok-2')
+      expect(mockMinter).toHaveBeenCalledTimes(2)
+    })
+
+    it('re-mints when the stored secret fingerprint changes (credential rotation)', async () => {
+      const credId = 'ccsa-rotation'
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({ accessToken: 'old-app-token', expiresInSeconds: 3600 })
+
+      await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      mockCredentialRow(ENCRYPTED_KEY_B)
+      mockMinter.mockResolvedValueOnce({ accessToken: 'new-app-token', expiresInSeconds: 3600 })
+      const second = await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      expect(second.accessToken).toBe('new-app-token')
+      expect(mockMinter).toHaveBeenCalledTimes(2)
+    })
+
+    it('never caches a failed mint as a token but memoizes the failure for ~30s', async () => {
+      const credId = 'ccsa-negative-memo'
+      const mintError = new Error('invalid_credentials')
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockRejectedValueOnce(mintError)
+
+      await expect(
+        resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+      ).rejects.toBe(mintError)
+
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      await expect(
+        resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+      ).rejects.toBe(mintError)
+      expect(mockMinter).toHaveBeenCalledTimes(1)
+
+      now += 31_000
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({ accessToken: 'tok-after', expiresInSeconds: 3600 })
+      const result = await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      expect(result.accessToken).toBe('tok-after')
+      expect(mockMinter).toHaveBeenCalledTimes(2)
+    })
+
+    it('evicts the cached token when the credential row is deleted', async () => {
+      const credId = 'ccsa-deleted'
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({ accessToken: 'tok-1', expiresInSeconds: 3600 })
+
+      await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      mockSelectChain([])
+      await expect(
+        resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+      ).rejects.toThrow(/secret not found/)
+
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({ accessToken: 'tok-2', expiresInSeconds: 3600 })
+      const result = await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
+
+      expect(result.accessToken).toBe('tok-2')
+      expect(mockMinter).toHaveBeenCalledTimes(2)
     })
   })
 })

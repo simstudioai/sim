@@ -12,9 +12,17 @@ import { isDev } from '@/lib/core/config/env-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performChatUndeploy, performFullDeploy } from '@/lib/workflows/orchestration'
+import {
+  getWorkflowDeploymentSummary,
+  performChatUndeploy,
+  performFullDeploy,
+} from '@/lib/workflows/orchestration'
 import { checkChatAccess } from '@/app/api/chat/utils'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import {
+  checkNeedsRedeployment,
+  createErrorResponse,
+  createSuccessResponse,
+} from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -136,26 +144,59 @@ export const PATCH = withRouteHandler(
         logger.info('Keeping existing password')
       }
 
-      // Redeploy the workflow to ensure latest version is active
-      const deployResult = await performFullDeploy({
-        workflowId: existingChat[0].workflowId,
-        userId: session.user.id,
-        request,
-      })
-
-      if (!deployResult.success) {
-        logger.warn(`Failed to redeploy workflow for chat update: ${deployResult.error}`)
-        const status =
-          deployResult.errorCode === 'validation'
-            ? 400
-            : deployResult.errorCode === 'not_found'
-              ? 404
-              : 500
-        return createErrorResponse(deployResult.error || 'Failed to redeploy workflow', status)
+      /**
+       * A settings update only redeploys when the draft actually drifted from
+       * the active version, and never while another attempt is in flight —
+       * otherwise each blocked retry would admit a fresh deployment version
+       * on top of the pending one.
+       */
+      const deploymentSummary = await getWorkflowDeploymentSummary(existingChat[0].workflowId)
+      const attemptStatus = deploymentSummary.latestDeploymentAttempt?.status
+      if (attemptStatus === 'preparing' || attemptStatus === 'activating') {
+        return createErrorResponse(
+          'A workflow deployment is still preparing. Retry the chat update after it becomes active.',
+          409
+        )
       }
-      logger.info(
-        `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
-      )
+
+      const needsRedeploy =
+        !deploymentSummary.activeDeployment ||
+        (await checkNeedsRedeployment(existingChat[0].workflowId))
+
+      if (needsRedeploy) {
+        const deployResult = await performFullDeploy({
+          workflowId: existingChat[0].workflowId,
+          userId: session.user.id,
+        })
+
+        if (!deployResult.success) {
+          logger.warn(`Failed to redeploy workflow for chat update: ${deployResult.error}`)
+          const status =
+            deployResult.errorCode === 'validation'
+              ? 400
+              : deployResult.errorCode === 'not_found'
+                ? 404
+                : 500
+          return createErrorResponse(deployResult.error || 'Failed to redeploy workflow', status)
+        }
+        /**
+         * Deploys settle asynchronously: `success` only admits the attempt.
+         * The chat record must not advance until cutover finished, otherwise
+         * a later preparation failure strands the chat on the previous
+         * version with no error. A blocked retry lands in the in-flight gate
+         * above without admitting another version. Mirrors performChatDeploy.
+         */
+        if (deployResult.latestDeploymentAttempt?.status !== 'active') {
+          return createErrorResponse(
+            deployResult.warnings?.[0] ??
+              'Workflow deployment is still preparing. Retry the chat update after it becomes active.',
+            409
+          )
+        }
+        logger.info(
+          `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
+        )
+      }
 
       const updateData: Record<string, unknown> = {
         updatedAt: new Date(),

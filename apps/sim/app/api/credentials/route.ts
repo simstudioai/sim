@@ -27,6 +27,7 @@ import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -312,6 +313,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       id: clientCredentialId,
       signingSecret,
       botToken,
+      clientId,
+      clientSecret,
+      orgId,
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
@@ -369,6 +373,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           apiToken,
           domain,
           serviceAccountJson,
+          clientId,
+          clientSecret,
+          orgId,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null
@@ -596,6 +603,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ...error.logDetail,
       })
       return NextResponse.json({ code: error.code, error: error.code }, { status: 400 })
+    }
+    if (error instanceof TokenServiceAccountValidationError) {
+      logger.warn(`[${requestId}] Token service-account credential rejected: ${error.code}`, {
+        code: error.code,
+        upstreamStatus: error.status,
+        ...error.logDetail,
+      })
+      // A provider outage is an infra failure, not a bad request — mirror the
+      // runtime token route so monitoring sees a 502, not a 400.
+      const status = error.code === 'provider_unavailable' ? 502 : 400
+      return NextResponse.json({ code: error.code, error: error.code }, { status })
     }
     if (error instanceof DuplicateCredentialError) {
       return NextResponse.json(

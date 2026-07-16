@@ -725,7 +725,10 @@ interface ShopifyInventoryItem {
 interface ShopifyBaseParams {
   accessToken: string
   shopDomain: string
-  idToken?: string // Shop domain from OAuth, used as fallback
+  /** Store domain resolved from a service-account credential */
+  domain?: string
+  /** Shop domain from OAuth, used as fallback */
+  idToken?: string
 }
 
 // Product Tool Params

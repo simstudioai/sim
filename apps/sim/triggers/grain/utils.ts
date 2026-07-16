@@ -1,4 +1,106 @@
+import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
+
+/**
+ * Hook types each v2 trigger subscribes to on the Grain v2 hooks API. One
+ * external hook is created per hook type (v2 has no multi-event hooks), so the
+ * All Events trigger owns one hook per type.
+ */
+export const GRAIN_V2_TRIGGER_TO_HOOK_TYPES = {
+  grain_recording_added_v2: ['recording_added'],
+  grain_recording_updated_v2: ['recording_updated'],
+  grain_recording_deleted_v2: ['recording_deleted'],
+  grain_highlight_added_v2: ['highlight_added'],
+  grain_highlight_updated_v2: ['highlight_updated'],
+  grain_highlight_deleted_v2: ['highlight_deleted'],
+  grain_story_added_v2: ['story_added'],
+  grain_story_updated_v2: ['story_updated'],
+  grain_story_deleted_v2: ['story_deleted'],
+  grain_upload_status_v2: ['upload_status'],
+  grain_all_events_v2: [
+    'recording_added',
+    'recording_updated',
+    'recording_deleted',
+    'highlight_added',
+    'highlight_updated',
+    'highlight_deleted',
+    'story_added',
+    'story_updated',
+    'story_deleted',
+    'upload_status',
+  ],
+} as const
+
+export const grainV2TriggerOptions = [
+  { label: 'Recording Added', id: 'grain_recording_added_v2' },
+  { label: 'Recording Updated', id: 'grain_recording_updated_v2' },
+  { label: 'Recording Deleted', id: 'grain_recording_deleted_v2' },
+  { label: 'Highlight Added', id: 'grain_highlight_added_v2' },
+  { label: 'Highlight Updated', id: 'grain_highlight_updated_v2' },
+  { label: 'Highlight Deleted', id: 'grain_highlight_deleted_v2' },
+  { label: 'Story Added', id: 'grain_story_added_v2' },
+  { label: 'Story Updated', id: 'grain_story_updated_v2' },
+  { label: 'Story Deleted', id: 'grain_story_deleted_v2' },
+  { label: 'Upload Status', id: 'grain_upload_status_v2' },
+  { label: 'All Events', id: 'grain_all_events_v2' },
+]
+
+/** Hook type options for the Create Webhook operation dropdown. */
+export const GRAIN_HOOK_TYPE_OPTIONS = [
+  { label: 'Recording Added', id: 'recording_added' },
+  { label: 'Recording Updated', id: 'recording_updated' },
+  { label: 'Recording Deleted', id: 'recording_deleted' },
+  { label: 'Highlight Added', id: 'highlight_added' },
+  { label: 'Highlight Updated', id: 'highlight_updated' },
+  { label: 'Highlight Deleted', id: 'highlight_deleted' },
+  { label: 'Story Added', id: 'story_added' },
+  { label: 'Story Updated', id: 'story_updated' },
+  { label: 'Story Deleted', id: 'story_deleted' },
+  { label: 'Upload Status', id: 'upload_status' },
+]
+
+/**
+ * Setup instructions for the v2 event triggers.
+ */
+export function grainV2EventSetupInstructions(eventLabel: string): string {
+  const webhookSentence =
+    eventLabel === 'All Events'
+      ? 'Grain creates one webhook per event type when you deploy, and deletes them when this trigger is removed.'
+      : `Grain creates a <strong>${eventLabel}</strong> webhook when you deploy, and deletes it when this trigger is removed.`
+
+  const instructions = [
+    'Enter your Grain API Key (Personal or Workspace Access Token). You can find or create one in Grain at <strong>Workspace Settings &gt; API</strong> under Integrations on <a href="https://grain.com/app/settings/integrations?tab=api" target="_blank" rel="noopener noreferrer">grain.com</a>.',
+    webhookSentence,
+    'Place additional Grain trigger blocks to react to other event types.',
+  ]
+
+  return instructions
+    .map(
+      (instruction, index) =>
+        `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+    )
+    .join('')
+}
+
+/**
+ * Shared credential field for the v2 event triggers.
+ */
+export function buildGrainV2ExtraFields(triggerId: string): SubBlockConfig[] {
+  return [
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Grain API key',
+      description: 'Required to create the webhook in Grain.',
+      password: true,
+      required: true,
+      paramVisibility: 'user-only',
+      mode: 'trigger',
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+  ]
+}
 
 /**
  * Trigger dropdown options for Grain triggers.

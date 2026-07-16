@@ -11,6 +11,15 @@ tags: [AI Agents, Tutorial, No-Code, Sim, Workflow Automation]
 ogImage: /library/how-to-create-an-ai-agent/cover.jpg
 canonical: https://www.sim.ai/library/how-to-create-an-ai-agent
 draft: false
+faq:
+  - q: "What is an AI agent, and how is it different from a chatbot?"
+    a: "An AI agent perceives input, reasons over it, uses tools to take real-world actions (sending emails, updating databases, calling APIs), and evaluates results; often looping through multiple steps autonomously. A chatbot only generates text responses to direct prompts. The core distinction is that agents act; chatbots reply."
+  - q: "Can I build an AI agent for free?"
+    a: "Yes. Sim's free plan requires no credit card and includes execution credits for testing and development, access to the full visual workflow builder, and 1,000+ integrations. You can build, test, and deploy a working agent without spending anything."
+  - q: "How long does it take to build an AI agent with Sim?"
+    a: "A simple agent, like the people research example in Sim's getting-started tutorial, takes about 10 minutes from account creation to a working deployment. Production-grade agents with multiple tools, conditional logic, and error handling take longer, but the visual builder's feedback loop (edit, run, read the trace, refine) is significantly faster than iterating on a code framework where every change requires redeployment."
+  - q: "Do I need to know how to code to build an AI agent?"
+    a: "No. Sim's visual builder and Chat let you create, configure, and deploy agents entirely without code. You drag blocks, write system prompts in plain English, and connect integrations through the UI. That said, Sim also supports custom functions, a Python SDK, and full API access for developers who want deeper control or need to embed agents into existing codebases."
 ---
 
 Every tutorial on how to build AI agents seems to start in the same place: pick a framework, install dependencies, configure your environment, write boilerplate, debug cryptic errors, and if you're lucky, get something running a few hours later. For teams that don't live in Python every day, that first hour can feel like the entire project.
@@ -191,21 +200,3 @@ Learning how to build AI agents doesn't require a computer science degree, a com
 The pattern is straightforward: define a narrow task, open a workflow, add an Agent block with the right LLM and a tight system prompt, connect two or three tools, set a trigger, and iterate using execution logs. Start with the narrowest possible version of the idea, get it working reliably, then expand from there.
 
 Trusted by over 100,000 builders at startups and Fortune 500 companies, Sim offers a free plan with no credit card required. Open it, build something, and see what an agent can do for your workflow before the week is out.
-
-## FAQ
-
-### What is an AI agent, and how is it different from a chatbot?
-
-An AI agent perceives input, reasons over it, uses tools to take real-world actions (sending emails, updating databases, calling APIs), and evaluates results; often looping through multiple steps autonomously. A chatbot only generates text responses to direct prompts. The core distinction is that agents act; chatbots reply.
-
-### Can I build an AI agent for free?
-
-Yes. Sim's free plan requires no credit card and includes execution credits for testing and development, access to the full visual workflow builder, and 1,000+ integrations. You can build, test, and deploy a working agent without spending anything.
-
-### How long does it take to build an AI agent with Sim?
-
-A simple agent, like the people research example in Sim's getting-started tutorial, takes about 10 minutes from account creation to a working deployment. Production-grade agents with multiple tools, conditional logic, and error handling take longer, but the visual builder's feedback loop (edit, run, read the trace, refine) is significantly faster than iterating on a code framework where every change requires redeployment.
-
-### Do I need to know how to code to build an AI agent?
-
-No. Sim's visual builder and Chat let you create, configure, and deploy agents entirely without code. You drag blocks, write system prompts in plain English, and connect integrations through the UI. That said, Sim also supports custom functions, a Python SDK, and full API access for developers who want deeper control or need to embed agents into existing codebases.

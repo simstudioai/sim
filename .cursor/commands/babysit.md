@@ -2,8 +2,9 @@
 
 Owns a PR end-to-end through review: ship it, wait for the automatic review round, and if it
 isn't already clean, drive fix → reply → resolve → re-review cycles until Greptile reports 5/5
-and there are zero open comment threads. Designed to be run under `/loop` (no fixed interval —
-let it self-pace on review latency) so it survives across multiple wakeups in the same session.
+and there are zero open comment threads, keeping the branch mergeable against staging along the
+way. Designed to be run under `/loop` (no fixed interval — let it self-pace on review latency)
+so it survives across multiple wakeups in the same session.
 
 ## When to use
 
@@ -28,8 +29,9 @@ round. Always check both conditions freshly after every push.
 
 ## Loop
 
-1. **Check current state** before doing anything:
+1. **Check current state** before doing anything, including whether the PR is still mergeable:
    ```bash
+   gh pr view <n> --json mergeable
    gh pr view <n> --json comments -q '[.comments[] | select(.author.login=="greptile-apps")] | last | .body'
    gh api graphql -f query='
    query { repository(owner: "<owner>", name: "<repo>") { pullRequest(number: <n>) {
@@ -44,14 +46,18 @@ round. Always check both conditions freshly after every push.
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
    `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
    stopping on a partial page would silently miss unresolved ones past the cutoff.
-   If Greptile is 5/5 and every thread across all pages has `isResolved: true`, stop — report the
-   outcome (see "Reporting" below) and skip the rest of this list.
+   If `mergeable` is `CONFLICTING`, fix that first (step 2). Otherwise, if Greptile is 5/5 and
+   every thread across all pages has `isResolved: true`, stop — report the outcome (see
+   "Reporting" below) and skip the rest of this list.
 
-2. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
+2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
+   usual pre-push checks, push, and go to step 8 to re-trigger review.
+
+3. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
    automatically on PR open — confirm via `gh pr checks <n>` (look for `Cursor Bugbot` /
    `Greptile Review`) and wait for that first round before doing anything else.
 
-3. **If a review round has landed and it isn't clean**: for every thread where
+4. **If a review round has landed and it isn't clean**: for every thread where
    `isResolved: false`, triage the finding on its own merits — this is the part that requires
    judgment, not a mechanical loop:
    - **Real bug**: fix it in the cleanest way available. Match the codebase's existing
@@ -66,7 +72,7 @@ round. Always check both conditions freshly after every push.
    - **Already fixed by an earlier finding in the same round**: note that and resolve without a
      duplicate code change.
 
-4. **Reply to every thread individually** before resolving it — never resolve silently:
+5. **Reply to every thread individually** before resolving it — never resolve silently:
    ```bash
    gh api repos/<owner>/<repo>/pulls/<n>/comments/<databaseId>/replies -f body="<what was done and why>"
    ```
@@ -75,7 +81,7 @@ round. Always check both conditions freshly after every push.
    gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<threadId>"}) { thread { isResolved } } }'
    ```
 
-5. **Before pushing, re-run the full sync check from `/ship` step 2** — not just the log command,
+6. **Before pushing, re-run the full sync check from `/ship` step 2** — not just the log command,
    the whole check-and-recover flow (stash WIP if needed, rebase, verify the rebase didn't just
    cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
@@ -86,7 +92,7 @@ round. Always check both conditions freshly after every push.
    gates from `/ship` steps 4 and 5. A review-fix round is still a code change and can trip
    either gate just as easily as the original commit did.
 
-6. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 5's
+7. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 6's
    sync check rewrote history, which includes a plain `git rebase origin/staging` that completed
    with no conflicts, not only the cherry-pick rebuild path; both rewrite commits already
    published to the remote, so a plain `git push` can be rejected either way — then run `/ship`
@@ -99,24 +105,24 @@ round. Always check both conditions freshly after every push.
    `git log` is newest-first, so without it a positional comparison can spuriously fail on any
    multi-commit branch.
    These two lists must describe the same commits. A review loop runs many pushes across many
-   rounds; checking sync only before the push (step 5) and never after is how a bad push or a
+   rounds; checking sync only before the push (step 6) and never after is how a bad push or a
    PR whose commit history quietly went stale between rounds goes unnoticed.
 
-7. **Re-trigger review** by posting `@greptile` and `@cursor review` as **two separate PR
+8. **Re-trigger review** by posting `@greptile` and `@cursor review` as **two separate PR
    comments** — never combine them into one comment, each bot only responds to its own mention:
    ```bash
    gh pr comment <n> --body "@greptile"
    gh pr comment <n> --body "@cursor review"
    ```
 
-8. **Wait for the new round**, then go back to step 1. Pace the wait with `ScheduleWakeup` using
+9. **Wait for the new round**, then go back to step 1. Pace the wait with `ScheduleWakeup` using
    a fallback delay of ~250–300s (Greptile/Cursor typically take 1–3 minutes) — never busy-poll
    in a sleep loop. Pass the same `/loop babysit PR <n>` prompt on each wakeup so the loop
    resumes correctly.
 
-9. **Stop conditions**: clean state reached (see above), or the same unresolved finding survives
-   two consecutive rounds with no new information (surface it to the user instead of looping
-   forever), or the user interrupts.
+10. **Stop conditions**: clean state reached (see above), or the same unresolved finding or
+    merge conflict survives two consecutive rounds with no new information (surface it to the
+    user instead of looping forever), or the user interrupts.
 
 ## Reporting
 

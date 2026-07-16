@@ -3,6 +3,7 @@ import type {
   PipedriveCreateLeadParams,
   PipedriveCreateLeadResponse,
 } from '@/tools/pipedrive/types'
+import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveCreateLead')
@@ -27,6 +28,13 @@ export const pipedriveCreateLeadTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
+    },
+    authStyle: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Auth scheme for the token; set by the credential resolver for API-token service accounts',
     },
     title: {
       type: 'string',
@@ -81,17 +89,10 @@ export const pipedriveCreateLeadTool: ToolConfig<
   request: {
     url: () => 'https://api.pipedrive.com/v1/leads',
     method: 'POST',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      ...getPipedriveAuthHeaders(params),
+      'Content-Type': 'application/json',
+    }),
     body: (params) => {
       if (!params.person_id && !params.organization_id) {
         throw new Error('Either person_id or organization_id is required to create a lead')

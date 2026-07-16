@@ -128,6 +128,45 @@ describe('resolveEffectivePiiRedaction', () => {
       expect(result.logs).toEqual({ enabled: true, entityTypes: ['PERSON'], language: 'en' })
     })
 
+    it('strips spaCy-NER entities from blockOutputs at resolve time (regex-only)', () => {
+      const result = resolveEffectivePiiRedaction({
+        orgSettings: settings([
+          {
+            id: 'r-1',
+            workspaceId: 'ws-1',
+            stages: {
+              input: stage(true, ['PERSON', 'EMAIL_ADDRESS']),
+              blockOutputs: stage(true, ['PERSON', 'EMAIL_ADDRESS']),
+              logs: stage(true, ['DATE_TIME']),
+            },
+          },
+        ]),
+        workspaceId: 'ws-1',
+      })
+      // input + logs keep NER; blockOutputs drops it (regex-only execution path).
+      expect(result.input.entityTypes).toEqual(['PERSON', 'EMAIL_ADDRESS'])
+      expect(result.blockOutputs.entityTypes).toEqual(['EMAIL_ADDRESS'])
+      expect(result.logs.entityTypes).toEqual(['DATE_TIME'])
+    })
+
+    it('disables blockOutputs when only NER was stored (un-migrated rule)', () => {
+      const result = resolveEffectivePiiRedaction({
+        orgSettings: settings([
+          {
+            id: 'r-1',
+            workspaceId: 'ws-1',
+            stages: {
+              input: stage(false, []),
+              blockOutputs: stage(true, ['PERSON']),
+              logs: stage(false, []),
+            },
+          },
+        ]),
+        workspaceId: 'ws-1',
+      })
+      expect(result.blockOutputs).toEqual(DISABLED)
+    })
+
     it('selects the whole workspace rule over the all rule (no per-stage merge)', () => {
       const result = resolveEffectivePiiRedaction({
         orgSettings: settings([

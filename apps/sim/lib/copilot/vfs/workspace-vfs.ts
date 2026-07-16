@@ -157,6 +157,17 @@ let staticComponentFiles: Map<string, string> | null = null
 const integrationPathOwners = new Map<string, Pick<BlockConfig, 'type' | 'preview'>>()
 
 /**
+ * Owning block(s) for each `components/triggers/{provider}/{id}.json` file,
+ * recorded at build time by inverting each block's `triggers.available`.
+ * External-trigger paths are keyed on the trigger id + provider (not a block
+ * type), so — like integration paths — they need this lookup for the stamp-time
+ * visibility filter. A trigger can be reachable from more than one block (e.g. a
+ * GA block and its preview successor), so this holds an array and the trigger is
+ * hidden only when EVERY owning block is hidden.
+ */
+const triggerPathOwners = new Map<string, Array<Pick<BlockConfig, 'type' | 'preview'>>>()
+
+/**
  * Per-request visibility filter for the shared static files: hides files whose
  * owning block is gated for this viewer (unrevealed preview blocks — the
  * default with no context — and kill-switched types). Non-registry paths
@@ -167,6 +178,10 @@ function isStaticFileHidden(path: string, vis: BlockVisibilityState | null): boo
   if (blockMatch) {
     const config = BLOCK_REGISTRY[blockMatch[1]!]
     return config ? isHiddenUnder(vis, config) : false
+  }
+  const triggerOwners = triggerPathOwners.get(path)
+  if (triggerOwners) {
+    return triggerOwners.length > 0 && triggerOwners.every((owner) => isHiddenUnder(vis, owner))
   }
   const owner = integrationPathOwners.get(path)
   return owner ? isHiddenUnder(vis, owner) : false
@@ -353,6 +368,21 @@ function getStaticComponentFiles(): Map<string, string> {
     files.set(`components/triggers/sim/${block.type}.json`, serializeBuiltinTriggerSchema(block))
   }
 
+  // Attribute each external trigger to its owning block(s) by inverting
+  // `triggers.available` — the same block-visibility rules that gate a block's
+  // schema file then gate its triggers' schema files at stamp time.
+  for (const block of allBlocks) {
+    for (const triggerId of block.triggers?.available ?? []) {
+      const trigger = TRIGGER_REGISTRY[triggerId]
+      if (!trigger) continue
+      const path = `components/triggers/${trigger.provider}/${triggerId}.json`
+      const owners = triggerPathOwners.get(path)
+      const owner = { type: block.type, preview: block.preview }
+      if (owners) owners.push(owner)
+      else triggerPathOwners.set(path, [owner])
+    }
+  }
+
   let externalTriggerCount = 0
   for (const [triggerId, trigger] of Object.entries(TRIGGER_REGISTRY)) {
     const path = `components/triggers/${trigger.provider}/${triggerId}.json`
@@ -373,12 +403,18 @@ function getStaticComponentFiles(): Map<string, string> {
           provider: 'sim',
           description: b.description,
         })),
-      Object.entries(TRIGGER_REGISTRY).map(([id, t]) => ({
-        id,
-        name: t.name,
-        provider: t.provider,
-        description: t.description,
-      }))
+      // Same for external triggers: a trigger owned solely by preview blocks is
+      // hidden under the null (no-viewer) state this shared file is built with.
+      Object.entries(TRIGGER_REGISTRY)
+        .filter(
+          ([id, t]) => !isStaticFileHidden(`components/triggers/${t.provider}/${id}.json`, null)
+        )
+        .map(([id, t]) => ({
+          id,
+          name: t.name,
+          provider: t.provider,
+          description: t.description,
+        }))
     )
   )
 

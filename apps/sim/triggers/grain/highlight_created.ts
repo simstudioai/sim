@@ -8,6 +8,7 @@ export const grainHighlightCreatedTrigger: TriggerConfig = {
   provider: 'grain',
   description: 'Trigger workflow when a new highlight/clip is created in Grain',
   version: '1.0.0',
+  deprecated: true,
   icon: GrainIcon,
 
   subBlocks: [

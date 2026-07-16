@@ -6,7 +6,7 @@ description: Access meeting recordings, transcripts, and AI summaries
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="grain"
+  type="grain_v2"
   color="#F6FAF9"
 />
 
@@ -58,6 +58,7 @@ List recordings from Grain with optional filters and pagination
 | `includeHighlights` | boolean | No | Include highlights/clips in response |
 | `includeParticipants` | boolean | No | Include participant list in response |
 | `includeAiSummary` | boolean | No | Include AI-generated summary |
+| `includeAiActionItems` | boolean | No | Include AI-detected action items |
 
 #### Output
 
@@ -91,6 +92,7 @@ Get details of a single recording by ID
 | `includeHighlights` | boolean | No | Include highlights/clips |
 | `includeParticipants` | boolean | No | Include participant list |
 | `includeAiSummary` | boolean | No | Include AI summary |
+| `includeAiActionItems` | boolean | No | Include AI-detected action items |
 | `includeCalendarEvent` | boolean | No | Include calendar event data |
 | `includeHubspot` | boolean | No | Include HubSpot associations |
 
@@ -113,6 +115,7 @@ Get details of a single recording by ID
 | `highlights` | array | Highlights \(if included\) |
 | `participants` | array | Participants \(if included\) |
 | `ai_summary` | object | AI summary text \(if included\) |
+| `ai_action_items` | array | AI-detected action items with status, text, and assignee \(if included\) |
 | `calendar_event` | object | Calendar event data \(if included\) |
 | `hubspot` | object | HubSpot associations \(if included\) |
 
@@ -137,26 +140,6 @@ Get the full transcript of a recording
 |   ↳ `start` | number | Start timestamp in ms |
 |   ↳ `end` | number | End timestamp in ms |
 |   ↳ `text` | string | Transcript text |
-
-### `grain_list_views`
-
-List available Grain views for webhook subscriptions
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
-| `typeFilter` | string | No | Optional view type filter: recordings, highlights, or stories |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `views` | array | Array of Grain views |
-|   ↳ `id` | string | View UUID |
-|   ↳ `name` | string | View name |
-|   ↳ `type` | string | View type: recordings, highlights, or stories |
 
 ### `grain_list_teams`
 
@@ -197,16 +180,16 @@ List all meeting types in the workspace
 
 ### `grain_create_hook`
 
-Create a webhook to receive recording events
+Create a webhook for a specific Grain event type (v2 API)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
-| `hookUrl` | string | Yes | Webhook endpoint URL \(e.g., "https://example.com/webhooks/grain"\) |
-| `viewId` | string | Yes | Grain view ID from GET /_/public-api/views |
-| `actions` | array | No | Optional list of actions to subscribe to: added, updated, removed |
+| `apiKey` | string | Yes | Grain API key \(Personal or Workspace Access Token\) |
+| `hookUrl` | string | Yes | Webhook endpoint URL. Grain performs a reachability test on creation — the endpoint must respond 2xx. |
+| `hookType` | string | Yes | Event type the hook subscribes to. One of: recording_added, recording_updated, recording_deleted, highlight_added, highlight_updated, highlight_deleted, story_added, story_updated, story_deleted, upload_status |
+| `include` | json | No | Optional include object controlling payload richness. For recording hooks: \{"participants": true, "highlights": true, "ai_summary": true\}. For highlight hooks: \{"transcript": true, "speakers": true\}. |
 
 #### Output
 
@@ -215,19 +198,21 @@ Create a webhook to receive recording events
 | `id` | string | Hook UUID |
 | `enabled` | boolean | Whether hook is active |
 | `hook_url` | string | The webhook URL |
-| `view_id` | string | Grain view ID for the webhook |
-| `actions` | array | Configured actions for the webhook |
+| `hook_type` | string | Event type the hook subscribes to |
+| `include` | json | Include object the hook was created with |
 | `inserted_at` | string | ISO8601 creation timestamp |
 
 ### `grain_list_hooks`
 
-List all webhooks for the account
+List webhooks for the account (v2 API)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+| `apiKey` | string | Yes | Grain API key \(Personal or Workspace Access Token\) |
+| `hookType` | string | No | Only return hooks with this event type. One of: recording_added, recording_updated, recording_deleted, highlight_added, highlight_updated, highlight_deleted, story_added, story_updated, story_deleted, upload_status |
+| `state` | string | No | Only return hooks that are "enabled" or "disabled" |
 
 #### Output
 
@@ -237,19 +222,19 @@ List all webhooks for the account
 |   ↳ `id` | string | Hook UUID |
 |   ↳ `enabled` | boolean | Whether hook is active |
 |   ↳ `hook_url` | string | Webhook URL |
-|   ↳ `view_id` | string | Grain view ID |
-|   ↳ `actions` | array | Configured actions |
+|   ↳ `hook_type` | string | Event type the hook subscribes to |
+|   ↳ `include` | object | Include object the hook was created with |
 |   ↳ `inserted_at` | string | Creation timestamp |
 
 ### `grain_delete_hook`
 
-Delete a webhook by ID
+Delete a webhook by ID (v2 API)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+| `apiKey` | string | Yes | Grain API key \(Personal or Workspace Access Token\) |
 | `hookId` | string | Yes | The hook UUID to delete \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
 
 #### Output
@@ -266,14 +251,13 @@ A **Trigger** is a block that starts a workflow when an event happens in this se
 
 ### Grain All Events
 
-Trigger on all actions (added, updated, removed) in a Grain view
+Trigger on every Grain event (recordings, highlights, stories, uploads)
 
 #### Configuration
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Required to create the webhook in Grain. |
-| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
 
 #### Output
 
@@ -286,16 +270,15 @@ Trigger on all actions (added, updated, removed) in a Grain view
 
 ---
 
-### Grain Highlight Created
+### Grain Highlight Added
 
-Trigger workflow when a new highlight/clip is created in Grain
+Trigger when a new highlight/clip is created in Grain
 
 #### Configuration
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Required to create the webhook in Grain. |
-| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
 
 #### Output
 
@@ -315,20 +298,40 @@ Trigger workflow when a new highlight/clip is created in Grain
 |   ↳ `url` | string | URL to view in Grain |
 |   ↳ `thumbnail_url` | string | Thumbnail URL |
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
+
+
+---
+
+### Grain Highlight Deleted
+
+Trigger when a highlight/clip is deleted in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
 
 
 ---
 
 ### Grain Highlight Updated
 
-Trigger workflow when a highlight/clip is updated in Grain
+Trigger when a highlight/clip is updated in Grain
 
 #### Configuration
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Required to create the webhook in Grain. |
-| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
 
 #### Output
 
@@ -352,60 +355,15 @@ Trigger workflow when a highlight/clip is updated in Grain
 
 ---
 
-### Grain Item Added
+### Grain Recording Added
 
-Trigger when a new item is added to a Grain view (recording, highlight, or story)
-
-#### Configuration
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Required to create the webhook in Grain. |
-| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `type` | string | Event type \(e.g., recording_added\) |
-| `user_id` | string | User UUID who triggered the event |
-| `data` | object | Event data object \(recording, highlight, etc.\) |
-
-
----
-
-### Grain Item Updated
-
-Trigger when an item is updated in a Grain view (recording, highlight, or story)
+Trigger when a new recording is added in Grain
 
 #### Configuration
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Required to create the webhook in Grain. |
-| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `type` | string | Event type \(e.g., recording_added\) |
-| `user_id` | string | User UUID who triggered the event |
-| `data` | object | Event data object \(recording, highlight, etc.\) |
-
-
----
-
-### Grain Recording Created
-
-Trigger workflow when a new recording is added in Grain
-
-#### Configuration
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Required to create the webhook in Grain. |
-| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
 
 #### Output
 
@@ -426,20 +384,40 @@ Trigger workflow when a new recording is added in Grain
 |   ↳ `tags` | array | Array of tag strings |
 |   ↳ `teams` | array | Array of team objects |
 |   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
+
+
+---
+
+### Grain Recording Deleted
+
+Trigger when a recording is deleted in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
 
 
 ---
 
 ### Grain Recording Updated
 
-Trigger workflow when a recording is updated in Grain
+Trigger when a recording is updated in Grain
 
 #### Configuration
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Required to create the webhook in Grain. |
-| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
 
 #### Output
 
@@ -464,16 +442,15 @@ Trigger workflow when a recording is updated in Grain
 
 ---
 
-### Grain Story Created
+### Grain Story Added
 
-Trigger workflow when a new story is created in Grain
+Trigger when a new story is created in Grain
 
 #### Configuration
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Required to create the webhook in Grain. |
-| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
 
 #### Output
 
@@ -486,4 +463,71 @@ Trigger workflow when a new story is created in Grain
 |   ↳ `title` | string | Story title |
 |   ↳ `url` | string | URL to view in Grain |
 |   ↳ `created_datetime` | string | ISO8601 creation timestamp |
+
+
+---
+
+### Grain Story Deleted
+
+Trigger when a story is deleted in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
+
+
+---
+
+### Grain Story Updated
+
+Trigger when a story is updated in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Story UUID |
+|   ↳ `title` | string | Story title |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `created_datetime` | string | ISO8601 creation timestamp |
+
+
+---
+
+### Grain Upload Status
+
+Trigger on progress updates for recordings uploaded to Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
 

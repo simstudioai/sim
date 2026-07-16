@@ -16,6 +16,7 @@ import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
+import { isElseConditionTitle } from '@/lib/workflows/conditions'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
@@ -736,7 +737,7 @@ export function ConditionInput({
     if (isPreview || disabled) return
 
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === afterId)
-    if (!isRouterMode && conditionalBlocks[blockIndex]?.title === 'else') return
+    if (!isRouterMode && isElseConditionTitle(conditionalBlocks[blockIndex]?.title)) return
 
     const newBlockId = isRouterMode
       ? generateStableId(blockId, `route-${Date.now()}`)
@@ -793,7 +794,7 @@ export function ConditionInput({
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === id)
     if (blockIndex === -1) return
 
-    if (conditionalBlocks[blockIndex]?.title === 'else') return
+    if (isElseConditionTitle(conditionalBlocks[blockIndex]?.title)) return
 
     if (
       (direction === 'up' && blockIndex === 0) ||
@@ -804,7 +805,7 @@ export function ConditionInput({
     const newBlocks = [...conditionalBlocks]
     const targetIndex = direction === 'up' ? blockIndex - 1 : blockIndex + 1
 
-    if (direction === 'down' && newBlocks[targetIndex]?.title === 'else') return
+    if (direction === 'down' && isElseConditionTitle(newBlocks[targetIndex]?.title)) return
 
     ;[newBlocks[blockIndex], newBlocks[targetIndex]] = [
       newBlocks[targetIndex],
@@ -950,7 +951,7 @@ export function ConditionInput({
                 'flex items-center justify-between overflow-hidden bg-transparent px-2.5 py-[5px]',
                 isRouterMode
                   ? 'rounded-t-[4px] border-[var(--border-1)] border-b'
-                  : block.title === 'else'
+                  : isElseConditionTitle(block.title)
                     ? 'rounded-sm border-0'
                     : 'rounded-t-[4px] border-[var(--border-1)] border-b'
               )}
@@ -964,7 +965,11 @@ export function ConditionInput({
                     <Button
                       variant='ghost'
                       onClick={() => addBlock(block.id)}
-                      disabled={isPreview || disabled || (!isRouterMode && block.title === 'else')}
+                      disabled={
+                        isPreview ||
+                        disabled ||
+                        (!isRouterMode && isElseConditionTitle(block.title))
+                      }
                       className='h-auto p-0'
                     >
                       <Plus className='size-[14px]' />
@@ -983,7 +988,7 @@ export function ConditionInput({
                         isPreview ||
                         index === 0 ||
                         disabled ||
-                        (!isRouterMode && block.title === 'else')
+                        (!isRouterMode && isElseConditionTitle(block.title))
                       }
                       className='h-auto p-0'
                     >
@@ -1003,8 +1008,9 @@ export function ConditionInput({
                         isPreview ||
                         disabled ||
                         index === conditionalBlocks.length - 1 ||
-                        (!isRouterMode && conditionalBlocks[index + 1]?.title === 'else') ||
-                        (!isRouterMode && block.title === 'else')
+                        (!isRouterMode &&
+                          isElseConditionTitle(conditionalBlocks[index + 1]?.title)) ||
+                        (!isRouterMode && isElseConditionTitle(block.title))
                       }
                       className='h-auto p-0'
                     >
@@ -1205,7 +1211,7 @@ export function ConditionInput({
 
             {/* Condition mode: show code editor */}
             {!isRouterMode &&
-              block.title !== 'else' &&
+              !isElseConditionTitle(block.title) &&
               (() => {
                 const blockLineCount = block.value.split('\n').length
                 const blockGutterWidth = calculateGutterWidth(blockLineCount)

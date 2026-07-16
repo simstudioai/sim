@@ -1,3 +1,4 @@
+import type { AirtableGetBaseSchemaResponse } from '@/tools/airtable/get_base_schema'
 import type { ToolResponse } from '@/tools/types'
 
 // Common types
@@ -42,16 +43,14 @@ export interface AirtableTable {
   fields: AirtableField[]
 }
 
-interface AirtableView {
-  id: string
-  name: string
-  type: string
-}
-
 interface AirtableBaseParams {
   accessToken: string
   baseId: string
   tableId: string
+}
+
+interface AirtableTypecastParams {
+  typecast?: boolean
 }
 
 // List Bases Types
@@ -117,7 +116,7 @@ export interface AirtableGetResponse extends ToolResponse {
 }
 
 // Create Records Types
-export interface AirtableCreateParams extends AirtableBaseParams {
+export interface AirtableCreateParams extends AirtableBaseParams, AirtableTypecastParams {
   records: Array<{ fields: Record<string, any> }>
 }
 
@@ -131,7 +130,7 @@ export interface AirtableCreateResponse extends ToolResponse {
 }
 
 // Update Record Types (Single)
-export interface AirtableUpdateParams extends AirtableBaseParams {
+export interface AirtableUpdateParams extends AirtableBaseParams, AirtableTypecastParams {
   recordId: string
   fields: Record<string, any>
 }
@@ -147,7 +146,7 @@ export interface AirtableUpdateResponse extends ToolResponse {
 }
 
 // Update Multiple Records Types
-export interface AirtableUpdateMultipleParams extends AirtableBaseParams {
+export interface AirtableUpdateMultipleParams extends AirtableBaseParams, AirtableTypecastParams {
   records: Array<{ id: string; fields: Record<string, any> }>
 }
 
@@ -182,10 +181,9 @@ export interface AirtableDeleteResponse extends ToolResponse {
 }
 
 // Upsert Records Types
-export interface AirtableUpsertParams extends AirtableBaseParams {
+export interface AirtableUpsertParams extends AirtableBaseParams, AirtableTypecastParams {
   records: Array<{ fields: Record<string, any> }>
   fieldsToMergeOn: string[]
-  typecast?: boolean
 }
 
 export interface AirtableUpsertResponse extends ToolResponse {
@@ -211,18 +209,4 @@ export type AirtableResponse =
   | AirtableUpdateMultipleResponse
   | AirtableDeleteResponse
   | AirtableUpsertResponse
-  | AirtableListBasesResponse
   | AirtableGetBaseSchemaResponse
-
-interface AirtableGetBaseSchemaResponse extends ToolResponse {
-  output: {
-    tables: Array<{
-      id: string
-      name: string
-      description?: string
-      fields: Array<{ id: string; name: string; type: string; description?: string }>
-      views: Array<{ id: string; name: string; type: string }>
-    }>
-    metadata: { totalTables: number }
-  }
-}

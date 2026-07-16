@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { account, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import type { Logger } from '@sim/logger'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
+import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 import type { WebhookRecord, WorkflowRecord } from '@/lib/webhooks/polling/types'
 import {
   getOAuthToken,
@@ -80,8 +81,7 @@ export async function fetchActiveWebhooks(
     .where(
       and(
         eq(webhook.provider, provider),
-        eq(webhook.isActive, true),
-        isNull(webhook.archivedAt),
+        deliverableWebhookPredicate(webhook),
         eq(workflow.isDeployed, true),
         isNull(workflow.archivedAt),
         or(

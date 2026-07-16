@@ -1,5 +1,9 @@
 import type { DataRetentionSettings, PiiStagePolicy } from '@sim/db/schema'
-import { coercePiiLanguage, DEFAULT_PII_LANGUAGE } from '@/lib/guardrails/pii-entities'
+import {
+  coercePiiLanguage,
+  DEFAULT_PII_LANGUAGE,
+  stripNerEntities,
+} from '@/lib/guardrails/pii-entities'
 
 /** Resolved policy for one redaction stage. */
 export interface EffectivePiiStage {
@@ -44,8 +48,16 @@ function sanitizeEntityTypes(value: unknown): string[] {
  * rejects enabled-with-no-types), so an empty entity list always means "off" —
  * consistent across the UI, the contract, and the masking layer.
  */
-function toEffectiveStage(policy: PiiStagePolicy | undefined): EffectivePiiStage {
-  const types = sanitizeEntityTypes(policy?.entityTypes)
+function toEffectiveStage(
+  policy: PiiStagePolicy | undefined,
+  opts?: { regexOnly?: boolean }
+): EffectivePiiStage {
+  // Block outputs are regex-only. Strip any spaCy-NER entity defensively here so
+  // execution never masks block outputs with NER, even for rules stored before
+  // the restriction (the write path already strips via the API contract).
+  const types = opts?.regexOnly
+    ? stripNerEntities(sanitizeEntityTypes(policy?.entityTypes))
+    : sanitizeEntityTypes(policy?.entityTypes)
   if (!policy?.enabled || types.length === 0) return DISABLED_STAGE
   return {
     enabled: true,
@@ -93,7 +105,7 @@ export function resolveEffectivePiiRedaction(params: {
 
   return {
     input: toEffectiveStage(rule.stages.input),
-    blockOutputs: toEffectiveStage(rule.stages.blockOutputs),
+    blockOutputs: toEffectiveStage(rule.stages.blockOutputs, { regexOnly: true }),
     logs: toEffectiveStage(rule.stages.logs),
   }
 }

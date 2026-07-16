@@ -185,7 +185,6 @@ export async function executeDeployApi(
     const result = await performFullDeploy({
       workflowId,
       userId: context.userId,
-      workflowName: workflowRecord.name || undefined,
       versionDescription,
       versionName,
     })
@@ -197,19 +196,24 @@ export async function executeDeployApi(
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
+    const isDeployed = Boolean(result.activeDeployment)
     return {
       success: true,
       output: {
         workflowId,
-        isDeployed: true,
+        isDeployed,
         deployedAt: result.deployedAt,
         version: result.version,
+        lifecycleStatus: result.latestDeploymentAttempt?.status ?? null,
+        readiness: result.latestDeploymentAttempt?.readiness ?? null,
+        error: result.latestDeploymentAttempt?.error ?? null,
+        warnings: result.warnings ?? [],
         apiEndpoint,
         baseUrl,
         deploymentType: 'api',
         deploymentStatus: {
           api: {
-            isDeployed: true,
+            isDeployed,
             endpoint: apiEndpoint,
             deployedAt: result.deployedAt,
             version: result.version,
@@ -802,19 +806,24 @@ export async function executeRedeploy(
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
+    const isDeployed = Boolean(result.activeDeployment)
     return {
       success: true,
       output: {
         workflowId,
-        isDeployed: true,
+        isDeployed,
         deployedAt: result.deployedAt || null,
         version: result.version,
+        lifecycleStatus: result.latestDeploymentAttempt?.status ?? null,
+        readiness: result.latestDeploymentAttempt?.readiness ?? null,
+        error: result.latestDeploymentAttempt?.error ?? null,
+        warnings: result.warnings ?? [],
         apiEndpoint,
         baseUrl,
         deploymentType: 'api',
         deploymentStatus: {
           api: {
-            isDeployed: true,
+            isDeployed,
             endpoint: apiEndpoint,
             deployedAt: result.deployedAt || null,
             version: result.version,

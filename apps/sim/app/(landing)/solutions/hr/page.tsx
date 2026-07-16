@@ -1,15 +1,13 @@
 import { buildLandingMetadata } from '@/lib/landing/seo'
-import HrSolution from '@/app/(landing)/solutions/hr/hr'
+import HrSolution, { HR_PAGE_DESCRIPTION } from '@/app/(landing)/solutions/hr/hr'
 
 export const revalidate = 3600
 
-const TITLE = 'AI Agents for Onboarding & People Operations | Sim'
-const DESCRIPTION =
-  'HR teams use Sim, the open-source AI workspace, to build and deploy AI agents that automate onboarding, employee questions, and approvals.'
+const TITLE = 'AI Agents for HR: Onboarding & Employee Operations | Sim'
 
 export const metadata = buildLandingMetadata({
   title: TITLE,
-  description: DESCRIPTION,
+  description: HR_PAGE_DESCRIPTION,
   path: '/solutions/hr',
   keywords:
     'AI workspace, AI agents for HR, HR automation, employee onboarding, people operations, HRIS automation, open-source AI agent platform',

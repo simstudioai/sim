@@ -3240,6 +3240,178 @@
       "tags": ["data-warehouse", "data-analytics"]
     },
     {
+      "type": "clickup",
+      "slug": "clickup",
+      "name": "ClickUp",
+      "description": "Interact with ClickUp",
+      "longDescription": "Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ClickUpIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/clickup",
+      "operations": [
+        {
+          "name": "Create Task",
+          "description": "Create a new task in a ClickUp list"
+        },
+        {
+          "name": "Get Task",
+          "description": "Retrieve a task from ClickUp by ID"
+        },
+        {
+          "name": "Update Task",
+          "description": "Update an existing task in ClickUp"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Delete a task from ClickUp"
+        },
+        {
+          "name": "Get Tasks",
+          "description": "List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)"
+        },
+        {
+          "name": "Search Tasks",
+          "description": "Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a ClickUp task"
+        },
+        {
+          "name": "Get Comments",
+          "description": "Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)"
+        },
+        {
+          "name": "Update Comment",
+          "description": "Update the content, assignee, or resolved state of a ClickUp task comment"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a ClickUp task"
+        },
+        {
+          "name": "Upload Attachment",
+          "description": "Upload a file to a ClickUp task as an attachment"
+        },
+        {
+          "name": "Add Tag to Task",
+          "description": "Add an existing space tag to a ClickUp task"
+        },
+        {
+          "name": "Remove Tag from Task",
+          "description": "Remove a tag from a ClickUp task"
+        },
+        {
+          "name": "Get Space Tags",
+          "description": "List the task tags available in a ClickUp space"
+        },
+        {
+          "name": "Get Task Members",
+          "description": "List the workspace members who have explicit access to a ClickUp task"
+        },
+        {
+          "name": "Get List Members",
+          "description": "List the workspace members who have explicit access to a ClickUp list"
+        },
+        {
+          "name": "Get Custom Fields",
+          "description": "List the custom fields accessible in a ClickUp list"
+        },
+        {
+          "name": "Set Custom Field Value",
+          "description": "Set the value of a custom field on a ClickUp task (the value shape depends on the field type)"
+        },
+        {
+          "name": "Remove Custom Field Value",
+          "description": "Remove the value of a custom field from a ClickUp task (does not delete the field itself)"
+        },
+        {
+          "name": "Create Checklist",
+          "description": "Add a new checklist to a ClickUp task"
+        },
+        {
+          "name": "Update Checklist",
+          "description": "Rename or reorder a checklist on a ClickUp task"
+        },
+        {
+          "name": "Delete Checklist",
+          "description": "Delete a checklist from a ClickUp task"
+        },
+        {
+          "name": "Create Checklist Item",
+          "description": "Add an item to a checklist on a ClickUp task"
+        },
+        {
+          "name": "Update Checklist Item",
+          "description": "Update a checklist item on a ClickUp task \u2014 rename, assign, resolve, or nest it"
+        },
+        {
+          "name": "Delete Checklist Item",
+          "description": "Delete an item from a checklist on a ClickUp task"
+        },
+        {
+          "name": "Get Time Entries",
+          "description": "List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)"
+        },
+        {
+          "name": "Create Time Entry",
+          "description": "Create a manual time entry in a ClickUp workspace, optionally linked to a task"
+        },
+        {
+          "name": "Update Time Entry",
+          "description": "Update a time entry in a ClickUp workspace \u2014 description, start/end times, task, or billable state"
+        },
+        {
+          "name": "Delete Time Entry",
+          "description": "Delete a time entry from a ClickUp workspace"
+        },
+        {
+          "name": "Start Timer",
+          "description": "Start a timer for the authenticated user in a ClickUp workspace"
+        },
+        {
+          "name": "Stop Timer",
+          "description": "Stop the authenticated user's currently running timer in a ClickUp workspace"
+        },
+        {
+          "name": "Get Running Timer",
+          "description": "Get the currently running time entry in a ClickUp workspace (null when no timer is running)"
+        },
+        {
+          "name": "Get Workspaces",
+          "description": "List the ClickUp workspaces (teams) available to the connected account"
+        },
+        {
+          "name": "Get Spaces",
+          "description": "List the spaces in a ClickUp workspace"
+        },
+        {
+          "name": "Get Folders",
+          "description": "List the folders in a ClickUp space"
+        },
+        {
+          "name": "Get Lists",
+          "description": "List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new folder in a ClickUp space"
+        },
+        {
+          "name": "Create List",
+          "description": "Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead"
+        }
+      ],
+      "operationCount": 38,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "clickup",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "ticketing", "automation"]
+    },
+    {
       "type": "cloudflare",
       "slug": "cloudflare",
       "name": "Cloudflare",
@@ -8127,7 +8299,7 @@
       "tags": ["monitoring", "data-analytics"]
     },
     {
-      "type": "grain",
+      "type": "grain_v2",
       "slug": "grain",
       "name": "Grain",
       "description": "Access meeting recordings, transcripts, and AI summaries",
@@ -8149,10 +8321,6 @@
           "description": "Get the full transcript of a recording"
         },
         {
-          "name": "List Views",
-          "description": "List available Grain views for webhook subscriptions"
-        },
-        {
           "name": "List Teams",
           "description": "List all teams in the workspace"
         },
@@ -8162,61 +8330,76 @@
         },
         {
           "name": "Create Webhook",
-          "description": "Create a webhook to receive recording events"
+          "description": "Create a webhook for a specific Grain event type (v2 API)"
         },
         {
           "name": "List Webhooks",
-          "description": "List all webhooks for the account"
+          "description": "List webhooks for the account (v2 API)"
         },
         {
           "name": "Delete Webhook",
-          "description": "Delete a webhook by ID"
+          "description": "Delete a webhook by ID (v2 API)"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 8,
       "triggers": [
         {
-          "id": "grain_item_added",
-          "name": "Grain Item Added",
-          "description": "Trigger when a new item is added to a Grain view (recording, highlight, or story)"
+          "id": "grain_recording_added_v2",
+          "name": "Grain Recording Added",
+          "description": "Trigger when a new recording is added in Grain"
         },
         {
-          "id": "grain_item_updated",
-          "name": "Grain Item Updated",
-          "description": "Trigger when an item is updated in a Grain view (recording, highlight, or story)"
-        },
-        {
-          "id": "grain_webhook",
-          "name": "Grain All Events",
-          "description": "Trigger on all actions (added, updated, removed) in a Grain view"
-        },
-        {
-          "id": "grain_recording_created",
-          "name": "Grain Recording Created",
-          "description": "Trigger workflow when a new recording is added in Grain"
-        },
-        {
-          "id": "grain_recording_updated",
+          "id": "grain_recording_updated_v2",
           "name": "Grain Recording Updated",
-          "description": "Trigger workflow when a recording is updated in Grain"
+          "description": "Trigger when a recording is updated in Grain"
         },
         {
-          "id": "grain_highlight_created",
-          "name": "Grain Highlight Created",
-          "description": "Trigger workflow when a new highlight/clip is created in Grain"
+          "id": "grain_recording_deleted_v2",
+          "name": "Grain Recording Deleted",
+          "description": "Trigger when a recording is deleted in Grain"
         },
         {
-          "id": "grain_highlight_updated",
+          "id": "grain_highlight_added_v2",
+          "name": "Grain Highlight Added",
+          "description": "Trigger when a new highlight/clip is created in Grain"
+        },
+        {
+          "id": "grain_highlight_updated_v2",
           "name": "Grain Highlight Updated",
-          "description": "Trigger workflow when a highlight/clip is updated in Grain"
+          "description": "Trigger when a highlight/clip is updated in Grain"
         },
         {
-          "id": "grain_story_created",
-          "name": "Grain Story Created",
-          "description": "Trigger workflow when a new story is created in Grain"
+          "id": "grain_highlight_deleted_v2",
+          "name": "Grain Highlight Deleted",
+          "description": "Trigger when a highlight/clip is deleted in Grain"
+        },
+        {
+          "id": "grain_story_added_v2",
+          "name": "Grain Story Added",
+          "description": "Trigger when a new story is created in Grain"
+        },
+        {
+          "id": "grain_story_updated_v2",
+          "name": "Grain Story Updated",
+          "description": "Trigger when a story is updated in Grain"
+        },
+        {
+          "id": "grain_story_deleted_v2",
+          "name": "Grain Story Deleted",
+          "description": "Trigger when a story is deleted in Grain"
+        },
+        {
+          "id": "grain_upload_status_v2",
+          "name": "Grain Upload Status",
+          "description": "Trigger on progress updates for recordings uploaded to Grain"
+        },
+        {
+          "id": "grain_all_events_v2",
+          "name": "Grain All Events",
+          "description": "Trigger on every Grain event (recordings, highlights, stories, uploads)"
         }
       ],
-      "triggerCount": 8,
+      "triggerCount": 11,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",

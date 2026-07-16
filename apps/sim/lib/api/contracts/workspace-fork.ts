@@ -732,6 +732,11 @@ export const rollbackForkContract = defineRouteContract({
       unarchived: z.number().int(),
       /** Snapshot workflows that no longer exist and couldn't be reactivated. */
       skipped: z.number().int(),
+      /**
+       * Workflows whose restored version has not finished its activation
+       * cutover; the undo point is preserved so the rollback can be re-run.
+       */
+      pendingActivations: z.array(z.string()),
     }),
   },
 })

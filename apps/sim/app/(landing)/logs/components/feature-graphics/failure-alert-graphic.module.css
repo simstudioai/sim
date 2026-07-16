@@ -1,0 +1,60 @@
+/**
+ * The FailureAlertGraphic's motion — a one-shot causal settle: the failed
+ * run row stamps in, a white pulse falls once down the connector hairline,
+ * and the Slack alert window stamps in as the pulse lands. Never re-played.
+ * Under prefers-reduced-motion everything renders settled with no pulse.
+ */
+
+.runRow {
+  animation: failure-alert-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: 0.35s;
+}
+
+.sweep {
+  position: absolute;
+  inset-inline: 0;
+  top: -40%;
+  height: 40%;
+  background: linear-gradient(to bottom, transparent, var(--text-inverse));
+  animation: failure-alert-sweep 0.45s ease-in 0.85s forwards;
+  opacity: 0;
+}
+
+.alertWindow {
+  animation: failure-alert-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: 1.2s;
+}
+
+@keyframes failure-alert-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes failure-alert-sweep {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(350%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runRow,
+  .alertWindow {
+    animation: none;
+  }
+
+  .sweep {
+    animation: none;
+    opacity: 0;
+  }
+}

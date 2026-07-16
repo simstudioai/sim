@@ -1,5 +1,5 @@
 import type { UserFile } from '@/executor/types'
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
  * Base params that include OAuth access token
@@ -35,11 +35,7 @@ export interface TikTokGetUserResponse extends ToolResponse {
     followingCount: number | null
     likesCount: number | null
     videoCount: number | null
-    avatarFile?: {
-      name: string
-      mimeType: string
-      url: string
-    }
+    avatarFile?: ToolFileData
   }
 }
 
@@ -133,6 +129,7 @@ export interface TikTokQueryCreatorInfoParams extends TikTokBaseParams {}
 export interface TikTokQueryCreatorInfoResponse extends ToolResponse {
   output: {
     creatorAvatarUrl: string | null
+    creatorAvatarFile?: ToolFileData
     creatorUsername: string | null
     creatorNickname: string | null
     privacyLevelOptions: string[]

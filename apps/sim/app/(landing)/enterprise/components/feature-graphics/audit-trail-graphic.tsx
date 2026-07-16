@@ -3,7 +3,7 @@ import Image from 'next/image'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/audit-trail-graphic.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 
-interface AuditEntry {
+export interface AuditEntry {
   /** Human-readable action label, matching how the audit UI renders `AuditAction` codes. */
   action: string
   /** Attributed actor shown on the detail line. */
@@ -25,7 +25,7 @@ interface AuditEntry {
  * tuned, a Zendesk credential access is recorded, and the trail reaches
  * back to the workflow's creation.
  */
-const ENTRIES: readonly AuditEntry[] = [
+const ENTRIES: readonly [AuditEntry, AuditEntry, AuditEntry, AuditEntry] = [
   {
     action: 'Workflow deployed',
     actor: 'Maya Chen',
@@ -95,15 +95,30 @@ const ROW_TONES = [
  * `max-lg`) but not left, so this centered vignette adds matching right
  * padding to land on the tile's visible center instead of the bled slot's
  * center.
+ *
+ * The ledger records are parametrizable so other landing pages (finance,
+ * workflows) can retell the append-only trail with their own domain's
+ * events; the defaults keep the enterprise page's Support-agent ledger
+ * byte-identical. Exactly four entries keep the fixed tone ramp and the
+ * mask-gradient dissolve intact.
+ *
+ * On the wide spanned tile of the two-column band (container ≥500px inside
+ * `sm`..`lg`) the ledger column relaxes to 400px, giving the entries a
+ * roomier measure that matches the wide side-by-side tile.
  */
-export function AuditTrailGraphic() {
+interface AuditTrailGraphicProps {
+  /** Newest-first ledger records; exactly four to match the tone ramp. */
+  entries?: readonly [AuditEntry, AuditEntry, AuditEntry, AuditEntry]
+}
+
+export function AuditTrailGraphic({ entries = ENTRIES }: AuditTrailGraphicProps = {}) {
   return (
     <FeatureGraphicShell>
       <div
         aria-hidden='true'
         className='absolute inset-0 flex items-center justify-center pr-8 max-lg:pr-6'
       >
-        <div className='w-full max-w-[312px]'>
+        <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-4 flex items-center justify-between'>
             <span className='font-medium text-[var(--text-primary)] text-base'>Audit log</span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
@@ -112,7 +127,7 @@ export function AuditTrailGraphic() {
           </div>
 
           <div className='flex flex-col gap-1.5 [mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]'>
-            {ENTRIES.map((entry, index) => {
+            {entries.map((entry, index) => {
               const tone = ROW_TONES[index]
               const newest = index === 0
 
