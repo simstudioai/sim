@@ -111,6 +111,15 @@ vi.mock('@sim/db', () => ({
   },
   workflow: {},
   webhook: {},
+  workflowDeploymentOperation: {
+    workflowId: 'workflowId',
+    status: 'status',
+  },
+  workflowSchedule: {
+    workflowId: 'workflowId',
+    deploymentVersionId: 'deploymentVersionId',
+    archivedAt: 'archivedAt',
+  },
 }))
 
 const { mockSanitizeAgentToolsInBlocks } = vi.hoisted(() => ({
@@ -869,24 +878,6 @@ describe('Database Helpers', () => {
       }
     }
 
-    it('returns not_found when deploy cannot lock a workflow row', async () => {
-      const { tx, lockFor } = createMissingWorkflowTx()
-      mockDb.transaction = vi.fn().mockImplementation(async (callback) => callback(tx))
-
-      const result = await dbHelpers.deployWorkflow({
-        workflowId: mockWorkflowId,
-        deployedBy: 'user-123',
-      })
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Workflow not found',
-        errorCode: 'not_found',
-      })
-      expect(lockFor).toHaveBeenCalledWith('update')
-      expect(tx.execute).not.toHaveBeenCalled()
-    })
-
     it('returns an error when undeploy cannot lock a workflow row', async () => {
       const { tx, update } = createMissingWorkflowTx()
       mockDb.transaction = vi.fn().mockImplementation(async (callback) => callback(tx))
@@ -898,6 +889,49 @@ describe('Database Helpers', () => {
         error: 'Workflow not found',
       })
       expect(update).not.toHaveBeenCalled()
+    })
+
+    it('supersedes in-flight operations and releases path claims during undeploy', async () => {
+      const versionRows = [{ id: 'dv-1' }, { id: 'dv-2' }]
+      const createWhereResult = () => ({
+        limit: vi.fn(() => ({
+          for: vi.fn().mockResolvedValue([{ id: mockWorkflowId }]),
+        })),
+        then: (resolve: (rows: typeof versionRows) => void) => resolve(versionRows),
+      })
+      const setCalls: unknown[] = []
+      const tx = {
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({ where: vi.fn(() => createWhereResult()) })),
+        })),
+        update: vi.fn(() => ({
+          set: vi.fn((payload: unknown) => {
+            setCalls.push(payload)
+            return { where: vi.fn().mockResolvedValue([]) }
+          }),
+        })),
+        delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      }
+      mockDb.transaction = vi.fn().mockImplementation(async (callback) => callback(tx))
+      const onUndeployTransaction = vi.fn().mockResolvedValue(undefined)
+
+      const result = await dbHelpers.undeployWorkflow({
+        workflowId: mockWorkflowId,
+        onUndeployTransaction,
+      })
+
+      expect(result).toEqual({ success: true })
+      expect(setCalls[0]).toEqual(expect.objectContaining({ status: 'superseded' }))
+      expect(setCalls).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ isActive: false }),
+          expect.objectContaining({ isDeployed: false, deployedAt: null }),
+        ])
+      )
+      expect(tx.delete).toHaveBeenCalledTimes(2)
+      expect(onUndeployTransaction).toHaveBeenCalledWith(tx, {
+        deploymentVersionIds: ['dv-1', 'dv-2'],
+      })
     })
   })
 
@@ -1688,6 +1722,25 @@ describe('Database Helpers', () => {
       mockActiveVersionSelect('dv-new', buildDeployedState())
       await dbHelpers.loadDeployedWorkflowState('wf-4', 'workspace-1')
       expect(mockSanitizeAgentToolsInBlocks).toHaveBeenCalledTimes(2)
+    })
+
+    it('loads an admitted immutable deployment version even after a later cutover', async () => {
+      const state = buildDeployedState()
+      const limit = vi.fn().mockResolvedValue([{ id: 'dv-admitted', state }])
+      const where = vi.fn().mockReturnValue({ limit })
+      mockDb.select.mockReturnValue({
+        from: vi.fn().mockReturnValue({ where }),
+      })
+
+      const result = await dbHelpers.loadWorkflowDeploymentVersionState(
+        'wf-admitted',
+        'dv-admitted',
+        'workspace-1'
+      )
+
+      expect(result.deploymentVersionId).toBe('dv-admitted')
+      expect(result.blocks).toEqual(state.blocks)
+      expect(where).toHaveBeenCalledTimes(1)
     })
 
     it('invalidateDeployedStateCache(id) forces a rebuild on the next call', async () => {

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { createBlockFromParams } from './builders'
+import { createBlockFromParams } from '@/lib/copilot/tools/server/workflow/edit-workflow/builders'
 
 const agentBlockConfig = {
   type: 'agent',
@@ -68,5 +68,16 @@ describe('createBlockFromParams', () => {
     const parsed = JSON.parse(block.subBlocks.conditions.value)
     expect(parsed[0].id).toBe('condition-1-if')
     expect(parsed[1].id).toBe('condition-1-else')
+  })
+
+  it('uses lowercase titles for default condition branches', () => {
+    const block = createBlockFromParams('condition-1', {
+      type: 'condition',
+      name: 'Condition 1',
+      triggerMode: false,
+    })
+
+    const conditions = JSON.parse(block.subBlocks.conditions.value)
+    expect(conditions.map(({ title }: { title: string }) => title)).toEqual(['if', 'else'])
   })
 })

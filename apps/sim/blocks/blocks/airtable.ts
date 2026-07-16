@@ -268,7 +268,7 @@ Return ONLY the valid JSON array of field name strings - no explanations, no mar
       id: 'typecast',
       title: 'Typecast',
       type: 'switch',
-      condition: { field: 'operation', value: 'upsert' },
+      condition: { field: 'operation', value: ['create', 'update', 'updateMultiple', 'upsert'] },
       mode: 'advanced',
     },
     {
@@ -369,22 +369,24 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
           credential: oauthCredential,
           ...rest,
         }
+        const typecastParams =
+          typecast != null ? { typecast: typecast === true || typecast === 'true' } : {}
 
         switch (params.operation) {
           case 'create':
           case 'updateMultiple':
-            return { ...baseParams, records: parsedRecords }
+            return { ...baseParams, records: parsedRecords, ...typecastParams }
           case 'upsert':
             return {
               ...baseParams,
               records: parsedRecords,
               fieldsToMergeOn: parsedFieldsToMergeOn,
-              ...(typecast != null ? { typecast: typecast === true || typecast === 'true' } : {}),
+              ...typecastParams,
             }
           case 'delete':
             return { ...baseParams, recordIds: parsedRecordIds }
           case 'update':
-            return { ...baseParams, fields: parsedFields }
+            return { ...baseParams, fields: parsedFields, ...typecastParams }
           default:
             return baseParams // No JSON parsing needed for list/get
         }
@@ -403,7 +405,7 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
     records: { type: 'json', description: 'Record data array' }, // Required for create/updateMultiple/upsert
     fields: { type: 'json', description: 'Field data object' }, // Required for update single
     fieldsToMergeOn: { type: 'json', description: 'Field names to match records on' }, // Required for upsert
-    typecast: { type: 'boolean', description: 'Auto-convert string values to field types' }, // Optional for upsert
+    typecast: { type: 'boolean', description: 'Auto-convert string values to field types' },
     recordIds: { type: 'json', description: 'Record IDs to delete' }, // Required for delete
   },
   // Output structure depends on the operation, covered by AirtableResponse union type

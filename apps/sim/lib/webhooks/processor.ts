@@ -1,4 +1,4 @@
-import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, webhook, webhookPathClaim, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -23,6 +23,7 @@ import {
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
+import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 import {
   getPendingWebhookVerification,
   matchesPendingWebhookVerificationProbe,
@@ -30,6 +31,7 @@ import {
 } from '@/lib/webhooks/pending-verification'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import { normalizeWebhookRegistrationPath } from '@/lib/webhooks/registration-identity'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
 import { SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
 import { executeWebhookJob, type WebhookExecutionPayload } from '@/background/webhook-execution'
@@ -316,8 +318,7 @@ async function findWebhookAndWorkflow(
       .where(
         and(
           eq(webhook.id, options.webhookId),
-          eq(webhook.isActive, true),
-          isNull(webhook.archivedAt),
+          deliverableWebhookPredicate(webhook),
           isNull(workflow.archivedAt),
           or(
             eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
@@ -353,8 +354,7 @@ async function findWebhookAndWorkflow(
       .where(
         and(
           eq(webhook.path, options.path),
-          eq(webhook.isActive, true),
-          isNull(webhook.archivedAt),
+          deliverableWebhookPredicate(webhook),
           isNull(workflow.archivedAt),
           or(
             eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
@@ -380,8 +380,9 @@ async function findWebhookAndWorkflow(
  *
  * Legitimate multi-webhook matches are always within one workflow, but paths
  * are user-controlled and only unique per deployment version, so two tenants can
- * register the same path. On collision we keep only the workflow that registered
- * the path first, so one tenant can never receive another's webhook deliveries.
+ * register the same path. On collision the `webhook_path_claim` owner wins;
+ * without a claim we keep the workflow that registered the path first, so one
+ * tenant can never receive another's webhook deliveries.
  */
 export async function findAllWebhooksForPath(
   options: WebhookProcessorOptions
@@ -407,8 +408,7 @@ export async function findAllWebhooksForPath(
     .where(
       and(
         eq(webhook.path, options.path),
-        eq(webhook.isActive, true),
-        isNull(webhook.archivedAt),
+        deliverableWebhookPredicate(webhook),
         isNull(workflow.archivedAt),
         or(
           eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
@@ -425,19 +425,23 @@ export async function findAllWebhooksForPath(
   const distinctWorkflowIds = new Set(results.map((result) => result.webhook.workflowId))
 
   if (distinctWorkflowIds.size > 1) {
-    const owner = results.reduce((earliest, candidate) => {
-      const candidateTime = new Date(candidate.webhook.createdAt).getTime()
-      const earliestTime = new Date(earliest.webhook.createdAt).getTime()
-      if (candidateTime !== earliestTime) {
-        return candidateTime < earliestTime ? candidate : earliest
-      }
-      return candidate.webhook.id < earliest.webhook.id ? candidate : earliest
-    })
+    const claimOwnerWorkflowId = await findWebhookPathClaimOwner(options.path)
+    const owner =
+      (claimOwnerWorkflowId &&
+        results.find((result) => result.webhook.workflowId === claimOwnerWorkflowId)) ||
+      results.reduce((earliest, candidate) => {
+        const candidateTime = new Date(candidate.webhook.createdAt).getTime()
+        const earliestTime = new Date(earliest.webhook.createdAt).getTime()
+        if (candidateTime !== earliestTime) {
+          return candidateTime < earliestTime ? candidate : earliest
+        }
+        return candidate.webhook.id < earliest.webhook.id ? candidate : earliest
+      })
     const ownerWorkflowId = owner.webhook.workflowId
     const ownerResults = results.filter((result) => result.webhook.workflowId === ownerWorkflowId)
 
     logger.error(
-      `[${options.requestId}] Cross-tenant webhook path collision for path: ${options.path}. Found ${results.length} active webhooks across ${distinctWorkflowIds.size} workflows. Dispatching only to owner workflow ${ownerWorkflowId} and dropping ${results.length - ownerResults.length} foreign webhook(s).`
+      `[${options.requestId}] Cross-tenant webhook path collision for path: ${options.path}. Found ${results.length} active webhooks across ${distinctWorkflowIds.size} workflows. Dispatching only to owner workflow ${ownerWorkflowId} (${claimOwnerWorkflowId === ownerWorkflowId ? 'path-claim owner' : 'earliest registration'}) and dropping ${results.length - ownerResults.length} foreign webhook(s).`
     )
 
     return ownerResults
@@ -448,6 +452,22 @@ export async function findAllWebhooksForPath(
   }
 
   return results
+}
+
+/**
+ * Resolves the sticky `webhook_path_claim` owner for a delivery path, so
+ * collision resolution can prefer the workflow that legitimately claimed the
+ * path over an interloper that registered a row first.
+ */
+async function findWebhookPathClaimOwner(path: string): Promise<string | null> {
+  const normalizedPath = normalizeWebhookRegistrationPath(path)
+  if (!normalizedPath) return null
+  const [claim] = await db
+    .select({ workflowId: webhookPathClaim.workflowId })
+    .from(webhookPathClaim)
+    .where(eq(webhookPathClaim.path, normalizedPath))
+    .limit(1)
+  return claim?.workflowId ?? null
 }
 
 /**
@@ -486,8 +506,7 @@ export async function findWebhooksByRoutingKey(
       and(
         eq(webhook.routingKey, routingKey),
         eq(webhook.provider, provider),
-        eq(webhook.isActive, true),
-        isNull(webhook.archivedAt),
+        deliverableWebhookPredicate(webhook),
         isNull(workflow.archivedAt),
         or(
           eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
@@ -752,6 +771,9 @@ async function queueWebhookExecutionWithResult(
       headers,
       path: options.path || foundWebhook.path || '',
       blockId: foundWebhook.blockId ?? undefined,
+      ...(foundWebhook.deploymentVersionId
+        ? { deploymentVersionId: foundWebhook.deploymentVersionId }
+        : {}),
       workspaceId,
       ...(credentialId ? { credentialId } : {}),
       ...(options.receivedAt !== undefined ? { webhookReceivedAt: options.receivedAt } : {}),
@@ -1063,6 +1085,9 @@ export async function processPolledWebhookEvent(
       headers: { 'content-type': 'application/json' } as Record<string, string>,
       path: foundWebhook.path ?? '',
       blockId: foundWebhook.blockId ?? undefined,
+      ...(foundWebhook.deploymentVersionId
+        ? { deploymentVersionId: foundWebhook.deploymentVersionId }
+        : {}),
       workspaceId,
       ...(credentialId ? { credentialId } : {}),
     } satisfies WebhookExecutionPayload

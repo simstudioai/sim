@@ -42,7 +42,10 @@ const {
   mockReleaseExecutionSlot: vi.fn(),
   mockProviderHandler: { current: {} as Record<string, unknown> },
   mockShouldExecuteInline: vi.fn(),
-  mockWebhookLookupResult: { rows: [] as WebhookLookupRow[] },
+  mockWebhookLookupResult: {
+    rows: [] as WebhookLookupRow[],
+    claim: [] as Array<{ workflowId: string }>,
+  },
 }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
@@ -52,11 +55,15 @@ vi.mock('@sim/db', () => {
     from: () => selectChain,
     innerJoin: () => selectChain,
     leftJoin: () => selectChain,
-    where: () => Promise.resolve(mockWebhookLookupResult.rows),
+    where: () => ({
+      then: (resolve: (rows: WebhookLookupRow[]) => void) => resolve(mockWebhookLookupResult.rows),
+      limit: () => Promise.resolve(mockWebhookLookupResult.claim),
+    }),
   }
   return {
     db: { select: () => selectChain },
     webhook: {},
+    webhookPathClaim: {},
     workflow: {},
     workflowDeploymentVersion: {},
   }
@@ -222,6 +229,7 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockWebhookLookupResult.rows = []
+    mockWebhookLookupResult.claim = []
   })
 
   const makeRow = (workflowId: string, webhookId: string, createdAt: Date) => ({
@@ -250,6 +258,30 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
 
     expect(results).toHaveLength(1)
     expect(results[0].webhook.id).toBe('victim-wh')
+    expect(results[0].webhook.workflowId).toBe('victim-workflow')
+  })
+
+  it('prefers the path-claim owner over an earlier-created interloper', async () => {
+    const interloper = makeRow('interloper-workflow', 'interloper-wh', new Date('2026-01-01'))
+    const claimHolder = makeRow('claim-workflow', 'claim-wh', new Date('2026-05-01'))
+    mockWebhookLookupResult.rows = [interloper, claimHolder]
+    mockWebhookLookupResult.claim = [{ workflowId: 'claim-workflow' }]
+
+    const results = await findAllWebhooksForPath({ requestId: 'req-6', path: 'shared-path' })
+
+    expect(results).toHaveLength(1)
+    expect(results[0].webhook.workflowId).toBe('claim-workflow')
+  })
+
+  it('falls back to earliest registration when the claim owner has no deliverable rows', async () => {
+    const victim = makeRow('victim-workflow', 'victim-wh', new Date('2026-01-01'))
+    const attacker = makeRow('attacker-workflow', 'attacker-wh', new Date('2026-05-01'))
+    mockWebhookLookupResult.rows = [attacker, victim]
+    mockWebhookLookupResult.claim = [{ workflowId: 'absent-workflow' }]
+
+    const results = await findAllWebhooksForPath({ requestId: 'req-7', path: 'shared-path' })
+
+    expect(results).toHaveLength(1)
     expect(results[0].webhook.workflowId).toBe('victim-workflow')
   })
 
@@ -436,6 +468,7 @@ describe('webhook processor execution identity', () => {
       makeWebhookRecord({
         path: 'incoming/gmail',
         provider: 'gmail',
+        deploymentVersionId: 'deployment-admitted',
       }),
       makeWorkflowRecord({}),
       { event: 'message.received' },
@@ -453,6 +486,7 @@ describe('webhook processor execution identity', () => {
       expect.objectContaining({
         workflowId: 'workflow-1',
         provider: 'gmail',
+        deploymentVersionId: 'deployment-admitted',
       }),
       expect.objectContaining({
         metadata: expect.objectContaining({

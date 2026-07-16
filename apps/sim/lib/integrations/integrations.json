@@ -8127,7 +8127,7 @@
       "tags": ["monitoring", "data-analytics"]
     },
     {
-      "type": "grain",
+      "type": "grain_v2",
       "slug": "grain",
       "name": "Grain",
       "description": "Access meeting recordings, transcripts, and AI summaries",
@@ -8149,10 +8149,6 @@
           "description": "Get the full transcript of a recording"
         },
         {
-          "name": "List Views",
-          "description": "List available Grain views for webhook subscriptions"
-        },
-        {
           "name": "List Teams",
           "description": "List all teams in the workspace"
         },
@@ -8162,61 +8158,76 @@
         },
         {
           "name": "Create Webhook",
-          "description": "Create a webhook to receive recording events"
+          "description": "Create a webhook for a specific Grain event type (v2 API)"
         },
         {
           "name": "List Webhooks",
-          "description": "List all webhooks for the account"
+          "description": "List webhooks for the account (v2 API)"
         },
         {
           "name": "Delete Webhook",
-          "description": "Delete a webhook by ID"
+          "description": "Delete a webhook by ID (v2 API)"
         }
       ],
-      "operationCount": 9,
+      "operationCount": 8,
       "triggers": [
         {
-          "id": "grain_item_added",
-          "name": "Grain Item Added",
-          "description": "Trigger when a new item is added to a Grain view (recording, highlight, or story)"
+          "id": "grain_recording_added_v2",
+          "name": "Grain Recording Added",
+          "description": "Trigger when a new recording is added in Grain"
         },
         {
-          "id": "grain_item_updated",
-          "name": "Grain Item Updated",
-          "description": "Trigger when an item is updated in a Grain view (recording, highlight, or story)"
-        },
-        {
-          "id": "grain_webhook",
-          "name": "Grain All Events",
-          "description": "Trigger on all actions (added, updated, removed) in a Grain view"
-        },
-        {
-          "id": "grain_recording_created",
-          "name": "Grain Recording Created",
-          "description": "Trigger workflow when a new recording is added in Grain"
-        },
-        {
-          "id": "grain_recording_updated",
+          "id": "grain_recording_updated_v2",
           "name": "Grain Recording Updated",
-          "description": "Trigger workflow when a recording is updated in Grain"
+          "description": "Trigger when a recording is updated in Grain"
         },
         {
-          "id": "grain_highlight_created",
-          "name": "Grain Highlight Created",
-          "description": "Trigger workflow when a new highlight/clip is created in Grain"
+          "id": "grain_recording_deleted_v2",
+          "name": "Grain Recording Deleted",
+          "description": "Trigger when a recording is deleted in Grain"
         },
         {
-          "id": "grain_highlight_updated",
+          "id": "grain_highlight_added_v2",
+          "name": "Grain Highlight Added",
+          "description": "Trigger when a new highlight/clip is created in Grain"
+        },
+        {
+          "id": "grain_highlight_updated_v2",
           "name": "Grain Highlight Updated",
-          "description": "Trigger workflow when a highlight/clip is updated in Grain"
+          "description": "Trigger when a highlight/clip is updated in Grain"
         },
         {
-          "id": "grain_story_created",
-          "name": "Grain Story Created",
-          "description": "Trigger workflow when a new story is created in Grain"
+          "id": "grain_highlight_deleted_v2",
+          "name": "Grain Highlight Deleted",
+          "description": "Trigger when a highlight/clip is deleted in Grain"
+        },
+        {
+          "id": "grain_story_added_v2",
+          "name": "Grain Story Added",
+          "description": "Trigger when a new story is created in Grain"
+        },
+        {
+          "id": "grain_story_updated_v2",
+          "name": "Grain Story Updated",
+          "description": "Trigger when a story is updated in Grain"
+        },
+        {
+          "id": "grain_story_deleted_v2",
+          "name": "Grain Story Deleted",
+          "description": "Trigger when a story is deleted in Grain"
+        },
+        {
+          "id": "grain_upload_status_v2",
+          "name": "Grain Upload Status",
+          "description": "Trigger on progress updates for recordings uploaded to Grain"
+        },
+        {
+          "id": "grain_all_events_v2",
+          "name": "Grain All Events",
+          "description": "Trigger on every Grain event (recordings, highlights, stories, uploads)"
         }
       ],
-      "triggerCount": 8,
+      "triggerCount": 11,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",

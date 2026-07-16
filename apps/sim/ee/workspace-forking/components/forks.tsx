@@ -313,11 +313,17 @@ export function Forks() {
   const runRollback = async () => {
     if (!undoableRun) return
     try {
-      await rollback.mutateAsync({
+      const result = await rollback.mutateAsync({
         workspaceId,
         body: { otherWorkspaceId: undoableRun.otherWorkspaceId },
       })
-      toast.success(`Undid sync from "${undoableRun.otherName}"`)
+      if (result.pendingActivations.length > 0) {
+        toast.warning(`Undid sync from "${undoableRun.otherName}"`, {
+          description: `${result.pendingActivations.length} restored deployment(s) are still activating. Undo stays available until they finish, in case a retry is needed.`,
+        })
+      } else {
+        toast.success(`Undid sync from "${undoableRun.otherName}"`)
+      }
       setConfirmRollbackOpen(false)
     } catch (err) {
       toast.error(getErrorMessage(err, 'Undo failed'))

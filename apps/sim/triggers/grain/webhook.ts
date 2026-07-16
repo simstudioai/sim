@@ -8,6 +8,7 @@ export const grainWebhookTrigger: TriggerConfig = {
   provider: 'grain',
   description: 'Trigger on all actions (added, updated, removed) in a Grain view',
   version: '1.0.0',
+  deprecated: true,
   icon: GrainIcon,
 
   subBlocks: [

@@ -161,8 +161,8 @@ export function createBlockFromParams(
       id: 'conditions',
       type: 'condition-input',
       value: JSON.stringify([
-        { id: generateId(), title: 'If', value: '' },
-        { id: generateId(), title: 'Else', value: '' },
+        { id: generateId(), title: 'if', value: '' },
+        { id: generateId(), title: 'else', value: '' },
       ]),
     }
   } else if (params.type === 'router_v2' && !blockState.subBlocks.routes?.value) {

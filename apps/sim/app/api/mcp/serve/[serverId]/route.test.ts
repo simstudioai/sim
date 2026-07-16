@@ -251,7 +251,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
 
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
@@ -307,7 +307,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
 
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
@@ -361,7 +361,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     mockGenerateInternalToken.mockResolvedValueOnce('internal-token-owner-1')
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ output: { ok: true } }), {
@@ -411,7 +411,9 @@ describe('MCP Serve Route', () => {
           },
         ])
         .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-        .mockResolvedValueOnce([{ isDeployed: true, workspaceId: workflowWorkspaceId }])
+        .mockResolvedValueOnce([
+          { workspaceId: workflowWorkspaceId, deploymentVersionId: 'deployment-1' },
+        ])
 
       const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
         method: 'POST',
@@ -442,7 +444,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     mockResolveBillingAttribution.mockResolvedValueOnce(
       createBillingAttribution('different-actor', 'ws-1')
     )
@@ -565,7 +567,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(
         new ReadableStream<Uint8Array>({
@@ -609,7 +611,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(
         new ReadableStream<Uint8Array>({
@@ -656,7 +658,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -689,6 +691,9 @@ describe('MCP Serve Route', () => {
     const fetchOptions = fetchMock.mock.calls[0][1] as RequestInit
     const headers = fetchOptions.headers as Record<string, string>
     expect(headers['X-Sim-MCP-Tool-Call']).toBe('true')
+    expect(JSON.parse(fetchOptions.body as string)).toMatchObject({
+      deploymentVersionId: 'deployment-1',
+    })
   })
 
   it('preserves downstream attributed usage admission rejections', async () => {
@@ -703,7 +708,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -747,7 +752,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(new Response('gateway timeout', { status: 408 }))
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
@@ -780,7 +785,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ success: true, output: false }), {
         status: 200,
@@ -817,7 +822,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ success: true }), {
         status: 200,
@@ -854,7 +859,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-1',
@@ -934,7 +939,7 @@ describe('MCP Serve Route', () => {
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
-      .mockResolvedValueOnce([{ isDeployed: true, workspaceId: 'ws-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
     fetchMock.mockImplementationOnce((_url, init: RequestInit) => {
       const signal = init.signal as AbortSignal
       return new Promise<Response>((_resolve, reject) => {

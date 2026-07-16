@@ -659,7 +659,7 @@ function extractOAuthServiceId(blockContent: string): string | undefined {
  * Extract the list of trigger IDs from the block's `triggers.available` array.
  * Handles blocks that declare `triggers: { enabled: true, available: [...] }`.
  */
-function extractTriggersAvailable(blockContent: string): string[] {
+function extractTriggersAvailable(blockContent: string, fileContent?: string): string[] {
   const triggersMatch = /\btriggers\s*:\s*\{/.exec(blockContent)
   if (!triggersMatch) return []
 
@@ -678,10 +678,26 @@ function extractTriggersAvailable(blockContent: string): string[] {
   if (arrayEnd === -1) return []
   const arrayContent = triggersContent.substring(arrayStart + 1, arrayEnd - 1)
 
+  // Blocks like emailbison declare `available: [...LOCAL_TRIGGER_IDS]`;
+  // resolve same-file const spreads to their literal entries so those
+  // triggers are not silently dropped from the generated data.
+  let resolvedContent = arrayContent
+  const constSource = fileContent ?? blockContent
+  const spreadRegex = /\.\.\.(\w+)/g
+  let spreadMatch: RegExpExecArray | null
+  while ((spreadMatch = spreadRegex.exec(arrayContent)) !== null) {
+    const constMatch = new RegExp(`const\\s+${spreadMatch[1]}\\s*=\\s*\\[`).exec(constSource)
+    if (!constMatch) continue
+    const constStart = constMatch.index + constMatch[0].length - 1
+    const constEnd = findMatchingClose(constSource, constStart, '[', ']')
+    if (constEnd === -1) continue
+    resolvedContent += constSource.substring(constStart + 1, constEnd - 1)
+  }
+
   const ids: string[] = []
   const idRegex = /['"]([^'"]+)['"]/g
   let m
-  while ((m = idRegex.exec(arrayContent)) !== null) {
+  while ((m = idRegex.exec(resolvedContent)) !== null) {
     ids.push(m[1])
   }
   return ids
@@ -724,6 +740,10 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
         const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(segment)
+
+        // Deprecated triggers stay registered for existing workflows but are
+        // excluded from generated documentation.
+        if (/\bdeprecated\s*:\s*true/.test(segment)) continue
 
         if (idMatch && nameMatch) {
           registry.set(idMatch[1], {
@@ -1119,7 +1139,7 @@ function extractBlockConfigFromContent(
     }
 
     const operations = extractOperationsFromContent(blockContent)
-    const triggerIds = extractTriggersAvailable(blockContent)
+    const triggerIds = extractTriggersAvailable(blockContent, fileContent)
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
@@ -3595,6 +3615,10 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
         const providerMatch = /\bprovider\s*:\s*['"]([^'"]+)['"]/.exec(segment)
 
         if (!idMatch || !nameMatch || !providerMatch) continue
+
+        // Deprecated triggers stay registered for existing workflows but are
+        // excluded from generated documentation.
+        if (/\bdeprecated\s*:\s*true/.test(segment)) continue
 
         const polling = /\bpolling\s*:\s*true/.test(segment)
 

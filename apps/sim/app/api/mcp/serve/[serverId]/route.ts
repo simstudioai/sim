@@ -18,7 +18,13 @@ import {
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
-import { workflow, workflowMcpServer, workflowMcpTool, workspace } from '@sim/db/schema'
+import {
+  workflow,
+  workflowDeploymentVersion,
+  workflowMcpServer,
+  workflowMcpTool,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -751,14 +757,30 @@ async function handleToolsCall(
     }
 
     const [wf] = await db
-      .select({ isDeployed: workflow.isDeployed, workspaceId: workflow.workspaceId })
+      .select({
+        workspaceId: workflow.workspaceId,
+        deploymentVersionId: workflowDeploymentVersion.id,
+      })
       .from(workflow)
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
       .where(and(eq(workflow.id, tool.workflowId), isNull(workflow.archivedAt)))
       .limit(1)
     const abortedAfterWorkflowLookup = callerAbortedJsonRpcResponse(id, abortSignal)
     if (abortedAfterWorkflowLookup) return abortedAfterWorkflowLookup
 
-    if (!wf?.isDeployed) {
+    /**
+     * Deployed means an active version snapshot exists — the legacy
+     * `workflow.isDeployed` flag is not consulted because when the two
+     * disagree the workflow cannot serve traffic anyway. Same definition as
+     * the deploy status GET route.
+     */
+    if (!wf?.deploymentVersionId) {
       return NextResponse.json(
         createError(id, ErrorCode.InternalError, 'Workflow is not deployed'),
         {
@@ -813,6 +835,7 @@ async function handleToolsCall(
       input: params.arguments || {},
       triggerType: 'mcp',
       includeFileBase64: false,
+      ...(wf.deploymentVersionId ? { deploymentVersionId: wf.deploymentVersionId } : {}),
     })
     assertKnownSizeWithinLimit(
       Buffer.byteLength(workflowRequestBody, 'utf-8'),
