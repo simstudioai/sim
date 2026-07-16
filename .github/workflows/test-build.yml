@@ -11,6 +11,7 @@ jobs:
   test-build:
     name: Lint and Test
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -24,24 +25,28 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: latest
+          node-version: 22
 
+      # Sticky-disk keys are scoped by event name so pull_request runs (which
+      # include fork PRs on this public repo) never share a disk with push
+      # runs — the push disks feed builds that end up in production images,
+      # and a shared disk would let a fork PR poison them.
       - name: Mount Bun cache (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-bun-cache
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}
           path: ~/.bun/install/cache
 
       - name: Mount node_modules (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-node-modules
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}
           path: ./node_modules
 
       - name: Mount Turbo cache (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-turbo-cache
+          key: ${{ github.repository }}-turbo-cache-${{ github.event_name }}
           path: ./.turbo
 
       - name: Install dependencies
@@ -184,6 +189,7 @@ jobs:
   build:
     name: Build App
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -197,24 +203,24 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: latest
+          node-version: 22
 
       - name: Mount Bun cache (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-bun-cache
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}
           path: ~/.bun/install/cache
 
       - name: Mount node_modules (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-node-modules
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}
           path: ./node_modules
 
       - name: Mount Turbo cache (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-turbo-cache-build
+          key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}
           path: ./.turbo
 
       - name: Restore Next.js build cache
