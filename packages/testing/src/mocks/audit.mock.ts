@@ -14,6 +14,7 @@ import { vi } from 'vitest'
  */
 export const auditMockFns = {
   mockRecordAudit: vi.fn(),
+  mockRecordAuditBatch: vi.fn(),
 }
 
 /**
@@ -26,6 +27,7 @@ export const auditMockFns = {
  */
 export const auditMock = {
   recordAudit: auditMockFns.mockRecordAudit,
+  recordAuditBatch: auditMockFns.mockRecordAuditBatch,
   AuditAction: {
     API_KEY_CREATED: 'api_key.created',
     API_KEY_UPDATED: 'api_key.updated',

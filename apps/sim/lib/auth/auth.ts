@@ -10,7 +10,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -35,7 +35,11 @@ import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/aut
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
-import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
+import {
+  assertPersonalCheckoutAllowed,
+  authorizeSubscriptionReference,
+  isPersonalCheckoutRequest,
+} from '@/lib/billing/authorization'
 import {
   getOrganizationIdForSubscriptionReference,
   syncSubscriptionPlan,
@@ -58,7 +62,6 @@ import {
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
 import {
-  handleOrganizationPlanDowngrade,
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
@@ -900,6 +903,21 @@ export const auth = betterAuth({
               message: 'Sign-ups from this email domain are not allowed.',
             })
           }
+        }
+      }
+
+      /**
+       * Personal checkout guard. The Stripe plugin's `authorizeReference`
+       * only runs for organization references (it skips references equal to
+       * the session user), so duplicate-coverage enforcement for personal
+       * checkouts lives here: a member of an org with an entitled paid
+       * subscription must not buy a personal plan on top of it.
+       */
+      if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
+        const session = await getSessionFromCtx(ctx)
+        const sessionUserId = session?.user?.id
+        if (sessionUserId && isPersonalCheckoutRequest(ctx.body ?? {}, sessionUserId)) {
+          await assertPersonalCheckoutAllowed(sessionUserId)
         }
       }
 
@@ -3140,8 +3158,21 @@ export const auth = betterAuth({
             subscription: {
               enabled: true,
               plans: getPlans(),
-              authorizeReference: async ({ user, referenceId, action }) => {
-                return await authorizeSubscriptionReference(user.id, referenceId, action)
+              authorizeReference: async ({ user, referenceId, action }, ctx) => {
+                const body: unknown = ctx?.body
+                const requestedPlan =
+                  body &&
+                  typeof body === 'object' &&
+                  'plan' in body &&
+                  typeof (body as { plan: unknown }).plan === 'string'
+                    ? (body as { plan: string }).plan
+                    : undefined
+                return await authorizeSubscriptionReference(
+                  user.id,
+                  referenceId,
+                  action,
+                  requestedPlan
+                )
               },
               getCheckoutSessionParams: async () => ({
                 params: { allow_promotion_codes: true },
@@ -3175,7 +3206,12 @@ export const auth = betterAuth({
                   )
                 }
 
-                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+                await syncSubscriptionPlan(
+                  subscription.id,
+                  subscription.plan,
+                  planFromStripe,
+                  subscription.referenceId
+                )
 
                 const subscriptionForOrg = {
                   ...subscription,
@@ -3258,7 +3294,12 @@ export const auth = betterAuth({
                   )
                 }
 
-                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+                await syncSubscriptionPlan(
+                  subscription.id,
+                  subscription.plan,
+                  planFromStripe,
+                  subscription.referenceId
+                )
 
                 const subscriptionForOrg = {
                   ...subscription,
@@ -3333,16 +3374,6 @@ export const auth = betterAuth({
                       error,
                     })
                   }
-                } else {
-                  await handleOrganizationPlanDowngrade(
-                    {
-                      id: resolvedSubscription.id,
-                      plan: effectivePlanForTeamFeatures ?? null,
-                      referenceId: resolvedSubscription.referenceId,
-                      status: resolvedSubscription.status ?? null,
-                    },
-                    event.id
-                  )
                 }
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
