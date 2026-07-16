@@ -1094,6 +1094,19 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: EXPIRES_AT_OPS,
       },
     },
+    // Explicit expiration clear (update member / update invitation). A blank
+    // Expires At field means "leave unchanged", so clearing needs its own toggle.
+    {
+      id: 'clearExpiresAt',
+      title: 'Clear Expiration',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Remove the existing access expiration date (overrides Expires At)',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_update_member', 'gitlab_update_invitation'],
+      },
+    },
     // Custom member role ID (GitLab Ultimate)
     {
       id: 'memberRoleId',
@@ -1853,7 +1866,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               resourceId: params.resourceId.trim(),
               userId: Number(params.userId),
               accessLevel: Number(params.memberAccessLevel),
-              expiresAt: params.expiresAt?.trim() || undefined,
+              expiresAt: params.clearExpiresAt ? '' : params.expiresAt?.trim() || undefined,
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
             }
 
@@ -1899,8 +1912,14 @@ Return ONLY the commit message - no explanations, no extra text.`,
             if (!params.resourceId?.trim() || !params.email?.trim()) {
               throw new Error('Project / Group ID and Email are required.')
             }
-            if (!params.invitationAccessLevel && !params.expiresAt?.trim()) {
-              throw new Error('At least one of Access Level or Expires At is required.')
+            if (
+              !params.invitationAccessLevel &&
+              !params.expiresAt?.trim() &&
+              !params.clearExpiresAt
+            ) {
+              throw new Error(
+                'At least one of Access Level, Expires At, or Clear Expiration is required.'
+              )
             }
             return {
               ...baseParams,
@@ -1912,7 +1931,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               accessLevel: params.invitationAccessLevel
                 ? Number(params.invitationAccessLevel)
                 : undefined,
-              expiresAt: params.expiresAt?.trim() || undefined,
+              expiresAt: params.clearExpiresAt ? '' : params.expiresAt?.trim() || undefined,
             }
 
           case 'gitlab_revoke_invitation':
@@ -2165,6 +2184,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
       description: 'Optional new access level for an invitation ("" leaves it unchanged)',
     },
     expiresAt: { type: 'string', description: 'Access expiration date (YYYY-MM-DD)' },
+    clearExpiresAt: {
+      type: 'boolean',
+      description: 'Remove the existing access expiration date (update member/invitation)',
+    },
     memberRoleId: { type: 'number', description: 'Custom member role ID (Ultimate)' },
     email: { type: 'string', description: 'Email address for invitations' },
     directMembersOnly: { type: 'boolean', description: 'Exclude inherited members' },
