@@ -219,7 +219,8 @@ function getUnifiedStartOutputs(
   const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
   const withFields = applyInputFormatFields(normalizedInputFormat, outputs)
 
-  if (subBlocks?.runMetadata?.value === true) {
+  const runMetadataValue = subBlocks?.runMetadata?.value
+  if (runMetadataValue === true || runMetadataValue === 'true') {
     withFields.metadata = START_RUN_METADATA_OUTPUT
   }
 

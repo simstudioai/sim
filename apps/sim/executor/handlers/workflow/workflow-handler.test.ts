@@ -533,6 +533,99 @@ describe('WorkflowBlockHandler', () => {
       expect(typeof startRunMetadata.startTime).toBe('string')
     })
 
+    it('propagates the parent run metadata wholesale to nested children', async () => {
+      const customBlock = {
+        ...mockBlock,
+        metadata: { id: 'custom_block_abc', name: 'Published Block' },
+      }
+      const inheritedMetadata = {
+        userEmail: 'original@corp.com',
+        workspaceId: 'workspace-original',
+        workflowId: 'workflow-original',
+        executionId: 'exec-1',
+        executionType: 'api',
+        executionMode: 'async' as const,
+        startTime: '2026-07-15T00:00:00.000Z',
+      }
+      const ctx = {
+        ...mockContext,
+        userId: 'publisher-1',
+        workspaceId: 'workspace-intermediate',
+        executionId: 'exec-1',
+        startRunMetadata: inheritedMetadata,
+      } as ExecutionContext
+
+      mockGetCustomBlockAuthority.mockResolvedValue({
+        workflowId: 'source-workflow-id',
+        organizationId: 'org-1',
+        ownerUserId: 'owner-9',
+        exposedOutputs: [],
+        requiredInputIds: [],
+      })
+      mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      })
+      mockResolveBillingAttribution.mockResolvedValue({
+        actorUserId: 'owner-9',
+        workspaceId: 'workspace-source',
+      })
+      mockFetch.mockImplementation(async (url: unknown) => {
+        if (String(url).includes('/deployed')) {
+          return {
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: {
+                  deployedState: {
+                    blocks: {
+                      start: {
+                        id: 'start',
+                        type: 'start_trigger',
+                        name: 'Start',
+                        position: { x: 0, y: 0 },
+                        subBlocks: {
+                          runMetadata: { id: 'runMetadata', type: 'switch', value: true },
+                        },
+                        outputs: {},
+                        enabled: true,
+                      },
+                    },
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                  },
+                },
+              }),
+          }
+        }
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                name: 'Source Workflow',
+                workspaceId: 'workspace-source',
+                variables: {},
+              },
+            }),
+        }
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, customBlock, {})
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.startRunMetadata).toMatchObject({
+        userEmail: 'original@corp.com',
+        workspaceId: 'workspace-original',
+        workflowId: 'workflow-original',
+        executionMode: 'async',
+      })
+      expect(mockGetUserEmailById).not.toHaveBeenCalled()
+    })
+
     it('passes no run metadata when the child start block toggle is off', async () => {
       const ctx = {
         ...mockContext,

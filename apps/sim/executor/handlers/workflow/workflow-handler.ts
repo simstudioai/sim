@@ -397,16 +397,18 @@ export class WorkflowBlockHandler implements BlockHandler {
         isChildWorkflow: false,
       })
       if (childStartResolution && isRunMetadataEnabled(childStartResolution.block)) {
-        const callerEmail =
-          ctx.startRunMetadata?.userEmail ??
-          (ctx.userId ? await getUserEmailById(ctx.userId) : null)
+        // When the parent run already carries trusted metadata, propagate ALL of
+        // it so nested children see one consistent invoking identity (the
+        // original consumer) instead of a mix of original and intermediate.
+        const inherited = ctx.startRunMetadata
         childStartRunMetadata = {
-          userEmail: callerEmail,
-          workspaceId: ctx.workspaceId ?? null,
-          workflowId: ctx.workflowId ?? null,
+          userEmail:
+            inherited?.userEmail ?? (ctx.userId ? await getUserEmailById(ctx.userId) : null),
+          workspaceId: inherited?.workspaceId ?? ctx.workspaceId ?? null,
+          workflowId: inherited?.workflowId ?? ctx.workflowId ?? null,
           executionId: ctx.executionId,
           executionType: 'workflow',
-          executionMode: ctx.metadata.executionMode,
+          executionMode: inherited?.executionMode ?? ctx.metadata.executionMode,
           startTime: new Date().toISOString(),
         }
       }
