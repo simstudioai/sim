@@ -8,6 +8,7 @@ import { client } from '@/lib/auth/auth-client'
 import {
   type AppSession,
   extractSessionDataFromAuthClientResult,
+  getActiveOrganizationId,
 } from '@/lib/auth/session-response'
 import { sessionKeys, useSessionQuery } from '@/hooks/queries/session'
 
@@ -71,7 +72,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       queryClient.invalidateQueries({ queryKey: ['subscription'] })
 
-      const activeOrganizationId = session?.session?.activeOrganizationId ?? null
+      const activeOrganizationId = getActiveOrganizationId(session)
       if (!session || activeOrganizationId) {
         return
       }
