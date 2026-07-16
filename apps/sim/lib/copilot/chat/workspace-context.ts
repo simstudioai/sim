@@ -23,11 +23,11 @@ import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
-import { listSkills } from '@/lib/workflows/skills/operations'
+import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
-  getWorkspaceWithOwner,
+  type WorkspaceAccess,
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceContext')
@@ -333,11 +333,17 @@ export function buildWorkspaceContextMd(data: WorkspaceMdData): string {
 // workspace is unavailable or a fetch fails.
 async function buildWorkspaceMdData(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
 ): Promise<WorkspaceMdData | null> {
   try {
-    await assertActiveWorkspaceAccess(workspaceId, userId)
-    const wsRow = await getWorkspaceWithOwner(workspaceId)
+    // Reuse the caller's already-asserted access when provided (hot chat path);
+    // the id match keeps a mismatched cache from authorizing this workspace.
+    const workspaceAccess =
+      options?.workspaceAccess && options.workspaceAccess.workspace?.id === workspaceId
+        ? options.workspaceAccess
+        : await assertActiveWorkspaceAccess(workspaceId, userId)
+    const wsRow = workspaceAccess.hasAccess ? workspaceAccess.workspace : null
     if (!wsRow) {
       return null
     }
@@ -418,7 +424,7 @@ async function buildWorkspaceMdData(
         .from(mcpServers)
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt))),
 
-      listSkills({ workspaceId, includeBuiltins: false }),
+      listSkillsForUser({ workspaceId, userId, includeBuiltins: false, workspaceAccess }),
 
       db
         .select({
@@ -546,9 +552,10 @@ const WORKSPACE_CONTEXT_UNAVAILABLE_MD =
  */
 export async function generateWorkspaceContext(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
 ): Promise<string> {
-  const data = await buildWorkspaceMdData(workspaceId, userId)
+  const data = await buildWorkspaceMdData(workspaceId, userId, options)
   return data ? buildWorkspaceMd(data) : WORKSPACE_CONTEXT_UNAVAILABLE_MD
 }
 

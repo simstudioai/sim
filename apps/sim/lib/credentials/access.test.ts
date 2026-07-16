@@ -42,6 +42,11 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
+  resolveWorkspaceAccess: vi.fn(async (workspaceId: string, userId: string, provided?: any) =>
+    provided && provided.workspace?.id === workspaceId
+      ? provided
+      : mockCheckWorkspaceAccess(workspaceId, userId)
+  ),
 }))
 
 import { getCredentialActorContext } from '@/lib/credentials/access'

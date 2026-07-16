@@ -213,6 +213,17 @@ export interface PostHogEventMap {
     source?: 'settings' | 'tool_input'
   }
 
+  skill_shared: {
+    skill_id: string
+    role: 'admin' | 'member'
+    workspace_id: string
+  }
+
+  skill_unshared: {
+    skill_id: string
+    workspace_id: string
+  }
+
   workspace_deleted: {
     workspace_id: string
     workflow_count: number

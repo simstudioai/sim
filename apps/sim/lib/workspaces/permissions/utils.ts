@@ -165,6 +165,21 @@ export async function checkWorkspaceAccess(
 }
 
 /**
+ * Returns `provided` when it was resolved for this exact workspace, otherwise
+ * resolves fresh. The id match is what keeps a caller from authorizing against
+ * another workspace's cached access - every access-reuse path must go through
+ * this rather than hand-rolling the comparison.
+ */
+export async function resolveWorkspaceAccess(
+  workspaceId: string,
+  userId: string,
+  provided?: WorkspaceAccess
+): Promise<WorkspaceAccess> {
+  if (provided && provided.workspace?.id === workspaceId) return provided
+  return checkWorkspaceAccess(workspaceId, userId)
+}
+
+/**
  * Thrown when a user attempts to access a workspace they don't have access to,
  * or that doesn't exist / has been archived. Carries `statusCode = 403` so the
  * centralized route wrapper maps it to HTTP 403 instead of defaulting to 500.

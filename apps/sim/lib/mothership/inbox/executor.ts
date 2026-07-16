@@ -26,7 +26,7 @@ import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
 import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess, getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('InboxExecutor')
@@ -211,20 +211,20 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       return { attachments, ...downloaded }
     }
 
+    const workspaceAccess = await checkWorkspaceAccess(ws.id, userId)
+    const userPermission = workspaceAccess.permission
     const [
       attachmentResult,
       workspaceContext,
       integrationTools,
       userSkillTool,
-      userPermission,
       billingAttribution,
       entitlements,
     ] = await Promise.all([
       fetchAttachments(),
-      generateWorkspaceContext(ws.id, userId),
+      generateWorkspaceContext(ws.id, userId, { workspaceAccess }),
       buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-      buildUserSkillTool(ws.id),
-      getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
+      buildUserSkillTool(ws.id, userId, { workspaceAccess }),
       resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
       computeWorkspaceEntitlements(ws.id, userId),
     ])

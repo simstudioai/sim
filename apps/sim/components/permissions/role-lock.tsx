@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { Tooltip } from '@sim/emcn'
+import type { SkillMemberRoleSource } from '@/lib/api/contracts/skills'
 
 export type WorkspaceRoleSource = 'owner' | 'explicit' | 'org-admin'
 export type CredentialRoleSource = 'explicit' | 'workspace-admin'
@@ -27,6 +28,18 @@ export function credentialRoleLockReason(
 ): string | null {
   if (roleSource === 'workspace-admin') {
     return 'Workspace admins are automatically credential admins'
+  }
+  return null
+}
+
+/**
+ * Explanation shown when a skill member's role is fixed because they are a
+ * workspace admin. Implicit (`workspace`) members are editable — promoting or
+ * removing them writes an explicit membership row.
+ */
+export function skillRoleLockReason(roleSource: SkillMemberRoleSource | undefined): string | null {
+  if (roleSource === 'workspace-admin') {
+    return 'Workspace admins are automatically skill admins'
   }
   return null
 }

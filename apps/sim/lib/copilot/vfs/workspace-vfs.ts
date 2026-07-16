@@ -115,7 +115,7 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import { listSkills } from '@/lib/workflows/skills/operations'
+import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import {
   assertActiveWorkspaceAccess,
@@ -660,7 +660,7 @@ export class WorkspaceVFS {
               timed('custom_tools', this.materializeCustomTools(workspaceId, userId)),
               timed('custom_blocks', this.materializeCustomBlocks(workspaceId)),
               timed('mcp_servers', this.materializeMcpServers(workspaceId)),
-              timed('skills', this.materializeSkills(workspaceId)),
+              timed('skills', this.materializeSkills(workspaceId, userId)),
               timed('tasks', this.materializeTasks(workspaceId, userId)),
               timed('jobs', this.materializeJobs(workspaceId)),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
@@ -1995,13 +1995,15 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize workspace skills using the shared listSkills function.
+   * Materialize the workspace skills the acting user can access. Skill bodies
+   * are exposed as readable VFS files, so per-skill access filtering applies.
    */
   private async materializeSkills(
-    workspaceId: string
+    workspaceId: string,
+    userId: string
   ): Promise<NonNullable<WorkspaceMdData['skills']>> {
     try {
-      const skillRows = await listSkills({ workspaceId, includeBuiltins: false })
+      const skillRows = await listSkillsForUser({ workspaceId, userId, includeBuiltins: false })
 
       for (const s of skillRows) {
         const safeName = sanitizeName(s.name)

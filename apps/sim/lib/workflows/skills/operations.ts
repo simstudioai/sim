@@ -1,15 +1,21 @@
 import { db } from '@sim/db'
-import { skill } from '@sim/db/schema'
+import { skill, skillMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { and, desc, eq, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  getSkillAccessForUser,
+  resolveSkillRoleFromAccess,
+  type SkillMemberRole,
+} from '@/lib/skills/access'
 import {
   BUILTIN_SKILLS,
   type BuiltinSkill,
   getBuiltinSkillById,
   isBuiltinSkillId,
 } from '@/lib/workflows/skills/builtin-skills'
+import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('SkillsOperations')
 
@@ -25,6 +31,7 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof ski
     name: builtin.name,
     description: builtin.description,
     content: builtin.content,
+    workspaceShared: true,
     createdAt: BUILTIN_SKILL_TIMESTAMP,
     updatedAt: BUILTIN_SKILL_TIMESTAMP,
   }
@@ -55,6 +62,51 @@ export async function listSkills(params: { workspaceId: string; includeBuiltins?
     builtinSkillRow(params.workspaceId, b)
   )
   return [...builtins, ...dbRows]
+}
+
+/** A skill row tagged with the caller's effective role (`null` on builtins — no ACL). */
+export type SkillWithRole = typeof skill.$inferSelect & { role: SkillMemberRole | null }
+
+/**
+ * List the skills a user can see/use in a workspace, each tagged with the
+ * user's effective role: workspace admins see every skill as `admin`; others
+ * see skills where they hold an active membership (its role) or that are
+ * workspace-shared (implicit `member`, unless individually revoked). Built-in
+ * template skills have no ACL and always pass through with `role: null`.
+ *
+ * Pass `workspaceAccess` when the caller already resolved it to skip a
+ * redundant lookup.
+ */
+export async function listSkillsForUser(params: {
+  workspaceId: string
+  userId: string
+  includeBuiltins?: boolean
+  workspaceAccess?: WorkspaceAccess
+}): Promise<SkillWithRole[]> {
+  const [dbRows, access] = await Promise.all([
+    listSkills({ workspaceId: params.workspaceId, includeBuiltins: false }),
+    getSkillAccessForUser(params.workspaceId, params.userId, {
+      workspaceAccess: params.workspaceAccess,
+    }),
+  ])
+
+  const visible: SkillWithRole[] = []
+  for (const row of dbRows) {
+    const role = resolveSkillRoleFromAccess(row, access)
+    if (role === null) continue
+    visible.push({ ...row, role })
+  }
+
+  if (params.includeBuiltins === false) return visible
+
+  // Built-ins are deduped against the rows the caller can actually SEE, so a
+  // restricted skill shadowing a built-in's name hides the built-in only from
+  // users who can see the override — never from everyone.
+  const visibleNames = new Set(visible.map((r) => r.name.toLowerCase()))
+  const builtins: SkillWithRole[] = BUILTIN_SKILLS.filter(
+    (b) => !visibleNames.has(b.name.toLowerCase())
+  ).map((b) => ({ ...builtinSkillRow(params.workspaceId, b), role: null }))
+  return [...builtins, ...visible]
 }
 
 /**
@@ -112,7 +164,11 @@ export interface TouchedSkill {
 }
 
 export interface UpsertSkillsResult {
-  /** Every skill in the workspace after the upsert, ordered by createdAt desc. */
+  /**
+   * Every skill in the workspace after the upsert, ordered by createdAt desc.
+   * Empty when `returnSkills: false` — callers that re-fetch a filtered list
+   * themselves opt out so the transaction never re-reads full content bodies.
+   */
   skills: Awaited<ReturnType<typeof listSkills>>
   /** Only the skills this upsert created or updated, tagged with the operation. */
   touched: TouchedSkill[]
@@ -125,13 +181,15 @@ export interface UpsertSkillsResult {
 export async function upsertSkills(params: {
   skills: Array<{
     id?: string
-    name: string
-    description: string
-    content: string
+    name?: string
+    description?: string
+    content?: string
+    workspaceShared?: boolean
   }>
   workspaceId: string
   userId: string
   requestId?: string
+  returnSkills?: boolean
 }): Promise<UpsertSkillsResult> {
   const { skills, workspaceId, userId, requestId = generateRequestId() } = params
 
@@ -147,41 +205,54 @@ export async function upsertSkills(params: {
       const nowTime = new Date()
 
       if (s.id) {
-        const existingSkill = await tx
+        // Id-carrying items are updates and never fall through to a create: the
+        // caller's authorization partitioned on resolvability, so a vanished id
+        // must surface as not-found rather than an ungated (re-)create.
+        const [current] = await tx
           .select()
           .from(skill)
           .where(and(eq(skill.id, s.id), eq(skill.workspaceId, workspaceId)))
           .limit(1)
 
-        if (existingSkill.length > 0) {
-          if (s.name !== existingSkill[0].name) {
-            const nameConflict = await tx
-              .select({ id: skill.id })
-              .from(skill)
-              .where(
-                and(eq(skill.workspaceId, workspaceId), eq(skill.name, s.name), ne(skill.id, s.id))
-              )
-              .limit(1)
-
-            if (nameConflict.length > 0) {
-              throw new Error(`A skill with the name "${s.name}" already exists in this workspace`)
-            }
-          }
-
-          await tx
-            .update(skill)
-            .set({
-              name: s.name,
-              description: s.description,
-              content: s.content,
-              updatedAt: nowTime,
-            })
-            .where(and(eq(skill.id, s.id), eq(skill.workspaceId, workspaceId)))
-
-          touched.push({ id: s.id, name: s.name, operation: 'updated' })
-          logger.info(`[${requestId}] Updated skill ${s.id}`)
-          continue
+        if (!current) {
+          throw new Error(`Skill not found: ${s.id}`)
         }
+
+        // Partial update: omitted fields keep their current values, so a
+        // sharing-only toggle can never clobber a concurrent content edit.
+        const nextName = s.name ?? current.name
+        if (nextName !== current.name) {
+          const nameConflict = await tx
+            .select({ id: skill.id })
+            .from(skill)
+            .where(
+              and(eq(skill.workspaceId, workspaceId), eq(skill.name, nextName), ne(skill.id, s.id))
+            )
+            .limit(1)
+
+          if (nameConflict.length > 0) {
+            throw new Error(`The skill name "${nextName}" is unavailable in this workspace`)
+          }
+        }
+
+        await tx
+          .update(skill)
+          .set({
+            name: nextName,
+            description: s.description ?? current.description,
+            content: s.content ?? current.content,
+            ...(s.workspaceShared !== undefined ? { workspaceShared: s.workspaceShared } : {}),
+            updatedAt: nowTime,
+          })
+          .where(and(eq(skill.id, s.id), eq(skill.workspaceId, workspaceId)))
+
+        touched.push({ id: s.id, name: nextName, operation: 'updated' })
+        logger.info(`[${requestId}] Updated skill ${s.id}`)
+        continue
+      }
+
+      if (!s.name || !s.description || !s.content) {
+        throw new Error('Skill name, description, and content are required to create a skill')
       }
 
       const duplicateName = await tx
@@ -191,7 +262,7 @@ export async function upsertSkills(params: {
         .limit(1)
 
       if (duplicateName.length > 0) {
-        throw new Error(`A skill with the name "${s.name}" already exists in this workspace`)
+        throw new Error(`The skill name "${s.name}" is unavailable in this workspace`)
       }
 
       const newId = generateShortId()
@@ -202,12 +273,32 @@ export async function upsertSkills(params: {
         name: s.name,
         description: s.description,
         content: s.content,
+        workspaceShared: s.workspaceShared ?? true,
+        createdAt: nowTime,
+        updatedAt: nowTime,
+      })
+
+      // The creator is the skill's only explicit admin; everyone else gets
+      // implicit member access while the skill stays workspace-shared, and
+      // workspace admins are derived admins with no rows.
+      await tx.insert(skillMember).values({
+        id: generateId(),
+        skillId: newId,
+        userId,
+        role: 'admin',
+        status: 'active',
+        joinedAt: nowTime,
+        invitedBy: userId,
         createdAt: nowTime,
         updatedAt: nowTime,
       })
 
       touched.push({ id: newId, name: s.name, operation: 'created' })
       logger.info(`[${requestId}] Created skill "${s.name}"`)
+    }
+
+    if (params.returnSkills === false) {
+      return { skills: [], touched }
     }
 
     const resultSkills = await tx

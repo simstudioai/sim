@@ -79,7 +79,10 @@ export class PiBlockHandler implements BlockHandler {
       vertexCredential: asOptString(inputs.vertexCredential),
     })
 
-    const skills = await resolvePiSkills(inputs.skills, ctx.workspaceId)
+    const skills = await resolvePiSkills(inputs.skills, ctx.workspaceId, {
+      userId: ctx.userId,
+      enforce: ctx.enforceCredentialAccess === true,
+    })
     const memoryConfig: PiMemoryConfig = {
       memoryType: asOptString(inputs.memoryType) as PiMemoryConfig['memoryType'],
       conversationId: asOptString(inputs.conversationId),

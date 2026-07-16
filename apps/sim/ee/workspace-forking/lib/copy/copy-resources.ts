@@ -6,7 +6,9 @@ import {
   knowledgeBase,
   knowledgeBaseTagDefinitions,
   mcpServers,
+  permissions,
   skill,
+  skillMember,
   userTableDefinitions,
   userTableRows,
   workflowMcpServer,
@@ -329,12 +331,14 @@ export async function copyForkResourceContainers(
         userId: skill.userId,
         name: skill.name,
         description: skill.description,
+        workspaceShared: skill.workspaceShared,
         createdAt: skill.createdAt,
         updatedAt: skill.updatedAt,
       })
       .from(skill)
       .where(and(inArray(skill.id, selection.skills), eq(skill.workspaceId, sourceWorkspaceId)))
     const inserts: SkillSkeletonInsert[] = []
+    const childSkillIdBySource = new Map<string, string>()
     for (const row of rows) {
       const childId = generateId()
       inserts.push({
@@ -348,11 +352,60 @@ export async function copyForkResourceContainers(
         createdAt: now,
         updatedAt: now,
       })
+      childSkillIdBySource.set(row.id, childId)
       record('skill', row.id, childId)
       contentPlan.skills.push({ childId })
       names.skills.push(row.name)
     }
-    if (inserts.length > 0) await tx.insert(skill).values(inserts)
+    if (inserts.length > 0) {
+      await tx.insert(skill).values(inserts)
+
+      // Copy per-skill ACLs for users who are members of the child workspace,
+      // preserving roles AND statuses: revoked rows are deliberate per-skill
+      // deny markers that override the workspace-shared implicit grant, so
+      // dropping them would invert an explicit deny into a grant on the copy.
+      // Workspace admins need no rows — they are derived skill admins in the
+      // child too (mirrors credential member propagation otherwise).
+      const memberRows = await tx
+        .select({
+          skillId: skillMember.skillId,
+          userId: skillMember.userId,
+          role: skillMember.role,
+          status: skillMember.status,
+        })
+        .from(skillMember)
+        .innerJoin(
+          permissions,
+          and(
+            eq(permissions.userId, skillMember.userId),
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, childWorkspaceId)
+          )
+        )
+        .where(inArray(skillMember.skillId, Array.from(childSkillIdBySource.keys())))
+      const memberInserts = memberRows.flatMap((member) => {
+        const childSkillId = childSkillIdBySource.get(member.skillId)
+        if (!childSkillId) return []
+        return [
+          {
+            id: generateId(),
+            skillId: childSkillId,
+            userId: member.userId,
+            role: member.role,
+            status: member.status,
+            joinedAt: member.status === 'active' ? now : null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
+      })
+      if (memberInserts.length > 0) {
+        await tx
+          .insert(skillMember)
+          .values(memberInserts)
+          .onConflictDoNothing({ target: [skillMember.skillId, skillMember.userId] })
+      }
+    }
   }
 
   if (selection.mcpServers.length > 0) {

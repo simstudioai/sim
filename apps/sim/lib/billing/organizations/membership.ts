@@ -45,6 +45,7 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
   WorkspaceBillingAccountRemovalError,
@@ -1335,6 +1336,7 @@ export async function transferUserBetweenOrganizations(
             workspaceIds,
             params.userId
           )
+          await removeWorkspaceSkillMembershipsTx(tx, workspaceIds, params.userId)
         }
 
         const [stats] = await tx
@@ -1581,6 +1583,7 @@ export async function removeUserFromOrganization(
           workspaceIds,
           userId
         )
+        await removeWorkspaceSkillMembershipsTx(tx, workspaceIds, userId)
         const capturedUsage = await captureDepartedUsage()
 
         return {
@@ -1791,6 +1794,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
           workspaceIds,
           userId
         )
+        await removeWorkspaceSkillMembershipsTx(tx, workspaceIds, userId)
 
         return {
           workspaceAccessRevoked: deletedPermissions.length,

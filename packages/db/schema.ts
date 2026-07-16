@@ -989,6 +989,7 @@ export const skill = pgTable(
     name: text('name').notNull(),
     description: text('description').notNull(),
     content: text('content').notNull(),
+    workspaceShared: boolean('workspace_shared').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -997,6 +998,34 @@ export const skill = pgTable(
       table.workspaceId,
       table.name
     ),
+  })
+)
+
+export const skillMemberRoleEnum = pgEnum('skill_member_role', ['admin', 'member'])
+export const skillMemberStatusEnum = pgEnum('skill_member_status', ['active', 'revoked'])
+
+export const skillMember = pgTable(
+  'skill_member',
+  {
+    id: text('id').primaryKey(),
+    skillId: text('skill_id')
+      .notNull()
+      .references(() => skill.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: skillMemberRoleEnum('role').notNull().default('member'),
+    status: skillMemberStatusEnum('status').notNull().default('active'),
+    joinedAt: timestamp('joined_at'),
+    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('skill_member_user_id_idx').on(table.userId),
+    roleIdx: index('skill_member_role_idx').on(table.role),
+    statusIdx: index('skill_member_status_idx').on(table.status),
+    uniqueMembership: uniqueIndex('skill_member_unique').on(table.skillId, table.userId),
   })
 )
 

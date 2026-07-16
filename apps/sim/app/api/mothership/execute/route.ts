@@ -22,7 +22,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildUserSkillTool } from '@/lib/mothership/skills'
 import {
   assertActiveWorkspaceAccess,
-  getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
@@ -129,7 +128,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
     const userId = auth.userId ?? bodyUserId
 
-    await assertActiveWorkspaceAccess(workspaceId, userId)
+    const workspaceAccess = await assertActiveWorkspaceAccess(workspaceId, userId)
     const billingAttribution = requireBillingAttributionHeader(req.headers, {
       actorUserId: userId,
       workspaceId,
@@ -147,32 +146,26 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
-    const [
-      workspaceContext,
-      integrationTools,
-      userSkillTool,
-      userPermission,
-      entitlements,
-      agentContexts,
-    ] = await Promise.all([
-      generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-      buildUserSkillTool(workspaceId),
-      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-      computeWorkspaceEntitlements(workspaceId, userId),
-      processContextsServer(
-        agentMentions,
-        userId,
-        lastUserMessage,
-        workspaceId,
-        effectiveChatId
-      ).catch((error) => {
-        reqLogger.warn('Failed to resolve agent contexts for execution', {
-          error: toError(error).message,
-        })
-        return []
-      }),
-    ])
+    const userPermission = workspaceAccess.permission
+    const [workspaceContext, integrationTools, userSkillTool, entitlements, agentContexts] =
+      await Promise.all([
+        generateWorkspaceContext(workspaceId, userId, { workspaceAccess }),
+        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        buildUserSkillTool(workspaceId, userId, { workspaceAccess }),
+        computeWorkspaceEntitlements(workspaceId, userId),
+        processContextsServer(
+          agentMentions,
+          userId,
+          lastUserMessage,
+          workspaceId,
+          effectiveChatId
+        ).catch((error) => {
+          reqLogger.warn('Failed to resolve agent contexts for execution', {
+            error: toError(error).message,
+          })
+          return []
+        }),
+      ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,

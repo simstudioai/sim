@@ -547,14 +547,26 @@ describe('copyForkResourceContainers external MCP server copy', () => {
 })
 
 describe('copyForkResourceContainers skill copy', () => {
-  function makeSkillTx(rows: Array<Record<string, unknown>>) {
+  /** Sequential tx mock: each select resolves the next queued row set (skill rows, then member rows). */
+  function makeSkillTx(selects: Array<Array<Record<string, unknown>>>) {
+    let call = 0
     const inserted: Array<Record<string, unknown>> = []
     const tx = {
-      select: () => ({ from: () => ({ where: () => Promise.resolve(rows) }) }),
+      select: () => {
+        const result = Promise.resolve(selects[call++] ?? [])
+        const chain = {
+          from: () => chain,
+          innerJoin: () => chain,
+          where: () => result,
+        }
+        return chain
+      },
       insert: () => ({
         values: (values: Array<Record<string, unknown>>) => {
           inserted.push(...values)
-          return Promise.resolve()
+          return Object.assign(Promise.resolve(), {
+            onConflictDoNothing: () => Promise.resolve(),
+          })
         },
       }),
     }
@@ -570,20 +582,21 @@ describe('copyForkResourceContainers skill copy', () => {
     knowledgeBases: [],
   }
 
+  const sourceSkillRow = {
+    id: 'sk-1',
+    name: 'My Skill',
+    description: 'desc',
+    workspaceId: 'src-ws',
+    userId: 'src-user',
+    workspaceShared: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+
   it('copies the skill body IN-DB and carries only the child id in the content plan', async () => {
     // The source projection deliberately omits `content` (it is copied server-side), so the row
     // fed to the tx mock has none - the body must never be materialized in app memory here.
-    const { tx, inserted } = makeSkillTx([
-      {
-        id: 'sk-1',
-        name: 'My Skill',
-        description: 'desc',
-        workspaceId: 'src-ws',
-        userId: 'src-user',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ])
+    const { tx, inserted } = makeSkillTx([[sourceSkillRow], []])
 
     const result = await copyForkResourceContainers({
       tx,
@@ -600,11 +613,51 @@ describe('copyForkResourceContainers skill copy', () => {
     expect(childId).not.toBe('sk-1')
     expect(inserted[0].workspaceId).toBe('child-ws')
     expect(inserted[0].userId).toBe('user-1')
+    expect(inserted[0].workspaceShared).toBe(true)
     // The body is deferred to a correlated subquery (in-DB copy), never a materialized string.
     expect(typeof inserted[0].content).not.toBe('string')
     // The content plan carries ONLY the child id - no skill body text crosses the job payload.
     expect(result.contentPlan.skills).toEqual([{ childId }])
     expect(result.names.skills).toEqual(['My Skill'])
+  })
+
+  it('copies memberships onto the child skill preserving role and status', async () => {
+    // The member query joins the child-workspace permissions in-DB, so the mock's
+    // second row set already represents source members ∩ target roster. Revoked
+    // rows are deliberate per-skill deny markers and must be carried too —
+    // dropping them would invert an explicit deny into an implicit grant on a
+    // workspace-shared copy.
+    const { tx, inserted } = makeSkillTx([
+      [sourceSkillRow],
+      [
+        { skillId: 'sk-1', userId: 'member-1', role: 'admin', status: 'active' },
+        { skillId: 'sk-1', userId: 'denied-1', role: 'member', status: 'revoked' },
+      ],
+    ])
+
+    await copyForkResourceContainers({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now: new Date(),
+      selection: skillSelection,
+      workflowIdMap: new Map(),
+    })
+
+    const childSkill = inserted[0]
+    const activeRow = inserted[1]
+    expect(activeRow.skillId).toBe(childSkill.id)
+    expect(activeRow.userId).toBe('member-1')
+    expect(activeRow.role).toBe('admin')
+    expect(activeRow.status).toBe('active')
+    expect(activeRow.joinedAt).not.toBeNull()
+
+    const denyRow = inserted[2]
+    expect(denyRow.skillId).toBe(childSkill.id)
+    expect(denyRow.userId).toBe('denied-1')
+    expect(denyRow.status).toBe('revoked')
+    expect(denyRow.joinedAt).toBeNull()
   })
 })
 

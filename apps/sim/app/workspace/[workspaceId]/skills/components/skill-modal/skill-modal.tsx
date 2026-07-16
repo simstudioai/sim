@@ -9,12 +9,17 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  ChipSwitch,
   chipFieldSurfaceClass,
   cn,
 } from '@sim/emcn'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
+import {
+  ACCESS_OPTIONS,
+  SkillMembersSection,
+} from '@/app/workspace/[workspaceId]/skills/components/skill-members'
 import { parseSkillMarkdown } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
@@ -47,7 +52,17 @@ interface FieldErrors {
   general?: string
 }
 
-type TabValue = 'create' | 'import'
+type TabValue = 'create' | 'import' | 'members'
+
+const CREATE_TABS = [
+  { value: 'create', label: 'Create' },
+  { value: 'import', label: 'Import' },
+] as const
+
+const EDIT_TABS = [
+  { value: 'create', label: 'Details' },
+  { value: 'members', label: 'Members' },
+] as const
 
 export function SkillModal({
   open,
@@ -65,6 +80,7 @@ export function SkillModal({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
+  const [workspaceSharedDraft, setWorkspaceSharedDraft] = useState(true)
   /**
    * Bumped to remount the seed-once rich Content editor whenever `content` is set programmatically — a
    * reset from a changed `initialValues` or a destructured SKILL.md paste — so the editor re-seeds (an
@@ -82,6 +98,9 @@ export function SkillModal({
     setName(initialValues?.name ?? '')
     setDescription(initialValues?.description ?? '')
     setContent(initialValues?.content ?? '')
+    // The sharing draft only drives the CREATE flow's Access switch; edits
+    // read/write sharing live through the Members tab.
+    setWorkspaceSharedDraft(true)
     setErrors({})
     setActiveTab('create')
     setContentSeed((seed) => seed + 1)
@@ -131,13 +150,13 @@ export function SkillModal({
       } else {
         await createSkill.mutateAsync({
           workspaceId,
-          skill: { name, description, content },
+          skill: { name, description, content, workspaceShared: workspaceSharedDraft },
         })
       }
       onSave()
     } catch (error) {
       const message =
-        error instanceof Error && error.message.includes('already exists')
+        error instanceof Error && error.message.includes('is unavailable')
           ? error.message
           : 'Failed to save skill. Please try again.'
       setErrors({ general: message })
@@ -172,8 +191,11 @@ export function SkillModal({
   }
 
   const isEditing = !!initialValues
-  const readOnly = !!initialValues?.readOnly
-  const showFooter = activeTab === 'create' || isEditing
+  const isBuiltin = !!initialValues?.readOnly
+  /** New skills are created by the actor (skill admin); existing ones require the admin role. */
+  const isSkillAdmin = !initialValues || initialValues.role === 'admin'
+  const readOnly = isBuiltin || (isEditing && !isSkillAdmin)
+  const showFooter = activeTab === 'create'
 
   return (
     <ChipModal
@@ -187,18 +209,22 @@ export function SkillModal({
       </ChipModalHeader>
 
       <ChipModalBody>
-        {!isEditing && (
+        {!isBuiltin && (
           <ChipModalTabs
-            tabs={[
-              { value: 'create', label: 'Create' },
-              { value: 'import', label: 'Import' },
-            ]}
+            tabs={isEditing ? EDIT_TABS : CREATE_TABS}
             value={activeTab}
             onChange={(value) => setActiveTab(value as TabValue)}
           />
         )}
 
-        {activeTab === 'create' || isEditing ? (
+        {activeTab === 'members' && initialValues && !isBuiltin ? (
+          <SkillMembersSection
+            skillId={initialValues.id}
+            workspaceId={workspaceId}
+            isAdmin={isSkillAdmin}
+            workspaceShared={initialValues.workspaceShared}
+          />
+        ) : activeTab === 'create' || isEditing ? (
           <>
             <ChipModalField
               type='input'
@@ -213,6 +239,7 @@ export function SkillModal({
               required
               error={errors.name}
               hint='Lowercase letters, numbers, and hyphens (e.g. my-skill)'
+              disabled={readOnly || saving}
             />
 
             <ChipModalField
@@ -228,6 +255,7 @@ export function SkillModal({
               maxLength={1024}
               required
               error={errors.description}
+              disabled={readOnly || saving}
             />
 
             <ChipModalField type='custom' title='Content' required error={errors.content}>
@@ -248,6 +276,25 @@ export function SkillModal({
               />
             </ChipModalField>
 
+            {!isEditing && (
+              <ChipModalField
+                type='custom'
+                title='Access'
+                hint={
+                  workspaceSharedDraft
+                    ? 'Everyone in the workspace can use this skill.'
+                    : 'Only you and workspace admins can use this skill until you add members.'
+                }
+              >
+                <ChipSwitch
+                  aria-label='Skill access'
+                  options={ACCESS_OPTIONS}
+                  value={workspaceSharedDraft ? 'workspace' : 'restricted'}
+                  onChange={(value) => setWorkspaceSharedDraft(value === 'workspace')}
+                />
+              </ChipModalField>
+            )}
+
             <ChipModalError>{errors.general}</ChipModalError>
           </>
         ) : (
@@ -258,7 +305,7 @@ export function SkillModal({
       {showFooter && (
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
-          cancelDisabled={readOnly}
+          cancelDisabled={isBuiltin}
           secondaryActions={
             isEditing && onDelete
               ? [

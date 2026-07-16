@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Chip, toast } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Plus } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
@@ -77,8 +78,16 @@ export function IntegrationSkillsSection({
         position,
         skill_count: skills.length,
       })
-    } catch {
-      toast.error(`Failed to add "${skill.name}" — please try again`)
+    } catch (error) {
+      // A name conflict means someone already added this skill but restricted
+      // it — retrying can never succeed, so say what to actually do.
+      if (getErrorMessage(error, '').includes('is unavailable')) {
+        toast.error(
+          `"${skill.name}" already exists in this workspace but isn't shared with you — ask a skill admin for access`
+        )
+      } else {
+        toast.error(`Failed to add "${skill.name}" — please try again`)
+      }
     } finally {
       inFlightRef.current.delete(skill.name)
       setPendingNames((prev) => {

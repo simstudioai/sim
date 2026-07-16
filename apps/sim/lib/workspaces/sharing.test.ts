@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { partitionSettledFailures, resolveAddEmail } from './sharing'
+import { partitionSettledFailures, resolveAddEmail } from '@/lib/workspaces/sharing'
 
 describe('resolveAddEmail', () => {
   const ctx = {

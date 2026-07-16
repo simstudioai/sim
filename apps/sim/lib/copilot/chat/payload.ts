@@ -347,26 +347,29 @@ export async function buildCopilotRequestPayload(
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
   if (effectiveMode === 'build') {
-    integrationTools = await buildIntegrationToolSchemas(
-      userId,
-      userMessageId,
-      { schemaSurface: 'copilot' },
-      params.workspaceId
-    )
-
-    if (params.includeMothershipTools && params.workspaceId) {
-      // Expose all workspace user-created skills via the single load_user_skill
-      // tool. Available to every user; content is fetched sim-side when the
-      // model calls it.
-      try {
-        const userSkillTool = await buildUserSkillTool(params.workspaceId)
-        if (userSkillTool) mothershipTools.push(userSkillTool)
-      } catch (error) {
-        logger.warn('Failed to build load_user_skill tool', {
-          error: toError(error).message,
-        })
-      }
-    }
+    // The integration schemas and the user-skill tool are independent — build
+    // them concurrently so neither serializes onto the message's latency. The
+    // skill tool exposes only the workspace skills this user can access;
+    // content is fetched sim-side when the model calls it, re-checking
+    // per-skill access.
+    const [builtIntegrationTools, userSkillTool] = await Promise.all([
+      buildIntegrationToolSchemas(
+        userId,
+        userMessageId,
+        { schemaSurface: 'copilot' },
+        params.workspaceId
+      ),
+      params.includeMothershipTools && params.workspaceId
+        ? buildUserSkillTool(params.workspaceId, userId).catch((error) => {
+            logger.warn('Failed to build load_user_skill tool', {
+              error: toError(error).message,
+            })
+            return null
+          })
+        : Promise.resolve(null),
+    ])
+    integrationTools = builtIntegrationTools
+    if (userSkillTool) mothershipTools.push(userSkillTool)
   }
 
   return {

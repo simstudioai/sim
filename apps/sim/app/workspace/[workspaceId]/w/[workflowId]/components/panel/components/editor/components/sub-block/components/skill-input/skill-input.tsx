@@ -10,8 +10,7 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import type { SkillDefinition } from '@/hooks/queries/skills'
-import { useSkills } from '@/hooks/queries/skills'
+import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 interface StoredSkill {
@@ -42,7 +41,17 @@ export function SkillInput({
   const { data: workspaceSkills = [] } = useSkills(workspaceId)
   const [value, setValue] = useSubBlockValue<StoredSkill[]>(blockId, subBlockId)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [editingSkill, setEditingSkill] = useState<SkillDefinition | null>(null)
+  const [editingSkillId, setEditingSkillId] = useState<string | null>(null)
+  const [editingSkillSnapshot, setEditingSkillSnapshot] = useState<SkillDefinition | null>(null)
+
+  // Prefer the live query cache so the modal reflects mutations (e.g. the
+  // Members tab's sharing toggle), but fall back to the click-time snapshot
+  // when a background refetch drops the skill — otherwise the modal would
+  // close mid-edit and silently discard the draft; saving surfaces the real
+  // server error instead.
+  const editingSkill = editingSkillId
+    ? (workspaceSkills.find((s) => s.id === editingSkillId) ?? editingSkillSnapshot)
+    : null
 
   const selectedSkills: StoredSkill[] = useMemo(() => {
     if (isPreview && previewValue) {
@@ -105,7 +114,8 @@ export function SkillInput({
 
   const handleSkillSaved = useCallback(() => {
     setShowCreateModal(false)
-    setEditingSkill(null)
+    setEditingSkillId(null)
+    setEditingSkillSnapshot(null)
   }, [])
 
   const resolveSkillName = useCallback(
@@ -150,7 +160,8 @@ export function SkillInput({
                   className='flex cursor-pointer items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
-                      setEditingSkill(fullSkill)
+                      setEditingSkillId(fullSkill.id)
+                      setEditingSkillSnapshot(fullSkill)
                     }
                   }}
                 >
@@ -188,7 +199,8 @@ export function SkillInput({
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             setShowCreateModal(false)
-            setEditingSkill(null)
+            setEditingSkillId(null)
+            setEditingSkillSnapshot(null)
           }
         }}
         onSave={handleSkillSaved}
