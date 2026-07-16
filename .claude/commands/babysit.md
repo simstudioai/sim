@@ -170,5 +170,8 @@ the final Greptile score / thread count.
 - Never fix a finding with a hacky workaround — if the clean fix isn't obvious, find the sibling
   pattern elsewhere in the codebase solving the same class of problem and match it.
 - Never silently drop a finding — every thread gets either a code fix or a reasoned reply.
-- Always re-run the `/ship`-style sync check before every push in the loop, not just the first.
+- Always re-run the `/ship`-style sync check before every push in the loop, not just the
+  first — except step 2's merge-conflict push, where `git merge origin/staging` plus the
+  spot-check already serves as that round's sync check; don't also run step 6's
+  stash/rebase/cherry-pick flow on top of it.
 - Never resolve a merge conflict by blindly taking one side — check the actual diff.
