@@ -90,6 +90,14 @@ const ROW_HEIGHT_ESTIMATE = {
 const OVERSCAN = 6
 
 /**
+ * How close to the bottom (px) the transcript must be to count as pinned for
+ * re-pinning across container resizes. Covers the fractional sub-pixel gap a
+ * DPR-scaled `scrollTop` can leave, without capturing a user who deliberately
+ * scrolled up.
+ */
+const PIN_THRESHOLD = 2
+
+/**
  * Initial-scroll sentinel. Distinct from every real `chatId` value — including
  * `undefined` (a not-yet-persisted chat) — so the first scroll-to-bottom fires
  * even before a chat has an id, instead of treating `undefined` as "already
@@ -269,6 +277,32 @@ export function MothershipChat({
   )
 
   const hasMessages = messages.length > 0
+
+  /**
+   * Keep a bottom-pinned transcript pinned when the scroll container resizes.
+   * Growing or shrinking the multi-line input (or resizing the panel/window)
+   * changes the container height while `scrollTop` stays put, which silently
+   * unpins the chat from the bottom — the last message slides behind the
+   * input. Pinned-ness is sampled on every scroll (before the resize lands),
+   * so a user who scrolled up is never yanked back down.
+   */
+  useEffect(() => {
+    const el = scrollElementRef.current
+    if (!el) return
+    let wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= PIN_THRESHOLD
+    const onScroll = () => {
+      wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= PIN_THRESHOLD
+    }
+    const observer = new ResizeObserver(() => {
+      if (wasAtBottom) el.scrollTop = el.scrollHeight - el.clientHeight
+    })
+    el.addEventListener('scroll', onScroll, { passive: true })
+    observer.observe(el)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      observer.disconnect()
+    }
+  }, [])
 
   /**
    * Stable per-row identity for virtualizer measurement caching and React
