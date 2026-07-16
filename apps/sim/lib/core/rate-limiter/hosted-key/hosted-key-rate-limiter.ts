@@ -278,7 +278,8 @@ export class HostedKeyRateLimiter {
    * back to `MAX_QUEUE_WAIT_MS`. On exhaustion the call returns today's 429 result. The
    * ticket is removed from the queue on exit regardless of success or failure.
    *
-   * @param envKeyPrefix - Env var prefix (e.g. 'EXA_API_KEY'). Keys resolved via `{prefix}_COUNT`.
+   * @param envKeyPrefix - Env var prefix (e.g. 'EXA_API_KEY'). Uses a numbered
+   * pool via `{prefix}_COUNT`, or the singular prefix when no count is set.
    * @param billingActorId - The billing actor (typically workspace ID) to rate limit against
    * @param signal - Optional execution `AbortSignal`; bounds the queue wait to the run's budget.
    */

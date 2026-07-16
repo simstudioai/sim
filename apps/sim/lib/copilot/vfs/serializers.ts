@@ -5,7 +5,7 @@ import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
 
 export type VfsToolAuth =
   | {
@@ -18,6 +18,7 @@ export type VfsToolAuth =
       param: string
       mode: 'hosted_or_byok' | 'conditional_hosted_or_byok' | 'byok_required'
       provider?: string
+      condition?: ToolHostingCondition
     }
 
 export interface ComponentSerializationOptions {
@@ -49,6 +50,7 @@ export function serializeToolAuth(tool: ToolConfig, hosted = isHosted): VfsToolA
         : 'hosted_or_byok'
       : 'byok_required',
     provider: tool.hosting.byokProviderId,
+    condition: hosted ? tool.hosting.enabled?.condition : undefined,
   }
 }
 
@@ -619,6 +621,55 @@ export function serializeApiKeys(
     null,
     2
   )
+}
+
+interface ApiKeyIntegrationTool {
+  config: ToolConfig
+  service: string
+  operation: string
+  preview?: boolean
+}
+
+/**
+ * Serialize API-key integration discovery with operation-level hosted status.
+ * ToolConfig.hosting is the only provider registry used to build this index.
+ */
+export function serializeApiKeyIntegrations(
+  tools: ApiKeyIntegrationTool[],
+  hosted = isHosted
+): string {
+  const services = new Map<
+    string,
+    {
+      params: string[]
+      operations: string[]
+      hostedOperations: string[]
+      conditionalHostedOperations: string[]
+    }
+  >()
+
+  for (const { config: tool, service, operation, preview } of tools) {
+    if (preview || !tool.hosting?.apiKeyParam) continue
+
+    const metadata = services.get(service) ?? {
+      params: [],
+      operations: [],
+      hostedOperations: [],
+      conditionalHostedOperations: [],
+    }
+    if (!metadata.params.includes(tool.hosting.apiKeyParam)) {
+      metadata.params.push(tool.hosting.apiKeyParam)
+    }
+    metadata.operations.push(operation)
+    if (hosted && tool.hosting.enabled) {
+      metadata.conditionalHostedOperations.push(operation)
+    } else if (hosted) {
+      metadata.hostedOperations.push(operation)
+    }
+    services.set(service, metadata)
+  }
+
+  return JSON.stringify(Object.fromEntries(services), null, 2)
 }
 
 /**

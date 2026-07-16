@@ -53,6 +53,7 @@ import {
 } from '@/lib/copilot/vfs/path-utils'
 import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
 import {
+  serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
   serializeBuiltinTriggerSchema,
@@ -245,15 +246,6 @@ function getStaticComponentFiles(): Map<string, string> {
   let integrationCount = 0
 
   const oauthServices = new Map<string, { provider: string; operations: string[] }>()
-  const apiKeyServices = new Map<
-    string,
-    {
-      params: string[]
-      operations: string[]
-      hostedOperations: string[]
-      conditionalHostedOperations: string[]
-    }
-  >()
 
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
@@ -276,25 +268,6 @@ function getStaticComponentFiles(): Map<string, string> {
       } else {
         oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
       }
-    } else if (tool.hosting?.apiKeyParam) {
-      const existing = apiKeyServices.get(service)
-      const hostedOperation = isHosted && !tool.hosting.enabled
-      const conditionalHostedOperation = isHosted && Boolean(tool.hosting.enabled)
-      if (existing) {
-        if (!existing.params.includes(tool.hosting.apiKeyParam)) {
-          existing.params.push(tool.hosting.apiKeyParam)
-        }
-        existing.operations.push(operation)
-        if (hostedOperation) existing.hostedOperations.push(operation)
-        if (conditionalHostedOperation) existing.conditionalHostedOperations.push(operation)
-      } else {
-        apiKeyServices.set(service, {
-          params: [tool.hosting.apiKeyParam],
-          operations: [operation],
-          hostedOperations: hostedOperation ? [operation] : [],
-          conditionalHostedOperations: conditionalHostedOperation ? [operation] : [],
-        })
-      }
     }
   }
 
@@ -304,7 +277,7 @@ function getStaticComponentFiles(): Map<string, string> {
   )
   files.set(
     'environment/api-key-integrations.json',
-    JSON.stringify(Object.fromEntries(apiKeyServices), null, 2)
+    serializeApiKeyIntegrations(exposedTools, isHosted)
   )
 
   files.set(
