@@ -45,8 +45,11 @@ round. Always check both conditions freshly after every push.
    *comment*, so it silently misses the actual "Confidence Score: X/5" line.
    `reviewThreads(first: 50)` is a single page — check `pageInfo.hasNextPage`. If `true`, don't
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
-   `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
-   stopping on a partial page would silently miss unresolved ones past the cutoff.
+   `hasNextPage` is `false` before doing anything else with the thread list, not just before
+   evaluating "clean" — step 2's "did step 1 also find unresolved review threads" check depends
+   on the same complete, paged list, so page fully before branching on `mergeable` at all. A PR
+   with more than 50 threads is rare but stopping on a partial page would silently miss
+   unresolved ones past the cutoff.
    If `mergeable` comes back `CONFLICTING`, check step 10's two-consecutive-rounds condition
    first — if it was also `CONFLICTING` after the immediately preceding round's attempted fix
    with no new information (recall that from this session, not a fresh query), stop now and
