@@ -140,31 +140,12 @@ export interface TikTokQueryCreatorInfoResponse extends ToolResponse {
   }
 }
 
-/**
- * Direct Post Video - Publish an uploaded video to TikTok
- */
-export interface TikTokDirectPostVideoParams extends TikTokBaseParams {
-  file: UserFile
-  title?: string
-  privacyLevel: string
-  disableDuet: boolean
-  disableStitch: boolean
-  disableComment: boolean
-  videoCoverTimestampMs?: number
-  isAigc?: boolean
-  brandContentToggle: boolean
-  brandOrganicToggle?: boolean
-  musicUsageConsent: 'accepted'
-}
-
-/** Shared response shape for TikTok publish and draft initialization tools. */
+/** Shared response shape for TikTok draft initialization tools. */
 export interface TikTokPublishResponse extends ToolResponse {
   output: {
     publishId: string
   }
 }
-
-export type TikTokDirectPostVideoResponse = TikTokPublishResponse
 
 /**
  * Upload Video Draft - Send a video to the user's TikTok inbox for manual editing/posting
@@ -200,6 +181,5 @@ export type TikTokResponse =
   | TikTokListVideosResponse
   | TikTokQueryVideosResponse
   | TikTokQueryCreatorInfoResponse
-  | TikTokDirectPostVideoResponse
   | TikTokUploadVideoDraftResponse
   | TikTokGetPostStatusResponse

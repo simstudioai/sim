@@ -61,9 +61,22 @@ describe('TikTok tool utilities', () => {
       data: null,
       error: {
         code: 'invalid_response',
-        message: 'TikTok response exceeded the maximum supported size or could not be read',
+        message: 'TikTok response exceeded the maximum supported size',
       },
       rawBody: '',
+    })
+  })
+
+  it('surfaces TikTok error codes when the provider omits a message', async () => {
+    const response = Response.json({
+      data: {},
+      error: { code: 'UnknownError' },
+    })
+
+    await expect(readTikTokPublishInitResponse(response)).resolves.toEqual({
+      success: false,
+      publishId: '',
+      error: 'UnknownError',
     })
   })
 

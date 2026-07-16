@@ -44,7 +44,6 @@ export const tiktokUploadVideoDraftTool: ToolConfig<
     }),
     body: (params: TikTokUploadVideoDraftParams) => ({
       accessToken: params.accessToken,
-      mode: 'draft',
       file: params.file,
     }),
   },

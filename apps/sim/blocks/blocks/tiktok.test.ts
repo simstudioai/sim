@@ -8,9 +8,8 @@ describe('TikTokBlock', () => {
   const buildParams = TikTokBlock.tools.config.params!
   const selectTool = TikTokBlock.tools.config.tool!
 
-  it('keeps direct posting unavailable until one-use human approval is supported', () => {
-    expect(TikTokBlock.tools.access).not.toContain('tiktok_direct_post_video')
-    expect(() => selectTool({ operation: 'tiktok_direct_post_video' })).toThrow(
+  it('rejects unsupported operations', () => {
+    expect(() => selectTool({ operation: 'tiktok_unknown_operation' })).toThrow(
       'Unsupported TikTok operation'
     )
   })
@@ -37,15 +36,11 @@ describe('TikTokBlock', () => {
     const inputs = {
       operation: 'tiktok_upload_video_draft',
       file,
-      privacyLevel: 'PUBLIC_TO_EVERYONE',
-      musicUsageConsent: 'accepted',
       videoIds: 'stale-video-id',
     }
     const finalInputs = { ...inputs, ...buildParams(inputs) }
 
     expect(finalInputs.file).toEqual(file)
-    expect(finalInputs.privacyLevel).toBeUndefined()
-    expect(finalInputs.musicUsageConsent).toBeUndefined()
     expect(finalInputs.videoIds).toBeUndefined()
   })
 

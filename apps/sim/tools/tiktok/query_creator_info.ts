@@ -26,7 +26,7 @@ export const tiktokQueryCreatorInfoTool: ToolConfig<
   id: 'tiktok_query_creator_info',
   name: 'TikTok Query Creator Info',
   description:
-    "Inspect the authenticated creator's Direct Post capabilities, privacy options, interaction settings, and maximum video duration. Direct Post is currently unavailable in Sim; Upload Video Draft does not require this step.",
+    "Inspect the authenticated creator's privacy options, interaction settings, and maximum video duration.",
   version: '1.0.0',
 
   oauth: {

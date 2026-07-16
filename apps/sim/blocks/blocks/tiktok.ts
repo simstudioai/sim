@@ -22,16 +22,6 @@ const TIKTOK_OPERATION_INPUT_KEYS = [
   'videoIds',
   'file',
   'publishId',
-  'title',
-  'privacyLevel',
-  'disableDuet',
-  'disableStitch',
-  'disableComment',
-  'videoCoverTimestampMs',
-  'isAigc',
-  'brandContentToggle',
-  'brandOrganicToggle',
-  'musicUsageConsent',
 ] as const
 
 export const TikTokBlock: BlockConfig<TikTokResponse> = {
@@ -47,7 +37,7 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
   bgColor: '#000000',
   icon: TikTokIcon,
   triggerAllowed: true,
-  hideFromToolbar: true,
+  hideFromToolbar: false,
 
   subBlocks: [
     {
@@ -168,8 +158,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
     ...getTrigger('tiktok_post_inbox_delivered').subBlocks,
     ...getTrigger('tiktok_post_publicly_available').subBlocks,
     ...getTrigger('tiktok_post_no_longer_public').subBlocks,
-    ...getTrigger('tiktok_video_publish_completed').subBlocks,
-    ...getTrigger('tiktok_video_upload_failed').subBlocks,
     ...getTrigger('tiktok_authorization_removed').subBlocks,
   ],
 
@@ -181,8 +169,6 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
       'tiktok_post_inbox_delivered',
       'tiktok_post_publicly_available',
       'tiktok_post_no_longer_public',
-      'tiktok_video_publish_completed',
-      'tiktok_video_upload_failed',
       'tiktok_authorization_removed',
     ],
   },

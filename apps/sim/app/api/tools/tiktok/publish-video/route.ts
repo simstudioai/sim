@@ -54,17 +54,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const data = parsed.data.body
 
-    if (data.mode === 'direct') {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'TikTok Direct Post is not available until per-post human approval is implemented. Use Upload Video Draft instead.',
-        },
-        { status: 400 }
-      )
-    }
-
     let userFile: UserFile
     try {
       userFile = processSingleFileToUserFile(data.file, requestId, logger)
@@ -146,7 +135,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (initError) {
       logger.error(`[${requestId}] TikTok init failed`, { error: initError })
       return NextResponse.json(
-        { success: false, error: initError.message || 'Failed to initialize TikTok upload' },
+        {
+          success: false,
+          error:
+            initError.message ||
+            initError.code ||
+            'Failed to initialize TikTok upload',
+        },
         { status: initResponse.status >= 400 ? initResponse.status : 502 }
       )
     }

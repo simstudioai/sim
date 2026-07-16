@@ -67,7 +67,6 @@ describe('POST /api/tools/tiktok/publish-video', () => {
     vi.stubGlobal('fetch', fetchMock)
     const request = createMockRequest('POST', {
       accessToken: 'access-token',
-      mode: 'draft',
       file,
     })
 
@@ -104,35 +103,6 @@ describe('POST /api/tools/tiktok/publish-video', () => {
     })
   })
 
-  it('keeps Direct Post unavailable until per-post approval exists', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    const response = await POST(
-      createMockRequest('POST', {
-        accessToken: 'access-token',
-        mode: 'direct',
-        file,
-        musicUsageConsent: 'accepted',
-        postInfo: {
-          privacy_level: 'SELF_ONLY',
-          disable_duet: true,
-          disable_stitch: true,
-          disable_comment: true,
-          brand_content_toggle: false,
-        },
-      })
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      success: false,
-      error: expect.stringMatching(/Direct Post is not available/),
-    })
-    expect(mockGetStoredVideoSize).not.toHaveBeenCalled()
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
   it('returns 413 when the storage object exceeds the relay limit', async () => {
     mockGetStoredVideoSize.mockRejectedValue(
       new PayloadSizeLimitError({
@@ -145,7 +115,6 @@ describe('POST /api/tools/tiktok/publish-video', () => {
     const response = await POST(
       createMockRequest('POST', {
         accessToken: 'access-token',
-        mode: 'draft',
         file,
       })
     )

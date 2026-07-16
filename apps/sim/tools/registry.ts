@@ -4130,7 +4130,6 @@ import {
   thriveUpdateUserTool,
 } from '@/tools/thrive'
 import {
-  tiktokDirectPostVideoTool,
   tiktokGetPostStatusTool,
   tiktokGetUserTool,
   tiktokListVideosTool,
@@ -7294,7 +7293,6 @@ export const tools: Record<string, ToolConfig> = {
   thrive_remove_user_tags: thriveRemoveUserTagsTool,
   thrive_update_user_skills: thriveUpdateUserSkillsTool,
   thrive_get_skill_levels: thriveGetSkillLevelsTool,
-  tiktok_direct_post_video: tiktokDirectPostVideoTool,
   tiktok_get_post_status: tiktokGetPostStatusTool,
   tiktok_get_user: tiktokGetUserTool,
   tiktok_list_videos: tiktokListVideosTool,

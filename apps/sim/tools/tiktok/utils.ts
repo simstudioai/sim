@@ -1,6 +1,10 @@
 import { truncate } from '@sim/utils/string'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { ZodType } from 'zod'
-import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import {
+  isPayloadSizeLimitError,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { type TikTokApiVideo, tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type { TikTokApiError, TikTokPublishResponse, TikTokVideo } from '@/tools/tiktok/types'
 
@@ -120,13 +124,16 @@ async function readJsonObject(
       label: 'TikTok API response',
       signal: options.signal,
     })
-  } catch {
+  } catch (error) {
     options.signal?.throwIfAborted()
+    const message = isPayloadSizeLimitError(error)
+      ? 'TikTok response exceeded the maximum supported size'
+      : `TikTok response could not be read: ${getErrorMessage(error, 'unknown read error')}`
     return {
       body: null,
       error: {
         code: 'invalid_response',
-        message: 'TikTok response exceeded the maximum supported size or could not be read',
+        message,
       },
       rawBody: '',
     }
@@ -254,7 +261,10 @@ export async function readTikTokPublishInitResponse(
     return {
       success: false,
       publishId: '',
-      error: result.error.message ?? 'Failed to initiate post',
+      error:
+        result.error.message ||
+        result.error.code ||
+        'Failed to initiate post',
     }
   }
 

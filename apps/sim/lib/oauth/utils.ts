@@ -126,7 +126,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user.info.basic': "Read a user's profile info (open id, avatar, display name)",
   'user.info.profile': "Read a user's profile info (bio, verification status, username)",
   'user.info.stats': "Read a user's stats (follower, following, likes, and video counts)",
-  'video.publish': "Directly post content to a user's TikTok profile",
+  'video.publish': "Query creator posting capabilities for a user's TikTok account",
   'video.upload': "Share content to a creator's account as a draft for further edit and post",
   'video.list': "Read a user's public TikTok videos",
 
