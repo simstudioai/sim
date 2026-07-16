@@ -103,6 +103,23 @@ describe('POST /api/tools/tiktok/publish-video', () => {
     })
   })
 
+  it('rejects legacy Direct Post mode instead of uploading as a draft', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await POST(
+      createMockRequest('POST', {
+        accessToken: 'access-token',
+        mode: 'direct',
+        file,
+      })
+    )
+
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(mockGetStoredVideoSize).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('returns 413 when the storage object exceeds the relay limit', async () => {
     mockGetStoredVideoSize.mockRejectedValue(
       new PayloadSizeLimitError({

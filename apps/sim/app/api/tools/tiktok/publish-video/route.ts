@@ -137,10 +137,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(
         {
           success: false,
-          error:
-            initError.message ||
-            initError.code ||
-            'Failed to initialize TikTok upload',
+          error: initError.message || initError.code || 'Failed to initialize TikTok upload',
         },
         { status: initResponse.status >= 400 ? initResponse.status : 502 }
       )

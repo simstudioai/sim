@@ -1,10 +1,7 @@
-import { truncate } from '@sim/utils/string'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import type { ZodType } from 'zod'
-import {
-  isPayloadSizeLimitError,
-  readResponseTextWithLimit,
-} from '@/lib/core/utils/stream-limits'
+import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { type TikTokApiVideo, tiktokPublishInitApiDataSchema } from '@/tools/tiktok/api-schemas'
 import type { TikTokApiError, TikTokPublishResponse, TikTokVideo } from '@/tools/tiktok/types'
 
@@ -261,10 +258,7 @@ export async function readTikTokPublishInitResponse(
     return {
       success: false,
       publishId: '',
-      error:
-        result.error.message ||
-        result.error.code ||
-        'Failed to initiate post',
+      error: result.error.message || result.error.code || 'Failed to initiate post',
     }
   }
 

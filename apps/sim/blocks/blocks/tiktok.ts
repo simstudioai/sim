@@ -159,6 +159,9 @@ export const TikTokBlock: BlockConfig<TikTokResponse> = {
     ...getTrigger('tiktok_post_publicly_available').subBlocks,
     ...getTrigger('tiktok_post_no_longer_public').subBlocks,
     ...getTrigger('tiktok_authorization_removed').subBlocks,
+    // Deprecated Share Kit triggers: keep subBlocks so saved selectedTriggerId still renders.
+    ...getTrigger('tiktok_video_publish_completed').subBlocks,
+    ...getTrigger('tiktok_video_upload_failed').subBlocks,
   ],
 
   triggers: {

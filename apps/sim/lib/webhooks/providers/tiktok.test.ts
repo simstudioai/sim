@@ -276,7 +276,16 @@ describe('tiktokHandler', () => {
     ).toBe('post.publish.publicly_available:act.user:pub-1:post-1')
   })
 
-  it('extractIdempotencyId falls back to create_time', () => {
+  it('extractIdempotencyId falls back to share_id then create_time', () => {
+    expect(
+      tiktokHandler.extractIdempotencyId!({
+        event: 'video.publish.completed',
+        user_openid: 'act.user',
+        create_time: 99,
+        content: '{"share_id":"share-1"}',
+      })
+    ).toBe('video.publish.completed:act.user:share-1')
+
     expect(
       tiktokHandler.extractIdempotencyId!({
         event: 'authorization.removed',
