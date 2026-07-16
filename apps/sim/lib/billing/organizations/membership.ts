@@ -312,6 +312,113 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
   return result
 }
 
+export interface PauseProForOrgCoverageResult {
+  paused: boolean
+  subscriptionId?: string
+  organizationId?: string
+}
+
+/**
+ * Pause (cancel at period end) a user's entitled personal Pro subscription
+ * because an organization with an entitled paid subscription already covers
+ * them. Transactional fence behind the checkout admission guard: it closes
+ * the race where a user starts a personal checkout while uncovered, joins a
+ * paid org mid-checkout, and completes payment after the join.
+ *
+ * The user keeps the period they paid for and the subscription simply does
+ * not renew — the same state a paid-org joiner's personal Pro enters, so the
+ * billing UI already renders it. If they leave the org before period end,
+ * `restoreUserProSubscription` un-pauses it automatically.
+ *
+ * Unlike `applyPaidOrgJoinBillingTx` (the join-time pause), this does NOT
+ * snapshot or zero current-period usage: by the time this runs the user's
+ * usage already attributes to the organization pool, and moving it into the
+ * pro snapshot would undercount the org's period.
+ *
+ * Idempotent: no-ops when there is no entitled personal Pro, when it is
+ * already pausing, or when no entitled paid org covers the user. All checks
+ * re-run under the user billing identity lock and a `FOR UPDATE` read of the
+ * personal subscription row — the same serialization points as the join and
+ * restore paths.
+ */
+export async function pauseProSubscriptionForOrgCoverage(
+  userId: string
+): Promise<PauseProForOrgCoverageResult> {
+  const result: PauseProForOrgCoverageResult = { paused: false }
+
+  await db.transaction(async (tx) => {
+    await acquireUserBillingIdentityLock(tx, userId)
+
+    const [personalPro] = await tx
+      .select()
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, userId),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPro(subscriptionTable.plan)
+        )
+      )
+      .for('update')
+      .limit(1)
+
+    if (!personalPro || personalPro.cancelAtPeriodEnd) return
+
+    const memberships = await tx
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, userId))
+    if (memberships.length === 0) return
+
+    const organizationSubscriptions = await tx
+      .select({ plan: subscriptionTable.plan, referenceId: subscriptionTable.referenceId })
+      .from(subscriptionTable)
+      .where(
+        and(
+          inArray(
+            subscriptionTable.referenceId,
+            memberships.map((membership) => membership.organizationId)
+          ),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+    const coveringSubscription = organizationSubscriptions.find((organizationSubscription) =>
+      isPaid(organizationSubscription.plan)
+    )
+    if (!coveringSubscription) return
+
+    await tx
+      .update(subscriptionTable)
+      .set({ cancelAtPeriodEnd: true })
+      .where(eq(subscriptionTable.id, personalPro.id))
+
+    if (personalPro.stripeSubscriptionId) {
+      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+        stripeSubscriptionId: personalPro.stripeSubscriptionId,
+        subscriptionId: personalPro.id,
+        reason: 'covered-by-organization',
+      })
+    }
+
+    result.paused = true
+    result.subscriptionId = personalPro.id
+    result.organizationId = coveringSubscription.referenceId
+  })
+
+  if (result.paused) {
+    logger.warn(
+      'Paused personal Pro created while covered by an organization subscription (kept until period end, Stripe sync queued)',
+      {
+        userId,
+        subscriptionId: result.subscriptionId,
+        organizationId: result.organizationId,
+      }
+    )
+  }
+
+  return result
+}
+
 export interface AddMemberParams {
   userId: string
   organizationId: string

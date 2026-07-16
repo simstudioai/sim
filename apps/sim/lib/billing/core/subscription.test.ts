@@ -111,37 +111,39 @@ describe('syncSubscriptionPlan', () => {
     vi.clearAllMocks()
   })
 
-  it('writes the resolved plan for a user-referenced subscription', async () => {
+  it('writes the resolved plan for a user-referenced subscription and returns it', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
 
     await expect(syncSubscriptionPlan('sub-1', 'pro_6000', 'pro_25000', 'user-1')).resolves.toBe(
-      true
+      'pro_25000'
     )
     expect(dbChainMockFns.update).toHaveBeenCalled()
   })
 
   it('writes a team plan onto an org-referenced subscription without an org lookup', async () => {
     await expect(syncSubscriptionPlan('sub-1', 'pro_6000', 'team_6000', 'org-1')).resolves.toBe(
-      true
+      'team_6000'
     )
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).toHaveBeenCalled()
   })
 
-  it('refuses to write a pro plan onto an org-referenced subscription', async () => {
+  it('refuses a pro plan on an org-referenced subscription and returns the current plan', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'org-1' }])
 
     await expect(syncSubscriptionPlan('sub-1', 'team_6000', 'pro_6000', 'org-1')).resolves.toBe(
-      false
+      'team_6000'
     )
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('no-ops when the plan is unchanged or unresolved', async () => {
+  it('returns the current plan when the Stripe plan is unchanged or unresolved', async () => {
     await expect(syncSubscriptionPlan('sub-1', 'team_6000', 'team_6000', 'org-1')).resolves.toBe(
-      false
+      'team_6000'
     )
-    await expect(syncSubscriptionPlan('sub-1', 'team_6000', null, 'org-1')).resolves.toBe(false)
+    await expect(syncSubscriptionPlan('sub-1', 'team_6000', null, 'org-1')).resolves.toBe(
+      'team_6000'
+    )
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

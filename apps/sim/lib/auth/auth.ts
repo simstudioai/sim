@@ -50,7 +50,8 @@ import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { isTeam } from '@/lib/billing/plan-helpers'
+import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
+import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
@@ -3161,11 +3162,11 @@ export const auth = betterAuth({
               authorizeReference: async ({ user, referenceId, action }, ctx) => {
                 const body: unknown = ctx?.body
                 const requestedPlan =
-                  body &&
                   typeof body === 'object' &&
+                  body !== null &&
                   'plan' in body &&
-                  typeof (body as { plan: unknown }).plan === 'string'
-                    ? (body as { plan: string }).plan
+                  typeof body.plan === 'string'
+                    ? body.plan
                     : undefined
                 return await authorizeSubscriptionReference(
                   user.id,
@@ -3206,7 +3207,7 @@ export const auth = betterAuth({
                   )
                 }
 
-                await syncSubscriptionPlan(
+                const syncedPlan = await syncSubscriptionPlan(
                   subscription.id,
                   subscription.plan,
                   planFromStripe,
@@ -3215,7 +3216,7 @@ export const auth = betterAuth({
 
                 const subscriptionForOrg = {
                   ...subscription,
-                  plan: planFromStripe ?? subscription.plan,
+                  plan: syncedPlan ?? subscription.plan,
                   enterpriseOperationId: stripeSubscription.metadata?.enterpriseOperationId ?? null,
                 }
 
@@ -3241,6 +3242,17 @@ export const auth = betterAuth({
                 await handleSubscriptionCreated(resolvedSubscription, event.id)
 
                 await syncSubscriptionUsageLimits(resolvedSubscription)
+
+                /**
+                 * Transactional fence behind the personal-checkout admission
+                 * guard: if the user joined a paid organization while their
+                 * checkout was in flight, pause the fresh personal Pro at
+                 * period end (same state a paid-org joiner's personal Pro
+                 * enters; restored automatically if they leave the org).
+                 */
+                if (isPro(resolvedSubscription.plan)) {
+                  await pauseProSubscriptionForOrgCoverage(resolvedSubscription.referenceId)
+                }
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
 
@@ -3274,8 +3286,6 @@ export const auth = betterAuth({
                 const isUpgradeToTeam =
                   isTeamPlan && !isTeam(subscription.plan) && referenceOrganizationId == null
 
-                const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
-
                 logger.info('[onSubscriptionUpdate] Subscription updated', {
                   subscriptionId: subscription.id,
                   status: subscription.status,
@@ -3294,16 +3304,24 @@ export const auth = betterAuth({
                   )
                 }
 
-                await syncSubscriptionPlan(
+                const syncedPlan = await syncSubscriptionPlan(
                   subscription.id,
                   subscription.plan,
                   planFromStripe,
                   subscription.referenceId
                 )
 
+                /**
+                 * All downstream processing keys off the plan the DB actually
+                 * holds after the sync — a plan write refused by the org/plan
+                 * invariant must not leak the rejected Stripe plan into org
+                 * resolution, seat sync, or usage limits.
+                 */
+                const effectivePlanForTeamFeatures = syncedPlan ?? subscription.plan
+
                 const subscriptionForOrg = {
                   ...subscription,
-                  plan: planFromStripe ?? subscription.plan,
+                  plan: effectivePlanForTeamFeatures,
                   enterpriseOperationId: stripeSubscription.metadata?.enterpriseOperationId ?? null,
                 }
 

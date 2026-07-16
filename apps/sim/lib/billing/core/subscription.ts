@@ -89,8 +89,7 @@ export async function writeBillingInterval(
 /**
  * Sync the subscription's `plan` column to match Stripe. Closes a gap
  * where plan changes (Pro → Team upgrades, tier swaps) updated price,
- * seats, and referenceId at Stripe but left the DB plan stale. Returns
- * `true` if a write was issued, `false` if no change was needed.
+ * seats, and referenceId at Stripe but left the DB plan stale.
  *
  * Enforces the billing invariant that organization-referenced
  * subscriptions only ever hold Team or Enterprise plans: when Stripe
@@ -98,6 +97,11 @@ export async function writeBillingInterval(
  * an org subscription in the Stripe dashboard), the write is refused and
  * an error is logged so operators fix the price in Stripe — the DB row
  * never becomes an org-scoped Pro subscription.
+ *
+ * Returns the plan the DB row holds after the call. Callers must drive all
+ * downstream processing (org ensure, seat sync, usage limits) from this
+ * value — never from the raw Stripe plan — so a refused write cannot leak
+ * the rejected plan into the rest of the webhook handler.
  *
  * The organization lookup is inlined rather than delegated to
  * `isSubscriptionOrgScoped` because that helper lives in `core/billing.ts`,
@@ -108,9 +112,9 @@ export async function syncSubscriptionPlan(
   currentPlan: string | null,
   planFromStripe: string | null,
   referenceId: string
-): Promise<boolean> {
-  if (!planFromStripe) return false
-  if (currentPlan === planFromStripe) return false
+): Promise<string | null> {
+  if (!planFromStripe) return currentPlan
+  if (currentPlan === planFromStripe) return currentPlan
 
   if (!isOrgPlan(planFromStripe)) {
     const [referencedOrganization] = await db
@@ -129,7 +133,7 @@ export async function syncSubscriptionPlan(
           rejectedPlan: planFromStripe,
         }
       )
-      return false
+      return currentPlan
     }
   }
 
@@ -144,7 +148,7 @@ export async function syncSubscriptionPlan(
     newPlan: planFromStripe,
   })
 
-  return true
+  return planFromStripe
 }
 
 /**
