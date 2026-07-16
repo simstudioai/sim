@@ -1127,9 +1127,15 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               status: params.status || undefined,
               priority: priorityValue,
               dueDate: optionalNumber(params.dueDate),
-              dueDateTime: params.dueDateTime ? true : undefined,
+              dueDateTime:
+                optionalNumber(params.dueDate) !== undefined
+                  ? Boolean(params.dueDateTime)
+                  : undefined,
               startDate: optionalNumber(params.startDate),
-              startDateTime: params.startDateTime ? true : undefined,
+              startDateTime:
+                optionalNumber(params.startDate) !== undefined
+                  ? Boolean(params.startDateTime)
+                  : undefined,
               assignees: splitCommaSeparatedNumbers(params.assignees),
               tags: splitCommaSeparated(params.tags),
               timeEstimate: optionalNumber(params.timeEstimate),
@@ -1154,9 +1160,15 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               status: params.status || undefined,
               priority: priorityValue,
               dueDate: optionalNumber(params.dueDate),
-              dueDateTime: params.dueDateTime ? true : undefined,
+              dueDateTime:
+                optionalNumber(params.dueDate) !== undefined
+                  ? Boolean(params.dueDateTime)
+                  : undefined,
               startDate: optionalNumber(params.startDate),
-              startDateTime: params.startDateTime ? true : undefined,
+              startDateTime:
+                optionalNumber(params.startDate) !== undefined
+                  ? Boolean(params.startDateTime)
+                  : undefined,
               timeEstimate: optionalNumber(params.timeEstimate),
               points: optionalNumber(params.points),
               parent: params.parent || undefined,
