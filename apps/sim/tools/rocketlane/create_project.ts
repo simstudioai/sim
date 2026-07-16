@@ -284,10 +284,13 @@ export const rocketlaneCreateProjectTool: ToolConfig<
         projectName: params.projectName,
         customer: { companyName: params.customerCompanyName },
       }
+      if (params.ownerUserId == null && !params.ownerEmailId) {
+        throw new Error('Either an owner user ID or an owner email is required to create a project')
+      }
       const owner: Record<string, unknown> = {}
       if (params.ownerUserId != null) owner.userId = params.ownerUserId
       if (params.ownerEmailId) owner.emailId = params.ownerEmailId
-      if (Object.keys(owner).length > 0) body.owner = owner
+      body.owner = owner
       if (params.startDate) body.startDate = params.startDate
       if (params.dueDate) body.dueDate = params.dueDate
       if (params.visibility) body.visibility = params.visibility
