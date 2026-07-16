@@ -363,9 +363,14 @@ export const kimiProvider: ProviderConfig = {
 
           const executionResults = await Promise.allSettled(toolExecutionPromises)
 
+          const assistantReasoning = (
+            currentResponse.choices[0]?.message as { reasoning_content?: string } | undefined
+          )?.reasoning_content
+
           currentMessages.push({
             role: 'assistant',
             content: null,
+            ...(assistantReasoning ? { reasoning_content: assistantReasoning } : {}),
             tool_calls: toolCallsInResponse.map((tc) => ({
               id: tc.id,
               type: 'function',
