@@ -767,6 +767,7 @@ interface MessageContentProps {
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
+  onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
 }
 
@@ -776,6 +777,7 @@ function MessageContentInner({
   isStreaming = false,
   questionAnswers,
   onOptionSelect,
+  onQuestionDismiss,
   onPhaseChange,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
@@ -864,6 +866,7 @@ function MessageContentInner({
                 })}
                 questionAnswers={questionAnswers}
                 onOptionSelect={onOptionSelect}
+                onQuestionDismiss={onQuestionDismiss}
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                 onRevealStateChange={
                   i === segments.length - 1 ? handleTrailingRevealChange : undefined

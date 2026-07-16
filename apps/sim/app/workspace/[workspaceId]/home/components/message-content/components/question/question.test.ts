@@ -3,7 +3,7 @@
  */
 import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   formatQuestionAnswerMessage,
   parseQuestionAnswerMessage,
@@ -89,6 +89,37 @@ describe('parseQuestionAnswerMessage', () => {
 })
 
 describe('QuestionDisplay', () => {
+  it('reports dismissal when the X hides the card', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onDismiss = vi.fn()
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: [QUESTIONS[0]],
+          onSelect: () => undefined,
+          onDismiss,
+        })
+      )
+    })
+
+    const dismissButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Dismiss')
+    )
+    expect(dismissButton).toBeDefined()
+
+    act(() => dismissButton?.click())
+
+    expect(onDismiss).toHaveBeenCalledOnce()
+    expect(container.textContent).not.toContain(QUESTIONS[0].prompt)
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
   it('renders multi-select recap answers as separate, spaced rows', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')

@@ -517,6 +517,7 @@ interface SpecialTagsProps {
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
+  onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
@@ -528,6 +529,7 @@ export function SpecialTags({
   segment,
   questionAnswers,
   onOptionSelect,
+  onQuestionDismiss,
   onWorkspaceResourceSelect,
 }: SpecialTagsProps) {
   switch (segment.type) {
@@ -545,7 +547,12 @@ export function SpecialTags({
       return <WorkspaceResourceDisplay data={segment.data} onSelect={onWorkspaceResourceSelect} />
     case 'question':
       return (
-        <QuestionDisplay data={segment.data} answers={questionAnswers} onSelect={onOptionSelect} />
+        <QuestionDisplay
+          data={segment.data}
+          answers={questionAnswers}
+          onSelect={onOptionSelect}
+          onDismiss={onQuestionDismiss}
+        />
       )
     default:
       return null
