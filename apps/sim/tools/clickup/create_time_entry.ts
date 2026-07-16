@@ -105,7 +105,12 @@ export const clickupCreateTimeEntryTool: ToolConfig<
       return { success: false, output: { error }, error }
     }
 
-    const entry = isRecordLike(data) && isRecordLike(data.data) ? data.data : null
+    const entry =
+      isRecordLike(data) && isRecordLike(data.data)
+        ? data.data
+        : isRecordLike(data) && data.id !== undefined
+          ? data
+          : null
 
     return {
       success: true,

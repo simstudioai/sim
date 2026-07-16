@@ -62,7 +62,12 @@ export const clickupDeleteTimeEntryTool: ToolConfig<
       return { success: false, output: { error }, error }
     }
 
-    const entry = isRecordLike(data) && isRecordLike(data.data) ? data.data : null
+    const payload = isRecordLike(data) ? data.data : null
+    const entry = Array.isArray(payload)
+      ? (payload.find((item) => isRecordLike(item)) ?? null)
+      : isRecordLike(payload)
+        ? payload
+        : null
 
     return {
       success: true,

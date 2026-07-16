@@ -144,7 +144,17 @@ export interface ClickUpChecklist {
   orderIndex: number | null
   resolved: number | null
   unresolved: number | null
+  dateCreated: string | null
   items: ClickUpChecklistItem[]
+}
+
+export interface ClickUpTimeEntryLocation {
+  listId: string | null
+  folderId: string | null
+  spaceId: string | null
+  listName: string | null
+  folderName: string | null
+  spaceName: string | null
 }
 
 export interface ClickUpTimeEntry {
@@ -161,6 +171,8 @@ export interface ClickUpTimeEntry {
   source: string | null
   at: string | null
   taskUrl: string | null
+  taskTags: ClickUpTag[]
+  taskLocation: ClickUpTimeEntryLocation | null
 }
 
 export interface ClickUpCreateTaskParams {
@@ -597,6 +609,7 @@ export interface ClickUpUpdateTimeEntryParams {
   description?: string
   start?: number
   end?: number
+  duration?: number
   taskId?: string
   billable?: boolean
 }

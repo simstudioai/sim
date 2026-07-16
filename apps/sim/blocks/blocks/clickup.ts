@@ -36,22 +36,21 @@ function optionalNumber(value: unknown): number | undefined {
 }
 
 /**
- * Parses a custom field value from the block input. JSON objects and arrays
- * are decoded so structured field types (labels, location, progress) work;
- * everything else is passed through as-is, since ClickUp accepts plain
- * strings for text, number, and dropdown fields.
+ * Parses a custom field value from the block input. JSON values (objects,
+ * arrays, numbers, booleans, quoted strings) are decoded so structured and
+ * typed fields (labels, progress, number, checkbox) receive the right wire
+ * type; anything that isn't valid JSON is passed through as a plain string,
+ * which text and dropdown fields accept.
  */
 function parseCustomFieldValue(value: unknown): unknown {
   if (typeof value !== 'string') return value
   const trimmed = value.trim()
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      return JSON.parse(trimmed)
-    } catch {
-      return value
-    }
+  if (trimmed.length === 0) return value
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return value
   }
-  return value
 }
 
 function billableFromAction(action: unknown): boolean | undefined {
@@ -876,11 +875,11 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
       id: 'entryDuration',
       title: 'Duration',
       type: 'short-input',
-      required: true,
+      required: { field: 'operation', value: ['create_time_entry'] },
       placeholder: 'Duration in milliseconds',
       condition: {
         field: 'operation',
-        value: ['create_time_entry'],
+        value: ['create_time_entry', 'update_time_entry'],
       },
     },
     {
@@ -932,13 +931,24 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
     },
     {
       id: 'timerAssignee',
+      title: 'Assignees',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Comma-separated user IDs (owners/admins only)',
+      condition: {
+        field: 'operation',
+        value: ['get_time_entries'],
+      },
+    },
+    {
+      id: 'entryAssignee',
       title: 'Assignee',
       type: 'short-input',
       mode: 'advanced',
-      placeholder: 'User ID(s) — comma-separated for Get Time Entries',
+      placeholder: 'Single user ID (owners/admins only)',
       condition: {
         field: 'operation',
-        value: ['get_time_entries', 'create_time_entry', 'get_running_timer'],
+        value: ['create_time_entry', 'get_running_timer'],
       },
     },
     {
@@ -1399,7 +1409,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               description: params.entryDescription || undefined,
               billable: billableFromAction(params.billableAction),
               taskId: params.timerTaskId || undefined,
-              assignee: optionalNumber(params.timerAssignee),
+              assignee: optionalNumber(params.entryAssignee),
             }
           case 'update_time_entry':
             return {
@@ -1409,6 +1419,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               description: params.entryDescription || undefined,
               start: optionalNumber(params.entryStart),
               end: optionalNumber(params.entryEnd),
+              duration: optionalNumber(params.entryDuration),
               taskId: params.timerTaskId || undefined,
               billable: billableFromAction(params.billableAction),
             }
@@ -1436,7 +1447,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
             return {
               ...baseParams,
               workspaceId: params.workspaceId,
-              assignee: optionalNumber(params.timerAssignee),
+              assignee: optionalNumber(params.entryAssignee),
             }
           default:
             return baseParams
@@ -1530,8 +1541,9 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
     timerTags: { type: 'string', description: 'Comma-separated time entry tag names' },
     timerAssignee: {
       type: 'string',
-      description: 'User ID(s) for time entry operations (comma-separated for listing)',
+      description: 'Comma-separated user IDs to filter time entries by',
     },
+    entryAssignee: { type: 'string', description: 'Single user ID for the time entry' },
     timeStartDate: { type: 'string', description: 'Time entry range start (Unix ms)' },
     timeEndDate: { type: 'string', description: 'Time entry range end (Unix ms)' },
     timeLocationType: {
@@ -1552,11 +1564,12 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
     id: { type: 'string', description: 'ID of the affected resource' },
     histId: { type: 'string', description: 'History ID of the created comment' },
     date: { type: 'number', description: 'Timestamp of the created comment (Unix ms)' },
-    updated: { type: 'boolean', description: 'Whether the comment was updated' },
+    updated: { type: 'boolean', description: 'Whether the resource was updated' },
     deleted: { type: 'boolean', description: 'Whether the resource was deleted' },
     attachment: { type: 'json', description: 'Uploaded attachment details' },
     files: { type: 'json', description: 'Uploaded attachment files' },
-    taskId: { type: 'string', description: 'Task ID for tag operations' },
+    taskId: { type: 'string', description: 'Task ID for tag and custom field operations' },
+    fieldId: { type: 'string', description: 'Custom field ID for custom field operations' },
     tagName: { type: 'string', description: 'Tag name for tag operations' },
     tags: { type: 'json', description: 'Array of space tags' },
     members: { type: 'json', description: 'Array of members' },

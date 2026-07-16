@@ -56,7 +56,7 @@ export const clickupSetCustomFieldValueTool: ToolConfig<
   request: {
     url: (params) =>
       `${CLICKUP_API_BASE_URL}/task/${encodeURIComponent(params.taskId)}/field/${encodeURIComponent(params.fieldId)}`,
-    method: 'PUT',
+    method: 'POST',
     headers: (params) => ({
       Authorization: clickupAuthorizationHeader(params.accessToken),
       'Content-Type': 'application/json',

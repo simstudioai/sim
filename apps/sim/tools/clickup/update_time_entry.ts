@@ -61,6 +61,12 @@ export const clickupUpdateTimeEntryTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'New end (Unix ms); when provided, start must also be provided',
     },
+    duration: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'New duration in milliseconds',
+    },
     taskId: {
       type: 'string',
       required: false,
@@ -89,12 +95,13 @@ export const clickupUpdateTimeEntryTool: ToolConfig<
       if (params.description !== undefined) body.description = params.description
       if (params.start !== undefined) body.start = params.start
       if (params.end !== undefined) body.end = params.end
+      if (params.duration !== undefined) body.duration = params.duration
       if (params.taskId) body.tid = params.taskId
       if (params.billable !== undefined) body.billable = params.billable
 
       if (Object.keys(body).length === 0) {
         throw new Error(
-          'At least one of description, start and end, taskId, or billable is required to update a time entry'
+          'At least one of description, start and end, duration, taskId, or billable is required to update a time entry'
         )
       }
 

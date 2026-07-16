@@ -527,6 +527,7 @@ export function mapClickUpChecklist(value: unknown): ClickUpChecklist {
     orderIndex: getOptionalNumber(value.orderindex),
     resolved: getOptionalNumber(value.resolved),
     unresolved: getOptionalNumber(value.unresolved),
+    dateCreated: getOptionalString(value.date_created),
     items: rawItems.map((item) => mapClickUpChecklistItem(item)),
   }
 }
@@ -537,6 +538,8 @@ export function mapClickUpTimeEntry(value: unknown): ClickUpTimeEntry {
   }
 
   const rawTags = Array.isArray(value.tags) ? value.tags : []
+  const rawTaskTags = Array.isArray(value.task_tags) ? value.task_tags : []
+  const rawLocation = isRecordLike(value.task_location) ? value.task_location : null
 
   return {
     id: getRequiredString(value.id, 'id'),
@@ -552,6 +555,19 @@ export function mapClickUpTimeEntry(value: unknown): ClickUpTimeEntry {
     source: getOptionalString(value.source),
     at: getOptionalString(value.at),
     taskUrl: getOptionalString(value.task_url),
+    taskTags: rawTaskTags
+      .map((tag) => mapClickUpTag(tag))
+      .filter((tag): tag is ClickUpTag => tag !== null),
+    taskLocation: rawLocation
+      ? {
+          listId: getOptionalString(rawLocation.list_id),
+          folderId: getOptionalString(rawLocation.folder_id),
+          spaceId: getOptionalString(rawLocation.space_id),
+          listName: getOptionalString(rawLocation.list_name),
+          folderName: getOptionalString(rawLocation.folder_name),
+          spaceName: getOptionalString(rawLocation.space_name),
+        }
+      : null,
   }
 }
 
@@ -586,6 +602,7 @@ export const CLICKUP_CHECKLIST_OUTPUT_PROPERTIES: Record<string, OutputProperty>
   orderIndex: { type: 'number', description: 'Order of the checklist on the task', nullable: true },
   resolved: { type: 'number', description: 'Number of resolved items', nullable: true },
   unresolved: { type: 'number', description: 'Number of unresolved items', nullable: true },
+  dateCreated: { type: 'string', description: 'Creation timestamp (Unix ms)', nullable: true },
   items: {
     type: 'array',
     description: 'Items in the checklist',
@@ -633,6 +650,24 @@ export const CLICKUP_TIME_ENTRY_OUTPUT_PROPERTIES: Record<string, OutputProperty
   source: { type: 'string', description: 'Source that created the entry', nullable: true },
   at: { type: 'string', description: 'Last update timestamp (Unix ms)', nullable: true },
   taskUrl: { type: 'string', description: 'URL to the task in ClickUp', nullable: true },
+  taskTags: {
+    type: 'array',
+    description: 'Tags on the associated task (present when requested)',
+    items: { type: 'object', properties: CLICKUP_TAG_OUTPUT_PROPERTIES },
+  },
+  taskLocation: {
+    type: 'object',
+    description: 'Location of the associated task (names present when requested)',
+    nullable: true,
+    properties: {
+      listId: { type: 'string', description: 'List ID', nullable: true },
+      folderId: { type: 'string', description: 'Folder ID', nullable: true },
+      spaceId: { type: 'string', description: 'Space ID', nullable: true },
+      listName: { type: 'string', description: 'List name', nullable: true },
+      folderName: { type: 'string', description: 'Folder name', nullable: true },
+      spaceName: { type: 'string', description: 'Space name', nullable: true },
+    },
+  },
 }
 
 export function extractClickUpErrorMessage(
