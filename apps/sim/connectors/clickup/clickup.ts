@@ -96,14 +96,15 @@ function parsePage(value: unknown): ClickUpDocPage | null {
  * Flattens a Doc's page tree depth-first into markdown sections, skipping
  * deleted and archived pages (their subpages are skipped with them).
  */
-function flattenPages(pages: ClickUpDocPage[], sections: string[]): void {
+function flattenPages(pages: ClickUpDocPage[], sections: string[], depth = 0): void {
+  const heading = '#'.repeat(Math.min(depth + 1, 6))
   for (const page of pages) {
     if (page.deleted || page.archived) continue
     const parts: string[] = []
-    if (page.name.trim()) parts.push(`# ${page.name.trim()}`)
+    if (page.name.trim()) parts.push(`${heading} ${page.name.trim()}`)
     if (page.content.trim()) parts.push(page.content.trim())
     if (parts.length > 0) sections.push(parts.join('\n\n'))
-    flattenPages(page.pages, sections)
+    flattenPages(page.pages, sections, depth + 1)
   }
 }
 
@@ -169,7 +170,7 @@ export const clickupConnector: ConnectorConfig = {
       typeof sourceConfig.spaceId === 'string' && sourceConfig.spaceId.trim()
         ? sourceConfig.spaceId.trim()
         : undefined
-    const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
+    const maxDocs = sourceConfig.maxDocs ? Math.floor(Number(sourceConfig.maxDocs)) : 0
 
     const url = buildSearchDocsUrl(workspaceId, { spaceId, limit: LIST_PAGE_SIZE, cursor })
     const response = await fetchWithRetry(url, {
@@ -271,8 +272,8 @@ export const clickupConnector: ConnectorConfig = {
     }
 
     const maxDocs = sourceConfig.maxDocs as string | undefined
-    if (maxDocs && (Number.isNaN(Number(maxDocs)) || Number(maxDocs) <= 0)) {
-      return { valid: false, error: 'Max docs must be a positive number' }
+    if (maxDocs && (!Number.isInteger(Number(maxDocs)) || Number(maxDocs) <= 0)) {
+      return { valid: false, error: 'Max docs must be a positive whole number' }
     }
 
     const spaceId =

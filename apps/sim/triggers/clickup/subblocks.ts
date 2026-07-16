@@ -69,7 +69,8 @@ export function buildClickUpTriggerSubBlocks(triggerId: string): SubBlockConfig[
       title: 'Space ID (Optional)',
       type: 'short-input',
       placeholder: 'Leave empty for the entire workspace',
-      description: 'Only receive events from this space',
+      description:
+        'Only receive events from this space. ClickUp applies the most specific location when several are set',
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
@@ -78,7 +79,8 @@ export function buildClickUpTriggerSubBlocks(triggerId: string): SubBlockConfig[
       title: 'Folder ID (Optional)',
       type: 'short-input',
       placeholder: 'Leave empty for the entire workspace',
-      description: 'Only receive events from this folder',
+      description:
+        'Only receive events from this folder. ClickUp applies the most specific location when several are set',
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
@@ -87,7 +89,8 @@ export function buildClickUpTriggerSubBlocks(triggerId: string): SubBlockConfig[
       title: 'List ID (Optional)',
       type: 'short-input',
       placeholder: 'Leave empty for the entire workspace',
-      description: 'Only receive events from this list',
+      description:
+        'Only receive events from this list. ClickUp applies the most specific location when several are set',
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
@@ -96,7 +99,8 @@ export function buildClickUpTriggerSubBlocks(triggerId: string): SubBlockConfig[
       title: 'Task ID (Optional)',
       type: 'short-input',
       placeholder: 'Leave empty for the entire workspace',
-      description: 'Only receive events for this task',
+      description:
+        'Only receive events for this task. ClickUp applies the most specific location when several are set',
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },

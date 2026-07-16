@@ -315,12 +315,17 @@ describe('ClickUp webhook provider', () => {
       expect(deleteInit.method).toBe('DELETE')
     })
 
-    it('rejects non-numeric location filters before calling ClickUp', async () => {
+    it('rejects non-integer location filters before calling ClickUp', async () => {
       await expect(
         clickupHandler.createSubscription!(
           createContext({ ...validConfig, triggerSpaceId: 'not-a-number' })
         )
-      ).rejects.toThrow(/Space ID must be numeric/)
+      ).rejects.toThrow(/Space ID must be a whole number/)
+      await expect(
+        clickupHandler.createSubscription!(
+          createContext({ ...validConfig, triggerSpaceId: '12.5' })
+        )
+      ).rejects.toThrow(/Space ID must be a whole number/)
       expect(fetchMock).not.toHaveBeenCalled()
     })
   })

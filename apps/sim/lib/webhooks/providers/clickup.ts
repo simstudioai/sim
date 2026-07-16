@@ -74,8 +74,8 @@ function parseOptionalNumericId(value: unknown, label: string): number | undefin
   const raw = String(value).trim()
   if (!raw) return undefined
   const parsed = Number(raw)
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`ClickUp ${label} must be numeric. Received: ${raw}`)
+  if (!Number.isInteger(parsed)) {
+    throw new Error(`ClickUp ${label} must be a whole number. Received: ${raw}`)
   }
   return parsed
 }
