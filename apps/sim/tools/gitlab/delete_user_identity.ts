@@ -1,14 +1,18 @@
-import type { GitLabDeleteBranchParams, GitLabDeleteBranchResponse } from '@/tools/gitlab/types'
+import type {
+  GitLabDeleteUserIdentityParams,
+  GitLabDeleteUserIdentityResponse,
+} from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabDeleteBranchTool: ToolConfig<
-  GitLabDeleteBranchParams,
-  GitLabDeleteBranchResponse
+export const gitlabDeleteUserIdentityTool: ToolConfig<
+  GitLabDeleteUserIdentityParams,
+  GitLabDeleteUserIdentityResponse
 > = {
-  id: 'gitlab_delete_branch',
-  name: 'GitLab Delete Branch',
-  description: 'Delete a branch from a GitLab project repository',
+  id: 'gitlab_delete_user_identity',
+  name: 'GitLab Delete User Identity',
+  description:
+    "Delete a user's authentication identity (e.g. SAML or LDAP). Requires an administrator token with admin_mode on the instance.",
   version: '1.0.0',
 
   params: {
@@ -16,7 +20,7 @@ export const gitlabDeleteBranchTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'GitLab Personal Access Token',
+      description: 'GitLab admin Personal Access Token (admin_mode)',
     },
     host: {
       type: 'string',
@@ -24,25 +28,24 @@ export const gitlabDeleteBranchTool: ToolConfig<
       visibility: 'user-only',
       description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
     },
-    projectId: {
-      type: 'string',
+    userId: {
+      type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or path (e.g. mygroup/myproject)',
+      description: 'The ID of the user',
     },
-    branch: {
+    provider: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the branch to delete',
+      description: 'The external identity provider name (e.g. saml, ldapmain)',
     },
   },
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      const encodedBranch = encodeURIComponent(String(params.branch).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/repository/branches/${encodedBranch}`
+      const encodedProvider = encodeURIComponent(String(params.provider).trim())
+      return `${getGitLabApiBase(params.host)}/users/${params.userId}/identities/${encodedProvider}`
     },
     method: 'DELETE',
     headers: (params) => ({
@@ -71,7 +74,7 @@ export const gitlabDeleteBranchTool: ToolConfig<
   outputs: {
     success: {
       type: 'boolean',
-      description: 'Whether the branch was deleted successfully',
+      description: 'Whether the identity was deleted successfully',
     },
   },
 }

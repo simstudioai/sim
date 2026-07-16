@@ -1,17 +1,17 @@
 import type {
-  GitLabListRepositoryTreeParams,
-  GitLabListRepositoryTreeResponse,
+  GitLabListInvitationsParams,
+  GitLabListInvitationsResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabListRepositoryTreeTool: ToolConfig<
-  GitLabListRepositoryTreeParams,
-  GitLabListRepositoryTreeResponse
+export const gitlabListInvitationsTool: ToolConfig<
+  GitLabListInvitationsParams,
+  GitLabListInvitationsResponse
 > = {
-  id: 'gitlab_list_repository_tree',
-  name: 'GitLab List Repository Tree',
-  description: 'List files and directories in a GitLab project repository',
+  id: 'gitlab_list_invitations',
+  name: 'GitLab List Invitations',
+  description: 'List pending email invitations for a GitLab project or group',
   version: '1.0.0',
 
   params: {
@@ -27,29 +27,23 @@ export const gitlabListRepositoryTreeTool: ToolConfig<
       visibility: 'user-only',
       description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
     },
-    projectId: {
+    resourceType: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or path (e.g. mygroup/myproject)',
+      description: "Whether the resource is a 'project' or a 'group'",
     },
-    path: {
+    resourceId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Project or group ID or path (e.g. mygroup/myproject)',
+    },
+    query: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Path inside the repository to list',
-    },
-    ref: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Branch, tag, or commit SHA to list from',
-    },
-    recursive: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Whether to list files recursively',
+      description: 'Filter invitations by invited email',
     },
     perPage: {
       type: 'number',
@@ -67,17 +61,15 @@ export const gitlabListRepositoryTreeTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const resourcePath = getGitLabResourcePath(params.resourceType, params.resourceId)
       const queryParams = new URLSearchParams()
 
-      if (params.path) queryParams.append('path', params.path)
-      if (params.ref) queryParams.append('ref', params.ref)
-      if (params.recursive) queryParams.append('recursive', 'true')
+      if (params.query) queryParams.append('query', params.query)
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
       if (params.page) queryParams.append('page', String(params.page))
 
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/repository/tree${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/${resourcePath}/invitations${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -95,26 +87,26 @@ export const gitlabListRepositoryTreeTool: ToolConfig<
       }
     }
 
-    const tree = await response.json()
+    const invitations = await response.json()
     const total = response.headers.get('x-total')
 
     return {
       success: true,
       output: {
-        tree: tree ?? [],
-        total: total ? Number.parseInt(total, 10) : (tree?.length ?? 0),
+        invitations,
+        total: total ? Number.parseInt(total, 10) : invitations.length,
       },
     }
   },
 
   outputs: {
-    tree: {
+    invitations: {
       type: 'array',
-      description: 'List of repository tree entries',
+      description: 'List of pending invitations',
     },
     total: {
       type: 'number',
-      description: 'Total number of tree entries',
+      description: 'Total number of invitations',
     },
   },
 }

@@ -66,3 +66,24 @@ export function normalizeGitLabHost(rawHost: unknown): string {
 export function getGitLabApiBase(rawHost: unknown): string {
   return `https://${normalizeGitLabHost(rawHost)}/api/v4`
 }
+
+/**
+ * A GitLab access/membership resource is scoped either to a project or a group.
+ * The two share an identical endpoint surface (`/members`, `/invitations`,
+ * `/access_requests`) that differs only in the leading path segment.
+ */
+export type GitLabResourceType = 'project' | 'group'
+
+/**
+ * Builds the path segment for a project- or group-scoped access resource, e.g.
+ * `projects/mygroup%2Fmyproject` or `groups/42`. The id is URL-encoded so that
+ * URL-encoded paths (`mygroup/myproject`) and numeric ids both work.
+ */
+export function getGitLabResourcePath(
+  resourceType: GitLabResourceType,
+  resourceId: string | number
+): string {
+  const encodedId = encodeURIComponent(String(resourceId).trim())
+  const segment = resourceType === 'group' ? 'groups' : 'projects'
+  return `${segment}/${encodedId}`
+}

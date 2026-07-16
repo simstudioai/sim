@@ -1,14 +1,18 @@
-import type { GitLabCancelPipelineParams, GitLabCancelPipelineResponse } from '@/tools/gitlab/types'
+import type {
+  GitLabListSamlGroupLinksParams,
+  GitLabListSamlGroupLinksResponse,
+} from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const gitlabCancelPipelineTool: ToolConfig<
-  GitLabCancelPipelineParams,
-  GitLabCancelPipelineResponse
+export const gitlabListSamlGroupLinksTool: ToolConfig<
+  GitLabListSamlGroupLinksParams,
+  GitLabListSamlGroupLinksResponse
 > = {
-  id: 'gitlab_cancel_pipeline',
-  name: 'GitLab Cancel Pipeline',
-  description: 'Cancel a running GitLab pipeline',
+  id: 'gitlab_list_saml_group_links',
+  name: 'GitLab List SAML Group Links',
+  description:
+    'List SAML group links for a GitLab group. Use this to detect whether a group is governed by SAML group sync before provisioning members.',
   version: '1.0.0',
 
   params: {
@@ -24,26 +28,20 @@ export const gitlabCancelPipelineTool: ToolConfig<
       visibility: 'user-only',
       description: 'Self-managed GitLab host (e.g. gitlab.example.com). Defaults to gitlab.com.',
     },
-    projectId: {
+    groupId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or path (e.g. mygroup/myproject)',
-    },
-    pipelineId: {
-      type: 'number',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Pipeline ID',
+      description: 'Group ID or path (e.g. my-org/my-group)',
     },
   },
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${params.pipelineId}/cancel`
+      const encodedId = encodeURIComponent(String(params.groupId).trim())
+      return `${getGitLabApiBase(params.host)}/groups/${encodedId}/saml_group_links`
     },
-    method: 'POST',
+    method: 'GET',
     headers: (params) => ({
       'PRIVATE-TOKEN': params.accessToken,
     }),
@@ -59,20 +57,25 @@ export const gitlabCancelPipelineTool: ToolConfig<
       }
     }
 
-    const pipeline = await response.json()
+    const samlGroupLinks = await response.json()
 
     return {
       success: true,
       output: {
-        pipeline,
+        samlGroupLinks,
+        total: Array.isArray(samlGroupLinks) ? samlGroupLinks.length : 0,
       },
     }
   },
 
   outputs: {
-    pipeline: {
-      type: 'object',
-      description: 'The cancelled GitLab pipeline',
+    samlGroupLinks: {
+      type: 'array',
+      description: 'List of SAML group links',
+    },
+    total: {
+      type: 'number',
+      description: 'Number of SAML group links',
     },
   },
 }
