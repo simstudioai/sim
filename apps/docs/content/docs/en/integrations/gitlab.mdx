@@ -859,7 +859,7 @@ Update a member's access level in a GitLab project or group
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | Yes | The ID of the member to update |
 | `accessLevel` | number | Yes | New access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
-| `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format |
+| `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format. Pass an empty string to clear an existing expiration. |
 | `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\). Warning: when omitted, GitLab removes any custom role the member currently holds. |
 
 #### Output

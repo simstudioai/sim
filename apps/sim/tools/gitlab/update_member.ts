@@ -53,7 +53,8 @@ export const gitlabUpdateMemberTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Access expiration date in YYYY-MM-DD format',
+      description:
+        'Access expiration date in YYYY-MM-DD format. Pass an empty string to clear an existing expiration.',
     },
     memberRoleId: {
       type: 'number',
@@ -79,7 +80,8 @@ export const gitlabUpdateMemberTool: ToolConfig<
         access_level: params.accessLevel,
       }
 
-      if (params.expiresAt) body.expires_at = params.expiresAt
+      // Send explicit empty string too, which clears an existing expiration.
+      if (params.expiresAt !== undefined) body.expires_at = params.expiresAt
       if (params.memberRoleId !== undefined) body.member_role_id = params.memberRoleId
 
       return body

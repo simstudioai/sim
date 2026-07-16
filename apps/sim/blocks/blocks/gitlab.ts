@@ -42,10 +42,13 @@ const USER_ID_OPS = [
   'gitlab_delete_user_identity',
 ]
 
-/** Operations that take a named access-level dropdown (required unless noted). */
+/**
+ * Operations that take the shared access-level dropdown (required unless
+ * noted). Update Member deliberately has its own dropdown without a default so
+ * an expiry-only edit cannot silently reset a Maintainer/Owner to Developer.
+ */
 const ACCESS_LEVEL_OPS = [
   'gitlab_add_member',
-  'gitlab_update_member',
   'gitlab_invite_member',
   'gitlab_approve_access_request',
   'gitlab_add_saml_group_link',
@@ -54,7 +57,6 @@ const ACCESS_LEVEL_OPS = [
 /** Operations where the access level is required (approve/invitation update are optional). */
 const ACCESS_LEVEL_REQUIRED_OPS = [
   'gitlab_add_member',
-  'gitlab_update_member',
   'gitlab_invite_member',
   'gitlab_add_saml_group_link',
 ]
@@ -1033,6 +1035,30 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: ACCESS_LEVEL_OPS,
       },
     },
+    // Access level for Update Member. Required by GitLab's edit-member API, but
+    // deliberately has NO default: the user must explicitly pick the level so an
+    // expiry-only edit can't silently downgrade a Maintainer/Owner to Developer.
+    {
+      id: 'memberAccessLevel',
+      title: 'Access Level',
+      type: 'dropdown',
+      options: [
+        { label: 'No access', id: '0' },
+        { label: 'Minimal Access', id: '5' },
+        { label: 'Guest', id: '10' },
+        { label: 'Planner', id: '15' },
+        { label: 'Reporter', id: '20' },
+        { label: 'Security Manager', id: '25' },
+        { label: 'Developer', id: '30' },
+        { label: 'Maintainer', id: '40' },
+        { label: 'Owner', id: '50' },
+      ],
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['gitlab_update_member'],
+      },
+    },
     // Optional access level for Update Invitation. Defaults to "Leave unchanged"
     // so updating only the expiration does not silently reset the access level.
     {
@@ -1818,7 +1844,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
             }
 
           case 'gitlab_update_member':
-            if (!params.resourceId?.trim() || !params.userId || !params.accessLevel) {
+            if (!params.resourceId?.trim() || !params.userId || !params.memberAccessLevel) {
               throw new Error('Project / Group ID, User ID, and Access Level are required.')
             }
             return {
@@ -1826,7 +1852,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
               userId: Number(params.userId),
-              accessLevel: Number(params.accessLevel),
+              accessLevel: Number(params.memberAccessLevel),
               expiresAt: params.expiresAt?.trim() || undefined,
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
             }
@@ -2130,6 +2156,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
     groupId: { type: 'string', description: 'Group ID or URL-encoded path' },
     userId: { type: 'number', description: 'Target user ID' },
     accessLevel: { type: 'number', description: 'GitLab access level (10-50)' },
+    memberAccessLevel: {
+      type: 'string',
+      description: 'Access level for member updates (explicit choice, no default)',
+    },
     invitationAccessLevel: {
       type: 'string',
       description: 'Optional new access level for an invitation ("" leaves it unchanged)',

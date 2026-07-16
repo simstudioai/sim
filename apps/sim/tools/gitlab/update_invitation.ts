@@ -76,7 +76,8 @@ export const gitlabUpdateInvitationTool: ToolConfig<
       const body: Record<string, unknown> = {}
 
       if (params.accessLevel !== undefined) body.access_level = params.accessLevel
-      if (params.expiresAt) body.expires_at = params.expiresAt
+      // Send explicit empty string too, which clears an existing expiration.
+      if (params.expiresAt !== undefined) body.expires_at = params.expiresAt
 
       return body
     },
