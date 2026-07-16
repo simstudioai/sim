@@ -6,11 +6,9 @@ description: Drive a PR to a clean review (Greptile 5/5, zero open threads) — 
 
 Owns a PR end-to-end through review: ship it, wait for the automatic review round, and if it
 isn't already clean, drive fix → reply → resolve → re-review cycles until Greptile reports 5/5
-and there are zero open comment threads. Also keeps the branch mergeable against staging, since
-a long babysit session can outlast staging moving underneath it — it's just a normal merge
-conflict, resolve it like you would any other. Designed to be run under `/loop` (no fixed
-interval — let it self-pace on review latency) so it survives across multiple wakeups in the
-same session.
+and there are zero open comment threads, keeping the branch mergeable against staging along the
+way. Designed to be run under `/loop` (no fixed interval — let it self-pace on review latency)
+so it survives across multiple wakeups in the same session.
 
 ## When to use
 
@@ -52,16 +50,12 @@ round. Always check both conditions freshly after every push.
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
    `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
    stopping on a partial page would silently miss unresolved ones past the cutoff.
-   If `mergeable` is `CONFLICTING`, resolve it first (step 2). If it's `UNKNOWN` (GitHub still
-   computing it), just wait for the next round (step 9) and recheck. Otherwise, if `mergeable`
-   is `MERGEABLE`, Greptile is 5/5, and every thread across all pages has `isResolved: true`,
-   stop — report the outcome (see "Reporting" below) and skip the rest of this list.
+   If `mergeable` is `CONFLICTING`, fix that first (step 2). Otherwise, if Greptile is 5/5 and
+   every thread across all pages has `isResolved: true`, stop — report the outcome (see
+   "Reporting" below) and skip the rest of this list.
 
-2. **If the PR has a merge conflict**, resolve it: merge `origin/staging`, fix the conflicts for
-   real (don't just take one side), run the repo's usual checks, commit, and push — a plain
-   `git push` is fine since merging doesn't rewrite history. If there are also pending review
-   findings, fix those in the same pass rather than pushing the conflict fix alone. Then go to
-   step 8 to trigger a fresh review.
+2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
+   usual pre-push checks, push, and go to step 8 to re-trigger review.
 
 3. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
    automatically on PR open — confirm via `gh pr checks <n>` (look for `Cursor Bugbot` /
@@ -136,9 +130,8 @@ round. Always check both conditions freshly after every push.
 
 ## Reporting
 
-When the loop ends, summarize: how many rounds it took, what was actually fixed (one line each,
-including any merge conflict resolved), what was pushed back on as a false positive and why, and
-the final Greptile score / thread count.
+When the loop ends, summarize: how many rounds it took, what was actually fixed (one line each),
+what was pushed back on as a false positive and why, and the final Greptile score / thread count.
 
 ## Hard rules
 
@@ -148,4 +141,3 @@ the final Greptile score / thread count.
   pattern elsewhere in the codebase solving the same class of problem and match it.
 - Never silently drop a finding — every thread gets either a code fix or a reasoned reply.
 - Always re-run the `/ship`-style sync check before every push in the loop, not just the first.
-- Never resolve a merge conflict by blindly taking one side — check the actual diff.
