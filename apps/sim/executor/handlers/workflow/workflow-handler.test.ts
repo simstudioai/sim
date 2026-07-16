@@ -626,6 +626,104 @@ describe('WorkflowBlockHandler', () => {
       expect(mockGetUserEmailById).not.toHaveBeenCalled()
     })
 
+    it('preserves a fail-soft null inherited email instead of re-resolving it', async () => {
+      const ctx = {
+        ...mockContext,
+        userId: 'publisher-1',
+        workspaceId: 'workspace-parent',
+        startRunMetadata: {
+          userEmail: null,
+          workspaceId: 'workspace-original',
+          workflowId: 'workflow-original',
+        },
+      } as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: {
+                blocks: {
+                  start: {
+                    id: 'start',
+                    type: 'start_trigger',
+                    name: 'Start',
+                    position: { x: 0, y: 0 },
+                    subBlocks: {
+                      runMetadata: { id: 'runMetadata', type: 'switch', value: true },
+                    },
+                    outputs: {},
+                    enabled: true,
+                  },
+                },
+                edges: [],
+                loops: {},
+                parallels: {},
+              },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.startRunMetadata.userEmail).toBeNull()
+      expect(mockGetUserEmailById).not.toHaveBeenCalled()
+    })
+
+    it('passes inherited metadata through a toggle-off child so deeper children keep it', async () => {
+      const inheritedMetadata = {
+        userEmail: 'original@corp.com',
+        workspaceId: 'workspace-original',
+        workflowId: 'workflow-original',
+      }
+      const ctx = {
+        ...mockContext,
+        userId: 'publisher-1',
+        workspaceId: 'workspace-parent',
+        startRunMetadata: inheritedMetadata,
+      } as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: {
+                blocks: {
+                  start: {
+                    id: 'start',
+                    type: 'start_trigger',
+                    name: 'Start',
+                    position: { x: 0, y: 0 },
+                    subBlocks: {},
+                    outputs: {},
+                    enabled: true,
+                  },
+                },
+                edges: [],
+                loops: {},
+                parallels: {},
+              },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].contextExtensions.startRunMetadata).toBe(inheritedMetadata)
+    })
+
     it('passes no run metadata when the child start block toggle is off', async () => {
       const ctx = {
         ...mockContext,

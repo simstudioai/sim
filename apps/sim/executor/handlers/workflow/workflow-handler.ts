@@ -396,14 +396,19 @@ export class WorkflowBlockHandler implements BlockHandler {
         execution: 'manual',
         isChildWorkflow: false,
       })
+      const inherited = ctx.startRunMetadata
       if (childStartResolution && isRunMetadataEnabled(childStartResolution.block)) {
         // When the parent run already carries trusted metadata, propagate ALL of
         // it so nested children see one consistent invoking identity (the
         // original consumer) instead of a mix of original and intermediate.
-        const inherited = ctx.startRunMetadata
+        // Inherited email is taken verbatim — a fail-soft null must stay null,
+        // not be re-resolved to the intermediate (publisher) identity.
         childStartRunMetadata = {
-          userEmail:
-            inherited?.userEmail ?? (ctx.userId ? await getUserEmailById(ctx.userId) : null),
+          userEmail: inherited
+            ? (inherited.userEmail ?? null)
+            : ctx.userId
+              ? await getUserEmailById(ctx.userId)
+              : null,
           workspaceId: inherited?.workspaceId ?? ctx.workspaceId ?? null,
           workflowId: inherited?.workflowId ?? ctx.workflowId ?? null,
           executionId: ctx.executionId,
@@ -432,7 +437,9 @@ export class WorkflowBlockHandler implements BlockHandler {
           // internal tool calls (knowledge, guardrails, MCP, Mothership) can
           // attach the required billing attribution header.
           billingAttribution: childBillingAttribution,
-          startRunMetadata: childStartRunMetadata,
+          // Fall back to the inherited metadata so a toggle-off intermediate
+          // child still carries the trusted identity chain to deeper children.
+          startRunMetadata: childStartRunMetadata ?? inherited,
           abortSignal: ctx.abortSignal,
           // Propagate in-flight block-output redaction into child workflows so
           // nested blocks mask outputs too (recurses: each child forwards it).
