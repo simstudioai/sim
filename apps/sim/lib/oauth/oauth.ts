@@ -1634,6 +1634,7 @@ export interface RefreshTokenSuccess {
 export interface RefreshTokenFailure {
   ok: false
   errorCode?: string
+  errorDescription?: string
   message?: string
 }
 
@@ -1647,6 +1648,14 @@ function extractErrorCode(value: unknown): string | undefined {
       const code = (error as { code: unknown }).code
       if (typeof code === 'string' || typeof code === 'number') return String(code)
     }
+  }
+  return undefined
+}
+
+function extractErrorDescription(value: unknown): string | undefined {
+  if (value && typeof value === 'object' && 'error_description' in value) {
+    const description = (value as { error_description: unknown }).error_description
+    if (typeof description === 'string' && description.trim()) return description
   }
   return undefined
 }
@@ -1698,6 +1707,7 @@ async function refreshInstagramLongLivedToken(
     return {
       ok: false,
       errorCode: extractErrorCode(responseData),
+      errorDescription: extractErrorDescription(responseData),
       message: `Failed to refresh token: ${response.status} ${errorSummary}`,
     }
   }
@@ -1769,6 +1779,7 @@ export async function refreshOAuthToken(
       return {
         ok: false,
         errorCode: extractErrorCode(errorData),
+        errorDescription: extractErrorDescription(errorData),
         message: `Failed to refresh token: ${response.status} ${errorText}`,
       }
     }
@@ -1790,6 +1801,7 @@ export async function refreshOAuthToken(
       return {
         ok: false,
         errorCode: typeof data.error === 'string' ? data.error : undefined,
+        errorDescription: extractErrorDescription(data),
         message: `Failed to refresh token: ${data.error ?? 'unknown'}`,
       }
     }

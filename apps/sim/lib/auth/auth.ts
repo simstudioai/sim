@@ -95,6 +95,8 @@ import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
 } from '@/lib/oauth/microsoft'
+import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
+import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
@@ -442,6 +444,38 @@ export const auth = betterAuth({
               providerId: account.providerId,
               error,
             })
+          }
+
+          /**
+           * A fresh Slack connect re-issues the installation's rotating token
+           * chain, invalidating the copies held by sibling account rows for the
+           * same team (Slack bot tokens are per-installation, not per-grant).
+           * Propagate the new chain so every sibling is valid again, and clear
+           * the installation's dead flag.
+           */
+          if (account.providerId === 'slack' && account.accessToken) {
+            try {
+              const teamId = extractSlackTeamId(account.accountId)
+              if (teamId) {
+                await fanOutSlackTokenChain(teamId, {
+                  accessToken: account.accessToken,
+                  refreshToken: account.refreshToken ?? null,
+                  accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
+                })
+                await clearDeadFlag(`slack:${teamId}`)
+                logger.info('[account.create.after] Propagated Slack installation token chain', {
+                  userId: account.userId,
+                  teamId,
+                  newAccountId: account.id,
+                })
+              }
+            } catch (error) {
+              logger.error('[account.create.after] Failed to propagate Slack token chain', {
+                userId: account.userId,
+                accountId: account.id,
+                error,
+              })
+            }
           }
 
           try {

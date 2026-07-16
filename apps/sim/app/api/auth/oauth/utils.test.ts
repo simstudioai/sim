@@ -166,7 +166,28 @@ describe('OAuth Utils', () => {
 
       await expect(
         refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
-      ).rejects.toThrow('Failed to refresh token')
+      ).rejects.toThrow('invalid_grant (google)')
+    })
+
+    it('should preserve the provider error description in the thrown error', async () => {
+      const mockCredential = {
+        id: 'credential-id',
+        accessToken: 'expired-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
+        providerId: 'google',
+      }
+
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: false,
+        errorCode: 'invalid_grant',
+        errorDescription: 'Token has been expired or revoked.',
+        message: 'Failed',
+      })
+
+      await expect(
+        refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
+      ).rejects.toThrow('invalid_grant (google: Token has been expired or revoked.)')
     })
 
     it('should not attempt refresh if no refresh token', async () => {
@@ -279,6 +300,121 @@ describe('OAuth Utils', () => {
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
       expect(token).toBeNull()
+    })
+  })
+
+  describe('Slack installation-scoped refresh', () => {
+    const SLACK_ACCOUNT_ID = 'T08CM6ZNYBE-usr_U08USBQ9B1T-cbf46a7e-ca75-4a2e-bef5-fd467299eaae'
+    const past = new Date(Date.now() - 3600 * 1000)
+    const future = new Date(Date.now() + 3600 * 1000)
+
+    /** Select chain for getFreshestSlackChain: where() -> orderBy() -> limit(). */
+    function mockSelectOrderedChain(limitResult: unknown[]) {
+      const mockLimit = vi.fn().mockReturnValue(limitResult)
+      const mockOrderBy = vi.fn().mockReturnValue({ limit: mockLimit })
+      const mockWhere = vi.fn().mockReturnValue({ orderBy: mockOrderBy, limit: mockLimit })
+      const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
+      mockDb.select.mockReturnValueOnce({ from: mockFrom })
+      return { mockWhere, mockOrderBy, mockLimit }
+    }
+
+    function slackCredential(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'row-1',
+        resolvedCredentialId: 'row-1',
+        accountId: SLACK_ACCOUNT_ID,
+        accessToken: 'stale-at',
+        refreshToken: 'stale-rt',
+        accessTokenExpiresAt: past,
+        providerId: 'slack',
+        ...overrides,
+      }
+    }
+
+    it('locks per installation and refreshes with the freshest sibling refresh token', async () => {
+      mockSelectOrderedChain([
+        { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
+      ])
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: true,
+        accessToken: 'new-at',
+        expiresIn: 43200,
+        refreshToken: 'new-rt',
+      })
+      const { mockSet } = mockUpdateChain()
+
+      const result = await refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')
+
+      expect(result).toEqual({ accessToken: 'new-at', refreshed: true })
+      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe(
+        'oauth:refresh:slack:T08CM6ZNYBE'
+      )
+      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'live-rt')
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({ accessToken: 'new-at', refreshToken: 'new-rt' })
+      )
+    })
+
+    it('returns the freshest sibling token without refreshing when it is still valid', async () => {
+      mockSelectOrderedChain([
+        { accessToken: 'sibling-at', refreshToken: 'live-rt', accessTokenExpiresAt: future },
+      ])
+      const { mockSet } = mockUpdateChain()
+
+      const result = await refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')
+
+      expect(result).toEqual({ accessToken: 'sibling-at', refreshed: true })
+      expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({ accessToken: 'sibling-at', refreshToken: 'live-rt' })
+      )
+    })
+
+    it('keeps per-row behavior for pasted custom-bot account ids', async () => {
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: true,
+        accessToken: 'new-at',
+        expiresIn: 43200,
+        refreshToken: 'new-rt',
+      })
+      mockUpdateChain()
+
+      const result = await refreshTokenIfNeeded(
+        'request-id',
+        slackCredential({ accountId: 'slack-bot-1764756583292' }),
+        'row-1'
+      )
+
+      expect(result).toEqual({ accessToken: 'new-at', refreshed: true })
+      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe('oauth:refresh:row-1')
+      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'stale-rt')
+    })
+
+    it('dead-flags the installation, not the row, on terminal refresh errors', async () => {
+      const fakeRedis = {
+        set: vi.fn().mockResolvedValue('OK'),
+        get: vi.fn().mockResolvedValue(null),
+        del: vi.fn().mockResolvedValue(1),
+      }
+      redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeRedis)
+      mockSelectOrderedChain([
+        { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
+      ])
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: false,
+        errorCode: 'token_revoked',
+      })
+
+      await expect(refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')).rejects.toThrow(
+        'token_revoked (slack)'
+      )
+
+      expect(fakeRedis.set).toHaveBeenCalledWith(
+        'oauth:dead:slack:T08CM6ZNYBE',
+        'token_revoked',
+        'EX',
+        3600
+      )
     })
   })
 

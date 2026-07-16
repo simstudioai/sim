@@ -12,6 +12,7 @@ import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { OAuthRefreshError } from '@/lib/oauth/errors'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getCredential,
@@ -300,7 +301,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     } catch (error) {
       logger.error(`[${requestId}] Failed to refresh access token:`, error)
-      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
+      const detail = error instanceof OAuthRefreshError ? `: ${error.message}` : ''
+      return NextResponse.json(
+        { error: `Failed to refresh access token${detail}` },
+        { status: 401 }
+      )
     }
   } catch (error) {
     logger.error(`[${requestId}] Error getting access token`, error)
@@ -410,8 +415,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         },
         { status: 200 }
       )
-    } catch (_error) {
-      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to refresh access token:`, error)
+      const detail = error instanceof OAuthRefreshError ? `: ${error.message}` : ''
+      return NextResponse.json(
+        { error: `Failed to refresh access token${detail}` },
+        { status: 401 }
+      )
     }
   } catch (error) {
     logger.error(`[${requestId}] Error fetching access token`, error)

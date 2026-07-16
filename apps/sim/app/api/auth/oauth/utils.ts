@@ -21,12 +21,19 @@ import {
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
 import { refreshOAuthToken } from '@/lib/oauth'
+import { OAuthRefreshError } from '@/lib/oauth/errors'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
+import {
+  extractSlackTeamId,
+  fanOutSlackTokenChain,
+  getFreshestSlackChain,
+  isSlackProvider,
+} from '@/lib/oauth/slack'
 import {
   getRecentTerminalError,
   isTerminalRefreshError,
@@ -658,41 +665,83 @@ interface CoalescedRefreshOptions {
   accountId: string
   providerId: string
   refreshToken: string
+  /** External provider account id (`account.accountId`), used to scope Slack refreshes per installation. */
+  providerAccountId?: string | null
   requestId?: string
   userId?: string
+}
+
+interface CoalescedRefreshOutcome {
+  accessToken: string | null
+  /** Present when the refresh failed with a known provider error; absent on follower timeout / transient failure. */
+  error?: OAuthRefreshError
 }
 
 async function performCoalescedRefresh({
   accountId,
   providerId,
   refreshToken,
+  providerAccountId,
   requestId,
   userId,
-}: CoalescedRefreshOptions): Promise<string | null> {
+}: CoalescedRefreshOptions): Promise<CoalescedRefreshOutcome> {
+  /**
+   * Slack bot tokens are per-installation (team × app): every account row for
+   * one team holds a copy of the same rotating chain, so refreshes are locked,
+   * dead-flagged, and written per installation rather than per row.
+   */
+  const slackTeamId = isSlackProvider(providerId) ? extractSlackTeamId(providerAccountId) : null
+  const scopeKey = slackTeamId ? `slack:${slackTeamId}` : accountId
+
   const logContext = {
     ...(requestId ? { requestId } : {}),
     ...(userId ? { userId } : {}),
+    ...(slackTeamId ? { slackTeamId } : {}),
     providerId,
     accountId,
   }
 
-  const deadCode = await getRecentTerminalError(accountId)
+  const deadCode = await getRecentTerminalError(scopeKey)
   if (deadCode) {
     logger.warn('Skipping refresh: credential recently failed', {
       ...logContext,
       errorCode: deadCode,
     })
-    return null
+    return { accessToken: null, error: new OAuthRefreshError(providerId, deadCode) }
   }
 
-  const lockKey = `oauth:refresh:${accountId}`
+  const lockKey = `oauth:refresh:${scopeKey}`
 
   const refreshPromise = coalesceLocally(lockKey, () =>
-    withLeaderLock<string>({
+    withLeaderLock<CoalescedRefreshOutcome>({
       key: lockKey,
       onLeader: async () => {
         try {
-          const result = await refreshOAuthToken(providerId, refreshToken)
+          let refreshTokenToUse = refreshToken
+          if (slackTeamId) {
+            const freshest = await getFreshestSlackChain(slackTeamId)
+            if (!freshest) {
+              throw new Error(
+                `No refresh-capable account row found for Slack installation ${slackTeamId}`
+              )
+            }
+            if (
+              freshest.accessToken &&
+              freshest.accessTokenExpiresAt &&
+              freshest.accessTokenExpiresAt > new Date()
+            ) {
+              await fanOutSlackTokenChain(slackTeamId, {
+                accessToken: freshest.accessToken,
+                refreshToken: freshest.refreshToken,
+                accessTokenExpiresAt: freshest.accessTokenExpiresAt,
+              })
+              logger.info('Reused freshest Slack installation token', logContext)
+              return { accessToken: freshest.accessToken }
+            }
+            refreshTokenToUse = freshest.refreshToken
+          }
+
+          const result = await refreshOAuthToken(providerId, refreshTokenToUse)
 
           if (!result.ok) {
             logger.error('Failed to refresh token', {
@@ -700,33 +749,46 @@ async function performCoalescedRefresh({
               errorCode: result.errorCode,
             })
             if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
-              await markCredentialDead(accountId, result.errorCode)
+              await markCredentialDead(scopeKey, result.errorCode)
             }
-            return null
+            return {
+              accessToken: null,
+              error: new OAuthRefreshError(providerId, result.errorCode, result.errorDescription),
+            }
           }
 
-          const updateData: Record<string, unknown> = {
-            accessToken: result.accessToken,
-            accessTokenExpiresAt: new Date(Date.now() + result.expiresIn * 1000),
-            updatedAt: new Date(),
-          }
-          if (result.refreshToken && result.refreshToken !== refreshToken) {
-            updateData.refreshToken = result.refreshToken
-          }
-          if (isMicrosoftProvider(providerId)) {
-            updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
-          }
+          const accessTokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000)
 
-          await db.update(account).set(updateData).where(eq(account.id, accountId))
+          if (slackTeamId) {
+            await fanOutSlackTokenChain(slackTeamId, {
+              accessToken: result.accessToken,
+              refreshToken: result.refreshToken || refreshTokenToUse,
+              accessTokenExpiresAt,
+            })
+          } else {
+            const updateData: Record<string, unknown> = {
+              accessToken: result.accessToken,
+              accessTokenExpiresAt,
+              updatedAt: new Date(),
+            }
+            if (result.refreshToken && result.refreshToken !== refreshToken) {
+              updateData.refreshToken = result.refreshToken
+            }
+            if (isMicrosoftProvider(providerId)) {
+              updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+            }
+
+            await db.update(account).set(updateData).where(eq(account.id, accountId))
+          }
 
           logger.info('Successfully refreshed access token', logContext)
-          return result.accessToken
+          return { accessToken: result.accessToken }
         } catch (error) {
           logger.error('Refresh failed inside leader path', {
             ...logContext,
             error: toError(error).message,
           })
-          return null
+          return { accessToken: null }
         }
       },
       onFollower: async () => {
@@ -745,7 +807,7 @@ async function performCoalescedRefresh({
             row.accessTokenExpiresAt > new Date()
           ) {
             logger.info('Got fresh access token from coalesced refresh', logContext)
-            return row.accessToken
+            return { accessToken: row.accessToken }
           }
           return null
         } catch (error) {
@@ -760,13 +822,13 @@ async function performCoalescedRefresh({
   )
 
   try {
-    return await refreshPromise
+    return (await refreshPromise) ?? { accessToken: null }
   } catch (error) {
     logger.error('Coalesced refresh did not settle', {
       ...logContext,
       error: toError(error).message,
     })
-    return null
+    return { accessToken: null }
   }
 }
 
@@ -774,6 +836,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
   const connections = await db
     .select({
       id: account.id,
+      providerAccountId: account.accountId,
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
@@ -809,16 +872,18 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     })
 
   if (accessTokenNeedsRefresh || instagramNeedsProactiveRefresh) {
-    const fresh = await performCoalescedRefresh({
+    const outcome = await performCoalescedRefresh({
       accountId: credential.id,
       providerId,
       refreshToken: credential.refreshToken!,
+      providerAccountId: credential.providerAccountId,
       userId,
     })
-    if (fresh) return fresh
+    if (outcome.accessToken) return outcome.accessToken
     if (!accessTokenNeedsRefresh && credential.accessToken) {
       return credential.accessToken
     }
+    if (outcome.error) throw outcome.error
     return null
   }
 
@@ -911,14 +976,15 @@ export async function resolveCredentialAccessToken(
     const resolvedCredentialId =
       (credential as { resolvedCredentialId?: string }).resolvedCredentialId ?? credentialId
 
-    const fresh = await performCoalescedRefresh({
+    const outcome = await performCoalescedRefresh({
       accountId: resolvedCredentialId,
       providerId: credential.providerId,
       refreshToken: credential.refreshToken!,
+      providerAccountId: credential.accountId,
       requestId,
       userId: credential.userId,
     })
-    if (fresh) return { accessToken: fresh }
+    if (outcome.accessToken) return { accessToken: outcome.accessToken }
 
     // If refresh was only triggered proactively (Microsoft refresh-token aging /
     // Instagram long-lived nearing expiry), the still-valid access token is fine.
@@ -1015,18 +1081,19 @@ export async function refreshTokenIfNeeded(
     return { accessToken: credential.accessToken, refreshed: false }
   }
 
-  const fresh = await performCoalescedRefresh({
+  const outcome = await performCoalescedRefresh({
     accountId: resolvedCredentialId,
     providerId: credential.providerId,
     refreshToken: credential.refreshToken!,
+    providerAccountId: credential.accountId,
     requestId,
     userId: credential.userId,
   })
-  if (fresh) return { accessToken: fresh, refreshed: true }
+  if (outcome.accessToken) return { accessToken: outcome.accessToken, refreshed: true }
 
   if (!accessTokenNeedsRefresh && credential.accessToken) {
     logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
     return { accessToken: credential.accessToken, refreshed: false }
   }
-  throw new Error('Failed to refresh token')
+  throw outcome.error ?? new Error('Failed to refresh token')
 }
