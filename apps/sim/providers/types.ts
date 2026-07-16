@@ -16,6 +16,7 @@ export type ProviderId =
   | 'nvidia'
   | 'meta'
   | 'zai'
+  | 'kimi'
   | 'mistral'
   | 'ollama'
   | 'ollama-cloud'
