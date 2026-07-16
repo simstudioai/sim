@@ -118,6 +118,9 @@ export const rocketlaneCreateTimeOffTool: ToolConfig<
     method: 'POST',
     headers: (params) => rocketlaneHeaders(params.apiKey),
     body: (params) => {
+      if (params.userId == null && !params.userEmail) {
+        throw new Error('Either a user ID or a user email is required to create a time-off')
+      }
       const user: Record<string, unknown> = {}
       if (params.userId != null) user.userId = params.userId
       if (params.userEmail) user.emailId = params.userEmail

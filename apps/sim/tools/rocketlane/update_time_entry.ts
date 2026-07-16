@@ -102,8 +102,8 @@ export const rocketlaneUpdateTimeEntryTool: ToolConfig<
         date: params.date,
         minutes: params.minutes,
       }
-      if (params.activityName) body.activityName = params.activityName
-      if (params.notes) body.notes = params.notes
+      if (params.activityName !== undefined) body.activityName = params.activityName
+      if (params.notes !== undefined) body.notes = params.notes
       if (params.billable != null) body.billable = params.billable
       if (params.categoryId != null) body.category = { categoryId: params.categoryId }
       return body

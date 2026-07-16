@@ -153,9 +153,9 @@ export const rocketlaneUpdateProjectTool: ToolConfig<
     headers: (params) => rocketlaneHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.projectName) body.projectName = params.projectName
-      if (params.startDate) body.startDate = params.startDate
-      if (params.dueDate) body.dueDate = params.dueDate
+      if (params.projectName !== undefined) body.projectName = params.projectName
+      if (params.startDate !== undefined) body.startDate = params.startDate
+      if (params.dueDate !== undefined) body.dueDate = params.dueDate
       if (params.visibility) body.visibility = params.visibility
       const owner: Record<string, unknown> = {}
       if (params.ownerUserId != null) owner.userId = params.ownerUserId
@@ -168,7 +168,8 @@ export const rocketlaneUpdateProjectTool: ToolConfig<
       if (params.projectFee != null) body.projectFee = params.projectFee
       if (params.autoAllocation != null) body.autoAllocation = params.autoAllocation
       if (params.budgetedHours != null) body.budgetedHours = params.budgetedHours
-      if (params.externalReferenceId) body.externalReferenceId = params.externalReferenceId
+      if (params.externalReferenceId !== undefined)
+        body.externalReferenceId = params.externalReferenceId
       return body
     },
   },

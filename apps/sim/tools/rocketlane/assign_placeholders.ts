@@ -61,6 +61,9 @@ export const rocketlaneAssignPlaceholdersTool: ToolConfig<
     method: 'POST',
     headers: (params) => rocketlaneHeaders(params.apiKey),
     body: (params) => {
+      if (params.userId == null && !params.userEmailId) {
+        throw new Error('Either a user ID or a user email is required to assign a placeholder')
+      }
       const user: Record<string, unknown> = {}
       if (params.userId != null) user.userId = params.userId
       if (params.userEmailId) user.emailId = params.userEmailId
