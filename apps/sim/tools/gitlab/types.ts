@@ -1,3 +1,4 @@
+import type { GitLabResourceType } from '@/tools/gitlab/utils'
 import type { ToolResponse } from '@/tools/types'
 
 interface GitLabProject {
@@ -754,6 +755,306 @@ export interface GitLabPlayJobResponse extends ToolResponse {
   }
 }
 
+interface GitLabMember {
+  id: number
+  username: string
+  name: string
+  state: string
+  access_level: number
+  web_url?: string
+  expires_at?: string | null
+  membership_state?: string
+  member_role?: { id: number; name: string } | null
+}
+
+interface GitLabInvitation {
+  id?: number
+  invite_email: string
+  access_level: number
+  created_at?: string
+  expires_at?: string | null
+  user_name?: string
+  invite_token?: string
+  member_role_id?: number | null
+}
+
+interface GitLabAccessRequest {
+  id: number
+  username: string
+  name: string
+  state: string
+  requested_at: string
+  access_level?: number
+  web_url?: string
+}
+
+interface GitLabSamlGroupLink {
+  name: string
+  access_level: number
+  member_role_id?: number | null
+}
+
+interface GitLabUser {
+  id: number
+  username: string
+  name: string
+  email?: string
+  state: string
+  web_url?: string
+  is_admin?: boolean
+  created_at?: string
+}
+
+/**
+ * The access resources (`/members`, `/invitations`, `/access_requests`) exist
+ * on both projects and groups; the tool receives `resourceType` to select which.
+ */
+interface GitLabResourceScopedParams extends GitLabBaseParams {
+  resourceType: GitLabResourceType
+  resourceId: string | number
+}
+
+export interface GitLabListMembersParams extends GitLabResourceScopedParams {
+  /** When true, returns only direct members (`/members`). Defaults to false, which returns inherited members too (`/members/all`). */
+  directOnly?: boolean
+  query?: string
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabAddMemberParams extends GitLabResourceScopedParams {
+  userId: number
+  accessLevel: number
+  expiresAt?: string
+  memberRoleId?: number
+}
+
+export interface GitLabUpdateMemberParams extends GitLabResourceScopedParams {
+  userId: number
+  accessLevel: number
+  expiresAt?: string
+  memberRoleId?: number
+}
+
+export interface GitLabRemoveMemberParams extends GitLabResourceScopedParams {
+  userId: number
+}
+
+export interface GitLabInviteMemberParams extends GitLabResourceScopedParams {
+  email: string
+  accessLevel: number
+  expiresAt?: string
+  memberRoleId?: number
+}
+
+export interface GitLabListInvitationsParams extends GitLabResourceScopedParams {
+  query?: string
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabUpdateInvitationParams extends GitLabResourceScopedParams {
+  email: string
+  accessLevel?: number
+  expiresAt?: string
+}
+
+export interface GitLabRevokeInvitationParams extends GitLabResourceScopedParams {
+  email: string
+}
+
+export interface GitLabListAccessRequestsParams extends GitLabResourceScopedParams {
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabApproveAccessRequestParams extends GitLabResourceScopedParams {
+  userId: number
+  accessLevel?: number
+}
+
+export interface GitLabDenyAccessRequestParams extends GitLabResourceScopedParams {
+  userId: number
+}
+
+export interface GitLabListSamlGroupLinksParams extends GitLabBaseParams {
+  groupId: string | number
+}
+
+export interface GitLabAddSamlGroupLinkParams extends GitLabBaseParams {
+  groupId: string | number
+  samlGroupName: string
+  accessLevel: number
+  memberRoleId?: number
+}
+
+export interface GitLabDeleteSamlGroupLinkParams extends GitLabBaseParams {
+  groupId: string | number
+  samlGroupName: string
+}
+
+export interface GitLabSearchUsersParams extends GitLabBaseParams {
+  search: string
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabCreateUserParams extends GitLabBaseParams {
+  email: string
+  username: string
+  name: string
+  password?: string
+  resetPassword?: boolean
+  admin?: boolean
+  skipConfirmation?: boolean
+}
+
+export interface GitLabUpdateUserParams extends GitLabBaseParams {
+  userId: number
+  email?: string
+  username?: string
+  name?: string
+  admin?: boolean
+}
+
+export interface GitLabDeleteUserParams extends GitLabBaseParams {
+  userId: number
+  hardDelete?: boolean
+}
+
+/** Shared shape for the single-user POST actions (block/unblock/deactivate/activate/ban/unban/approve/reject). */
+export interface GitLabUserActionParams extends GitLabBaseParams {
+  userId: number
+}
+
+export interface GitLabDeleteUserIdentityParams extends GitLabBaseParams {
+  userId: number
+  provider: string
+}
+
+export interface GitLabListMembersResponse extends ToolResponse {
+  output: {
+    members?: GitLabMember[]
+    total?: number
+  }
+}
+
+export interface GitLabAddMemberResponse extends ToolResponse {
+  output: {
+    member?: GitLabMember
+    /** True when the user was already a member (409) — treated as a soft success so workflows are re-runnable. */
+    alreadyMember?: boolean
+  }
+}
+
+export interface GitLabUpdateMemberResponse extends ToolResponse {
+  output: {
+    member?: GitLabMember
+  }
+}
+
+export interface GitLabRemoveMemberResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabInviteMemberResponse extends ToolResponse {
+  output: {
+    status?: string
+    message?: unknown
+  }
+}
+
+export interface GitLabListInvitationsResponse extends ToolResponse {
+  output: {
+    invitations?: GitLabInvitation[]
+    total?: number
+  }
+}
+
+export interface GitLabUpdateInvitationResponse extends ToolResponse {
+  output: {
+    invitation?: GitLabInvitation
+  }
+}
+
+export interface GitLabRevokeInvitationResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabListAccessRequestsResponse extends ToolResponse {
+  output: {
+    accessRequests?: GitLabAccessRequest[]
+    total?: number
+  }
+}
+
+export interface GitLabApproveAccessRequestResponse extends ToolResponse {
+  output: {
+    accessRequest?: GitLabAccessRequest
+  }
+}
+
+export interface GitLabDenyAccessRequestResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabListSamlGroupLinksResponse extends ToolResponse {
+  output: {
+    samlGroupLinks?: GitLabSamlGroupLink[]
+    total?: number
+  }
+}
+
+export interface GitLabSamlGroupLinkResponse extends ToolResponse {
+  output: {
+    samlGroupLink?: GitLabSamlGroupLink
+  }
+}
+
+export interface GitLabDeleteSamlGroupLinkResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabSearchUsersResponse extends ToolResponse {
+  output: {
+    users?: GitLabUser[]
+    total?: number
+  }
+}
+
+export interface GitLabUserResponse extends ToolResponse {
+  output: {
+    user?: GitLabUser
+  }
+}
+
+export interface GitLabDeleteUserResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
+export interface GitLabUserActionResponse extends ToolResponse {
+  output: {
+    success?: boolean
+    user?: GitLabUser
+  }
+}
+
+export interface GitLabDeleteUserIdentityResponse extends ToolResponse {
+  output: {
+    success?: boolean
+  }
+}
+
 export type GitLabResponse =
   | GitLabListProjectsResponse
   | GitLabGetProjectResponse
@@ -789,3 +1090,22 @@ export type GitLabResponse =
   | GitLabListPipelineJobsResponse
   | GitLabGetJobLogResponse
   | GitLabPlayJobResponse
+  | GitLabListMembersResponse
+  | GitLabAddMemberResponse
+  | GitLabUpdateMemberResponse
+  | GitLabRemoveMemberResponse
+  | GitLabInviteMemberResponse
+  | GitLabListInvitationsResponse
+  | GitLabUpdateInvitationResponse
+  | GitLabRevokeInvitationResponse
+  | GitLabListAccessRequestsResponse
+  | GitLabApproveAccessRequestResponse
+  | GitLabDenyAccessRequestResponse
+  | GitLabListSamlGroupLinksResponse
+  | GitLabSamlGroupLinkResponse
+  | GitLabDeleteSamlGroupLinkResponse
+  | GitLabSearchUsersResponse
+  | GitLabUserResponse
+  | GitLabDeleteUserResponse
+  | GitLabUserActionResponse
+  | GitLabDeleteUserIdentityResponse
