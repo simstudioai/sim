@@ -63,20 +63,23 @@ round. Always check both conditions freshly after every push.
    "Reporting" below) and skip the rest of this list.
 
 2. **If the PR has a merge conflict**, fix it: `git fetch origin staging`, `git merge
-   origin/staging`, resolve the conflicts for real (don't just take one side blindly), `git add`
-   the resolved files, then `git commit` to complete the merge commit — a merge with conflicts
-   stays uncommitted until you do this. If step 1 also found unresolved review threads, don't
-   push the conflict fix alone and leave those findings unaddressed — triage and fix them now
-   too (step 4), replying/resolving each (step 5), then `git add`/`git commit` those as their
-   own commit same as step 7 would (keep it separate from the merge commit). The merge is this
-   round's sync check (it already pulls in current `origin/staging`) — no need to also run step
-   6's stash/rebase/cherry-pick machinery, which is for a different problem (local stray
-   commits) — but do spot-check `git log --oneline --reverse origin/staging..HEAD` still shows
-   only commits you recognize before pushing, same as step 6 would. Then run the same pre-push
-   checks as step 6 (lint, boundary validation, and the conditional cleanup/db-migrate gates)
-   before a plain `git push` — a merge commit doesn't rewrite already-published history, so this
-   never needs `--force-with-lease` — and verify the push landed the same way step 7 does. Skip
-   step 3 and go straight to step 8 to trigger a fresh review of the resolved code.
+   origin/staging`, resolve the conflicts for real (don't just take one side blindly). If step 1
+   also found unresolved review threads, don't leave those findings unaddressed while you're
+   already touching the branch — triage and fix them now too (step 4), replying/resolving each
+   (step 5). Before committing anything, run the same pre-push checks as step 6 (lint, boundary
+   validation, and the conditional cleanup/db-migrate gates) — same order step 6 → step 7 uses,
+   checks before commit, not after, since `lint` can auto-fix files and committing first would
+   leave those fixes unstaged after push. Then `git add` the resolved/fixed files and `git
+   commit` to complete the merge commit — a merge with conflicts stays uncommitted until you do
+   this — committing any review-thread fixes as their own separate commit same as step 7 would
+   (keep it separate from the merge commit). The merge is this round's sync check (it already
+   pulls in current `origin/staging`) — no need to also run step 6's stash/rebase/cherry-pick
+   machinery, which is for a different problem (local stray commits) — but do spot-check
+   `git log --oneline --reverse origin/staging..HEAD` still shows only commits you recognize
+   before pushing, same as step 6 would. Then a plain `git push` — a merge commit doesn't
+   rewrite already-published history, so this never needs `--force-with-lease` — and verify the
+   push landed the same way step 7 does. Skip step 3 and go straight to step 8 to trigger a
+   fresh review of the resolved code.
 
 3. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
    automatically on PR open — confirm via `gh pr checks <n>` (look for `Cursor Bugbot` /
