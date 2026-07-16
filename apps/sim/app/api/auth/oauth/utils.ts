@@ -680,11 +680,13 @@ interface CoalescedRefreshOutcome {
 /**
  * Slack lock budgets sized past `TOKEN_REFRESH_TIMEOUT_MS` (15s) in
  * lib/oauth/oauth.ts: installation-keyed locks make every sibling row's request
- * a follower of one refresh, so followers must keep polling for the leader's
- * full provider window and the lock must not expire under a live refresh.
+ * a follower of one refresh. The lock TTL must not expire under a live refresh
+ * (15s provider call plus DB reads and the fan-out write), and followers poll
+ * for the lock's full lifetime so a slow-but-successful refresh is still
+ * observed rather than reported as a failure.
  */
-const SLACK_FOLLOWER_MAX_WAIT_MS = 16_000
 const SLACK_LOCK_TTL_SEC = 20
+const SLACK_FOLLOWER_MAX_WAIT_MS = SLACK_LOCK_TTL_SEC * 1000
 
 async function performCoalescedRefresh({
   accountId,
