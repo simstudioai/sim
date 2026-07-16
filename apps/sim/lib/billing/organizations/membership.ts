@@ -313,6 +313,14 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
 }
 
 export interface PauseProForOrgCoverageResult {
+  /**
+   * True when an entitled paid organization covers this user — regardless of
+   * whether this call changed any state (the personal Pro may already be
+   * pausing). Callers gate coverage-dependent behavior on this, never on
+   * `paused`, so repeated invocations stay consistent.
+   */
+  covered: boolean
+  /** True only when this call transitioned the personal Pro to cancel at period end. */
   paused: boolean
   subscriptionId?: string
   organizationId?: string
@@ -335,16 +343,16 @@ export interface PauseProForOrgCoverageResult {
  * usage already attributes to the organization pool, and moving it into the
  * pro snapshot would undercount the org's period.
  *
- * Idempotent: no-ops when there is no entitled personal Pro, when it is
- * already pausing, or when no entitled paid org covers the user. All checks
- * re-run under the user billing identity lock and a `FOR UPDATE` read of the
- * personal subscription row — the same serialization points as the join and
- * restore paths.
+ * Idempotent: no state change when there is no entitled personal Pro, when
+ * it is already pausing, or when no entitled paid org covers the user. All
+ * checks re-run under the user billing identity lock and a `FOR UPDATE` read
+ * of the personal subscription row — the same serialization points as the
+ * join and restore paths.
  */
 export async function pauseProSubscriptionForOrgCoverage(
   userId: string
 ): Promise<PauseProForOrgCoverageResult> {
-  const result: PauseProForOrgCoverageResult = { paused: false }
+  const result: PauseProForOrgCoverageResult = { covered: false, paused: false }
 
   await db.transaction(async (tx) => {
     await acquireUserBillingIdentityLock(tx, userId)
@@ -362,7 +370,7 @@ export async function pauseProSubscriptionForOrgCoverage(
       .for('update')
       .limit(1)
 
-    if (!personalPro || personalPro.cancelAtPeriodEnd) return
+    if (!personalPro) return
 
     const memberships = await tx
       .select({ organizationId: member.organizationId })
@@ -387,6 +395,12 @@ export async function pauseProSubscriptionForOrgCoverage(
     )
     if (!coveringSubscription) return
 
+    result.covered = true
+    result.subscriptionId = personalPro.id
+    result.organizationId = coveringSubscription.referenceId
+
+    if (personalPro.cancelAtPeriodEnd) return
+
     await tx
       .update(subscriptionTable)
       .set({ cancelAtPeriodEnd: true })
@@ -401,8 +415,6 @@ export async function pauseProSubscriptionForOrgCoverage(
     }
 
     result.paused = true
-    result.subscriptionId = personalPro.id
-    result.organizationId = coveringSubscription.referenceId
   })
 
   if (result.paused) {

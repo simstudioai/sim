@@ -75,7 +75,7 @@ describe('authorizeSubscriptionReference', () => {
 
     await expect(
       authorizeSubscriptionReference('owner-1', 'org-1', 'upgrade-subscription', 'team_6000')
-    ).resolves.toBe(false)
+    ).rejects.toThrow(/Enterprise plan setup in progress/)
 
     expect(mockAssertNoUnresolved).toHaveBeenCalledWith(expect.anything(), 'org-1')
     expect(mockIsOwnerOrAdmin).not.toHaveBeenCalled()
@@ -108,7 +108,7 @@ describe('authorizeSubscriptionReference', () => {
 
     await expect(
       authorizeSubscriptionReference('owner-1', 'org-1', 'upgrade-subscription', 'team_6000')
-    ).resolves.toBe(false)
+    ).rejects.toThrow(/already has an active subscription/)
   })
 
   it('does not apply checkout-only rules to other billing actions', async () => {

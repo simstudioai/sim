@@ -83,12 +83,14 @@ export async function assertPersonalCheckoutAllowed(userId: string): Promise<voi
  * checkouts are guarded by {@link assertPersonalCheckoutAllowed} in the
  * `hooks.before` middleware instead).
  *
- * For `upgrade-subscription` (checkout) this enforces:
+ * For `upgrade-subscription` (checkout) this enforces, each thrown as an
+ * {@link APIError} with a descriptive message so callers see the real
+ * reason instead of a generic "Unauthorized":
  * - Organizations can only check out Team or Enterprise plans — a `pro_*`
- *   plan can never become org-referenced. Thrown as {@link APIError} so the
- *   caller sees the real reason instead of a generic "Unauthorized".
+ *   plan can never become org-referenced.
  * - Organizations cannot start a checkout while they already have an
  *   active subscription (prevents duplicates).
+ * - Checkout is deferred while an Enterprise issuance is unresolved.
  */
 export async function authorizeSubscriptionReference(
   userId: string,
@@ -116,7 +118,10 @@ export async function authorizeSubscriptionReference(
       userId,
       referenceId,
     })
-    return false
+    throw new APIError('CONFLICT', {
+      message:
+        'This organization already has an active subscription. Manage it from the billing settings.',
+    })
   }
 
   if (action === 'upgrade-subscription') {
@@ -131,7 +136,10 @@ export async function authorizeSubscriptionReference(
         userId,
         referenceId,
       })
-      return false
+      throw new APIError('CONFLICT', {
+        message:
+          'This organization has an Enterprise plan setup in progress. Please try again in a few minutes or contact support.',
+      })
     }
   }
 

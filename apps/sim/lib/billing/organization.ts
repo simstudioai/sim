@@ -166,10 +166,29 @@ export async function ensureOrganizationForTeamSubscription(
           subscription.enterpriseOperationId ?? null
         )
 
+        /**
+         * Re-verify the pre-transaction membership read under the org
+         * mutation lock: a concurrent removal or role change must not let a
+         * stale admin membership authorize the transfer.
+         */
+        const [lockedMembership] = await tx
+          .select({ organizationId: member.organizationId, role: member.role })
+          .from(member)
+          .where(
+            and(eq(member.userId, userId), eq(member.organizationId, membership.organizationId))
+          )
+          .limit(1)
+        if (!lockedMembership || !isOrgAdminRole(lockedMembership.role)) {
+          throw new Error(
+            `User ${userId} no longer administers organization ${membership.organizationId}`
+          )
+        }
+
         const [lockedSub] = await tx
           .select({
             id: subscriptionTable.id,
             referenceId: subscriptionTable.referenceId,
+            plan: subscriptionTable.plan,
           })
           .from(subscriptionTable)
           .where(eq(subscriptionTable.id, subscription.id))
@@ -181,6 +200,12 @@ export async function ensureOrganizationForTeamSubscription(
 
         if (lockedSub.referenceId === membership.organizationId) {
           return
+        }
+
+        if (!isOrgPlan(lockedSub.plan)) {
+          throw new Error(
+            `Subscription ${subscription.id} is no longer a team/enterprise plan (${lockedSub.plan})`
+          )
         }
 
         const [lockedOrg] = await tx

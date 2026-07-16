@@ -70,6 +70,7 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
 
     expect(result).toEqual({
+      covered: true,
       paused: true,
       subscriptionId: 'sub-personal',
       organizationId: 'org-1',
@@ -86,40 +87,50 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
     )
   })
 
-  it('no-ops when the user has no entitled personal Pro', async () => {
+  it('reports not covered when the user has no entitled personal Pro', async () => {
     queueWhereResponses([[]])
 
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
 
-    expect(result).toEqual({ paused: false })
+    expect(result).toEqual({ covered: false, paused: false })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
-  it('no-ops when the personal Pro is already pausing', async () => {
-    queueWhereResponses([[{ ...ACTIVE_PERSONAL_PRO, cancelAtPeriodEnd: true }]])
+  it('reports covered without pausing again when the personal Pro is already pausing', async () => {
+    queueWhereResponses([
+      [{ ...ACTIVE_PERSONAL_PRO, cancelAtPeriodEnd: true }],
+      [{ organizationId: 'org-1' }],
+      [{ plan: 'team_6000', referenceId: 'org-1' }],
+    ])
 
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
 
-    expect(result).toEqual({ paused: false })
+    expect(result).toEqual({
+      covered: true,
+      paused: false,
+      subscriptionId: 'sub-personal',
+      organizationId: 'org-1',
+    })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
-  it('no-ops when the user is not a member of any organization', async () => {
+  it('reports not covered when the user is not a member of any organization', async () => {
     queueWhereResponses([[ACTIVE_PERSONAL_PRO], []])
 
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
 
-    expect(result).toEqual({ paused: false })
+    expect(result).toEqual({ covered: false, paused: false })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('no-ops when no org subscription is an entitled paid plan', async () => {
+  it('reports not covered when no org subscription is an entitled paid plan', async () => {
     queueWhereResponses([[ACTIVE_PERSONAL_PRO], [{ organizationId: 'org-1' }], []])
 
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
 
-    expect(result).toEqual({ paused: false })
+    expect(result).toEqual({ covered: false, paused: false })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })

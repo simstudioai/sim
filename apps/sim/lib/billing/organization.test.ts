@@ -150,8 +150,10 @@ describe('ensureOrganizationForTeamSubscription', () => {
     queueWhereResponses([
       // membership lookup: user owns an org
       [{ id: 'member-1', organizationId: 'org-owned', role: 'owner' }],
+      // locked membership re-read inside the transfer transaction
+      [{ organizationId: 'org-owned', role: 'owner' }],
       // locked subscription re-read inside the transfer transaction
-      [{ id: 'sub-1', referenceId: 'user-1' }],
+      [{ id: 'sub-1', referenceId: 'user-1', plan: 'team' }],
       // locked organization re-read
       [{ id: 'org-owned' }],
       // duplicate check: org has no entitled subscription

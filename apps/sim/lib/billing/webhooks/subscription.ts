@@ -264,10 +264,10 @@ export async function handleSubscriptionCreated(
 /**
  * Handles a subscription deletion (cancel) event. Bills any final-period
  * overages, resets usage, and transitions the organization to a dormant
- * state via `transitionOrganizationToDormantState` — the same path used
- * by plan downgrades. Wrapped in `stripeWebhookIdempotency` so duplicate
- * event deliveries collapse to one execution; if any step throws, the
- * webhook retries from scratch.
+ * state via `transitionOrganizationToDormantState` — the sole trigger for
+ * detaching an organization's workspaces. Wrapped in
+ * `stripeWebhookIdempotency` so duplicate event deliveries collapse to one
+ * execution; if any step throws, the webhook retries from scratch.
  */
 export async function handleSubscriptionDeleted(
   subscription: {

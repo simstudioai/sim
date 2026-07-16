@@ -8,7 +8,7 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { betterAuth, type User } from 'better-auth'
+import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
@@ -34,6 +34,7 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
+import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
@@ -197,10 +198,13 @@ export const auth = betterAuth({
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
     ...additionalTrustedOrigins,
   ].filter(Boolean),
-  database: drizzleAdapter(db, {
-    provider: 'pg',
-    schema,
-  }),
+  database: (options: BetterAuthOptions) =>
+    guardSubscriptionPlanWrites(
+      drizzleAdapter(db, {
+        provider: 'pg',
+        schema,
+      })(options)
+    ),
   session: {
     cookieCache: {
       enabled: true,
@@ -3239,20 +3243,31 @@ export const auth = betterAuth({
                   throw orgError
                 }
 
-                await handleSubscriptionCreated(resolvedSubscription, event.id)
-
-                await syncSubscriptionUsageLimits(resolvedSubscription)
-
                 /**
                  * Transactional fence behind the personal-checkout admission
                  * guard: if the user joined a paid organization while their
                  * checkout was in flight, pause the fresh personal Pro at
                  * period end (same state a paid-org joiner's personal Pro
                  * enters; restored automatically if they leave the org).
+                 *
+                 * Runs BEFORE the free→paid transition handling: a personal
+                 * subscription born covered is not a free→paid transition —
+                 * the org plan keeps governing the user — so the usage reset
+                 * (which would wipe org-attributed current-period usage) and
+                 * its instrumentation must not run. Gated on `covered`, not
+                 * `paused`, so event retries decide identically even when the
+                 * join path already paused the subscription.
                  */
-                if (isPro(resolvedSubscription.plan)) {
-                  await pauseProSubscriptionForOrgCoverage(resolvedSubscription.referenceId)
+                const coveredByOrganization = isPro(resolvedSubscription.plan)
+                  ? (await pauseProSubscriptionForOrgCoverage(resolvedSubscription.referenceId))
+                      .covered
+                  : false
+
+                if (!coveredByOrganization) {
+                  await handleSubscriptionCreated(resolvedSubscription, event.id)
                 }
+
+                await syncSubscriptionUsageLimits(resolvedSubscription)
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
 
