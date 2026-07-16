@@ -457,18 +457,25 @@ export function mapClickUpAttachment(value: unknown): ClickUpAttachment {
   }
 }
 
+/**
+ * Maps a member from the task/list member endpoints. The documented shape is a
+ * flat user object (`{ id, username, email, ... }`); a nested `{ user: {...} }`
+ * wrapper (the shape the workspace members endpoint uses) is tolerated too.
+ */
 export function mapClickUpMember(value: unknown): ClickUpMember {
   if (!isRecordLike(value)) {
     throw new Error('ClickUp returned an invalid member object')
   }
 
+  const source = isRecordLike(value.user) ? value.user : value
+
   return {
-    id: getOptionalNumber(value.id),
-    username: getOptionalString(value.username),
-    email: getOptionalString(value.email),
-    color: getOptionalString(value.color),
-    initials: getOptionalString(value.initials),
-    profilePicture: getOptionalString(value.profilePicture),
+    id: getOptionalNumber(source.id),
+    username: getOptionalString(source.username),
+    email: getOptionalString(source.email),
+    color: getOptionalString(source.color),
+    initials: getOptionalString(source.initials),
+    profilePicture: getOptionalString(source.profilePicture),
   }
 }
 
