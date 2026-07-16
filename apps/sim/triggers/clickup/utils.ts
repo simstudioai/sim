@@ -120,7 +120,8 @@ function buildBaseOutputs(): Record<string, TriggerOutput> {
     eventType: { type: 'string', description: 'The ClickUp event name (e.g. taskCreated)' },
     historyItems: {
       type: 'json',
-      description: 'History items describing what changed (id, type, date, user, before, after)',
+      description:
+        'History items describing what changed (id, type, date, source, user, before, after)',
     },
     payload: { type: 'json', description: 'Full raw ClickUp webhook payload' },
   }

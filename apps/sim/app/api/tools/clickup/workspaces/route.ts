@@ -18,59 +18,64 @@ interface ClickUpTeam {
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-  const parsed = await parseRequest(clickupWorkspacesSelectorContract, request, {})
-  if (!parsed.success) return parsed.response
-  const { credential, workflowId } = parsed.data.body
+  try {
+    const requestId = generateRequestId()
+    const parsed = await parseRequest(clickupWorkspacesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId } = parsed.data.body
 
-  const authz = await authorizeCredentialUse(request, {
-    credentialId: credential,
-    workflowId,
-  })
-  if (!authz.ok || !authz.credentialOwnerUserId) {
-    return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
-  }
-
-  const accessToken = await refreshAccessTokenIfNeeded(
-    credential,
-    authz.credentialOwnerUserId,
-    requestId
-  )
-  if (!accessToken) {
-    logger.error('Failed to get access token', {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
-      userId: authz.credentialOwnerUserId,
+      workflowId,
     })
-    return NextResponse.json(
-      { error: 'Could not retrieve access token', authRequired: true },
-      { status: 401 }
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
+    }
+
+    const accessToken = await refreshAccessTokenIfNeeded(
+      credential,
+      authz.credentialOwnerUserId,
+      requestId
     )
-  }
+    if (!accessToken) {
+      logger.error('Failed to get access token', {
+        credentialId: credential,
+        userId: authz.credentialOwnerUserId,
+      })
+      return NextResponse.json(
+        { error: 'Could not retrieve access token', authRequired: true },
+        { status: 401 }
+      )
+    }
 
-  const response = await fetch(`${CLICKUP_API_BASE_URL}/team`, {
-    headers: {
-      Authorization: clickupAuthorizationHeader(accessToken),
-      Accept: 'application/json',
-    },
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    logger.error('Failed to fetch ClickUp workspaces', {
-      status: response.status,
-      error: errorData,
+    const response = await fetch(`${CLICKUP_API_BASE_URL}/team`, {
+      headers: {
+        Authorization: clickupAuthorizationHeader(accessToken),
+        Accept: 'application/json',
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch ClickUp workspaces' },
-      { status: response.status }
-    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      logger.error('Failed to fetch ClickUp workspaces', {
+        status: response.status,
+        error: errorData,
+      })
+      return NextResponse.json(
+        { error: 'Failed to fetch ClickUp workspaces' },
+        { status: response.status }
+      )
+    }
+
+    const data = (await response.json().catch(() => ({}))) as { teams?: ClickUpTeam[] }
+    const workspaces = (Array.isArray(data.teams) ? data.teams : []).map((team) => ({
+      id: String(team.id),
+      name: team.name || `Workspace ${team.id}`,
+    }))
+
+    return NextResponse.json({ workspaces })
+  } catch (error) {
+    logger.error('Error fetching ClickUp workspaces', error)
+    return NextResponse.json({ error: 'Failed to fetch ClickUp workspaces' }, { status: 500 })
   }
-
-  const data = (await response.json().catch(() => ({}))) as { teams?: ClickUpTeam[] }
-  const workspaces = (Array.isArray(data.teams) ? data.teams : []).map((team) => ({
-    id: String(team.id),
-    name: team.name || `Workspace ${team.id}`,
-  }))
-
-  return NextResponse.json({ workspaces })
 })

@@ -127,18 +127,21 @@ export const clickupHandler: WebhookProviderHandler = {
     return true
   },
 
+  /**
+   * ClickUp documents `{{webhook_id}}:{{history_item_id}}` as the recommended
+   * idempotency key; history item IDs are unique per delivered event.
+   */
   extractIdempotencyId(body: unknown) {
     const obj = body as Record<string, unknown>
-    const event = obj.event
-    if (typeof event !== 'string') return null
+    const webhookId = obj.webhook_id
+    if (typeof webhookId !== 'string' || !webhookId) return null
 
     const historyItems = Array.isArray(obj.history_items) ? obj.history_items : []
     const firstItem = historyItems[0] as Record<string, unknown> | undefined
     const historyId = firstItem?.id
     if (!historyId) return null
 
-    const resourceId = obj.task_id ?? obj.list_id ?? obj.folder_id ?? obj.space_id ?? ''
-    return `clickup:${event}:${resourceId}:${historyId}`
+    return `clickup:${webhookId}:${historyId}`
   },
 
   async createSubscription({
