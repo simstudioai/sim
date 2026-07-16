@@ -35,6 +35,7 @@ const logger = createLogger('WorkflowGroupScheduler')
 import { getColumnId } from '@/lib/table/column-keys'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from '@/lib/table/deps'
+import { resolveTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
 import type { DispatchLimit, DispatchMode } from '@/lib/table/dispatcher'
 import { buildFilterClause } from '@/lib/table/sql'
 
@@ -237,7 +238,8 @@ export function buildPendingRuns(
  *  id. The cell-job import pulls in the executor + blocks stack, so skip it on
  *  trigger.dev to avoid a multi-second dispatcher cold-start. */
 export async function buildEnqueueItems(
-  pendingRuns: WorkflowGroupCellPayload[]
+  pendingRuns: WorkflowGroupCellPayload[],
+  concurrencyLimit: number = TABLE_CONCURRENCY_LIMIT
 ): Promise<Array<{ payload: QueuedWorkflowGroupCellPayload; options: EnqueueOptions }>> {
   if (pendingRuns.length === 0) return []
 
@@ -292,7 +294,7 @@ export async function buildEnqueueItems(
         },
       },
       concurrencyKey: runOpts.tableId,
-      concurrencyLimit: TABLE_CONCURRENCY_LIMIT,
+      concurrencyLimit,
       tags: cellTagsFor(runOpts),
       ...(runner ? { runner } : {}),
       cancelKey: cellCancelKey(runOpts.tableId, runOpts.rowId, runOpts.groupId),
@@ -391,7 +393,9 @@ export type QueuedWorkflowGroupCellPayload = Omit<
   billingAttribution: BillingAttributionSnapshot
 }
 
-/** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
+/** Legacy per-table concurrency cap. The live cap is per-plan (see
+ *  `getTableDispatchConcurrency`); this remains the fallback for dispatch rows
+ *  that predate the `concurrency` column and for non-dispatch cell enqueues. */
 export const TABLE_CONCURRENCY_LIMIT = 20
 
 /**
@@ -745,6 +749,14 @@ export async function runWorkflowColumn(opts: {
     runDispatcherToCompletion,
   } = await import('./dispatcher')
 
+  // Per-window parallelism follows the payer's plan, resolved once here and
+  // persisted on the dispatch row so the dispatcher loop reads a stable value
+  // across checkpointed waits and task retries.
+  const concurrency = await resolveTableDispatchConcurrency({
+    workspaceId,
+    actorUserId: triggeredByUserId,
+  })
+
   // Always insert a `table_run_dispatches` row, and insert it FIRST — before
   // the prior-run cancel and the bulk clear below, which can take seconds on
   // a large table. The client shows its Stop control optimistically from the
@@ -768,6 +780,7 @@ export async function runWorkflowColumn(opts: {
         : {}),
     },
     limit,
+    concurrency,
     isManualRun,
     triggeredByUserId,
   })

@@ -1,0 +1,1 @@
+ALTER TABLE "table_run_dispatches" ADD COLUMN "concurrency" integer;

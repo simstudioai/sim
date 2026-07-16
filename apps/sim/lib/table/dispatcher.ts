@@ -40,11 +40,6 @@ import {
 
 const logger = createLogger('TableRunDispatcher')
 
-/** Window size matches the cell-execution concurrency cap so one window
- *  saturates the pool before the next is loaded — yields a row-major
- *  scan-line crawl (rows 1-20 finish before 21-40 start). */
-const WINDOW_SIZE = TABLE_CONCURRENCY_LIMIT
-
 const ACTIVE_DISPATCH_STATUSES = ['pending', 'dispatching'] as const
 
 export type DispatchStatus = 'pending' | 'dispatching' | 'complete' | 'cancelled'
@@ -85,6 +80,9 @@ export interface DispatchRow {
   limit: DispatchLimit | null
   /** Units of `limit.type` already consumed (eligible rows dispatched). */
   processedCount: number
+  /** Rows executed in parallel per window, resolved from the payer's plan at
+   *  creation. Null on pre-column rows → legacy cap of 20. */
+  concurrency: number | null
   isManualRun: boolean
   /** User who triggered the run (for usage attribution); null for auto-fire. */
   triggeredByUserId: string | null
@@ -190,6 +188,8 @@ export async function insertDispatch(input: {
   mode: DispatchMode
   scope: DispatchScope
   limit?: DispatchLimit | null
+  /** Per-window parallelism from the payer's plan (see `resolveTableDispatchConcurrency`). */
+  concurrency: number
   isManualRun: boolean
   triggeredByUserId?: string | null
 }): Promise<string> {
@@ -202,6 +202,7 @@ export async function insertDispatch(input: {
     mode: input.mode,
     scope: input.scope,
     limit: input.limit ?? null,
+    concurrency: input.concurrency,
     status: 'pending',
     // -1 = "haven't started." First window's filter `position > -1` matches
     // position 0; subsequent iterations advance to `lastPosition` which then
@@ -291,6 +292,7 @@ export async function listActiveDispatches(tableId: string): Promise<DispatchRow
     cursor: row.cursor,
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
+    concurrency: row.concurrency,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
@@ -315,6 +317,7 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     cursor: row.cursor,
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
+    concurrency: row.concurrency,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
@@ -380,6 +383,11 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     })
   }
 
+  // Window size = the dispatch's plan-resolved parallelism, so one window
+  // saturates the cell pool before the next is loaded — yields a row-major
+  // scan-line crawl. Pre-column dispatches fall back to the legacy cap.
+  const windowSize = dispatch.concurrency ?? TABLE_CONCURRENCY_LIMIT
+
   const filters = [
     eq(userTableRows.tableId, dispatch.tableId),
     gt(userTableRows.position, dispatch.cursor),
@@ -429,7 +437,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       .from(userTableRows)
       .where(and(...filters))
       .orderBy(asc(userTableRows.position))
-      .limit(WINDOW_SIZE)
+      .limit(windowSize)
   // Filtered scopes carry a jsonb predicate the planner can't estimate — left alone it
   // seq-scans the whole shared relation per window; keep it on the tenant's position index.
   const chunk = hasJsonbFilter
@@ -533,8 +541,8 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     // (CRIU-checkpointed wait); database backend calls the cell-task runner
     // directly via Promise.all (skips async_jobs since we're awaiting in-
     // process anyway). Either way the parent dispatcher blocks until every
-    // cell in the window terminates — bounds queue depth at WINDOW_SIZE.
-    const items = await buildEnqueueItems(windowRuns)
+    // cell in the window terminates — bounds queue depth at the window size.
+    const items = await buildEnqueueItems(windowRuns, windowSize)
     const queue = await getJobQueue()
     try {
       await queue.batchEnqueueAndWait('workflow-group-cell', items)
@@ -792,6 +800,7 @@ export async function markActiveDispatchesCancelled(
     cursor: row.cursor,
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
+    concurrency: row.concurrency,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,

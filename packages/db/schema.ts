@@ -3764,6 +3764,10 @@ export const tableRunDispatches = pgTable(
      *  `type: 'rows'`). Mutable counter the dispatcher advances per window so
      *  the budget survives across the checkpointed waits between windows. */
     processedCount: integer('processed_count').notNull().default(0),
+    /** Rows executed in parallel per window, resolved from the payer's plan
+     *  when the dispatch is created. Null on rows that predate the column —
+     *  the dispatcher falls back to the legacy cap of 20. */
+    concurrency: integer('concurrency'),
     /** When true, eligibility bypasses `autoRun: false` skip and treats
      *  terminal states as re-runnable. Auto-fire paths (row inserts,
      *  CSV import, addWorkflowGroup) set this to false so the dispatch
