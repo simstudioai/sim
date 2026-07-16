@@ -79,11 +79,17 @@ function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /**
- * Resolves env var names for a numbered key prefix using a `{PREFIX}_COUNT` env var.
- * E.g. with `EXA_API_KEY_COUNT=5`, returns `['EXA_API_KEY_1', ..., 'EXA_API_KEY_5']`.
+ * Resolves env var names for a hosted-key prefix. Numbered pools use a
+ * `{PREFIX}_COUNT` env var. Deployments that still provide one legacy singular
+ * `{PREFIX}` key remain supported when no count is configured.
  */
 function resolveEnvKeys(prefix: string): string[] {
-  const count = Number.parseInt(process.env[`${prefix}_COUNT`] || '0', 10)
+  const countValue = process.env[`${prefix}_COUNT`]
+  if (countValue === undefined) {
+    return process.env[prefix] ? [prefix] : []
+  }
+
+  const count = Number.parseInt(countValue, 10)
   const names: string[] = []
   for (let i = 1; i <= count; i++) {
     names.push(`${prefix}_${i}`)

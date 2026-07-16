@@ -6,8 +6,8 @@ import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
 import {
-  getToolCompletedTitle,
   getToolDisplayTitle,
+  getToolStatusDisplayTitle,
   humanizeToolName,
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -169,10 +169,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
   const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
-  const displayTitle =
-    tc.status === 'success'
-      ? (getToolCompletedTitle(resolvedTitle) ?? resolvedTitle)
-      : resolvedTitle
+  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status)
 
   return {
     id: tc.id,

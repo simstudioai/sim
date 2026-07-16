@@ -16,6 +16,7 @@ import { getHiddenToolNames } from '@/lib/copilot/tools/client/hidden-tools'
 import {
   getToolCompletedTitle,
   getToolDisplayTitle,
+  getToolStatusDisplayTitle,
   humanizeToolName,
   mvDisplayVerb,
 } from '@/lib/copilot/tools/tool-display'
@@ -40,6 +41,16 @@ function representativeToolArgs(entry: ToolCatalogEntry): Record<string, unknown
     }
   }
   return args
+}
+
+function toolPropertyEnum(entry: ToolCatalogEntry, property: string): unknown[] {
+  if (!entry.parameters || typeof entry.parameters !== 'object') return []
+  const properties = (entry.parameters as { properties?: unknown }).properties
+  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return []
+  const schema = (properties as Record<string, unknown>)[property]
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return []
+  const values = (schema as { enum?: unknown }).enum
+  return Array.isArray(values) ? values : []
 }
 
 describe('humanizeToolName', () => {
@@ -88,6 +99,40 @@ describe('getToolDisplayTitle natural-language coverage', () => {
 
     expect(missingCompletedVerbs).toEqual([])
   })
+
+  it('resolves every catalog action and operation enum without a generic placeholder', () => {
+    const genericPlaceholders = new Set([
+      'Credential action',
+      'Custom tool action',
+      'Editing file',
+      'Folder action',
+      'MCP server action',
+      'Managing knowledge base',
+      'Managing table',
+      'Preparing file',
+      'Processing media',
+      'Scheduled task action',
+      'Skill action',
+    ])
+    const unresolvedVariants: string[] = []
+
+    for (const [name, entry] of Object.entries(TOOL_CATALOG)) {
+      for (const property of ['action', 'operation']) {
+        for (const value of toolPropertyEnum(entry, property)) {
+          const title = getToolDisplayTitle(name, {
+            ...representativeToolArgs(entry),
+            [property]: value,
+            title: 'resource',
+          })
+          if (genericPlaceholders.has(title) || !getToolCompletedTitle(title)) {
+            unresolvedVariants.push(`${name}.${property}=${String(value)}: ${title}`)
+          }
+        }
+      }
+    }
+
+    expect(unresolvedVariants).toEqual([])
+  })
 })
 
 describe('getToolDisplayTitle for deployments', () => {
@@ -128,6 +173,14 @@ describe('getToolCompletedTitle', () => {
     expect(getToolCompletedTitle('Run Agent')).toBeUndefined()
     expect(getToolCompletedTitle('Folder action')).toBeUndefined()
     expect(getToolCompletedTitle('Custom title from the model')).toBeUndefined()
+  })
+
+  it('projects completed titles only for successful rows', () => {
+    expect(getToolStatusDisplayTitle('Comparing workflows', 'success')).toBe('Compared workflows')
+    expect(getToolStatusDisplayTitle('Comparing workflows', 'executing')).toBe(
+      'Comparing workflows'
+    )
+    expect(getToolStatusDisplayTitle('Comparing workflows', 'error')).toBe('Comparing workflows')
   })
 })
 

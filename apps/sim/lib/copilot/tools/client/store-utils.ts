@@ -68,7 +68,7 @@ function readStringParam(
 }
 
 function formatReadingLabel(target: string | undefined, state: ClientToolCallState): string {
-  const suffix = target ? ` ${target}` : ''
+  const suffix = ` ${target || 'file'}`
   switch (state) {
     case ClientToolCallState.success:
       return `Read${suffix}`

@@ -25,6 +25,11 @@ describe('resolveToolDisplay', () => {
   })
 
   it('formats read targets from workspace paths', () => {
+    expect(resolveToolDisplay(ReadTool.id, ClientToolCallState.executing)?.text).toBe(
+      'Reading file'
+    )
+    expect(resolveToolDisplay(ReadTool.id, ClientToolCallState.success)?.text).toBe('Read file')
+
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
         path: 'files/report.pdf',

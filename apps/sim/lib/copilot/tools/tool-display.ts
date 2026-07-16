@@ -872,3 +872,13 @@ export function getToolCompletedTitle(title: string): string | undefined {
   if (!past) return undefined
   return past + title.slice(firstWord.length)
 }
+
+/**
+ * Resolve the final title for a tool status at a rendering boundary. Persisted
+ * and live snapshots intentionally keep the present-tense activity title so a
+ * running/error row remains truthful; every successful renderer calls this to
+ * project the corresponding completed title from the canonical verb map.
+ */
+export function getToolStatusDisplayTitle(title: string, status: string): string {
+  return status === 'success' ? (getToolCompletedTitle(title) ?? title) : title
+}
