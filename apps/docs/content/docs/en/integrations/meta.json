@@ -36,6 +36,8 @@
     "clay",
     "clerk",
     "clickhouse",
+    "clickup",
+    "clickup-service-account",
     "cloudflare",
     "cloudformation",
     "cloudwatch",

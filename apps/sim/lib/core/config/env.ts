@@ -391,6 +391,8 @@ export const env = createEnv({
     PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
     LINEAR_CLIENT_SECRET:                  z.string().optional(),                  // Linear OAuth client secret
+    CLICKUP_CLIENT_ID:                     z.string().optional(),                  // ClickUp OAuth client ID
+    CLICKUP_CLIENT_SECRET:                 z.string().optional(),                  // ClickUp OAuth client secret
     BOX_CLIENT_ID:                         z.string().optional(),                  // Box OAuth client ID
     BOX_CLIENT_SECRET:                     z.string().optional(),                  // Box OAuth client secret
     DROPBOX_CLIENT_ID:                     z.string().optional(),                  // Dropbox OAuth client ID

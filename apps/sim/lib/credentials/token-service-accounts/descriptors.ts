@@ -53,6 +53,7 @@ export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' a
 export const NOTION_SERVICE_ACCOUNT_PROVIDER_ID = 'notion-service-account' as const
 export const ASANA_SERVICE_ACCOUNT_PROVIDER_ID = 'asana-service-account' as const
 export const ATTIO_SERVICE_ACCOUNT_PROVIDER_ID = 'attio-service-account' as const
+export const CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID = 'clickup-service-account' as const
 export const LINEAR_SERVICE_ACCOUNT_PROVIDER_ID = 'linear-service-account' as const
 export const MONDAY_SERVICE_ACCOUNT_PROVIDER_ID = 'monday-service-account' as const
 export const SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID = 'shopify-service-account' as const
@@ -69,6 +70,7 @@ export type TokenServiceAccountProviderId =
   | typeof NOTION_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ASANA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATTIO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof LINEAR_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MONDAY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID
@@ -171,6 +173,23 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/attio-service-account',
     helpText:
       'Check the scopes granted to the key in Attio — tools whose scopes are missing will fail at run time.',
+  },
+  [CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ClickUp',
+    tokenNoun: 'personal API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'pk_...',
+        secret: true,
+        hintPattern: /^pk_/,
+        hintMessage: 'ClickUp personal API tokens start with pk_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/clickup-service-account',
   },
   [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,

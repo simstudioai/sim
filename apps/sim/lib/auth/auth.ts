@@ -2349,6 +2349,55 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'clickup',
+          clientId: env.CLICKUP_CLIENT_ID as string,
+          clientSecret: env.CLICKUP_CLIENT_SECRET as string,
+          authorizationUrl: 'https://app.clickup.com/api',
+          tokenUrl: 'https://api.clickup.com/api/v2/oauth/token',
+          scopes: getCanonicalScopesForProvider('clickup'),
+          responseType: 'code',
+          pkce: false,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/clickup`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.clickup.com/api/v2/user', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+              })
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Error fetching ClickUp user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const data = await response.json()
+              const user = data.user
+              if (!user?.id) return null
+
+              const now = new Date()
+              return {
+                id: `${user.id.toString()}-${generateId()}`,
+                name: user.username || 'ClickUp User',
+                email: user.email || `${user.id}@clickup.user`,
+                emailVerified: !!user.email,
+                createdAt: now,
+                updatedAt: now,
+                image: user.profilePicture || undefined,
+              }
+            } catch (error) {
+              logger.error('Error in ClickUp getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        {
           providerId: 'linear',
           clientId: env.LINEAR_CLIENT_ID as string,
           clientSecret: env.LINEAR_CLIENT_SECRET as string,

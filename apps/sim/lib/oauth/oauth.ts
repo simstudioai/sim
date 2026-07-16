@@ -8,6 +8,7 @@ import {
   AzureIcon,
   BoxCompanyIcon,
   CalComIcon,
+  ClickUpIcon,
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
@@ -625,6 +626,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'notion',
+  },
+  clickup: {
+    name: 'ClickUp',
+    icon: ClickUpIcon,
+    services: {
+      clickup: {
+        name: 'ClickUp',
+        description: 'Manage tasks, lists, and comments in ClickUp.',
+        providerId: 'clickup',
+        serviceAccountProviderId: 'clickup-service-account',
+        icon: ClickUpIcon,
+        baseProviderIcon: ClickUpIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'clickup',
   },
   linear: {
     name: 'Linear',
@@ -1268,6 +1285,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'clickup': {
+      const { clientId, clientSecret } = getCredentials(
+        env.CLICKUP_CLIENT_ID,
+        env.CLICKUP_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.clickup.com/api/v2/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'linear': {
