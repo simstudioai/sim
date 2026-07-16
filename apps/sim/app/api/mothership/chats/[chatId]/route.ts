@@ -26,7 +26,6 @@ import {
 } from '@/lib/copilot/request/http'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
-import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -50,7 +49,12 @@ export const GET = withRouteHandler(
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
-      let streamSnapshot: {
+      // The Redis replay buffer is read here only to synthesize the in-flight
+      // assistant turn for the initial paint. The raw events are NOT shipped
+      // to the client: when `activeStreamId` is set, the client reconnects to
+      // the replay buffer (from seq 0) via the stream resume endpoint, which
+      // is the source of truth for streaming state.
+      let liveTurnSnapshot: {
         events: StreamBatchEvent[]
         previewSessions: FilePreviewSession[]
         status: string
@@ -64,17 +68,7 @@ export const GET = withRouteHandler(
 
       if (liveStreamId) {
         try {
-          const [events, previewSessions] = await Promise.all([
-            readEvents(liveStreamId, '0'),
-            readFilePreviewSessions(liveStreamId).catch((error) => {
-              logger.warn('Failed to read preview sessions for mothership chat', {
-                chatId,
-                streamId: liveStreamId,
-                error: toError(error).message,
-              })
-              return []
-            }),
-          ])
+          const events = await readEvents(liveStreamId, '0')
           const run = await getLatestRunForStream(liveStreamId, userId).catch((error) => {
             logger.warn('Failed to fetch latest run for mothership chat snapshot', {
               chatId,
@@ -84,9 +78,9 @@ export const GET = withRouteHandler(
             return null
           })
 
-          streamSnapshot = {
+          liveTurnSnapshot = {
             events: events.map(toStreamBatchEvent),
-            previewSessions,
+            previewSessions: [],
             status:
               typeof run?.status === 'string'
                 ? run.status
@@ -111,7 +105,7 @@ export const GET = withRouteHandler(
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,
         activeStreamId: liveStreamId,
-        ...(streamSnapshot ? { streamSnapshot } : {}),
+        ...(liveTurnSnapshot ? { streamSnapshot: liveTurnSnapshot } : {}),
       })
 
       return NextResponse.json({
@@ -124,7 +118,6 @@ export const GET = withRouteHandler(
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
-          ...(streamSnapshot ? { streamSnapshot } : {}),
         },
       })
     } catch (error) {

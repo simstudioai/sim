@@ -173,7 +173,7 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(mockReadEvents).not.toHaveBeenCalled()
   })
 
-  it('returns the live activeStreamId when redis confirms the lock', async () => {
+  it('returns the live activeStreamId without shipping the event snapshot', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-live',
       type: 'mothership',
@@ -191,9 +191,11 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     const body = await response.json()
 
     expect(body.chat.activeStreamId).toBe('stream-live')
+    // Events are read only to synthesize the in-flight assistant turn for the
+    // initial paint; the client reconnects to the replay buffer for the rest.
     expect(mockReadEvents).toHaveBeenCalledWith('stream-live', '0')
-    expect(body.chat.streamSnapshot).toBeDefined()
-    expect(body.chat.streamSnapshot.status).toBe('active')
+    expect(body.chat.streamSnapshot).toBeUndefined()
+    expect(mockReadFilePreviewSessions).not.toHaveBeenCalled()
   })
 
   it('uses the Redis lock owner when it differs from a stale persisted streamId', async () => {
