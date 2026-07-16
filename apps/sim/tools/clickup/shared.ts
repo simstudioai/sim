@@ -1,6 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
 import type {
   ClickUpAttachment,
+  ClickUpChecklist,
+  ClickUpChecklistItem,
   ClickUpComment,
   ClickUpCustomField,
   ClickUpFolder,
@@ -11,6 +13,7 @@ import type {
   ClickUpStatus,
   ClickUpTag,
   ClickUpTask,
+  ClickUpTimeEntry,
   ClickUpUser,
   ClickUpWorkspace,
 } from '@/tools/clickup/types'
@@ -492,6 +495,144 @@ export function mapClickUpCustomField(value: unknown): ClickUpCustomField {
     dateCreated: getOptionalString(value.date_created),
     hideFromGuests: getOptionalBoolean(value.hide_from_guests),
   }
+}
+
+function mapClickUpChecklistItem(value: unknown): ClickUpChecklistItem {
+  if (!isRecordLike(value)) {
+    throw new Error('ClickUp returned an invalid checklist item object')
+  }
+
+  return {
+    id: getRequiredString(value.id, 'id'),
+    name: getOptionalString(value.name),
+    orderIndex: getOptionalNumber(value.orderindex),
+    assignee: mapClickUpUser(value.assignee),
+    resolved: getOptionalBoolean(value.resolved),
+    parent: getOptionalString(value.parent),
+    dateCreated: getOptionalString(value.date_created),
+  }
+}
+
+export function mapClickUpChecklist(value: unknown): ClickUpChecklist {
+  if (!isRecordLike(value)) {
+    throw new Error('ClickUp returned an invalid checklist object')
+  }
+
+  const rawItems = Array.isArray(value.items) ? value.items : []
+
+  return {
+    id: getRequiredString(value.id, 'id'),
+    taskId: getOptionalString(value.task_id),
+    name: getOptionalString(value.name),
+    orderIndex: getOptionalNumber(value.orderindex),
+    resolved: getOptionalNumber(value.resolved),
+    unresolved: getOptionalNumber(value.unresolved),
+    items: rawItems.map((item) => mapClickUpChecklistItem(item)),
+  }
+}
+
+export function mapClickUpTimeEntry(value: unknown): ClickUpTimeEntry {
+  if (!isRecordLike(value)) {
+    throw new Error('ClickUp returned an invalid time entry object')
+  }
+
+  const rawTags = Array.isArray(value.tags) ? value.tags : []
+
+  return {
+    id: getRequiredString(value.id, 'id'),
+    task: mapIdName(value.task),
+    workspaceId: getOptionalString(value.wid),
+    user: mapClickUpUser(value.user),
+    billable: getOptionalBoolean(value.billable),
+    start: getOptionalString(value.start),
+    end: getOptionalString(value.end),
+    duration: getOptionalNumber(value.duration),
+    description: getOptionalString(value.description),
+    tags: rawTags.map((tag) => mapClickUpTag(tag)).filter((tag): tag is ClickUpTag => tag !== null),
+    source: getOptionalString(value.source),
+    at: getOptionalString(value.at),
+    taskUrl: getOptionalString(value.task_url),
+  }
+}
+
+const CLICKUP_CHECKLIST_ITEM_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Checklist item ID' },
+  name: { type: 'string', description: 'Checklist item name', nullable: true },
+  orderIndex: { type: 'number', description: 'Order of the item in the checklist', nullable: true },
+  assignee: {
+    type: 'object',
+    description: 'User the item is assigned to',
+    nullable: true,
+    properties: {
+      id: { type: 'number', description: 'User ID', nullable: true },
+      username: { type: 'string', description: 'Username', nullable: true },
+      email: { type: 'string', description: 'User email', nullable: true },
+      profilePicture: { type: 'string', description: 'Profile picture URL', nullable: true },
+    },
+  },
+  resolved: { type: 'boolean', description: 'Whether the item is resolved', nullable: true },
+  parent: { type: 'string', description: 'Parent checklist item ID', nullable: true },
+  dateCreated: { type: 'string', description: 'Creation timestamp (Unix ms)', nullable: true },
+}
+
+export const CLICKUP_CHECKLIST_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Checklist ID' },
+  taskId: {
+    type: 'string',
+    description: 'ID of the task the checklist belongs to',
+    nullable: true,
+  },
+  name: { type: 'string', description: 'Checklist name', nullable: true },
+  orderIndex: { type: 'number', description: 'Order of the checklist on the task', nullable: true },
+  resolved: { type: 'number', description: 'Number of resolved items', nullable: true },
+  unresolved: { type: 'number', description: 'Number of unresolved items', nullable: true },
+  items: {
+    type: 'array',
+    description: 'Items in the checklist',
+    items: { type: 'object', properties: CLICKUP_CHECKLIST_ITEM_OUTPUT_PROPERTIES },
+  },
+}
+
+export const CLICKUP_TIME_ENTRY_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Time entry ID' },
+  task: {
+    type: 'object',
+    description: 'Task the time entry is associated with',
+    nullable: true,
+    properties: {
+      id: { type: 'string', description: 'Task ID' },
+      name: { type: 'string', description: 'Task name', nullable: true },
+    },
+  },
+  workspaceId: { type: 'string', description: 'Workspace ID', nullable: true },
+  user: {
+    type: 'object',
+    description: 'User the time entry belongs to',
+    nullable: true,
+    properties: {
+      id: { type: 'number', description: 'User ID', nullable: true },
+      username: { type: 'string', description: 'Username', nullable: true },
+      email: { type: 'string', description: 'User email', nullable: true },
+      profilePicture: { type: 'string', description: 'Profile picture URL', nullable: true },
+    },
+  },
+  billable: { type: 'boolean', description: 'Whether the entry is billable', nullable: true },
+  start: { type: 'string', description: 'Start timestamp (Unix ms)', nullable: true },
+  end: { type: 'string', description: 'End timestamp (Unix ms)', nullable: true },
+  duration: {
+    type: 'number',
+    description: 'Duration in milliseconds (negative while the timer is running)',
+    nullable: true,
+  },
+  description: { type: 'string', description: 'Time entry description', nullable: true },
+  tags: {
+    type: 'array',
+    description: 'Time entry tags',
+    items: { type: 'object', properties: CLICKUP_TAG_OUTPUT_PROPERTIES },
+  },
+  source: { type: 'string', description: 'Source that created the entry', nullable: true },
+  at: { type: 'string', description: 'Last update timestamp (Unix ms)', nullable: true },
+  taskUrl: { type: 'string', description: 'URL to the task in ClickUp', nullable: true },
 }
 
 export function extractClickUpErrorMessage(

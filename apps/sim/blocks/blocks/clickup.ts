@@ -35,6 +35,29 @@ function optionalNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+/**
+ * Parses a custom field value from the block input. JSON objects and arrays
+ * are decoded so structured field types (labels, location, progress) work;
+ * everything else is passed through as-is, since ClickUp accepts plain
+ * strings for text, number, and dropdown fields.
+ */
+function parseCustomFieldValue(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return value
+    }
+  }
+  return value
+}
+
+function billableFromAction(action: unknown): boolean | undefined {
+  return action === 'billable' ? true : action === 'non_billable' ? false : undefined
+}
+
 export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
   type: 'clickup',
   name: 'ClickUp',
@@ -70,6 +93,21 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
         { label: 'Get Task Members', id: 'get_task_members' },
         { label: 'Get List Members', id: 'get_list_members' },
         { label: 'Get Custom Fields', id: 'get_custom_fields' },
+        { label: 'Set Custom Field Value', id: 'set_custom_field_value' },
+        { label: 'Remove Custom Field Value', id: 'remove_custom_field_value' },
+        { label: 'Create Checklist', id: 'create_checklist' },
+        { label: 'Update Checklist', id: 'update_checklist' },
+        { label: 'Delete Checklist', id: 'delete_checklist' },
+        { label: 'Create Checklist Item', id: 'create_checklist_item' },
+        { label: 'Update Checklist Item', id: 'update_checklist_item' },
+        { label: 'Delete Checklist Item', id: 'delete_checklist_item' },
+        { label: 'Get Time Entries', id: 'get_time_entries' },
+        { label: 'Create Time Entry', id: 'create_time_entry' },
+        { label: 'Update Time Entry', id: 'update_time_entry' },
+        { label: 'Delete Time Entry', id: 'delete_time_entry' },
+        { label: 'Start Timer', id: 'start_timer' },
+        { label: 'Stop Timer', id: 'stop_timer' },
+        { label: 'Get Running Timer', id: 'get_running_timer' },
         { label: 'Get Workspaces', id: 'get_workspaces' },
         { label: 'Get Spaces', id: 'get_spaces' },
         { label: 'Get Folders', id: 'get_folders' },
@@ -107,7 +145,17 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       placeholder: 'Enter workspace (team) ID',
       condition: {
         field: 'operation',
-        value: ['search_tasks', 'get_spaces'],
+        value: [
+          'search_tasks',
+          'get_spaces',
+          'get_time_entries',
+          'create_time_entry',
+          'update_time_entry',
+          'delete_time_entry',
+          'start_timer',
+          'stop_timer',
+          'get_running_timer',
+        ],
       },
     },
     {
@@ -188,6 +236,9 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
           'add_tag_to_task',
           'remove_tag_from_task',
           'get_task_members',
+          'set_custom_field_value',
+          'remove_custom_field_value',
+          'create_checklist',
         ],
       },
     },
@@ -206,11 +257,29 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       id: 'name',
       title: 'Name',
       type: 'short-input',
-      required: { field: 'operation', value: ['create_task', 'create_folder', 'create_list'] },
+      required: {
+        field: 'operation',
+        value: [
+          'create_task',
+          'create_folder',
+          'create_list',
+          'create_checklist',
+          'create_checklist_item',
+        ],
+      },
       placeholder: 'Enter a name',
       condition: {
         field: 'operation',
-        value: ['create_task', 'update_task', 'create_folder', 'create_list'],
+        value: [
+          'create_task',
+          'update_task',
+          'create_folder',
+          'create_list',
+          'create_checklist',
+          'update_checklist',
+          'create_checklist_item',
+          'update_checklist_item',
+        ],
       },
     },
     {
@@ -617,7 +686,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       value: () => 'none',
       condition: {
         field: 'operation',
-        value: ['update_comment'],
+        value: ['update_comment', 'update_checklist_item'],
       },
     },
     {
@@ -661,6 +730,299 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       condition: {
         field: 'operation',
         value: ['create_list'],
+      },
+    },
+    {
+      id: 'fieldId',
+      title: 'Custom Field ID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter custom field UUID',
+      condition: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'remove_custom_field_value'],
+      },
+    },
+    {
+      id: 'fieldValue',
+      title: 'Value',
+      type: 'long-input',
+      required: true,
+      placeholder: 'Plain value, or JSON for structured field types',
+      condition: {
+        field: 'operation',
+        value: ['set_custom_field_value'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate the value for a ClickUp custom field. The shape depends on the field type:
+- Text / short text: a plain string
+- Number: a number
+- Drop down: the option UUID as a string
+- Labels: a JSON array of option UUIDs
+- Date: a Unix timestamp in milliseconds
+
+Return ONLY the value (plain string, number, or JSON) - no explanations, no extra text.`,
+        placeholder: 'Describe the value to set...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'checklistId',
+      title: 'Checklist ID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter checklist UUID',
+      condition: {
+        field: 'operation',
+        value: [
+          'update_checklist',
+          'delete_checklist',
+          'create_checklist_item',
+          'update_checklist_item',
+          'delete_checklist_item',
+        ],
+      },
+    },
+    {
+      id: 'checklistItemId',
+      title: 'Checklist Item ID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter checklist item UUID',
+      condition: {
+        field: 'operation',
+        value: ['update_checklist_item', 'delete_checklist_item'],
+      },
+    },
+    {
+      id: 'position',
+      title: 'Position',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'New position on the task (0 places it first)',
+      condition: {
+        field: 'operation',
+        value: ['update_checklist'],
+      },
+    },
+    {
+      id: 'itemAssignee',
+      title: 'Item Assignee',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'User ID to assign the item to',
+      condition: {
+        field: 'operation',
+        value: ['create_checklist_item', 'update_checklist_item'],
+      },
+    },
+    {
+      id: 'itemParent',
+      title: 'Parent Item ID',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Checklist item UUID to nest this item under',
+      condition: {
+        field: 'operation',
+        value: ['update_checklist_item'],
+      },
+    },
+    {
+      id: 'timerId',
+      title: 'Time Entry ID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter time entry ID',
+      condition: {
+        field: 'operation',
+        value: ['update_time_entry', 'delete_time_entry'],
+      },
+    },
+    {
+      id: 'entryStart',
+      title: 'Start Time',
+      type: 'short-input',
+      required: { field: 'operation', value: ['create_time_entry'] },
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['create_time_entry', 'update_time_entry'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the start time (e.g., "today at 9am")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'entryEnd',
+      title: 'End Time',
+      type: 'short-input',
+      placeholder: 'Unix timestamp in milliseconds (required when changing the start time)',
+      condition: {
+        field: 'operation',
+        value: ['update_time_entry'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the end time (e.g., "today at 5pm")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'entryDuration',
+      title: 'Duration',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Duration in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['create_time_entry'],
+      },
+    },
+    {
+      id: 'entryDescription',
+      title: 'Entry Description',
+      type: 'short-input',
+      placeholder: 'Description of the time entry',
+      condition: {
+        field: 'operation',
+        value: ['create_time_entry', 'update_time_entry', 'start_timer'],
+      },
+    },
+    {
+      id: 'billableAction',
+      title: 'Billable',
+      type: 'dropdown',
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: 'none' },
+        { label: 'Billable', id: 'billable' },
+        { label: 'Not billable', id: 'non_billable' },
+      ],
+      value: () => 'none',
+      condition: {
+        field: 'operation',
+        value: ['create_time_entry', 'update_time_entry', 'start_timer'],
+      },
+    },
+    {
+      id: 'timerTaskId',
+      title: 'Task ID',
+      type: 'short-input',
+      placeholder: 'Task ID to associate the entry with',
+      condition: {
+        field: 'operation',
+        value: ['create_time_entry', 'update_time_entry', 'start_timer'],
+      },
+    },
+    {
+      id: 'timerTags',
+      title: 'Entry Tags',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Comma-separated time entry tag names',
+      condition: {
+        field: 'operation',
+        value: ['start_timer'],
+      },
+    },
+    {
+      id: 'timerAssignee',
+      title: 'Assignee',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'User ID(s) — comma-separated for Get Time Entries',
+      condition: {
+        field: 'operation',
+        value: ['get_time_entries', 'create_time_entry', 'get_running_timer'],
+      },
+    },
+    {
+      id: 'timeStartDate',
+      title: 'From',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['get_time_entries'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the range start (e.g., "start of this month")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'timeEndDate',
+      title: 'To',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['get_time_entries'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the range end (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'timeLocationType',
+      title: 'Filter By Location',
+      type: 'dropdown',
+      mode: 'advanced',
+      options: [
+        { label: 'No location filter', id: 'none' },
+        { label: 'Task', id: 'task' },
+        { label: 'List', id: 'list' },
+        { label: 'Folder', id: 'folder' },
+        { label: 'Space', id: 'space' },
+      ],
+      value: () => 'none',
+      condition: {
+        field: 'operation',
+        value: ['get_time_entries'],
+      },
+    },
+    {
+      id: 'timeLocationId',
+      title: 'Location ID',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'ID of the task, list, folder, or space',
+      condition: {
+        field: 'operation',
+        value: ['get_time_entries'],
+        and: { field: 'timeLocationType', value: 'none', not: true },
+      },
+    },
+    {
+      id: 'includeTaskTags',
+      title: 'Include Task Tags',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['get_time_entries'],
+      },
+    },
+    {
+      id: 'includeLocationNames',
+      title: 'Include Location Names',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['get_time_entries'],
       },
     },
     {
@@ -716,6 +1078,21 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       'clickup_get_lists',
       'clickup_create_folder',
       'clickup_create_list',
+      'clickup_set_custom_field_value',
+      'clickup_remove_custom_field_value',
+      'clickup_create_checklist',
+      'clickup_update_checklist',
+      'clickup_delete_checklist',
+      'clickup_create_checklist_item',
+      'clickup_update_checklist_item',
+      'clickup_delete_checklist_item',
+      'clickup_get_time_entries',
+      'clickup_create_time_entry',
+      'clickup_update_time_entry',
+      'clickup_delete_time_entry',
+      'clickup_start_timer',
+      'clickup_stop_timer',
+      'clickup_get_running_timer',
     ],
     config: {
       tool: (params) => `clickup_${params.operation}`,
@@ -932,6 +1309,135 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
               content: params.content || undefined,
               markdownContent: params.markdownContent || undefined,
             }
+          case 'set_custom_field_value':
+            return {
+              ...baseParams,
+              taskId: params.taskId,
+              fieldId: params.fieldId,
+              value: parseCustomFieldValue(params.fieldValue),
+            }
+          case 'remove_custom_field_value':
+            return {
+              ...baseParams,
+              taskId: params.taskId,
+              fieldId: params.fieldId,
+            }
+          case 'create_checklist':
+            return {
+              ...baseParams,
+              taskId: params.taskId,
+              name: params.name,
+            }
+          case 'update_checklist':
+            return {
+              ...baseParams,
+              checklistId: params.checklistId,
+              name: params.name || undefined,
+              position: optionalNumber(params.position),
+            }
+          case 'delete_checklist':
+            return {
+              ...baseParams,
+              checklistId: params.checklistId,
+            }
+          case 'create_checklist_item':
+            return {
+              ...baseParams,
+              checklistId: params.checklistId,
+              name: params.name,
+              assignee: optionalNumber(params.itemAssignee),
+            }
+          case 'update_checklist_item':
+            return {
+              ...baseParams,
+              checklistId: params.checklistId,
+              checklistItemId: params.checklistItemId,
+              name: params.name || undefined,
+              assignee: optionalNumber(params.itemAssignee),
+              resolved:
+                params.resolvedAction === 'resolve'
+                  ? true
+                  : params.resolvedAction === 'unresolve'
+                    ? false
+                    : undefined,
+              parent: params.itemParent || undefined,
+            }
+          case 'delete_checklist_item':
+            return {
+              ...baseParams,
+              checklistId: params.checklistId,
+              checklistItemId: params.checklistItemId,
+            }
+          case 'get_time_entries':
+            return {
+              ...baseParams,
+              workspaceId: params.workspaceId,
+              startDate: optionalNumber(params.timeStartDate),
+              endDate: optionalNumber(params.timeEndDate),
+              assignee: params.timerAssignee || undefined,
+              taskId:
+                params.timeLocationType === 'task' ? params.timeLocationId || undefined : undefined,
+              listId:
+                params.timeLocationType === 'list' ? params.timeLocationId || undefined : undefined,
+              folderId:
+                params.timeLocationType === 'folder'
+                  ? params.timeLocationId || undefined
+                  : undefined,
+              spaceId:
+                params.timeLocationType === 'space'
+                  ? params.timeLocationId || undefined
+                  : undefined,
+              includeTaskTags: params.includeTaskTags ? true : undefined,
+              includeLocationNames: params.includeLocationNames ? true : undefined,
+            }
+          case 'create_time_entry':
+            return {
+              ...baseParams,
+              workspaceId: params.workspaceId,
+              start: optionalNumber(params.entryStart),
+              duration: optionalNumber(params.entryDuration),
+              description: params.entryDescription || undefined,
+              billable: billableFromAction(params.billableAction),
+              taskId: params.timerTaskId || undefined,
+              assignee: optionalNumber(params.timerAssignee),
+            }
+          case 'update_time_entry':
+            return {
+              ...baseParams,
+              workspaceId: params.workspaceId,
+              timerId: params.timerId,
+              description: params.entryDescription || undefined,
+              start: optionalNumber(params.entryStart),
+              end: optionalNumber(params.entryEnd),
+              taskId: params.timerTaskId || undefined,
+              billable: billableFromAction(params.billableAction),
+            }
+          case 'delete_time_entry':
+            return {
+              ...baseParams,
+              workspaceId: params.workspaceId,
+              timerId: params.timerId,
+            }
+          case 'start_timer':
+            return {
+              ...baseParams,
+              workspaceId: params.workspaceId,
+              taskId: params.timerTaskId || undefined,
+              description: params.entryDescription || undefined,
+              billable: billableFromAction(params.billableAction),
+              tags: splitCommaSeparated(params.timerTags),
+            }
+          case 'stop_timer':
+            return {
+              ...baseParams,
+              workspaceId: params.workspaceId,
+            }
+          case 'get_running_timer':
+            return {
+              ...baseParams,
+              workspaceId: params.workspaceId,
+              assignee: optionalNumber(params.timerAssignee),
+            }
           default:
             return baseParams
         }
@@ -1001,6 +1507,43 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
     tagName: { type: 'string', description: 'Tag name' },
     content: { type: 'string', description: 'List description' },
     file: { type: 'json', description: 'File to upload as an attachment' },
+    fieldId: { type: 'string', description: 'Custom field UUID' },
+    fieldValue: {
+      type: 'string',
+      description: 'Custom field value (plain value, or JSON for structured types)',
+    },
+    checklistId: { type: 'string', description: 'Checklist UUID' },
+    checklistItemId: { type: 'string', description: 'Checklist item UUID' },
+    position: { type: 'string', description: 'New checklist position on the task' },
+    itemAssignee: { type: 'string', description: 'User ID to assign the checklist item to' },
+    itemParent: { type: 'string', description: 'Checklist item UUID to nest under' },
+    timerId: { type: 'string', description: 'Time entry ID' },
+    entryStart: { type: 'string', description: 'Time entry start (Unix ms)' },
+    entryEnd: { type: 'string', description: 'Time entry end (Unix ms)' },
+    entryDuration: { type: 'string', description: 'Time entry duration in milliseconds' },
+    entryDescription: { type: 'string', description: 'Time entry description' },
+    billableAction: {
+      type: 'string',
+      description: 'Billable action (none, billable, non_billable)',
+    },
+    timerTaskId: { type: 'string', description: 'Task ID to associate the time entry with' },
+    timerTags: { type: 'string', description: 'Comma-separated time entry tag names' },
+    timerAssignee: {
+      type: 'string',
+      description: 'User ID(s) for time entry operations (comma-separated for listing)',
+    },
+    timeStartDate: { type: 'string', description: 'Time entry range start (Unix ms)' },
+    timeEndDate: { type: 'string', description: 'Time entry range end (Unix ms)' },
+    timeLocationType: {
+      type: 'string',
+      description: 'Time entry location filter type (none, task, list, folder, space)',
+    },
+    timeLocationId: { type: 'string', description: 'ID for the time entry location filter' },
+    includeTaskTags: { type: 'boolean', description: 'Include task tags in time entries' },
+    includeLocationNames: {
+      type: 'boolean',
+      description: 'Include list, folder, and space names in time entries',
+    },
   },
   outputs: {
     task: { type: 'json', description: 'Task details' },
@@ -1024,6 +1567,9 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
     folder: { type: 'json', description: 'Created folder details' },
     lists: { type: 'json', description: 'Array of lists' },
     list: { type: 'json', description: 'Created list details' },
+    checklist: { type: 'json', description: 'Checklist details including its items' },
+    timeEntry: { type: 'json', description: 'Time entry details' },
+    timeEntries: { type: 'json', description: 'Array of time entries' },
   },
 }
 

@@ -3318,6 +3318,66 @@
           "description": "List the custom fields accessible in a ClickUp list"
         },
         {
+          "name": "Set Custom Field Value",
+          "description": "Set the value of a custom field on a ClickUp task (the value shape depends on the field type)"
+        },
+        {
+          "name": "Remove Custom Field Value",
+          "description": "Remove the value of a custom field from a ClickUp task (does not delete the field itself)"
+        },
+        {
+          "name": "Create Checklist",
+          "description": "Add a new checklist to a ClickUp task"
+        },
+        {
+          "name": "Update Checklist",
+          "description": "Rename or reorder a checklist on a ClickUp task"
+        },
+        {
+          "name": "Delete Checklist",
+          "description": "Delete a checklist from a ClickUp task"
+        },
+        {
+          "name": "Create Checklist Item",
+          "description": "Add an item to a checklist on a ClickUp task"
+        },
+        {
+          "name": "Update Checklist Item",
+          "description": "Update a checklist item on a ClickUp task \u2014 rename, assign, resolve, or nest it"
+        },
+        {
+          "name": "Delete Checklist Item",
+          "description": "Delete an item from a checklist on a ClickUp task"
+        },
+        {
+          "name": "Get Time Entries",
+          "description": "List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)"
+        },
+        {
+          "name": "Create Time Entry",
+          "description": "Create a manual time entry in a ClickUp workspace, optionally linked to a task"
+        },
+        {
+          "name": "Update Time Entry",
+          "description": "Update a time entry in a ClickUp workspace \u2014 description, start/end times, task, or billable state"
+        },
+        {
+          "name": "Delete Time Entry",
+          "description": "Delete a time entry from a ClickUp workspace"
+        },
+        {
+          "name": "Start Timer",
+          "description": "Start a timer for the authenticated user in a ClickUp workspace"
+        },
+        {
+          "name": "Stop Timer",
+          "description": "Stop the authenticated user's currently running timer in a ClickUp workspace"
+        },
+        {
+          "name": "Get Running Timer",
+          "description": "Get the currently running time entry in a ClickUp workspace (null when no timer is running)"
+        },
+        {
           "name": "Get Workspaces",
           "description": "List the ClickUp workspaces (teams) available to the connected account"
         },
@@ -3342,7 +3402,7 @@
           "description": "Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead"
         }
       ],
-      "operationCount": 23,
+      "operationCount": 38,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

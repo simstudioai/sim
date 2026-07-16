@@ -127,6 +127,42 @@ export interface ClickUpCustomField {
   hideFromGuests: boolean | null
 }
 
+export interface ClickUpChecklistItem {
+  id: string
+  name: string | null
+  orderIndex: number | null
+  assignee: ClickUpUser | null
+  resolved: boolean | null
+  parent: string | null
+  dateCreated: string | null
+}
+
+export interface ClickUpChecklist {
+  id: string
+  taskId: string | null
+  name: string | null
+  orderIndex: number | null
+  resolved: number | null
+  unresolved: number | null
+  items: ClickUpChecklistItem[]
+}
+
+export interface ClickUpTimeEntry {
+  id: string
+  task: { id: string; name: string | null } | null
+  workspaceId: string | null
+  user: ClickUpUser | null
+  billable: boolean | null
+  start: string | null
+  end: string | null
+  duration: number | null
+  description: string | null
+  tags: ClickUpTag[]
+  source: string | null
+  at: string | null
+  taskUrl: string | null
+}
+
 export interface ClickUpCreateTaskParams {
   accessToken: string
   listId: string
@@ -438,6 +474,167 @@ export interface ClickUpCustomFieldListResponse extends ToolResponse {
   }
 }
 
+export interface ClickUpSetCustomFieldValueParams {
+  accessToken: string
+  taskId: string
+  fieldId: string
+  value: unknown
+}
+
+export interface ClickUpCustomFieldValueResponse extends ToolResponse {
+  output: {
+    taskId?: string
+    fieldId?: string
+    error?: string
+  }
+}
+
+export interface ClickUpRemoveCustomFieldValueParams {
+  accessToken: string
+  taskId: string
+  fieldId: string
+}
+
+export interface ClickUpCreateChecklistParams {
+  accessToken: string
+  taskId: string
+  name: string
+}
+
+export interface ClickUpChecklistResponse extends ToolResponse {
+  output: {
+    checklist?: ClickUpChecklist
+    error?: string
+  }
+}
+
+export interface ClickUpUpdateChecklistParams {
+  accessToken: string
+  checklistId: string
+  name?: string
+  position?: number
+}
+
+export interface ClickUpUpdateChecklistResponse extends ToolResponse {
+  output: {
+    id?: string
+    updated?: boolean
+    error?: string
+  }
+}
+
+export interface ClickUpDeleteChecklistParams {
+  accessToken: string
+  checklistId: string
+}
+
+export interface ClickUpCreateChecklistItemParams {
+  accessToken: string
+  checklistId: string
+  name: string
+  assignee?: number
+}
+
+export interface ClickUpUpdateChecklistItemParams {
+  accessToken: string
+  checklistId: string
+  checklistItemId: string
+  name?: string
+  assignee?: number
+  resolved?: boolean
+  parent?: string
+}
+
+export interface ClickUpDeleteChecklistItemParams {
+  accessToken: string
+  checklistId: string
+  checklistItemId: string
+}
+
+export interface ClickUpGetTimeEntriesParams {
+  accessToken: string
+  workspaceId: string
+  startDate?: number
+  endDate?: number
+  assignee?: string
+  taskId?: string
+  listId?: string
+  folderId?: string
+  spaceId?: string
+  includeTaskTags?: boolean
+  includeLocationNames?: boolean
+}
+
+export interface ClickUpTimeEntryListResponse extends ToolResponse {
+  output: {
+    timeEntries?: ClickUpTimeEntry[]
+    error?: string
+  }
+}
+
+export interface ClickUpCreateTimeEntryParams {
+  accessToken: string
+  workspaceId: string
+  start: number
+  duration: number
+  description?: string
+  billable?: boolean
+  taskId?: string
+  assignee?: number
+}
+
+export interface ClickUpTimeEntryResponse extends ToolResponse {
+  output: {
+    timeEntry?: ClickUpTimeEntry | null
+    error?: string
+  }
+}
+
+export interface ClickUpUpdateTimeEntryParams {
+  accessToken: string
+  workspaceId: string
+  timerId: string
+  description?: string
+  start?: number
+  end?: number
+  taskId?: string
+  billable?: boolean
+}
+
+export interface ClickUpUpdateTimeEntryResponse extends ToolResponse {
+  output: {
+    id?: string
+    updated?: boolean
+    error?: string
+  }
+}
+
+export interface ClickUpDeleteTimeEntryParams {
+  accessToken: string
+  workspaceId: string
+  timerId: string
+}
+
+export interface ClickUpStartTimerParams {
+  accessToken: string
+  workspaceId: string
+  taskId?: string
+  description?: string
+  billable?: boolean
+  tags?: string[]
+}
+
+export interface ClickUpStopTimerParams {
+  accessToken: string
+  workspaceId: string
+}
+
+export interface ClickUpGetRunningTimerParams {
+  accessToken: string
+  workspaceId: string
+  assignee?: number
+}
+
 export type ClickUpResponse =
   | ClickUpTaskResponse
   | ClickUpTaskListResponse
@@ -456,3 +653,9 @@ export type ClickUpResponse =
   | ClickUpTaskTagResponse
   | ClickUpMemberListResponse
   | ClickUpCustomFieldListResponse
+  | ClickUpCustomFieldValueResponse
+  | ClickUpChecklistResponse
+  | ClickUpUpdateChecklistResponse
+  | ClickUpTimeEntryListResponse
+  | ClickUpTimeEntryResponse
+  | ClickUpUpdateTimeEntryResponse

@@ -497,4 +497,291 @@ Create a new list in a ClickUp folder, or a folderless list in a space when a sp
 | --------- | ---- | ----------- |
 | `list` | json | The created list |
 
+### `clickup_set_custom_field_value`
+
+Set the value of a custom field on a ClickUp task (the value shape depends on the field type)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to set the custom field on |
+| `fieldId` | string | Yes | UUID of the custom field \(find it with the Get Custom Fields or Get Task operations\) |
+| `value` | json | Yes | Value to set. The shape depends on the field type: text/number fields take a plain value, label fields take an array of option UUIDs, dropdown fields take an option UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the updated task |
+| `fieldId` | string | ID of the custom field that was set |
+
+### `clickup_remove_custom_field_value`
+
+Remove the value of a custom field from a ClickUp task (does not delete the field itself)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to remove the custom field value from |
+| `fieldId` | string | Yes | UUID of the custom field to clear |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the updated task |
+| `fieldId` | string | ID of the custom field that was cleared |
+
+### `clickup_create_checklist`
+
+Add a new checklist to a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to add the checklist to |
+| `name` | string | Yes | Name of the checklist |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checklist` | json | The created checklist |
+
+### `clickup_update_checklist`
+
+Rename or reorder a checklist on a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist to update |
+| `name` | string | No | New name for the checklist |
+| `position` | number | No | New position of the checklist on the task \(0 places it first\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the updated checklist |
+| `updated` | boolean | Whether the checklist was updated |
+
+### `clickup_delete_checklist`
+
+Delete a checklist from a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted checklist |
+| `deleted` | boolean | Whether the checklist was deleted |
+
+### `clickup_create_checklist_item`
+
+Add an item to a checklist on a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist to add the item to |
+| `name` | string | Yes | Name of the checklist item |
+| `assignee` | number | No | User ID to assign the item to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checklist` | json | The updated checklist including its items |
+
+### `clickup_update_checklist_item`
+
+Update a checklist item on a ClickUp task — rename, assign, resolve, or nest it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist containing the item |
+| `checklistItemId` | string | Yes | UUID of the checklist item to update |
+| `name` | string | No | New name for the checklist item |
+| `assignee` | number | No | User ID to assign the item to |
+| `resolved` | boolean | No | Whether the item is resolved |
+| `parent` | string | No | UUID of another checklist item to nest this item under |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `checklist` | json | The updated checklist including its items |
+
+### `clickup_delete_checklist_item`
+
+Delete an item from a checklist on a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `checklistId` | string | Yes | UUID of the checklist containing the item |
+| `checklistItemId` | string | Yes | UUID of the checklist item to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted checklist item |
+| `deleted` | boolean | Whether the item was deleted |
+
+### `clickup_get_time_entries`
+
+List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to list time entries from |
+| `startDate` | number | No | Start of the date range as a Unix timestamp in milliseconds |
+| `endDate` | number | No | End of the date range as a Unix timestamp in milliseconds |
+| `assignee` | string | No | Filter by user IDs, comma-separated \(requires workspace owner/admin to view others\) |
+| `taskId` | string | No | Only entries for this task \(use at most one location filter\) |
+| `listId` | string | No | Only entries in this list \(use at most one location filter\) |
+| `folderId` | string | No | Only entries in this folder \(use at most one location filter\) |
+| `spaceId` | string | No | Only entries in this space \(use at most one location filter\) |
+| `includeTaskTags` | boolean | No | Include task tags in the response |
+| `includeLocationNames` | boolean | No | Include list, folder, and space names in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntries` | array | Time entries in the date range |
+
+### `clickup_create_time_entry`
+
+Create a manual time entry in a ClickUp workspace, optionally linked to a task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to create the entry in |
+| `start` | number | Yes | Start of the entry as a Unix timestamp in milliseconds |
+| `duration` | number | Yes | Duration of the entry in milliseconds |
+| `description` | string | No | Description of the time entry |
+| `billable` | boolean | No | Whether the entry is billable |
+| `taskId` | string | No | Task ID to associate the entry with |
+| `assignee` | number | No | User ID to create the entry for \(workspace owners/admins only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The created time entry |
+
+### `clickup_update_time_entry`
+
+Update a time entry in a ClickUp workspace — description, start/end times, task, or billable state
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) the entry belongs to |
+| `timerId` | string | Yes | ID of the time entry to update |
+| `description` | string | No | New description for the entry |
+| `start` | number | No | New start \(Unix ms\); when provided, end must also be provided |
+| `end` | number | No | New end \(Unix ms\); when provided, start must also be provided |
+| `taskId` | string | No | Task ID to associate the entry with |
+| `billable` | boolean | No | Whether the entry is billable |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the updated time entry |
+| `updated` | boolean | Whether the entry was updated |
+
+### `clickup_delete_time_entry`
+
+Delete a time entry from a ClickUp workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) the entry belongs to |
+| `timerId` | string | Yes | ID of the time entry to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The deleted time entry |
+
+### `clickup_start_timer`
+
+Start a timer for the authenticated user in a ClickUp workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to start the timer in |
+| `taskId` | string | No | Task ID to associate the timer with |
+| `description` | string | No | Description of the time entry |
+| `billable` | boolean | No | Whether the entry is billable |
+| `tags` | array | No | Time entry tag names to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The started time entry \(duration is negative while running\) |
+
+### `clickup_stop_timer`
+
+Stop the authenticated user's currently running timer in a ClickUp workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) the timer is running in |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The stopped time entry |
+
+### `clickup_get_running_timer`
+
+Get the currently running time entry in a ClickUp workspace (null when no timer is running)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to check |
+| `assignee` | number | No | User ID to check instead of the authenticated user \(owners/admins only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timeEntry` | json | The running time entry \(duration is negative while running\); null when no timer is running |
+
 
