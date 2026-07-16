@@ -227,11 +227,20 @@ export const clickupHandler: WebhookProviderHandler = {
       }
       const externalId = responseBody.id ?? responseBody.webhook?.id
       const secret = responseBody.webhook?.secret
+      const redactedResponse = {
+        ...responseBody,
+        webhook: responseBody.webhook
+          ? {
+              ...responseBody.webhook,
+              secret: responseBody.webhook.secret ? '[redacted]' : undefined,
+            }
+          : undefined,
+      }
 
       if (!externalId) {
         logger.error(
           `[${requestId}] ClickUp webhook created but no webhook id returned for webhook ${webhookRecord.id}`,
-          { response: responseBody }
+          { response: redactedResponse }
         )
         throw new Error('ClickUp webhook creation succeeded but no webhook ID was returned')
       }
@@ -239,7 +248,7 @@ export const clickupHandler: WebhookProviderHandler = {
       if (!secret) {
         logger.error(
           `[${requestId}] ClickUp webhook created but no secret returned for webhook ${webhookRecord.id}. Rolling back.`,
-          { response: responseBody }
+          { response: redactedResponse }
         )
         await deleteClickUpWebhook(accessToken, externalId).catch(() => undefined)
         throw new Error('ClickUp webhook creation succeeded but no signing secret was returned')
