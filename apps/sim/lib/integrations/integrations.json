@@ -3244,7 +3244,7 @@
       "slug": "clickup",
       "name": "ClickUp",
       "description": "Interact with ClickUp",
-      "longDescription": "Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields.",
+      "longDescription": "Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Can also trigger workflows on ClickUp events like task, list, folder, space, and goal changes.",
       "bgColor": "#FFFFFF",
       "iconName": "ClickUpIcon",
       "docsUrl": "https://docs.sim.ai/integrations/clickup",
@@ -3343,7 +3343,7 @@
         },
         {
           "name": "Update Checklist Item",
-          "description": "Update a checklist item on a ClickUp task \u2014 rename, assign, resolve, or nest it"
+          "description": "Update a checklist item on a ClickUp task — rename, assign, resolve, or nest it"
         },
         {
           "name": "Delete Checklist Item",
@@ -3359,7 +3359,7 @@
         },
         {
           "name": "Update Time Entry",
-          "description": "Update a time entry in a ClickUp workspace \u2014 description, start/end times, task, or billable state"
+          "description": "Update a time entry in a ClickUp workspace — description, start/end times, task, or billable state"
         },
         {
           "name": "Delete Time Entry",
@@ -3403,8 +3403,154 @@
         }
       ],
       "operationCount": 38,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "clickup_task_created",
+          "name": "ClickUp Task Created",
+          "description": "Trigger workflow when a task is created in ClickUp"
+        },
+        {
+          "id": "clickup_task_updated",
+          "name": "ClickUp Task Updated",
+          "description": "Trigger workflow when a task is updated in ClickUp"
+        },
+        {
+          "id": "clickup_task_deleted",
+          "name": "ClickUp Task Deleted",
+          "description": "Trigger workflow when a task is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_task_status_updated",
+          "name": "ClickUp Task Status Updated",
+          "description": "Trigger workflow when the status of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_priority_updated",
+          "name": "ClickUp Task Priority Updated",
+          "description": "Trigger workflow when the priority of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_assignee_updated",
+          "name": "ClickUp Task Assignee Updated",
+          "description": "Trigger workflow when the assignees of a task change in ClickUp"
+        },
+        {
+          "id": "clickup_task_due_date_updated",
+          "name": "ClickUp Task Due Date Updated",
+          "description": "Trigger workflow when the due date of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_tag_updated",
+          "name": "ClickUp Task Tag Updated",
+          "description": "Trigger workflow when the tags of a task change in ClickUp"
+        },
+        {
+          "id": "clickup_task_moved",
+          "name": "ClickUp Task Moved",
+          "description": "Trigger workflow when a task is moved to a different list in ClickUp"
+        },
+        {
+          "id": "clickup_task_comment_posted",
+          "name": "ClickUp Task Comment Posted",
+          "description": "Trigger workflow when a comment is posted on a task in ClickUp"
+        },
+        {
+          "id": "clickup_task_comment_updated",
+          "name": "ClickUp Task Comment Updated",
+          "description": "Trigger workflow when a task comment is updated in ClickUp"
+        },
+        {
+          "id": "clickup_task_time_estimate_updated",
+          "name": "ClickUp Task Time Estimate Updated",
+          "description": "Trigger workflow when the time estimate of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_time_tracked_updated",
+          "name": "ClickUp Task Time Tracked Updated",
+          "description": "Trigger workflow when the tracked time of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_list_created",
+          "name": "ClickUp List Created",
+          "description": "Trigger workflow when a list is created in ClickUp"
+        },
+        {
+          "id": "clickup_list_updated",
+          "name": "ClickUp List Updated",
+          "description": "Trigger workflow when a list is updated in ClickUp"
+        },
+        {
+          "id": "clickup_list_deleted",
+          "name": "ClickUp List Deleted",
+          "description": "Trigger workflow when a list is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_folder_created",
+          "name": "ClickUp Folder Created",
+          "description": "Trigger workflow when a folder is created in ClickUp"
+        },
+        {
+          "id": "clickup_folder_updated",
+          "name": "ClickUp Folder Updated",
+          "description": "Trigger workflow when a folder is updated in ClickUp"
+        },
+        {
+          "id": "clickup_folder_deleted",
+          "name": "ClickUp Folder Deleted",
+          "description": "Trigger workflow when a folder is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_space_created",
+          "name": "ClickUp Space Created",
+          "description": "Trigger workflow when a space is created in ClickUp"
+        },
+        {
+          "id": "clickup_space_updated",
+          "name": "ClickUp Space Updated",
+          "description": "Trigger workflow when a space is updated in ClickUp"
+        },
+        {
+          "id": "clickup_space_deleted",
+          "name": "ClickUp Space Deleted",
+          "description": "Trigger workflow when a space is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_goal_created",
+          "name": "ClickUp Goal Created",
+          "description": "Trigger workflow when a goal is created in ClickUp"
+        },
+        {
+          "id": "clickup_goal_updated",
+          "name": "ClickUp Goal Updated",
+          "description": "Trigger workflow when a goal is updated in ClickUp"
+        },
+        {
+          "id": "clickup_goal_deleted",
+          "name": "ClickUp Goal Deleted",
+          "description": "Trigger workflow when a goal is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_created",
+          "name": "ClickUp Key Result Created",
+          "description": "Trigger workflow when a key result is created in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_updated",
+          "name": "ClickUp Key Result Updated",
+          "description": "Trigger workflow when a key result is updated in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_deleted",
+          "name": "ClickUp Key Result Deleted",
+          "description": "Trigger workflow when a key result is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_webhook",
+          "name": "ClickUp Webhook",
+          "description": "Trigger workflow on any ClickUp event (subscribes to all events)"
+        }
+      ],
+      "triggerCount": 29,
       "authType": "oauth",
       "oauthServiceId": "clickup",
       "category": "tools",
