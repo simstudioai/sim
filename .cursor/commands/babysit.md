@@ -47,25 +47,29 @@ round. Always check both conditions freshly after every push.
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
    `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
    stopping on a partial page would silently miss unresolved ones past the cutoff.
-   If `mergeable` comes back `CONFLICTING`, go fix that first (step 2) before evaluating review
+   If `mergeable` comes back `CONFLICTING`, check step 10's two-consecutive-rounds condition
+   first — if it was also `CONFLICTING` after the immediately preceding round's attempted fix
+   with no new information (recall that from this session, not a fresh query), stop now and
+   surface it instead of trying again; otherwise go fix it (step 2) before evaluating review
    state — a conflicting PR can't run CI, and this can happen mid-loop even on a PR that was
    clean at creation, since staging moves several times a day. If `mergeable` is `UNKNOWN`
-   (GitHub still computing it), don't treat it as either state — but before waiting, check step
-   10's two-consecutive-rounds condition first: if it was also `UNKNOWN` on the immediately
-   preceding round (recall that from this session, not a fresh query), stop now and surface it
-   instead of scheduling another wakeup; otherwise skip the rest of this list and go straight to
-   step 9 to wait and recheck next round. Otherwise, if `mergeable` is `MERGEABLE`, Greptile is
-   5/5, and every thread across all pages has `isResolved: true`, stop — report the outcome (see
-   "Reporting" below) and skip the rest of this list.
+   (GitHub still computing it), don't treat it as either state — but before waiting, check the
+   same two-consecutive-rounds condition: if it was also `UNKNOWN` on the immediately preceding
+   round, stop now and surface it instead of scheduling another wakeup; otherwise skip the rest
+   of this list and go straight to step 9 to wait and recheck next round. Otherwise, if
+   `mergeable` is `MERGEABLE`, Greptile is 5/5, and every thread across all pages has
+   `isResolved: true`, stop — report the outcome (see "Reporting" below) and skip the rest of
+   this list.
 
 2. **If the PR has a merge conflict**, fix it: `git fetch origin staging`, `git merge
    origin/staging`, resolve the conflicts for real (don't just take one side blindly). If step 1
    also found unresolved review threads, don't leave those findings unaddressed while you're
    already touching the branch — triage and fix them now too (step 4), replying/resolving each
-   (step 5). Before committing anything, run the same pre-push checks as step 6 (lint, boundary
-   validation, and the conditional cleanup/db-migrate gates) — same order step 6 → step 7 uses,
-   checks before commit, not after, since `lint` can auto-fix files and committing first would
-   leave those fixes unstaged after push. Then `git add` the resolved/fixed files and `git
+   (step 5). Before committing anything, run the same pre-push checks as step 6, in the same
+   order `/ship` runs them (the conditional cleanup/db-migrate gates first, since they can
+   rewrite code, then lint and boundary validation last so they check the final state) — checks
+   before commit, not after, since `lint` can auto-fix files and committing first would leave
+   those fixes unstaged after push. Then `git add` the resolved/fixed files and `git
    commit` to complete the merge commit — a merge with conflicts stays uncommitted until you do
    this — committing any review-thread fixes as their own separate commit same as step 7 would
    (keep it separate from the merge commit). The merge is this round's sync check (it already
@@ -111,10 +115,11 @@ round. Always check both conditions freshly after every push.
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
    review fixes on top of undetected drift is how an oversized PR happens even after the branch
    was fixed once. Then run the repo's pre-ship checks the same way `/ship` does before
-   committing — not just lint/typecheck/boundary-validation, but also the conditional `/cleanup`
-   (if this round's fix touched UI code) and `/db-migrate` (if it touched schema/migrations)
-   gates from `/ship` steps 4 and 5. A review-fix round is still a code change and can trip
-   either gate just as easily as the original commit did.
+   committing, in the same order — the conditional `/cleanup` (if this round's fix touched UI
+   code) and `/db-migrate` (if it touched schema/migrations) gates from `/ship` steps 4 and 5
+   first, since they can rewrite code, then lint/typecheck/boundary-validation last so they
+   check the final state. A review-fix round is still a code change and can trip either gate
+   just as easily as the original commit did.
 
 7. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 6's
    sync check rewrote history, which includes a plain `git rebase origin/staging` that completed
