@@ -7,6 +7,15 @@ import {
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
 import {
+  CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
+  getClientCredentialAccountDescriptor,
+  isClientCredentialAccountProviderId,
+} from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  type ClientCredentialAccountSecretBlob,
+  getClientCredentialAccountMinter,
+} from '@/lib/credentials/client-credential-accounts/server'
+import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -31,6 +40,9 @@ export interface ServiceAccountSecretFields {
   apiToken?: string
   domain?: string
   serviceAccountJson?: string
+  clientId?: string
+  clientSecret?: string
+  orgId?: string
 }
 
 export interface ServiceAccountSecretResult {
@@ -200,6 +212,52 @@ async function buildTokenServiceAccountSecret(
   }
 }
 
+/**
+ * Builds a client-credential service-account secret (OAuth client id/secret +
+ * provider org identifier) for any provider registered in
+ * `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the triple by minting a
+ * real access token via the provider's registered minter (also capturing the
+ * derived identity for the display name and audit log), then persists the raw
+ * fields in the encrypted blob so execution-time resolution can re-mint.
+ */
+async function buildClientCredentialAccountSecret(
+  providerId: string,
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const descriptor = getClientCredentialAccountDescriptor(providerId)
+  const minter = getClientCredentialAccountMinter(providerId)
+  if (!descriptor || !minter) {
+    throw new ServiceAccountSecretError(
+      `No minter registered for service-account provider ${providerId}`
+    )
+  }
+  const clientId = fields.clientId?.trim()
+  const clientSecret = fields.clientSecret?.trim()
+  const orgId = fields.orgId?.trim()
+  if (!clientId || !clientSecret || !orgId) {
+    const required = descriptor.fields.map((field) => field.id).join(', ')
+    throw new ServiceAccountSecretError(
+      `${required} are required for ${descriptor.serviceLabel} service account credentials`
+    )
+  }
+  const mint = await minter({ clientId, clientSecret, orgId })
+  const blob: ClientCredentialAccountSecretBlob = {
+    type: CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
+    providerId,
+    clientId,
+    clientSecret,
+    orgId,
+    ...(mint.identity?.storedMetadata ? { metadata: mint.identity.storedMetadata } : {}),
+  }
+  const { encrypted } = await encryptSecret(JSON.stringify(blob))
+  return {
+    providerId,
+    encryptedServiceAccountKey: encrypted,
+    displayName: mint.identity?.displayName ?? `${descriptor.serviceLabel} ${orgId}`,
+    auditMetadata: mint.identity?.auditMetadata ?? {},
+  }
+}
+
 type ServiceAccountSecretBuilder = (
   fields: ServiceAccountSecretFields
 ) => Promise<ServiceAccountSecretResult>
@@ -219,8 +277,9 @@ const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilde
  * Verifies a service-account secret against its provider, derives the display
  * name, and returns the encrypted blob ready to persist. Shared by credential
  * create (POST) and in-place reconnect (PUT) so both paths verify + encrypt
- * identically. Dispatches through the builder registry (bespoke providers)
- * or the token-paste registry; an unknown/missing provider falls back to the
+ * identically. Dispatches through the builder registry (bespoke providers),
+ * the token-paste registry, or the client-credential minter registry; an
+ * unknown/missing provider falls back to the
  * Google JSON-key builder for legacy creates. Throws
  * {@link ServiceAccountSecretError} on missing fields or a failed provider
  * verification (callers map it to a 400).
@@ -235,6 +294,9 @@ export async function verifyAndBuildServiceAccountSecret(
   if (builder) return builder(fields)
   if (isTokenServiceAccountProviderId(providerId)) {
     return buildTokenServiceAccountSecret(providerId, fields)
+  }
+  if (isClientCredentialAccountProviderId(providerId)) {
+    return buildClientCredentialAccountSecret(providerId, fields)
   }
   if (!providerId) {
     // Legacy Google creates omit providerId entirely (the original flow

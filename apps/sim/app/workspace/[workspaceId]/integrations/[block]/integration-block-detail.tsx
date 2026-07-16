@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { getClientCredentialAccountDescriptor } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   blockTypeToIconMap,
@@ -88,14 +89,17 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   }, [isSlackBot, blockOverlayVersion])
   const hasServiceAccount =
     Boolean(oauthService?.serviceAccountProviderId) && !slackBotPreviewHidden
-  // Vendor-accurate connect label: token-paste providers use their own noun
-  // ("Add API key", "Add private app token"); only true service-account
-  // providers (Google, Atlassian) say "Add service account".
-  const tokenDescriptor = getTokenServiceAccountDescriptor(oauthService?.serviceAccountProviderId)
+  // Vendor-accurate connect label: token-paste and client-credential
+  // providers use their own noun ("Add API key", "Add server-to-server app");
+  // only true service-account providers (Google, Atlassian) say
+  // "Add service account".
+  const nounDescriptor =
+    getTokenServiceAccountDescriptor(oauthService?.serviceAccountProviderId) ??
+    getClientCredentialAccountDescriptor(oauthService?.serviceAccountProviderId)
   const serviceAccountConnectLabel = isSlackBot
     ? 'Set up a custom bot'
-    : tokenDescriptor
-      ? `Add ${tokenDescriptor.connectNoun}`
+    : nounDescriptor
+      ? `Add ${nounDescriptor.connectNoun}`
       : 'Add service account'
   const hasHandledConnectQueryRef = useRef(false)
 

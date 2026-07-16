@@ -1,3 +1,4 @@
+import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -12,6 +13,9 @@ export type ServiceAccountFieldId =
   | 'serviceAccountJson'
   | 'signingSecret'
   | 'botToken'
+  | 'clientId'
+  | 'clientSecret'
+  | 'orgId'
 
 /**
  * Required create-body fields per service-account provider — the client-safe
@@ -19,7 +23,8 @@ export type ServiceAccountFieldId =
  * (Server-side builders re-derive their own requirements: token-paste
  * providers from descriptor fields, bespoke providers inline.) Token-paste
  * providers contribute their entries from
- * `TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS`; the three bespoke providers are
+ * `TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS`, client-credential providers from
+ * `CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS`; the three bespoke providers are
  * declared here.
  */
 export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
@@ -27,6 +32,7 @@ export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAcc
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['apiToken', 'domain'],
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: ['signingSecret', 'botToken'],
   ...TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,
+  ...CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS,
 }
 
 /**

@@ -7,7 +7,15 @@ import { and, desc, eq } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
+import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  getClientCredentialAccountMinter,
+  parseClientCredentialAccountSecretBlob,
+} from '@/lib/credentials/client-credential-accounts/server'
+import {
+  getTokenServiceAccountDescriptor,
+  isTokenServiceAccountProviderId,
+} from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   parseTokenServiceAccountSecretBlob,
   type TokenServiceAccountSecretBlob,
@@ -337,6 +345,14 @@ export interface ServiceAccountTokenResult {
   cloudId?: string
   /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
+  /** Salesforce only — the org's instance URL the token must be used against. */
+  instanceUrl?: string
+  /**
+   * Set when the token must be sent in an `x-api-token` header instead of
+   * `Authorization: Bearer` (e.g. Pipedrive personal API tokens). Absent means
+   * Bearer; OAuth credentials never carry it.
+   */
+  authStyle?: 'x-api-token'
 }
 
 /**
@@ -360,6 +376,156 @@ async function getTokenServiceAccountSecret(
 
   const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
   return parseTokenServiceAccountSecretBlob(decrypted, providerId)
+}
+
+interface CachedClientCredentialToken {
+  accessToken: string
+  expiresAtMs: number
+  /**
+   * Fingerprint of the encrypted secret the token was minted from (see
+   * {@link secretFingerprintOf}). A reconnect that re-points the credential at
+   * different client credentials changes the ciphertext, so a mismatch means
+   * the cached token belongs to the old app and must be re-minted.
+   */
+  secretFingerprint: string
+  /** Salesforce only — the instance URL returned alongside the minted token. */
+  instanceUrl?: string
+}
+
+interface FailedClientCredentialMint {
+  /** The error the failed mint threw, re-thrown to callers while memoized. */
+  error: unknown
+  secretFingerprint: string
+  expiresAtMs: number
+}
+
+/**
+ * Per-instance cache of minted client-credential access tokens (Zoom S2S,
+ * Box CCG, Salesforce client-credentials), keyed by credential id. Entries are
+ * served while more than {@link CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS} of
+ * validity remains, so a hot credential mints roughly once per token TTL
+ * (~1h for Zoom/Box; Salesforce reports a conservative 10-minute TTL because
+ * its responses never carry an expiry) per instance.
+ *
+ * Every resolution re-reads the credential row (a cheap indexed PK select —
+ * the mint is the expensive part) and validates the cached entry's secret
+ * fingerprint against the live ciphertext, so rotating or re-pointing a
+ * credential takes effect on the next resolution on every instance, and a
+ * credential that is re-resolved after deletion evicts its own entries. No
+ * cross-instance lock is needed: mints are stateless and these providers allow
+ * multiple concurrently valid tokens, so each instance minting its own token
+ * is correct.
+ *
+ * Failed mints are never cached as tokens; instead they are memoized for
+ * {@link CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS} so a hot workflow on a
+ * revoked/invalid secret doesn't hammer the provider's token endpoint once
+ * per block execution.
+ *
+ * Both maps are pruned of expired entries on each resolution
+ * ({@link pruneExpiredClientCredentialCaches}), so their size is bounded by the
+ * credentials resolved within the last token lifetime — entries for credentials
+ * that are never resolved again do not accumulate indefinitely.
+ */
+const clientCredentialTokenCache = new Map<string, CachedClientCredentialToken>()
+const clientCredentialMintFailureCache = new Map<string, FailedClientCredentialMint>()
+const CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS = 5 * 60 * 1000
+const CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS = 30 * 1000
+
+/** Drops fully-expired token and failure entries so the maps stay bounded. */
+function pruneExpiredClientCredentialCaches(nowMs: number): void {
+  for (const [id, entry] of clientCredentialTokenCache) {
+    if (entry.expiresAtMs <= nowMs) clientCredentialTokenCache.delete(id)
+  }
+  for (const [id, entry] of clientCredentialMintFailureCache) {
+    if (entry.expiresAtMs <= nowMs) clientCredentialMintFailureCache.delete(id)
+  }
+}
+
+/**
+ * Rotation fingerprint for a stored encrypted secret: the ciphertext prefix
+ * (IV + first blocks) is unique per encryption, so any re-encrypt — secret
+ * rotation or re-pointing at a different app — changes it.
+ */
+function secretFingerprintOf(encryptedServiceAccountKey: string): string {
+  return encryptedServiceAccountKey.slice(0, 32)
+}
+
+/**
+ * Resolves a client-credential service-account credential to a short-lived
+ * access token: decrypts the stored client id/secret + org id and mints via
+ * the provider's registered minter (skipping the connect-time identity
+ * lookup), read-through the per-instance cache. Wrapped in `coalesceLocally`
+ * so concurrent block executions on one instance share a single mint.
+ */
+async function resolveClientCredentialAccountToken(
+  credentialId: string,
+  providerId: string
+): Promise<ServiceAccountTokenResult> {
+  return coalesceLocally(`ccsa:${credentialId}`, async () => {
+    pruneExpiredClientCredentialCaches(Date.now())
+    const [credentialRow] = await db
+      .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
+      .from(credential)
+      .where(eq(credential.id, credentialId))
+      .limit(1)
+    if (!credentialRow?.encryptedServiceAccountKey) {
+      clientCredentialTokenCache.delete(credentialId)
+      clientCredentialMintFailureCache.delete(credentialId)
+      throw new Error('Client-credential service account secret not found')
+    }
+    const secretFingerprint = secretFingerprintOf(credentialRow.encryptedServiceAccountKey)
+
+    const cached = clientCredentialTokenCache.get(credentialId)
+    if (
+      cached &&
+      cached.secretFingerprint === secretFingerprint &&
+      cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS
+    ) {
+      return { accessToken: cached.accessToken, instanceUrl: cached.instanceUrl }
+    }
+
+    const failed = clientCredentialMintFailureCache.get(credentialId)
+    if (
+      failed &&
+      failed.secretFingerprint === secretFingerprint &&
+      Date.now() < failed.expiresAtMs
+    ) {
+      throw failed.error
+    }
+    clientCredentialMintFailureCache.delete(credentialId)
+
+    try {
+      const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+      const blob = parseClientCredentialAccountSecretBlob(decrypted, providerId)
+      const minter = getClientCredentialAccountMinter(providerId)
+      if (!minter) {
+        throw new Error(`No minter registered for service-account provider ${providerId}`)
+      }
+
+      const mint = await minter(
+        {
+          clientId: blob.clientId,
+          clientSecret: blob.clientSecret,
+          orgId: blob.orgId,
+        },
+        { skipIdentity: true }
+      )
+      clientCredentialTokenCache.set(credentialId, {
+        accessToken: mint.accessToken,
+        expiresAtMs: Date.now() + mint.expiresInSeconds * 1000,
+        secretFingerprint,
+        instanceUrl: mint.instanceUrl,
+      })
+      return { accessToken: mint.accessToken, instanceUrl: mint.instanceUrl }
+    } catch (error) {
+      clientCredentialMintFailureCache.set(credentialId, {
+        error,
+        secretFingerprint,
+        expiresAtMs: Date.now() + CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS,
+      })
+      throw error
+    }
+  })
 }
 
 interface ServiceAccountTokenOptions {
@@ -412,7 +578,15 @@ export async function resolveServiceAccountToken(
 ): Promise<ServiceAccountTokenResult> {
   if (providerId && isTokenServiceAccountProviderId(providerId)) {
     const secret = await getTokenServiceAccountSecret(credentialId, providerId)
-    return { accessToken: secret.apiToken, domain: secret.domain }
+    const descriptorAuthStyle = getTokenServiceAccountDescriptor(providerId)?.authStyle
+    return {
+      accessToken: secret.apiToken,
+      domain: secret.domain,
+      ...(descriptorAuthStyle === 'x-api-token' ? { authStyle: descriptorAuthStyle } : {}),
+    }
+  }
+  if (providerId && isClientCredentialAccountProviderId(providerId)) {
+    return resolveClientCredentialAccountToken(credentialId, providerId)
   }
   const resolver =
     providerId && Object.hasOwn(SERVICE_ACCOUNT_TOKEN_RESOLVERS, providerId)
@@ -660,21 +834,21 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 }
 
 /**
- * Refreshes an OAuth token if needed based on credential information.
- * Also handles service account credentials by generating a JWT-based token.
- * @param credentialId The ID of the credential to check and potentially refresh
- * @param userId The user ID who owns the credential (for security verification)
- * @param requestId Request ID for log correlation
- * @param scopes Optional scopes for service account token generation
- * @returns The valid access token or null if refresh fails
+ * Resolves a credential to its access token plus provider metadata
+ * (`cloudId`/`domain`/`instanceUrl`/`authStyle`). Behaves exactly like
+ * {@link refreshAccessTokenIfNeeded} but returns the full
+ * {@link ServiceAccountTokenResult} so callers that build provider requests
+ * directly (e.g. selector routes) can honor non-Bearer auth styles such as
+ * Pipedrive's `x-api-token`. OAuth credentials resolve with `accessToken`
+ * only.
  */
-export async function refreshAccessTokenIfNeeded(
+export async function resolveCredentialAccessToken(
   credentialId: string,
   userId: string,
   requestId: string,
   scopes?: string[],
   impersonateEmail?: string
-): Promise<string | null> {
+): Promise<ServiceAccountTokenResult | null> {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
     return null
@@ -682,13 +856,12 @@ export async function refreshAccessTokenIfNeeded(
 
   if (resolved.credentialType === 'service_account' && resolved.credentialId) {
     logger.info(`[${requestId}] Using service account token for credential`)
-    const { accessToken } = await resolveServiceAccountToken(
+    return resolveServiceAccountToken(
       resolved.credentialId,
       resolved.providerId,
       scopes,
       impersonateEmail
     )
-    return accessToken
   }
 
   // Use the already-resolved account ID to avoid a redundant resolveOAuthAccountId query
@@ -745,13 +918,13 @@ export async function refreshAccessTokenIfNeeded(
       requestId,
       userId: credential.userId,
     })
-    if (fresh) return fresh
+    if (fresh) return { accessToken: fresh }
 
     // If refresh was only triggered proactively (Microsoft refresh-token aging /
     // Instagram long-lived nearing expiry), the still-valid access token is fine.
     if (!accessTokenNeedsRefresh && accessToken) {
       logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
-      return accessToken
+      return { accessToken }
     }
     return null
   }
@@ -762,7 +935,34 @@ export async function refreshAccessTokenIfNeeded(
   }
 
   logger.info(`[${requestId}] Access token is valid for credential`)
-  return accessToken
+  return { accessToken }
+}
+
+/**
+ * Refreshes an OAuth token if needed based on credential information.
+ * Also handles service account credentials by generating a JWT-based token.
+ * Thin string wrapper over {@link resolveCredentialAccessToken}.
+ * @param credentialId The ID of the credential to check and potentially refresh
+ * @param userId The user ID who owns the credential (for security verification)
+ * @param requestId Request ID for log correlation
+ * @param scopes Optional scopes for service account token generation
+ * @returns The valid access token or null if refresh fails
+ */
+export async function refreshAccessTokenIfNeeded(
+  credentialId: string,
+  userId: string,
+  requestId: string,
+  scopes?: string[],
+  impersonateEmail?: string
+): Promise<string | null> {
+  const result = await resolveCredentialAccessToken(
+    credentialId,
+    userId,
+    requestId,
+    scopes,
+    impersonateEmail
+  )
+  return result?.accessToken ?? null
 }
 
 /**

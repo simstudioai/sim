@@ -3,14 +3,20 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEncryptSecret, mockFetchSlackTeamId, mockValidateAtlassian, mockNormalizeDomain } =
-  vi.hoisted(() => ({
-    // Identity encryption so tests can read back the JSON blob.
-    mockEncryptSecret: vi.fn(async (value: string) => ({ encrypted: value })),
-    mockFetchSlackTeamId: vi.fn(),
-    mockValidateAtlassian: vi.fn(),
-    mockNormalizeDomain: vi.fn((raw: string) => raw.trim().toLowerCase()),
-  }))
+const {
+  mockEncryptSecret,
+  mockFetchSlackTeamId,
+  mockValidateAtlassian,
+  mockNormalizeDomain,
+  mockClientCredentialMinter,
+} = vi.hoisted(() => ({
+  // Identity encryption so tests can read back the JSON blob.
+  mockEncryptSecret: vi.fn(async (value: string) => ({ encrypted: value })),
+  mockFetchSlackTeamId: vi.fn(),
+  mockValidateAtlassian: vi.fn(),
+  mockNormalizeDomain: vi.fn((raw: string) => raw.trim().toLowerCase()),
+  mockClientCredentialMinter: vi.fn(),
+}))
 
 vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: mockEncryptSecret }))
 vi.mock('@/lib/webhooks/providers/slack', () => ({ fetchSlackTeamId: mockFetchSlackTeamId }))
@@ -32,6 +38,12 @@ vi.mock('@/lib/api/contracts/credentials', () => ({
 }))
 vi.mock('@/lib/api/server', () => ({
   getValidationErrorMessage: (_error: unknown, fallback: string) => fallback,
+}))
+vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
+  getClientCredentialAccountMinter: (providerId: string) =>
+    providerId === 'zoom-service-account' || providerId === 'box-service-account'
+      ? mockClientCredentialMinter
+      : undefined,
 }))
 
 import {
@@ -137,6 +149,74 @@ describe('verifyAndBuildServiceAccountSecret', () => {
         serviceAccountJson: json,
       })
     ).rejects.toThrow('Unsupported service-account provider')
+  })
+
+  it('dispatches a client-credential provider to the minter and encrypts the blob', async () => {
+    mockClientCredentialMinter.mockResolvedValue({
+      accessToken: 'minted',
+      expiresInSeconds: 3600,
+      identity: {
+        displayName: 'Zoom account acc-1',
+        auditMetadata: { zoomAccountId: 'acc-1' },
+        storedMetadata: { apiUrl: 'https://api.zoom.us' },
+      },
+    })
+    const result = await verifyAndBuildServiceAccountSecret('zoom-service-account', {
+      clientId: ' cid ',
+      clientSecret: ' csec ',
+      orgId: ' acc-1 ',
+    })
+    expect(result.providerId).toBe('zoom-service-account')
+    expect(result.displayName).toBe('Zoom account acc-1')
+    expect(result.auditMetadata).toEqual({ zoomAccountId: 'acc-1' })
+    expect(mockClientCredentialMinter).toHaveBeenCalledWith({
+      clientId: 'cid',
+      clientSecret: 'csec',
+      orgId: 'acc-1',
+    })
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toEqual({
+      type: 'client_credential_account',
+      providerId: 'zoom-service-account',
+      clientId: 'cid',
+      clientSecret: 'csec',
+      orgId: 'acc-1',
+      metadata: { apiUrl: 'https://api.zoom.us' },
+    })
+  })
+
+  it('falls back to a label-derived display name when the mint has no identity', async () => {
+    mockClientCredentialMinter.mockResolvedValue({ accessToken: 'minted', expiresInSeconds: 3600 })
+    const result = await verifyAndBuildServiceAccountSecret('box-service-account', {
+      clientId: 'cid',
+      clientSecret: 'csec',
+      orgId: '999',
+    })
+    expect(result.displayName).toBe('Box 999')
+    expect(result.auditMetadata).toEqual({})
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob.metadata).toBeUndefined()
+  })
+
+  it('throws when client-credential required fields are missing, without minting', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('zoom-service-account', {
+        clientId: 'cid',
+        clientSecret: 'csec',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(mockClientCredentialMinter).not.toHaveBeenCalled()
+  })
+
+  it('propagates a failed client-credential mint', async () => {
+    mockClientCredentialMinter.mockRejectedValue(new Error('invalid_credentials'))
+    await expect(
+      verifyAndBuildServiceAccountSecret('box-service-account', {
+        clientId: 'cid',
+        clientSecret: 'bad',
+        orgId: '999',
+      })
+    ).rejects.toThrow('invalid_credentials')
   })
 
   it('rejects prototype-chain providerIds with a validation error, not a TypeError', async () => {

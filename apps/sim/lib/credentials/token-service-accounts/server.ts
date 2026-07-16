@@ -9,6 +9,7 @@ import {
   LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
   MONDAY_SERVICE_ACCOUNT_PROVIDER_ID,
   NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
+  PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountProviderId,
@@ -25,6 +26,7 @@ import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-a
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
 import { validateNotionServiceAccount } from '@/lib/credentials/token-service-accounts/validators/notion'
+import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
 import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trello'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
@@ -77,6 +79,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [TRELLO_SERVICE_ACCOUNT_PROVIDER_ID]: validateTrelloServiceAccount,
   [CALCOM_SERVICE_ACCOUNT_PROVIDER_ID]: validateCalcomServiceAccount,
   [WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID]: validateWealthboxServiceAccount,
+  [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePipedriveServiceAccount,
 }
 
 export function getTokenServiceAccountValidator(
