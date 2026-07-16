@@ -24,14 +24,14 @@ vi.mock('@/app/api/files/authorization', () => ({
   assertToolFileAccess: mockAssertToolFileAccess,
 }))
 
-vi.mock('@/app/api/tools/tiktok/publish-video/upload', () => ({
+vi.mock('@/app/api/tools/tiktok/upload-video-draft/upload', () => ({
   computeTikTokChunkPlan: mockComputeTikTokChunkPlan,
   getStoredVideoSize: mockGetStoredVideoSize,
   streamStoredVideoToTikTok: mockStreamStoredVideoToTikTok,
   TIKTOK_MAX_VIDEO_BYTES: 250 * 1024 * 1024,
 }))
 
-import { POST } from '@/app/api/tools/tiktok/publish-video/route'
+import { POST } from '@/app/api/tools/tiktok/upload-video-draft/route'
 
 const file = {
   key: 'workspace/workspace-1/video.mp4',
@@ -40,7 +40,7 @@ const file = {
   type: 'video/mp4',
 }
 
-describe('POST /api/tools/tiktok/publish-video', () => {
+describe('POST /api/tools/tiktok/upload-video-draft', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
@@ -101,23 +101,6 @@ describe('POST /api/tools/tiktok/publish-video', () => {
       requestId: 'mock-request-id',
       signal: request.signal,
     })
-  })
-
-  it('rejects legacy Direct Post mode instead of uploading as a draft', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    const response = await POST(
-      createMockRequest('POST', {
-        accessToken: 'access-token',
-        mode: 'direct',
-        file,
-      })
-    )
-
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(mockGetStoredVideoSize).not.toHaveBeenCalled()
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('returns 413 when the storage object exceeds the relay limit', async () => {

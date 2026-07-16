@@ -6,36 +6,25 @@ import {
 } from '@/lib/api/contracts/types'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
-export const tiktokPublishVideoBodySchema = z
-  .object({
-    accessToken: z.string().min(1, 'Access token is required'),
-    file: RawFileInputSchema,
-    /** Legacy callers may still send mode; only draft is accepted. */
-    mode: z.enum(['draft', 'direct']).optional(),
-  })
-  .superRefine((body, ctx) => {
-    if (body.mode === 'direct') {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['mode'],
-        message: 'TikTok Direct Post is not available. Use Upload Video Draft instead.',
-      })
-    }
-  })
-  .transform(({ accessToken, file }) => ({ accessToken, file }))
+export const tiktokUploadVideoDraftBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  file: RawFileInputSchema,
+})
 
-export const tiktokPublishVideoResponseSchema = z.object({
+export const tiktokUploadVideoDraftResponseSchema = z.object({
   success: z.boolean(),
   output: z.object({ publishId: z.string() }).optional(),
   error: z.string().optional(),
 })
 
-export const tiktokPublishVideoContract = defineRouteContract({
+export const tiktokUploadVideoDraftContract = defineRouteContract({
   method: 'POST',
-  path: '/api/tools/tiktok/publish-video',
-  body: tiktokPublishVideoBodySchema,
-  response: { mode: 'json', schema: tiktokPublishVideoResponseSchema },
+  path: '/api/tools/tiktok/upload-video-draft',
+  body: tiktokUploadVideoDraftBodySchema,
+  response: { mode: 'json', schema: tiktokUploadVideoDraftResponseSchema },
 })
 
-export type TikTokPublishVideoBody = ContractBodyInput<typeof tiktokPublishVideoContract>
-export type TikTokPublishVideoResponse = ContractJsonResponse<typeof tiktokPublishVideoContract>
+export type TikTokUploadVideoDraftBody = ContractBodyInput<typeof tiktokUploadVideoDraftContract>
+export type TikTokUploadVideoDraftResponse = ContractJsonResponse<
+  typeof tiktokUploadVideoDraftContract
+>

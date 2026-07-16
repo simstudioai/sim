@@ -7,7 +7,7 @@ import {
   assertTikTokArrayLength,
   mapTikTokVideo,
   readTikTokApiResponse,
-  readTikTokPublishInitResponse,
+  readTikTokDraftInitResponse,
   TIKTOK_API_RESPONSE_MAX_BYTES,
 } from '@/tools/tiktok/utils'
 
@@ -31,7 +31,7 @@ describe('TikTok tool utilities', () => {
       { status: 400 }
     )
 
-    await expect(readTikTokPublishInitResponse(response)).resolves.toEqual({
+    await expect(readTikTokDraftInitResponse(response)).resolves.toEqual({
       success: false,
       publishId: '',
       error: 'Upload failed',
@@ -73,20 +73,20 @@ describe('TikTok tool utilities', () => {
       error: { code: 'UnknownError' },
     })
 
-    await expect(readTikTokPublishInitResponse(response)).resolves.toEqual({
+    await expect(readTikTokDraftInitResponse(response)).resolves.toEqual({
       success: false,
       publishId: '',
       error: 'UnknownError',
     })
   })
 
-  it('normalizes direct TikTok publish responses', async () => {
+  it('normalizes TikTok draft initialization responses', async () => {
     const response = Response.json({
       data: { publish_id: 'publish-1', upload_url: 'https://upload.example/video' },
       error: { code: 'ok' },
     })
 
-    await expect(readTikTokPublishInitResponse(response)).resolves.toEqual({
+    await expect(readTikTokDraftInitResponse(response)).resolves.toEqual({
       success: true,
       publishId: 'publish-1',
     })
