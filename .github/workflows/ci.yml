@@ -5,6 +5,11 @@ on:
     branches: [main, staging, dev]
   pull_request:
     branches: [main, staging, dev]
+    # Docs content and markdown don't affect the app build or images; push
+    # runs stay unfiltered because they feed the deploy pipeline.
+    paths-ignore:
+      - 'apps/docs/content/**'
+      - '**/*.md'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -24,6 +29,7 @@ jobs:
   detect-version:
     name: Detect Version
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
       version: ${{ steps.extract.outputs.version }}
@@ -76,6 +82,7 @@ jobs:
     needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
@@ -139,6 +146,7 @@ jobs:
     needs: [migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -185,6 +193,7 @@ jobs:
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -284,6 +293,7 @@ jobs:
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
@@ -353,6 +363,7 @@ jobs:
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
     runs-on: blacksmith-8vcpu-ubuntu-2404-arm
+    timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -401,6 +412,7 @@ jobs:
   create-ghcr-manifests:
     name: Create GHCR Manifests
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     needs: [promote-images, build-ghcr-arm64, detect-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -466,6 +478,7 @@ jobs:
   check-docs-changes:
     name: Check Docs Changes
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
       docs_changed: ${{ steps.filter.outputs.docs }}
@@ -494,6 +507,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     needs: [create-ghcr-manifests, detect-version]
     if: needs.detect-version.outputs.is_release == 'true'
     permissions:
