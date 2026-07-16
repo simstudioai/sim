@@ -27,26 +27,26 @@ jobs:
         with:
           node-version: 22
 
-      # Sticky-disk keys are scoped by event name so pull_request runs (which
-      # include fork PRs on this public repo) never share a disk with push
-      # runs — the push disks feed builds that end up in production images,
-      # and a shared disk would let a fork PR poison them.
+      # Sticky-disk keys are scoped by event name, and fork PRs get their own
+      # namespace on top: untrusted fork runs must never share a disk with
+      # push runs (whose disks feed production image builds) or with trusted
+      # internal-PR runs.
       - name: Mount Bun cache (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.bun/install/cache
 
       - name: Mount node_modules (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-node-modules-${{ github.event_name }}
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./node_modules
 
       - name: Mount Turbo cache (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-turbo-cache-${{ github.event_name }}
+          key: ${{ github.repository }}-turbo-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
       - name: Install dependencies
@@ -208,19 +208,19 @@ jobs:
       - name: Mount Bun cache (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ~/.bun/install/cache
 
       - name: Mount node_modules (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-node-modules-${{ github.event_name }}
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./node_modules
 
       - name: Mount Turbo cache (Sticky Disk)
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
         with:
-          key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}
+          key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
       - name: Restore Next.js build cache
