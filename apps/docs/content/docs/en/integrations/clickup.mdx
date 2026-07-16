@@ -1,0 +1,479 @@
+---
+title: ClickUp
+description: Interact with ClickUp
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clickup"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields.
+
+
+
+## Actions
+
+### `clickup_create_task`
+
+Create a new task in a ClickUp list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | ID of the list to create the task in |
+| `name` | string | Yes | Name of the task |
+| `description` | string | No | Plain text description of the task |
+| `markdownContent` | string | No | Markdown description of the task \(overrides description\) |
+| `status` | string | No | Status to create the task with \(must exist in the list\) |
+| `priority` | number | No | Priority: 1 \(urgent\), 2 \(high\), 3 \(normal\), 4 \(low\) |
+| `dueDate` | number | No | Due date as a Unix timestamp in milliseconds |
+| `startDate` | number | No | Start date as a Unix timestamp in milliseconds |
+| `assignees` | array | No | User IDs to assign to the task |
+| `tags` | array | No | Tag names to apply to the task |
+| `timeEstimate` | number | No | Time estimate in milliseconds |
+| `parent` | string | No | Parent task ID to create this task as a subtask |
+| `notifyAll` | boolean | No | Whether to notify the task creator on creation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | The created task |
+
+### `clickup_get_task`
+
+Retrieve a task from ClickUp by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to retrieve |
+| `includeSubtasks` | boolean | No | Include subtasks in the response |
+| `includeMarkdownDescription` | boolean | No | Return the task description in Markdown format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | The requested task |
+
+### `clickup_update_task`
+
+Update an existing task in ClickUp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to update |
+| `name` | string | No | New name for the task |
+| `description` | string | No | New plain text description \(use a single space to clear\) |
+| `markdownContent` | string | No | New Markdown description \(takes precedence over description\) |
+| `status` | string | No | New status for the task \(must exist in the list\) |
+| `priority` | number | No | Priority: 1 \(urgent\), 2 \(high\), 3 \(normal\), 4 \(low\) |
+| `dueDate` | number | No | New due date as a Unix timestamp in milliseconds |
+| `startDate` | number | No | New start date as a Unix timestamp in milliseconds |
+| `timeEstimate` | number | No | New time estimate in milliseconds |
+| `points` | number | No | New sprint points value |
+| `parent` | string | No | Parent task ID to move this task under \(cannot be cleared\) |
+| `archived` | boolean | No | Set to true to archive the task, false to unarchive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | The updated task |
+
+### `clickup_delete_task`
+
+Delete a task from ClickUp
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted task |
+| `deleted` | boolean | Whether the task was deleted |
+
+### `clickup_get_tasks`
+
+List the tasks in a ClickUp list (100 tasks per page)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | ID of the list to fetch tasks from |
+| `page` | number | No | Page to fetch \(starts at 0\) |
+| `orderBy` | string | No | Order by field: id, created, updated, or due_date |
+| `reverse` | boolean | No | Return tasks in reverse order |
+| `subtasks` | boolean | No | Include subtasks \(excluded by default\) |
+| `includeClosed` | boolean | No | Include closed tasks \(excluded by default\) |
+| `archived` | boolean | No | Return archived tasks |
+| `statuses` | array | No | Filter tasks by status names |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | array | Tasks in the list |
+
+### `clickup_search_tasks`
+
+Search tasks across a ClickUp workspace, filtered by lists, folders, or spaces (100 tasks per page)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to search tasks in |
+| `page` | number | No | Page to fetch \(starts at 0\) |
+| `orderBy` | string | No | Order by field: id, created, updated, or due_date |
+| `reverse` | boolean | No | Return tasks in reverse order |
+| `subtasks` | boolean | No | Include subtasks \(excluded by default\) |
+| `listIds` | array | No | Filter by list IDs |
+| `spaceIds` | array | No | Filter by space IDs |
+| `folderIds` | array | No | Filter by folder IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | array | Tasks matching the filters |
+
+### `clickup_create_comment`
+
+Add a comment to a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to comment on |
+| `commentText` | string | Yes | Content of the comment |
+| `assignee` | number | No | User ID to assign the comment to |
+| `notifyAll` | boolean | No | Whether to also notify the comment creator \(assignees and watchers are always notified\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the created comment |
+| `histId` | string | History ID of the created comment |
+| `date` | number | Creation timestamp of the comment \(Unix ms\) |
+
+### `clickup_get_comments`
+
+Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to fetch comments from |
+| `start` | number | No | Unix timestamp \(ms\) of the reference comment for pagination \(use the date of the last comment from the previous page, together with startId\) |
+| `startId` | string | No | ID of the reference comment for pagination \(use the id of the last comment from the previous page, together with start\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | Comments on the task, newest first |
+
+### `clickup_update_comment`
+
+Update the content, assignee, or resolved state of a ClickUp task comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | ID of the comment to update |
+| `commentText` | string | No | New content for the comment |
+| `assignee` | number | No | User ID to assign the comment to |
+| `resolved` | boolean | No | Whether the comment is resolved |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the updated comment |
+| `updated` | boolean | Whether the comment was updated |
+
+### `clickup_delete_comment`
+
+Delete a comment from a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `commentId` | string | Yes | ID of the comment to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted comment |
+| `deleted` | boolean | Whether the comment was deleted |
+
+### `clickup_upload_attachment`
+
+Upload a file to a ClickUp task as an attachment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to attach the file to |
+| `file` | file | Yes | File to attach to the task |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | json | The created attachment |
+|   ↳ `id` | string | Attachment ID |
+|   ↳ `title` | string | Attachment title |
+|   ↳ `extension` | string | File extension |
+|   ↳ `url` | string | URL of the uploaded attachment |
+|   ↳ `date` | number | Upload timestamp \(Unix ms\) |
+| `files` | file[] | The uploaded attachment file |
+
+### `clickup_add_tag_to_task`
+
+Add an existing space tag to a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to tag |
+| `tagName` | string | Yes | Name of the tag to add \(must exist in the space\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the tagged task |
+| `tagName` | string | Name of the tag that was added |
+
+### `clickup_remove_tag_from_task`
+
+Remove a tag from a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to remove the tag from |
+| `tagName` | string | Yes | Name of the tag to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | ID of the task |
+| `tagName` | string | Name of the tag that was removed |
+
+### `clickup_get_space_tags`
+
+List the task tags available in a ClickUp space
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spaceId` | string | Yes | ID of the space to list tags from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tags available in the space |
+
+### `clickup_get_task_members`
+
+List the workspace members who have explicit access to a ClickUp task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID of the task to list members for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Members with explicit access to the task |
+
+### `clickup_get_list_members`
+
+List the workspace members who have explicit access to a ClickUp list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | ID of the list to list members for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Members with explicit access to the list |
+
+### `clickup_get_custom_fields`
+
+List the custom fields accessible in a ClickUp list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | ID of the list to fetch custom fields from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Custom fields accessible in the list |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `name` | string | Custom field name |
+|   ↳ `type` | string | Custom field type \(e.g. text, number, drop_down\) |
+|   ↳ `typeConfig` | json | Type-specific configuration \(e.g. dropdown options\) |
+|   ↳ `dateCreated` | string | Creation timestamp \(Unix ms\) |
+|   ↳ `hideFromGuests` | boolean | Whether the field is hidden from guests |
+|   ↳ `required` | boolean | Whether the field is required |
+
+### `clickup_get_workspaces`
+
+List the ClickUp workspaces (teams) available to the connected account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workspaces` | array | Workspaces available to the connected account |
+|   ↳ `id` | string | Workspace ID |
+|   ↳ `name` | string | Workspace name |
+|   ↳ `color` | string | Workspace color |
+|   ↳ `avatar` | string | Workspace avatar URL |
+
+### `clickup_get_spaces`
+
+List the spaces in a ClickUp workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(team\) to list spaces from |
+| `archived` | boolean | No | Return archived spaces |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spaces` | array | Spaces in the workspace |
+|   ↳ `id` | string | Space ID |
+|   ↳ `name` | string | Space name |
+|   ↳ `private` | boolean | Whether the space is private |
+|   ↳ `archived` | boolean | Whether the space is archived |
+|   ↳ `statuses` | array | Task statuses available in the space |
+|     ↳ `status` | string | Status name |
+|     ↳ `color` | string | Status color |
+|     ↳ `type` | string | Status type |
+
+### `clickup_get_folders`
+
+List the folders in a ClickUp space
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spaceId` | string | Yes | ID of the space to list folders from |
+| `archived` | boolean | No | Return archived folders |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | array | Folders in the space |
+
+### `clickup_get_lists`
+
+List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | No | ID of the folder to list lists from \(provide this or spaceId\) |
+| `spaceId` | string | No | ID of the space to list folderless lists from \(provide this or folderId\) |
+| `archived` | boolean | No | Return archived lists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | array | Lists in the folder or space |
+
+### `clickup_create_folder`
+
+Create a new folder in a ClickUp space
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spaceId` | string | Yes | ID of the space to create the folder in |
+| `name` | string | Yes | Name of the folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | json | The created folder |
+
+### `clickup_create_list`
+
+Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | No | ID of the folder to create the list in \(provide this or spaceId\) |
+| `spaceId` | string | No | ID of the space to create a folderless list in \(provide this or folderId\) |
+| `name` | string | Yes | Name of the list |
+| `content` | string | No | Plain text description of the list |
+| `markdownContent` | string | No | Markdown description of the list \(use instead of content\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | json | The created list |
+
+

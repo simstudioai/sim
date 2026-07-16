@@ -3,6 +3,7 @@ import {
   ASANA_SERVICE_ACCOUNT_PROVIDER_ID,
   ATTIO_SERVICE_ACCOUNT_PROVIDER_ID,
   CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
+  CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
   HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
   LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -19,6 +20,7 @@ import { validateAirtableServiceAccount } from '@/lib/credentials/token-service-
 import { validateAsanaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/asana'
 import { validateAttioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/attio'
 import { validateCalcomServiceAccount } from '@/lib/credentials/token-service-accounts/validators/calcom'
+import { validateClickupServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clickup'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
@@ -67,6 +69,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [NOTION_SERVICE_ACCOUNT_PROVIDER_ID]: validateNotionServiceAccount,
   [ASANA_SERVICE_ACCOUNT_PROVIDER_ID]: validateAsanaServiceAccount,
   [ATTIO_SERVICE_ACCOUNT_PROVIDER_ID]: validateAttioServiceAccount,
+  [CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID]: validateClickupServiceAccount,
   [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: validateLinearServiceAccount,
   [MONDAY_SERVICE_ACCOUNT_PROVIDER_ID]: validateMondayServiceAccount,
   [SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID]: validateShopifyServiceAccount,

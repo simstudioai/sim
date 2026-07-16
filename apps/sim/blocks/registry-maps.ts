@@ -32,6 +32,7 @@ import { CirclebackBlock, CirclebackBlockMeta } from '@/blocks/blocks/circleback
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
 import { ClerkBlock, ClerkBlockMeta } from '@/blocks/blocks/clerk'
 import { ClickHouseBlock, ClickHouseBlockMeta } from '@/blocks/blocks/clickhouse'
+import { ClickUpBlock, ClickUpBlockMeta } from '@/blocks/blocks/clickup'
 import { CloudflareBlock, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock, CloudFormationBlockMeta } from '@/blocks/blocks/cloudformation'
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
@@ -373,6 +374,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   clay: ClayBlock,
   clerk: ClerkBlock,
   clickhouse: ClickHouseBlock,
+  clickup: ClickUpBlock,
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
   cloudwatch: CloudWatchBlock,
@@ -694,6 +696,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   clay: ClayBlockMeta,
   clerk: ClerkBlockMeta,
   clickhouse: ClickHouseBlockMeta,
+  clickup: ClickUpBlockMeta,
   cloudflare: CloudflareBlockMeta,
   cloudformation: CloudFormationBlockMeta,
   cloudwatch: CloudWatchBlockMeta,
