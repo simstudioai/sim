@@ -159,6 +159,26 @@ describe('gitlab_invite_member', () => {
   })
 })
 
+describe('gitlab_invite_member email normalization', () => {
+  it('normalizes a comma-separated list with spaces into GitLab-accepted form', () => {
+    const body = gitlabInviteMemberTool.request.body?.({
+      ...baseArgs,
+      email: 'alice@example.com, bob@example.com',
+      accessLevel: 30,
+    }) as Record<string, unknown>
+    expect(body.email).toBe('alice@example.com,bob@example.com')
+  })
+
+  it('passes a single email through unchanged', () => {
+    const body = gitlabInviteMemberTool.request.body?.({
+      ...baseArgs,
+      email: 'alice@example.com',
+      accessLevel: 30,
+    }) as Record<string, unknown>
+    expect(body.email).toBe('alice@example.com')
+  })
+})
+
 describe('gitlab user status actions', () => {
   it('returns success with no user object when GitLab responds with a bare true', async () => {
     const result = await gitlabBlockUserTool.transformResponse!(

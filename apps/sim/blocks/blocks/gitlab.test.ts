@@ -97,6 +97,41 @@ describe('GitLabBlock access operations', () => {
     expect(approveParams).toMatchObject({ userId: 7, accessLevel: 30 })
   })
 
+  it('sends admin:false so update user can demote an administrator', () => {
+    const demote = block.tools.config.params?.({
+      accessToken: 'pat',
+      operation: 'gitlab_update_user',
+      userId: '9',
+      userAdminIsAdmin: false,
+    })
+    expect(demote?.admin).toBe(false)
+
+    // An untouched switch is undefined and must leave the admin flag unchanged.
+    const untouched = block.tools.config.params?.({
+      accessToken: 'pat',
+      operation: 'gitlab_update_user',
+      userId: '9',
+    })
+    expect(untouched?.admin).toBeUndefined()
+  })
+
+  it('exposes the access-level dropdown for update invitation and coerces it', () => {
+    const accessLevel = block.subBlocks.find((s) => s.id === 'accessLevel')
+    const condition = accessLevel?.condition
+    const ops = condition && 'value' in condition ? condition.value : undefined
+    expect(ops).toContain('gitlab_update_invitation')
+
+    const params = block.tools.config.params?.({
+      accessToken: 'pat',
+      operation: 'gitlab_update_invitation',
+      resourceType: 'group',
+      resourceId: '42',
+      email: 'a@b.com',
+      accessLevel: '40',
+    })
+    expect(params).toMatchObject({ email: 'a@b.com', accessLevel: 40 })
+  })
+
   it('throws when required access fields are missing', () => {
     expect(() =>
       block.tools.config.params?.({

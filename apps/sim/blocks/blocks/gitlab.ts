@@ -1820,7 +1820,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
               email: params.userAdminEmail?.trim() || undefined,
               username: params.userAdminUsername?.trim() || undefined,
               name: params.userAdminName?.trim() || undefined,
-              admin: params.userAdminIsAdmin || undefined,
+              // Pass the boolean through (not `|| undefined`) so an explicit `false`
+              // demotes the user. An untouched switch is `undefined` and is skipped
+              // by the tool body, leaving the admin flag unchanged.
+              admin: params.userAdminIsAdmin,
             }
 
           case 'gitlab_delete_user':

@@ -74,8 +74,17 @@ export const gitlabInviteMemberTool: ToolConfig<
       'PRIVATE-TOKEN': params.accessToken,
     }),
     body: (params) => {
+      // GitLab accepts a comma-separated list of emails in a single `email`
+      // field. Normalize surrounding whitespace so "a@b.com, c@d.com" invites
+      // both addresses rather than sending a malformed second entry.
+      const email = String(params.email)
+        .split(',')
+        .map((address) => address.trim())
+        .filter(Boolean)
+        .join(',')
+
       const body: Record<string, unknown> = {
-        email: params.email,
+        email,
         access_level: params.accessLevel,
       }
 
