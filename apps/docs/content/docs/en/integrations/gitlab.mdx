@@ -200,6 +200,7 @@ Add a comment to a GitLab issue
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 | `body` | string | Yes | Comment body \(Markdown supported\) |
+| `internal` | boolean | No | Create the comment as an internal note visible only to project members |
 
 #### Output
 
@@ -341,6 +342,7 @@ Add a comment to a GitLab merge request
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `body` | string | Yes | Comment body \(Markdown supported\) |
+| `internal` | boolean | No | Create the comment as an internal note visible only to project members |
 
 #### Output
 
@@ -402,6 +404,7 @@ Trigger a new pipeline in a GitLab project
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `ref` | string | Yes | Branch or tag to run the pipeline on |
 | `variables` | array | No | Array of variables for the pipeline \(each with key, value, and optional variable_type\) |
+| `inputs` | json | No | Pipeline inputs as a key/value object \(for pipelines with spec:inputs\) |
 
 #### Output
 
@@ -507,6 +510,10 @@ Create a new file in a GitLab project repository
 | `filePath` | string | Yes | Path to the file in the repository |
 | `branch` | string | Yes | Branch to commit the new file to |
 | `content` | string | Yes | File content |
+| `startBranch` | string | No | Name of the base branch to create the target branch from, if it does not exist |
+| `authorName` | string | No | Commit author name \(defaults to the token user\) |
+| `authorEmail` | string | No | Commit author email \(defaults to the token user\) |
+| `executeFilemode` | boolean | No | Enable the execute flag on the file |
 | `commitMessage` | string | Yes | Commit message |
 
 #### Output
@@ -529,6 +536,10 @@ Update an existing file in a GitLab project repository
 | `filePath` | string | Yes | Path to the file in the repository |
 | `branch` | string | Yes | Branch to commit the update to |
 | `content` | string | Yes | New file content |
+| `startBranch` | string | No | Name of the base branch to create the target branch from, if it does not exist |
+| `authorName` | string | No | Commit author name \(defaults to the token user\) |
+| `authorEmail` | string | No | Commit author email \(defaults to the token user\) |
+| `executeFilemode` | boolean | No | Enable or disable the execute flag on the file |
 | `commitMessage` | string | Yes | Commit message |
 | `lastCommitId` | string | No | Last known commit ID for the file \(optimistic locking\) |
 
@@ -592,6 +603,8 @@ Compare two branches, tags, or commits in a GitLab project repository
 | `from` | string | Yes | Commit SHA or branch/tag name to compare from |
 | `to` | string | Yes | Commit SHA or branch/tag name to compare to |
 | `straight` | boolean | No | Compare directly from..to instead of using the merge base \(defaults to false\) |
+| `fromProjectId` | string | No | ID of the project to compare from \(for cross-fork comparisons\) |
+| `unidiff` | boolean | No | Return diffs in unified diff format \(GitLab 16.5+\) |
 
 #### Output
 
@@ -745,6 +758,7 @@ Trigger (play) a manual GitLab job
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `jobId` | number | Yes | Job ID |
+| `jobVariables` | array | No | Variables for the manual job \(array of objects with key and value\) |
 
 #### Output
 
@@ -792,6 +806,8 @@ Create a new release in a GitLab project
 | `description` | string | No | Release description/notes \(Markdown supported\) |
 | `ref` | string | No | Commit SHA, branch, or tag to create the tag from if it does not already exist |
 | `releasedAt` | string | No | ISO 8601 date for an upcoming or historical release |
+| `tagMessage` | string | No | Annotation message to use if creating a new annotated tag |
+| `assetLinks` | array | No | Release asset links: array of objects with name, url, and optional link_type \(other, runbook, image, package\) |
 | `milestones` | array | No | Array of milestone titles to associate with the release |
 
 #### Output
@@ -813,6 +829,9 @@ List members of a GitLab project or group. Includes members inherited from ances
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `directOnly` | boolean | No | When true, returns only direct members. Defaults to false, which also returns members inherited from ancestor groups. |
 | `query` | string | No | Filter members by name, email, or username |
+| `userIds` | string | No | Comma-separated user IDs to filter the results to |
+| `state` | string | No | Filter inherited-member results by state: 'awaiting' or 'active' \(Premium/Ultimate; only applies when inherited members are included\) |
+| `showSeatInfo` | boolean | No | Include seat information for each member |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
 | `page` | number | No | Page number for pagination |
 
@@ -834,8 +853,9 @@ Add an existing GitLab user to a project or group at a given access level
 | `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
-| `userId` | number | Yes | The ID of the user to add |
-| `accessLevel` | number | Yes | Access level: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `userId` | number | No | The ID of the user to add. Provide either userId or username. |
+| `username` | string | No | The username of the user to add. Provide either userId or username. |
+| `accessLevel` | number | Yes | Access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
 | `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format |
 | `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
 
@@ -880,6 +900,8 @@ Remove a member from a GitLab project or group
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | Yes | The ID of the member to remove |
+| `skipSubresources` | boolean | No | Skip deleting the member from subgroups and projects below the target \(defaults to false\) |
+| `unassignIssuables` | boolean | No | Unassign the member from all issues and merge requests in the target \(defaults to false\) |
 
 #### Output
 
@@ -899,9 +921,10 @@ Invite a person to a GitLab project or group by email address
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `email` | string | Yes | Email address to invite \(comma-separated for multiple\) |
-| `accessLevel` | number | Yes | Access level: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
+| `accessLevel` | number | Yes | Access level: 0 \(No access\), 5 \(Minimal\), 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
 | `expiresAt` | string | No | Access expiration date in YYYY-MM-DD format |
 | `memberRoleId` | number | No | Custom member role ID \(GitLab Ultimate only\) |
+| `inviteSource` | string | No | Identifier recorded as the source of the invitation \(for attribution\) |
 
 #### Output
 

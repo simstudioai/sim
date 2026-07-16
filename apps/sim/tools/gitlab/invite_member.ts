@@ -47,7 +47,7 @@ export const gitlabInviteMemberTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Access level: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'Access level: 0 (No access), 5 (Minimal), 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
     },
     expiresAt: {
       type: 'string',
@@ -60,6 +60,12 @@ export const gitlabInviteMemberTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Custom member role ID (GitLab Ultimate only)',
+    },
+    inviteSource: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Identifier recorded as the source of the invitation (for attribution)',
     },
   },
 
@@ -90,6 +96,7 @@ export const gitlabInviteMemberTool: ToolConfig<
 
       if (params.expiresAt) body.expires_at = params.expiresAt
       if (params.memberRoleId !== undefined) body.member_role_id = params.memberRoleId
+      if (params.inviteSource?.trim()) body.invite_source = params.inviteSource.trim()
 
       return body
     },

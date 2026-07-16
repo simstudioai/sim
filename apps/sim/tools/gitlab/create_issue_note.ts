@@ -42,6 +42,12 @@ export const gitlabCreateIssueNoteTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Comment body (Markdown supported)',
     },
+    internal: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Create the comment as an internal note visible only to project members',
+    },
   },
 
   request: {
@@ -54,9 +60,11 @@ export const gitlabCreateIssueNoteTool: ToolConfig<
       'Content-Type': 'application/json',
       'PRIVATE-TOKEN': params.accessToken,
     }),
-    body: (params) => ({
-      body: params.body,
-    }),
+    body: (params) => {
+      const body: Record<string, unknown> = { body: params.body }
+      if (params.internal !== undefined) body.internal = params.internal
+      return body
+    },
   },
 
   transformResponse: async (response) => {

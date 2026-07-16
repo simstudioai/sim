@@ -398,6 +398,8 @@ export interface GitLabCreatePipelineParams extends GitLabBaseParams {
   projectId: string | number
   ref: string
   variables?: Array<{ key: string; value: string; variable_type?: 'env_var' | 'file' }>
+  /** Pipeline inputs (spec:inputs) as a key/value object. */
+  inputs?: Record<string, unknown>
 }
 
 export interface GitLabRetryPipelineParams extends GitLabBaseParams {
@@ -433,6 +435,8 @@ export interface GitLabCompareBranchesParams extends GitLabBaseParams {
   from: string
   to: string
   straight?: boolean
+  fromProjectId?: string | number
+  unidiff?: boolean
 }
 
 export interface GitLabListRepositoryTreeParams extends GitLabBaseParams {
@@ -456,6 +460,10 @@ export interface GitLabCreateFileParams extends GitLabBaseParams {
   branch: string
   content: string
   commitMessage: string
+  startBranch?: string
+  authorName?: string
+  authorEmail?: string
+  executeFilemode?: boolean
 }
 
 export interface GitLabUpdateFileParams extends GitLabBaseParams {
@@ -465,6 +473,10 @@ export interface GitLabUpdateFileParams extends GitLabBaseParams {
   content: string
   commitMessage: string
   lastCommitId?: string
+  startBranch?: string
+  authorName?: string
+  authorEmail?: string
+  executeFilemode?: boolean
 }
 
 export interface GitLabListCommitsParams extends GitLabBaseParams {
@@ -506,18 +518,21 @@ export interface GitLabGetJobLogParams extends GitLabBaseParams {
 export interface GitLabPlayJobParams extends GitLabBaseParams {
   projectId: string | number
   jobId: number
+  jobVariables?: Array<{ key: string; value: string }>
 }
 
 export interface GitLabCreateIssueNoteParams extends GitLabBaseParams {
   projectId: string | number
   issueIid: number
   body: string
+  internal?: boolean
 }
 
 export interface GitLabCreateMergeRequestNoteParams extends GitLabBaseParams {
   projectId: string | number
   mergeRequestIid: number
   body: string
+  internal?: boolean
 }
 
 export interface GitLabListReleasesParams extends GitLabBaseParams {
@@ -536,6 +551,13 @@ export interface GitLabCreateReleaseParams extends GitLabBaseParams {
   ref?: string
   releasedAt?: string
   milestones?: string[]
+  tagMessage?: string
+  assetLinks?: Array<{
+    name: string
+    url: string
+    link_type?: 'other' | 'runbook' | 'image' | 'package'
+    direct_asset_path?: string
+  }>
 }
 
 export interface GitLabListProjectsResponse extends ToolResponse {
@@ -842,12 +864,19 @@ export interface GitLabListMembersParams extends GitLabResourceScopedParams {
   /** When true, returns only direct members (`/members`). Defaults to false, which returns inherited members too (`/members/all`). */
   directOnly?: boolean
   query?: string
+  /** Comma-separated user IDs to filter to. */
+  userIds?: string
+  /** 'awaiting' | 'active' — inherited-member listings only (Premium/Ultimate). */
+  state?: string
+  showSeatInfo?: boolean
   perPage?: number
   page?: number
 }
 
 export interface GitLabAddMemberParams extends GitLabResourceScopedParams {
-  userId: number
+  /** Provide either userId or username to identify the user. */
+  userId?: number
+  username?: string
   accessLevel: number
   expiresAt?: string
   memberRoleId?: number
@@ -862,6 +891,8 @@ export interface GitLabUpdateMemberParams extends GitLabResourceScopedParams {
 
 export interface GitLabRemoveMemberParams extends GitLabResourceScopedParams {
   userId: number
+  skipSubresources?: boolean
+  unassignIssuables?: boolean
 }
 
 export interface GitLabInviteMemberParams extends GitLabResourceScopedParams {
@@ -869,6 +900,7 @@ export interface GitLabInviteMemberParams extends GitLabResourceScopedParams {
   accessLevel: number
   expiresAt?: string
   memberRoleId?: number
+  inviteSource?: string
 }
 
 export interface GitLabListInvitationsParams extends GitLabResourceScopedParams {

@@ -33,6 +33,12 @@ export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobRes
       visibility: 'user-or-llm',
       description: 'Job ID',
     },
+    jobVariables: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Variables for the manual job (array of objects with key and value)',
+    },
   },
 
   request: {
@@ -42,8 +48,16 @@ export const gitlabPlayJobTool: ToolConfig<GitLabPlayJobParams, GitLabPlayJobRes
     },
     method: 'POST',
     headers: (params) => ({
+      'Content-Type': 'application/json',
       'PRIVATE-TOKEN': params.accessToken,
     }),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.jobVariables && params.jobVariables.length > 0) {
+        body.job_variables_attributes = params.jobVariables
+      }
+      return body
+    },
   },
 
   transformResponse: async (response) => {

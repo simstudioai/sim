@@ -35,16 +35,22 @@ export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMem
     },
     userId: {
       type: 'number',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The ID of the user to add',
+      description: 'The ID of the user to add. Provide either userId or username.',
+    },
+    username: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The username of the user to add. Provide either userId or username.',
     },
     accessLevel: {
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Access level: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'Access level: 0 (No access), 5 (Minimal), 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
     },
     expiresAt: {
       type: 'string',
@@ -72,9 +78,12 @@ export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMem
     }),
     body: (params) => {
       const body: Record<string, unknown> = {
-        user_id: params.userId,
         access_level: params.accessLevel,
       }
+
+      // GitLab accepts either user_id or username to identify the user.
+      if (params.userId !== undefined && params.userId !== null) body.user_id = params.userId
+      else if (params.username?.trim()) body.username = params.username.trim()
 
       if (params.expiresAt) body.expires_at = params.expiresAt
       if (params.memberRoleId !== undefined) body.member_role_id = params.memberRoleId

@@ -51,6 +51,18 @@ export const gitlabCompareBranchesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Compare directly from..to instead of using the merge base (defaults to false)',
     },
+    fromProjectId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ID of the project to compare from (for cross-fork comparisons)',
+    },
+    unidiff: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return diffs in unified diff format (GitLab 16.5+)',
+    },
   },
 
   request: {
@@ -60,6 +72,10 @@ export const gitlabCompareBranchesTool: ToolConfig<
       queryParams.append('from', params.from)
       queryParams.append('to', params.to)
       if (params.straight) queryParams.append('straight', 'true')
+      if (params.fromProjectId) {
+        queryParams.append('from_project_id', String(params.fromProjectId).trim())
+      }
+      if (params.unidiff) queryParams.append('unidiff', 'true')
 
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}/repository/compare?${queryParams.toString()}`
     },

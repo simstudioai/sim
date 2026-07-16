@@ -48,6 +48,25 @@ export const gitlabListMembersTool: ToolConfig<GitLabListMembersParams, GitLabLi
         visibility: 'user-or-llm',
         description: 'Filter members by name, email, or username',
       },
+      userIds: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Comma-separated user IDs to filter the results to',
+      },
+      state: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          "Filter inherited-member results by state: 'awaiting' or 'active' (Premium/Ultimate; only applies when inherited members are included)",
+      },
+      showSeatInfo: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Include seat information for each member',
+      },
       perPage: {
         type: 'number',
         required: false,
@@ -69,6 +88,14 @@ export const gitlabListMembersTool: ToolConfig<GitLabListMembersParams, GitLabLi
         const queryParams = new URLSearchParams()
 
         if (params.query) queryParams.append('query', params.query)
+        if (params.userIds) {
+          for (const id of String(params.userIds).split(',')) {
+            const trimmed = id.trim()
+            if (trimmed) queryParams.append('user_ids[]', trimmed)
+          }
+        }
+        if (params.state && !params.directOnly) queryParams.append('state', params.state)
+        if (params.showSeatInfo) queryParams.append('show_seat_info', 'true')
         if (params.perPage) queryParams.append('per_page', String(params.perPage))
         if (params.page) queryParams.append('page', String(params.page))
 

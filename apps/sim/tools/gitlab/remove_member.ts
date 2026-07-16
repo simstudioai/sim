@@ -42,12 +42,30 @@ export const gitlabRemoveMemberTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The ID of the member to remove',
     },
+    skipSubresources: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Skip deleting the member from subgroups and projects below the target (defaults to false)',
+    },
+    unassignIssuables: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Unassign the member from all issues and merge requests in the target (defaults to false)',
+    },
   },
 
   request: {
     url: (params) => {
       const resourcePath = getGitLabResourcePath(params.resourceType, params.resourceId)
-      return `${getGitLabApiBase(params.host)}/${resourcePath}/members/${params.userId}`
+      const queryParams = new URLSearchParams()
+      if (params.skipSubresources) queryParams.append('skip_subresources', 'true')
+      if (params.unassignIssuables) queryParams.append('unassign_issuables', 'true')
+      const query = queryParams.toString()
+      return `${getGitLabApiBase(params.host)}/${resourcePath}/members/${params.userId}${query ? `?${query}` : ''}`
     },
     method: 'DELETE',
     headers: (params) => ({

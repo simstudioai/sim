@@ -90,6 +90,30 @@ const SAML_LINK_OPS = [
 /** SAML operations that take a SAML group name. */
 const SAML_NAME_OPS = ['gitlab_add_saml_group_link', 'gitlab_delete_saml_group_link']
 
+/** Ops where the User ID field is strictly required (Add Member also accepts a username instead). */
+const USER_ID_REQUIRED_OPS = USER_ID_OPS.filter((op) => op !== 'gitlab_add_member')
+
+/**
+ * Parses an optional JSON text field at execution time. Returns undefined for
+ * blank input and throws a field-specific error for malformed JSON.
+ */
+function parseJsonParam(raw: unknown, label: string): any {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  let parsed = raw
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      throw new Error(`${label} must be valid JSON.`)
+    }
+  }
+  if (parsed === null) return undefined
+  if (typeof parsed !== 'object') {
+    throw new Error(`${label} must be a JSON object or array.`)
+  }
+  return parsed
+}
+
 export const GitLabBlock: BlockConfig<GitLabResponse> = {
   type: 'gitlab',
   name: 'GitLab',
@@ -905,6 +929,393 @@ Return ONLY the commit message - no explanations, no extra text.`,
         placeholder: 'Describe the merge...',
       },
     },
+    // Search filter (projects and issues listings)
+    {
+      id: 'searchQuery',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search projects (name/path/description) or issues (title/description)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_projects', 'gitlab_list_issues'],
+      },
+    },
+    // List-projects filters
+    {
+      id: 'owned',
+      title: 'Owned Only',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Only projects explicitly owned by the current user',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_projects'],
+      },
+    },
+    {
+      id: 'membership',
+      title: 'Member Only',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Only projects the current user is a member of',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_projects'],
+      },
+    },
+    {
+      id: 'visibility',
+      title: 'Visibility',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Public', id: 'public' },
+        { label: 'Internal', id: 'internal' },
+        { label: 'Private', id: 'private' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_projects'],
+      },
+    },
+    // List-issues filters
+    {
+      id: 'assigneeId',
+      title: 'Assignee ID',
+      type: 'short-input',
+      placeholder: 'Filter by assignee user ID (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_issues'],
+      },
+    },
+    {
+      id: 'milestoneTitle',
+      title: 'Milestone',
+      type: 'short-input',
+      placeholder: 'Filter by milestone title (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_issues'],
+      },
+    },
+    // List-MRs branch filters
+    {
+      id: 'sourceBranchFilter',
+      title: 'Source Branch',
+      type: 'short-input',
+      placeholder: 'Filter by source branch (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_merge_requests'],
+      },
+    },
+    {
+      id: 'targetBranchFilter',
+      title: 'Target Branch',
+      type: 'short-input',
+      placeholder: 'Filter by target branch (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_merge_requests'],
+      },
+    },
+    // Per-domain sort fields
+    {
+      id: 'projectOrderBy',
+      title: 'Order By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (created)', id: '' },
+        { label: 'ID', id: 'id' },
+        { label: 'Name', id: 'name' },
+        { label: 'Path', id: 'path' },
+        { label: 'Created', id: 'created_at' },
+        { label: 'Updated', id: 'updated_at' },
+        { label: 'Last activity', id: 'last_activity_at' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_projects'],
+      },
+    },
+    {
+      id: 'issueOrderBy',
+      title: 'Order By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (created)', id: '' },
+        { label: 'Created', id: 'created_at' },
+        { label: 'Updated', id: 'updated_at' },
+        { label: 'Priority', id: 'priority' },
+        { label: 'Due date', id: 'due_date' },
+        { label: 'Relative position', id: 'relative_position' },
+        { label: 'Label priority', id: 'label_priority' },
+        { label: 'Milestone due', id: 'milestone_due' },
+        { label: 'Popularity', id: 'popularity' },
+        { label: 'Weight', id: 'weight' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_issues'],
+      },
+    },
+    {
+      id: 'mrOrderBy',
+      title: 'Order By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (created)', id: '' },
+        { label: 'Created', id: 'created_at' },
+        { label: 'Updated', id: 'updated_at' },
+        { label: 'Merged (GitLab 17.2+)', id: 'merged_at' },
+        { label: 'Priority', id: 'priority' },
+        { label: 'Label priority', id: 'label_priority' },
+        { label: 'Milestone due', id: 'milestone_due' },
+        { label: 'Popularity', id: 'popularity' },
+        { label: 'Title', id: 'title' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_merge_requests'],
+      },
+    },
+    {
+      id: 'pipelineOrderBy',
+      title: 'Order By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (ID)', id: '' },
+        { label: 'ID', id: 'id' },
+        { label: 'Status', id: 'status' },
+        { label: 'Ref', id: 'ref' },
+        { label: 'Updated', id: 'updated_at' },
+        { label: 'User ID', id: 'user_id' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_pipelines'],
+      },
+    },
+    {
+      id: 'releaseOrderBy',
+      title: 'Order By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (released)', id: '' },
+        { label: 'Released', id: 'released_at' },
+        { label: 'Created', id: 'created_at' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_releases'],
+      },
+    },
+    {
+      id: 'sortOrder',
+      title: 'Sort Direction',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (descending)', id: '' },
+        { label: 'Ascending', id: 'asc' },
+        { label: 'Descending', id: 'desc' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'gitlab_list_projects',
+          'gitlab_list_issues',
+          'gitlab_list_merge_requests',
+          'gitlab_list_pipelines',
+          'gitlab_list_releases',
+        ],
+      },
+    },
+    // Pipeline variables and inputs (create pipeline)
+    {
+      id: 'pipelineVariables',
+      title: 'Pipeline Variables',
+      type: 'long-input',
+      placeholder: '{"DEPLOY_ENV": "staging"} or [{"key": "DEPLOY_ENV", "value": "staging"}]',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_pipeline'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object mapping GitLab CI variable names to values based on the user's description, e.g. {"DEPLOY_ENV": "staging", "DRY_RUN": "true"}.
+
+Return ONLY the JSON - no explanations, no extra text.`,
+        placeholder: 'Describe the pipeline variables...',
+      },
+    },
+    {
+      id: 'pipelineInputs',
+      title: 'Pipeline Inputs',
+      type: 'long-input',
+      placeholder: '{"environment": "staging"} (for pipelines defining spec:inputs)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_pipeline'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object of GitLab pipeline inputs (spec:inputs) based on the user's description, e.g. {"environment": "staging"}.
+
+Return ONLY the JSON - no explanations, no extra text.`,
+        placeholder: 'Describe the pipeline inputs...',
+      },
+    },
+    // Manual job variables (play job)
+    {
+      id: 'jobVariables',
+      title: 'Job Variables',
+      type: 'long-input',
+      placeholder: '{"VAR": "value"} or [{"key": "VAR", "value": "value"}]',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_play_job'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object mapping GitLab job variable names to values based on the user's description, e.g. {"DEPLOY_TARGET": "eu-west"}.
+
+Return ONLY the JSON - no explanations, no extra text.`,
+        placeholder: 'Describe the job variables...',
+      },
+    },
+    // Release extras
+    {
+      id: 'tagMessage',
+      title: 'Tag Message',
+      type: 'short-input',
+      placeholder: 'Annotation message when creating a new tag (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_release'],
+      },
+    },
+    {
+      id: 'assetLinks',
+      title: 'Asset Links',
+      type: 'long-input',
+      placeholder: '[{"name": "Binaries", "url": "https://example.com/bin.zip"}]',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_release'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of GitLab release asset links based on the user's description. Each entry has "name" and "url", and optionally "link_type" (other, runbook, image, package), e.g. [{"name": "Binaries", "url": "https://example.com/bin.zip"}].
+
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the release assets...',
+      },
+    },
+    // Commit authoring options (create/update file)
+    {
+      id: 'startBranch',
+      title: 'Start Branch',
+      type: 'short-input',
+      placeholder: 'Base branch to create the target branch from, if missing (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_file', 'gitlab_update_file'],
+      },
+    },
+    {
+      id: 'authorName',
+      title: 'Author Name',
+      type: 'short-input',
+      placeholder: 'Commit author name (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_file', 'gitlab_update_file'],
+      },
+    },
+    {
+      id: 'authorEmail',
+      title: 'Author Email',
+      type: 'short-input',
+      placeholder: 'Commit author email (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_file', 'gitlab_update_file'],
+      },
+    },
+    {
+      id: 'executeFilemode',
+      title: 'Executable',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Enable the execute flag on the file',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_file', 'gitlab_update_file'],
+      },
+    },
+    // Cross-fork compare options
+    {
+      id: 'fromProjectId',
+      title: 'From Project ID',
+      type: 'short-input',
+      placeholder: 'Project to compare from, for cross-fork comparisons (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_compare_branches'],
+      },
+    },
+    {
+      id: 'unidiff',
+      title: 'Unified Diff Format',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Return diffs in unified diff format (GitLab 16.5+)',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_compare_branches'],
+      },
+    },
+    // Internal note toggle (comments)
+    {
+      id: 'internalNote',
+      title: 'Internal Note',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Visible only to project members with at least Reporter access',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_issue_note', 'gitlab_create_merge_request_note'],
+      },
+    },
     // Per page (pagination)
     {
       id: 'perPage',
@@ -1003,10 +1414,25 @@ Return ONLY the commit message - no explanations, no extra text.`,
       title: 'User ID',
       type: 'short-input',
       placeholder: 'Enter the user ID',
-      required: true,
+      required: {
+        field: 'operation',
+        value: USER_ID_REQUIRED_OPS,
+      },
       condition: {
         field: 'operation',
         value: USER_ID_OPS,
+      },
+    },
+    // Username alternative for Add Member (GitLab accepts user_id OR username)
+    {
+      id: 'username',
+      title: 'Username',
+      type: 'short-input',
+      placeholder: 'Username to add instead of a user ID',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_add_member'],
       },
     },
     // Access level (named dropdown mapping to GitLab integer access levels)
@@ -1144,6 +1570,18 @@ Return ONLY the commit message - no explanations, no extra text.`,
         value: ['gitlab_list_members', 'gitlab_list_invitations', 'gitlab_list_branches'],
       },
     },
+    // Invitation source attribution (invite member)
+    {
+      id: 'inviteSource',
+      title: 'Invite Source',
+      type: 'short-input',
+      placeholder: 'Identifier recorded as the source of the invitation (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_invite_member'],
+      },
+    },
     // Direct members only toggle (list members)
     {
       id: 'directMembersOnly',
@@ -1151,6 +1589,70 @@ Return ONLY the commit message - no explanations, no extra text.`,
       type: 'switch',
       mode: 'advanced',
       description: 'Exclude members inherited from ancestor groups',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_members'],
+      },
+    },
+    // Remove-member cleanup options
+    {
+      id: 'skipSubresources',
+      title: 'Skip Subresources',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Keep the member in subgroups and projects below the target',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_remove_member'],
+      },
+    },
+    {
+      id: 'unassignIssuables',
+      title: 'Unassign Issues & MRs',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Unassign the member from all issues and merge requests in the target',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_remove_member'],
+      },
+    },
+    // List-members filters
+    {
+      id: 'memberUserIds',
+      title: 'User IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated user IDs to filter to (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_members'],
+      },
+    },
+    {
+      id: 'memberState',
+      title: 'Member State',
+      type: 'dropdown',
+      description:
+        'Only applies when inherited members are included (Premium/Ultimate); ignored with Direct Members Only',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Active', id: 'active' },
+        { label: 'Awaiting', id: 'awaiting' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_members'],
+      },
+    },
+    {
+      id: 'showSeatInfo',
+      title: 'Show Seat Info',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Include seat information for each member (Premium/Ultimate)',
       condition: {
         field: 'operation',
         value: ['gitlab_list_members'],
@@ -1400,6 +1902,12 @@ Return ONLY the commit message - no explanations, no extra text.`,
           case 'gitlab_list_projects':
             return {
               ...baseParams,
+              owned: params.owned || undefined,
+              membership: params.membership || undefined,
+              search: params.searchQuery?.trim() || undefined,
+              visibility: params.visibility || undefined,
+              orderBy: params.projectOrderBy || undefined,
+              sort: params.sortOrder || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1422,6 +1930,17 @@ Return ONLY the commit message - no explanations, no extra text.`,
               projectId: params.projectId.trim(),
               state: params.issueState !== 'all' ? params.issueState : undefined,
               labels: params.labels?.trim() || undefined,
+              search: params.searchQuery?.trim() || undefined,
+              assigneeId: (() => {
+                const raw = String(params.assigneeId ?? '').trim()
+                if (!raw) return undefined
+                const parsed = Number(raw)
+                if (Number.isNaN(parsed)) throw new Error('Assignee ID must be a number.')
+                return parsed
+              })(),
+              milestoneTitle: params.milestoneTitle?.trim() || undefined,
+              orderBy: params.issueOrderBy || undefined,
+              sort: params.sortOrder || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1489,6 +2008,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               projectId: params.projectId.trim(),
               issueIid: Number(params.issueIid),
               body: params.body.trim(),
+              internal: params.internalNote || undefined,
             }
 
           case 'gitlab_list_merge_requests':
@@ -1500,6 +2020,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
               projectId: params.projectId.trim(),
               state: params.mrState !== 'all' ? params.mrState : undefined,
               labels: params.labels?.trim() || undefined,
+              sourceBranch: params.sourceBranchFilter?.trim() || undefined,
+              targetBranch: params.targetBranchFilter?.trim() || undefined,
+              orderBy: params.mrOrderBy || undefined,
+              sort: params.sortOrder || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1581,6 +2105,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               projectId: params.projectId.trim(),
               mergeRequestIid: Number(params.mergeRequestIid),
               body: params.body.trim(),
+              internal: params.internalNote || undefined,
             }
 
           case 'gitlab_list_pipelines':
@@ -1592,6 +2117,8 @@ Return ONLY the commit message - no explanations, no extra text.`,
               projectId: params.projectId.trim(),
               status: params.pipelineStatus || undefined,
               ref: params.ref?.trim() || undefined,
+              orderBy: params.pipelineOrderBy || undefined,
+              sort: params.sortOrder || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1614,6 +2141,19 @@ Return ONLY the commit message - no explanations, no extra text.`,
               ...baseParams,
               projectId: params.projectId.trim(),
               ref: params.ref.trim(),
+              variables: (() => {
+                const parsed = parseJsonParam(params.pipelineVariables, 'Pipeline Variables')
+                if (parsed === undefined) return undefined
+                // Accept {KEY: value} shorthand and normalize to GitLab's array form.
+                if (!Array.isArray(parsed) && typeof parsed === 'object') {
+                  return Object.entries(parsed).map(([key, value]) => ({
+                    key,
+                    value: String(value),
+                  }))
+                }
+                return parsed
+              })(),
+              inputs: parseJsonParam(params.pipelineInputs, 'Pipeline Inputs'),
             }
 
           case 'gitlab_retry_pipeline':
@@ -1672,6 +2212,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
               branch: params.branch.trim(),
               content: params.content,
               commitMessage: params.commitMessage.trim(),
+              startBranch: params.startBranch?.trim() || undefined,
+              authorName: params.authorName?.trim() || undefined,
+              authorEmail: params.authorEmail?.trim() || undefined,
+              executeFilemode: params.executeFilemode || undefined,
               ...(params.operation === 'gitlab_update_file'
                 ? { lastCommitId: params.lastCommitId?.trim() || undefined }
                 : {}),
@@ -1724,6 +2268,8 @@ Return ONLY the commit message - no explanations, no extra text.`,
               from: params.compareFrom.trim(),
               to: params.compareTo.trim(),
               straight: params.straight || undefined,
+              fromProjectId: params.fromProjectId?.trim() || undefined,
+              unidiff: params.unidiff || undefined,
             }
 
           case 'gitlab_list_commits':
@@ -1795,6 +2341,17 @@ Return ONLY the commit message - no explanations, no extra text.`,
               ...baseParams,
               projectId: params.projectId.trim(),
               jobId: Number(params.jobId),
+              jobVariables: (() => {
+                const parsed = parseJsonParam(params.jobVariables, 'Job Variables')
+                if (parsed === undefined) return undefined
+                if (!Array.isArray(parsed) && typeof parsed === 'object') {
+                  return Object.entries(parsed).map(([key, value]) => ({
+                    key,
+                    value: String(value),
+                  }))
+                }
+                return parsed
+              })(),
             }
 
           case 'gitlab_list_releases':
@@ -1804,6 +2361,8 @@ Return ONLY the commit message - no explanations, no extra text.`,
             return {
               ...baseParams,
               projectId: params.projectId.trim(),
+              orderBy: params.releaseOrderBy || undefined,
+              sort: params.sortOrder || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1820,6 +2379,8 @@ Return ONLY the commit message - no explanations, no extra text.`,
               description: params.description?.trim() || undefined,
               ref: params.ref?.trim() || undefined,
               releasedAt: params.releasedAt?.trim() || undefined,
+              tagMessage: params.tagMessage?.trim() || undefined,
+              assetLinks: parseJsonParam(params.assetLinks, 'Asset Links'),
               milestones: params.releaseMilestones
                 ? params.releaseMilestones
                     .split(',')
@@ -1838,23 +2399,35 @@ Return ONLY the commit message - no explanations, no extra text.`,
               resourceId: params.resourceId.trim(),
               directOnly: params.directMembersOnly || undefined,
               query: params.query?.trim() || undefined,
+              userIds: params.memberUserIds?.trim() || undefined,
+              state: params.memberState || undefined,
+              showSeatInfo: params.showSeatInfo || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
 
-          case 'gitlab_add_member':
-            if (!params.resourceId?.trim() || !params.userId || !params.accessLevel) {
-              throw new Error('Project / Group ID, User ID, and Access Level are required.')
+          case 'gitlab_add_member': {
+            const addMemberUserId = String(params.userId ?? '').trim()
+            if (
+              !params.resourceId?.trim() ||
+              (!addMemberUserId && !params.username?.trim()) ||
+              !params.accessLevel
+            ) {
+              throw new Error(
+                'Project / Group ID, User ID (or Username), and Access Level are required.'
+              )
             }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
-              userId: Number(params.userId),
+              userId: addMemberUserId ? Number(addMemberUserId) : undefined,
+              username: params.username?.trim() || undefined,
               accessLevel: Number(params.accessLevel),
               expiresAt: params.expiresAt?.trim() || undefined,
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
             }
+          }
 
           case 'gitlab_update_member':
             if (!params.resourceId?.trim() || !params.userId || !params.memberAccessLevel) {
@@ -1879,6 +2452,8 @@ Return ONLY the commit message - no explanations, no extra text.`,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
               userId: Number(params.userId),
+              skipSubresources: params.skipSubresources || undefined,
+              unassignIssuables: params.unassignIssuables || undefined,
             }
 
           case 'gitlab_invite_member':
@@ -1893,6 +2468,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               accessLevel: Number(params.accessLevel),
               expiresAt: params.expiresAt?.trim() || undefined,
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
+              inviteSource: params.inviteSource?.trim() || undefined,
             }
 
           case 'gitlab_list_invitations':
@@ -2131,6 +2707,38 @@ Return ONLY the commit message - no explanations, no extra text.`,
         'Branch, tag, or commit reference (pipelines, files, branches, releases, listings)',
     },
     labels: { type: 'string', description: 'Labels (comma-separated)' },
+    searchQuery: { type: 'string', description: 'Search filter for project/issue listings' },
+    owned: { type: 'boolean', description: 'Only owned projects' },
+    membership: { type: 'boolean', description: 'Only projects the user is a member of' },
+    visibility: { type: 'string', description: 'Project visibility filter' },
+    assigneeId: { type: 'number', description: 'Assignee user ID filter for issues' },
+    milestoneTitle: { type: 'string', description: 'Milestone title filter for issues' },
+    sourceBranchFilter: { type: 'string', description: 'Source branch filter for MR listings' },
+    targetBranchFilter: { type: 'string', description: 'Target branch filter for MR listings' },
+    projectOrderBy: { type: 'string', description: 'Project listing sort field' },
+    issueOrderBy: { type: 'string', description: 'Issue listing sort field' },
+    mrOrderBy: { type: 'string', description: 'Merge request listing sort field' },
+    pipelineOrderBy: { type: 'string', description: 'Pipeline listing sort field' },
+    releaseOrderBy: { type: 'string', description: 'Release listing sort field' },
+    sortOrder: { type: 'string', description: 'Sort direction (asc or desc)' },
+    pipelineVariables: {
+      type: 'string',
+      description: 'Pipeline variables as JSON (object or key/value array)',
+    },
+    pipelineInputs: { type: 'string', description: 'Pipeline spec:inputs as a JSON object' },
+    jobVariables: {
+      type: 'string',
+      description: 'Manual job variables as JSON (object or key/value array)',
+    },
+    tagMessage: { type: 'string', description: 'Annotation message for a newly created tag' },
+    assetLinks: { type: 'string', description: 'Release asset links as a JSON array' },
+    startBranch: { type: 'string', description: 'Base branch for new-branch file commits' },
+    authorName: { type: 'string', description: 'Commit author name override' },
+    authorEmail: { type: 'string', description: 'Commit author email override' },
+    executeFilemode: { type: 'boolean', description: 'Enable the execute flag on the file' },
+    fromProjectId: { type: 'string', description: 'Project to compare from (cross-fork)' },
+    unidiff: { type: 'boolean', description: 'Return diffs in unified diff format' },
+    internalNote: { type: 'boolean', description: 'Create the comment as an internal note' },
     assigneeIds: { type: 'string', description: 'Assignee user IDs (comma-separated)' },
     milestoneId: { type: 'number', description: 'Milestone ID' },
     issueState: { type: 'string', description: 'Issue state filter (opened, closed, all)' },
@@ -2174,6 +2782,19 @@ Return ONLY the commit message - no explanations, no extra text.`,
     resourceId: { type: 'string', description: 'Project or group ID or URL-encoded path' },
     groupId: { type: 'string', description: 'Group ID or URL-encoded path' },
     userId: { type: 'number', description: 'Target user ID' },
+    username: { type: 'string', description: 'Username alternative for adding a member' },
+    skipSubresources: {
+      type: 'boolean',
+      description: 'Keep the member in descendant subgroups/projects on removal',
+    },
+    unassignIssuables: {
+      type: 'boolean',
+      description: 'Unassign the removed member from issues and MRs',
+    },
+    inviteSource: { type: 'string', description: 'Attribution source recorded on the invitation' },
+    memberUserIds: { type: 'string', description: 'Comma-separated user IDs filter for members' },
+    memberState: { type: 'string', description: "Member state filter ('active' or 'awaiting')" },
+    showSeatInfo: { type: 'boolean', description: 'Include seat information for members' },
     accessLevel: { type: 'number', description: 'GitLab access level (10-50)' },
     memberAccessLevel: {
       type: 'string',
@@ -2370,6 +2991,16 @@ export const GitLabBlockMeta = {
     },
     {
       icon: GitLabIcon,
+      title: 'GitLab access governance agent',
+      prompt:
+        'Build a scheduled workflow that lists pending GitLab access requests and invitations across our key groups, checks each requester against a table of approved teams, approves or denies the access requests at the right access level, revokes stale invitations older than 14 days, and posts a summary of every access decision to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'security', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GitLabIcon,
       title: 'GitLab repository knowledge base',
       prompt:
         'Create a knowledge base that ingests GitLab project files, merge request descriptions, and issue threads, then build an agent I can ask things like "how does the billing module handle proration?" or "which MR introduced the rate limiter?" and get answers with GitLab citations.',
@@ -2379,6 +3010,20 @@ export const GitLabBlockMeta = {
     },
   ],
   skills: [
+    {
+      name: 'provision-gitlab-member',
+      description:
+        'Resolve a person to a GitLab user and add them to a project or group at the right access level.',
+      content:
+        '# Provision GitLab Member\n\nUse GitLab to grant someone access to a project or group.\n\n## Steps\n1. Search Users by name, username, or email to resolve the target user ID.\n2. If the user exists, use Add Member with the project/group, user ID, access level, and an expiration date for time-boxed access. A user who is already a member is reported as a soft success.\n3. If no GitLab user matches, use Invite Member by Email instead so they receive an email invitation at the same access level.\n\n## Output\nConfirm who was added or invited, to which project/group, at what access level, and any expiration date applied.',
+    },
+    {
+      name: 'audit-gitlab-access-requests',
+      description:
+        'List pending access requests for a GitLab project or group and approve or deny each one.',
+      content:
+        '# Audit GitLab Access Requests\n\nUse GitLab to work through pending access requests.\n\n## Steps\n1. List Access Requests for the project or group to see who is waiting.\n2. For each requester, decide based on the stated policy: Approve Access Request with an explicit access level, or Deny Access Request.\n3. Optionally List Members afterwards to confirm the roster reflects the decisions.\n\n## Output\nReturn a decision log: each requester, whether they were approved (and at what level) or denied, and any requests intentionally left pending.',
+    },
     {
       name: 'review-merge-request',
       description:

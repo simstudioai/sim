@@ -43,6 +43,12 @@ export const gitlabCreatePipelineTool: ToolConfig<
       description:
         'Array of variables for the pipeline (each with key, value, and optional variable_type)',
     },
+    inputs: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pipeline inputs as a key/value object (for pipelines with spec:inputs)',
+    },
   },
 
   request: {
@@ -62,6 +68,9 @@ export const gitlabCreatePipelineTool: ToolConfig<
 
       if (params.variables && params.variables.length > 0) {
         body.variables = params.variables
+      }
+      if (params.inputs && Object.keys(params.inputs).length > 0) {
+        body.inputs = params.inputs
       }
 
       return body
