@@ -8710,3 +8710,24 @@ export function JupyterIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function RocketlaneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 19.001 16.514' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <g transform='translate(0 -6.486)'>
+        <path
+          fillRule='evenodd'
+          clipRule='evenodd'
+          d='M15.446 6.94198L19.0007 14.7744L15.446 22.6068C14.652 22.862 13.8054 22.9998 12.9266 22.9998C11.714 22.9998 10.5627 22.7374 9.52637 22.2664L12.9266 14.7744L9.52637 7.28242C10.5627 6.81133 11.714 6.54895 12.9266 6.54895C13.8054 6.54895 14.652 6.68677 15.446 6.94198Z'
+          fill='#0F62FE'
+        />
+        <path
+          fillRule='evenodd'
+          clipRule='evenodd'
+          d='M6.03112 7.01001L9.52638 14.7114L6.03112 22.4129C5.13054 22.7516 4.15483 22.9369 3.13585 22.9369C2.02543 22.9369 0.96641 22.7168 0 22.318L3.45221 14.7114L2.49902e-08 7.10487C0.96641 6.70602 2.02543 6.48599 3.13585 6.48599C4.15483 6.48599 5.13054 6.67128 6.03112 7.01001Z'
+          fill='currentColor'
+        />
+      </g>
+    </svg>
+  )
+}
