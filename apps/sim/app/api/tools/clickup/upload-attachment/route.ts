@@ -5,6 +5,7 @@ import { clickupUploadAttachmentContract } from '@/lib/api/contracts/tools/click
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -74,6 +75,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } catch (error) {
       const notReady = docNotReadyResponse(error)
       if (notReady) return notReady
+      if (error instanceof PayloadSizeLimitError) {
+        return uploadSizeError(error.observedBytes ?? userFile.size)
+      }
       throw error
     }
 
