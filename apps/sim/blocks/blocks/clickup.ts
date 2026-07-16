@@ -114,21 +114,49 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       id: 'spaceId',
       title: 'Space ID',
       type: 'short-input',
-      required: { field: 'operation', value: ['get_folders', 'create_folder', 'get_space_tags'] },
+      required: true,
       placeholder: 'Enter space ID',
       condition: {
         field: 'operation',
-        value: ['get_folders', 'create_folder', 'get_space_tags', 'get_lists', 'create_list'],
+        value: ['get_folders', 'create_folder', 'get_space_tags'],
+      },
+    },
+    {
+      id: 'listParent',
+      title: 'Location',
+      type: 'dropdown',
+      options: [
+        { label: 'Folder', id: 'folder' },
+        { label: 'Space (folderless)', id: 'space' },
+      ],
+      value: () => 'folder',
+      condition: {
+        field: 'operation',
+        value: ['get_lists', 'create_list'],
       },
     },
     {
       id: 'folderId',
       title: 'Folder ID',
       type: 'short-input',
-      placeholder: 'Enter folder ID (or use a space ID for folderless lists)',
+      required: true,
+      placeholder: 'Enter folder ID',
       condition: {
         field: 'operation',
         value: ['get_lists', 'create_list'],
+        and: { field: 'listParent', value: 'folder' },
+      },
+    },
+    {
+      id: 'listSpaceId',
+      title: 'Space ID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter space ID',
+      condition: {
+        field: 'operation',
+        value: ['get_lists', 'create_list'],
+        and: { field: 'listParent', value: 'space' },
       },
     },
     {
@@ -881,8 +909,8 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
           case 'get_lists':
             return {
               ...baseParams,
-              folderId: params.folderId || undefined,
-              spaceId: params.spaceId || undefined,
+              folderId: params.listParent === 'space' ? undefined : params.folderId || undefined,
+              spaceId: params.listParent === 'space' ? params.listSpaceId || undefined : undefined,
               archived: params.archived ? true : undefined,
             }
           case 'create_folder':
@@ -894,8 +922,8 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
           case 'create_list':
             return {
               ...baseParams,
-              folderId: params.folderId || undefined,
-              spaceId: params.spaceId || undefined,
+              folderId: params.listParent === 'space' ? undefined : params.folderId || undefined,
+              spaceId: params.listParent === 'space' ? params.listSpaceId || undefined : undefined,
               name: params.name,
               content: params.content || undefined,
               markdownContent: params.markdownContent || undefined,
@@ -911,7 +939,12 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
     oauthCredential: { type: 'string', description: 'ClickUp OAuth credential' },
     workspaceId: { type: 'string', description: 'Workspace (team) ID' },
     spaceId: { type: 'string', description: 'Space ID' },
+    listParent: {
+      type: 'string',
+      description: 'Where lists live for list operations (folder or space)',
+    },
     folderId: { type: 'string', description: 'Folder ID' },
+    listSpaceId: { type: 'string', description: 'Space ID for folderless list operations' },
     listId: { type: 'string', description: 'List ID' },
     taskId: { type: 'string', description: 'Task ID' },
     commentId: { type: 'string', description: 'Comment ID' },

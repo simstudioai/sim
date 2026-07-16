@@ -66,7 +66,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let buffer: Buffer
     let downloadedContentType = ''
     try {
-      const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+      const result = await downloadServableFileFromStorage(userFile, requestId, logger, {
+        maxBytes: MAX_UPLOAD_SIZE_BYTES,
+      })
       buffer = result.buffer
       downloadedContentType = result.contentType
     } catch (error) {
