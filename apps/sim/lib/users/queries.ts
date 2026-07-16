@@ -77,6 +77,19 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
 }
 
 /**
+ * Loads a user's email address, or `null` when no matching user exists.
+ */
+export async function getUserEmailById(userId: string): Promise<string | null> {
+  const [userRecord] = await db
+    .select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+
+  return userRecord?.email ?? null
+}
+
+/**
  * Loads a user's public profile fields, or `null` when no matching user exists.
  */
 export async function getUserProfile(userId: string) {

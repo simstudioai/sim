@@ -21,6 +21,7 @@ import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { getUserEmailById } from '@/lib/users/queries'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   loadDeployedWorkflowState,
@@ -38,8 +39,13 @@ import type {
   IterationContext,
   SerializableExecutionState,
 } from '@/executor/execution/types'
-import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
+import type {
+  ExecutionResult,
+  NormalizedBlockOutput,
+  StartBlockRunMetadata,
+} from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import { isRunMetadataEnabled } from '@/executor/utils/start-block'
 import { buildParallelSentinelEndId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
 import { Serializer } from '@/serializer'
 
@@ -743,6 +749,24 @@ async function executeWorkflowCoreImpl(
       }
     }
 
+    let startRunMetadata: StartBlockRunMetadata | undefined
+    if (resolvedTriggerBlockId) {
+      const entryBlock = serializedWorkflow.blocks.find(
+        (block) => block.id === resolvedTriggerBlockId
+      )
+      if (entryBlock && isRunMetadataEnabled(entryBlock)) {
+        startRunMetadata = {
+          userEmail: await getUserEmailById(userId),
+          workspaceId: providedWorkspaceId,
+          workflowId,
+          executionId,
+          executionType: triggerType,
+          executionMode: metadata.executionMode ?? 'sync',
+          startTime: metadata.startTime,
+        }
+      }
+    }
+
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
@@ -770,6 +794,7 @@ async function executeWorkflowCoreImpl(
       dagIncomingEdges: snapshot.state?.dagIncomingEdges,
       snapshotState: snapshot.state,
       metadata,
+      startRunMetadata,
       abortSignal,
       includeFileBase64,
       base64MaxBytes,

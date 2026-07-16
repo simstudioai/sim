@@ -144,6 +144,35 @@ const UNIFIED_START_OUTPUTS: OutputDefinition = {
   files: { type: 'file[]', description: 'User uploaded files' },
 }
 
+const START_RUN_METADATA_OUTPUT = {
+  type: 'json',
+  description: 'Trusted run metadata (server-injected)',
+  properties: {
+    userEmail: {
+      type: 'string',
+      description: 'Email of the user who invoked the run (for custom blocks, the invoking user)',
+    },
+    workspaceId: {
+      type: 'string',
+      description: 'Workspace ID of the invoking run (for custom blocks, the invoking workspace)',
+    },
+    workflowId: {
+      type: 'string',
+      description: 'ID of the invoking workflow (for custom blocks, the invoking workflow)',
+    },
+    executionId: {
+      type: 'string',
+      description: 'Execution ID (child workflows share the parent execution ID)',
+    },
+    executionType: {
+      type: 'string',
+      description: 'How the run started: manual, api, chat, mcp, copilot, table, or workflow',
+    },
+    executionMode: { type: 'string', description: 'Execution mode: sync, stream, or async' },
+    startTime: { type: 'string', description: 'ISO timestamp when the execution started' },
+  },
+} as OutputFieldDefinition
+
 function applyInputFormatFields(
   inputFormat: InputFormatField[],
   outputs: OutputDefinition
@@ -188,7 +217,13 @@ function getUnifiedStartOutputs(
 ): OutputDefinition {
   const outputs = { ...UNIFIED_START_OUTPUTS }
   const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
-  return applyInputFormatFields(normalizedInputFormat, outputs)
+  const withFields = applyInputFormatFields(normalizedInputFormat, outputs)
+
+  if (subBlocks?.runMetadata?.value === true) {
+    withFields.metadata = START_RUN_METADATA_OUTPUT
+  }
+
+  return withFields
 }
 
 function getLegacyStarterOutputs(
@@ -491,7 +526,7 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
       current = currentObj[part]
     } else if (
       'type' in currentObj &&
-      currentObj.type === 'object' &&
+      (currentObj.type === 'object' || currentObj.type === 'json') &&
       'properties' in currentObj &&
       currentObj.properties &&
       typeof currentObj.properties === 'object'
