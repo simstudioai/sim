@@ -314,6 +314,8 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.blockType === 'string'
     case 'skill':
       return typeof value.skillId === 'string'
+    case 'mcp':
+      return typeof value.serverId === 'string'
     default:
       return false
   }
@@ -604,6 +606,7 @@ function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unk
         lane: 'subagent',
         channel: MothershipStreamV1TextChannel.thinking,
         content: block.content ?? '',
+        ...(block.subagent ? { agent: block.subagent } : {}),
       }
     case 'subagent_text':
       return {
@@ -611,6 +614,7 @@ function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unk
         lane: 'subagent',
         channel: MothershipStreamV1TextChannel.assistant,
         content: block.content ?? '',
+        ...(block.subagent ? { agent: block.subagent } : {}),
       }
     case 'tool_call':
       if (!block.toolCall) {
@@ -1203,6 +1207,8 @@ export function useChat(
       expectedGen?: number,
       options?: {
         preserveExistingState?: boolean
+        resumeCursor?: string
+        deferFlushes?: boolean
         suppressedWorkflowToolStartIds?: ReadonlySet<string>
         targetChatId?: string
         shouldContinue?: () => boolean
@@ -1328,8 +1334,14 @@ export function useChat(
         currentBlocks: streamingBlocksRef.current,
       })
 
-      streamingContentRef.current = selection.content
-      streamingBlocksRef.current = selection.contentBlocks
+      // A reset replays from cursor 0 into a fresh model that never reads
+      // these refs — keep the previous snapshot visible (and stop-persistable)
+      // until the replay's terminal flush overwrites it, instead of collapsing
+      // the rendered message to empty.
+      if (selection.source === 'cache') {
+        streamingContentRef.current = selection.content
+        streamingBlocksRef.current = selection.contentBlocks
+      }
       lastCursorRef.current = selection.afterCursor
 
       if (selection.afterCursor === '0' && afterCursor !== '0') {
@@ -1930,6 +1942,8 @@ export function useChat(
       expectedGen?: number,
       options?: {
         preserveExistingState?: boolean
+        resumeCursor?: string
+        deferFlushes?: boolean
         suppressedWorkflowToolStartIds?: ReadonlySet<string>
         targetChatId?: string
         shouldContinue?: () => boolean
@@ -2037,6 +2051,17 @@ export function useChat(
           cancelAnimationFrame(state.scheduledTextFlushFrame)
           state.scheduledTextFlushFrame = null
           ops.flush()
+        }
+        if (state.scheduledTextFlushTimer !== null) {
+          clearTimeout(state.scheduledTextFlushTimer)
+          state.scheduledTextFlushTimer = null
+          ops.flush()
+        }
+        // Batch-replay mode publishes exactly one snapshot, here at the end,
+        // so the rendered message goes stale-prefix -> full in a single step
+        // instead of collapsing and re-revealing through partial flushes.
+        if (options?.deferFlushes) {
+          ops.forceFlush()
         }
         if (streamReaderRef.current === reader) {
           streamReaderRef.current = null
@@ -2233,6 +2258,8 @@ export function useChat(
               expectedGen,
               {
                 preserveExistingState: preserveNextReplayState,
+                resumeCursor: latestCursor,
+                deferFlushes: true,
                 suppressedWorkflowToolStartIds: suppressedSeedWorkflowToolStartIds,
                 ...(targetChatId ? { targetChatId } : {}),
                 ...(shouldContinue ? { shouldContinue } : {}),
@@ -2292,6 +2319,7 @@ export function useChat(
             expectedGen,
             {
               preserveExistingState: preserveNextReplayState,
+              resumeCursor: latestCursor,
               ...(targetChatId ? { targetChatId } : {}),
               ...(shouldContinue ? { shouldContinue } : {}),
             }
@@ -2395,6 +2423,8 @@ export function useChat(
             gen,
             {
               preserveExistingState: replaySelection.preserveExistingState,
+              resumeCursor: replaySelection.afterCursor,
+              deferFlushes: true,
               suppressedWorkflowToolStartIds: getReplayCompletedWorkflowToolCallIds(batch.events),
               ...(targetChatId ? { targetChatId } : {}),
               ...(shouldContinue ? { shouldContinue } : {}),
@@ -2765,6 +2795,15 @@ export function useChat(
           ...(typeof block.timestamp === 'number' ? { timestamp: block.timestamp } : {}),
           ...(typeof block.endedAt === 'number' ? { endedAt: block.endedAt } : {}),
         }
+        // Span identity must survive this serializer too (matching
+        // toRawPersistedContentBlock): a stop-persisted turn that loses
+        // spanId/parentSpanId permanently renders through the legacy flat
+        // parser — nested subagents hoist to the top level on every reload.
+        const spanIdentity = {
+          ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
+          ...(block.spanId ? { spanId: block.spanId } : {}),
+          ...(block.parentSpanId ? { parentSpanId: block.parentSpanId } : {}),
+        }
         if (block.type === 'tool_call' && block.toolCall) {
           const isCancelled =
             block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
@@ -2782,7 +2821,7 @@ export function useChat(
               ...(display ? { display } : {}),
               calledBy: block.toolCall.calledBy,
             },
-            ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
+            ...spanIdentity,
             ...timing,
           }
         }
@@ -2790,7 +2829,7 @@ export function useChat(
           type: block.type,
           content: block.content,
           ...(block.subagent ? { lane: 'subagent' } : {}),
-          ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
+          ...spanIdentity,
           ...timing,
         }
       })
@@ -3041,6 +3080,7 @@ export function useChat(
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
         ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
+        ...(c.kind === 'mcp' && 'serverId' in c ? { serverId: c.serverId } : {}),
       }))
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,

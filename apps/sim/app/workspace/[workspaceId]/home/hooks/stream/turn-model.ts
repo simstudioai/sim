@@ -8,7 +8,10 @@ import {
   MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { CallIntegrationTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
+import { CONTEXT_COMPACTION_DISPLAY_TITLE } from '@/lib/copilot/tools/tool-display'
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the
@@ -55,6 +58,13 @@ export interface ToolNode extends NodeBase {
   args?: Record<string, unknown>
   streamingArgs?: string
   uiTitle?: string
+  /**
+   * Model-authored activity phrase for a gateway-resolved integration call
+   * (e.g. "Reading recent emails"). Captured when the authoritative resolved
+   * frame rebinds the node's name to the exact operation, because the resolved
+   * args no longer carry the gateway's `description` field.
+   */
+  integrationDescription?: string
   /** Per-call `ui.hidden` flag — the node is tracked for side effects but not rendered. */
   hidden?: boolean
   result?: { success: boolean; output?: unknown; error?: string }
@@ -178,6 +188,26 @@ function finalizeStaleWorkspaceFiles(model: TurnModel, spanId: string): void {
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
+}
+
+/**
+ * The integration gateway intentionally emits a second authoritative call frame
+ * under the SAME provider call id once Go resolves the exact server-owned
+ * operation (call_integration_tool -> e.g. gmail_read_v2). Rebind the node to
+ * that operation so the row brands from the real integration (name -> block
+ * registry) and keep only the model-authored `description` for presentation —
+ * the caller then replaces args with the resolved operation args, which no
+ * longer carry the gateway envelope fields.
+ */
+function rebindResolvedIntegrationCall(node: ToolNode, toolName: string): void {
+  if (node.name !== CallIntegrationTool.id) return
+  if (!toolName || toolName === CallIntegrationTool.id) return
+  const description =
+    asString(node.args?.description)?.trim() ||
+    extractStreamingStringArgument(node.streamingArgs, 'description')?.trim()
+  if (description) node.integrationDescription = description
+  node.name = toolName
+  node.streamingArgs = undefined
 }
 
 /**
@@ -473,7 +503,13 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           seq,
           tsMs
         )
+        rebindResolvedIntegrationCall(node, toolName)
         if (isRecord(payload.arguments)) node.args = payload.arguments
+        // Only the snapshot-replay path (contentBlocksToModel) carries this
+        // field — the live wire never does; it restores the rebound gateway
+        // description across a preserve-state rebuild.
+        const restoredDescription = asString(payload.integrationDescription)
+        if (restoredDescription) node.integrationDescription = restoredDescription
         // Tool-call titles are derived from the tool name (+args) at serialize
         // time; the stream only carries behavioral flags now.
         const ui = isRecord(payload.ui) ? payload.ui : undefined
@@ -515,7 +551,28 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       if (payload.event === MothershipStreamV1SpanLifecycleEvent.start) {
         breakLane(model, parentSpanId, tsMs)
         const existingId = model.agentBySpanId.get(resolvedSpanId)
-        if (existingId && model.nodes.has(existingId)) break
+        const existing = existingId ? model.nodes.get(existingId) : undefined
+        if (existing && existing.kind === 'agent') {
+          // The lane was pre-created by ensureSubagentLane from a content event
+          // that raced ahead of this start. That event's scope may omit agentId
+          // (contract-optional) while only this start carries payload.agent —
+          // an empty agentId makes the downstream parsers drop the whole lane.
+          // Reconcile instead of ignoring the start — and overwrite a NONEMPTY
+          // mismatched provisional owner too: a racing content event's
+          // scope.agentId can name the forwarding caller (e.g. superagent),
+          // while this start's payload.agent is the authoritative lane owner.
+          if (agentId && existing.agentId !== agentId) existing.agentId = agentId
+          if (!existing.triggerToolCallId && triggerToolCallId) {
+            existing.triggerToolCallId = triggerToolCallId
+          }
+          if (existing.parentSpanId === MAIN_SPAN && parentSpanId !== MAIN_SPAN) {
+            existing.parentSpanId = parentSpanId
+          }
+          if (existing.startedAtMs === undefined && tsMs !== undefined) {
+            existing.startedAtMs = tsMs
+          }
+          break
+        }
         const node: AgentNode = {
           kind: 'agent',
           id: resolvedSpanId,
@@ -546,6 +603,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       const payload = payloadRecord(envelope.payload)
       const kind = payload.kind
       if (kind === MothershipStreamV1RunKind.compaction_start) {
+        ensureSubagentLane(model, spanId, scope, seq, tsMs)
         const node = upsertToolNode(
           model,
           `compaction:${seq}`,
@@ -554,18 +612,20 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           seq,
           tsMs
         )
-        node.uiTitle = 'Compacting context...'
+        node.uiTitle = CONTEXT_COMPACTION_DISPLAY_TITLE
       } else if (kind === MothershipStreamV1RunKind.compaction_done) {
+        ensureSubagentLane(model, spanId, scope, seq, tsMs)
         let finalized = false
         for (let i = model.order.length - 1; i >= 0; i--) {
           const node = model.nodes.get(model.order[i])
           if (
             node?.kind === 'tool' &&
+            node.spanId === spanId &&
             node.name === 'context_compaction' &&
             node.status === 'running'
           ) {
             node.status = 'success'
-            node.uiTitle = 'Compacted context'
+            node.uiTitle = CONTEXT_COMPACTION_DISPLAY_TITLE
             finalized = true
             break
           }
@@ -580,7 +640,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
             tsMs
           )
           node.status = 'success'
-          node.uiTitle = 'Compacted context'
+          node.uiTitle = CONTEXT_COMPACTION_DISPLAY_TITLE
         }
       }
       break

@@ -3,10 +3,13 @@ import { db } from '@sim/db'
 import {
   chat as chatTable,
   copilotChats,
+  customTools as customToolsTable,
   document,
   jobExecutionLogs,
+  knowledgeBaseTagDefinitions,
   knowledgeConnector,
   mcpServers as mcpServersTable,
+  skill as skillTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
   workflowFolder,
@@ -16,7 +19,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import {
   buildWorkspaceContextMd,
@@ -48,7 +51,7 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
+import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
 import {
   serializeApiKeys,
   serializeBlockSchema,
@@ -109,13 +112,13 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
-import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import {
   loadWorkflowDeploymentSnapshot,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import { listSkills } from '@/lib/workflows/skills/operations'
+import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import {
   assertActiveWorkspaceAccess,
@@ -1540,6 +1543,8 @@ export class WorkspaceVFS {
   ): Promise<WorkspaceMdData['knowledgeBases']> {
     const kbs = await getKnowledgeBases(userId, workspaceId)
 
+    const tagDefinitionsByKb = await this.loadKbTagDefinitions(kbs.map((kb) => kb.id))
+
     await Promise.all(
       kbs.map(async (kb) => {
         const safeName = sanitizeName(kb.name)
@@ -1558,6 +1563,7 @@ export class WorkspaceVFS {
             updatedAt: kb.updatedAt,
             documentCount: kb.docCount,
             connectorTypes: kb.connectorTypes,
+            tagDefinitions: tagDefinitionsByKb.get(kb.id),
           })
         )
 
@@ -1630,6 +1636,61 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Load tag definitions for the given knowledge bases in a single query, grouped by
+   * KB id and ordered by tag slot. Surfaced inline in each KB's meta.json so the agent
+   * knows which tags exist (and their slot binding) when editing a knowledge-tag filter.
+   *
+   * @remarks
+   * Tag definitions are an optional enrichment, so a query failure degrades to a meta.json
+   * without them rather than rejecting. This materializer runs inside the top-level
+   * `Promise.all`, whose rejection would fail the entire workspace VFS build and leave the
+   * agent unable to read any file.
+   */
+  private async loadKbTagDefinitions(
+    kbIds: string[]
+  ): Promise<Map<string, KbTagDefinitionSummary[]>> {
+    const byKb = new Map<string, KbTagDefinitionSummary[]>()
+    if (kbIds.length === 0) return byKb
+
+    let rows: Array<{
+      knowledgeBaseId: string
+      tagSlot: string
+      displayName: string
+      fieldType: string
+    }>
+    try {
+      rows = await db
+        .select({
+          knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
+          tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+          displayName: knowledgeBaseTagDefinitions.displayName,
+          fieldType: knowledgeBaseTagDefinitions.fieldType,
+        })
+        .from(knowledgeBaseTagDefinitions)
+        .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
+        .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+    } catch (err) {
+      logger.warn('Failed to load knowledge base tag definitions', {
+        error: toError(err).message,
+      })
+      return byKb
+    }
+
+    for (const row of rows) {
+      const entry = {
+        tagName: row.displayName,
+        tagSlot: row.tagSlot,
+        fieldType: row.fieldType,
+      }
+      const existing = byKb.get(row.knowledgeBaseId)
+      if (existing) existing.push(entry)
+      else byKb.set(row.knowledgeBaseId, [entry])
+    }
+
+    return byKb
+  }
+
+  /**
    * Materialize tables using the shared listTables function.
    * Returns a summary for WORKSPACE.md generation.
    */
@@ -1661,11 +1722,11 @@ export class WorkspaceVFS {
         rowCount: t.rowCount,
       }))
     } catch (err) {
-      logger.warn('Failed to materialize tables', {
+      logger.error('Failed to materialize tables; refusing to serve an incomplete VFS', {
         workspaceId,
         error: toError(err).message,
       })
-      return []
+      throw err
     }
   }
 
@@ -1682,6 +1743,7 @@ export class WorkspaceVFS {
       const files = await listWorkspaceFiles(workspaceId, {
         folders,
         includeReservedSystemFiles: true,
+        throwOnError: true,
       })
       for (const folder of folders) {
         if (
@@ -1712,6 +1774,7 @@ export class WorkspaceVFS {
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
+            updatedAt: file.updatedAt,
           })
         )
       }
@@ -1797,11 +1860,11 @@ export class WorkspaceVFS {
           folderPath: f.folderPath ?? null,
         }))
     } catch (err) {
-      logger.warn('Failed to materialize files', {
+      logger.error('Failed to materialize files; refusing to serve an incomplete VFS', {
         workspaceId,
         error: toError(err).message,
       })
-      return []
+      throw err
     }
   }
 
@@ -1859,6 +1922,11 @@ export class WorkspaceVFS {
                 eq(workflowDeploymentVersion.isActive, true)
               )
             )
+            // Match checkNeedsRedeployment/loadDeployedWorkflowState. Historical
+            // workflows can contain more than one active row, so an unordered
+            // limit may compare the draft with an older deployment while the UI
+            // correctly compares against the newest active deployment.
+            .orderBy(desc(workflowDeploymentVersion.createdAt))
             .limit(1)
         : Promise.resolve([]),
       db
@@ -1914,25 +1982,47 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize custom tools using the shared listCustomTools function.
+   * Advertise custom tools in the VFS without eagerly loading their code.
+   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full
+   * schema+code is fetched only when read (or a grep whose scope touches them).
    */
   private async materializeCustomTools(
     workspaceId: string,
     userId: string
   ): Promise<NonNullable<WorkspaceMdData['customTools']>> {
     try {
-      const toolRows = await listCustomTools({ userId, workspaceId })
+      // Metadata only — tool code can be large; keep it out of the eager map.
+      // Visibility matches listCustomTools: workspace tools + legacy user-owned.
+      const toolRows = await db
+        .select({
+          id: customToolsTable.id,
+          title: customToolsTable.title,
+        })
+        .from(customToolsTable)
+        .where(
+          or(
+            eq(customToolsTable.workspaceId, workspaceId),
+            and(isNull(customToolsTable.workspaceId), eq(customToolsTable.userId, userId))
+          )
+        )
+        .orderBy(desc(customToolsTable.createdAt))
 
       for (const tool of toolRows) {
         const safeName = sanitizeName(tool.title)
-        const serialized = serializeCustomTool({
-          id: tool.id,
-          title: tool.title,
-          schema: tool.schema,
-          code: tool.code,
-        })
-        this.files.set(`custom-tools/${safeName}.json`, serialized)
-        this.files.set(`agent/custom-tools/${safeName}.json`, serialized)
+        const toolId = tool.id
+        const load = async () => {
+          const full = await getCustomToolById({ toolId, userId, workspaceId })
+          if (!full) return null
+          return serializeCustomTool({
+            id: full.id,
+            title: full.title,
+            schema: full.schema,
+            code: full.code,
+          })
+        }
+        // Legacy alias + canonical agent/ path — each resolves independently on read.
+        this.registerLazy(`custom-tools/${safeName}.json`, load)
+        this.registerLazy(`agent/custom-tools/${safeName}.json`, load)
       }
 
       return toolRows.map((t) => ({ id: t.id, name: t.title }))
@@ -2031,26 +2121,39 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize workspace skills using the shared listSkills function.
+   * Advertise workspace skills in the VFS without eagerly loading their bodies.
+   * Paths are registered as lazy so glob/WORKSPACE.md see them, but full content
+   * is fetched only when read (or a grep whose scope touches the path) resolves them.
    */
   private async materializeSkills(
     workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['skills']>> {
     try {
-      const skillRows = await listSkills({ workspaceId, includeBuiltins: false })
+      // Metadata only — skill bodies can be large; keep them out of the eager map.
+      const skillRows = await db
+        .select({
+          id: skillTable.id,
+          name: skillTable.name,
+          description: skillTable.description,
+        })
+        .from(skillTable)
+        .where(eq(skillTable.workspaceId, workspaceId))
+        .orderBy(desc(skillTable.createdAt))
 
       for (const s of skillRows) {
         const safeName = sanitizeName(s.name)
-        this.files.set(
-          `agent/skills/${safeName}.json`,
-          serializeSkill({
-            id: s.id,
-            name: s.name,
-            description: s.description,
-            content: s.content,
-            createdAt: s.createdAt,
+        const skillId = s.id
+        this.registerLazy(`agent/skills/${safeName}.json`, async () => {
+          const full = await getSkillById({ skillId, workspaceId })
+          if (!full) return null
+          return serializeSkill({
+            id: full.id,
+            name: full.name,
+            description: full.description,
+            content: full.content,
+            createdAt: full.createdAt,
           })
-        )
+        })
       }
 
       return skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description }))
@@ -2365,6 +2468,7 @@ export class WorkspaceVFS {
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
+            updatedAt: file.updatedAt,
           })
         )
       }
