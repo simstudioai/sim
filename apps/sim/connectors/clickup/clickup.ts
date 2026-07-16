@@ -186,20 +186,26 @@ export const clickupConnector: ConnectorConfig = {
     const data = (await response.json()) as Record<string, unknown>
     const rawDocs = Array.isArray(data.docs) ? data.docs : []
 
-    const documents: ExternalDocument[] = []
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    const remaining =
+      maxDocs > 0 ? Math.max(0, maxDocs - previouslyFetched) : Number.POSITIVE_INFINITY
+
+    const pageDocuments: ExternalDocument[] = []
     for (const rawDoc of rawDocs) {
       const doc = parseDoc(rawDoc)
       if (!doc || doc.deleted || doc.archived) continue
-      documents.push(docToStub(doc, workspaceId))
+      pageDocuments.push(docToStub(doc, workspaceId))
     }
+    const documents = pageDocuments.slice(0, remaining)
+    const trimmedByCap = documents.length < pageDocuments.length
 
-    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxDocs > 0 && totalFetched >= maxDocs
-    if (hitLimit && syncContext) syncContext.listingCapped = true
-
     const nextCursor =
       typeof data.next_cursor === 'string' && data.next_cursor ? data.next_cursor : undefined
+    const hitLimit = maxDocs > 0 && totalFetched >= maxDocs
+    const capTruncatedListing = hitLimit && (trimmedByCap || Boolean(nextCursor))
+    if (capTruncatedListing && syncContext) syncContext.listingCapped = true
 
     return {
       documents,
