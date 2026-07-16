@@ -298,19 +298,21 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
-      # Re-running this job from an old run would retag the deploy tags back
-      # to that run's commit and immediately trigger a production deploy of
-      # stale code. Only promote while this commit is still the branch head;
-      # when superseded, skip cleanly — the newer run's promotion covers it.
+      # Deploy-tag moves must be monotonic: a re-run of an old run must never
+      # retag latest/staging back to stale code. A superseded first-attempt
+      # run still promotes — the ci-<ref> concurrency group executes runs
+      # serially in commit order, so an ancestor of head is a forward deploy.
       - name: Guard against stale promotion
         id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          HEAD_SHA="$(git ls-remote "https://github.com/${{ github.repository }}.git" "refs/heads/${GITHUB_REF_NAME}" | cut -f1)"
-          if [ "$HEAD_SHA" != "${{ github.sha }}" ]; then
-            echo "::warning::Skipping promotion of ${{ github.sha }}: ${GITHUB_REF_NAME} has moved to ${HEAD_SHA}. Moving the deploy tags to this commit would deploy stale code; push a revert commit to roll back instead."
-            echo "fresh=false" >> $GITHUB_OUTPUT
-          else
+          STATUS="$(gh api "repos/${{ github.repository }}/compare/${{ github.sha }}...${GITHUB_REF_NAME}" --jq '.status' || echo "unknown")"
+          if [ "$STATUS" = "identical" ] || { [ "$STATUS" = "ahead" ] && [ "${{ github.run_attempt }}" = "1" ]; }; then
             echo "fresh=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Skipping promotion of ${{ github.sha }} (branch compare: ${STATUS}, attempt ${{ github.run_attempt }}). Moving the deploy tags here could deploy stale code; push a revert commit to roll back instead."
+            echo "fresh=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Promote images to deploy tags
@@ -402,6 +404,7 @@ jobs:
     needs: [promote-images, build-ghcr-arm64, detect-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
+      contents: read
       packages: write
     strategy:
       matrix:
@@ -419,18 +422,19 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Same protection as promote-images: a re-run of an old run must not
-      # move the public latest tags back to a stale commit. Immutable tags
-      # (sha and version) are still published — only latest moves are gated.
+      # Same monotonic guard as promote-images, applied to the public latest
+      # tags only — immutable sha and version tags are always published.
       - name: Guard against stale latest tags
         id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          HEAD_SHA="$(git ls-remote "https://github.com/${{ github.repository }}.git" "refs/heads/${GITHUB_REF_NAME}" | cut -f1)"
-          if [ "$HEAD_SHA" != "${{ github.sha }}" ]; then
-            echo "::warning::${GITHUB_REF_NAME} has moved to ${HEAD_SHA}; publishing immutable tags for ${{ github.sha }} but skipping the latest tags."
-            echo "fresh=false" >> $GITHUB_OUTPUT
-          else
+          STATUS="$(gh api "repos/${{ github.repository }}/compare/${{ github.sha }}...${GITHUB_REF_NAME}" --jq '.status' || echo "unknown")"
+          if [ "$STATUS" = "identical" ] || { [ "$STATUS" = "ahead" ] && [ "${{ github.run_attempt }}" = "1" ]; }; then
             echo "fresh=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Publishing immutable tags for ${{ github.sha }} but skipping the latest tags (branch compare: ${STATUS}, attempt ${{ github.run_attempt }})."
+            echo "fresh=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Publish tags and manifests
