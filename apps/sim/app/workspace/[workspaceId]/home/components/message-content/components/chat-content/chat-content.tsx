@@ -241,7 +241,7 @@ const MARKDOWN_COMPONENTS = {
           className={cn(
             'text-[var(--text-primary)]',
             kind
-              ? 'not-prose inline-flex items-baseline gap-1 no-underline'
+              ? 'not-prose inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] no-underline transition-colors hover-hover:bg-[var(--surface-6)]'
               : 'underline decoration-dashed underline-offset-4'
           )}
           onClick={(e) => {
