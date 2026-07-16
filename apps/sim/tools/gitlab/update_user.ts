@@ -32,7 +32,8 @@ export const gitlabUpdateUserTool: ToolConfig<GitLabUpdateUserParams, GitLabUser
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "The user's new email address",
+      description:
+        "The user's new email address (GitLab only allows changing to one of the user's existing verified secondary emails)",
     },
     username: {
       type: 'string',
@@ -67,7 +68,9 @@ export const gitlabUpdateUserTool: ToolConfig<GitLabUpdateUserParams, GitLabUser
       if (params.email) body.email = params.email
       if (params.username) body.username = params.username
       if (params.name) body.name = params.name
-      if (params.admin !== undefined) body.admin = params.admin
+      // Strict boolean check: an untouched block switch serializes as `null`,
+      // which must not be sent (GitLab would treat it as a demotion).
+      if (typeof params.admin === 'boolean') body.admin = params.admin
 
       return body
     },

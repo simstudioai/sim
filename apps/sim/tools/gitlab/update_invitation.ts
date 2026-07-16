@@ -37,7 +37,7 @@ export const gitlabUpdateInvitationTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project or group ID or URL-encoded path',
+      description: 'Project or group ID or path (e.g. mygroup/myproject)',
     },
     email: {
       type: 'string',
@@ -50,13 +50,14 @@ export const gitlabUpdateInvitationTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'New access level: 10 (Guest), 20 (Reporter), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'New access level: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
     },
     expiresAt: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Access expiration date in YYYY-MM-DD format',
+      description:
+        'Access expiration date (ISO 8601, e.g. 2026-12-31T00:00:00Z; date-only also accepted). At least one of accessLevel or expiresAt must be provided.',
     },
   },
 

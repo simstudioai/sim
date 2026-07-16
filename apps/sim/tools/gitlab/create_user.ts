@@ -52,6 +52,13 @@ export const gitlabCreateUserTool: ToolConfig<GitLabCreateUserParams, GitLabUser
       visibility: 'user-or-llm',
       description: 'Send the user a password reset link instead of setting a password',
     },
+    forceRandomPassword: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Set a random password without emailing a reset link (useful for SSO-only accounts). One of password, resetPassword, or forceRandomPassword is required.',
+    },
     admin: {
       type: 'boolean',
       required: false,
@@ -82,6 +89,8 @@ export const gitlabCreateUserTool: ToolConfig<GitLabCreateUserParams, GitLabUser
 
       if (params.password) body.password = params.password
       if (params.resetPassword !== undefined) body.reset_password = params.resetPassword
+      if (params.forceRandomPassword !== undefined)
+        body.force_random_password = params.forceRandomPassword
       if (params.admin !== undefined) body.admin = params.admin
       if (params.skipConfirmation !== undefined) body.skip_confirmation = params.skipConfirmation
 

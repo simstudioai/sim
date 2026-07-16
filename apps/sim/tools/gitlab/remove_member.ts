@@ -34,7 +34,7 @@ export const gitlabRemoveMemberTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project or group ID or URL-encoded path',
+      description: 'Project or group ID or path (e.g. mygroup/myproject)',
     },
     userId: {
       type: 'number',

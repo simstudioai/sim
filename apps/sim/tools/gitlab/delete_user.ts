@@ -33,7 +33,7 @@ export const gitlabDeleteUserTool: ToolConfig<GitLabDeleteUserParams, GitLabDele
       required: false,
       visibility: 'user-or-llm',
       description:
-        'When true, contributions and personal projects are deleted rather than moved to a Ghost User',
+        'When true, contributions, personal projects, AND groups owned solely by this user are deleted rather than moved to a Ghost User',
     },
   },
 

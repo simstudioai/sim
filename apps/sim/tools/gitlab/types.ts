@@ -253,7 +253,16 @@ export interface GitLabListIssuesParams extends GitLabBaseParams {
   assigneeId?: number
   milestoneTitle?: string
   search?: string
-  orderBy?: 'created_at' | 'updated_at'
+  orderBy?:
+    | 'created_at'
+    | 'updated_at'
+    | 'priority'
+    | 'due_date'
+    | 'relative_position'
+    | 'label_priority'
+    | 'milestone_due'
+    | 'popularity'
+    | 'weight'
   sort?: 'asc' | 'desc'
   perPage?: number
   page?: number
@@ -295,11 +304,19 @@ export interface GitLabDeleteIssueParams extends GitLabBaseParams {
 
 export interface GitLabListMergeRequestsParams extends GitLabBaseParams {
   projectId: string | number
-  state?: 'opened' | 'closed' | 'merged' | 'all'
+  state?: 'opened' | 'closed' | 'locked' | 'merged' | 'all'
   labels?: string
   sourceBranch?: string
   targetBranch?: string
-  orderBy?: 'created_at' | 'updated_at'
+  orderBy?:
+    | 'created_at'
+    | 'updated_at'
+    | 'merged_at'
+    | 'label_priority'
+    | 'priority'
+    | 'milestone_due'
+    | 'popularity'
+    | 'title'
   sort?: 'asc' | 'desc'
   perPage?: number
   page?: number
@@ -360,10 +377,12 @@ export interface GitLabListPipelinesParams extends GitLabBaseParams {
     | 'running'
     | 'success'
     | 'failed'
+    | 'canceling'
     | 'canceled'
     | 'skipped'
     | 'manual'
     | 'scheduled'
+    | 'waiting_for_callback'
   orderBy?: 'id' | 'status' | 'ref' | 'updated_at' | 'user_id'
   sort?: 'asc' | 'desc'
   perPage?: number
@@ -693,6 +712,7 @@ export interface GitLabGetFileResponse extends ToolResponse {
     blobId?: string | null
     lastCommitId?: string | null
     content?: string
+    truncated?: boolean
   }
 }
 
@@ -722,6 +742,7 @@ export interface GitLabGetMergeRequestChangesResponse extends ToolResponse {
     mergeRequestIid?: number | null
     changes?: GitLabMergeRequestChange[]
     changesCount?: number
+    hasMore?: boolean
   }
 }
 
@@ -743,6 +764,7 @@ export interface GitLabListPipelineJobsResponse extends ToolResponse {
 export interface GitLabGetJobLogResponse extends ToolResponse {
   output: {
     log?: string
+    truncated?: boolean
   }
 }
 
@@ -910,6 +932,7 @@ export interface GitLabCreateUserParams extends GitLabBaseParams {
   name: string
   password?: string
   resetPassword?: boolean
+  forceRandomPassword?: boolean
   admin?: boolean
   skipConfirmation?: boolean
 }

@@ -12,7 +12,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
   id: 'gitlab_add_saml_group_link',
   name: 'GitLab Add SAML Group Link',
   description:
-    'Add a SAML group link that maps an identity-provider group to a GitLab group at a given access level',
+    'Add a SAML group link that maps an identity-provider group to a GitLab group at a given access level (GitLab Premium/Ultimate)',
   version: '1.0.0',
 
   params: {
@@ -32,7 +32,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group ID or URL-encoded path',
+      description: 'Group ID or path (e.g. my-org/my-group)',
     },
     samlGroupName: {
       type: 'string',
@@ -45,7 +45,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Access level granted to members of the SAML group: 10 (Guest), 20 (Reporter), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'Access level granted to members of the SAML group: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
     },
     memberRoleId: {
       type: 'number',
@@ -57,7 +57,8 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Unique provider name that must match for this group link to be applied',
+      description:
+        'Unique provider name that must match for this group link to be applied (GitLab 18.2+)',
     },
   },
 

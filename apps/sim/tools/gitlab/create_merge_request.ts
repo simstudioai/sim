@@ -31,7 +31,7 @@ export const gitlabCreateMergeRequestTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or URL-encoded path',
+      description: 'Project ID or path (e.g. mygroup/myproject)',
     },
     sourceBranch: {
       type: 'string',
@@ -91,7 +91,7 @@ export const gitlabCreateMergeRequestTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Mark as draft (work in progress)',
+      description: 'Mark as draft (applied via the "Draft:" title prefix)',
     },
   },
 
@@ -106,10 +106,16 @@ export const gitlabCreateMergeRequestTool: ToolConfig<
       'PRIVATE-TOKEN': params.accessToken,
     }),
     body: (params) => {
+      // GitLab has no `draft` body param — draft status is conveyed via a
+      // "Draft:" title prefix, so apply the prefix when requested.
+      const title =
+        params.draft === true && !/^\s*draft:/i.test(params.title)
+          ? `Draft: ${params.title}`
+          : params.title
       const body: Record<string, any> = {
         source_branch: params.sourceBranch,
         target_branch: params.targetBranch,
-        title: params.title,
+        title,
       }
 
       if (params.description) body.description = params.description
@@ -120,7 +126,6 @@ export const gitlabCreateMergeRequestTool: ToolConfig<
       if (params.removeSourceBranch !== undefined)
         body.remove_source_branch = params.removeSourceBranch
       if (params.squash !== undefined) body.squash = params.squash
-      if (params.draft !== undefined) body.draft = params.draft
 
       return body
     },

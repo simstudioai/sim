@@ -32,7 +32,7 @@ export const gitlabListSamlGroupLinksTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group ID or URL-encoded path',
+      description: 'Group ID or path (e.g. my-org/my-group)',
     },
   },
 

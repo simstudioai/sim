@@ -79,7 +79,12 @@ describe('gitlab_add_member', () => {
 
   it('treats a 409 as a soft success so workflows are re-runnable', async () => {
     const result = await gitlabAddMemberTool.transformResponse!(
-      mockResponse({ ok: false, status: 409, json: { message: 'Member already exists' } }),
+      mockResponse({
+        ok: false,
+        status: 409,
+        json: { message: 'Member already exists' },
+        text: '{"message":"Member already exists"}',
+      }),
       {} as never
     )
     expect(result.success).toBe(true)
@@ -94,6 +99,14 @@ describe('gitlab_add_member', () => {
     expect(result.success).toBe(true)
     expect(result.output.alreadyMember).toBe(false)
     expect(result.output.member).toEqual({ id: 7, access_level: 30 })
+  })
+
+  it('surfaces a 409 that is not an already-member conflict as a failure', async () => {
+    const result = await gitlabAddMemberTool.transformResponse!(
+      mockResponse({ ok: false, status: 409, text: '{"message":"Seat limit reached"}' }),
+      {} as never
+    )
+    expect(result.success).toBe(false)
   })
 
   it('surfaces other errors as hard failures', async () => {

@@ -28,7 +28,7 @@ export const gitlabCreateIssueNoteTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project ID or URL-encoded path',
+      description: 'Project ID or path (e.g. mygroup/myproject)',
     },
     issueIid: {
       type: 'number',

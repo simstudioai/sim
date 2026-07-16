@@ -31,7 +31,7 @@ export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMem
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project or group ID or URL-encoded path',
+      description: 'Project or group ID or path (e.g. mygroup/myproject)',
     },
     userId: {
       type: 'number',
@@ -44,7 +44,7 @@ export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMem
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Access level: 10 (Guest), 20 (Reporter), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'Access level: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
     },
     expiresAt: {
       type: 'string',
@@ -84,14 +84,23 @@ export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMem
   },
 
   transformResponse: async (response) => {
-    // A 409 means the user is already a member. Treat it as a soft success so
-    // provisioning workflows remain safely re-runnable.
+    // A 409 with "already exists" means the user is already a member. Treat it
+    // as a soft success so provisioning workflows remain safely re-runnable —
+    // but only for that specific conflict, so other 409s still surface.
     if (response.status === 409) {
+      const conflictText = await response.text()
+      if (/already exists|already a member/i.test(conflictText)) {
+        return {
+          success: true,
+          output: {
+            alreadyMember: true,
+          },
+        }
+      }
       return {
-        success: true,
-        output: {
-          alreadyMember: true,
-        },
+        success: false,
+        error: `GitLab API error: 409 ${conflictText}`,
+        output: {},
       }
     }
 

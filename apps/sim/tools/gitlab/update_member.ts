@@ -34,7 +34,7 @@ export const gitlabUpdateMemberTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project or group ID or URL-encoded path',
+      description: 'Project or group ID or path (e.g. mygroup/myproject)',
     },
     userId: {
       type: 'number',
@@ -47,7 +47,7 @@ export const gitlabUpdateMemberTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'New access level: 0 (No access), 10 (Guest), 20 (Reporter), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'New access level: 0 (No access), 5 (Minimal), 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
     },
     expiresAt: {
       type: 'string',
@@ -59,7 +59,8 @@ export const gitlabUpdateMemberTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Custom member role ID (GitLab Ultimate only)',
+      description:
+        'Custom member role ID (GitLab Ultimate only). Warning: when omitted, GitLab removes any custom role the member currently holds.',
     },
   },
 

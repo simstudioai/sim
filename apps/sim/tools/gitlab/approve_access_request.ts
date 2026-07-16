@@ -37,7 +37,7 @@ export const gitlabApproveAccessRequestTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Project or group ID or URL-encoded path',
+      description: 'Project or group ID or path (e.g. mygroup/myproject)',
     },
     userId: {
       type: 'number',
@@ -50,7 +50,7 @@ export const gitlabApproveAccessRequestTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Access level to grant: 10 (Guest), 20 (Reporter), 30 (Developer), 40 (Maintainer), 50 (Owner). Defaults to 30 (Developer).',
+        'Access level to grant: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner). Defaults to 30 (Developer).',
     },
   },
 

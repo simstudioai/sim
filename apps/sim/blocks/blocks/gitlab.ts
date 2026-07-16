@@ -413,6 +413,8 @@ Return ONLY the comment text - no explanations, no extra formatting.`,
           'gitlab_get_file',
           'gitlab_create_branch',
           'gitlab_create_release',
+          'gitlab_list_repository_tree',
+          'gitlab_list_pipelines',
         ],
       },
     },
@@ -576,11 +578,11 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       id: 'path',
       title: 'Path',
       type: 'short-input',
-      placeholder: 'Subdirectory path (optional)',
+      placeholder: 'File or subdirectory path filter (optional)',
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['gitlab_list_repository_tree'],
+        value: ['gitlab_list_repository_tree', 'gitlab_list_commits'],
       },
     },
     // Recursive tree listing
@@ -606,6 +608,80 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
         value: ['gitlab_list_commits'],
       },
     },
+    // Commit time range filters
+    {
+      id: 'since',
+      title: 'Since',
+      type: 'short-input',
+      placeholder: 'Only commits after this ISO 8601 date (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_commits'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description of the earliest commit date.
+
+Return ONLY the timestamp string - no explanations, no extra text.`,
+        generationType: 'timestamp',
+        placeholder: 'Describe the start of the time range...',
+      },
+    },
+    {
+      id: 'until',
+      title: 'Until',
+      type: 'short-input',
+      placeholder: 'Only commits before this ISO 8601 date (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_commits'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description of the latest commit date.
+
+Return ONLY the timestamp string - no explanations, no extra text.`,
+        generationType: 'timestamp',
+        placeholder: 'Describe the end of the time range...',
+      },
+    },
+    // Commit author filter
+    {
+      id: 'author',
+      title: 'Author',
+      type: 'short-input',
+      placeholder: 'Filter commits by author name or email (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_commits'],
+      },
+    },
+    // Optimistic-locking guard (update file)
+    {
+      id: 'lastCommitId',
+      title: 'Last Commit ID',
+      type: 'short-input',
+      placeholder: 'Fail if the file changed since this commit SHA (optional)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_update_file'],
+      },
+    },
+    // Include retried jobs (list pipeline jobs)
+    {
+      id: 'includeRetried',
+      title: 'Include Retried Jobs',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_pipeline_jobs'],
+      },
+    },
     // Job scope filter (for list pipeline jobs)
     {
       id: 'scope',
@@ -613,12 +689,18 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       type: 'dropdown',
       options: [
         { label: 'All', id: '' },
-        { label: 'Failed', id: 'failed' },
-        { label: 'Success', id: 'success' },
-        { label: 'Running', id: 'running' },
+        { label: 'Created', id: 'created' },
+        { label: 'Waiting for resource', id: 'waiting_for_resource' },
+        { label: 'Preparing', id: 'preparing' },
         { label: 'Pending', id: 'pending' },
+        { label: 'Running', id: 'running' },
+        { label: 'Success', id: 'success' },
+        { label: 'Failed', id: 'failed' },
+        { label: 'Canceling', id: 'canceling' },
         { label: 'Canceled', id: 'canceled' },
+        { label: 'Skipped', id: 'skipped' },
         { label: 'Manual', id: 'manual' },
+        { label: 'Scheduled', id: 'scheduled' },
       ],
       value: () => '',
       mode: 'advanced',
@@ -684,7 +766,12 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['gitlab_create_issue', 'gitlab_update_issue'],
+        value: [
+          'gitlab_create_issue',
+          'gitlab_update_issue',
+          'gitlab_create_merge_request',
+          'gitlab_update_merge_request',
+        ],
       },
     },
     // State filter for issues
@@ -746,12 +833,18 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       type: 'dropdown',
       options: [
         { label: 'All', id: '' },
-        { label: 'Running', id: 'running' },
+        { label: 'Created', id: 'created' },
+        { label: 'Waiting for resource', id: 'waiting_for_resource' },
+        { label: 'Preparing', id: 'preparing' },
         { label: 'Pending', id: 'pending' },
+        { label: 'Running', id: 'running' },
         { label: 'Success', id: 'success' },
         { label: 'Failed', id: 'failed' },
+        { label: 'Canceling', id: 'canceling' },
         { label: 'Canceled', id: 'canceled' },
         { label: 'Skipped', id: 'skipped' },
+        { label: 'Manual', id: 'manual' },
+        { label: 'Scheduled', id: 'scheduled' },
       ],
       value: () => '',
       mode: 'advanced',
@@ -768,7 +861,11 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['gitlab_create_merge_request', 'gitlab_merge_merge_request'],
+        value: [
+          'gitlab_create_merge_request',
+          'gitlab_update_merge_request',
+          'gitlab_merge_merge_request',
+        ],
       },
     },
     // Squash commits
@@ -779,7 +876,11 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['gitlab_merge_merge_request'],
+        value: [
+          'gitlab_create_merge_request',
+          'gitlab_update_merge_request',
+          'gitlab_merge_merge_request',
+        ],
       },
     },
     // Merge commit message
@@ -996,11 +1097,12 @@ Return ONLY the commit message - no explanations, no extra text.`,
       id: 'query',
       title: 'Filter',
       type: 'short-input',
-      placeholder: 'Filter members by name/username, or invitations by email',
+      placeholder:
+        'Filter members by name/username, invitations by exact email, or branches by name',
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['gitlab_list_members', 'gitlab_list_invitations'],
+        value: ['gitlab_list_members', 'gitlab_list_invitations', 'gitlab_list_branches'],
       },
     },
     // Direct members only toggle (list members)
@@ -1070,7 +1172,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
       type: 'switch',
       mode: 'advanced',
       description:
-        'Delete contributions and personal projects instead of moving them to a Ghost User',
+        'Delete contributions, personal projects, and solely-owned groups instead of moving them to a Ghost User',
       condition: {
         field: 'operation',
         value: ['gitlab_delete_user'],
@@ -1136,6 +1238,17 @@ Return ONLY the commit message - no explanations, no extra text.`,
       title: 'Send Password Reset Link',
       type: 'switch',
       mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_create_user'],
+      },
+    },
+    {
+      id: 'forceRandomPassword',
+      title: 'Force Random Password',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Set a random password without emailing a reset link (for SSO-only accounts)',
       condition: {
         field: 'operation',
         value: ['gitlab_create_user'],
@@ -1314,6 +1427,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               assigneeIds: params.assigneeIds
                 ? params.assigneeIds.split(',').map((id: string) => Number(id.trim()))
                 : undefined,
+              milestoneId: params.milestoneId ? Number(params.milestoneId) : undefined,
               stateEvent: params.stateEvent || undefined,
             }
 
@@ -1381,7 +1495,9 @@ Return ONLY the commit message - no explanations, no extra text.`,
               assigneeIds: params.assigneeIds
                 ? params.assigneeIds.split(',').map((id: string) => Number(id.trim()))
                 : undefined,
+              milestoneId: params.milestoneId ? Number(params.milestoneId) : undefined,
               removeSourceBranch: params.removeSourceBranch || undefined,
+              squash: params.squash || undefined,
             }
 
           case 'gitlab_update_merge_request':
@@ -1398,7 +1514,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
               assigneeIds: params.assigneeIds
                 ? params.assigneeIds.split(',').map((id: string) => Number(id.trim()))
                 : undefined,
+              milestoneId: params.milestoneId ? Number(params.milestoneId) : undefined,
               stateEvent: params.stateEvent || undefined,
+              removeSourceBranch: params.removeSourceBranch || undefined,
+              squash: params.squash || undefined,
             }
 
           case 'gitlab_merge_merge_request':
@@ -1433,6 +1552,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               ...baseParams,
               projectId: params.projectId.trim(),
               status: params.pipelineStatus || undefined,
+              ref: params.ref?.trim() || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1476,6 +1596,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               ...baseParams,
               projectId: params.projectId.trim(),
               path: params.path?.trim() || undefined,
+              ref: params.ref?.trim() || undefined,
               recursive: params.recursive || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
@@ -1512,6 +1633,9 @@ Return ONLY the commit message - no explanations, no extra text.`,
               branch: params.branch.trim(),
               content: params.content,
               commitMessage: params.commitMessage.trim(),
+              ...(params.operation === 'gitlab_update_file'
+                ? { lastCommitId: params.lastCommitId?.trim() || undefined }
+                : {}),
             }
 
           case 'gitlab_create_branch':
@@ -1532,6 +1656,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
             return {
               ...baseParams,
               projectId: params.projectId.trim(),
+              search: params.query?.trim() || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1570,6 +1695,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
               ...baseParams,
               projectId: params.projectId.trim(),
               refName: params.refName?.trim() || undefined,
+              since: params.since?.trim() || undefined,
+              until: params.until?.trim() || undefined,
+              path: params.path?.trim() || undefined,
+              author: params.author?.trim() || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1604,6 +1733,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               projectId: params.projectId.trim(),
               pipelineId: Number(params.pipelineId),
               scope: params.scope || undefined,
+              includeRetried: params.includeRetried || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -1743,6 +1873,9 @@ Return ONLY the commit message - no explanations, no extra text.`,
             if (!params.resourceId?.trim() || !params.email?.trim()) {
               throw new Error('Project / Group ID and Email are required.')
             }
+            if (!params.invitationAccessLevel && !params.expiresAt?.trim()) {
+              throw new Error('At least one of Access Level or Expires At is required.')
+            }
             return {
               ...baseParams,
               resourceType: params.resourceType || 'project',
@@ -1854,6 +1987,15 @@ Return ONLY the commit message - no explanations, no extra text.`,
             ) {
               throw new Error('Email, Username, and Full Name are required.')
             }
+            if (
+              !params.userAdminPassword?.trim() &&
+              !params.resetPassword &&
+              !params.forceRandomPassword
+            ) {
+              throw new Error(
+                'One of Password, Send Password Reset Link, or Force Random Password is required.'
+              )
+            }
             return {
               ...baseParams,
               email: params.userAdminEmail.trim(),
@@ -1861,6 +2003,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
               name: params.userAdminName.trim(),
               password: params.userAdminPassword?.trim() || undefined,
               resetPassword: params.resetPassword || undefined,
+              forceRandomPassword: params.forceRandomPassword || undefined,
               admin: params.userAdminIsAdmin || undefined,
               skipConfirmation: params.skipConfirmation || undefined,
             }
@@ -1875,10 +2018,11 @@ Return ONLY the commit message - no explanations, no extra text.`,
               email: params.userAdminEmail?.trim() || undefined,
               username: params.userAdminUsername?.trim() || undefined,
               name: params.userAdminName?.trim() || undefined,
-              // Pass the boolean through (not `|| undefined`) so an explicit `false`
-              // demotes the user. An untouched switch is `undefined` and is skipped
-              // by the tool body, leaving the admin flag unchanged.
-              admin: params.userAdminIsAdmin,
+              // Only pass a real boolean: an explicit `false` demotes the user,
+              // while an untouched switch serializes as `null` and must be
+              // dropped so an unrelated update never touches the admin flag.
+              admin:
+                typeof params.userAdminIsAdmin === 'boolean' ? params.userAdminIsAdmin : undefined,
             }
 
           case 'gitlab_delete_user':
@@ -1936,7 +2080,11 @@ Return ONLY the commit message - no explanations, no extra text.`,
     body: { type: 'string', description: 'Comment body' },
     sourceBranch: { type: 'string', description: 'Source branch for merge request' },
     targetBranch: { type: 'string', description: 'Target branch for merge request' },
-    ref: { type: 'string', description: 'Branch or tag reference for pipeline' },
+    ref: {
+      type: 'string',
+      description:
+        'Branch, tag, or commit reference (pipelines, files, branches, releases, listings)',
+    },
     labels: { type: 'string', description: 'Labels (comma-separated)' },
     assigneeIds: { type: 'string', description: 'Assignee user IDs (comma-separated)' },
     milestoneId: { type: 'number', description: 'Milestone ID' },
@@ -1956,11 +2104,19 @@ Return ONLY the commit message - no explanations, no extra text.`,
     branch: { type: 'string', description: 'Branch name' },
     content: { type: 'string', description: 'File content' },
     commitMessage: { type: 'string', description: 'Commit message' },
+    lastCommitId: {
+      type: 'string',
+      description: 'Optimistic-locking commit SHA for file updates',
+    },
     jobId: { type: 'number', description: 'Job ID' },
-    path: { type: 'string', description: 'Subdirectory path for repository tree' },
+    path: { type: 'string', description: 'File or subdirectory path filter' },
     recursive: { type: 'boolean', description: 'Recursively list repository tree' },
     refName: { type: 'string', description: 'Branch or tag name filter' },
+    since: { type: 'string', description: 'Only commits after this ISO 8601 date' },
+    until: { type: 'string', description: 'Only commits before this ISO 8601 date' },
+    author: { type: 'string', description: 'Filter commits by author name or email' },
     scope: { type: 'string', description: 'Job scope filter' },
+    includeRetried: { type: 'boolean', description: 'Include retried jobs in the listing' },
     sha: { type: 'string', description: 'Commit SHA' },
     compareFrom: { type: 'string', description: 'Branch, tag, or commit SHA to compare from' },
     compareTo: { type: 'string', description: 'Branch, tag, or commit SHA to compare to' },
@@ -1984,7 +2140,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
     directMembersOnly: { type: 'boolean', description: 'Exclude inherited members' },
     query: {
       type: 'string',
-      description: 'Filter members by name/username, or invitations by email',
+      description: 'Filter members by name/username, invitations by email, or branches by name',
     },
     userSearch: { type: 'string', description: 'User search query' },
     samlGroupName: { type: 'string', description: 'SAML group name' },
@@ -1999,6 +2155,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
     userAdminName: { type: 'string', description: "User's display name (create/update user)" },
     userAdminPassword: { type: 'string', description: "User's password (create user)" },
     resetPassword: { type: 'boolean', description: 'Send a password reset link (create user)' },
+    forceRandomPassword: {
+      type: 'boolean',
+      description: 'Set a random password without emailing a reset link (create user)',
+    },
     skipConfirmation: { type: 'boolean', description: 'Skip email confirmation (create user)' },
     userAdminIsAdmin: { type: 'boolean', description: 'Whether the user is an administrator' },
   },
@@ -2036,7 +2196,11 @@ Return ONLY the commit message - no explanations, no extra text.`,
     webUrl: { type: 'string', description: 'Web URL' },
     // Merge request change outputs
     changes: { type: 'json', description: 'Merge request file changes/diffs' },
-    changesCount: { type: 'number', description: 'Number of changed files returned' },
+    changesCount: { type: 'number', description: 'Number of changed files returned (first 100)' },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether more changed files exist beyond the first 100',
+    },
     approvalsRequired: { type: 'number', description: 'Approvals required' },
     approvalsLeft: { type: 'number', description: 'Approvals remaining' },
     approvedBy: { type: 'json', description: 'List of approvers' },
@@ -2068,6 +2232,10 @@ Return ONLY the commit message - no explanations, no extra text.`,
     user: { type: 'json', description: 'User details' },
     // Pagination
     total: { type: 'number', description: 'Total number of items available across all pages' },
+    truncated: {
+      type: 'boolean',
+      description: 'Whether returned content (file content or job log) was truncated',
+    },
     // Success indicator
     success: { type: 'boolean', description: 'Operation success status' },
   },

@@ -33,7 +33,7 @@ export const gitlabListMembersTool: ToolConfig<GitLabListMembersParams, GitLabLi
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Project or group ID or URL-encoded path',
+        description: 'Project or group ID or path (e.g. mygroup/myproject)',
       },
       directOnly: {
         type: 'boolean',
@@ -46,7 +46,7 @@ export const gitlabListMembersTool: ToolConfig<GitLabListMembersParams, GitLabLi
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter members by name or username',
+        description: 'Filter members by name, email, or username',
       },
       perPage: {
         type: 'number',
