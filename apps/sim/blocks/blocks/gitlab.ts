@@ -114,6 +114,13 @@ function parseJsonParam(raw: unknown, label: string): any {
   return parsed
 }
 
+/** Maps a "Leave unchanged / Yes / No" dropdown value to true, false, or undefined. */
+function parseTriState(raw: unknown): boolean | undefined {
+  if (raw === 'true' || raw === true) return true
+  if (raw === 'false' || raw === false) return false
+  return undefined
+}
+
 export const GitLabBlock: BlockConfig<GitLabResponse> = {
   type: 'gitlab',
   name: 'GitLab',
@@ -887,11 +894,41 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: [
-          'gitlab_create_merge_request',
-          'gitlab_update_merge_request',
-          'gitlab_merge_merge_request',
-        ],
+        value: ['gitlab_create_merge_request', 'gitlab_merge_merge_request'],
+      },
+    },
+    // Tri-state variants for Update MR: a switch cannot express "turn this
+    // off" without also clobbering the setting on every unrelated update.
+    {
+      id: 'updateRemoveSourceBranch',
+      title: 'Remove Source Branch',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_update_merge_request'],
+      },
+    },
+    {
+      id: 'updateSquash',
+      title: 'Squash Commits',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_update_merge_request'],
       },
     },
     // Squash commits
@@ -902,11 +939,7 @@ Return ONLY the timestamp string - no explanations, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: [
-          'gitlab_create_merge_request',
-          'gitlab_update_merge_request',
-          'gitlab_merge_merge_request',
-        ],
+        value: ['gitlab_create_merge_request', 'gitlab_merge_merge_request'],
       },
     },
     // Merge commit message
@@ -1273,9 +1306,14 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     {
       id: 'executeFilemode',
       title: 'Executable',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged', id: '' },
+        { label: 'Enabled', id: 'true' },
+        { label: 'Disabled', id: 'false' },
+      ],
+      value: () => '',
       mode: 'advanced',
-      description: 'Enable the execute flag on the file',
       condition: {
         field: 'operation',
         value: ['gitlab_create_file', 'gitlab_update_file'],
@@ -2079,8 +2117,8 @@ Return ONLY the JSON array - no explanations, no extra text.`,
                 : undefined,
               milestoneId: params.milestoneId ? Number(params.milestoneId) : undefined,
               stateEvent: params.stateEvent || undefined,
-              removeSourceBranch: params.removeSourceBranch || undefined,
-              squash: params.squash || undefined,
+              removeSourceBranch: parseTriState(params.updateRemoveSourceBranch),
+              squash: parseTriState(params.updateSquash),
             }
 
           case 'gitlab_merge_merge_request':
@@ -2215,7 +2253,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               startBranch: params.startBranch?.trim() || undefined,
               authorName: params.authorName?.trim() || undefined,
               authorEmail: params.authorEmail?.trim() || undefined,
-              executeFilemode: params.executeFilemode || undefined,
+              executeFilemode: parseTriState(params.executeFilemode),
               ...(params.operation === 'gitlab_update_file'
                 ? { lastCommitId: params.lastCommitId?.trim() || undefined }
                 : {}),
@@ -2735,7 +2773,10 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     startBranch: { type: 'string', description: 'Base branch for new-branch file commits' },
     authorName: { type: 'string', description: 'Commit author name override' },
     authorEmail: { type: 'string', description: 'Commit author email override' },
-    executeFilemode: { type: 'boolean', description: 'Enable the execute flag on the file' },
+    executeFilemode: {
+      type: 'string',
+      description: "Execute flag on the file ('true', 'false', or '' to leave unchanged)",
+    },
     fromProjectId: { type: 'string', description: 'Project to compare from (cross-fork)' },
     unidiff: { type: 'boolean', description: 'Return diffs in unified diff format' },
     internalNote: { type: 'boolean', description: 'Create the comment as an internal note' },
@@ -2750,6 +2791,15 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     pipelineStatus: { type: 'string', description: 'Pipeline status filter' },
     removeSourceBranch: { type: 'boolean', description: 'Remove source branch after merge' },
     squash: { type: 'boolean', description: 'Squash commits on merge' },
+    updateSquash: {
+      type: 'string',
+      description: "Squash setting on MR update ('true', 'false', or '' to leave unchanged)",
+    },
+    updateRemoveSourceBranch: {
+      type: 'string',
+      description:
+        "Remove-source-branch setting on MR update ('true', 'false', or '' to leave unchanged)",
+    },
     mergeCommitMessage: { type: 'string', description: 'Custom merge commit message' },
     perPage: { type: 'number', description: 'Results per page' },
     page: { type: 'number', description: 'Page number' },
