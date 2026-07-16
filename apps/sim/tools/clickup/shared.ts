@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
-import type { OutputProperty } from '@/tools/types'
 import type {
+  ClickUpAttachment,
   ClickUpComment,
   ClickUpCustomField,
   ClickUpFolder,
@@ -14,6 +14,7 @@ import type {
   ClickUpUser,
   ClickUpWorkspace,
 } from '@/tools/clickup/types'
+import type { OutputProperty } from '@/tools/types'
 
 export const CLICKUP_API_BASE_URL = 'https://api.clickup.com/api/v2'
 
@@ -89,6 +90,11 @@ export const CLICKUP_TASK_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
   name: { type: 'string', description: 'Task name' },
   textContent: { type: 'string', description: 'Plain text content', nullable: true },
   description: { type: 'string', description: 'Task description', nullable: true },
+  markdownDescription: {
+    type: 'string',
+    description: 'Task description in Markdown (present when requested)',
+    nullable: true,
+  },
   status: {
     type: 'object',
     description: 'Task status',
@@ -109,6 +115,11 @@ export const CLICKUP_TASK_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
   assignees: {
     type: 'array',
     description: 'Users assigned to the task',
+    items: { type: 'object', properties: CLICKUP_USER_OUTPUT_PROPERTIES },
+  },
+  watchers: {
+    type: 'array',
+    description: 'Users watching the task',
     items: { type: 'object', properties: CLICKUP_USER_OUTPUT_PROPERTIES },
   },
   tags: {
@@ -138,6 +149,11 @@ export const CLICKUP_TASK_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
   startDate: { type: 'string', description: 'Start date (Unix ms)', nullable: true },
   points: { type: 'number', description: 'Sprint points', nullable: true },
   timeEstimate: { type: 'number', description: 'Time estimate in milliseconds', nullable: true },
+  timeSpent: { type: 'number', description: 'Time tracked in milliseconds', nullable: true },
+  customFields: {
+    type: 'json',
+    description: 'Custom field values on the task (id, name, type, value)',
+  },
   dateCreated: { type: 'string', description: 'Creation timestamp (Unix ms)', nullable: true },
   dateUpdated: { type: 'string', description: 'Last update timestamp (Unix ms)', nullable: true },
   dateClosed: { type: 'string', description: 'Closed timestamp (Unix ms)', nullable: true },
@@ -151,7 +167,30 @@ export const CLICKUP_TASK_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
       name: { type: 'string', description: 'List name', nullable: true },
     },
   },
+  folder: {
+    type: 'object',
+    description: 'Folder containing the task',
+    nullable: true,
+    properties: {
+      id: { type: 'string', description: 'Folder ID' },
+      name: { type: 'string', description: 'Folder name', nullable: true },
+    },
+  },
+  space: {
+    type: 'object',
+    description: 'Space containing the task',
+    nullable: true,
+    properties: {
+      id: { type: 'string', description: 'Space ID' },
+      name: { type: 'string', description: 'Space name', nullable: true },
+    },
+  },
   url: { type: 'string', description: 'URL to the task in ClickUp', nullable: true },
+  subtasks: {
+    type: 'json',
+    description: 'Subtasks with the same shape as the task object (present when requested)',
+    nullable: true,
+  },
 }
 
 export const CLICKUP_MEMBER_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
@@ -280,7 +319,9 @@ export function mapClickUpTask(value: unknown): ClickUpTask {
   }
 
   const rawAssignees = Array.isArray(value.assignees) ? value.assignees : []
+  const rawWatchers = Array.isArray(value.watchers) ? value.watchers : []
   const rawTags = Array.isArray(value.tags) ? value.tags : []
+  const rawCustomFields = Array.isArray(value.custom_fields) ? value.custom_fields : []
 
   return {
     id: getRequiredString(value.id, 'id'),
@@ -288,27 +329,36 @@ export function mapClickUpTask(value: unknown): ClickUpTask {
     name: getRequiredString(value.name, 'name'),
     textContent: getOptionalString(value.text_content),
     description: getOptionalString(value.description),
+    markdownDescription: getOptionalString(value.markdown_description),
     status: mapClickUpStatus(value.status),
     archived: typeof value.archived === 'boolean' ? value.archived : false,
     creator: mapClickUpUser(value.creator),
     assignees: rawAssignees
       .map((assignee) => mapClickUpUser(assignee))
       .filter((assignee): assignee is ClickUpUser => assignee !== null),
-    tags: rawTags
-      .map((tag) => mapClickUpTag(tag))
-      .filter((tag): tag is ClickUpTag => tag !== null),
+    watchers: rawWatchers
+      .map((watcher) => mapClickUpUser(watcher))
+      .filter((watcher): watcher is ClickUpUser => watcher !== null),
+    tags: rawTags.map((tag) => mapClickUpTag(tag)).filter((tag): tag is ClickUpTag => tag !== null),
     parent: getOptionalString(value.parent),
     priority: mapClickUpPriority(value.priority),
     dueDate: getOptionalString(value.due_date),
     startDate: getOptionalString(value.start_date),
     points: getOptionalNumber(value.points),
     timeEstimate: getOptionalNumber(value.time_estimate),
+    timeSpent: getOptionalNumber(value.time_spent),
+    customFields: rawCustomFields.filter(isRecordLike),
     dateCreated: getOptionalString(value.date_created),
     dateUpdated: getOptionalString(value.date_updated),
     dateClosed: getOptionalString(value.date_closed),
     dateDone: getOptionalString(value.date_done),
     list: mapIdName(value.list),
+    folder: mapIdName(value.folder),
+    space: mapIdName(value.space),
     url: getOptionalString(value.url),
+    subtasks: Array.isArray(value.subtasks)
+      ? value.subtasks.map((subtask) => mapClickUpTask(subtask))
+      : null,
   }
 }
 
@@ -386,6 +436,23 @@ export function mapClickUpList(value: unknown): ClickUpList {
   }
 }
 
+export function mapClickUpAttachment(value: unknown): ClickUpAttachment {
+  if (!isRecordLike(value)) {
+    throw new Error('ClickUp returned an invalid attachment object')
+  }
+
+  return {
+    id: getRequiredString(value.id, 'id'),
+    version: getOptionalString(value.version),
+    title: getOptionalString(value.title),
+    extension: getOptionalString(value.extension),
+    url: getOptionalString(value.url),
+    date: getOptionalNumber(value.date),
+    thumbnailSmall: getOptionalString(value.thumbnail_small),
+    thumbnailLarge: getOptionalString(value.thumbnail_large),
+  }
+}
+
 export function mapClickUpMember(value: unknown): ClickUpMember {
   if (!isRecordLike(value)) {
     throw new Error('ClickUp returned an invalid member object')
@@ -413,7 +480,6 @@ export function mapClickUpCustomField(value: unknown): ClickUpCustomField {
     typeConfig: isRecordLike(value.type_config) ? value.type_config : null,
     dateCreated: getOptionalString(value.date_created),
     hideFromGuests: getOptionalBoolean(value.hide_from_guests),
-    required: getOptionalBoolean(value.required),
   }
 }
 
@@ -423,13 +489,18 @@ export function extractClickUpErrorMessage(
   fallback: string
 ): string {
   if (isRecordLike(data)) {
-    const err = data.err
+    const message =
+      typeof data.err === 'string' && data.err.trim().length > 0
+        ? data.err
+        : typeof data.error === 'string' && data.error.trim().length > 0
+          ? data.error
+          : null
     const ecode = data.ECODE
 
-    if (typeof err === 'string' && err.trim().length > 0) {
+    if (message) {
       return typeof ecode === 'string' && ecode.trim().length > 0
-        ? `${fallback}: ${err} (${ecode})`
-        : `${fallback}: ${err}`
+        ? `${fallback}: ${message} (${ecode})`
+        : `${fallback}: ${message}`
     }
   }
 

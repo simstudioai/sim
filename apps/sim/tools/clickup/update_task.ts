@@ -68,11 +68,23 @@ export const clickupUpdateTaskTool: ToolConfig<ClickUpUpdateTaskParams, ClickUpT
       visibility: 'user-or-llm',
       description: 'New due date as a Unix timestamp in milliseconds',
     },
+    dueDateTime: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the due date includes a time of day',
+    },
     startDate: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
       description: 'New start date as a Unix timestamp in milliseconds',
+    },
+    startDateTime: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the start date includes a time of day',
     },
     timeEstimate: {
       type: 'number',
@@ -98,6 +110,26 @@ export const clickupUpdateTaskTool: ToolConfig<ClickUpUpdateTaskParams, ClickUpT
       visibility: 'user-or-llm',
       description: 'Set to true to archive the task, false to unarchive',
     },
+    assigneesToAdd: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'User IDs to add as assignees',
+      items: {
+        type: 'number',
+        description: 'A ClickUp user ID',
+      },
+    },
+    assigneesToRemove: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'User IDs to remove from assignees',
+      items: {
+        type: 'number',
+        description: 'A ClickUp user ID',
+      },
+    },
   },
 
   request: {
@@ -116,11 +148,19 @@ export const clickupUpdateTaskTool: ToolConfig<ClickUpUpdateTaskParams, ClickUpT
       if (params.status !== undefined) body.status = params.status
       if (params.priority !== undefined) body.priority = params.priority
       if (params.dueDate !== undefined) body.due_date = params.dueDate
+      if (params.dueDateTime !== undefined) body.due_date_time = params.dueDateTime
       if (params.startDate !== undefined) body.start_date = params.startDate
+      if (params.startDateTime !== undefined) body.start_date_time = params.startDateTime
       if (params.timeEstimate !== undefined) body.time_estimate = params.timeEstimate
       if (params.points !== undefined) body.points = params.points
       if (params.parent !== undefined) body.parent = params.parent
       if (params.archived !== undefined) body.archived = params.archived
+      if (params.assigneesToAdd?.length || params.assigneesToRemove?.length) {
+        body.assignees = {
+          add: params.assigneesToAdd ?? [],
+          rem: params.assigneesToRemove ?? [],
+        }
+      }
 
       return body
     },

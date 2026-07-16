@@ -3,7 +3,10 @@ import {
   clickupAuthorizationHeader,
   extractClickUpErrorMessage,
 } from '@/tools/clickup/shared'
-import type { ClickUpUpdateCommentParams, ClickUpUpdateCommentResponse } from '@/tools/clickup/types'
+import type {
+  ClickUpUpdateCommentParams,
+  ClickUpUpdateCommentResponse,
+} from '@/tools/clickup/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const clickupUpdateCommentTool: ToolConfig<
@@ -66,6 +69,12 @@ export const clickupUpdateCommentTool: ToolConfig<
       if (params.commentText !== undefined) body.comment_text = params.commentText
       if (params.assignee !== undefined) body.assignee = params.assignee
       if (params.resolved !== undefined) body.resolved = params.resolved
+
+      if (Object.keys(body).length === 0) {
+        throw new Error(
+          'At least one of commentText, assignee, or resolved is required to update a comment'
+        )
+      }
 
       return body
     },

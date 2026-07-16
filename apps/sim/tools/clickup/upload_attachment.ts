@@ -71,6 +71,7 @@ export const clickupUploadAttachmentTool: ToolConfig<
       optional: true,
       properties: {
         id: { type: 'string', description: 'Attachment ID' },
+        version: { type: 'string', description: 'Attachment version', nullable: true },
         title: { type: 'string', description: 'Attachment title', nullable: true },
         extension: { type: 'string', description: 'File extension', nullable: true },
         url: { type: 'string', description: 'URL of the uploaded attachment', nullable: true },
@@ -79,6 +80,8 @@ export const clickupUploadAttachmentTool: ToolConfig<
           description: 'Upload timestamp (Unix ms)',
           nullable: true,
         },
+        thumbnailSmall: { type: 'string', description: 'Small thumbnail URL', nullable: true },
+        thumbnailLarge: { type: 'string', description: 'Large thumbnail URL', nullable: true },
       },
     },
     files: { type: 'file[]', description: 'The uploaded attachment file' },

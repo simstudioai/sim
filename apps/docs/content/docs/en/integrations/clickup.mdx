@@ -33,12 +33,14 @@ Create a new task in a ClickUp list
 | `status` | string | No | Status to create the task with \(must exist in the list\) |
 | `priority` | number | No | Priority: 1 \(urgent\), 2 \(high\), 3 \(normal\), 4 \(low\) |
 | `dueDate` | number | No | Due date as a Unix timestamp in milliseconds |
+| `dueDateTime` | boolean | No | Whether the due date includes a time of day |
 | `startDate` | number | No | Start date as a Unix timestamp in milliseconds |
+| `startDateTime` | boolean | No | Whether the start date includes a time of day |
 | `assignees` | array | No | User IDs to assign to the task |
 | `tags` | array | No | Tag names to apply to the task |
 | `timeEstimate` | number | No | Time estimate in milliseconds |
 | `parent` | string | No | Parent task ID to create this task as a subtask |
-| `notifyAll` | boolean | No | Whether to notify the task creator on creation |
+| `notifyAll` | boolean | No | When true, creation notifications are sent to everyone, including the task creator |
 
 #### Output
 
@@ -79,11 +81,15 @@ Update an existing task in ClickUp
 | `status` | string | No | New status for the task \(must exist in the list\) |
 | `priority` | number | No | Priority: 1 \(urgent\), 2 \(high\), 3 \(normal\), 4 \(low\) |
 | `dueDate` | number | No | New due date as a Unix timestamp in milliseconds |
+| `dueDateTime` | boolean | No | Whether the due date includes a time of day |
 | `startDate` | number | No | New start date as a Unix timestamp in milliseconds |
+| `startDateTime` | boolean | No | Whether the start date includes a time of day |
 | `timeEstimate` | number | No | New time estimate in milliseconds |
 | `points` | number | No | New sprint points value |
 | `parent` | string | No | Parent task ID to move this task under \(cannot be cleared\) |
 | `archived` | boolean | No | Set to true to archive the task, false to unarchive |
+| `assigneesToAdd` | array | No | User IDs to add as assignees |
+| `assigneesToRemove` | array | No | User IDs to remove from assignees |
 
 #### Output
 
@@ -110,7 +116,7 @@ Delete a task from ClickUp
 
 ### `clickup_get_tasks`
 
-List the tasks in a ClickUp list (100 tasks per page)
+List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)
 
 #### Input
 
@@ -124,6 +130,10 @@ List the tasks in a ClickUp list (100 tasks per page)
 | `includeClosed` | boolean | No | Include closed tasks \(excluded by default\) |
 | `archived` | boolean | No | Return archived tasks |
 | `statuses` | array | No | Filter tasks by status names |
+| `assignees` | array | No | Filter tasks by assignee user IDs |
+| `tags` | array | No | Filter tasks by tag names |
+| `dueDateGt` | number | No | Only tasks due after this Unix timestamp in milliseconds |
+| `dueDateLt` | number | No | Only tasks due before this Unix timestamp in milliseconds |
 
 #### Output
 
@@ -133,7 +143,7 @@ List the tasks in a ClickUp list (100 tasks per page)
 
 ### `clickup_search_tasks`
 
-Search tasks across a ClickUp workspace, filtered by lists, folders, or spaces (100 tasks per page)
+Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)
 
 #### Input
 
@@ -144,9 +154,15 @@ Search tasks across a ClickUp workspace, filtered by lists, folders, or spaces (
 | `orderBy` | string | No | Order by field: id, created, updated, or due_date |
 | `reverse` | boolean | No | Return tasks in reverse order |
 | `subtasks` | boolean | No | Include subtasks \(excluded by default\) |
+| `includeClosed` | boolean | No | Include closed tasks \(excluded by default\) |
 | `listIds` | array | No | Filter by list IDs |
 | `spaceIds` | array | No | Filter by space IDs |
 | `folderIds` | array | No | Filter by folder IDs |
+| `statuses` | array | No | Filter tasks by status names |
+| `assignees` | array | No | Filter tasks by assignee user IDs |
+| `tags` | array | No | Filter tasks by tag names |
+| `dueDateGt` | number | No | Only tasks due after this Unix timestamp in milliseconds |
+| `dueDateLt` | number | No | Only tasks due before this Unix timestamp in milliseconds |
 
 #### Output
 
@@ -165,7 +181,7 @@ Add a comment to a ClickUp task
 | `taskId` | string | Yes | ID of the task to comment on |
 | `commentText` | string | Yes | Content of the comment |
 | `assignee` | number | No | User ID to assign the comment to |
-| `notifyAll` | boolean | No | Whether to also notify the comment creator \(assignees and watchers are always notified\) |
+| `notifyAll` | boolean | No | When true, comment notifications are sent to everyone, including the comment creator |
 
 #### Output
 
@@ -247,10 +263,13 @@ Upload a file to a ClickUp task as an attachment
 | --------- | ---- | ----------- |
 | `attachment` | json | The created attachment |
 |   ↳ `id` | string | Attachment ID |
+|   ↳ `version` | string | Attachment version |
 |   ↳ `title` | string | Attachment title |
 |   ↳ `extension` | string | File extension |
 |   ↳ `url` | string | URL of the uploaded attachment |
 |   ↳ `date` | number | Upload timestamp \(Unix ms\) |
+|   ↳ `thumbnailSmall` | string | Small thumbnail URL |
+|   ↳ `thumbnailLarge` | string | Large thumbnail URL |
 | `files` | file[] | The uploaded attachment file |
 
 ### `clickup_add_tag_to_task`
@@ -358,7 +377,6 @@ List the custom fields accessible in a ClickUp list
 |   ↳ `typeConfig` | json | Type-specific configuration \(e.g. dropdown options\) |
 |   ↳ `dateCreated` | string | Creation timestamp \(Unix ms\) |
 |   ↳ `hideFromGuests` | boolean | Whether the field is hidden from guests |
-|   ↳ `required` | boolean | Whether the field is required |
 
 ### `clickup_get_workspaces`
 
@@ -429,7 +447,7 @@ List the lists in a ClickUp folder, or the folderless lists in a space when a sp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `folderId` | string | No | ID of the folder to list lists from \(provide this or spaceId\) |
+| `folderId` | string | No | ID of the folder to list lists from \(provide this or spaceId; folderId takes precedence when both are set\) |
 | `spaceId` | string | No | ID of the space to list folderless lists from \(provide this or folderId\) |
 | `archived` | boolean | No | Return archived lists |
 
@@ -464,7 +482,7 @@ Create a new list in a ClickUp folder, or a folderless list in a space when a sp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `folderId` | string | No | ID of the folder to create the list in \(provide this or spaceId\) |
+| `folderId` | string | No | ID of the folder to create the list in \(provide this or spaceId; folderId takes precedence when both are set\) |
 | `spaceId` | string | No | ID of the space to create a folderless list in \(provide this or folderId\) |
 | `name` | string | Yes | Name of the list |
 | `content` | string | No | Plain text description of the list |

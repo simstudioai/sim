@@ -13,7 +13,7 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
     id: 'clickup_search_tasks',
     name: 'ClickUp Search Tasks',
     description:
-      'Search tasks across a ClickUp workspace, filtered by lists, folders, or spaces (100 tasks per page)',
+      'Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)',
     version: '1.0.0',
 
     oauth: {
@@ -58,6 +58,12 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
         visibility: 'user-or-llm',
         description: 'Include subtasks (excluded by default)',
       },
+      includeClosed: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Include closed tasks (excluded by default)',
+      },
       listIds: {
         type: 'array',
         required: false,
@@ -88,6 +94,48 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
           description: 'A ClickUp folder ID',
         },
       },
+      statuses: {
+        type: 'array',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Filter tasks by status names',
+        items: {
+          type: 'string',
+          description: 'A status name',
+        },
+      },
+      assignees: {
+        type: 'array',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Filter tasks by assignee user IDs',
+        items: {
+          type: 'string',
+          description: 'A ClickUp user ID',
+        },
+      },
+      tags: {
+        type: 'array',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Filter tasks by tag names',
+        items: {
+          type: 'string',
+          description: 'A tag name',
+        },
+      },
+      dueDateGt: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Only tasks due after this Unix timestamp in milliseconds',
+      },
+      dueDateLt: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Only tasks due before this Unix timestamp in milliseconds',
+      },
     },
 
     request: {
@@ -101,6 +149,9 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
         if (params.subtasks !== undefined) {
           url.searchParams.set('subtasks', String(params.subtasks))
         }
+        if (params.includeClosed !== undefined) {
+          url.searchParams.set('include_closed', String(params.includeClosed))
+        }
         for (const listId of params.listIds ?? []) {
           url.searchParams.append('list_ids[]', listId)
         }
@@ -109,6 +160,21 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
         }
         for (const folderId of params.folderIds ?? []) {
           url.searchParams.append('project_ids[]', folderId)
+        }
+        for (const status of params.statuses ?? []) {
+          url.searchParams.append('statuses[]', status)
+        }
+        for (const assignee of params.assignees ?? []) {
+          url.searchParams.append('assignees[]', assignee)
+        }
+        for (const tag of params.tags ?? []) {
+          url.searchParams.append('tags[]', tag)
+        }
+        if (params.dueDateGt !== undefined) {
+          url.searchParams.set('due_date_gt', String(params.dueDateGt))
+        }
+        if (params.dueDateLt !== undefined) {
+          url.searchParams.set('due_date_lt', String(params.dueDateLt))
         }
         return url.toString()
       },

@@ -94,11 +94,6 @@ export const clickupGetCustomFieldsTool: ToolConfig<
             description: 'Whether the field is hidden from guests',
             nullable: true,
           },
-          required: {
-            type: 'boolean',
-            description: 'Whether the field is required',
-            nullable: true,
-          },
         },
       },
     },

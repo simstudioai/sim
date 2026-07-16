@@ -3356,6 +3356,122 @@
       ]
     },
     {
+      "type": "clickup",
+      "slug": "clickup",
+      "name": "ClickUp",
+      "description": "Interact with ClickUp",
+      "longDescription": "Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ClickUpIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/clickup",
+      "operations": [
+        {
+          "name": "Create Task",
+          "description": "Create a new task in a ClickUp list"
+        },
+        {
+          "name": "Get Task",
+          "description": "Retrieve a task from ClickUp by ID"
+        },
+        {
+          "name": "Update Task",
+          "description": "Update an existing task in ClickUp"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Delete a task from ClickUp"
+        },
+        {
+          "name": "Get Tasks",
+          "description": "List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)"
+        },
+        {
+          "name": "Search Tasks",
+          "description": "Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a ClickUp task"
+        },
+        {
+          "name": "Get Comments",
+          "description": "Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)"
+        },
+        {
+          "name": "Update Comment",
+          "description": "Update the content, assignee, or resolved state of a ClickUp task comment"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a ClickUp task"
+        },
+        {
+          "name": "Upload Attachment",
+          "description": "Upload a file to a ClickUp task as an attachment"
+        },
+        {
+          "name": "Add Tag to Task",
+          "description": "Add an existing space tag to a ClickUp task"
+        },
+        {
+          "name": "Remove Tag from Task",
+          "description": "Remove a tag from a ClickUp task"
+        },
+        {
+          "name": "Get Space Tags",
+          "description": "List the task tags available in a ClickUp space"
+        },
+        {
+          "name": "Get Task Members",
+          "description": "List the workspace members who have explicit access to a ClickUp task"
+        },
+        {
+          "name": "Get List Members",
+          "description": "List the workspace members who have explicit access to a ClickUp list"
+        },
+        {
+          "name": "Get Custom Fields",
+          "description": "List the custom fields accessible in a ClickUp list"
+        },
+        {
+          "name": "Get Workspaces",
+          "description": "List the ClickUp workspaces (teams) available to the connected account"
+        },
+        {
+          "name": "Get Spaces",
+          "description": "List the spaces in a ClickUp workspace"
+        },
+        {
+          "name": "Get Folders",
+          "description": "List the folders in a ClickUp space"
+        },
+        {
+          "name": "Get Lists",
+          "description": "List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new folder in a ClickUp space"
+        },
+        {
+          "name": "Create List",
+          "description": "Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead"
+        }
+      ],
+      "operationCount": 23,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "clickup",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": [
+        "project-management",
+        "ticketing",
+        "automation"
+      ]
+    },
+    {
       "type": "cloudflare",
       "slug": "cloudflare",
       "name": "Cloudflare",

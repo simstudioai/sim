@@ -203,7 +203,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       placeholder: 'Markdown description (overrides Description)',
       condition: {
         field: 'operation',
-        value: ['create_task', 'update_task'],
+        value: ['create_task', 'update_task', 'create_list'],
       },
     },
     {
@@ -273,7 +273,29 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       placeholder: 'Comma-separated user IDs (e.g. 183, 184)',
       condition: {
         field: 'operation',
-        value: ['create_task'],
+        value: ['create_task', 'get_tasks', 'search_tasks'],
+      },
+    },
+    {
+      id: 'assigneesToAdd',
+      title: 'Add Assignees',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Comma-separated user IDs to add',
+      condition: {
+        field: 'operation',
+        value: ['update_task'],
+      },
+    },
+    {
+      id: 'assigneesToRemove',
+      title: 'Remove Assignees',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Comma-separated user IDs to remove',
+      condition: {
+        field: 'operation',
+        value: ['update_task'],
       },
     },
     {
@@ -283,7 +305,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       placeholder: 'Comma-separated tag names',
       condition: {
         field: 'operation',
-        value: ['create_task'],
+        value: ['create_task', 'get_tasks', 'search_tasks'],
       },
     },
     {
@@ -320,8 +342,28 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       },
     },
     {
+      id: 'dueDateTime',
+      title: 'Due Date Has Time',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['create_task', 'update_task'],
+      },
+    },
+    {
+      id: 'startDateTime',
+      title: 'Start Date Has Time',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['create_task', 'update_task'],
+      },
+    },
+    {
       id: 'notifyAll',
-      title: 'Notify Creator',
+      title: 'Notify All',
       type: 'switch',
       mode: 'advanced',
       condition: {
@@ -420,7 +462,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['get_tasks'],
+        value: ['get_tasks', 'search_tasks'],
       },
     },
     {
@@ -441,7 +483,41 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       placeholder: 'Comma-separated status names to filter by',
       condition: {
         field: 'operation',
-        value: ['get_tasks'],
+        value: ['get_tasks', 'search_tasks'],
+      },
+    },
+    {
+      id: 'dueDateGt',
+      title: 'Due After',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['get_tasks', 'search_tasks'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the earliest due date (e.g., "start of this week")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'dueDateLt',
+      title: 'Due Before',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['get_tasks', 'search_tasks'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the latest due date (e.g., "end of next week")...',
+        generationType: 'timestamp',
       },
     },
     {
@@ -481,7 +557,7 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
       id: 'commentText',
       title: 'Comment Text',
       type: 'long-input',
-      required: { field: 'operation', value: ['create_comment'] },
+      required: { field: 'operation', value: ['create_comment', 'update_comment'] },
       placeholder: 'Enter comment text',
       condition: {
         field: 'operation',
@@ -635,7 +711,9 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
               status: params.status || undefined,
               priority: priorityValue,
               dueDate: optionalNumber(params.dueDate),
+              dueDateTime: params.dueDateTime ? true : undefined,
               startDate: optionalNumber(params.startDate),
+              startDateTime: params.startDateTime ? true : undefined,
               assignees: splitCommaSeparatedNumbers(params.assignees),
               tags: splitCommaSeparated(params.tags),
               timeEstimate: optionalNumber(params.timeEstimate),
@@ -659,10 +737,14 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
               status: params.status || undefined,
               priority: priorityValue,
               dueDate: optionalNumber(params.dueDate),
+              dueDateTime: params.dueDateTime ? true : undefined,
               startDate: optionalNumber(params.startDate),
+              startDateTime: params.startDateTime ? true : undefined,
               timeEstimate: optionalNumber(params.timeEstimate),
               points: optionalNumber(params.points),
               parent: params.parent || undefined,
+              assigneesToAdd: splitCommaSeparatedNumbers(params.assigneesToAdd),
+              assigneesToRemove: splitCommaSeparatedNumbers(params.assigneesToRemove),
               archived:
                 params.archiveAction === 'archive'
                   ? true
@@ -686,6 +768,10 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
               includeClosed: params.includeClosed ? true : undefined,
               archived: params.archived ? true : undefined,
               statuses: splitCommaSeparated(params.statuses),
+              assignees: splitCommaSeparated(params.assignees),
+              tags: splitCommaSeparated(params.tags),
+              dueDateGt: optionalNumber(params.dueDateGt),
+              dueDateLt: optionalNumber(params.dueDateLt),
             }
           case 'search_tasks':
             return {
@@ -695,9 +781,15 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
               orderBy: params.orderBy || undefined,
               reverse: params.reverse ? true : undefined,
               subtasks: params.subtasks ? true : undefined,
+              includeClosed: params.includeClosed ? true : undefined,
               listIds: splitCommaSeparated(params.listIds),
               spaceIds: splitCommaSeparated(params.spaceIds),
               folderIds: splitCommaSeparated(params.folderIds),
+              statuses: splitCommaSeparated(params.statuses),
+              assignees: splitCommaSeparated(params.assignees),
+              tags: splitCommaSeparated(params.tags),
+              dueDateGt: optionalNumber(params.dueDateGt),
+              dueDateLt: optionalNumber(params.dueDateLt),
             }
           case 'create_comment':
             return {
@@ -829,8 +921,18 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
     status: { type: 'string', description: 'Task status' },
     priority: { type: 'string', description: 'Task priority (1-4)' },
     dueDate: { type: 'string', description: 'Due date (Unix ms)' },
+    dueDateTime: { type: 'boolean', description: 'Whether the due date includes a time of day' },
     startDate: { type: 'string', description: 'Start date (Unix ms)' },
+    startDateTime: {
+      type: 'boolean',
+      description: 'Whether the start date includes a time of day',
+    },
     assignees: { type: 'string', description: 'Comma-separated assignee user IDs' },
+    assigneesToAdd: { type: 'string', description: 'Comma-separated user IDs to add as assignees' },
+    assigneesToRemove: {
+      type: 'string',
+      description: 'Comma-separated user IDs to remove from assignees',
+    },
     tags: { type: 'string', description: 'Comma-separated tag names' },
     timeEstimate: { type: 'string', description: 'Time estimate in milliseconds' },
     points: { type: 'string', description: 'Sprint points' },
@@ -849,6 +951,8 @@ export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
     includeClosed: { type: 'boolean', description: 'Include closed tasks' },
     archived: { type: 'boolean', description: 'Return archived items' },
     statuses: { type: 'string', description: 'Comma-separated status filters' },
+    dueDateGt: { type: 'string', description: 'Only tasks due after this Unix ms timestamp' },
+    dueDateLt: { type: 'string', description: 'Only tasks due before this Unix ms timestamp' },
     listIds: { type: 'string', description: 'Comma-separated list ID filters' },
     spaceIds: { type: 'string', description: 'Comma-separated space ID filters' },
     folderIds: { type: 'string', description: 'Comma-separated folder ID filters' },

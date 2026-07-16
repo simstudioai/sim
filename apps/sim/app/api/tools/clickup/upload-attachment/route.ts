@@ -10,11 +10,26 @@ import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import { clickupAuthorizationHeader, extractClickUpErrorMessage } from '@/tools/clickup/shared'
+import {
+  CLICKUP_API_BASE_URL,
+  clickupAuthorizationHeader,
+  extractClickUpErrorMessage,
+  mapClickUpAttachment,
+} from '@/tools/clickup/shared'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ClickUpUploadAttachmentAPI')
+
+const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024
+
+function uploadSizeError(bytes: number): NextResponse {
+  const sizeMB = (bytes / (1024 * 1024)).toFixed(2)
+  return NextResponse.json(
+    { success: false, error: `File size (${sizeMB}MB) exceeds upload limit of 100MB` },
+    { status: 400 }
+  )
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -44,6 +59,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
 
+    if (userFile.size > MAX_UPLOAD_SIZE_BYTES) {
+      return uploadSizeError(userFile.size)
+    }
+
     let buffer: Buffer
     let downloadedContentType = ''
     try {
@@ -56,13 +75,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       throw error
     }
 
+    if (buffer.length > MAX_UPLOAD_SIZE_BYTES) {
+      return uploadSizeError(buffer.length)
+    }
+
     const formData = new FormData()
     const blob = new Blob([new Uint8Array(buffer)], {
       type: downloadedContentType || userFile.type || 'application/octet-stream',
     })
     formData.append('attachment', blob, userFile.name)
 
-    const url = `https://api.clickup.com/api/v2/task/${encodeURIComponent(params.taskId)}/attachment`
+    const url = `${CLICKUP_API_BASE_URL}/task/${encodeURIComponent(params.taskId)}/attachment`
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -85,18 +108,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: message }, { status: response.status })
     }
 
-    const record = (data ?? {}) as Record<string, unknown>
-
     return NextResponse.json({
       success: true,
       output: {
-        attachment: {
-          id: typeof record.id === 'string' ? record.id : '',
-          title: typeof record.title === 'string' ? record.title : null,
-          extension: typeof record.extension === 'string' ? record.extension : null,
-          url: typeof record.url === 'string' ? record.url : null,
-          date: typeof record.date === 'number' ? record.date : null,
-        },
+        attachment: mapClickUpAttachment(data),
         files: userFiles,
       },
     })

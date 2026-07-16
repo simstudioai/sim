@@ -38,6 +38,8 @@
     "clickhouse",
     "clickup",
     "clickup-service-account",
+    "clickup",
+    "clickup-service-account",
     "cloudflare",
     "cloudformation",
     "cloudwatch",

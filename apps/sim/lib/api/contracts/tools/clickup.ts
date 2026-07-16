@@ -11,10 +11,13 @@ export const clickupUploadAttachmentBodySchema = z.object({
 
 const clickupAttachmentSchema = z.object({
   id: z.string(),
+  version: z.string().nullable(),
   title: z.string().nullable(),
   extension: z.string().nullable(),
   url: z.string().nullable(),
   date: z.number().nullable(),
+  thumbnailSmall: z.string().nullable(),
+  thumbnailLarge: z.string().nullable(),
 })
 
 const clickupUserFileSchema = z

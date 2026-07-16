@@ -41,10 +41,12 @@ export interface ClickUpTask {
   name: string
   textContent: string | null
   description: string | null
+  markdownDescription: string | null
   status: ClickUpStatus | null
   archived: boolean
   creator: ClickUpUser | null
   assignees: ClickUpUser[]
+  watchers: ClickUpUser[]
   tags: ClickUpTag[]
   parent: string | null
   priority: ClickUpPriority | null
@@ -52,12 +54,17 @@ export interface ClickUpTask {
   startDate: string | null
   points: number | null
   timeEstimate: number | null
+  timeSpent: number | null
+  customFields: Record<string, unknown>[]
   dateCreated: string | null
   dateUpdated: string | null
   dateClosed: string | null
   dateDone: string | null
   list: { id: string; name: string | null } | null
+  folder: { id: string; name: string | null } | null
+  space: { id: string; name: string | null } | null
   url: string | null
+  subtasks: ClickUpTask[] | null
 }
 
 export interface ClickUpComment {
@@ -102,10 +109,13 @@ export interface ClickUpList {
 
 export interface ClickUpAttachment {
   id: string
+  version: string | null
   title: string | null
   extension: string | null
   url: string | null
   date: number | null
+  thumbnailSmall: string | null
+  thumbnailLarge: string | null
 }
 
 export interface ClickUpCustomField {
@@ -115,7 +125,6 @@ export interface ClickUpCustomField {
   typeConfig: Record<string, unknown> | null
   dateCreated: string | null
   hideFromGuests: boolean | null
-  required: boolean | null
 }
 
 export interface ClickUpCreateTaskParams {
@@ -127,7 +136,9 @@ export interface ClickUpCreateTaskParams {
   status?: string
   priority?: number
   dueDate?: number
+  dueDateTime?: boolean
   startDate?: number
+  startDateTime?: boolean
   assignees?: number[]
   tags?: string[]
   timeEstimate?: number
@@ -158,11 +169,15 @@ export interface ClickUpUpdateTaskParams {
   status?: string
   priority?: number
   dueDate?: number
+  dueDateTime?: boolean
   startDate?: number
+  startDateTime?: boolean
   timeEstimate?: number
   points?: number
   parent?: string
   archived?: boolean
+  assigneesToAdd?: number[]
+  assigneesToRemove?: number[]
 }
 
 export interface ClickUpDeleteTaskParams {
@@ -188,6 +203,10 @@ export interface ClickUpGetTasksParams {
   includeClosed?: boolean
   archived?: boolean
   statuses?: string[]
+  assignees?: string[]
+  tags?: string[]
+  dueDateGt?: number
+  dueDateLt?: number
 }
 
 export interface ClickUpTaskListResponse extends ToolResponse {
@@ -204,9 +223,15 @@ export interface ClickUpSearchTasksParams {
   orderBy?: string
   reverse?: boolean
   subtasks?: boolean
+  includeClosed?: boolean
   listIds?: string[]
   spaceIds?: string[]
   folderIds?: string[]
+  statuses?: string[]
+  assignees?: string[]
+  tags?: string[]
+  dueDateGt?: number
+  dueDateLt?: number
 }
 
 export interface ClickUpCreateCommentParams {

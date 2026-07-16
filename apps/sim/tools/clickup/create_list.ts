@@ -31,7 +31,8 @@ export const clickupCreateListTool: ToolConfig<ClickUpCreateListParams, ClickUpL
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the folder to create the list in (provide this or spaceId)',
+      description:
+        'ID of the folder to create the list in (provide this or spaceId; folderId takes precedence when both are set)',
     },
     spaceId: {
       type: 'string',
@@ -79,8 +80,11 @@ export const clickupCreateListTool: ToolConfig<ClickUpCreateListParams, ClickUpL
         name: params.name,
       }
 
-      if (params.content) body.content = params.content
-      if (params.markdownContent) body.markdown_content = params.markdownContent
+      if (params.markdownContent) {
+        body.markdown_content = params.markdownContent
+      } else if (params.content) {
+        body.content = params.content
+      }
 
       return body
     },

@@ -4,7 +4,10 @@ import {
   clickupAuthorizationHeader,
   extractClickUpErrorMessage,
 } from '@/tools/clickup/shared'
-import type { ClickUpCreateCommentParams, ClickUpCreateCommentResponse } from '@/tools/clickup/types'
+import type {
+  ClickUpCreateCommentParams,
+  ClickUpCreateCommentResponse,
+} from '@/tools/clickup/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const clickupCreateCommentTool: ToolConfig<
@@ -51,7 +54,7 @@ export const clickupCreateCommentTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Whether to also notify the comment creator (assignees and watchers are always notified)',
+        'When true, comment notifications are sent to everyone, including the comment creator',
     },
   },
 

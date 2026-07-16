@@ -11,7 +11,8 @@ import type { ToolConfig } from '@/tools/types'
 export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskListResponse> = {
   id: 'clickup_get_tasks',
   name: 'ClickUp Get Tasks',
-  description: 'List the tasks in a ClickUp list (100 tasks per page)',
+  description:
+    'List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)',
   version: '1.0.0',
 
   oauth: {
@@ -78,6 +79,38 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
         description: 'A status name',
       },
     },
+    assignees: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter tasks by assignee user IDs',
+      items: {
+        type: 'string',
+        description: 'A ClickUp user ID',
+      },
+    },
+    tags: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter tasks by tag names',
+      items: {
+        type: 'string',
+        description: 'A tag name',
+      },
+    },
+    dueDateGt: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only tasks due after this Unix timestamp in milliseconds',
+    },
+    dueDateLt: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only tasks due before this Unix timestamp in milliseconds',
+    },
   },
 
   request: {
@@ -93,6 +126,18 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
       if (params.archived !== undefined) url.searchParams.set('archived', String(params.archived))
       for (const status of params.statuses ?? []) {
         url.searchParams.append('statuses[]', status)
+      }
+      for (const assignee of params.assignees ?? []) {
+        url.searchParams.append('assignees[]', assignee)
+      }
+      for (const tag of params.tags ?? []) {
+        url.searchParams.append('tags[]', tag)
+      }
+      if (params.dueDateGt !== undefined) {
+        url.searchParams.set('due_date_gt', String(params.dueDateGt))
+      }
+      if (params.dueDateLt !== undefined) {
+        url.searchParams.set('due_date_lt', String(params.dueDateLt))
       }
       return url.toString()
     },

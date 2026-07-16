@@ -68,11 +68,23 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
       visibility: 'user-or-llm',
       description: 'Due date as a Unix timestamp in milliseconds',
     },
+    dueDateTime: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the due date includes a time of day',
+    },
     startDate: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
       description: 'Start date as a Unix timestamp in milliseconds',
+    },
+    startDateTime: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the start date includes a time of day',
     },
     assignees: {
       type: 'array',
@@ -110,7 +122,8 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to notify the task creator on creation',
+      description:
+        'When true, creation notifications are sent to everyone, including the task creator',
     },
   },
 
@@ -131,7 +144,9 @@ export const clickupCreateTaskTool: ToolConfig<ClickUpCreateTaskParams, ClickUpT
       if (params.status) body.status = params.status
       if (params.priority !== undefined) body.priority = params.priority
       if (params.dueDate !== undefined) body.due_date = params.dueDate
+      if (params.dueDateTime !== undefined) body.due_date_time = params.dueDateTime
       if (params.startDate !== undefined) body.start_date = params.startDate
+      if (params.startDateTime !== undefined) body.start_date_time = params.startDateTime
       if (params.assignees?.length) body.assignees = params.assignees
       if (params.tags?.length) body.tags = params.tags
       if (params.timeEstimate !== undefined) body.time_estimate = params.timeEstimate

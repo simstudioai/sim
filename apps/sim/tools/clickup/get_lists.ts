@@ -31,7 +31,8 @@ export const clickupGetListsTool: ToolConfig<ClickUpGetListsParams, ClickUpListL
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the folder to list lists from (provide this or spaceId)',
+      description:
+        'ID of the folder to list lists from (provide this or spaceId; folderId takes precedence when both are set)',
     },
     spaceId: {
       type: 'string',

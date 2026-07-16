@@ -42,8 +42,7 @@ export const clickupCreateFolderTool: ToolConfig<ClickUpCreateFolderParams, Clic
     },
 
     request: {
-      url: (params) =>
-        `${CLICKUP_API_BASE_URL}/space/${encodeURIComponent(params.spaceId)}/folder`,
+      url: (params) => `${CLICKUP_API_BASE_URL}/space/${encodeURIComponent(params.spaceId)}/folder`,
       method: 'POST',
       headers: (params) => ({
         Authorization: clickupAuthorizationHeader(params.accessToken),

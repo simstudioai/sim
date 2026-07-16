@@ -4,7 +4,10 @@ import {
   extractClickUpErrorMessage,
   mapClickUpWorkspace,
 } from '@/tools/clickup/shared'
-import type { ClickUpGetWorkspacesParams, ClickUpWorkspaceListResponse } from '@/tools/clickup/types'
+import type {
+  ClickUpGetWorkspacesParams,
+  ClickUpWorkspaceListResponse,
+} from '@/tools/clickup/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const clickupGetWorkspacesTool: ToolConfig<
