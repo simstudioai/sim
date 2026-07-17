@@ -92,6 +92,16 @@ async function fetchLabelsForPages(
 }
 
 /**
+ * Body representation marker embedded in the contentHash. Bumping this
+ * invalidates every previously-synced Confluence document so a one-time
+ * re-hydration picks up content newly reachable by the current extraction
+ * (e.g. the switch from `storage` to rendered `view`, which expands Include
+ * Page / Excerpt macros). Without it, already-indexed pages whose version is
+ * unchanged classify as `unchanged` and keep their stale (empty) content.
+ */
+const CONTENT_REPRESENTATION = 'view'
+
+/**
  * Produces a canonical metadata stub with a deterministic contentHash that
  * does not depend on which API surface (v1 CQL or v2) returned the page.
  */
@@ -115,7 +125,7 @@ function pageToStub(
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: options.sourceUrl,
-    contentHash: `confluence:${page.id}:${versionKey}`,
+    contentHash: `confluence:${CONTENT_REPRESENTATION}:${page.id}:${versionKey}`,
     metadata: {
       spaceId: options.spaceId,
       status: page.status,
@@ -233,10 +243,18 @@ export const confluenceConnector: ConnectorConfig = {
       if (syncContext) syncContext.cloudId = cloudId
     }
 
-    // Try pages first, fall back to blogposts if not found
+    /**
+     * Fetch the `view` representation rather than `storage`. Storage format only
+     * carries unexpanded macro references (e.g. Include Page / Excerpt Include),
+     * so "mirrored" content that pulls in another page's body is stripped to
+     * nothing by `htmlToPlainText`. The `view` representation is server-rendered
+     * HTML with those macros expanded inline, so included content is indexed too.
+     * The v2 single-item GET (`/pages/{id}`, `/blogposts/{id}`) supports
+     * `body-format=view`; only the bulk list endpoints are limited to storage/adf.
+     */
     let page: Record<string, unknown> | null = null
     for (const endpoint of ['pages', 'blogposts']) {
-      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${externalId}?body-format=storage`
+      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${externalId}?body-format=view`
       const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {
@@ -256,8 +274,8 @@ export const confluenceConnector: ConnectorConfig = {
 
     if (!page) return null
     const body = page.body as Record<string, unknown> | undefined
-    const storage = body?.storage as Record<string, unknown> | undefined
-    const rawContent = (storage?.value as string) || ''
+    const view = body?.view as Record<string, unknown> | undefined
+    const rawContent = (view?.value as string) || ''
     const plainText = htmlToPlainText(rawContent)
 
     const labelMap = await fetchLabelsForPages(cloudId, accessToken, [String(page.id)])
