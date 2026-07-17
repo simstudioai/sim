@@ -43,7 +43,6 @@ import type {
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
-import { shouldShowAssistantMessageActions } from './message-actions-visibility'
 
 interface MothershipChatProps {
   messages: ChatMessage[]
@@ -197,7 +196,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   const trimmedContent = message.content?.trim() ?? ''
 
   const [phase, setPhase] = useState<MessagePhase>(isStreaming ? 'streaming' : 'settled')
-  const [dismissedQuestionTag, setDismissedQuestionTag] = useState<string | null>(null)
 
   const onAnimatingChangeRef = useRef(onAnimatingChange)
   onAnimatingChangeRef.current = onAnimatingChange
@@ -214,23 +212,11 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     return null
   }
 
-  // A trailing question card replaces the copy/thumbs row while active or
-  // answered. Its raw tag is the dismissal identity so a later question added
-  // to the same turn cannot inherit an earlier card's dismissed state.
+  // A message that ends with a question card is an input surface, not a
+  // reactable assistant turn: no copy/thumbs row beneath the card, whether
+  // the card is awaiting answers or collapsed to its recap.
   const endsWithQuestion = trimmedContent.endsWith('</question>')
-  const questionTag = endsWithQuestion
-    ? trimmedContent.slice(trimmedContent.lastIndexOf('<question>'))
-    : null
-  const questionDismissed = questionTag !== null && dismissedQuestionTag === questionTag
-  const handleQuestionDismiss = () => {
-    if (questionTag) setDismissedQuestionTag(questionTag)
-  }
-  const showActions = shouldShowAssistantMessageActions({
-    phase,
-    hasContent: Boolean(message.content) || hasAnyBlocks,
-    endsWithQuestion,
-    questionDismissed,
-  })
+  const showActions = phase === 'settled' && !endsWithQuestion && (message.content || hasAnyBlocks)
 
   return (
     <div className={rowClassName}>
@@ -240,7 +226,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         isStreaming={isStreaming}
         questionAnswers={questionAnswers}
         onOptionSelect={onOptionSelect}
-        onQuestionDismiss={handleQuestionDismiss}
         onPhaseChange={setPhase}
       />
       {showActions && (

@@ -43,32 +43,6 @@ function nestedStringArg(args: ToolArgs, parentKey: string, ...keys: string[]): 
   return firstStringArg(parent as Record<string, unknown>, ...keys)
 }
 
-function recordArg(args: ToolArgs, key: string): Record<string, unknown> | undefined {
-  const value = args?.[key]
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
-}
-
-function stringOrNumberArg(args: ToolArgs, key: string): string {
-  const value = args?.[key]
-  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
-}
-
-function deploymentTitle(args: ToolArgs, deploymentType: string): string {
-  return `${stringArg(args, 'action') === 'undeploy' ? 'Undeploying' : 'Deploying'} ${deploymentType}`
-}
-
-function resourceTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    knowledgebase: 'knowledge base',
-    scheduledtask: 'scheduled task',
-    file_folder: 'file folder',
-    log: 'logs',
-  }
-  return labels[type] ?? type
-}
-
 interface OperationDisplay {
   verb: string
   resource: string
@@ -136,20 +110,6 @@ function firstOutputFilePath(args: ToolArgs): string {
   return ''
 }
 
-function firstOutputFileMode(args: ToolArgs): string {
-  const outputs = args?.outputs
-  if (!outputs || typeof outputs !== 'object') return ''
-  const files = (outputs as Record<string, unknown>).files
-  if (!Array.isArray(files)) return ''
-
-  for (const file of files) {
-    if (!file || typeof file !== 'object') continue
-    const mode = stringArg(file as Record<string, unknown>, 'mode')
-    if (mode) return mode
-  }
-  return ''
-}
-
 function createFileTitle(args: ToolArgs): string {
   const nestedArgs =
     args?.args && typeof args.args === 'object' ? (args.args as Record<string, unknown>) : undefined
@@ -158,203 +118,8 @@ function createFileTitle(args: ToolArgs): string {
     firstStringArg(args, 'fileName') ||
     firstOutputFilePath(nestedArgs) ||
     firstStringArg(nestedArgs, 'fileName')
-  const mode = firstOutputFileMode(args) || firstOutputFileMode(nestedArgs)
-  const verb = mode === 'overwrite' ? 'Overwriting' : 'Creating'
-  if (!target) return `${verb} file`
-  return `${verb} ${pathLeaf(target)}`
-}
-
-function ffmpegTitle(args: ToolArgs): string {
-  const titles: Record<string, string> = {
-    overlay_audio: 'Adding audio to media',
-    mix_audio: 'Mixing audio',
-    concat: 'Combining media',
-    trim: 'Trimming media',
-    scale_pad: 'Resizing media',
-    overlay_image: 'Adding image to media',
-    add_text: 'Adding text to media',
-    fade: 'Adding fade to media',
-    extract_audio: 'Extracting audio',
-    convert: 'Converting media',
-    thumbnail: 'Creating thumbnail',
-    probe: 'Inspecting media',
-  }
-  return titles[stringArg(args, 'operation')] ?? 'Processing media'
-}
-
-function knowledgeBaseTitle(args: ToolArgs): string {
-  const operation = stringArg(args, 'operation')
-  const operationArgs = recordArg(args, 'args')
-  const name = stringArg(operationArgs, 'name')
-  const tagName = stringArg(operationArgs, 'tagDisplayName')
-  const fileTarget = summarizeTargets(
-    stringArrayArg(operationArgs, 'filePaths').map(pathLeaf),
-    'file'
-  )
-
-  const titles: Record<string, string> = {
-    create: `Creating ${name || 'knowledge base'}`,
-    get: 'Reading knowledge base',
-    query: 'Searching knowledge base',
-    add_file: `Adding ${fileTarget} to knowledge base`,
-    update: 'Updating knowledge base',
-    delete: `Deleting ${countedResourceTarget(operationArgs, 'knowledgeBaseIds', 'knowledge base', 'knowledge bases')}`,
-    delete_document: `Deleting ${countedResourceTarget(operationArgs, 'documentIds', 'document', 'documents')}`,
-    update_document: 'Updating document',
-    list_tags: 'Listing knowledge base tags',
-    create_tag: `Creating ${tagName || 'knowledge base tag'}`,
-    update_tag: `Updating ${tagName || 'knowledge base tag'}`,
-    delete_tag: 'Deleting knowledge base tag',
-    get_tag_usage: 'Checking tag usage',
-    add_connector: 'Adding knowledge base connector',
-    update_connector: 'Updating knowledge base connector',
-    delete_connector: 'Deleting knowledge base connector',
-    sync_connector: 'Syncing knowledge base connector',
-  }
-  return titles[operation] ?? 'Managing knowledge base'
-}
-
-function queryUserTableTitle(args: ToolArgs): string {
-  const titles: Record<string, string> = {
-    get: 'Reading table',
-    get_schema: 'Reading table schema',
-    get_row: 'Reading table row',
-    query_rows: 'Querying table',
-  }
-  return titles[stringArg(args, 'operation')] ?? 'Querying table'
-}
-
-function searchKnowledgeBaseTitle(args: ToolArgs): string {
-  const titles: Record<string, string> = {
-    get: 'Reading knowledge base',
-    query: 'Searching knowledge base',
-    list_tags: 'Listing knowledge base tags',
-  }
-  return titles[stringArg(args, 'operation')] ?? 'Searching knowledge base'
-}
-
-function userTableTitle(args: ToolArgs): string {
-  const operation = stringArg(args, 'operation')
-  const operationArgs = recordArg(args, 'args')
-  const name = stringArg(operationArgs, 'name')
-  const newName = stringArg(operationArgs, 'newName')
-  const columnName = stringArg(operationArgs, 'columnName')
-  const columnDefinitionName = nestedStringArg(operationArgs, 'column', 'name')
-  const columnTargets = [
-    ...stringArrayArg(operationArgs, 'columnNames'),
-    ...(columnName ? [columnName] : []),
-  ]
-
-  switch (operation) {
-    case 'create':
-      return `Creating ${name || 'table'}`
-    case 'create_from_file':
-      return 'Creating table from file'
-    case 'import_file':
-      return 'Importing file into table'
-    case 'get':
-      return 'Reading table'
-    case 'get_schema':
-      return 'Reading table schema'
-    case 'delete':
-      return `Deleting ${countedResourceTarget(operationArgs, 'tableIds', 'table', 'tables')}`
-    case 'rename':
-      return newName ? `Renaming table to ${newName}` : 'Renaming table'
-    case 'insert_row':
-      return 'Adding table row'
-    case 'batch_insert_rows':
-      return `Adding ${countedResourceTarget(operationArgs, 'rows', 'table row', 'table rows')}`
-    case 'get_row':
-      return 'Reading table row'
-    case 'query_rows':
-      return 'Querying table'
-    case 'update_row':
-      return 'Updating table row'
-    case 'delete_row':
-      return 'Deleting table row'
-    case 'update_rows_by_filter':
-    case 'batch_update_rows':
-      return 'Updating table rows'
-    case 'delete_rows_by_filter':
-    case 'batch_delete_rows':
-      return 'Deleting table rows'
-    case 'add_column':
-      return columnDefinitionName ? `Adding column ${columnDefinitionName}` : 'Adding table column'
-    case 'rename_column':
-      if (columnName && newName) return `Renaming column ${columnName} to ${newName}`
-      return newName ? `Renaming table column to ${newName}` : 'Renaming table column'
-    case 'delete_column':
-      return `Deleting ${summarizeTargets(columnTargets, 'table column')}`
-    case 'update_column':
-      return columnName ? `Updating column ${columnName}` : 'Updating table column'
-    case 'add_workflow_group':
-      return 'Adding table workflow'
-    case 'update_workflow_group':
-      return 'Updating table workflow'
-    case 'delete_workflow_group':
-      return 'Deleting table workflow'
-    case 'add_workflow_group_output':
-      return 'Adding workflow output column'
-    case 'delete_workflow_group_output':
-      return 'Deleting workflow output column'
-    case 'run_column':
-      return 'Running table workflow'
-    case 'cancel_table_runs':
-      return 'Cancelling table runs'
-    case 'list_workflow_outputs':
-      return 'Listing workflow outputs'
-    case 'list_enrichments':
-      return 'Listing enrichments'
-    case 'add_enrichment':
-      return `Adding ${name || 'enrichment'}`
-    default:
-      return 'Managing table'
-  }
-}
-
-function materializeFileTitle(args: ToolArgs): string {
-  const operation = stringArg(args, 'operation') || 'save'
-  const targets = stringArrayArg(args, 'fileNames').map(pathLeaf)
-  if (operation === 'import') {
-    return `Importing ${summarizeTargets(targets, 'workflow')}`
-  }
-  return `Saving ${summarizeTargets(targets, 'file')}`
-}
-
-function openResourceTitle(args: ToolArgs): string {
-  const resources = args?.resources
-  if (!Array.isArray(resources) || resources.length === 0) return 'Opening resource'
-  if (resources.length > 1) return `Opening ${resources.length} resources`
-  const resource = resources[0]
-  if (!resource || typeof resource !== 'object') return 'Opening resource'
-  const type = stringArg(resource as Record<string, unknown>, 'type')
-  return `Opening ${type ? resourceTypeLabel(type) : 'resource'}`
-}
-
-function setGlobalWorkflowVariablesTitle(args: ToolArgs): string {
-  const operations = args?.operations
-  if (!Array.isArray(operations) || operations.length === 0) return 'Setting workflow variables'
-
-  const parsed = operations.filter(
-    (operation): operation is Record<string, unknown> =>
-      Boolean(operation) && typeof operation === 'object' && !Array.isArray(operation)
-  )
-  const operationNames = parsed.map((operation) => stringArg(operation, 'operation'))
-  const firstOperation = operationNames[0]
-  const allSameOperation =
-    firstOperation && operationNames.every((operation) => operation === firstOperation)
-  const verbByOperation: Record<string, string> = {
-    add: 'Adding',
-    edit: 'Updating',
-    delete: 'Deleting',
-  }
-  const verb = allSameOperation ? (verbByOperation[firstOperation] ?? 'Updating') : 'Updating'
-
-  if (parsed.length === 1) {
-    const variableName = stringArg(parsed[0], 'name')
-    return `${verb} workflow variable${variableName ? ` ${variableName}` : ''}`
-  }
-  return `${verb} ${parsed.length} workflow variables`
+  if (!target) return 'Creating file'
+  return `Creating ${pathLeaf(target)}`
 }
 
 /**
@@ -434,7 +199,7 @@ const TOOL_TITLES: Record<string, string> = {
   deploy_api: 'Deploying API',
   deploy_chat: 'Deploying chat',
   deploy_custom_block: 'Deploying custom block',
-  deploy_mcp: 'Deploying MCP tool',
+  deploy_mcp: 'Deploying MCP server',
   diff_workflows: 'Comparing workflows',
   download_to_workspace_file: 'Downloading file',
   function_execute: 'Running code',
@@ -448,7 +213,7 @@ const TOOL_TITLES: Record<string, string> = {
   get_workflow_data: 'Getting workflow data',
   get_workflow_run_options: 'Getting run options',
   list_file_folders: 'Listing folders',
-  list_integration_tools: 'Listing integration tools',
+  list_integration_tools: 'Listing integrations',
   list_user_workspaces: 'Listing workspaces',
   list_workspace_mcp_servers: 'Listing MCP servers',
   load_deployment: 'Loading deployment',
@@ -459,7 +224,7 @@ const TOOL_TITLES: Record<string, string> = {
   oauth_get_auth_link: 'Getting authorization link',
   oauth_request_access: 'Requesting access',
   promote_to_live: 'Promoting to live',
-  redeploy: 'Redeploying API',
+  redeploy: 'Redeploying',
   rename_file: 'Renaming file',
   rename_file_folder: 'Renaming folder',
   rename_workflow: 'Renaming workflow',
@@ -485,10 +250,8 @@ const TOOL_TITLES: Record<string, string> = {
   research: 'Research Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
-  file: 'File Agent',
   media: 'Media Agent',
   superagent: 'Executing action',
-  respond: 'Gathering thoughts',
   context_compaction: CONTEXT_COMPACTION_DISPLAY_TITLE,
 }
 
@@ -503,33 +266,15 @@ const ACRONYM_CASING: Record<string, string> = {
 }
 
 /**
- * Humanize an internal identifier without leaking snake_case or kebab-case into
- * the UI. Sentence case is useful for resource names appended to a verb, while
- * title case is used for standalone tool-name fallbacks.
- */
-export function humanizeDisplayIdentifier(
-  name: string,
-  casing: 'sentence' | 'title' = 'title'
-): string {
-  const words = stripVersionSuffix(name).split(/[-_]+/).filter(Boolean)
-  if (words.length === 0) return name
-  return words
-    .map((word, index) => {
-      const normalized = word.toLowerCase()
-      const acronym = ACRONYM_CASING[normalized]
-      if (acronym) return acronym
-      if (casing === 'sentence' && index > 0) return normalized
-      return normalized.charAt(0).toUpperCase() + normalized.slice(1)
-    })
-    .join(' ')
-}
-
-/**
  * Final fallback: humanize a raw tool name (e.g. `manage_folder` -> "Manage
  * Folder"), matching the legacy client humanizer so labels never render blank.
  */
 export function humanizeToolName(name: string): string {
-  return humanizeDisplayIdentifier(name)
+  const words = stripVersionSuffix(name).split('_').filter(Boolean)
+  if (words.length === 0) return name
+  return words
+    .map((word) => ACRONYM_CASING[word] ?? word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 /**
@@ -544,67 +289,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   switch (name) {
-    case 'deploy_api':
-      return deploymentTitle(args, 'API')
-    case 'deploy_chat':
-      return deploymentTitle(args, 'chat')
-    case 'deploy_custom_block':
-      return deploymentTitle(args, 'custom block')
-    case 'ffmpeg':
-      return ffmpegTitle(args)
-    case 'knowledge_base':
-      return knowledgeBaseTitle(args)
-    case 'query_user_table':
-      return queryUserTableTitle(args)
-    case 'search_knowledge_base':
-      return searchKnowledgeBaseTitle(args)
-    case 'user_table':
-      return userTableTitle(args)
-    case 'materialize_file':
-      return materializeFileTitle(args)
-    case 'open_resource':
-      return openResourceTitle(args)
-    case 'restore_resource': {
-      const type = stringArg(args, 'type')
-      return `Restoring ${type ? resourceTypeLabel(type) : 'resource'}`
-    }
-    case 'set_block_enabled': {
-      const enabled = args?.enabled
-      return typeof enabled === 'boolean'
-        ? `${enabled ? 'Enabling' : 'Disabling'} block`
-        : 'Toggling block'
-    }
-    case 'load_deployment': {
-      const version = stringOrNumberArg(args, 'version')
-      if (!version) return 'Loading deployment'
-      return version === 'live'
-        ? 'Loading live deployment'
-        : `Loading deployment version ${version}`
-    }
-    case 'promote_to_live': {
-      const version = stringOrNumberArg(args, 'version')
-      return version ? `Promoting version ${version} to live` : 'Promoting to live'
-    }
-    case 'update_deployment_version': {
-      const version = stringOrNumberArg(args, 'version')
-      return version ? `Updating deployment version ${version}` : 'Updating deployment'
-    }
-    case 'generate_api_key': {
-      const keyName = stringArg(args, 'name')
-      return keyName ? `Generating API key ${keyName}` : 'Generating API key'
-    }
-    case 'list_integration_tools': {
-      const integration = stringArg(args, 'integration')
-      return integration
-        ? `Listing ${humanizeToolName(integration)} tools`
-        : 'Listing integration tools'
-    }
-    case 'set_environment_variables': {
-      const scope = stringArg(args, 'scope') || 'workspace'
-      return `Setting ${scope} environment variables`
-    }
-    case 'set_global_workflow_variables':
-      return setGlobalWorkflowVariablesTitle(args)
     case 'create_file':
       return createFileTitle(args)
     case 'delete_file': {
@@ -817,38 +501,26 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Accessing: 'Accessed',
   Adding: 'Added',
   Applying: 'Applied',
-  Cancelling: 'Cancelled',
   Calling: 'Called',
   Checking: 'Checked',
-  Combining: 'Combined',
   Comparing: 'Compared',
   Completing: 'Completed',
-  Converting: 'Converted',
   Crawling: 'Crawled',
   Creating: 'Created',
   Deleting: 'Deleted',
   Deploying: 'Deployed',
-  Disabling: 'Disabled',
   Downloading: 'Downloaded',
-  Duplicating: 'Duplicated',
   Editing: 'Edited',
-  Enabling: 'Enabled',
   Executing: 'Executed',
-  Extracting: 'Extracted',
-  Fading: 'Faded',
   Finding: 'Found',
   Gathering: 'Gathered',
   Generating: 'Generated',
   Getting: 'Got',
-  Importing: 'Imported',
-  Inspecting: 'Inspected',
   Listing: 'Listed',
   Loading: 'Loaded',
   Managing: 'Managed',
-  Mixing: 'Mixed',
   Moving: 'Moved',
   Opening: 'Opened',
-  Overwriting: 'Overwrote',
   Preparing: 'Prepared',
   Processing: 'Processed',
   Promoting: 'Promoted',
@@ -857,21 +529,14 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Redeploying: 'Redeployed',
   Renaming: 'Renamed',
   Requesting: 'Requested',
-  Resizing: 'Resized',
   Restoring: 'Restored',
   Running: 'Ran',
-  Saving: 'Saved',
   Scraping: 'Scraped',
   Searching: 'Searched',
   Setting: 'Set',
-  Summarizing: 'Summarized',
-  Syncing: 'Synced',
   Toggling: 'Toggled',
-  Trimming: 'Trimmed',
-  Undeploying: 'Undeployed',
   Updating: 'Updated',
   Validating: 'Validated',
-  Viewing: 'Viewed',
   Writing: 'Wrote',
 }
 
@@ -890,14 +555,4 @@ export function getToolCompletedTitle(title: string): string | undefined {
   const past = COMPLETED_VERB_REWRITES[firstWord]
   if (!past) return undefined
   return past + title.slice(firstWord.length)
-}
-
-/**
- * Resolve the final title for a tool status at a rendering boundary. Persisted
- * and live snapshots intentionally keep the present-tense activity title so a
- * running/error row remains truthful; every successful renderer calls this to
- * project the corresponding completed title from the canonical verb map.
- */
-export function getToolStatusDisplayTitle(title: string, status: string): string {
-  return status === 'success' ? (getToolCompletedTitle(title) ?? title) : title
 }

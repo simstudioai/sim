@@ -86,8 +86,6 @@ interface QuestionDisplayProps {
   answers?: string[]
   /** Sends the combined answer as a user message; undefined renders the div inert. */
   onSelect?: (message: string) => void
-  /** Reports that the active card was dismissed so its message actions can return. */
-  onDismiss?: () => void
 }
 
 /**
@@ -105,7 +103,6 @@ export function QuestionDisplay({
   data,
   answers: transcriptAnswers,
   onSelect,
-  onDismiss,
 }: QuestionDisplayProps) {
   const freeTextInputRef = useRef<HTMLInputElement>(null)
   const freeTextCheckboxRef = useRef<HTMLButtonElement>(null)
@@ -295,10 +292,7 @@ export function QuestionDisplay({
             <Button
               type='button'
               variant='ghost'
-              onClick={() => {
-                setPhase('dismissed')
-                onDismiss?.()
-              }}
+              onClick={() => setPhase('dismissed')}
               className={cn(
                 ICON_BUTTON_CLASSES,
                 'before:absolute before:inset-[-14px] before:content-[""]'

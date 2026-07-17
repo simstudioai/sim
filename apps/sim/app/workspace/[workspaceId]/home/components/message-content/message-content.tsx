@@ -6,8 +6,8 @@ import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
 import {
+  getToolCompletedTitle,
   getToolDisplayTitle,
-  getToolStatusDisplayTitle,
   humanizeToolName,
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -169,7 +169,10 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
   const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
-  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status)
+  const displayTitle =
+    tc.status === 'success'
+      ? (getToolCompletedTitle(resolvedTitle) ?? resolvedTitle)
+      : resolvedTitle
 
   return {
     id: tc.id,
@@ -767,7 +770,6 @@ interface MessageContentProps {
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
-  onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
 }
 
@@ -777,7 +779,6 @@ function MessageContentInner({
   isStreaming = false,
   questionAnswers,
   onOptionSelect,
-  onQuestionDismiss,
   onPhaseChange,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
@@ -866,7 +867,6 @@ function MessageContentInner({
                 })}
                 questionAnswers={questionAnswers}
                 onOptionSelect={onOptionSelect}
-                onQuestionDismiss={onQuestionDismiss}
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                 onRevealStateChange={
                   i === segments.length - 1 ? handleTrailingRevealChange : undefined

@@ -30,22 +30,6 @@ describe('getCopilotToolDescription', () => {
     ).toBe('Search for brands by company name <note>API key is hosted by Sim.</note>')
   })
 
-  it.concurrent('does not claim unconditional hosting for a conditional hosted tool', () => {
-    expect(
-      getCopilotToolDescription(
-        {
-          id: 'image_generate',
-          name: 'Image Generate',
-          description: 'Generate an image',
-          hosting: { apiKeyParam: 'apiKey', enabled: () => true } as never,
-        },
-        { isHosted: true }
-      )
-    ).toBe(
-      'Generate an image <note>API key is hosted by Sim when hosted-key support applies to the selected configuration.</note>'
-    )
-  })
-
   it.concurrent('uses the fallback name when no description exists', () => {
     expect(
       getCopilotToolDescription(

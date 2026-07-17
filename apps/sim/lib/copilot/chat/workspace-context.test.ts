@@ -74,21 +74,6 @@ describe('buildWorkspaceMd - workflow VFS state paths', () => {
     expect(md).toContain('VFS dir: `workflows/Root%20Flow`')
     expect(md).toContain('VFS state path: `workflows/Root%20Flow/state.json`')
   })
-
-  it('never exposes workflow descriptions in markdown or the typed snapshot', () => {
-    const workflowWithPrivateDescription = {
-      id: 'wf-1',
-      name: 'Private Flow',
-      description: 'PRIVATE WORKFLOW DESCRIPTION',
-      isDeployed: false,
-      folderPath: null,
-    }
-    const data = baseData({ workflows: [workflowWithPrivateDescription] })
-
-    expect(buildWorkspaceMd(data)).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
-    expect(JSON.stringify(buildVfsSnapshot(data))).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
-    expect(buildVfsSnapshot(data).workflows?.[0]).not.toHaveProperty('description')
-  })
 })
 
 describe('buildWorkspaceMd - connected integrations / credentials', () => {
@@ -129,16 +114,6 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
   it('renders (none) when no integrations are connected', () => {
     const md = buildWorkspaceMd(baseData({ oauthIntegrations: [] }))
     expect(md).toContain('## Connected Integrations\n(none)')
-  })
-
-  it('injects available environment credential names into markdown and the typed snapshot', () => {
-    const data = baseData({ envVariables: ['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'] })
-
-    const md = buildWorkspaceMd(data)
-    expect(md).toContain('## Environment Variables (2)')
-    expect(md).toContain('- OPENAI_API_KEY')
-    expect(md).toContain('- STRIPE_SECRET_KEY')
-    expect(buildVfsSnapshot(data).envVars).toEqual(['OPENAI_API_KEY', 'STRIPE_SECRET_KEY'])
   })
 })
 

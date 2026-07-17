@@ -365,6 +365,7 @@ import type {
   RunWorkflowUntilBlockParams,
   SetBlockEnabledParams,
   SetGlobalWorkflowVariablesParams,
+  UpdateWorkflowParams,
   VariableOperation,
 } from '../param-types'
 
@@ -391,6 +392,11 @@ export async function executeCreateWorkflow(
     if (name.length > 200) {
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
+    const description = typeof params?.description === 'string' ? params.description : null
+    if (description && description.length > 2000) {
+      return { success: false, error: 'Description must be 2000 characters or less' }
+    }
+
     const workspaceId =
       params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     const folderId = params?.folderId || null
@@ -403,6 +409,7 @@ export async function executeCreateWorkflow(
       userId: context.userId,
       workspaceId,
       name,
+      description,
       folderId,
     })
     if (!result.success || !result.workflow) {
@@ -947,6 +954,64 @@ export async function executeRunFromBlock(
     return buildExecutionOutput(result, { startBlockId: params.startBlockId })
   } catch (error) {
     return buildExecutionError(error)
+  }
+}
+
+async function executeUpdateWorkflow(
+  params: UpdateWorkflowParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+
+    const updates: { name?: string; description?: string } = {}
+
+    if (typeof params.name === 'string') {
+      const name = params.name.trim()
+      if (!name) return { success: false, error: 'name cannot be empty' }
+      if (name.length > 200)
+        return { success: false, error: 'Workflow name must be 200 characters or less' }
+      updates.name = name
+    }
+
+    if (typeof params.description === 'string') {
+      if (params.description.length > 2000) {
+        return { success: false, error: 'Description must be 2000 characters or less' }
+      }
+      updates.description = params.description
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return { success: false, error: 'At least one of name or description is required' }
+    }
+
+    const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    if (!current.workspaceId) {
+      return { success: false, error: 'Workflow workspace is required' }
+    }
+    await assertWorkflowMutable(workflowId)
+    assertWorkflowMutationNotAborted(context)
+    const result = await performUpdateWorkflow({
+      workflowId,
+      userId: context.userId,
+      workspaceId: current.workspaceId,
+      currentName: current.workflow.name,
+      currentFolderId: current.workflow.folderId,
+      ...updates,
+    })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to update workflow' }
+    }
+
+    return {
+      success: true,
+      output: { workflowId, ...updates },
+    }
+  } catch (error) {
+    return { success: false, error: toError(error).message }
   }
 }
 

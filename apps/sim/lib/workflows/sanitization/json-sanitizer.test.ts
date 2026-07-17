@@ -1,52 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.test',
-}))
-
-const genericWebhookConfig = {
-  type: 'generic_webhook',
-  name: 'Webhook',
-  category: 'triggers',
-  outputs: {},
-  subBlocks: [
-    { id: 'webhookUrlDisplay', type: 'short-input', readOnly: true, useWebhookUrl: true },
-    { id: 'requireAuth', type: 'switch' },
-  ],
-}
-
-// Mirrors an integration block (e.g. github) whose trigger-mode webhook-URL display
-// fields are namespaced per trigger id and gated on selectedTriggerId.
-const multiTriggerConfig = {
-  type: 'github_v2',
-  name: 'GitHub',
-  category: 'tools',
-  outputs: {},
-  subBlocks: [
-    {
-      id: 'webhookUrlDisplay_github_push',
-      type: 'short-input',
-      readOnly: true,
-      useWebhookUrl: true,
-      condition: { field: 'selectedTriggerId', value: 'github_push' },
-    },
-  ],
-}
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) =>
-    type === 'generic_webhook'
-      ? genericWebhookConfig
-      : type === 'github_v2'
-        ? multiTriggerConfig
-        : undefined,
-}))
 
 /**
  * Builds a minimal one-block workflow whose knowledge block carries the two
@@ -106,104 +63,5 @@ describe('sanitizeForCopilot knowledge tag subblocks', () => {
     const inputs = result.blocks['kb-1'].inputs
 
     expect(inputs).not.toHaveProperty('tagFilters')
-  })
-})
-
-/** Builds a one-block workflow for webhook-URL synthesis tests. */
-function makeSingleBlockWorkflow(blockId: string, block: Record<string, unknown>): WorkflowState {
-  return {
-    blocks: { [blockId]: { id: blockId, position: { x: 0, y: 0 }, outputs: {}, ...block } },
-    edges: [],
-    loops: {},
-    parallels: {},
-  } as unknown as WorkflowState
-}
-
-describe('sanitizeForCopilot webhook trigger URL', () => {
-  // Regression: the webhook URL only existed as a UI-computed display field, so the
-  // copilot could not tell users where to point their external service.
-  it('synthesizes the read-only webhook URL from the block id for a generic webhook trigger', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('hook-1', {
-        type: 'generic_webhook',
-        name: 'Webhook 1',
-        enabled: true,
-        subBlocks: { requireAuth: { id: 'requireAuth', type: 'switch', value: true } },
-      })
-    )
-
-    expect(result.blocks['hook-1'].inputs?.[TRIGGER_WEBHOOK_URL_FIELD]).toBe(
-      'https://sim.test/api/webhooks/trigger/hook-1'
-    )
-  })
-
-  it('prefers the stored triggerPath over the block id', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('hook-1', {
-        type: 'generic_webhook',
-        name: 'Webhook 1',
-        enabled: true,
-        subBlocks: { triggerPath: { id: 'triggerPath', type: 'short-input', value: 'my-path' } },
-      })
-    )
-
-    expect(result.blocks['hook-1'].inputs?.[TRIGGER_WEBHOOK_URL_FIELD]).toBe(
-      'https://sim.test/api/webhooks/trigger/my-path'
-    )
-  })
-
-  it('does not synthesize a URL for non-trigger blocks', () => {
-    const result = sanitizeForCopilot(makeKnowledgeWorkflow(null))
-
-    expect(result.blocks['kb-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
-  })
-
-  it('synthesizes a URL for an integration block whose selected trigger is webhook-based', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('gh-1', {
-        type: 'github_v2',
-        name: 'GitHub 1',
-        enabled: true,
-        triggerMode: true,
-        subBlocks: {
-          selectedTriggerId: { id: 'selectedTriggerId', type: 'dropdown', value: 'github_push' },
-        },
-      })
-    )
-
-    expect(result.blocks['gh-1'].inputs?.[TRIGGER_WEBHOOK_URL_FIELD]).toBe(
-      'https://sim.test/api/webhooks/trigger/gh-1'
-    )
-  })
-
-  it('omits the URL when the selected trigger has no webhook-URL field', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('gh-1', {
-        type: 'github_v2',
-        name: 'GitHub 1',
-        enabled: true,
-        triggerMode: true,
-        subBlocks: {
-          selectedTriggerId: { id: 'selectedTriggerId', type: 'dropdown', value: 'github_poller' },
-        },
-      })
-    )
-
-    expect(result.blocks['gh-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
-  })
-
-  it('omits the URL when the integration block is not in trigger mode', () => {
-    const result = sanitizeForCopilot(
-      makeSingleBlockWorkflow('gh-1', {
-        type: 'github_v2',
-        name: 'GitHub 1',
-        enabled: true,
-        subBlocks: {
-          selectedTriggerId: { id: 'selectedTriggerId', type: 'dropdown', value: 'github_push' },
-        },
-      })
-    )
-
-    expect(result.blocks['gh-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
   })
 })

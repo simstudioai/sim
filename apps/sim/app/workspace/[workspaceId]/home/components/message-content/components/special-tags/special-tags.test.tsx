@@ -72,17 +72,17 @@ describe('CredentialDisplay link tag', () => {
   })
 
   it('renders a working link for a real http(s) connect URL', () => {
-    const url = 'https://sim.test/api/auth/oauth2/authorize?providerId=google-drive'
+    const url = 'https://github.com/login/oauth/authorize?client_id=abc&scope=repo'
     const { container, root } = renderCredentialLink({
       type: 'link',
-      provider: 'google-drive',
+      provider: 'github',
       value: url,
     })
 
     const link = container.querySelector('a')
     expect(link).not.toBeNull()
     expect(link?.getAttribute('href')).toBe(url)
-    expect(container.textContent).toContain('Connect Google Drive')
+    expect(container.textContent).toContain('Connect github')
     act(() => root.unmount())
   })
 
@@ -95,6 +95,17 @@ describe('CredentialDisplay link tag', () => {
     })
 
     expect(container.querySelector('a')).toBeNull()
+    act(() => root.unmount())
+  })
+
+  it('does not query a credential for a plain connect URL', () => {
+    const { root } = renderCredentialLink({
+      type: 'link',
+      provider: 'github',
+      value: 'https://github.com/login/oauth/authorize?client_id=abc',
+    })
+
+    expect(mockUseWorkspaceCredential).toHaveBeenCalledWith(undefined)
     act(() => root.unmount())
   })
 
@@ -114,7 +125,7 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
-  it('falls back to the integration name while the reconnect credential is unresolved', () => {
+  it('falls back to the provider label while the reconnect credential is unresolved', () => {
     const { container, root } = renderCredentialLink({
       type: 'link',
       provider: 'google-email',
@@ -122,7 +133,7 @@ describe('CredentialDisplay link tag', () => {
         'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&workspaceId=ws-1&credentialId=cred-1',
     })
 
-    expect(container.textContent).toContain('Reconnect Gmail')
+    expect(container.textContent).toContain('Reconnect google-email')
     act(() => root.unmount())
   })
 })

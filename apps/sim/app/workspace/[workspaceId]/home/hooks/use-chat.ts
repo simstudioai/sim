@@ -784,22 +784,6 @@ function isZeroStreamCursor(cursor: string): boolean {
   return Number.isFinite(sequence) && sequence <= 0
 }
 
-/**
- * The resume endpoint 404s when no run exists for the stream — there is
- * nothing left to resume, so reconnect falls back to the persisted DB
- * transcript instead of retrying or surfacing an error.
- */
-class StreamGoneError extends Error {
-  constructor(streamId: string) {
-    super(`Stream ${streamId} no longer exists`)
-    this.name = 'StreamGoneError'
-  }
-}
-
-function isStreamGoneError(error: unknown): error is StreamGoneError {
-  return error instanceof Error && error.name === 'StreamGoneError'
-}
-
 function isPersistedAssistantMessage(message: PersistedMessage, liveAssistantId: string): boolean {
   return (
     message.role === 'assistant' &&
@@ -890,32 +874,55 @@ export function reconcileLiveAssistantTurn(params: {
 
 export interface ReconnectReplaySelection {
   afterCursor: string
+  content: string
+  contentBlocks: ContentBlock[]
   preserveExistingState: boolean
-  source: 'live' | 'reset'
+  source: 'cache' | 'reset'
 }
 
-/**
- * Decides how a reconnect replay starts. The only state a resumed stream may
- * continue from is the live in-memory pair (streaming refs + lastCursorRef)
- * maintained together by this mount's stream loop — those are coherent by
- * construction. Anything else (fresh mount, cleared refs, cache-derived
- * transcripts) replays the Redis buffer from seq 0 into a fresh model: the
- * buffer is the source of truth for an in-flight turn and replay is
- * idempotent, so a full rebuild is always safe. Seeding the model from a
- * cached transcript paired stale content with a newer cursor, which dropped
- * replayed events and rendered empty or suffix-only messages.
- */
 export function selectReconnectReplayState(params: {
   afterCursor: string
+  cachedLiveAssistant?: Pick<ChatMessage, 'content' | 'contentBlocks'> | null
   currentContent: string
   currentBlocks: ContentBlock[]
 }): ReconnectReplaySelection {
-  const { afterCursor, currentContent, currentBlocks } = params
-  const hasLiveState = currentContent.length > 0 || currentBlocks.length > 0
-  if (!isZeroStreamCursor(afterCursor) && hasLiveState) {
-    return { afterCursor, preserveExistingState: true, source: 'live' }
+  const { afterCursor, cachedLiveAssistant, currentContent, currentBlocks } = params
+  if (isZeroStreamCursor(afterCursor)) {
+    return {
+      afterCursor,
+      content: '',
+      contentBlocks: [],
+      preserveExistingState: false,
+      source: 'reset',
+    }
   }
-  return { afterCursor: '0', preserveExistingState: false, source: 'reset' }
+
+  const cachedContent = cachedLiveAssistant?.content ?? ''
+  const cachedBlocks = cachedLiveAssistant?.contentBlocks ?? []
+  const cachedHasLiveState = cachedContent.length > 0 || cachedBlocks.length > 0
+  const cachedIsAhead =
+    cachedHasLiveState &&
+    cachedContent.length >= currentContent.length &&
+    cachedContent.startsWith(currentContent) &&
+    cachedBlocks.length >= currentBlocks.length
+
+  if (cachedIsAhead) {
+    return {
+      afterCursor,
+      content: cachedContent,
+      contentBlocks: [...cachedBlocks],
+      preserveExistingState: true,
+      source: 'cache',
+    }
+  }
+
+  return {
+    afterCursor: '0',
+    content: '',
+    contentBlocks: [],
+    preserveExistingState: false,
+    source: 'reset',
+  }
 }
 
 export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]): Set<string> {
@@ -1208,6 +1215,17 @@ export function useChat(
       }
     ) => Promise<{ sawStreamError: boolean; sawComplete: boolean }>
   >(async () => ({ sawStreamError: false, sawComplete: false }))
+  const attachToExistingStreamRef = useRef<
+    (opts: {
+      streamId: string
+      assistantId: string
+      expectedGen: number
+      initialBatch?: StreamBatchResponse | null
+      afterCursor?: string
+      targetChatId?: string
+      shouldContinue?: () => boolean
+    }) => Promise<{ error: boolean; aborted: boolean }>
+  >(async () => ({ error: false, aborted: true }))
   const retryReconnectRef = useRef<
     (opts: {
       streamId: string
@@ -1293,9 +1311,25 @@ export function useChat(
   }, [])
 
   const applyReconnectReplaySelection = useCallback(
-    (streamId: string, afterCursor: string): ReconnectReplaySelection => {
+    (
+      streamId: string,
+      assistantId: string,
+      afterCursor: string,
+      options?: { targetChatId?: string; chatHistory?: MothershipChatHistory }
+    ): ReconnectReplaySelection => {
+      const cachedHistory =
+        options?.chatHistory ??
+        (options?.targetChatId
+          ? queryClient.getQueryData<MothershipChatHistory>(
+              mothershipChatKeys.detail(options.targetChatId)
+            )
+          : undefined)
+      const cachedLiveAssistant = cachedHistory?.messages.find(
+        (message) => message.id === assistantId
+      )
       const selection = selectReconnectReplayState({
         afterCursor,
+        cachedLiveAssistant: cachedLiveAssistant ? toDisplayMessage(cachedLiveAssistant) : null,
         currentContent: streamingContentRef.current,
         currentBlocks: streamingBlocksRef.current,
       })
@@ -1304,18 +1338,23 @@ export function useChat(
       // these refs — keep the previous snapshot visible (and stop-persistable)
       // until the replay's terminal flush overwrites it, instead of collapsing
       // the rendered message to empty.
+      if (selection.source === 'cache') {
+        streamingContentRef.current = selection.content
+        streamingBlocksRef.current = selection.contentBlocks
+      }
       lastCursorRef.current = selection.afterCursor
 
       if (selection.afterCursor === '0' && afterCursor !== '0') {
         logger.info('Resetting stream replay cursor after reconnect state mismatch', {
           streamId,
+          targetChatId: options?.targetChatId ?? cachedHistory?.id,
           previousCursor: afterCursor,
         })
       }
 
       return selection
     },
-    []
+    [queryClient]
   )
 
   const clearActiveTurn = useCallback(() => {
@@ -1717,11 +1756,18 @@ export function useChat(
     const activeStreamId = chatHistory.activeStreamId
     appliedChatHistoryKeyRef.current = hydrationKey
     const mappedMessages = chatHistory.messages.map(toDisplayMessage)
+    const snapshotEvents = Array.isArray(chatHistory.streamSnapshot?.events)
+      ? chatHistory.streamSnapshot.events
+      : []
+    const snapshotHasCompleteEvent = snapshotEvents.some(
+      (entry) => entry?.event?.type === MothershipStreamV1EventType.complete
+    )
     const shouldReconnectActiveStream =
       Boolean(activeStreamId) &&
       !sendingRef.current &&
       activeStreamId !== locallyTerminalStreamIdRef.current &&
-      !isTerminalStreamStatus(chatHistory.streamSnapshot?.status)
+      !isTerminalStreamStatus(chatHistory.streamSnapshot?.status) &&
+      !snapshotHasCompleteEvent
 
     if (!activeStreamId && locallyTerminalStreamIdRef.current) {
       locallyTerminalStreamIdRef.current = undefined
@@ -1779,6 +1825,9 @@ export function useChat(
     if (shouldReconnectActiveStream && activeStreamId) {
       const gen = ++streamGenRef.current
       const abortController = new AbortController()
+      const previousStreamId = streamIdRef.current ?? activeTurnRef.current?.userMessageId
+      const reconnectAfterCursor =
+        previousStreamId === activeStreamId ? lastCursorRef.current || '0' : '0'
       cancelActiveStreamRecovery()
       const replacedController = abortControllerRef.current
       if (replacedController && !replacedController.signal.aborted) {
@@ -1789,24 +1838,68 @@ export function useChat(
       streamIdRef.current = activeStreamId
       setTransportReconnecting()
 
-      // Load-time reconnects always rebuild the live turn from the Redis
-      // replay buffer (seq 0): the buffer is the source of truth for an
-      // in-flight turn, and any local state here is detached from the stream
-      // loop that produced it. The DB transcript only supplies prior turns.
-      // If the buffer is empty on a terminal run, the resume flow finalizes
-      // and refetches the persisted transcript from the DB instead.
       const assistantId = getLiveAssistantMessageId(activeStreamId)
-      streamingContentRef.current = ''
-      streamingBlocksRef.current = []
-      lastCursorRef.current = '0'
+      let snapshotReplayAfterCursor: string
+      if (snapshotEvents.length > 0) {
+        streamingContentRef.current = ''
+        streamingBlocksRef.current = []
+        lastCursorRef.current = '0'
+        snapshotReplayAfterCursor = '0'
+      } else {
+        const replaySelection = applyReconnectReplaySelection(
+          activeStreamId,
+          assistantId,
+          reconnectAfterCursor,
+          { targetChatId: chatHistory.id, chatHistory }
+        )
+        snapshotReplayAfterCursor = replaySelection.afterCursor
+      }
 
       const reconnect = async () => {
-        const succeeded = await retryReconnectRef.current({
-          streamId: activeStreamId,
-          assistantId,
-          gen,
-          targetChatId: chatHistory.id,
-        })
+        const initialSnapshot = chatHistory.streamSnapshot
+        const snapshotEvents = Array.isArray(initialSnapshot?.events)
+          ? (initialSnapshot.events as StreamBatchEvent[])
+          : []
+
+        let reconnectResult: Awaited<ReturnType<typeof attachToExistingStreamRef.current>> | null =
+          null
+        const replaySnapshotEvents = snapshotEvents.filter(
+          (entry) =>
+            !isAlreadyProcessedStreamCursor(String(entry.eventId), snapshotReplayAfterCursor)
+        )
+        if (replaySnapshotEvents.length > 0) {
+          try {
+            reconnectResult = await attachToExistingStreamRef.current({
+              streamId: activeStreamId,
+              assistantId,
+              expectedGen: gen,
+              initialBatch: {
+                success: true,
+                events: replaySnapshotEvents,
+                previewSessions: snapshotPreviewSessions,
+                status: initialSnapshot?.status ?? 'unknown',
+              },
+              afterCursor: snapshotReplayAfterCursor,
+              targetChatId: chatHistory.id,
+            })
+          } catch (error) {
+            logger.warn('Snapshot stream reconnect failed; falling back to retry', {
+              chatId: chatHistory.id,
+              streamId: activeStreamId,
+              error: toError(error).message,
+            })
+          }
+        }
+
+        const succeeded =
+          reconnectResult !== null
+            ? !reconnectResult.error || reconnectResult.aborted
+            : await retryReconnectRef.current({
+                streamId: activeStreamId,
+                assistantId,
+                gen,
+                targetChatId: chatHistory.id,
+              })
         if (succeeded && streamGenRef.current === gen && sendingRef.current) {
           finalizeRef.current({ targetChatId: chatHistory.id })
           return
@@ -1834,8 +1927,10 @@ export function useChat(
     cancelActiveStreamReader,
     cancelActiveStreamRecovery,
     flushPendingResources,
+    queryClient,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
+    applyReconnectReplaySelection,
     setTransportIdle,
     setTransportReconnecting,
   ])
@@ -2039,9 +2134,6 @@ export function useChat(
             : {}),
         }
       )
-      if (response.status === 404) {
-        throw new StreamGoneError(streamId)
-      }
       if (!response.ok) {
         throw new Error(`Stream resume batch failed: ${response.status}`)
       }
@@ -2140,14 +2232,14 @@ export function useChat(
         return { error: false, aborted: true }
       }
 
-      // `afterCursor` must be the cursor the current streaming refs correspond
-      // to (or '0' with a fresh rebuild) — the seed replay re-baselines the
-      // rebuilt model's seq high-water mark to it, so a cursor ahead of the
-      // refs silently drops the seed events as replays.
       const initialReplaySelection: Pick<
         ReconnectReplaySelection,
         'afterCursor' | 'preserveExistingState'
-      > = applyReconnectReplaySelection(streamId, afterCursor)
+      > = opts.initialBatch
+        ? { afterCursor, preserveExistingState: true }
+        : applyReconnectReplaySelection(streamId, assistantId, afterCursor, {
+            ...(targetChatId ? { targetChatId } : {}),
+          })
       let latestCursor = initialReplaySelection.afterCursor
       let preserveNextReplayState = initialReplaySelection.preserveExistingState
       let seedEvents = opts.initialBatch?.events ?? []
@@ -2211,9 +2303,6 @@ export function useChat(
                 : {}),
             }
           )
-          if (sseRes.status === 404) {
-            throw new StreamGoneError(streamId)
-          }
           if (!sseRes.ok || !sseRes.body) {
             throw new Error(RECONNECT_TAIL_ERROR)
           }
@@ -2267,9 +2356,9 @@ export function useChat(
           streamStatus = batch.status
           suppressedSeedWorkflowToolStartIds = getReplayCompletedWorkflowToolCallIds(seedEvents)
 
-          // `latestCursor` stays at the pre-batch position so the seed replay
-          // at the top of the loop folds the batch events into the model; the
-          // replay advances the cursor after applying them.
+          if (batch.events.length > 0) {
+            latestCursor = String(batch.events[batch.events.length - 1].eventId)
+          }
 
           if (batch.events.length === 0 && !isTerminalStreamStatus(batch.status)) {
             if (activeAbort.signal.aborted || streamGenRef.current !== expectedGen) {
@@ -2303,6 +2392,7 @@ export function useChat(
       setTransportStreaming,
     ]
   )
+  attachToExistingStreamRef.current = attachToExistingStream
 
   const resumeOrFinalize = useCallback(
     async (opts: {
@@ -2318,7 +2408,9 @@ export function useChat(
 
       if (streamGenRef.current !== gen || signal?.aborted || shouldContinue?.() === false) return
 
-      const replaySelection = applyReconnectReplaySelection(streamId, afterCursor)
+      const replaySelection = applyReconnectReplaySelection(streamId, assistantId, afterCursor, {
+        ...(targetChatId ? { targetChatId } : {}),
+      })
       const batch = await fetchStreamBatch(streamId, replaySelection.afterCursor, signal)
       if (streamGenRef.current !== gen || shouldContinue?.() === false) return
       seedStreamBatchPreviewSessions(batch)
@@ -2347,12 +2439,6 @@ export function useChat(
         return
       }
 
-      // Pass the cursor the streaming refs correspond to — NOT the batch's
-      // last event id. The seed replay re-baselines the rebuilt model to this
-      // cursor before folding the batch in; a cursor already advanced past
-      // the batch made the replay drop every event as a duplicate, which
-      // rendered an empty message (and suffix-only text once the tail
-      // appended to it).
       const reconnectResult = await attachToExistingStream({
         streamId,
         assistantId,
@@ -2360,7 +2446,10 @@ export function useChat(
         initialBatch: batch,
         ...(targetChatId ? { targetChatId } : {}),
         ...(shouldContinue ? { shouldContinue } : {}),
-        afterCursor: replaySelection.afterCursor,
+        afterCursor:
+          batch.events.length > 0
+            ? String(batch.events[batch.events.length - 1].eventId)
+            : replaySelection.afterCursor,
       })
 
       if (
@@ -2476,18 +2565,6 @@ export function useChat(
               setTransportIdle()
             } else {
               setIsReconnecting(false)
-            }
-            return true
-          }
-          if (isStreamGoneError(err)) {
-            // Nothing left to resume (no run for the stream) — the persisted
-            // DB transcript is authoritative now. Finalize so the detail
-            // query refetches it instead of surfacing a reconnect error.
-            logger.warn('Stream no longer exists; falling back to persisted transcript', {
-              streamId,
-            })
-            if (streamGenRef.current === gen) {
-              finalizeRef.current({ ...(targetChatId ? { targetChatId } : {}) })
             }
             return true
           }

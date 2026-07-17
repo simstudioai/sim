@@ -5,54 +5,7 @@ import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
-import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
-
-export type VfsToolAuth =
-  | {
-      type: 'oauth'
-      required: boolean
-      provider: string
-    }
-  | {
-      type: 'api_key'
-      param: string
-      mode: 'hosted_or_byok' | 'conditional_hosted_or_byok' | 'byok_required'
-      provider?: string
-      condition?: ToolHostingCondition
-    }
-
-export interface ComponentSerializationOptions {
-  hosted?: boolean
-  toolConfigs?: ReadonlyMap<string, ToolConfig>
-}
-
-/**
- * Project runtime tool authentication into a stable, machine-readable VFS contract.
- * ToolConfig.hosting remains the source of truth for every hosted-key integration.
- */
-export function serializeToolAuth(tool: ToolConfig, hosted = isHosted): VfsToolAuth | undefined {
-  if (tool.oauth) {
-    return {
-      type: 'oauth',
-      required: tool.oauth.required,
-      provider: tool.oauth.provider,
-    }
-  }
-
-  if (!tool.hosting) return undefined
-
-  return {
-    type: 'api_key',
-    param: tool.hosting.apiKeyParam,
-    mode: hosted
-      ? tool.hosting.enabled
-        ? 'conditional_hosted_or_byok'
-        : 'hosted_or_byok'
-      : 'byok_required',
-    provider: tool.hosting.byokProviderId,
-    condition: hosted ? tool.hosting.enabled?.condition : undefined,
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 /**
  * Serialize workflow metadata for VFS meta.json.
@@ -68,6 +21,7 @@ export function serializeWorkflowMeta(
   wf: {
     id: string
     name: string
+    description?: string | null
     folderId?: string | null
     isDeployed: boolean
     deployedAt?: Date | null
@@ -85,6 +39,7 @@ export function serializeWorkflowMeta(
     {
       id: wf.id,
       name: wf.name,
+      description: wf.description || undefined,
       folderId: wf.folderId || undefined,
       locked,
       lockedBy: locked ? (directLock ? 'workflow' : 'folder') : undefined,
@@ -472,8 +427,6 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
   if (sb.defaultValue !== undefined) result.defaultValue = sb.defaultValue
   if (sb.mode) result.mode = sb.mode
   if (sb.canonicalParamId) result.canonicalParamId = sb.canonicalParamId
-  if (sb.condition && typeof sb.condition !== 'function') result.condition = sb.condition
-  if (sb.dependsOn) result.dependsOn = sb.dependsOn
 
   // Include static options arrays for dropdowns
   if (Array.isArray(sb.options)) {
@@ -486,43 +439,28 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
 /**
  * Serialize a block schema for VFS components/blocks/{type}.json
  */
-export function serializeBlockSchema(
-  block: BlockConfig,
-  options?: ComponentSerializationOptions
-): string {
+export function serializeBlockSchema(block: BlockConfig): string {
   // Custom blocks bake their `workflowId`/`inputMapping` as `hidden` sub-blocks;
   // treat `hidden` as hidden for them so those never reach the agent's schema.
   const customBlock = isCustomBlockType(block.type)
-  const hosted = options?.hosted ?? isHosted
-  const visibleSubBlocks = block.subBlocks.filter(
-    (sb) => !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
-  )
-  const visibleIds = new Set(visibleSubBlocks.map((sb) => sb.id))
   const hiddenIds = new Set(
     block.subBlocks
-      .filter((sb) => isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden))
+      .filter((sb) => isSubBlockHidden(sb) || (customBlock && sb.hidden))
       .map((sb) => sb.id)
-      .filter((id) => !visibleIds.has(id))
   )
 
-  const subBlocks = visibleSubBlocks.map((sb) => {
-    const serialized = serializeSubBlock(sb)
+  const subBlocks = block.subBlocks
+    .filter((sb) => !hiddenIds.has(sb.id))
+    .map((sb) => {
+      const serialized = serializeSubBlock(sb)
 
-    if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
-      serialized.options = getStaticModelOptionsForVFS()
-      serialized.dynamicProviders = DYNAMIC_PROVIDERS_NOTE
-    }
+      if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
+        serialized.options = getStaticModelOptionsForVFS()
+        serialized.dynamicProviders = DYNAMIC_PROVIDERS_NOTE
+      }
 
-    return serialized
-  })
-
-  const toolAuth: Record<string, VfsToolAuth> = {}
-  for (const toolId of block.tools.access) {
-    const tool = options?.toolConfigs?.get(toolId)
-    if (!tool) continue
-    const auth = serializeToolAuth(tool, hosted)
-    if (auth) toolAuth[toolId] = auth
-  }
+      return serialized
+    })
 
   const inputs =
     block.inputs && hiddenIds.size > 0
@@ -539,14 +477,12 @@ export function serializeBlockSchema(
       bestPractices: block.bestPractices || undefined,
       triggerAllowed: block.triggerAllowed || undefined,
       singleInstance: block.singleInstance || undefined,
-      authMode: block.authMode || undefined,
       // Custom (deploy-as-block) blocks execute via a baked `workflow_executor`
       // internally; that's implementation plumbing, not something the agent
       // configures. Hiding it keeps the block self-contained (fields in, outputs
       // out) so the agent doesn't treat it like the generic workflow block and
       // ask for a workflowId/inputMapping.
       tools: isCustomBlockType(block.type) ? [] : block.tools.access,
-      toolAuth: Object.keys(toolAuth).length > 0 ? toolAuth : undefined,
       subBlocks,
       inputs,
       outputs: Object.fromEntries(
@@ -619,55 +555,6 @@ export function serializeApiKeys(
     null,
     2
   )
-}
-
-interface ApiKeyIntegrationTool {
-  config: ToolConfig
-  service: string
-  operation: string
-  preview?: boolean
-}
-
-/**
- * Serialize API-key integration discovery with operation-level hosted status.
- * ToolConfig.hosting is the only provider registry used to build this index.
- */
-export function serializeApiKeyIntegrations(
-  tools: ApiKeyIntegrationTool[],
-  hosted = isHosted
-): string {
-  const services = new Map<
-    string,
-    {
-      params: string[]
-      operations: string[]
-      hostedOperations: string[]
-      conditionalHostedOperations: string[]
-    }
-  >()
-
-  for (const { config: tool, service, operation, preview } of tools) {
-    if (preview || !tool.hosting?.apiKeyParam) continue
-
-    const metadata = services.get(service) ?? {
-      params: [],
-      operations: [],
-      hostedOperations: [],
-      conditionalHostedOperations: [],
-    }
-    if (!metadata.params.includes(tool.hosting.apiKeyParam)) {
-      metadata.params.push(tool.hosting.apiKeyParam)
-    }
-    metadata.operations.push(operation)
-    if (hosted && tool.hosting.enabled) {
-      metadata.conditionalHostedOperations.push(operation)
-    } else if (hosted) {
-      metadata.hostedOperations.push(operation)
-    }
-    services.set(service, metadata)
-  }
-
-  return JSON.stringify(Object.fromEntries(services), null, 2)
 }
 
 /**
@@ -871,14 +758,8 @@ export function serializeSkill(s: {
 /**
  * Serialize an integration/tool schema for VFS components/integrations/{service}/{operation}.json
  */
-export function serializeIntegrationSchema(
-  tool: ToolConfig,
-  options?: Pick<ComponentSerializationOptions, 'hosted'>
-): string {
-  const hosted = options?.hosted ?? isHosted
-  const auth = serializeToolAuth(tool, hosted)
-  const hostedApiKeyParam =
-    auth?.type === 'api_key' && auth.mode === 'hosted_or_byok' ? auth.param : null
+export function serializeIntegrationSchema(tool: ToolConfig): string {
+  const hostedApiKeyParam = isHosted && tool.hosting ? tool.hosting.apiKeyParam : null
 
   return JSON.stringify(
     {
@@ -887,9 +768,8 @@ export function serializeIntegrationSchema(
       // field and load it" matches the callable tool and the block's tools.access.
       id: tool.id,
       name: tool.name,
-      description: getCopilotToolDescription(tool, { isHosted: hosted }),
+      description: getCopilotToolDescription(tool, { isHosted }),
       version: tool.version,
-      auth,
       oauth: tool.oauth
         ? { required: tool.oauth.required, provider: tool.oauth.provider }
         : undefined,

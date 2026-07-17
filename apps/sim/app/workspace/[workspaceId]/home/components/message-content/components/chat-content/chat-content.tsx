@@ -363,7 +363,6 @@ interface ChatContentProps {
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
-  onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
   /** Reports whether this segment is actively painting text or its own pending-tag indicator. */
@@ -375,7 +374,6 @@ function ChatContentInner({
   isStreaming = false,
   questionAnswers,
   onOptionSelect,
-  onQuestionDismiss,
   onWorkspaceResourceSelect,
   onRevealStateChange,
   onStreamActivityChange,
@@ -588,7 +586,6 @@ function ChatContentInner({
             segment={group.segment}
             questionAnswers={questionAnswers}
             onOptionSelect={onOptionSelect}
-            onQuestionDismiss={onQuestionDismiss}
           />
         )
       })}

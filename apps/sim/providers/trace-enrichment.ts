@@ -13,12 +13,6 @@ interface ChatCompletionLike {
     message?: {
       content?: string | null
       tool_calls?: Array<ChatCompletionToolCallLike> | null
-      reasoning_content?: string | null
-      reasoning?: string | null
-      reasoning_details?: Array<{
-        text?: string | null
-        summary?: string | null
-      } | null> | null
     } | null
     finish_reason?: string | null
   } | null>
@@ -132,15 +126,20 @@ function extractChatCompletionsReasoning(
   message: NonNullable<ChatCompletionLike['choices'][number]>['message']
 ): string | undefined {
   if (!message) return undefined
+  const msg = message as unknown as {
+    reasoning_content?: string | null
+    reasoning?: string | null
+    reasoning_details?: Array<{ text?: string | null; summary?: string | null } | null> | null
+  }
 
-  if (typeof message.reasoning_content === 'string' && message.reasoning_content.length > 0) {
-    return message.reasoning_content
+  if (typeof msg.reasoning_content === 'string' && msg.reasoning_content.length > 0) {
+    return msg.reasoning_content
   }
-  if (typeof message.reasoning === 'string' && message.reasoning.length > 0) {
-    return message.reasoning
+  if (typeof msg.reasoning === 'string' && msg.reasoning.length > 0) {
+    return msg.reasoning
   }
-  if (Array.isArray(message.reasoning_details)) {
-    const joined = message.reasoning_details
+  if (Array.isArray(msg.reasoning_details)) {
+    const joined = msg.reasoning_details
       .map((d) => d?.text ?? d?.summary ?? '')
       .filter((s): s is string => typeof s === 'string' && s.length > 0)
       .join('\n')

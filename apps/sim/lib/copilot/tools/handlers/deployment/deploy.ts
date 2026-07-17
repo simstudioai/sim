@@ -13,6 +13,7 @@ import { getDeployedWorkflowInputFormat } from '@/lib/mcp/workflow-mcp-sync'
 import {
   applyDescriptionOverrides,
   generateToolInputSchema,
+  getMeaningfulWorkflowDescription,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
 import {
@@ -611,7 +612,9 @@ export async function executeDeployMcp(
       params.toolName || workflowRecord.name || `workflow_${workflowId}`
     )
     const toolDescription =
-      params.toolDescription?.trim() || `Execute ${workflowRecord.name} workflow`
+      params.toolDescription?.trim() ||
+      getMeaningfulWorkflowDescription(workflowRecord.description, workflowRecord.name) ||
+      `Execute ${workflowRecord.name} workflow`
     /**
      * Parameter names/types come from the workflow's deployed input trigger; this tool only sets
      * per-parameter descriptions, sent as sparse overrides. The materialized schema is echoed in the

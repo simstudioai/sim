@@ -20,8 +20,6 @@ const WRAPPER_TYPES = new Set(['listItem', 'taskItem', 'blockquote'])
 /** Item node types a list is built from, used to detect an empty item's position within its list. */
 const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem'])
 
-const RICH_LEAF_SELECTION_FOCUS_KEY = new PluginKey<boolean>('richLeafSelectionFocus')
-
 /** True when the resolved position sits anywhere inside a {@link WRAPPER_TYPES} ancestor. */
 function isInsideWrapper($from: ResolvedPos): boolean {
   for (let depth = $from.depth - 1; depth >= 1; depth--) {
@@ -159,11 +157,10 @@ function selectAdjacentSelectedLeaf(editor: Editor, direction: 'up' | 'down'): b
  *   ({@link selectAdjacentSelectedLeaf}). (The `Mod-Shift-Arrow` block-reorder chords live separately
  *   in `./block-mover.ts`.)
  *
- * Plus a plugin that (a) highlights dividers/images falling inside a focused range selection (e.g.
- * select-all), which the browser's native text highlight skips because leaves carry no text; hiding
- * that custom decoration on blur keeps it in sync with the native text highlight, and (b) flags the
- * editor (`data-gap-between-leaves`) while a gap cursor sits between two leaves, so the CSS can hide
- * its otherwise-stray caret.
+ * Plus a plugin that (a) highlights dividers/images falling inside a range selection (e.g. select-all),
+ * which the browser's native text highlight skips because leaves carry no text, and (b) flags the
+ * editor (`data-gap-between-leaves`) while a gap cursor sits between two leaves, so the CSS can hide its
+ * otherwise-stray caret.
  */
 export const RichMarkdownKeymap = Extension.create({
   name: 'richMarkdownKeymap',
@@ -234,34 +231,11 @@ export const RichMarkdownKeymap = Extension.create({
   addProseMirrorPlugins() {
     return [
       new Plugin({
-        key: RICH_LEAF_SELECTION_FOCUS_KEY,
-        state: {
-          init: () => false,
-          apply(transaction, focused) {
-            const nextFocused = transaction.getMeta(RICH_LEAF_SELECTION_FOCUS_KEY)
-            return typeof nextFocused === 'boolean' ? nextFocused : focused
-          },
-        },
+        key: new PluginKey('richLeafSelectionHighlight'),
         props: {
-          handleDOMEvents: {
-            focus(view) {
-              view.dispatch(view.state.tr.setMeta(RICH_LEAF_SELECTION_FOCUS_KEY, true))
-              return false
-            },
-            blur(view) {
-              view.dispatch(view.state.tr.setMeta(RICH_LEAF_SELECTION_FOCUS_KEY, false))
-              return false
-            },
-          },
           decorations(state) {
             const { selection } = state
-            if (
-              RICH_LEAF_SELECTION_FOCUS_KEY.getState(state) !== true ||
-              selection.empty ||
-              selection instanceof NodeSelection
-            ) {
-              return null
-            }
+            if (selection.empty || selection instanceof NodeSelection) return null
             const decorations: Decoration[] = []
             state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
               if (SELECTABLE_LEAVES.has(node.type.name)) {

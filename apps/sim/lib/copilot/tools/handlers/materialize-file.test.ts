@@ -59,17 +59,6 @@ vi.mock('@/app/api/v1/admin/types', () => ({ extractWorkflowMetadata: vi.fn() })
 
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 import { executeMaterializeFile } from '@/lib/copilot/tools/handlers/materialize-file'
-import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deduplicateWorkflowName } from '@/lib/workflows/utils'
-import { extractWorkflowMetadata } from '@/app/api/v1/admin/types'
-
-const fetchWorkspaceFileBufferMock = vi.mocked(fetchWorkspaceFileBuffer)
-const parseWorkflowJsonMock = vi.mocked(parseWorkflowJson)
-const saveWorkflowToNormalizedTablesMock = vi.mocked(saveWorkflowToNormalizedTables)
-const deduplicateWorkflowNameMock = vi.mocked(deduplicateWorkflowName)
-const extractWorkflowMetadataMock = vi.mocked(extractWorkflowMetadata)
 
 const context = {
   chatId: 'chat-1',
@@ -131,45 +120,6 @@ describe('executeMaterializeFile - unsupported operation', () => {
     expect(result.error).toContain('Unsupported materialize_file operation "knowledge_base"')
     expect(result.error).toContain('knowledge subagent')
     expect(mockFindUpload).not.toHaveBeenCalled()
-  })
-})
-
-describe('executeMaterializeFile - workflow import', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    mockFindUpload.mockResolvedValue({
-      ...mothershipRow,
-      originalName: 'workflow.json',
-      displayName: 'workflow.json',
-      contentType: 'application/json',
-    })
-    fetchWorkspaceFileBufferMock.mockResolvedValue(Buffer.from('{"metadata":{}}'))
-    parseWorkflowJsonMock.mockReturnValue({
-      data: { blocks: {}, edges: [], loops: {}, parallels: {}, variables: [] },
-      errors: [],
-    })
-    extractWorkflowMetadataMock.mockReturnValue({
-      name: 'Imported Workflow',
-      description: 'PRIVATE WORKFLOW DESCRIPTION',
-    })
-    deduplicateWorkflowNameMock.mockResolvedValue('Imported Workflow')
-    saveWorkflowToNormalizedTablesMock.mockResolvedValue({ success: true })
-  })
-
-  it('does not persist the uploaded workflow description', async () => {
-    const result = await executeMaterializeFile(
-      { fileNames: ['workflow.json'], operation: 'import' },
-      context
-    )
-
-    expect(result.success).toBe(true)
-    const insertedWorkflow = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(insertedWorkflow).toMatchObject({ name: 'Imported Workflow' })
-    expect(insertedWorkflow).not.toHaveProperty('description')
-    expect(JSON.stringify(dbChainMockFns.values.mock.calls)).not.toContain(
-      'PRIVATE WORKFLOW DESCRIPTION'
-    )
   })
 })
 

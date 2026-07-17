@@ -2,15 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import { getHiddenToolNames } from '@/lib/copilot/tools/client/hidden-tools'
-import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
-import {
-  createTurnModel,
-  reduceEvent,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
-import { modelToContentBlocks } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '../../types'
 import {
   assistantMessageHasVisibleExecutingTool,
@@ -43,49 +34,6 @@ function mainText(content: string): ContentBlock {
 
 function mainToolCall(id: string, name: string): ContentBlock {
   return { type: 'tool_call', toolCall: { id, name, status: 'success' }, timestamp: 1 }
-}
-
-function representativeToolArgs(entry: ToolCatalogEntry): Record<string, unknown> {
-  const args: Record<string, unknown> = {}
-  if (!entry.parameters || typeof entry.parameters !== 'object') return args
-  const properties = (entry.parameters as { properties?: unknown }).properties
-  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return args
-
-  for (const [key, rawSchema] of Object.entries(properties)) {
-    if (!rawSchema || typeof rawSchema !== 'object' || Array.isArray(rawSchema)) continue
-    const schema = rawSchema as { default?: unknown; enum?: unknown; type?: unknown }
-    if (schema.default !== undefined) {
-      args[key] = schema.default
-    } else if (Array.isArray(schema.enum) && schema.enum.length > 0) {
-      args[key] = schema.enum[0]
-    } else if (schema.type === 'boolean') {
-      args[key] = true
-    } else if (schema.type === 'object') {
-      args[key] = {}
-    }
-  }
-  return args
-}
-
-function toolEnvelope(
-  seq: number,
-  payload: Record<string, unknown>,
-  agentId = 'deploy'
-): PersistedStreamEventEnvelope {
-  return {
-    v: 1,
-    seq,
-    ts: new Date(seq).toISOString(),
-    stream: { streamId: 'stream-1', cursor: String(seq) },
-    type: 'tool',
-    payload,
-    scope: {
-      lane: 'subagent',
-      spanId: `${agentId}-span`,
-      parentSpanId: 'main',
-      agentId,
-    },
-  } as PersistedStreamEventEnvelope
 }
 
 describe('parseBlocks span-identity tree', () => {
@@ -438,128 +386,6 @@ describe('completed tool titles', () => {
     expect(firstToolTitle([queryLogsCall('success', 'Querying logs for Invoice Bot')])).toBe(
       'Queried logs for Invoice Bot'
     )
-  })
-
-  it('renders the completed deployment action and deployment type', () => {
-    expect(
-      firstToolTitle([
-        {
-          type: 'tool_call',
-          toolCall: {
-            id: 'undeploy-api',
-            name: 'deploy_api',
-            status: 'success',
-            params: { action: 'undeploy' },
-          },
-          timestamp: 1,
-        },
-      ])
-    ).toBe('Undeployed API')
-
-    expect(firstToolTitle([mainToolCall('deploy-mcp', 'deploy_mcp')])).toBe('Deployed MCP tool')
-  })
-
-  it('renders Compared after the full diff_workflows wire lifecycle succeeds', () => {
-    const model = createTurnModel()
-    reduceEvent(
-      model,
-      toolEnvelope(1, {
-        phase: 'call',
-        toolCallId: 'diff-1',
-        toolName: 'diff_workflows',
-        arguments: { ref1: 'live', ref2: 'draft' },
-      })
-    )
-    reduceEvent(
-      model,
-      toolEnvelope(2, {
-        phase: 'result',
-        toolCallId: 'diff-1',
-        toolName: 'diff_workflows',
-        success: true,
-        status: 'success',
-        output: { differences: [] },
-      })
-    )
-
-    expect(firstToolTitle(modelToContentBlocks(model))).toBe('Compared workflows')
-  })
-
-  it('humanizes an internal read target through the full wire lifecycle', () => {
-    const model = createTurnModel()
-    reduceEvent(
-      model,
-      toolEnvelope(
-        1,
-        {
-          phase: 'call',
-          toolCallId: 'read-oauth-integrations',
-          toolName: 'read',
-          arguments: { path: 'environment/oauth-integrations.json' },
-        },
-        'auth'
-      )
-    )
-    reduceEvent(
-      model,
-      toolEnvelope(
-        2,
-        {
-          phase: 'result',
-          toolCallId: 'read-oauth-integrations',
-          toolName: 'read',
-          success: true,
-          status: 'success',
-          output: {},
-        },
-        'auth'
-      )
-    )
-
-    expect(firstToolTitle(modelToContentBlocks(model))).toBe('Read OAuth integrations')
-  })
-
-  it('renders the completed title through the full wire lifecycle for every visible tool', () => {
-    const hiddenToolNames = getHiddenToolNames()
-    const failures: string[] = []
-
-    for (const [toolName, entry] of Object.entries(TOOL_CATALOG)) {
-      // Internal subagent dispatches become agent groups, and hidden plumbing
-      // is intentionally suppressed; neither produces a visible tool row.
-      if (entry.internal || hiddenToolNames.has(toolName)) continue
-
-      const args = representativeToolArgs(entry)
-      const model = createTurnModel()
-      reduceEvent(
-        model,
-        toolEnvelope(1, {
-          phase: 'call',
-          toolCallId: `${toolName}-1`,
-          toolName,
-          arguments: args,
-        })
-      )
-      reduceEvent(
-        model,
-        toolEnvelope(2, {
-          phase: 'result',
-          toolCallId: `${toolName}-1`,
-          toolName,
-          success: true,
-          status: 'success',
-          output: {},
-        })
-      )
-
-      const presentTitle = getToolDisplayTitle(toolName, args)
-      const expectedTitle = getToolStatusDisplayTitle(presentTitle, 'success')
-      const actualTitle = firstToolTitle(modelToContentBlocks(model))
-      if (actualTitle !== expectedTitle) {
-        failures.push(`${toolName}: expected ${expectedTitle}, received ${actualTitle}`)
-      }
-    }
-
-    expect(failures).toEqual([])
   })
 
   it('keeps present tense while executing and on error', () => {

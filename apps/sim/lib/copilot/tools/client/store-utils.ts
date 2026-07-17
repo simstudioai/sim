@@ -6,7 +6,6 @@ import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
-import { humanizeDisplayIdentifier, humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 
 /** Respond tools are internal handoff tools shown with a friendly generic label. */
@@ -69,7 +68,7 @@ function readStringParam(
 }
 
 function formatReadingLabel(target: string | undefined, state: ClientToolCallState): string {
-  const suffix = ` ${target || 'file'}`
+  const suffix = target ? ` ${target}` : ''
   switch (state) {
     case ClientToolCallState.success:
       return `Read${suffix}`
@@ -99,7 +98,7 @@ function describeReadTarget(path: string | undefined): string | undefined {
 
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType) {
-    return humanizeDisplayIdentifier(stripExtension(segments[segments.length - 1]), 'sentence')
+    return stripExtension(segments[segments.length - 1])
   }
 
   if (resourceType === 'file') {
@@ -160,9 +159,9 @@ function humanizedFallback(
   toolName: string,
   state: ClientToolCallState
 ): ClientToolDisplay | undefined {
-  const titleCaseName = humanizeToolName(toolName)
+  const titleCaseName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   if (state === ClientToolCallState.error) {
-    const lowerCaseName = humanizeDisplayIdentifier(toolName, 'sentence')
+    const lowerCaseName = toolName.replace(/_/g, ' ').toLowerCase()
     return { text: `Attempted to ${lowerCaseName}`, icon: Loader }
   }
   const stateVerb =
