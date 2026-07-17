@@ -106,6 +106,14 @@ app:
     GCS_OG_IMAGES_BUCKET_NAME: "myorg-sim-og-images"      # OpenGraph preview images
     GCS_WORKSPACE_LOGOS_BUCKET_NAME: "myorg-sim-workspace-logos"    # Workspace logos
 
+    # Email via the Gmail API (Google-native transactional mail)
+    # Requires a Google Workspace domain: grant the service account domain-wide
+    # delegation for the gmail.send scope in the Workspace admin console.
+    # Alternatively use the Workspace SMTP relay via SMTP_HOST=smtp-relay.gmail.com.
+    # GMAIL_CREDENTIALS_JSON: '{"type":"service_account","client_email":"...","private_key":"..."}'
+    # GMAIL_SENDER: "noreply@yourdomain.com"
+    # FROM_EMAIL_ADDRESS: "Sim <noreply@yourdomain.com>"
+
 # Realtime service
 realtime:
   enabled: true
