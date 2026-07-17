@@ -226,6 +226,10 @@ async function buildIntegrationToolSchemasUncached(
         }
         const userSchema = createUserToolSchema(toolConfig, {
           surface: options.schemaSurface,
+          // On hosted deployments the executor injects hosted keys server-side,
+          // so the gateway schema must not force the model to supply one (the
+          // model never sees the key either way).
+          hostedKeySupport: isHosted,
         })
         const catalogEntry = getToolEntry(toolId)
         integrationTools.push({
