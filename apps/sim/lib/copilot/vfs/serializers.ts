@@ -350,6 +350,7 @@ export function serializeTableMeta(table: {
   description?: string | null
   schema: unknown
   rowCount: number
+  rowsVersion: number
   maxRows: number
   createdAt: Date | string
   updatedAt: Date | string
@@ -361,6 +362,7 @@ export function serializeTableMeta(table: {
       description: table.description || undefined,
       schema: table.schema,
       rowCount: table.rowCount,
+      rowsVersion: table.rowsVersion,
       maxRows: table.maxRows,
       createdAt: table.createdAt instanceof Date ? table.createdAt.toISOString() : table.createdAt,
       updatedAt: table.updatedAt instanceof Date ? table.updatedAt.toISOString() : table.updatedAt,

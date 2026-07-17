@@ -14,6 +14,7 @@ import type {
   Filter,
   RowData,
   Sort,
+  TableMetadata,
   TableSchema,
   WorkflowGroup,
 } from '@/lib/table/types'
@@ -38,6 +39,37 @@ export function getColumnId(col: Pick<ColumnDefinition, 'id' | 'name'>): string 
  */
 export function generateColumnId(): string {
   return `col_${generateId().replace(/-/g, '')}`
+}
+
+/**
+ * Returns `schema` with `columns` sorted by `metadata.columnOrder` (the user-
+ * editable visible order). Columns missing from `columnOrder` are appended at
+ * the end in their original (schema-creation) order — covers tables created
+ * before `columnOrder` existed and any drift from out-of-band column adds.
+ *
+ * This makes `schema.columns` the single source of truth for column order on
+ * the wire. The client doesn't have to join the two arrays itself — every
+ * consumer (grid, sidebar, copilot, mothership) gets the same ordered list.
+ */
+export function applyColumnOrderToSchema(
+  schema: TableSchema,
+  metadata: TableMetadata | null
+): TableSchema {
+  const order = metadata?.columnOrder
+  if (!order || order.length === 0) return schema
+  // `columnOrder` holds stable column ids (legacy entries equal the name == id).
+  const byId = new Map<string, TableSchema['columns'][number]>()
+  for (const c of schema.columns) byId.set(getColumnId(c), c)
+  const ordered: TableSchema['columns'] = []
+  for (const id of order) {
+    const c = byId.get(id)
+    if (c) {
+      ordered.push(c)
+      byId.delete(id)
+    }
+  }
+  for (const c of byId.values()) ordered.push(c)
+  return { ...schema, columns: ordered }
 }
 
 /**

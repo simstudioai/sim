@@ -130,8 +130,22 @@ describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
           { id: 'wf-1', name: 'Alpha', isDeployed: true, folderPath: null },
         ],
         tables: [
-          { id: 't-2', name: 'Orders', description: null, rowCount: 5 },
-          { id: 't-1', name: 'Customers', description: null, rowCount: 9 },
+          {
+            id: 't-2',
+            name: 'Orders',
+            description: null,
+            rowCount: 5,
+            rowsVersion: 2,
+            schemaHash: 'bbb',
+          },
+          {
+            id: 't-1',
+            name: 'Customers',
+            description: null,
+            rowCount: 9,
+            rowsVersion: 1,
+            schemaHash: 'aaa',
+          },
         ],
         knowledgeBases: [
           { id: 'kb-2', name: 'Docs', connectorTypes: ['notion', 'github'] },
@@ -187,8 +201,22 @@ describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
           { id: 'wf-2', name: 'Zeta', isDeployed: false, folderPath: null },
         ],
         tables: [
-          { id: 't-1', name: 'Customers', description: null, rowCount: 9 },
-          { id: 't-2', name: 'Orders', description: null, rowCount: 5 },
+          {
+            id: 't-1',
+            name: 'Customers',
+            description: null,
+            rowCount: 9,
+            rowsVersion: 1,
+            schemaHash: 'aaa',
+          },
+          {
+            id: 't-2',
+            name: 'Orders',
+            description: null,
+            rowCount: 5,
+            rowsVersion: 2,
+            schemaHash: 'bbb',
+          },
         ],
         knowledgeBases: [
           { id: 'kb-1', name: 'Articles', connectorTypes: ['notion', 'github'] },
@@ -261,13 +289,74 @@ describe('buildWorkspaceMd - determinism (prompt-cache stability)', () => {
 
   it('ignores volatile table row counts', () => {
     const a = buildWorkspaceMd(
-      baseData({ tables: [{ id: 't-1', name: 'Customers', description: null, rowCount: 1 }] })
+      baseData({
+        tables: [
+          {
+            id: 't-1',
+            name: 'Customers',
+            description: null,
+            rowCount: 1,
+            rowsVersion: 1,
+            schemaHash: 'aaa',
+          },
+        ],
+      })
     )
     const b = buildWorkspaceMd(
-      baseData({ tables: [{ id: 't-1', name: 'Customers', description: null, rowCount: 9999 }] })
+      baseData({
+        tables: [
+          {
+            id: 't-1',
+            name: 'Customers',
+            description: null,
+            rowCount: 9999,
+            rowsVersion: 1,
+            schemaHash: 'aaa',
+          },
+        ],
+      })
     )
     expect(a).toBe(b)
     expect(a).not.toContain('rows')
+  })
+})
+
+describe('buildVfsSnapshot - table versioning', () => {
+  it('emits rowsVersion and schemaHash so row writes and schema edits change the snapshot', () => {
+    const snap = buildVfsSnapshot(
+      baseData({
+        tables: [
+          {
+            id: 't-1',
+            name: 'Customers',
+            description: null,
+            rowsVersion: 7,
+            schemaHash: 'abc123def456',
+          },
+        ],
+      })
+    )
+    expect(snap.tables).toEqual([
+      { id: 't-1', name: 'Customers', rowsVersion: 7, schemaHash: 'abc123def456' },
+    ])
+  })
+
+  it('omits a zero rowsVersion to mirror the Go contract omitempty semantics', () => {
+    const snap = buildVfsSnapshot(
+      baseData({
+        tables: [
+          {
+            id: 't-1',
+            name: 'Customers',
+            description: null,
+            rowsVersion: 0,
+            schemaHash: 'abc123def456',
+          },
+        ],
+      })
+    )
+    expect(snap.tables?.[0]).not.toHaveProperty('rowsVersion')
+    expect(snap.tables?.[0]).toHaveProperty('schemaHash', 'abc123def456')
   })
 })
 

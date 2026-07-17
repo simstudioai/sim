@@ -107,6 +107,8 @@ export interface VfsSnapshotV1Table {
   description?: string
   id: string
   name: string
+  rowsVersion?: number
+  schemaHash?: string
 }
 /**
  * This interface was referenced by `VfsSnapshotV1`'s JSON-Schema
