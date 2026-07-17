@@ -503,15 +503,33 @@ const ACRONYM_CASING: Record<string, string> = {
 }
 
 /**
+ * Humanize an internal identifier without leaking snake_case or kebab-case into
+ * the UI. Sentence case is useful for resource names appended to a verb, while
+ * title case is used for standalone tool-name fallbacks.
+ */
+export function humanizeDisplayIdentifier(
+  name: string,
+  casing: 'sentence' | 'title' = 'title'
+): string {
+  const words = stripVersionSuffix(name).split(/[-_]+/).filter(Boolean)
+  if (words.length === 0) return name
+  return words
+    .map((word, index) => {
+      const normalized = word.toLowerCase()
+      const acronym = ACRONYM_CASING[normalized]
+      if (acronym) return acronym
+      if (casing === 'sentence' && index > 0) return normalized
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+    })
+    .join(' ')
+}
+
+/**
  * Final fallback: humanize a raw tool name (e.g. `manage_folder` -> "Manage
  * Folder"), matching the legacy client humanizer so labels never render blank.
  */
 export function humanizeToolName(name: string): string {
-  const words = stripVersionSuffix(name).split('_').filter(Boolean)
-  if (words.length === 0) return name
-  return words
-    .map((word) => ACRONYM_CASING[word] ?? word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+  return humanizeDisplayIdentifier(name)
 }
 
 /**
@@ -846,6 +864,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Scraping: 'Scraped',
   Searching: 'Searched',
   Setting: 'Set',
+  Summarizing: 'Summarized',
   Syncing: 'Synced',
   Toggling: 'Toggled',
   Trimming: 'Trimmed',

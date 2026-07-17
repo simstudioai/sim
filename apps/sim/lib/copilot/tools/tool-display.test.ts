@@ -58,6 +58,10 @@ describe('humanizeToolName', () => {
     expect(humanizeToolName('manage_folder')).toBe('Manage Folder')
   })
 
+  it('title-cases kebab-case names', () => {
+    expect(humanizeToolName('read-oauth-integrations')).toBe('Read OAuth Integrations')
+  })
+
   it('keeps canonical acronym casing', () => {
     expect(humanizeToolName('create_workspace_mcp_server')).toBe('Create Workspace MCP Server')
     expect(humanizeToolName('deploy_api')).toBe('Deploy API')
@@ -456,11 +460,15 @@ describe('getToolDisplayTitle for operation-driven tools', () => {
 describe('getToolDisplayTitle for request-scoped MCP tools', () => {
   it('hides the internal server id and humanizes the tool name', () => {
     expect(getToolDisplayTitle('mcp-363de040-web_search_exa')).toBe('Web Search Exa')
+    expect(getToolDisplayTitle('mcp-363de040-read-oauth-integrations')).toBe(
+      'Read OAuth Integrations'
+    )
   })
 })
 
 describe('getToolDisplayTitle for context management', () => {
   it('describes compaction in user-facing language', () => {
     expect(getToolDisplayTitle('context_compaction')).toBe('Summarizing context')
+    expect(getToolStatusDisplayTitle('Summarizing context', 'success')).toBe('Summarized context')
   })
 })

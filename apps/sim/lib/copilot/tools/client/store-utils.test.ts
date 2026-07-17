@@ -149,12 +149,35 @@ describe('resolveToolDisplay', () => {
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'components/blocks/unknown_block.json',
       })?.text
-    ).toBe('Read unknown_block')
+    ).toBe('Read Unknown block')
+  })
+
+  it('humanizes internal VFS resource identifiers', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'environment/oauth-integrations.json',
+      })?.text
+    ).toBe('Reading OAuth integrations')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'environment/oauth-integrations.json',
+      })?.text
+    ).toBe('Read OAuth integrations')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'environment/api-key-integrations.json',
+      })?.text
+    ).toBe('Read API key integrations')
   })
 
   it('falls back to a humanized tool label for generic tools', () => {
     expect(resolveToolDisplay('deploy_api', ClientToolCallState.success)?.text).toBe(
-      'Executed Deploy Api'
+      'Executed Deploy API'
+    )
+    expect(resolveToolDisplay('oauth-integrations', ClientToolCallState.success)?.text).toBe(
+      'Executed OAuth Integrations'
     )
   })
 

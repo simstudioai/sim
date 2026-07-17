@@ -485,6 +485,40 @@ describe('completed tool titles', () => {
     expect(firstToolTitle(modelToContentBlocks(model))).toBe('Compared workflows')
   })
 
+  it('humanizes an internal read target through the full wire lifecycle', () => {
+    const model = createTurnModel()
+    reduceEvent(
+      model,
+      toolEnvelope(
+        1,
+        {
+          phase: 'call',
+          toolCallId: 'read-oauth-integrations',
+          toolName: 'read',
+          arguments: { path: 'environment/oauth-integrations.json' },
+        },
+        'auth'
+      )
+    )
+    reduceEvent(
+      model,
+      toolEnvelope(
+        2,
+        {
+          phase: 'result',
+          toolCallId: 'read-oauth-integrations',
+          toolName: 'read',
+          success: true,
+          status: 'success',
+          output: {},
+        },
+        'auth'
+      )
+    )
+
+    expect(firstToolTitle(modelToContentBlocks(model))).toBe('Read OAuth integrations')
+  })
+
   it('renders the completed title through the full wire lifecycle for every visible tool', () => {
     const hiddenToolNames = getHiddenToolNames()
     const failures: string[] = []
