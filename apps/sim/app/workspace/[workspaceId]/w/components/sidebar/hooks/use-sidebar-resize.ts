@@ -26,16 +26,19 @@ import { useSidebarStore } from '@/stores/sidebar/store'
  * stealing focus) can never leave the `is-resizing` / `sidebar-resizing` classes
  * stuck — which would otherwise freeze the sidebar at a tiny width with the
  * collapse transition permanently disabled. A single-flight guard prevents
- * stacking listeners across rapid presses, and an unmount cleanup tears down a
- * drag still in flight when the sidebar unmounts (e.g. route change).
+ * stacking listeners across rapid presses, and unmounting mid-drag finalizes it
+ * the same way a release does — persisting the last width and dropping the
+ * scoped override — which matters because `.sidebar-shell-outer` lives in the
+ * workspace chrome and outlives the sidebar, so a stranded override would
+ * otherwise win over the committed `:root` value.
  */
 export function useSidebarResize() {
   const setSidebarWidth = useSidebarStore((s) => s.setSidebarWidth)
-  const cleanupRef = useRef<(() => void) | null>(null)
+  const teardownRef = useRef<(() => void) | null>(null)
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLElement>) => {
-      if (cleanupRef.current) return
+      if (teardownRef.current) return
 
       const handle = e.currentTarget
       const pointerId = e.pointerId
@@ -76,7 +79,7 @@ export function useSidebarResize() {
         document.removeEventListener('pointerup', endDrag)
         document.removeEventListener('pointercancel', endDrag)
         window.removeEventListener('blur', endDrag)
-        cleanupRef.current = null
+        teardownRef.current = null
       }
 
       function endDrag() {
@@ -87,7 +90,7 @@ export function useSidebarResize() {
         }
       }
 
-      cleanupRef.current = cleanup
+      teardownRef.current = endDrag
       document.addEventListener('pointermove', onPointerMove)
       document.addEventListener('pointerup', endDrag)
       document.addEventListener('pointercancel', endDrag)
@@ -96,7 +99,7 @@ export function useSidebarResize() {
     [setSidebarWidth]
   )
 
-  useEffect(() => () => cleanupRef.current?.(), [])
+  useEffect(() => () => teardownRef.current?.(), [])
 
   return { handlePointerDown }
 }

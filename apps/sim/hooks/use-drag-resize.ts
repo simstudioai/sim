@@ -97,9 +97,11 @@ export function useDragResize(options: UseDragResizeOptions) {
 
     let rafId: number | null = null
     let lastEvent: PointerEvent | null = null
+    let lastApplied: number | null = null
 
     const applyValue = (value: number) => {
       target.style.setProperty(cssVar, `${value}px`)
+      lastApplied = value
       optionsRef.current.onApply?.(value)
     }
 
@@ -131,13 +133,18 @@ export function useDragResize(options: UseDragResizeOptions) {
 
     function endDrag() {
       cleanup()
-      if (lastEvent !== null) {
+      // Recompute the final value from the last pointer position for an exact
+      // finish (and flick-safety when no frame ran) — but only while the target
+      // is still attached. On an unmount its rect can be detached, so a
+      // layout-reading compute would return a degenerate value; there, commit
+      // the last value actually shown to the user instead.
+      if (lastEvent !== null && target.isConnected) {
         const value = optionsRef.current.compute(lastEvent)
-        if (value !== null) {
-          applyValue(value)
-          optionsRef.current.commit(value)
-          if (target !== document.documentElement) target.style.removeProperty(cssVar)
-        }
+        if (value !== null) applyValue(value)
+      }
+      if (lastApplied !== null) {
+        optionsRef.current.commit(lastApplied)
+        if (target !== document.documentElement) target.style.removeProperty(cssVar)
       }
       optionsRef.current.onEnd?.()
     }

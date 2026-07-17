@@ -1267,6 +1267,12 @@ export const Terminal = memo(function Terminal() {
     const handleResize = () => {
       if (!selectedEntry) return
 
+      // An active output-panel drag owns clamping: its own compute clamps every
+      // frame against the live terminal rect, and its scoped inline override on
+      // `.terminal-container` would mask a store-driven `:root` write here
+      // anyway. The inline override is present only while that drag is active.
+      if (el.style.getPropertyValue('--output-panel-width')) return
+
       const maxWidth = el.getBoundingClientRect().width - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
       if (maxWidth < MIN_OUTPUT_PANEL_WIDTH_PX) {
@@ -1275,12 +1281,7 @@ export const Terminal = memo(function Terminal() {
         return
       }
 
-      const liveWidth = Number.parseFloat(
-        el.style.getPropertyValue('--output-panel-width') ||
-          document.documentElement.style.getPropertyValue('--output-panel-width')
-      )
-      const currentWidth = Number.isNaN(liveWidth) ? outputPanelWidth : liveWidth
-      if (currentWidth > maxWidth) {
+      if (outputPanelWidth > maxWidth) {
         setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
       }
     }
