@@ -93,7 +93,15 @@ export function createBlockFromParams(
         return
       }
 
-      let sanitizedValue = normalizeSubblockValue(key, value)
+      let sanitizedValue = value
+
+      // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+      if (shouldNormalizeArrayIds(key)) {
+        sanitizedValue = normalizeArrayWithIds(value)
+        if (JSON_STRING_SUBBLOCK_KEYS.has(key)) {
+          sanitizedValue = JSON.stringify(sanitizedValue)
+        }
+      }
 
       sanitizedValue = normalizeConditionRouterIds(blockId, key, sanitizedValue)
 
@@ -266,35 +274,29 @@ const ARRAY_WITH_ID_SUBBLOCK_TYPES = new Set([
  * Subblock keys whose UI components expect a JSON string, not a raw array.
  * After normalizeArrayWithIds returns an array, these must be re-stringified.
  */
-const JSON_STRING_SUBBLOCK_KEYS = new Set(['conditions', 'routes', 'tagFilters', 'documentTags'])
-
-/**
- * Coerces a subblock value to an array, accepting either a raw array or the JSON string
- * the string-serialized subblocks persist.
- *
- * @returns The array, or `null` when the value is not an array and does not parse to one.
- * Callers supply their own fallback, which differs by site.
- */
-function parseJsonArray(value: unknown): any[] | null {
-  if (Array.isArray(value)) return value
-  if (typeof value !== 'string') return null
-
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : null
-  } catch {
-    return null
-  }
-}
+export const JSON_STRING_SUBBLOCK_KEYS = new Set(['conditions', 'routes'])
 
 /**
  * Normalizes array subblock values by ensuring each item has a valid UUID.
  * The LLM may generate arbitrary IDs like "input-desc-001" or "row-1" which need
  * to be converted to proper UUIDs for consistency with UI-created items.
  */
-function normalizeArrayWithIds(value: unknown): any[] {
-  const arr = parseJsonArray(value)
-  if (!arr) return []
+export function normalizeArrayWithIds(value: unknown): any[] {
+  let arr: any[]
+
+  if (Array.isArray(value)) {
+    arr = value
+  } else if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (!Array.isArray(parsed)) return []
+      arr = parsed
+    } catch {
+      return []
+    }
+  } else {
+    return []
+  }
 
   return arr.map((item: any) => {
     if (!item || typeof item !== 'object') {
@@ -313,28 +315,8 @@ function normalizeArrayWithIds(value: unknown): any[] {
 /**
  * Checks if a subblock key should have its array items normalized with UUIDs.
  */
-function shouldNormalizeArrayIds(key: string): boolean {
+export function shouldNormalizeArrayIds(key: string): boolean {
   return ARRAY_WITH_ID_SUBBLOCK_TYPES.has(key)
-}
-
-/**
- * Normalizes an array-with-id subblock value, re-serializing it to a JSON string for the
- * subblock keys whose UI components read a string rather than a raw array.
- *
- * Every write path that persists LLM-supplied subblock values must route through this so the
- * two concerns cannot drift apart; returns non-array-with-id values untouched.
- *
- * @remarks
- * A nullish value passes through unchanged. `validateValueForSubBlockType` treats null as an
- * explicit clear, and coercing it to `"[]"` here would persist a value where the caller asked
- * for none -- leaving `sanitizeForCopilot` to show the agent an empty filter rather than an
- * absent one, and callers that branch on the field's presence to see it as set.
- */
-export function normalizeSubblockValue(key: string, value: unknown): unknown {
-  if (!shouldNormalizeArrayIds(key)) return value
-  if (value === null || value === undefined) return value
-  const normalized = normalizeArrayWithIds(value)
-  return JSON_STRING_SUBBLOCK_KEYS.has(key) ? JSON.stringify(normalized) : normalized
 }
 
 /**
@@ -345,8 +327,19 @@ export function normalizeSubblockValue(key: string, value: unknown): unknown {
 export function normalizeConditionRouterIds(blockId: string, key: string, value: unknown): unknown {
   if (key !== 'conditions' && key !== 'routes') return value
 
-  const parsed = parseJsonArray(value)
-  if (!parsed) return value
+  let parsed: any[]
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+      if (!Array.isArray(parsed)) return value
+    } catch {
+      return value
+    }
+  } else if (Array.isArray(value)) {
+    parsed = value
+  } else {
+    return value
+  }
 
   let elseIfCounter = 0
   const normalized = parsed.map((item, index) => {

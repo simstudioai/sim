@@ -221,35 +221,6 @@ describe('handleEditOperation nestedNodes merge', () => {
     expect(state.blocks['new-agent']).toBeUndefined()
   })
 
-  it('persists string-serialized subblocks as JSON strings on merged children', () => {
-    const workflow = makeLoopWorkflow()
-
-    const { state } = applyOperationsToWorkflowState(workflow, [
-      {
-        operation_type: 'edit',
-        block_id: 'loop-1',
-        params: {
-          nestedNodes: {
-            'new-condition': {
-              type: 'condition',
-              name: 'Condition 1',
-              inputs: {
-                conditions: [
-                  { id: 'x', title: 'if', value: 'x > 1' },
-                  { id: 'y', title: 'else', value: '' },
-                ],
-              },
-            },
-          },
-        },
-      },
-    ])
-
-    const value = state.blocks['condition-1'].subBlocks.conditions.value
-    expect(typeof value).toBe('string')
-    expect(JSON.parse(value as string)[0].title).toBe('if')
-  })
-
   it('preserves edges for matched children when connections are not provided', () => {
     const workflow = makeLoopWorkflow()
 

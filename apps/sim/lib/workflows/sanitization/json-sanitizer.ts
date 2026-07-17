@@ -254,13 +254,6 @@ function isToolInput(value: unknown): value is ToolInput {
 /**
  * Sanitize subblocks by removing null values and simplifying structure
  * Maps each subblock key directly to its value instead of the full object
- *
- * @remarks
- * `tagFilters` and `documentTags` are deliberately retained. This is the copilot's read
- * view of workflow state, and `edit_workflow` can write both keys, so dropping them here
- * makes the field write-only: the agent reads back an absent field and clears the user's
- * filter on the next edit. Redaction for shared/exported workflows is a separate concern,
- * already handled by `sanitizeWorkflowForSharing`.
  */
 function sanitizeSubBlocks(
   subBlocks: BlockState['subBlocks']
@@ -314,6 +307,11 @@ function sanitizeSubBlocks(
     if (key === 'tools' && Array.isArray(subBlock.value)) {
       const toolItems: unknown[] = subBlock.value
       sanitized[key] = sanitizeTools(toolItems.filter(isToolInput))
+      return
+    }
+
+    // Skip knowledge base tag filters and document tags (workspace-specific data)
+    if (key === 'tagFilters' || key === 'documentTags') {
       return
     }
 

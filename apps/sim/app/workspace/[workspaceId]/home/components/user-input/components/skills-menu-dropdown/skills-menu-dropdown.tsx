@@ -2,8 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@sim/emcn'
-import { AgentSkillsIcon, McpIcon } from '@/components/icons'
-import type { McpServer } from '@/hooks/queries/mcp'
+import { AgentSkillsIcon } from '@/components/icons'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 
 /**
@@ -25,12 +24,8 @@ export interface SkillsMenuHandle {
 interface SkillsMenuDropdownProps {
   /** Skills available in the current workspace. */
   skills: SkillDefinition[]
-  /** Connected MCP servers available in the current workspace. */
-  mcpServers: McpServer[]
   /** Called when a skill row is chosen (click / keyboard). */
   onSkillSelect: (skill: SkillDefinition) => void
-  /** Called when an MCP server row is chosen. */
-  onMcpSelect: (server: McpServer) => void
   /** Called when the menu closes so the host can reset slash state. */
   onClose: () => void
   /** Host textarea — focus is restored to it on close. */
@@ -49,16 +44,7 @@ interface SkillsMenuDropdownProps {
  */
 export const SkillsMenuDropdown = React.memo(
   React.forwardRef<SkillsMenuHandle, SkillsMenuDropdownProps>(function SkillsMenuDropdown(
-    {
-      skills,
-      mcpServers,
-      onSkillSelect,
-      onMcpSelect,
-      onClose,
-      textareaRef,
-      pendingCursorRef,
-      slashQuery,
-    },
+    { skills, onSkillSelect, onClose, textareaRef, pendingCursorRef, slashQuery },
     ref
   ) {
     const [open, setOpen] = useState(false)
@@ -66,18 +52,14 @@ export const SkillsMenuDropdown = React.memo(
     const [activeIndex, setActiveIndex] = useState(0)
     const contentRef = useRef<HTMLDivElement>(null)
 
-    const filteredItems = useMemo(() => {
+    const filteredSkills = useMemo(() => {
       const q = (slashQuery ?? '').toLowerCase().trim()
-      const items = [
-        ...skills.map((skill) => ({ kind: 'skill' as const, item: skill })),
-        ...mcpServers.map((server) => ({ kind: 'mcp' as const, item: server })),
-      ]
-      if (!q) return items
-      return items.filter(({ item }) => item.name.toLowerCase().includes(q))
-    }, [skills, mcpServers, slashQuery])
+      if (!q) return skills
+      return skills.filter((skill) => skill.name.toLowerCase().includes(q))
+    }, [skills, slashQuery])
 
-    const filteredItemsRef = useRef(filteredItems)
-    filteredItemsRef.current = filteredItems
+    const filteredSkillsRef = useRef(filteredSkills)
+    filteredSkillsRef.current = filteredSkills
     const activeIndexRef = useRef(activeIndex)
     activeIndexRef.current = activeIndex
 
@@ -92,13 +74,12 @@ export const SkillsMenuDropdown = React.memo(
     }, [])
 
     const handleSelect = useCallback(
-      (target: (typeof filteredItems)[number]) => {
-        if (target.kind === 'skill') onSkillSelect(target.item)
-        else onMcpSelect(target.item)
+      (skill: SkillDefinition) => {
+        onSkillSelect(skill)
         setOpen(false)
         setActiveIndex(0)
       },
-      [onSkillSelect, onMcpSelect]
+      [onSkillSelect]
     )
 
     const handleSelectRef = useRef(handleSelect)
@@ -110,7 +91,7 @@ export const SkillsMenuDropdown = React.memo(
         open: doOpen,
         close: doClose,
         moveActive: (delta: number) => {
-          const items = filteredItemsRef.current
+          const items = filteredSkillsRef.current
           if (items.length === 0) return
           setActiveIndex((i) => {
             const next = i + delta
@@ -120,7 +101,7 @@ export const SkillsMenuDropdown = React.memo(
           })
         },
         selectActive: () => {
-          const items = filteredItemsRef.current
+          const items = filteredSkillsRef.current
           if (items.length === 0) return false
           const target = items[activeIndexRef.current] ?? items[0]
           if (!target) return false
@@ -139,12 +120,12 @@ export const SkillsMenuDropdown = React.memo(
 
     // Sync DOM scroll to the keyboard-highlighted row.
     useEffect(() => {
-      if (filteredItems.length === 0) return
+      if (filteredSkills.length === 0) return
       const row = contentRef.current?.querySelector<HTMLElement>(
         `[data-filtered-idx="${activeIndex}"]`
       )
       row?.scrollIntoView({ block: 'nearest' })
-    }, [activeIndex, filteredItems])
+    }, [activeIndex, filteredSkills])
 
     const handleOpenChange = (isOpen: boolean) => {
       setOpen(isOpen)
@@ -198,30 +179,30 @@ export const SkillsMenuDropdown = React.memo(
           onOpenAutoFocus={handleOpenAutoFocus}
         >
           <div className='min-h-0 flex-1 overflow-y-auto overscroll-none'>
-            {filteredItems.length > 0 ? (
-              filteredItems.map((target, index) => {
+            {filteredSkills.length > 0 ? (
+              filteredSkills.map((skill, index) => {
                 const isActive = index === activeIndex
                 return (
                   <button
-                    key={`${target.kind}:${target.item.id}`}
+                    key={skill.id}
                     type='button'
                     role='menuitem'
                     data-filtered-idx={index}
                     onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => handleSelect(target)}
+                    onClick={() => handleSelect(skill)}
                     className={cn(
                       'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
                       isActive && 'bg-[var(--surface-active)]'
                     )}
                   >
-                    {target.kind === 'skill' ? <AgentSkillsIcon /> : <McpIcon />}
-                    <span>{target.item.name}</span>
+                    <AgentSkillsIcon />
+                    <span>{skill.name}</span>
                   </button>
                 )
               })
             ) : (
               <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
-                No skills or MCP servers
+                No skills
               </div>
             )}
           </div>

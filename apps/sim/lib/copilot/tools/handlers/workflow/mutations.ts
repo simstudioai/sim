@@ -891,7 +891,8 @@ export async function executeGenerateApiKey(
         name: result.key.name,
         key: result.key.key,
         workspaceId,
-        message: `API key "${result.key.name}" created. You did NOT receive the key value — Sim reveals it to the user ONLY through the secure, copyable chip it renders where you place a <credential>{"type":"sim_key"}</credential> tag, so you MUST emit that tag now or the user can never see the key (it cannot be shown again). Never print, guess, or fabricate a value. The key authenticates calls to deployed workflow endpoints via the x-api-key header.`,
+        message:
+          'API key created successfully. Copy this key now — it will not be shown again. Use this key in the x-api-key header when calling workflow API endpoints.',
       },
     }
   } catch (error) {

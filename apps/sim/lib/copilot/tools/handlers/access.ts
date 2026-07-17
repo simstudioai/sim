@@ -1,6 +1,6 @@
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import type { getWorkflowById } from '@/lib/workflows/utils'
-import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 type WorkflowRecord = NonNullable<Awaited<ReturnType<typeof getWorkflowById>>>
@@ -47,23 +47,22 @@ export async function ensureWorkspaceAccess(
   workspaceId: string,
   userId: string,
   level: 'read' | 'write' | 'admin' = 'read'
-): Promise<WorkspaceAccess> {
+): Promise<void> {
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.exists || !access.hasAccess) {
     throw new Error(`Workspace ${workspaceId} not found`)
   }
 
-  if (level === 'read') return access
+  if (level === 'read') return
 
   if (level === 'admin') {
     if (!access.canAdmin) {
       throw new Error('Admin access required for this workspace')
     }
-    return access
+    return
   }
 
   if (!access.canWrite) {
     throw new Error('Write or admin access required for this workspace')
   }
-  return access
 }

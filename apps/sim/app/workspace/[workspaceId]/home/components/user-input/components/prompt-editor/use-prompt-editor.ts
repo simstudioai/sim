@@ -24,7 +24,6 @@ import {
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
-import { type McpServer, useMcpServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import type { ChatContext } from '@/stores/panel'
 
@@ -156,11 +155,6 @@ export function usePromptEditor({
   onPasteFiles,
 }: UsePromptEditorProps) {
   const { data: skills = [] } = useSkills(workspaceId)
-  const { data: allMcpServers = [] } = useMcpServers(workspaceId)
-  const mcpServers = useMemo(
-    () => allMcpServers.filter((server) => server.enabled && server.workspaceId === workspaceId),
-    [allMcpServers, workspaceId]
-  )
 
   const [value, setValueState] = useState(initialValue)
   const valueRef = useRef(value)
@@ -230,7 +224,6 @@ export function usePromptEditor({
 
   const skillAutoMention = useSkillAutoMention({
     skills,
-    mcpServers,
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
@@ -279,8 +272,8 @@ export function usePromptEditor({
       valueRef.current = converted
       setValueState(converted)
     }
-    seedRef.current = skills.length > 0 || mcpServers.length > 0 ? null : converted
-  }, [skills.length, mcpServers.length, applyAutoMentions])
+    seedRef.current = skills.length > 0 ? null : converted
+  }, [skills.length, applyAutoMentions])
 
   const existingResourceKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -447,32 +440,6 @@ export function usePromptEditor({
       }
 
       addContextNotified({ kind: 'skill', skillId: skill.id, label: skill.name })
-    },
-    [textareaRef, addContextNotified]
-  )
-
-  const handleMcpSelect = useCallback(
-    (server: McpServer) => {
-      const textarea = textareaRef.current
-      if (textarea) {
-        const currentValue = valueRef.current
-        const range = slashRangeRef.current
-        const insertAt = range?.start ?? textarea.selectionStart ?? currentValue.length
-        const end = range?.end ?? insertAt
-        const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-        const insertText = `${needsSpaceBefore ? ' ' : ''}${SKILL_CHIP_TRIGGER}${server.name} `
-        const newValue = `${currentValue.slice(0, insertAt)}${insertText}${currentValue.slice(end)}`
-        const newPos = insertAt + insertText.length
-
-        pendingCursorRef.current = newPos
-        valueRef.current = newValue
-        slashRangeRef.current = null
-        setSlashQuery(null)
-        dismissedSlashStartRef.current = null
-        setValueState(newValue)
-      }
-
-      addContextNotified({ kind: 'mcp', serverId: server.id, label: server.name })
     },
     [textareaRef, addContextNotified]
   )
@@ -1043,8 +1010,6 @@ export function usePromptEditor({
     /** @internal Wiring consumed by the {@link PromptEditor} view. */
     skills,
     /** @internal */
-    mcpServers,
-    /** @internal */
     availableResources,
     /** @internal */
     mentionQuery,
@@ -1060,8 +1025,6 @@ export function usePromptEditor({
     insertResource,
     /** @internal */
     handleSkillSelect,
-    /** @internal */
-    handleMcpSelect,
     /** @internal */
     handlePlusMenuClose,
     /** @internal */

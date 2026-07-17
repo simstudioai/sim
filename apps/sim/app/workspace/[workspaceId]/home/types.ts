@@ -73,8 +73,6 @@ export interface ToolCallInfo {
   name: string
   status: ToolCallStatus
   displayTitle?: string
-  /** Model-authored activity phrase for a gateway-resolved integration call. */
-  integrationDescription?: string
   params?: Record<string, unknown>
   calledBy?: string
   result?: ToolCallResult
@@ -138,7 +136,6 @@ export interface ChatMessageContext {
   chatId?: string
   blockType?: string
   skillId?: string
-  serverId?: string
 }
 
 export interface ChatMessage {
@@ -160,8 +157,6 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   knowledge: 'Knowledge Agent',
   table: 'Table Agent',
   custom_tool: 'Custom Tool Agent',
-  scout: 'Scout Agent',
-  search: 'Search Agent',
   superagent: 'Superagent',
   run: 'Run Agent',
   agent: 'Tools Agent',

@@ -61,7 +61,7 @@ export function useMentionTokens({
       // Find matching context to determine if it's a slash command
       const matchingContext = selectedContexts.find((c) => c.label === label)
       const prefix =
-        matchingContext?.kind === 'skill' || matchingContext?.kind === 'mcp'
+        matchingContext?.kind === 'skill'
           ? SKILL_CHIP_TRIGGER
           : matchingContext?.kind === 'slash_command'
             ? '/'

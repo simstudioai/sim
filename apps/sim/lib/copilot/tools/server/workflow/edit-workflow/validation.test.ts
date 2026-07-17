@@ -68,11 +68,7 @@ const knowledgeBlockConfig = {
   type: 'knowledge',
   name: 'Knowledge',
   outputs: {},
-  subBlocks: [
-    { id: 'knowledgeBaseId', type: 'knowledge-base-selector' },
-    { id: 'tagFilters', type: 'knowledge-tag-filters' },
-    { id: 'documentTags', type: 'document-tag-entry' },
-  ],
+  subBlocks: [{ id: 'knowledgeBaseId', type: 'knowledge-base-selector' }],
 }
 
 const canonicalCredBlockConfig = {
@@ -262,47 +258,6 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.conditions).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.error).toContain('expected a JSON array')
-  })
-
-  // Without this guard, normalizeArrayWithIds coerces any unparseable value to [], which the
-  // write path then persists as "[]" -- silently destroying a tag filter the user configured.
-  it.each([
-    ['a double-encoded JSON string', JSON.stringify(JSON.stringify([{ tagName: 'Department' }]))],
-    ['an unparseable string', 'not-json'],
-    ['an object', { tagName: 'Department' }],
-    ['a number', 5],
-  ])('rejects knowledge-tag-filters values that are %s', (_label, value) => {
-    const result = validateInputsForBlock('knowledge', { tagFilters: value }, 'kb-1')
-
-    expect(result.validInputs.tagFilters).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('expected a JSON array')
-  })
-
-  it('rejects non-array document-tag-entry values', () => {
-    const result = validateInputsForBlock('knowledge', { documentTags: 'not-json' }, 'kb-1')
-
-    expect(result.validInputs.documentTags).toBeUndefined()
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]?.error).toContain('expected a JSON array')
-  })
-
-  it.each([
-    ['a JSON string array', JSON.stringify([{ tagName: 'Department', tagValue: 'IT' }])],
-    ['a raw array', [{ tagName: 'Department', tagValue: 'IT' }]],
-    ['an empty array, clearing the filter', []],
-  ])('accepts knowledge-tag-filters values that are %s', (_label, value) => {
-    const result = validateInputsForBlock('knowledge', { tagFilters: value }, 'kb-1')
-
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.tagFilters).toBeDefined()
-  })
-
-  it('accepts a null knowledge-tag-filters value so the field can still be cleared', () => {
-    const result = validateInputsForBlock('knowledge', { tagFilters: null }, 'kb-1')
-
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.tagFilters).toBeNull()
   })
 
   it('accepts known agent model ids', () => {

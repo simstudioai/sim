@@ -248,8 +248,6 @@ const RESOURCE_INVALIDATORS: Record<
   },
   filefolder: (qc, wId) => {
     qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(wId) })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
   },
   task: (qc, wId) => {
     qc.invalidateQueries({ queryKey: mothershipChatKeys.list(wId) })

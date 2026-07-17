@@ -33,13 +33,12 @@ import {
   KnowledgeBase,
   MaterializeFile,
   Media,
+  Research,
   Run,
   RunBlock,
-  RunCode,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
-  Search,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -48,6 +47,7 @@ import { recordSimToolMetric } from '@/lib/copilot/request/metrics'
 import { withCopilotToolSpan } from '@/lib/copilot/request/otel'
 import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import {
+  getToolCallStateOutput,
   getToolCallTerminalData,
   requireToolCallError,
   setTerminalToolCallState,
@@ -68,7 +68,6 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
-import { isMcpTool } from '@/executor/constants'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
 
@@ -208,13 +207,12 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
   RunWorkflow.id,
   RunWorkflowUntilBlock.id,
   FunctionExecute.id,
-  RunCode.id,
   GenerateImage.id,
   GenerateAudio.id,
   GenerateVideo.id,
   Ffmpeg.id,
   Media.id,
-  Search.id,
+  Research.id,
   CrawlWebsite.id,
   KnowledgeBase.id,
   DownloadToWorkspaceFile.id,
@@ -225,7 +223,7 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
 ])
 
 export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
-  return toolName && (LONG_RUNNING_TOOL_IDS.has(toolName) || isMcpTool(toolName))
+  return toolName && LONG_RUNNING_TOOL_IDS.has(toolName)
     ? TOOL_WATCHDOG_LONG_RUNNING_MS
     : TOOL_WATCHDOG_DEFAULT_MS
 }
@@ -331,10 +329,7 @@ function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncToolCompl
   }
 
   if (toolCall.status === MothershipStreamV1ToolOutcome.success) {
-    // getToolCallTerminalData (not raw output) so the completion signal carries
-    // the model-facing/redacted result — keeps the sim_key out of every path
-    // that consumes a completion, matching the error branch below.
-    const data = getToolCallTerminalData(toolCall)
+    const data = getToolCallStateOutput(toolCall)
     return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool completed',
@@ -343,7 +338,7 @@ function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncToolCompl
   }
 
   if (toolCall.status === MothershipStreamV1ToolOutcome.skipped) {
-    const data = getToolCallTerminalData(toolCall)
+    const data = getToolCallStateOutput(toolCall)
     return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool skipped',
@@ -654,10 +649,7 @@ async function executeToolAndReportInner(
     })
 
     if (result.success) {
-      // Log the model-facing (redacted) view, not result.output — for
-      // generate_api_key the raw output carries the plaintext key, which must
-      // never reach application logs.
-      const raw = getToolCallTerminalData(toolCall)
+      const raw = result.output
       const preview =
         typeof raw === 'string'
           ? raw.slice(0, 200)

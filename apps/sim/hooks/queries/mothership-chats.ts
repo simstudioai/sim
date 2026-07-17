@@ -675,12 +675,12 @@ export function useCreateMothershipChat(workspaceId?: string) {
 async function forkChat(params: {
   chatId: string
   upToMessageId: string
-}): Promise<{ id: string; failedFileCopies?: number }> {
+}): Promise<{ id: string }> {
   const data = await requestJson(forkMothershipChatContract, {
     params: { chatId: params.chatId },
     body: { upToMessageId: params.upToMessageId },
   })
-  return { id: data.id, failedFileCopies: data.failedFileCopies }
+  return { id: data.id }
 }
 
 export function useForkMothershipChat(workspaceId?: string) {

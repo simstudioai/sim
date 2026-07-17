@@ -90,10 +90,10 @@ describe('persisted-message', () => {
     const persisted = buildPersistedAssistantMessage(result)
 
     expect(persisted.content).not.toContain('sk-sim-secret-123')
-    expect(persisted.content).toContain('{"type":"sim_key"}')
+    expect(persisted.content).toContain('"redacted":true')
     const textBlock = persisted.contentBlocks?.find((b) => b.type === 'text')
     expect(textBlock?.content).not.toContain('sk-sim-secret-123')
-    expect(textBlock?.content).toContain('{"type":"sim_key"}')
+    expect(textBlock?.content).toContain('"redacted":true')
   })
 
   it('redacts sim_key credential tags split across streamed text chunks', () => {
@@ -119,7 +119,7 @@ describe('persisted-message', () => {
     expect(persisted.contentBlocks).toBeDefined()
     const joined = (persisted.contentBlocks ?? []).map((b) => b.content ?? '').join('')
     expect(joined).not.toContain('sk-sim-secret-12345')
-    expect(joined).toContain('{"type":"sim_key"}')
+    expect(joined).toContain('"redacted":true')
   })
 
   it('redacts the api key from a persisted generate_api_key tool result output', () => {

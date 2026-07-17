@@ -119,31 +119,6 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
-  it('converts function_execute timeout before invoking its registered Sim handler', async () => {
-    isKnownTool.mockReturnValue(true)
-    isSimExecuted.mockReturnValue(true)
-    isClientExecuted.mockReturnValue(false)
-    const handler = vi.fn().mockResolvedValue({ success: true, output: { result: 'ok' } })
-    registerHandler('function_execute', handler)
-
-    const context = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'ws-1',
-      copilotToolExecution: true,
-    }
-    await executeTool('function_execute', { code: 'return 1', timeout: 7 }, context)
-
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'return 1',
-        timeout: 7000,
-      }),
-      context
-    )
-    expect(executeAppTool).not.toHaveBeenCalled()
-  })
-
   it('defaults copilot function_execute timeout to 10 seconds when omitted', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)

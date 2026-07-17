@@ -37,13 +37,6 @@ interface PersistedToolCall {
 export interface PersistedContentBlock {
   type: MothershipStreamV1EventType
   lane?: MothershipStreamV1StreamScope['lane']
-  /**
-   * Subagent name on lane text blocks. The span-tree parser needs a name to
-   * create a group for content whose `subagent` start block is missing (resume
-   * legs re-emit text without re-emitting start); without it the prose is
-   * silently dropped on reload.
-   */
-  agent?: string
   channel?: MothershipStreamV1TextChannel
   phase?: MothershipStreamV1ToolPhase
   kind?: MothershipStreamV1SpanPayloadKind
@@ -75,9 +68,6 @@ interface PersistedMessageContext {
   fileId?: string
   folderId?: string
   chatId?: string
-  blockType?: string
-  skillId?: string
-  serverId?: string
 }
 
 export interface PersistedMessage {
@@ -198,7 +188,6 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         lane: 'subagent',
         channel: MothershipStreamV1TextChannel.assistant,
         content: block.content,
-        ...(block.subagent ? { agent: block.subagent } : {}),
       }
     case 'subagent_thinking':
       return {
@@ -206,7 +195,6 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         lane: 'subagent',
         channel: MothershipStreamV1TextChannel.thinking,
         content: block.content,
-        ...(block.subagent ? { agent: block.subagent } : {}),
       }
     case 'tool_call': {
       if (!block.toolCall) {
@@ -272,17 +260,7 @@ export function buildPersistedAssistantMessage(
   }
 
   if (result.contentBlocks.length > 0) {
-    // Reasoning is display-transient and never rendered, so it is never
-    // persisted either: storing it bloats whale chats and lets the persisted
-    // turn diverge from the streamed one (the refresh-vs-switch mismatch).
-    // This is the single write-side choke point for assistant blocks, so the
-    // guarantee holds for every terminal path (complete, cancelled, error).
-    const withoutThinking = result.contentBlocks.filter(
-      (block) => block.type !== 'thinking' && block.type !== 'subagent_thinking'
-    )
-    if (withoutThinking.length > 0) {
-      message.contentBlocks = mergeAndRedactPersistedBlocks(withoutThinking.map(mapContentBlock))
-    }
+    message.contentBlocks = mergeAndRedactPersistedBlocks(result.contentBlocks.map(mapContentBlock))
   }
 
   return message
@@ -356,9 +334,6 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
       ...(c.fileId ? { fileId: c.fileId } : {}),
       ...(c.folderId ? { folderId: c.folderId } : {}),
       ...(c.chatId ? { chatId: c.chatId } : {}),
-      ...(c.blockType ? { blockType: c.blockType } : {}),
-      ...(c.skillId ? { skillId: c.skillId } : {}),
-      ...(c.serverId ? { serverId: c.serverId } : {}),
     }))
   }
 
@@ -376,7 +351,6 @@ const CANONICAL_BLOCK_TYPES: Set<string> = new Set(Object.values(MothershipStrea
 interface RawBlock {
   type: string
   lane?: string
-  agent?: string
   content?: string
   /** Go persists text blocks with key "text" instead of "content" */
   text?: string
@@ -442,7 +416,6 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.lane === 'subagent') {
     result.lane = block.lane
   }
-  if (block.agent) result.agent = block.agent
   const blockContent = block.content ?? block.text
   if (blockContent !== undefined) result.content = blockContent
   if (block.channel) result.channel = block.channel as MothershipStreamV1TextChannel
@@ -676,9 +649,6 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
       ...(c.fileId ? { fileId: c.fileId } : {}),
       ...(c.folderId ? { folderId: c.folderId } : {}),
       ...(c.chatId ? { chatId: c.chatId } : {}),
-      ...(c.blockType ? { blockType: c.blockType } : {}),
-      ...(c.skillId ? { skillId: c.skillId } : {}),
-      ...(c.serverId ? { serverId: c.serverId } : {}),
     }))
   }
 

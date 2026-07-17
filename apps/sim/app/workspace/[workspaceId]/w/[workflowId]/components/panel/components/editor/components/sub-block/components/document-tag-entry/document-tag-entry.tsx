@@ -21,7 +21,6 @@ import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { parseJsonArrayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -99,14 +98,22 @@ export function DocumentTagEntry({
 
   const currentValue = isPreview ? previewValue : storeValue
 
-  const parseTags = (tagValue: unknown): DocumentTag[] =>
-    parseJsonArrayValue<DocumentTag>(tagValue).map((t) => ({
-      ...t,
-      fieldType: t.fieldType || 'text',
-      collapsed: t.collapsed ?? false,
-    }))
+  const parseTags = (tagValue: string | null): DocumentTag[] => {
+    if (!tagValue) return []
+    try {
+      const parsed = JSON.parse(tagValue)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((t: DocumentTag) => ({
+        ...t,
+        fieldType: t.fieldType || 'text',
+        collapsed: t.collapsed ?? false,
+      }))
+    } catch {
+      return []
+    }
+  }
 
-  const parsedTags = parseTags(currentValue)
+  const parsedTags = parseTags(currentValue || null)
   const tags: DocumentTag[] = parsedTags.length > 0 ? parsedTags : [createDefaultTag()]
   const isReadOnly = isPreview || disabled
 

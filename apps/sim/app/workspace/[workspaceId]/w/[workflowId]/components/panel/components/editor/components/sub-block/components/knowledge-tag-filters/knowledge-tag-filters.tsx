@@ -21,7 +21,6 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
-import { parseJsonArrayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -101,16 +100,24 @@ export function KnowledgeTagFilters({
     disabled,
   })
 
-  const parseFilters = (filterValue: unknown): TagFilter[] =>
-    parseJsonArrayValue<TagFilter>(filterValue).map((f) => ({
-      ...f,
-      fieldType: f.fieldType || 'text',
-      operator: f.operator || 'eq',
-      collapsed: f.collapsed ?? false,
-    }))
+  const parseFilters = (filterValue: string | null): TagFilter[] => {
+    if (!filterValue) return []
+    try {
+      const parsed = JSON.parse(filterValue)
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((f: TagFilter) => ({
+        ...f,
+        fieldType: f.fieldType || 'text',
+        operator: f.operator || 'eq',
+        collapsed: f.collapsed ?? false,
+      }))
+    } catch {
+      return []
+    }
+  }
 
   const currentValue = isPreview ? previewValue : storeValue
-  const parsedFilters = parseFilters(currentValue)
+  const parsedFilters = parseFilters(currentValue || null)
   const filters: TagFilter[] = parsedFilters.length > 0 ? parsedFilters : [createDefaultFilter()]
   const isReadOnly = isPreview || disabled
 

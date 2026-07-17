@@ -8,7 +8,7 @@ import {
   Task,
   Workflow,
 } from '@sim/emcn/icons'
-import { AgentSkillsIcon, McpIcon } from '@/components/icons'
+import { AgentSkillsIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { getBareIconStyle } from '@/blocks/icon-color'
@@ -98,9 +98,5 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   skill: {
     label: 'Skill',
     renderIcon: ({ className }) => <AgentSkillsIcon className={className} />,
-  },
-  mcp: {
-    label: 'MCP server',
-    renderIcon: ({ className }) => <McpIcon className={className} />,
   },
 }

@@ -206,26 +206,10 @@ export async function maybeWriteOutputToFile(
 ): Promise<ToolCallResult> {
   if (!result.success || !result.output) return result
   if (!OUTPUT_PATH_TOOLS.has(toolName)) return result
+  if (!context.workspaceId || !context.userId) return result
 
   const outputFiles = getOutputFileDeclarations(params).filter((file) => !file.sandboxPath)
   if (outputFiles.length === 0) return result
-
-  // The tool declared workspace file outputs; passing the successful result
-  // through without writing them would be a silent no-op the model reads as
-  // "file written", so fail loudly instead — but keep the computed output so
-  // the model can still use the value without re-running the tool.
-  if (!context.workspaceId || !context.userId) {
-    logger.warn('Failing tool result: declared output files but no workspace context', {
-      toolName,
-      outputCount: outputFiles.length,
-    })
-    return {
-      success: false,
-      error:
-        'Declared output file(s) were NOT written: this tool call has no workspace context. The computed result is included in the output, but it was not saved to any file.',
-      output: result.output,
-    }
-  }
 
   const outputObject =
     result.output && typeof result.output === 'object' && !Array.isArray(result.output)

@@ -44,8 +44,6 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const normalizedParams = normalizeToolParams(toolId, params, context)
-
   // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never
   // reach this point in interactive mode. In headless mode (Mothership block, no browser) there
   // is no client to delegate to, so fall back to the registered server-side handler when one
@@ -54,7 +52,7 @@ export async function executeTool(
     isKnownTool(toolId) &&
     (isSimExecuted(toolId) || (isClientExecuted(toolId) && hasHandler(toolId)))
   if (!canUseRegisteredHandler) {
-    const appParams = buildAppToolParams(normalizedParams, context)
+    const appParams = buildAppToolParams(toolId, params, context)
     return executeAppTool(toolId, appParams)
   }
 
@@ -73,7 +71,7 @@ export async function executeTool(
   }
 
   try {
-    return await handler(normalizedParams, context)
+    return await handler(params, context)
   } catch (error) {
     const message = toError(error).message
     logger.error('Tool execution failed', {
@@ -82,33 +80,6 @@ export async function executeTool(
       abortSignalAborted: context.abortSignal?.aborted ?? false,
     })
     return { success: false, error: message }
-  }
-}
-
-function normalizeToolParams(
-  toolId: string,
-  params: Record<string, unknown>,
-  context: ToolExecutionContext
-): Record<string, unknown> {
-  if (toolId !== FUNCTION_EXECUTE_TOOL_ID || !context.copilotToolExecution) {
-    return params
-  }
-
-  const rawTimeoutSeconds =
-    params.timeout === undefined || params.timeout === null
-      ? DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
-      : Number(params.timeout)
-  const timeoutSeconds =
-    Number.isFinite(rawTimeoutSeconds) && rawTimeoutSeconds > 0
-      ? rawTimeoutSeconds
-      : DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
-
-  return {
-    ...params,
-    timeout: Math.min(
-      Math.ceil(timeoutSeconds * MILLISECONDS_PER_SECOND),
-      DEFAULT_EXECUTION_TIMEOUT_MS
-    ),
   }
 }
 
@@ -138,10 +109,26 @@ async function executeToolBatch(
 }
 
 function buildAppToolParams(
+  toolId: string,
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Record<string, unknown> {
   const result = { ...params }
+
+  if (toolId === FUNCTION_EXECUTE_TOOL_ID && context.copilotToolExecution) {
+    const rawTimeoutSeconds =
+      result.timeout === undefined || result.timeout === null
+        ? DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
+        : Number(result.timeout)
+    const timeoutSeconds =
+      Number.isFinite(rawTimeoutSeconds) && rawTimeoutSeconds > 0
+        ? rawTimeoutSeconds
+        : DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
+    result.timeout = Math.min(
+      Math.ceil(timeoutSeconds * MILLISECONDS_PER_SECOND),
+      DEFAULT_EXECUTION_TIMEOUT_MS
+    )
+  }
 
   if (result.credentialId && !result.credential && !result.oauthCredential) {
     result.credential = result.credentialId

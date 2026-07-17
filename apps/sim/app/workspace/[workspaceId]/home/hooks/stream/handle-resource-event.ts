@@ -11,7 +11,6 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
-import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 type ResourceEvent = Extract<
@@ -47,12 +46,13 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   const resource = payload.resource
 
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
-    const resourceType = resource.type as MothershipResourceType
-    removeResource(resourceType, resource.id)
-    if (resourceType === 'workflow') {
-      removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
-    }
-    invalidateResourceQueries(queryClient, workspaceId, resourceType, resource.id)
+    removeResource(resource.type as MothershipResourceType, resource.id)
+    invalidateResourceQueries(
+      queryClient,
+      workspaceId,
+      resource.type as MothershipResourceType,
+      resource.id
+    )
     onResourceEvent?.()
     return
   }

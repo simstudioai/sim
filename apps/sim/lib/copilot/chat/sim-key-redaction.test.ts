@@ -7,21 +7,12 @@ import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 import {
   captureRevealedSimKeys,
   extractRevealedSimKeys,
-  extractRevealedSimKeysFromBlocks,
   restoreRevealedSimKeysForMessage,
-  toolResultForModel,
 } from './sim-key-redaction'
 
 const credential = (value: string) =>
   `<credential>${JSON.stringify({ value, type: 'sim_key' })}</credential>`
 const redacted = `<credential>${JSON.stringify({ type: 'sim_key', redacted: true })}</credential>`
-// The value-less placeholder the model now emits (no `redacted` flag).
-const placeholder = `<credential>${JSON.stringify({ type: 'sim_key' })}</credential>`
-
-const apiKeyBlock = (key: string) => ({
-  type: 'tool_call' as const,
-  toolCall: { name: 'generate_api_key', result: { success: true, output: { id: 'k1', key } } },
-})
 
 describe('sim-key-redaction', () => {
   describe('extractRevealedSimKeys', () => {
@@ -34,55 +25,6 @@ describe('sim-key-redaction', () => {
       const link = `<credential>${JSON.stringify({ value: 'https://x', type: 'link', provider: 'slack' })}</credential>`
       const text = `${link} ${credential('sk-sim-A')} ${redacted}`
       expect(extractRevealedSimKeys(text)).toEqual(['sk-sim-A'])
-    })
-  })
-
-  describe('toolResultForModel', () => {
-    it('reduces a successful generate_api_key result to only its status message', () => {
-      const data = {
-        id: 'k1',
-        name: 'prod',
-        key: 'sk-sim-secret',
-        workspaceId: 'ws-1',
-        message: 'API key "prod" created.',
-      }
-      expect(toolResultForModel('generate_api_key', data)).toBe('API key "prod" created.')
-    })
-
-    it('leaves other tools untouched', () => {
-      const data = { key: 'not-a-secret', ok: true }
-      expect(toolResultForModel('read', data)).toBe(data)
-    })
-
-    it('passes generate_api_key errors through (no key to withhold)', () => {
-      const data = { error: 'name is required' }
-      expect(toolResultForModel('generate_api_key', data)).toBe(data)
-      expect(toolResultForModel('generate_api_key', undefined)).toBe(undefined)
-    })
-  })
-
-  describe('extractRevealedSimKeysFromBlocks', () => {
-    it('pulls generate_api_key output keys in block order', () => {
-      expect(
-        extractRevealedSimKeysFromBlocks([apiKeyBlock('sk-sim-A'), apiKeyBlock('sk-sim-B')])
-      ).toEqual(['sk-sim-A', 'sk-sim-B'])
-    })
-
-    it('skips redacted markers and unrelated tools', () => {
-      const blocks = [
-        apiKeyBlock('[REDACTED]'),
-        {
-          type: 'tool_call' as const,
-          toolCall: { name: 'read', result: { success: true, output: { key: 'sk-x' } } },
-        },
-        apiKeyBlock('sk-sim-A'),
-      ]
-      expect(extractRevealedSimKeysFromBlocks(blocks)).toEqual(['sk-sim-A'])
-    })
-
-    it('returns nothing for empty/undefined block lists', () => {
-      expect(extractRevealedSimKeysFromBlocks(undefined)).toEqual([])
-      expect(extractRevealedSimKeysFromBlocks([])).toEqual([])
     })
   })
 
@@ -117,21 +59,6 @@ describe('sim-key-redaction', () => {
       captureRevealedSimKeys(cache, ['msg-1'], 'plain assistant text')
       expect(cache.has('msg-1')).toBe(false)
     })
-
-    it('sources the key from the generate_api_key tool result (model text is a redacted placeholder)', () => {
-      const cache = new Map<string, string[]>()
-      captureRevealedSimKeys(cache, ['msg-1', 'req-1'], `Here is your key: ${redacted}`, [
-        apiKeyBlock('sk-sim-fromtool'),
-      ])
-      expect(cache.get('msg-1')).toEqual(['sk-sim-fromtool'])
-      expect(cache.get('req-1')).toEqual(['sk-sim-fromtool'])
-    })
-
-    it('prefers tool-result keys over any inline content values', () => {
-      const cache = new Map<string, string[]>()
-      captureRevealedSimKeys(cache, ['msg-1'], credential('sk-content'), [apiKeyBlock('sk-tool')])
-      expect(cache.get('msg-1')).toEqual(['sk-tool'])
-    })
   })
 
   describe('restoreRevealedSimKeysForMessage', () => {
@@ -147,32 +74,6 @@ describe('sim-key-redaction', () => {
       expect(restored.content).toContain('"sk-sim-A"')
       expect(restored.content).not.toContain('"redacted":true')
       expect(restored.contentBlocks?.[0].content).toContain('"sk-sim-A"')
-    })
-
-    it('fills a value-less {"type":"sim_key"} placeholder (no redacted flag needed)', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A']]])
-      const msg: ChatMessage = {
-        id: 'msg-1',
-        role: 'assistant',
-        content: `Here is your key: ${placeholder} save it.`,
-        contentBlocks: [{ type: 'text', content: `Here is your key: ${placeholder} save it.` }],
-      }
-      const restored = restoreRevealedSimKeysForMessage(msg, cache)
-      expect(restored.content).toContain('"sk-sim-A"')
-      expect(restored.contentBlocks?.[0].content).toContain('"sk-sim-A"')
-    })
-
-    it('fills value-less and redacted placeholders positionally in one message', () => {
-      const cache = new Map<string, string[]>([['msg-1', ['sk-sim-A', 'sk-sim-B']]])
-      const msg: ChatMessage = {
-        id: 'msg-1',
-        role: 'assistant',
-        content: `first ${placeholder} second ${redacted}`,
-      }
-      const restored = restoreRevealedSimKeysForMessage(msg, cache)
-      expect(restored.content).toBe(
-        `first ${credential('sk-sim-A')} second ${credential('sk-sim-B')}`
-      )
     })
 
     it('substitutes multiple keys in stream order', () => {

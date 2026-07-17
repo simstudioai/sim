@@ -9,12 +9,12 @@ import {
   filterExposedIntegrationTools,
   getExposedIntegrationTools,
 } from '@/lib/copilot/integration-tools'
-import { buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { stripVersionSuffix } from '@/tools/utils'
 
@@ -33,8 +33,6 @@ interface BuildPayloadParams {
   model: string
   provider?: string
   contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
-  /** MCP servers explicitly tagged on this turn. Untagged servers stay unavailable. */
-  mcpServerIds?: string[]
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
   chatId?: string
@@ -51,26 +49,18 @@ interface BuildPayloadParams {
     email?: string
     timezone?: string
   }
+  includeMothershipTools?: boolean
 }
 
 export interface ToolSchema {
   name: string
   description: string
   input_schema: Record<string, unknown>
-  outputs?: Record<string, unknown>
   defer_loading?: boolean
   executeLocally?: boolean
   params?: Record<string, unknown>
   /** Canonical integration service/folder (e.g. "slack"), for server-side grouping. */
   service?: string
-  /**
-   * Operation stem within the service — the VFS doc filename without `.json`
-   * (e.g. "list_users" for id "slack_list_users"). Stamped so the server can
-   * hand agents the exact `components/integrations/{service}/{operation}.json`
-   * path instead of making them derive it from the id (deriving is how the id
-   * gets guessed as the filename).
-   */
-  operation?: string
   oauth?: { required: boolean; provider: string }
 }
 
@@ -105,7 +95,6 @@ function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
       input_schema: { ...tool.input_schema },
     }
     if (tool.params) cloned.params = { ...tool.params }
-    if (tool.outputs) cloned.outputs = structuredClone(tool.outputs)
     if (tool.oauth) cloned.oauth = { ...tool.oauth }
     return cloned
   })
@@ -216,7 +205,7 @@ async function buildIntegrationToolSchemasUncached(
     }
 
     const exposedTools = filterExposedIntegrationTools(getExposedIntegrationTools(), vis)
-    for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
+    for (const { toolId, config: toolConfig, service } of exposedTools) {
       try {
         if (allowedIntegrations && toolIdToBlockType) {
           const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
@@ -231,23 +220,12 @@ async function buildIntegrationToolSchemasUncached(
         integrationTools.push({
           name: toolId,
           service,
-          operation,
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
             fallbackName: toolId,
             appendEmailTagline: shouldAppendEmailTagline,
           }),
           input_schema: { ...userSchema },
-          ...(toolConfig.outputs && {
-            outputs: Object.fromEntries(
-              Object.entries(toolConfig.outputs)
-                .filter(([, output]) => output != null)
-                .map(([key, output]) => [
-                  key,
-                  { type: output.type, description: output.description },
-                ])
-            ),
-          }),
           defer_loading: true,
           executeLocally:
             catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
@@ -327,8 +305,7 @@ export async function buildCopilotRequestPayload(
           f.key,
           filename,
           mediaType,
-          f.size,
-          userMessageId
+          f.size
         )
         // Encode the read path per the percent-encoded VFS convention (matches
         // files/ and the uploads glob output). The materialize_file `fileName`
@@ -366,26 +343,30 @@ export async function buildCopilotRequestPayload(
   const allContexts = [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
-  let mothershipTools: ToolSchema[] = []
+  const mothershipTools: ToolSchema[] = []
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
-  // "superagent" is a legacy wire value for Direct Action mode; both modes
-  // execute connected-service operations through the main-agent gateway.
-  if (effectiveMode === 'build' || effectiveMode === 'superagent') {
+  if (effectiveMode === 'build') {
     integrationTools = await buildIntegrationToolSchemas(
       userId,
       userMessageId,
       { schemaSurface: 'copilot' },
       params.workspaceId
     )
-  }
 
-  if (params.workspaceId && params.mcpServerIds?.length) {
-    mothershipTools = await buildTaggedMcpToolSchemas(
-      userId,
-      params.workspaceId,
-      params.mcpServerIds
-    )
+    if (params.includeMothershipTools && params.workspaceId) {
+      // Expose all workspace user-created skills via the single load_user_skill
+      // tool. Available to every user; content is fetched sim-side when the
+      // model calls it.
+      try {
+        const userSkillTool = await buildUserSkillTool(params.workspaceId)
+        if (userSkillTool) mothershipTools.push(userSkillTool)
+      } catch (error) {
+        logger.warn('Failed to build load_user_skill tool', {
+          error: toError(error).message,
+        })
+      }
+    }
   }
 
   return {

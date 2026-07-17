@@ -33,8 +33,6 @@ vi.mock('@/tools/registry', () => ({
       id: 'gmail_send',
       name: 'Gmail Send',
       description: 'Send emails using Gmail',
-      outputs: { messageId: { type: 'string', description: 'Sent message ID' } },
-      oauth: { required: true, provider: 'google-email' },
     },
     brandfetch_search: {
       id: 'brandfetch_search',
@@ -69,13 +67,7 @@ vi.mock('@/lib/copilot/integration-tools', () => ({
   getExposedIntegrationTools: vi.fn(() => [
     {
       toolId: 'gmail_send',
-      config: {
-        id: 'gmail_send',
-        name: 'Gmail Send',
-        description: 'Send emails using Gmail',
-        outputs: { messageId: { type: 'string', description: 'Sent message ID' } },
-        oauth: { required: true, provider: 'google-email' },
-      },
+      config: { id: 'gmail_send', name: 'Gmail Send', description: 'Send emails using Gmail' },
       service: 'gmail',
       operation: 'send',
     },
@@ -162,22 +154,6 @@ describe('buildIntegrationToolSchemas', () => {
     expect(runTool?.executeLocally).toBe(true)
   })
 
-  it('preserves operation, outputs, and OAuth discovery metadata', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-metadata')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-
-    expect(gmailTool).toEqual(
-      expect.objectContaining({
-        service: 'gmail',
-        operation: 'send',
-        outputs: { messageId: { type: 'string', description: 'Sent message ID' } },
-        oauth: { required: true, provider: 'google-email' },
-      })
-    )
-  })
-
   it('uses copilot-facing file schemas for integration tools', async () => {
     mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
 
@@ -198,13 +174,11 @@ describe('buildIntegrationToolSchemas', () => {
 
     const first = await buildIntegrationToolSchemas('user-cache')
     first[0].input_schema.mutated = true
-    if (first[0].outputs) first[0].outputs.mutated = true
     const second = await buildIntegrationToolSchemas('user-cache')
 
     expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
     expect(mockCreateUserToolSchema).toHaveBeenCalledTimes(3)
     expect(second[0].input_schema).not.toHaveProperty('mutated')
-    expect(second[0].outputs).not.toHaveProperty('mutated')
   })
 })
 

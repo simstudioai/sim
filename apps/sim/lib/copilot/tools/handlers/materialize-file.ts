@@ -83,10 +83,7 @@ async function executeSave(
       .update(workspaceFiles)
       .set({
         context: 'workspace',
-        // A workspace file has no birth chat or message — clear both provenance
-        // fields so the row reads as workspace-owned, not stale chat-owned.
         chatId: null,
-        messageId: null,
         originalName: row.displayName ?? row.originalName,
         size: verifiedSize,
       })

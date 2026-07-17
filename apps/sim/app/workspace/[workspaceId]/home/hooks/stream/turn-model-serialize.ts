@@ -1,6 +1,5 @@
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import {
-  resolveIntegrationToolDisplayTitle,
   resolveStreamingToolDisplayTitle,
   resolveToolDisplayTitle,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
@@ -39,14 +38,10 @@ function toolStatusToNode(status: ToolCallStatus): NodeStatus {
 
 /**
  * Resolves a tool row's display title with the same precedence the live handler
- * used: the integration gateway's model-authored activity description first
- * (live even mid-argument-stream; the integration brand is the row icon), then
- * the streaming-args title while args stream, then the arg-derived title, then
- * the explicit `ui.title`.
+ * used: the streaming-args title wins while args stream, then the arg-derived
+ * title, then the explicit `ui.title`.
  */
 function toolDisplayTitle(node: ToolNode): string | undefined {
-  const integrationTitle = resolveIntegrationToolDisplayTitle(node)
-  if (integrationTitle) return integrationTitle
   const streamingTitle = node.streamingArgs
     ? resolveStreamingToolDisplayTitle(node.name, node.streamingArgs)
     : undefined
@@ -131,9 +126,6 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
             name: node.name,
             status: nodeToToolStatus(node.status),
             ...(displayTitle ? { displayTitle } : {}),
-            ...(node.integrationDescription
-              ? { integrationDescription: node.integrationDescription }
-              : {}),
             ...(node.args ? { params: node.args } : {}),
             ...(node.streamingArgs ? { streamingArgs: node.streamingArgs } : {}),
             ...(node.result
@@ -225,31 +217,16 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
       // double-cast-allowed: synthetic replay envelope rebuilt from ContentBlocks for reduceEvent only; payloads are intentionally the minimal shape the reducer reads (no executor/mode), never provider-parsed or re-emitted on the wire
     }) as unknown as PersistedStreamEventEnvelope
 
-  const scopeFor = (block: ContentBlock): Record<string, unknown> | undefined => {
-    // Legacy/degraded snapshots (older persisted rows, pre-span stop payloads)
-    // can carry lane linkage without spanId. Fall back to the deterministic
-    // `span:${parentToolCallId}` id — the same convention reduceEvent uses for
-    // scope-less span starts — so the lane survives the rebuild instead of
-    // collapsing into the main lane (subagent text at root, flat layout).
-    const laneLinked =
-      block.type === 'subagent' ||
-      block.type === 'subagent_text' ||
-      block.type === 'subagent_thinking' ||
-      Boolean(block.subagent) ||
-      Boolean(block.toolCall?.calledBy)
-    const spanId =
-      block.spanId ??
-      (laneLinked && block.parentToolCallId ? `span:${block.parentToolCallId}` : undefined)
-    return spanId
+  const scopeFor = (block: ContentBlock): Record<string, unknown> | undefined =>
+    block.spanId
       ? {
           lane: 'subagent',
-          spanId,
+          spanId: block.spanId,
           ...(block.parentSpanId ? { parentSpanId: block.parentSpanId } : {}),
           ...(block.parentToolCallId ? { parentToolCallId: block.parentToolCallId } : {}),
           ...(block.subagent ? { agentId: block.subagent } : {}),
         }
       : undefined
-  }
 
   for (const block of blocks) {
     if (block.type === 'subagent') {
@@ -300,11 +277,6 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
             arguments: tc.params,
             // Preserve a server-provided title that isn't derivable from args.
             ...(tc.displayTitle ? { ui: { title: tc.displayTitle } } : {}),
-            // Rebound gateway rows keep their model-authored activity phrase
-            // across a snapshot rebuild (the resolved args no longer carry it).
-            ...(tc.integrationDescription
-              ? { integrationDescription: tc.integrationDescription }
-              : {}),
           },
           scopeFor(block),
           block.timestamp

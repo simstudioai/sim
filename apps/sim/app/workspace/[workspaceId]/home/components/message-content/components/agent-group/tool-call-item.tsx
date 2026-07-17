@@ -1,15 +1,9 @@
 import { useMemo } from 'react'
 import { ShimmerText } from '@/components/ui'
-import {
-  CallIntegrationTool,
-  Read as ReadTool,
-  WorkspaceFile,
-} from '@/lib/copilot/generated/tool-catalog-v1'
+import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
-import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolCompletedTitle } from '@/lib/copilot/tools/tool-display'
 import { getBareIconStyle } from '@/blocks/icon-color'
-import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
 
@@ -58,15 +52,6 @@ export function ToolCallItem({
     return typeof path === 'string' ? getReadTargetBlock(path) : undefined
   }, [toolName, params])
 
-  // Like read's VFS-target resolution above, the gateway uses its exact
-  // discovered toolId only as a deterministic registry lookup. This renders
-  // the real integration brand while Go validates/resolves the operation.
-  const gatewayBlock = useMemo(() => {
-    if (toolName !== CallIntegrationTool.id) return undefined
-    const toolId = params?.toolId ?? extractStreamingStringArgument(streamingArgs, 'toolId')
-    return typeof toolId === 'string' ? getBlockByToolName(toolId) : undefined
-  }, [toolName, params, streamingArgs])
-
   const liveWorkspaceFileTitle = useMemo(() => {
     if (toolName !== WorkspaceFile.id || !streamingArgs) return null
     const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
@@ -103,7 +88,7 @@ export function ToolCallItem({
       ? (getToolCompletedTitle(liveTitle) ?? liveTitle)
       : liveTitle
 
-  const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
+  const BlockIcon = readBlock?.icon
 
   return (
     <div className='flex items-center gap-[6px] pl-6'>

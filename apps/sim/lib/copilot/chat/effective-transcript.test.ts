@@ -6,18 +6,13 @@ import { describe, expect, it } from 'vitest'
 import {
   buildEffectiveChatTranscript,
   getLiveAssistantMessageId,
-  isLiveAssistantMessageId,
 } from '@/lib/copilot/chat/effective-transcript'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-  MothershipStreamV1RunKind,
   MothershipStreamV1SessionKind,
-  MothershipStreamV1SpanLifecycleEvent,
-  MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1TextChannel,
-  MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 
@@ -154,7 +149,7 @@ describe('buildEffectiveChatTranscript', () => {
     )
   })
 
-  it('never surfaces thinking-channel text: a thinking-only stream stays a placeholder', () => {
+  it('does not duplicate thinking-only text into a second assistant block', () => {
     const result = buildEffectiveChatTranscript({
       messages: [buildUserMessage('stream-1', 'Hello')],
       activeStreamId: 'stream-1',
@@ -180,51 +175,15 @@ describe('buildEffectiveChatTranscript', () => {
     expect(result).toHaveLength(2)
     expect(result[1]).toEqual(
       expect.objectContaining({
-        id: getLiveAssistantMessageId('stream-1'),
-        role: 'assistant',
-        content: '',
-      })
-    )
-    expect(JSON.stringify(result[1])).not.toContain('Internal reasoning')
-  })
-
-  it('keeps assistant text while dropping interleaved thinking chunks', () => {
-    const textEvent = (seq: number, channel: MothershipStreamV1TextChannel, text: string) =>
-      toBatchEvent(seq, {
-        v: 1,
-        seq,
-        ts: '2026-04-15T12:00:01.000Z',
-        type: MothershipStreamV1EventType.text,
-        stream: { streamId: 'stream-1' },
-        payload: { channel, text },
-      })
-    const result = buildEffectiveChatTranscript({
-      messages: [buildUserMessage('stream-1', 'Hello')],
-      activeStreamId: 'stream-1',
-      streamSnapshot: {
-        events: [
-          textEvent(1, MothershipStreamV1TextChannel.thinking, '**Planning**\n\nHidden reasoning.'),
-          textEvent(2, MothershipStreamV1TextChannel.assistant, 'Visible answer.'),
-          textEvent(3, MothershipStreamV1TextChannel.thinking, 'More hidden reasoning.'),
-        ],
-        previewSessions: [],
-        status: 'active',
-      },
-    })
-
-    expect(result).toHaveLength(2)
-    expect(result[1]).toEqual(
-      expect.objectContaining({
-        content: 'Visible answer.',
+        content: 'Internal reasoning',
         contentBlocks: [
           expect.objectContaining({
             type: MothershipStreamV1EventType.text,
-            content: 'Visible answer.',
+            content: 'Internal reasoning',
           }),
         ],
       })
     )
-    expect(JSON.stringify(result[1])).not.toContain('reasoning')
   })
 
   it('treats user-cancelled tool results as cancelled', () => {
@@ -269,81 +228,6 @@ describe('buildEffectiveChatTranscript', () => {
     ])
   })
 
-  it('pairs a scoped compaction inside the owning subagent during stream replay', () => {
-    const scope = {
-      lane: 'subagent' as const,
-      parentToolCallId: 'tc-workflow',
-      spanId: 'span-workflow',
-      parentSpanId: 'span-superagent',
-      agentId: 'superagent',
-    }
-    const stream = { streamId: 'stream-1' }
-    const result = buildEffectiveChatTranscript({
-      messages: [buildUserMessage('stream-1', 'Hello')],
-      activeStreamId: 'stream-1',
-      streamSnapshot: {
-        events: [
-          toBatchEvent(1, {
-            v: 1,
-            seq: 1,
-            ts: '2026-04-15T12:00:01.000Z',
-            type: MothershipStreamV1EventType.span,
-            stream,
-            scope,
-            payload: {
-              kind: MothershipStreamV1SpanPayloadKind.subagent,
-              event: MothershipStreamV1SpanLifecycleEvent.start,
-              agent: 'workflow',
-              data: { tool_call_id: 'tc-workflow' },
-            },
-          }),
-          toBatchEvent(2, {
-            v: 1,
-            seq: 2,
-            ts: '2026-04-15T12:00:02.000Z',
-            type: MothershipStreamV1EventType.run,
-            stream,
-            scope,
-            payload: { kind: MothershipStreamV1RunKind.compaction_start },
-          }),
-          toBatchEvent(3, {
-            v: 1,
-            seq: 3,
-            ts: '2026-04-15T12:00:03.000Z',
-            type: MothershipStreamV1EventType.run,
-            stream,
-            scope,
-            payload: {
-              kind: MothershipStreamV1RunKind.compaction_done,
-              data: { summary_chars: 42 },
-            },
-          }),
-        ],
-        previewSessions: [],
-        status: 'active',
-      },
-    })
-
-    const compactions = result[1]?.contentBlocks?.filter(
-      (block) => block.type === MothershipStreamV1EventType.tool
-    )
-    expect(compactions).toHaveLength(1)
-    expect(compactions?.[0]).toEqual(
-      expect.objectContaining({
-        parentToolCallId: 'tc-workflow',
-        spanId: 'span-workflow',
-        parentSpanId: 'span-superagent',
-        toolCall: expect.objectContaining({
-          id: 'compaction_2',
-          name: 'context_compaction',
-          calledBy: 'workflow',
-          display: { title: 'Summarizing context' },
-          state: MothershipStreamV1ToolOutcome.success,
-        }),
-      })
-    )
-  })
-
   it('materializes a cancelled assistant tail when the stream ends before persistence', () => {
     const result = buildEffectiveChatTranscript({
       messages: [buildUserMessage('stream-1', 'Hello')],
@@ -375,101 +259,5 @@ describe('buildEffectiveChatTranscript', () => {
         }),
       ])
     )
-  })
-})
-
-describe('isLiveAssistantMessageId', () => {
-  it('recognizes the synthetic live-assistant id and nothing else', () => {
-    expect(isLiveAssistantMessageId(getLiveAssistantMessageId('stream-1'))).toBe(true)
-    expect(isLiveAssistantMessageId('f620fceb-4e9d-4e7f-ab7f-890a2a823564')).toBe(false)
-    expect(isLiveAssistantMessageId('')).toBe(false)
-  })
-})
-
-describe('tool ownership is call-frame authoritative', () => {
-  const toolEvent = (
-    seq: number,
-    phase: 'call' | 'result',
-    toolCallId: string,
-    scope?: Record<string, unknown>
-  ): StreamBatchEvent =>
-    toBatchEvent(seq, {
-      v: 1,
-      seq,
-      ts: '2026-04-15T12:00:01.000Z',
-      type: MothershipStreamV1EventType.tool,
-      stream: { streamId: 'stream-1' },
-      payload:
-        phase === 'call'
-          ? { phase: 'call', toolCallId, toolName: 'read', arguments: { path: 'a.md' } }
-          : { phase: 'result', toolCallId, toolName: 'read', success: true, output: 'ok' },
-      ...(scope ? { scope } : {}),
-      // double-cast-allowed: synthetic test envelope; the reducer reads only the fields set here
-    } as unknown as StreamBatchEvent['event'])
-
-  const superagentScope = {
-    lane: 'subagent',
-    agentId: 'superagent',
-    parentToolCallId: 'dispatch-1',
-    spanId: 'S1',
-  }
-
-  const ownership = (result: ReturnType<typeof buildEffectiveChatTranscript>) => {
-    const blocks = (result[1].contentBlocks ?? []) as Array<Record<string, unknown>>
-    const tool = blocks.find((b) => b.type === MothershipStreamV1EventType.tool)
-    const tc = tool?.toolCall as Record<string, unknown> | undefined
-    return {
-      calledBy: tc?.calledBy,
-      parentToolCallId: tool?.parentToolCallId,
-      spanId: tool?.spanId,
-    }
-  }
-
-  it('an unscoped main call clears provisional subagent attribution', () => {
-    // The observed dev bug: a mis-scoped replayed result seeded the main
-    // read under Superagent, and nothing could ever move it back.
-    const result = buildEffectiveChatTranscript({
-      messages: [buildUserMessage('stream-1', 'Hello')],
-      activeStreamId: 'stream-1',
-      streamSnapshot: {
-        events: [toolEvent(1, 'result', 'fc_1', superagentScope), toolEvent(2, 'call', 'fc_1')],
-        previewSessions: [],
-        status: 'active',
-      },
-    })
-    const own = ownership(result)
-    expect(own.calledBy).toBeUndefined()
-    expect(own.parentToolCallId).toBeUndefined()
-    expect(own.spanId).toBeUndefined()
-  })
-
-  it('a later mis-scoped result cannot re-parent a settled main tool', () => {
-    const result = buildEffectiveChatTranscript({
-      messages: [buildUserMessage('stream-1', 'Hello')],
-      activeStreamId: 'stream-1',
-      streamSnapshot: {
-        events: [toolEvent(1, 'call', 'fc_1'), toolEvent(2, 'result', 'fc_1', superagentScope)],
-        previewSessions: [],
-        status: 'active',
-      },
-    })
-    const own = ownership(result)
-    expect(own.calledBy).toBeUndefined()
-    expect(own.parentToolCallId).toBeUndefined()
-  })
-
-  it('a genuinely scoped subagent call keeps its ownership', () => {
-    const result = buildEffectiveChatTranscript({
-      messages: [buildUserMessage('stream-1', 'Hello')],
-      activeStreamId: 'stream-1',
-      streamSnapshot: {
-        events: [toolEvent(1, 'call', 'fc_2', superagentScope), toolEvent(2, 'result', 'fc_2')],
-        previewSessions: [],
-        status: 'active',
-      },
-    })
-    const own = ownership(result)
-    expect(own.calledBy).toBe('superagent')
-    expect(own.parentToolCallId).toBe('dispatch-1')
   })
 })

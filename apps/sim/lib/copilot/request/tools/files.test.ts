@@ -164,34 +164,6 @@ describe('maybeWriteOutputToFile', () => {
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
   })
-
-  it('fails loudly instead of silently skipping declared outputs when workspace context is missing', async () => {
-    const result = await maybeWriteOutputToFile(
-      FunctionExecute.id,
-      { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
-      { success: true, output: { result: 'name,age\nAlice,30', stdout: '' } },
-      buildContext({ workspaceId: undefined })
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('NOT written')
-    // The computed value survives so the model can use it without re-running.
-    expect(result.output).toEqual({ result: 'name,age\nAlice,30', stdout: '' })
-    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
-  })
-
-  it('still passes results through untouched when no outputs are declared, even without workspace context', async () => {
-    const original = { success: true, output: { result: 42, stdout: '' } }
-    const result = await maybeWriteOutputToFile(
-      FunctionExecute.id,
-      {},
-      original,
-      buildContext({ workspaceId: undefined })
-    )
-
-    expect(result).toBe(original)
-    expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
-  })
 })
 
 describe('extractTabularData', () => {

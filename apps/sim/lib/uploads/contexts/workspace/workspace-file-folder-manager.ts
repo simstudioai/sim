@@ -452,14 +452,6 @@ export async function ensureWorkspaceFileFolderPath(params: {
 }): Promise<string | null> {
   if (params.pathSegments.length === 0) return null
 
-  // Fast path: the whole chain already exists (the common case for repeated
-  // writes into known folders) — per-segment indexed lookups instead of
-  // loading the workspace's entire folder table.
-  const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, params.pathSegments, {
-    includeReservedSystemFolders: true,
-  })
-  if (existing) return existing
-
   // Load all active folders once and build a lookup keyed by "name|parentId"
   // so we can resolve existing segments without a per-segment SELECT.
   const existingFolders = await db

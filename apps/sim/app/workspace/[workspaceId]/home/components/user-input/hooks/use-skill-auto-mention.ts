@@ -3,7 +3,6 @@ import {
   escapeRegex,
   SKILL_CHIP_TRIGGER,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
-import type { McpServer } from '@/hooks/queries/mcp'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import type { ChatContext } from '@/stores/panel'
 
@@ -16,12 +15,6 @@ import type { ChatContext } from '@/stores/panel'
 const WORD_BOUNDARY_REGEX = /^[\s.,;:!?(){}[\]"'`/\\<>\n]$/
 
 type SkillContext = Extract<ChatContext, { kind: 'skill' }>
-type McpContext = Extract<ChatContext, { kind: 'mcp' }>
-type SlashContext = SkillContext | McpContext
-
-function slashContextKey(context: SlashContext): string {
-  return context.kind === 'skill' ? `skill:${context.skillId}` : `mcp:${context.serverId}`
-}
 
 /**
  * A skill trigger — the typed `/` or the stored EM SPACE sentinel — only counts
@@ -39,8 +32,6 @@ function isTriggerPrefixAt(text: string, index: number): boolean {
 interface UseSkillAutoMentionProps {
   /** Skills available in the current workspace. */
   skills: SkillDefinition[]
-  /** MCP servers available in the current workspace. */
-  mcpServers: McpServer[]
   /** Setter for the host's selected contexts. */
   setSelectedContexts: React.Dispatch<React.SetStateAction<ChatContext[]>>
 }
@@ -67,18 +58,14 @@ interface ProcessChangeArgs {
  *   speech-to-text. Swaps each matched typed `/` for the sentinel in the
  *   returned string and registers any matched skill contexts.
  */
-export function useSkillAutoMention({
-  skills,
-  mcpServers,
-  setSelectedContexts,
-}: UseSkillAutoMentionProps) {
+export function useSkillAutoMention({ skills, setSelectedContexts }: UseSkillAutoMentionProps) {
   /**
    * Matcher built from skill names, longest-first so `/my-skill-extended`
    * wins over `/my-skill`. The trailing guard rejects partial matches that
    * continue into more name characters.
    */
   const matcher = useMemo(() => {
-    const byName = new Map<string, SlashContext>()
+    const byName = new Map<string, SkillContext>()
     for (const skill of skills) {
       byName.set(skill.name.toLowerCase(), {
         kind: 'skill',
@@ -86,15 +73,7 @@ export function useSkillAutoMention({
         label: skill.name,
       })
     }
-    for (const server of mcpServers) {
-      const key = server.name.toLowerCase()
-      if (!byName.has(key)) {
-        byName.set(key, { kind: 'mcp', serverId: server.id, label: server.name })
-      }
-    }
-    const names = [...byName.values()]
-      .map((context) => context.label)
-      .sort((a, b) => b.length - a.length)
+    const names = [...skills].map((s) => s.name).sort((a, b) => b.length - a.length)
     if (names.length === 0) return { regex: null as RegExp | null, byName }
     // Match either trigger: the typed '/' or the stored sentinel, so both fresh
     // input and pasted/restored chips resolve. The trigger group is the match's
@@ -102,24 +81,19 @@ export function useSkillAutoMention({
     const trigger = `(?:/|${escapeRegex(SKILL_CHIP_TRIGGER)})`
     const pattern = `${trigger}(${names.map(escapeRegex).join('|')})(?![A-Za-z0-9_-])`
     return { regex: new RegExp(pattern, 'gi'), byName }
-  }, [skills, mcpServers])
+  }, [skills])
 
   const matcherRef = useRef(matcher)
   matcherRef.current = matcher
 
   const mergeContexts = useCallback(
-    (additions: SlashContext[]) => {
+    (additions: SkillContext[]) => {
       if (additions.length === 0) return
       setSelectedContexts((prev) => {
         const existing = new Set(
-          prev
-            .filter(
-              (context): context is SlashContext =>
-                context.kind === 'skill' || context.kind === 'mcp'
-            )
-            .map(slashContextKey)
+          prev.filter((c): c is SkillContext => c.kind === 'skill').map((c) => c.skillId)
         )
-        const fresh = additions.filter((context) => !existing.has(slashContextKey(context)))
+        const fresh = additions.filter((c) => !existing.has(c.skillId))
         return fresh.length > 0 ? [...prev, ...fresh] : prev
       })
     },
@@ -178,7 +152,7 @@ export function useSkillAutoMention({
       if (!regex || !text) return text
 
       regex.lastIndex = 0
-      const additions: SlashContext[] = []
+      const additions: SkillContext[] = []
       const seen = new Set<string>()
       const slashIndices: number[] = []
       let match: RegExpExecArray | null
@@ -190,9 +164,8 @@ export function useSkillAutoMention({
         // Rewrite every confirmed typed '/' (even a repeated skill) so duplicate
         // tokens chip consistently; tokens already on the sentinel need no edit.
         if (text[index] === '/') slashIndices.push(index)
-        const key = slashContextKey(context)
-        if (seen.has(key)) continue
-        seen.add(key)
+        if (seen.has(context.skillId)) continue
+        seen.add(context.skillId)
         additions.push(context)
       }
       mergeContexts(additions)

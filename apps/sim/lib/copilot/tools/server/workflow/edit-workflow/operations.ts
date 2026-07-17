@@ -8,10 +8,12 @@ import {
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
+  JSON_STRING_SUBBLOCK_KEYS,
+  normalizeArrayWithIds,
   normalizeConditionRouterIds,
   normalizeResponseFormat,
-  normalizeSubblockValue,
   normalizeTools,
+  shouldNormalizeArrayIds,
   updateCanonicalModesForInputs,
 } from './builders'
 import type { EditWorkflowOperation, OperationContext } from './types'
@@ -207,7 +209,10 @@ function mergeNestedNodesForParent(
 
         Object.entries(childValidation.validInputs).forEach(([key, value]) => {
           if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
-          let sanitizedValue = normalizeSubblockValue(key, value)
+          let sanitizedValue = value
+          if (shouldNormalizeArrayIds(key)) {
+            sanitizedValue = normalizeArrayWithIds(value)
+          }
           sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
           if (key === 'tools' && Array.isArray(value)) {
             sanitizedValue = filterDisallowedTools(
@@ -439,7 +444,15 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) {
         return
       }
-      let sanitizedValue = normalizeSubblockValue(key, value)
+      let sanitizedValue = value
+
+      // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+      if (shouldNormalizeArrayIds(key)) {
+        sanitizedValue = normalizeArrayWithIds(value)
+        if (JSON_STRING_SUBBLOCK_KEYS.has(key)) {
+          sanitizedValue = JSON.stringify(sanitizedValue)
+        }
+      }
 
       sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 
@@ -907,7 +920,15 @@ export function handleInsertIntoSubflowOperation(
           return
         }
 
-        let sanitizedValue = normalizeSubblockValue(key, value)
+        let sanitizedValue = value
+
+        // Normalize array subblocks with id fields (inputFormat, table rows, etc.)
+        if (shouldNormalizeArrayIds(key)) {
+          sanitizedValue = normalizeArrayWithIds(value)
+          if (JSON_STRING_SUBBLOCK_KEYS.has(key)) {
+            sanitizedValue = JSON.stringify(sanitizedValue)
+          }
+        }
 
         sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
 

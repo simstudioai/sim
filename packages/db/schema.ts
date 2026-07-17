@@ -1770,16 +1770,6 @@ export const workspaceFiles = pgTable(
     }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
-    /**
-     * Logical id of the copilot message this file was born in (the user message the
-     * upload was attached to). Plain text with no FK: message ids are only unique per
-     * chat — the same id legitimately exists in the source chat and every fork of it,
-     * which is what lets a fork's "copy files at-or-before this message" cut match rows
-     * in both. NULL means "birth unknown / not tracked": rows predating this column and
-     * contexts that don't stamp it. Nulled together with chatId when a file is
-     * materialized to the workspace.
-     */
-    messageId: text('message_id'),
     originalName: text('original_name').notNull(),
     /**
      * Collision-disambiguated name exposed to the copilot VFS as `uploads/<displayName>`.

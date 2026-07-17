@@ -33,7 +33,6 @@ const PORTABLE_KIND_TO_ID_FIELD = {
   workflow: 'workflowId',
   logs: 'executionId',
   skill: 'skillId',
-  mcp: 'serverId',
   integration: 'blockType',
   slash_command: 'command',
 } as const satisfies Partial<Record<ChatContext['kind'], string>>
@@ -221,8 +220,6 @@ export function chipLinkToContext(link: ParsedChipLink): ChatContext {
       return { kind: 'logs', executionId: link.id, label: link.label }
     case 'skill':
       return { kind: 'skill', skillId: link.id, label: link.label }
-    case 'mcp':
-      return { kind: 'mcp', serverId: link.id, label: link.label }
     case 'integration':
       return { kind: 'integration', blockType: link.id, label: link.label }
     case 'slash_command':

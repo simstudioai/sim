@@ -123,53 +123,7 @@ describe('trackChatUpload', () => {
     expectNoWorkspaceStorageAccounting()
   })
 
-  it('stamps message_id on the UPDATE arm when the birth message is known', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
-
-    await trackChatUpload(
-      WORKSPACE_ID,
-      USER_ID,
-      CHAT_ID,
-      S3_KEY,
-      'image.png',
-      'image/png',
-      1024,
-      'msg_abc'
-    )
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: CHAT_ID, messageId: 'msg_abc' })
-    )
-  })
-
-  it('stamps message_id on the fallback INSERT arm and nulls it when omitted', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    await trackChatUpload(
-      WORKSPACE_ID,
-      USER_ID,
-      CHAT_ID,
-      S3_KEY,
-      'image.png',
-      'image/png',
-      1024,
-      'msg_abc'
-    )
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: CHAT_ID, messageId: 'msg_abc' })
-    )
-
-    // Legacy callers without a message id write an explicit NULL ("birth unknown").
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'wf_existing' }])
-    await trackChatUpload(WORKSPACE_ID, USER_ID, CHAT_ID, S3_KEY, 'image.png', 'image/png', 1024)
-    expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
-      expect.objectContaining({ messageId: null })
-    )
-  })
-
   it('retries metadata naming without workspace storage accounting', async () => {
-    // 23505 from the partial unique index on (chat_id, display_name) — the case we retry.
     const displayNameCollision = Object.assign(new Error('duplicate key'), {
       code: '23505',
       constraint_name: CHAT_DISPLAY_NAME_INDEX,

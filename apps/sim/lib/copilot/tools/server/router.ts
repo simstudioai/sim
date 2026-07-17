@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   CreateFile,
+  CreateFileFolder,
   DeleteFile,
   DeleteFileFolder,
   DownloadToWorkspaceFile,
@@ -15,6 +16,10 @@ import {
   ManageCustomTool,
   ManageMcpTool,
   ManageSkill,
+  MoveFile,
+  MoveFileFolder,
+  RenameFile,
+  RenameFileFolder,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -45,12 +50,10 @@ import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generat
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
-import { searchKnowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/search-knowledge-base'
 import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
 import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
-import { queryUserTableServerTool } from '@/lib/copilot/tools/server/table/query-user-table'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
@@ -127,12 +130,12 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
   [CreateFile.id]: ['*'],
-  rename_file: ['*'],
+  [RenameFile.id]: ['*'],
   [DeleteFile.id]: ['*'],
-  move_file: ['*'],
-  create_file_folder: ['*'],
-  rename_file_folder: ['*'],
-  move_file_folder: ['*'],
+  [MoveFile.id]: ['*'],
+  [CreateFileFolder.id]: ['*'],
+  [RenameFileFolder.id]: ['*'],
+  [MoveFileFolder.id]: ['*'],
   [DeleteFileFolder.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
   [GenerateImage.id]: ['generate'],
@@ -167,10 +170,8 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
   [getCredentialsServerTool.name]: getCredentialsServerTool,
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
-  [searchKnowledgeBaseServerTool.name]: searchKnowledgeBaseServerTool,
   [enrichmentRunServerTool.name]: enrichmentRunServerTool,
   [userTableServerTool.name]: userTableServerTool,
-  [queryUserTableServerTool.name]: queryUserTableServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,

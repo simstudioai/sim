@@ -5,7 +5,6 @@ import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCredentialActorContext } from '@/lib/credentials/access'
 import { createConnectDraft } from '@/lib/credentials/connect-draft'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -29,12 +28,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(authorizeOAuth2Contract, request, {})
   if (!parsed.success) return parsed.response
-  const {
-    providerId,
-    workspaceId,
-    callbackURL: requestedCallback,
-    credentialId,
-  } = parsed.data.query
+  const { providerId, workspaceId, callbackURL: requestedCallback } = parsed.data.query
 
   const callbackURL = requestedCallback?.startsWith(`${baseUrl}/`)
     ? requestedCallback
@@ -51,65 +45,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.redirect(`${baseUrl}/workspace?error=workspace_access_denied`)
     }
 
-    let reconnectDisplayName: string | undefined
-    if (credentialId) {
-      // Trello and Shopify authorize through their own custom flows that bypass
-      // this endpoint, so a reconnect draft written here would linger unconsumed
-      // and could later be picked up by their token-store callbacks, silently
-      // rebinding the credential. Mirror the copilot tool and reject reconnect.
-      if (providerId === 'trello' || providerId === 'shopify') {
-        logger.warn('Reconnect not supported for custom-flow provider', {
-          userId,
-          workspaceId,
-          providerId,
-          credentialId,
-        })
-        return NextResponse.redirect(`${baseUrl}/workspace?error=credential_reconnect_unsupported`)
-      }
-
-      // Reconnect: the OAuth callback will rebind this credential to the fresh
-      // account, so require the same credential-admin access as the draft POST
-      // route — workspace write alone must not be enough to swap someone's tokens.
-      const actor = await getCredentialActorContext(credentialId, userId, {
-        workspaceAccess: access,
-      })
-      if (
-        !actor.credential ||
-        actor.credential.workspaceId !== workspaceId ||
-        actor.credential.type !== 'oauth' ||
-        !actor.isAdmin
-      ) {
-        logger.warn('Credential admin access denied for OAuth2 reconnect', {
-          userId,
-          workspaceId,
-          providerId,
-          credentialId,
-        })
-        return NextResponse.redirect(`${baseUrl}/workspace?error=credential_access_denied`)
-      }
-      if (actor.credential.providerId !== providerId) {
-        logger.warn('Provider mismatch for OAuth2 reconnect', {
-          userId,
-          workspaceId,
-          providerId,
-          credentialId,
-          credentialProviderId: actor.credential.providerId,
-        })
-        return NextResponse.redirect(`${baseUrl}/workspace?error=credential_provider_mismatch`)
-      }
-      reconnectDisplayName = actor.credential.displayName
-    }
-
     // Create the draft before initiating the link so it is guaranteed to exist
     // (and freshly clocked) when the OAuth callback's `account.create.after`
     // hook runs. If this throws, we never start the OAuth flow.
-    await createConnectDraft({
-      userId,
-      workspaceId,
-      providerId,
-      credentialId,
-      displayName: reconnectDisplayName,
-    })
+    await createConnectDraft({ userId, workspaceId, providerId })
 
     const linkResponse = await auth.api.oAuth2LinkAccount({
       body: { providerId, callbackURL },

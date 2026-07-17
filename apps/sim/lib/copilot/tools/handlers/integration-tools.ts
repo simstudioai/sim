@@ -34,11 +34,10 @@ export async function executeListIntegrationTools(
     success: true,
     output: {
       integration: service,
-      note: 'Read the entry\'s "path" verbatim for exact params, then load_integration_tool({tool_ids: ["<id>"]}) and call the tool by that exact id.',
+      note: 'Call load_integration_tool({tool_ids: ["<id>"]}) with the exact id before invoking an operation.',
       tools: matches.map((tool) => ({
         id: tool.toolId,
         operation: tool.operation,
-        path: `components/integrations/${tool.service}/${tool.operation}.json`,
         name: tool.config.name,
         description: tool.config.description,
       })),

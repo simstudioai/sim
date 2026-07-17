@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { RenameFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
@@ -30,13 +31,8 @@ interface RenameFileResult {
   }
 }
 
-/**
- * Removed from the mothership catalog in favor of mv; the executor stays
- * registered under its literal name so in-flight checkpoints paused on
- * rename_file still resume. Delete after the mv release soaks.
- */
 export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResult> = {
-  name: 'rename_file',
+  name: RenameFile.id,
   async execute(params: RenameFileArgs, context?: ServerToolContext): Promise<RenameFileResult> {
     if (!context?.userId) {
       throw new Error('Authentication required')
