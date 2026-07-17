@@ -150,6 +150,23 @@ export function coerceGitLabAccessLevel(value: unknown): number {
 }
 
 /**
+ * Coerces an optional GitLab `min_access_level` filter value. Returns undefined
+ * when the field is absent or blank, otherwise coerces via the shared
+ * access-level rules and rejects "No access" (0) — GitLab's minimum-access
+ * filter floor is 5 (Minimal access). Runs at execution time so a direct tool
+ * call with an out-of-enum value (e.g. 31 or 999) fails loudly with a clear
+ * error instead of sending an invalid filter to GitLab.
+ *
+ * @throws {InvalidGitLabAccessLevelError} when the value is not a valid filter level.
+ */
+export function coerceGitLabMinAccessLevel(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const level = coerceGitLabAccessLevel(value)
+  if (level === 0) throw new InvalidGitLabAccessLevelError(value)
+  return level
+}
+
+/**
  * A GitLab access/membership resource is scoped either to a project or a group.
  * The two share an identical endpoint surface (`/members`, `/invitations`,
  * `/access_requests`) that differs only in the leading path segment.

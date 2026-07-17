@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   coerceGitLabAccessLevel,
+  coerceGitLabMinAccessLevel,
   getGitLabApiBase,
   getGitLabResourcePath,
   hasGitLabAccessLevel,
@@ -136,6 +137,33 @@ describe('coerceGitLabAccessLevel', () => {
 
   it('names the offending value and valid levels in the error message', () => {
     expect(() => coerceGitLabAccessLevel('boss')).toThrow(/Developer \(30\)/)
+  })
+})
+
+describe('coerceGitLabMinAccessLevel', () => {
+  it('returns undefined for absent or blank values', () => {
+    expect(coerceGitLabMinAccessLevel(undefined)).toBeUndefined()
+    expect(coerceGitLabMinAccessLevel(null)).toBeUndefined()
+    expect(coerceGitLabMinAccessLevel('')).toBeUndefined()
+  })
+
+  it('coerces valid filter levels from integer, numeric string, or name', () => {
+    expect(coerceGitLabMinAccessLevel(30)).toBe(30)
+    expect(coerceGitLabMinAccessLevel('30')).toBe(30)
+    expect(coerceGitLabMinAccessLevel('Developer')).toBe(30)
+    expect(coerceGitLabMinAccessLevel(5)).toBe(5)
+  })
+
+  it('rejects zero ("No access") — GitLab\'s filter floor is 5', () => {
+    expect(() => coerceGitLabMinAccessLevel(0)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabMinAccessLevel('No access')).toThrow(InvalidGitLabAccessLevelError)
+  })
+
+  it('rejects out-of-enum values so they never reach GitLab', () => {
+    expect(() => coerceGitLabMinAccessLevel(31)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabMinAccessLevel(999)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabMinAccessLevel('35')).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabMinAccessLevel('root')).toThrow(InvalidGitLabAccessLevelError)
   })
 })
 

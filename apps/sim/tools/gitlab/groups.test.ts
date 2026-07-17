@@ -94,6 +94,40 @@ describe('gitlab_list_groups', () => {
     )
   })
 
+  it('forwards the documented visibility, min-access-level, and all-available filters', () => {
+    const url = gitlabListGroupsTool.request.url({
+      accessToken: 'pat',
+      visibility: 'private',
+      minAccessLevel: 30,
+      allAvailable: true,
+    })
+    expect(url).toBe(
+      'https://gitlab.com/api/v4/groups?visibility=private&min_access_level=30&all_available=true'
+    )
+  })
+
+  it('rejects an out-of-enum minimum access level instead of sending it to GitLab', () => {
+    expect(() =>
+      gitlabListGroupsTool.request.url({ accessToken: 'pat', minAccessLevel: 31 })
+    ).toThrow(/Invalid GitLab access level/)
+    expect(() =>
+      gitlabListGroupsTool.request.url({ accessToken: 'pat', minAccessLevel: 0 })
+    ).toThrow(/Invalid GitLab access level/)
+  })
+
+  it('rejects similarity ordering without a search term, but allows it with one', () => {
+    expect(() =>
+      gitlabListGroupsTool.request.url({ accessToken: 'pat', orderBy: 'similarity' })
+    ).toThrow(/similarity/)
+    expect(
+      gitlabListGroupsTool.request.url({
+        accessToken: 'pat',
+        orderBy: 'similarity',
+        search: 'plat',
+      })
+    ).toBe('https://gitlab.com/api/v4/groups?search=plat&order_by=similarity')
+  })
+
   it('reads the total from the x-total header, falling back to length', async () => {
     const withHeader = await gitlabListGroupsTool.transformResponse?.(
       mockResponse({ json: [{ id: 1 }, { id: 2 }], headers: { 'x-total': '17' } }),

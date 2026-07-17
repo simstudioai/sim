@@ -1,5 +1,5 @@
 import type { GitLabListGroupsParams, GitLabListGroupsResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { coerceGitLabMinAccessLevel, getGitLabApiBase } from '@/tools/gitlab/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListGroupsTool: ToolConfig<GitLabListGroupsParams, GitLabListGroupsResponse> = {
@@ -89,15 +89,24 @@ export const gitlabListGroupsTool: ToolConfig<GitLabListGroupsParams, GitLabList
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
+      const search = params.search?.trim()
       if (params.owned) queryParams.append('owned', 'true')
-      if (params.search) queryParams.append('search', params.search)
+      if (search) queryParams.append('search', search)
       if (params.topLevelOnly) queryParams.append('top_level_only', 'true')
       if (params.visibility) queryParams.append('visibility', params.visibility)
-      if (params.minAccessLevel && params.minAccessLevel > 0) {
-        queryParams.append('min_access_level', String(params.minAccessLevel))
+      const minAccessLevel = coerceGitLabMinAccessLevel(params.minAccessLevel)
+      if (minAccessLevel !== undefined) {
+        queryParams.append('min_access_level', String(minAccessLevel))
       }
       if (params.allAvailable) queryParams.append('all_available', 'true')
-      if (params.orderBy) queryParams.append('order_by', params.orderBy)
+      if (params.orderBy) {
+        if (params.orderBy === 'similarity' && !search) {
+          throw new Error(
+            'GitLab list groups: order_by "similarity" requires a non-empty search term.'
+          )
+        }
+        queryParams.append('order_by', params.orderBy)
+      }
       if (params.sort) queryParams.append('sort', params.sort)
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
       if (params.page) queryParams.append('page', String(params.page))
