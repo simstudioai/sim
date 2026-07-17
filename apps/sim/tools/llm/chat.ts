@@ -19,6 +19,10 @@ interface LLMChatParams {
   bedrockAccessKeyId?: string
   bedrockSecretKey?: string
   bedrockRegion?: string
+  _context?: {
+    workspaceId?: string
+    workflowId?: string
+  }
 }
 
 interface LLMChatResponse extends ToolResponse {
@@ -146,6 +150,11 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
         bedrockAccessKeyId: params.bedrockAccessKeyId,
         bedrockSecretKey: params.bedrockSecretKey,
         bedrockRegion: params.bedrockRegion,
+        // The executor attaches the billing-attribution header on internal
+        // routes whenever the execution scope carries one, and /api/providers
+        // rejects that header unless the body names the workspace it is
+        // validated against.
+        ...(params._context?.workspaceId ? { workspaceId: params._context.workspaceId } : {}),
       }
     },
   },
