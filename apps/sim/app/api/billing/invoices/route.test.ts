@@ -97,7 +97,7 @@ describe('GET /api/billing/invoices', () => {
   })
 
   it('pages through further drafts to confirm hasMore when the first page is inconclusive', async () => {
-    const firstPage = Array.from({ length: 11 }, () => makeInvoice({ status: 'draft' }))
+    const firstPage = Array.from({ length: 6 }, () => makeInvoice({ status: 'draft' }))
     mockStripeInvoicesList
       .mockResolvedValueOnce({ data: firstPage, has_more: true })
       .mockResolvedValueOnce({ data: [makeInvoice()], has_more: false })
@@ -117,7 +117,7 @@ describe('GET /api/billing/invoices', () => {
 
   it('reports hasMore when the MAX_STRIPE_PAGES safety cap is hit while Stripe still has more', async () => {
     mockStripeInvoicesList.mockResolvedValue({
-      data: Array.from({ length: 11 }, () => makeInvoice({ status: 'draft' })),
+      data: Array.from({ length: 6 }, () => makeInvoice({ status: 'draft' })),
       has_more: true,
     })
 
