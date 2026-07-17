@@ -9,9 +9,10 @@ import {
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { describeError, getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
+import { sanitizeForLogging } from '@/lib/core/security/redaction'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import {
   type McpClientOptions,
@@ -29,8 +30,29 @@ import {
   type McpVersionInfo,
 } from '@/lib/mcp/types'
 import { MCP_CLIENT_CONSTANTS } from '@/lib/mcp/utils'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpClient')
+
+type ConnectionOutcome =
+  | 'started'
+  | 'connected'
+  | 'authorization_required'
+  | 'timeout'
+  | 'unauthorized'
+  | 'cancelled'
+  | 'error'
+
+function classifyConnectionOutcome(error: unknown): ConnectionOutcome {
+  if (error instanceof McpOauthRedirectRequired || error instanceof UnauthorizedError) {
+    return 'authorization_required'
+  }
+  const message = getErrorMessage(error, '').toLowerCase()
+  if (message.includes('connection attempt cancelled')) return 'cancelled'
+  if (message.includes('timeout') || message.includes('timed out')) return 'timeout'
+  if (message.includes('401') || message.includes('unauthorized')) return 'unauthorized'
+  return 'error'
+}
 
 interface McpClientConnectOptions {
   isCancelled?: () => boolean
@@ -90,10 +112,34 @@ export class McpClient {
    * for `notifications/tools/list_changed` after connecting.
    */
   async connect(options: McpClientConnectOptions = {}): Promise<void> {
-    logger.info(`Connecting to MCP server: ${this.config.name} (${this.config.transport})`)
+    const startedAt = Date.now()
+    const configuredTimeout = this.config.timeout
+    const timeoutMs =
+      configuredTimeout !== undefined && Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? Math.min(Math.floor(configuredTimeout), getMaxExecutionTimeout())
+        : MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT
+    const headerNames = Object.keys(this.config.headers ?? {}).sort()
+    const hasUnresolvedEnvRefs = [
+      this.config.url ?? '',
+      ...Object.values(this.config.headers ?? {}),
+    ].some((value) => createEnvVarPattern().test(value))
+    const diagnostics = {
+      serverId: this.config.id,
+      authType: this.config.authType ?? (headerNames.length > 0 ? 'headers' : 'none'),
+      headerNames,
+      hasUnresolvedEnvRefs,
+      phase: 'initialize',
+      timeoutMs,
+    }
+    logger.info(`Connecting to MCP server: ${this.config.name} (${this.config.transport})`, {
+      ...diagnostics,
+      outcome: 'started' satisfies ConnectionOutcome,
+    })
 
     try {
-      await this.client.connect(this.transport)
+      await this.client.connect(this.transport, {
+        timeout: timeoutMs,
+      })
       if (options.isCancelled?.()) {
         await this.client.close().catch((error) => {
           logger.warn(`Error closing cancelled connection to ${this.config.name}:`, error)
@@ -116,17 +162,34 @@ export class McpClient {
 
       const serverVersion = this.client.getServerVersion()
       logger.info(`Successfully connected to MCP server: ${this.config.name}`, {
+        ...diagnostics,
+        durationMs: Date.now() - startedAt,
+        outcome: 'connected' satisfies ConnectionOutcome,
         protocolVersion: serverVersion,
       })
     } catch (error) {
       this.isConnected = false
-      if (error instanceof McpOauthRedirectRequired || error instanceof UnauthorizedError) {
+      const errorMessage = getErrorMessage(error, 'Unknown error')
+      const describedError = describeError(error)
+      const outcome = classifyConnectionOutcome(error)
+      logger.error(`Failed to connect to MCP server ${this.config.name}`, {
+        ...diagnostics,
+        durationMs: Date.now() - startedAt,
+        error: {
+          name: sanitizeForLogging(describedError.name, 100),
+          code: describedError.code ? sanitizeForLogging(describedError.code, 100) : undefined,
+          errno: describedError.errno ? sanitizeForLogging(describedError.errno, 100) : undefined,
+          syscall: describedError.syscall
+            ? sanitizeForLogging(describedError.syscall, 100)
+            : undefined,
+        },
+        outcome,
+      })
+      if (outcome === 'authorization_required') {
         this.connectionStatus.lastError = undefined
         throw error
       }
-      const errorMessage = getErrorMessage(error, 'Unknown error')
       this.connectionStatus.lastError = errorMessage
-      logger.error(`Failed to connect to MCP server ${this.config.name}:`, error)
       throw new McpConnectionError(errorMessage, this.config.name)
     }
   }
