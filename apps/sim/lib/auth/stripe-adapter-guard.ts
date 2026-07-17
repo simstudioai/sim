@@ -139,11 +139,26 @@ interface SanitizedSubscriptionUpdate {
  * periods, seats, cancellation state) are legitimate Stripe state and still
  * sync. Evaluating every targeted row keeps multi-row updates safe: a mixed
  * personal/org target set must not leak the invalid plan onto the org rows.
+ *
+ * Fails closed on an empty target set: a plan we could not verify against a
+ * readable row never forwards — the row may be mid-creation by a concurrent
+ * webhook delivery, and in the sequential no-row case the write was a no-op
+ * anyway. A legitimate user-referenced plan dropped this way re-syncs via
+ * `syncSubscriptionPlan` in the same webhook callback.
  */
 async function stripPlanWhenOrgReferenced(
   rows: SubscriptionRowSlice[],
   update: Record<string, unknown>
 ): Promise<SanitizedSubscriptionUpdate> {
+  if (rows.length === 0) {
+    logger.warn(
+      'Subscription plan write targeted no readable row; stripping the unverifiable plan',
+      { rejectedPlan: update.plan }
+    )
+    const { plan: _plan, limits: _limits, ...rest } = update
+    return { update: rest, blockedAll: Object.keys(rest).length === 0 }
+  }
+
   let organizationRow: SubscriptionRowSlice | null = null
   for (const row of rows) {
     if (await isOrganizationReference(row.referenceId)) {

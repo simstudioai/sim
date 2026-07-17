@@ -60,9 +60,9 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
 
   it('pauses the personal Pro and queues the Stripe sync when an entitled paid org covers the user', async () => {
     queueWhereResponses([
-      [ACTIVE_PERSONAL_PRO],
       [{ organizationId: 'org-1' }],
       [{ plan: 'team_6000', referenceId: 'org-1' }],
+      [ACTIVE_PERSONAL_PRO],
       // update ... set ... where consumes one more where() call
       [],
     ])
@@ -87,21 +87,29 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
     )
   })
 
-  it('reports not covered when the user has no entitled personal Pro', async () => {
-    queueWhereResponses([[]])
+  it('reports covered even when no entitled personal Pro row exists', async () => {
+    queueWhereResponses([
+      [{ organizationId: 'org-1' }],
+      [{ plan: 'team_6000', referenceId: 'org-1' }],
+      [],
+    ])
 
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
 
-    expect(result).toEqual({ covered: false, paused: false })
+    expect(result).toEqual({
+      covered: true,
+      paused: false,
+      organizationId: 'org-1',
+    })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
   it('reports covered without pausing again when the personal Pro is already pausing', async () => {
     queueWhereResponses([
-      [{ ...ACTIVE_PERSONAL_PRO, cancelAtPeriodEnd: true }],
       [{ organizationId: 'org-1' }],
       [{ plan: 'team_6000', referenceId: 'org-1' }],
+      [{ ...ACTIVE_PERSONAL_PRO, cancelAtPeriodEnd: true }],
     ])
 
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
@@ -117,7 +125,7 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
   })
 
   it('reports not covered when the user is not a member of any organization', async () => {
-    queueWhereResponses([[ACTIVE_PERSONAL_PRO], []])
+    queueWhereResponses([[]])
 
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
 
@@ -126,7 +134,7 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
   })
 
   it('reports not covered when no org subscription is an entitled paid plan', async () => {
-    queueWhereResponses([[ACTIVE_PERSONAL_PRO], [{ organizationId: 'org-1' }], []])
+    queueWhereResponses([[{ organizationId: 'org-1' }], []])
 
     const result = await pauseProSubscriptionForOrgCoverage('user-1')
 

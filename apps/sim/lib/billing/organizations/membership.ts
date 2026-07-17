@@ -357,21 +357,13 @@ export async function pauseProSubscriptionForOrgCoverage(
   await db.transaction(async (tx) => {
     await acquireUserBillingIdentityLock(tx, userId)
 
-    const [personalPro] = await tx
-      .select()
-      .from(subscriptionTable)
-      .where(
-        and(
-          eq(subscriptionTable.referenceId, userId),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
-          sqlIsPro(subscriptionTable.plan)
-        )
-      )
-      .for('update')
-      .limit(1)
-
-    if (!personalPro) return
-
+    /**
+     * Coverage is determined before (and independent of) the personal-sub
+     * lookup: `covered` reports the organization's coverage truth even when
+     * no entitled personal Pro row exists, exactly as the result contract
+     * promises. Callers gate free→paid transition handling on it, so a
+     * personal-sub lookup miss must not read as "not covered".
+     */
     const memberships = await tx
       .select({ organizationId: member.organizationId })
       .from(member)
@@ -396,8 +388,24 @@ export async function pauseProSubscriptionForOrgCoverage(
     if (!coveringSubscription) return
 
     result.covered = true
-    result.subscriptionId = personalPro.id
     result.organizationId = coveringSubscription.referenceId
+
+    const [personalPro] = await tx
+      .select()
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, userId),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPro(subscriptionTable.plan)
+        )
+      )
+      .for('update')
+      .limit(1)
+
+    if (!personalPro) return
+
+    result.subscriptionId = personalPro.id
 
     if (personalPro.cancelAtPeriodEnd) return
 

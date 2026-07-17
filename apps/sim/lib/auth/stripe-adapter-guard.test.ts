@@ -68,6 +68,37 @@ describe('guardSubscriptionPlanWrites', () => {
     expect(base.update).not.toHaveBeenCalled()
   })
 
+  it('strips the plan when the pre-update lookup finds no row (fail closed)', async () => {
+    const base = createBaseAdapter()
+    base.findOne.mockResolvedValueOnce(null)
+
+    const guarded = asAdapter(base)
+    await guarded.update({
+      model: 'subscription',
+      where: WHERE as never,
+      update: { plan: 'pro_6000', status: 'active' },
+    })
+
+    expect(base.update).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { status: 'active' } })
+    )
+  })
+
+  it('writes nothing when a plan-only update targets no readable row', async () => {
+    const base = createBaseAdapter()
+    base.findOne.mockResolvedValueOnce(null)
+
+    const guarded = asAdapter(base)
+    const result = await guarded.update({
+      model: 'subscription',
+      where: WHERE as never,
+      update: { plan: 'pro_6000' },
+    })
+
+    expect(result).toBeNull()
+    expect(base.update).not.toHaveBeenCalled()
+  })
+
   it('passes through non-org plan updates for user-referenced rows', async () => {
     const base = createBaseAdapter()
     base.findOne.mockResolvedValueOnce({ id: 'sub-2', referenceId: 'user-1', plan: 'pro_6000' })
