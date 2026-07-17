@@ -293,6 +293,33 @@ describe('executeCreateWorkflow billing attribution', () => {
     reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
   })
 
+  it('ignores legacy description input instead of persisting it', async () => {
+    performCreateWorkflowMock.mockResolvedValue({
+      success: true,
+      workflow: {
+        id: 'created-workflow',
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderId: null,
+      },
+    })
+    const legacyParams = {
+      name: 'Created Workflow',
+      workspaceId: 'workspace-1',
+      description: 'PRIVATE WORKFLOW DESCRIPTION',
+    } as Parameters<typeof executeCreateWorkflow>[0]
+
+    const result = await executeCreateWorkflow(legacyParams, executionContext)
+
+    expect(result.success).toBe(true)
+    expect(performCreateWorkflowMock).toHaveBeenCalledWith({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      name: 'Created Workflow',
+      folderId: null,
+    })
+  })
+
   it('keeps same-workspace creation and subsequent execution on the immutable payer', async () => {
     const context: ExecutionContext = { ...executionContext, workflowId: '' }
     performCreateWorkflowMock.mockResolvedValue({

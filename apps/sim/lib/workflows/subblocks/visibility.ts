@@ -533,8 +533,12 @@ export function isSubBlockFeatureEnabled(subBlock: SubBlockConfig): boolean {
  * - `hideWhenEnvSet`: hidden when a specific NEXT_PUBLIC_ env var is truthy
  *   (credential fields hidden when the deployment provides them server-side)
  */
-export function isSubBlockHidden(subBlock: SubBlockConfig): boolean {
-  if (subBlock.hideWhenHosted && isHosted) return true
+export function isSubBlockHidden(
+  subBlock: SubBlockConfig,
+  options?: { hosted?: boolean }
+): boolean {
+  const hosted = options?.hosted ?? isHosted
+  if (subBlock.hideWhenHosted && hosted) return true
   if (subBlock.hideWhenEnvSet && isTruthy(getEnv(subBlock.hideWhenEnvSet))) return true
   return false
 }

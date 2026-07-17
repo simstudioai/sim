@@ -53,6 +53,7 @@ import {
 } from '@/lib/copilot/vfs/path-utils'
 import type { DeploymentData, KbTagDefinitionSummary } from '@/lib/copilot/vfs/serializers'
 import {
+  serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
   serializeBuiltinTriggerSchema,
@@ -92,7 +93,7 @@ import {
   workspacePlansBackingFolderPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
@@ -133,6 +134,7 @@ import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
@@ -227,23 +229,28 @@ function getStaticComponentFiles(): Map<string, string> {
   // files (overviews, oauth/api-key summaries) that all viewers receive.
   const allBlocks = Object.values(BLOCK_REGISTRY)
   const visibleBlocks = allBlocks.filter((b) => !b.hideFromToolbar)
+  const exposedTools = getExposedIntegrationTools()
+  const toolConfigs = new Map<string, ToolConfig>()
+  for (const { toolId, config } of exposedTools) {
+    toolConfigs.set(toolId, config)
+    toolConfigs.set(config.id, config)
+  }
 
   let blocksFiltered = 0
   for (const block of visibleBlocks) {
     const path = `components/blocks/${block.type}.json`
-    files.set(path, serializeBlockSchema(block))
+    files.set(path, serializeBlockSchema(block, { toolConfigs }))
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
   let integrationCount = 0
 
   const oauthServices = new Map<string, { provider: string; operations: string[] }>()
-  const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
 
   // Integration tools come from the shared exposed-tool set (latest version of
   // each operation owned by a visible block), the same set used to build the
   // deferred callable tools — so discovery and execution can never drift.
-  for (const exposedTool of getExposedIntegrationTools()) {
+  for (const exposedTool of exposedTools) {
     const { config: tool, service, operation, blockType, preview } = exposedTool
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
@@ -261,19 +268,6 @@ function getStaticComponentFiles(): Map<string, string> {
       } else {
         oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
       }
-    } else if (tool.hosting?.apiKeyParam) {
-      const existing = apiKeyServices.get(service)
-      if (existing) {
-        if (!existing.params.includes(tool.hosting.apiKeyParam)) {
-          existing.params.push(tool.hosting.apiKeyParam)
-        }
-        existing.operations.push(operation)
-      } else {
-        apiKeyServices.set(service, {
-          params: [tool.hosting.apiKeyParam],
-          operations: [operation],
-        })
-      }
     }
   }
 
@@ -283,7 +277,7 @@ function getStaticComponentFiles(): Map<string, string> {
   )
   files.set(
     'environment/api-key-integrations.json',
-    JSON.stringify(Object.fromEntries(apiKeyServices), null, 2)
+    serializeApiKeyIntegrations(exposedTools, isHosted)
   )
 
   files.set(
@@ -1526,7 +1520,6 @@ export class WorkspaceVFS {
     return workflowRows.map((wf) => ({
       id: wf.id,
       name: wf.name,
-      description: wf.description,
       isDeployed: wf.isDeployed,
       lastRunAt: wf.lastRunAt,
       folderPath: wf.folderId ? (folderPaths.get(wf.folderId) ?? null) : null,

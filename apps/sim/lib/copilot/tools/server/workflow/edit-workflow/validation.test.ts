@@ -127,6 +127,17 @@ const throwGateBlockConfig = {
   tools: { access: ['throw_gate_tool'], config: { tool: () => 'throw_gate_tool' } },
 }
 
+const genericWebhookBlockConfig = {
+  type: 'generic_webhook',
+  name: 'Webhook',
+  category: 'triggers',
+  outputs: {},
+  subBlocks: [
+    { id: 'webhookUrlDisplay', type: 'short-input', readOnly: true, useWebhookUrl: true },
+    { id: 'requireAuth', type: 'switch' },
+  ],
+}
+
 // Block whose tool selector throws — should fall back to scanning access tools (video_falai).
 const throwSelectorBlockConfig = {
   type: 'throw_selector_block',
@@ -192,7 +203,9 @@ vi.mock('@/blocks/registry', () => ({
                           ? throwGateBlockConfig
                           : type === 'throw_selector_block'
                             ? throwSelectorBlockConfig
-                            : undefined,
+                            : type === 'generic_webhook'
+                              ? genericWebhookBlockConfig
+                              : undefined,
 }))
 
 vi.mock('@/blocks/utils', () => ({
@@ -303,6 +316,47 @@ describe('validateInputsForBlock', () => {
 
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.tagFilters).toBeNull()
+  })
+
+  // The webhook URL is shown to the agent as a synthesized read-only field
+  // (sanitizeForCopilot); writes to it or to display-only subblocks must bounce
+  // with a clear error instead of persisting dead state.
+  it('rejects the synthesized triggerWebhookUrl field as read-only', () => {
+    const result = validateInputsForBlock(
+      'generic_webhook',
+      { triggerWebhookUrl: 'https://evil.test/api/webhooks/trigger/x', requireAuth: true },
+      'hook-1'
+    )
+
+    expect(result.validInputs.triggerWebhookUrl).toBeUndefined()
+    expect(result.validInputs.requireAuth).toBe(true)
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
+  })
+
+  it('rejects triggerWebhookUrl even for unknown block types that skip validation', () => {
+    const result = validateInputsForBlock(
+      'not_a_real_block',
+      { triggerWebhookUrl: 'https://evil.test/hook', other: 'kept' },
+      'blk-1'
+    )
+
+    expect(result.validInputs.triggerWebhookUrl).toBeUndefined()
+    expect(result.validInputs.other).toBe('kept')
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
+  })
+
+  it('rejects read-only display subblocks like webhookUrlDisplay', () => {
+    const result = validateInputsForBlock(
+      'generic_webhook',
+      { webhookUrlDisplay: 'https://evil.test/hook' },
+      'hook-1'
+    )
+
+    expect(result.validInputs.webhookUrlDisplay).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('read-only')
   })
 
   it('accepts known agent model ids', () => {
