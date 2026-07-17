@@ -12,9 +12,29 @@ interface UseFloatBoundarySyncProps {
 const CONTENT_WINDOW_GAP = 8
 
 /**
- * Hook to synchronize floats position with layout boundary changes.
- * Keeps the float within bounds when sidebar, panel, or terminal resize.
- * Uses requestAnimationFrame for smooth real-time updates
+ * Layout dimensions a float must stay clear of. During a resize drag the live
+ * value is an inline override on the consuming element (a scoped style recalc);
+ * at rest it lives on `:root` (committed via the store / pre-hydration script).
+ * Each entry pairs the element the drag writes to with its variable so the
+ * float tracks the drag live and re-clamps at rest.
+ */
+const BOUNDARY_DIMENSIONS = [
+  { selector: '.sidebar-shell-outer', cssVar: '--sidebar-width' },
+  { selector: '.panel-container', cssVar: '--panel-width' },
+  { selector: '.terminal-container', cssVar: '--terminal-height' },
+] as const
+
+/** Reads a boundary dimension, preferring the drag's scoped inline override. */
+function readBoundaryDimension(selector: string, cssVar: string): number {
+  const inline = document.querySelector<HTMLElement>(selector)?.style.getPropertyValue(cssVar)
+  const value = inline || getComputedStyle(document.documentElement).getPropertyValue(cssVar)
+  return Number.parseInt(value || '0')
+}
+
+/**
+ * Hook to synchronize a float's position with layout boundary changes.
+ * Keeps the float within bounds when the sidebar, panel, or terminal resize.
+ * Uses requestAnimationFrame for smooth real-time updates.
  */
 export function useFloatBoundarySync({
   isOpen,
@@ -30,15 +50,9 @@ export function useFloatBoundarySync({
   positionRef.current = position
 
   const checkAndUpdatePosition = useCallback(() => {
-    const sidebarWidth = Number.parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-    )
-    const panelWidth = Number.parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-    )
-    const terminalHeight = Number.parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
-    )
+    const sidebarWidth = readBoundaryDimension('.sidebar-shell-outer', '--sidebar-width')
+    const panelWidth = readBoundaryDimension('.panel-container', '--panel-width')
+    const terminalHeight = readBoundaryDimension('.terminal-container', '--terminal-height')
 
     const prev = previousDimensionsRef.current
     if (
@@ -83,11 +97,17 @@ export function useFloatBoundarySync({
 
     window.addEventListener('resize', handleResize)
 
+    /**
+     * Watch both `:root` (at-rest commits, the pre-hydration script) and each
+     * container the resize hooks write to mid-drag, so the float re-clamps live
+     * throughout a drag rather than only on release.
+     */
     const observer = new MutationObserver(handleResize)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style'],
-    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
+    for (const { selector } of BOUNDARY_DIMENSIONS) {
+      const el = document.querySelector(selector)
+      if (el) observer.observe(el, { attributes: true, attributeFilter: ['style'] })
+    }
 
     checkAndUpdatePosition()
 
