@@ -25,6 +25,29 @@ interface GitLabProject {
   }
 }
 
+interface GitLabGroup {
+  id: number
+  name: string
+  path: string
+  full_path: string
+  description?: string
+  visibility: string
+  web_url: string
+  parent_id?: number | null
+  created_at?: string
+}
+
+/**
+ * A single project or group membership for a user, as returned by
+ * `GET /users/:id/memberships`.
+ */
+interface GitLabUserMembership {
+  source_id: number
+  source_name: string
+  source_type: 'Project' | 'Namespace'
+  access_level: number
+}
+
 interface GitLabIssue {
   id: number
   iid: number
@@ -244,6 +267,28 @@ export interface GitLabListProjectsParams extends GitLabBaseParams {
 
 export interface GitLabGetProjectParams extends GitLabBaseParams {
   projectId: string | number
+}
+
+export interface GitLabListGroupsParams extends GitLabBaseParams {
+  owned?: boolean
+  search?: string
+  topLevelOnly?: boolean
+  orderBy?: 'name' | 'path' | 'id'
+  sort?: 'asc' | 'desc'
+  perPage?: number
+  page?: number
+}
+
+export interface GitLabGetGroupParams extends GitLabBaseParams {
+  groupId: string | number
+}
+
+export interface GitLabListUserMembershipsParams extends GitLabBaseParams {
+  userId: string | number
+  /** Filter by membership source. Omit for all memberships. */
+  membershipType?: 'Project' | 'Namespace'
+  perPage?: number
+  page?: number
 }
 
 export interface GitLabListIssuesParams extends GitLabBaseParams {
@@ -570,6 +615,26 @@ export interface GitLabListProjectsResponse extends ToolResponse {
 export interface GitLabGetProjectResponse extends ToolResponse {
   output: {
     project?: GitLabProject
+  }
+}
+
+export interface GitLabListGroupsResponse extends ToolResponse {
+  output: {
+    groups?: GitLabGroup[]
+    total?: number
+  }
+}
+
+export interface GitLabGetGroupResponse extends ToolResponse {
+  output: {
+    group?: GitLabGroup
+  }
+}
+
+export interface GitLabListUserMembershipsResponse extends ToolResponse {
+  output: {
+    memberships?: GitLabUserMembership[]
+    total?: number
   }
 }
 
@@ -1118,6 +1183,9 @@ export interface GitLabDeleteUserIdentityResponse extends ToolResponse {
 export type GitLabResponse =
   | GitLabListProjectsResponse
   | GitLabGetProjectResponse
+  | GitLabListGroupsResponse
+  | GitLabGetGroupResponse
+  | GitLabListUserMembershipsResponse
   | GitLabListIssuesResponse
   | GitLabGetIssueResponse
   | GitLabCreateIssueResponse

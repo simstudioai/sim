@@ -25,15 +25,16 @@ describe('GitLabBlock access operations', () => {
     }
   })
 
-  it('exposes the named access-level dropdown with GitLab integer ids', () => {
+  it('exposes the named access-level combobox with GitLab integer ids', () => {
     const accessLevel = block.subBlocks.find((s) => s.id === 'accessLevel')
-    expect(accessLevel?.type).toBe('dropdown')
+    // A combobox (not a dropdown) so the level can be bound to a runtime reference.
+    expect(accessLevel?.type).toBe('combobox')
     const options = typeof accessLevel?.options === 'function' ? undefined : accessLevel?.options
     expect(options?.map((o) => o.id)).toEqual(['0', '5', '10', '15', '20', '25', '30', '40', '50'])
     expect(accessLevel?.value?.()).toBe('30')
   })
 
-  it('coerces the selected access level from the dropdown string to an integer at execution time', () => {
+  it('coerces the selected access level from the combobox string to an integer at execution time', () => {
     const addParams = block.tools.config.params?.({
       accessToken: 'pat',
       operation: 'gitlab_add_member',
@@ -53,6 +54,32 @@ describe('GitLabBlock access operations', () => {
       memberRoleId: 5,
     })
     expect(typeof addParams?.accessLevel).toBe('number')
+  })
+
+  it('accepts an access level bound by name (from a resolved reference) and coerces it', () => {
+    const byName = block.tools.config.params?.({
+      accessToken: 'pat',
+      operation: 'gitlab_add_member',
+      resourceType: 'group',
+      resourceId: '42',
+      userId: '7',
+      accessLevel: 'Developer',
+    })
+    expect(byName).toMatchObject({ userId: 7, accessLevel: 30 })
+    expect(typeof byName?.accessLevel).toBe('number')
+  })
+
+  it('throws loudly when a resolved access level is not a valid GitLab level', () => {
+    expect(() =>
+      block.tools.config.params?.({
+        accessToken: 'pat',
+        operation: 'gitlab_add_member',
+        resourceType: 'group',
+        resourceId: '42',
+        userId: '7',
+        accessLevel: 'root',
+      })
+    ).toThrow(/access level/i)
   })
 
   it('defaults list members to inherited members (directOnly falsy)', () => {
@@ -117,7 +144,7 @@ describe('GitLabBlock access operations', () => {
 
   it('exposes an optional access-level dropdown for update invitation that defaults to unchanged', () => {
     const invAccess = block.subBlocks.find((s) => s.id === 'invitationAccessLevel')
-    expect(invAccess?.type).toBe('dropdown')
+    expect(invAccess?.type).toBe('combobox')
     expect(invAccess?.value?.()).toBe('')
     const options = typeof invAccess?.options === 'function' ? undefined : invAccess?.options
     expect(options?.[0]).toEqual({ label: 'Leave unchanged', id: '' })
@@ -156,5 +183,68 @@ describe('GitLabBlock access operations', () => {
         resourceId: '42',
       })
     ).toThrow()
+  })
+})
+
+describe('GitLabBlock group operations', () => {
+  it('registers and routes the new group/membership operations', () => {
+    for (const toolId of [
+      'gitlab_list_groups',
+      'gitlab_get_group',
+      'gitlab_list_user_memberships',
+    ]) {
+      expect(block.tools.access).toContain(toolId)
+      expect(block.tools.config.tool?.({ operation: toolId })).toBe(toolId)
+    }
+  })
+
+  it('maps list-groups filters to tool params', () => {
+    const params = block.tools.config.params?.({
+      accessToken: 'pat',
+      operation: 'gitlab_list_groups',
+      owned: true,
+      searchQuery: 'plat',
+      groupsTopLevelOnly: true,
+      perPage: '50',
+      page: '2',
+    })
+    expect(params).toMatchObject({
+      owned: true,
+      search: 'plat',
+      topLevelOnly: true,
+      perPage: 50,
+      page: 2,
+    })
+  })
+
+  it('requires a group id for get group', () => {
+    expect(() =>
+      block.tools.config.params?.({ accessToken: 'pat', operation: 'gitlab_get_group' })
+    ).toThrow(/group id/i)
+
+    const params = block.tools.config.params?.({
+      accessToken: 'pat',
+      operation: 'gitlab_get_group',
+      groupId: '  parent/child  ',
+    })
+    expect(params).toMatchObject({ groupId: 'parent/child' })
+  })
+
+  it('requires a user id for list user memberships and forwards the type filter', () => {
+    expect(() =>
+      block.tools.config.params?.({
+        accessToken: 'pat',
+        operation: 'gitlab_list_user_memberships',
+      })
+    ).toThrow(/user id/i)
+
+    const params = block.tools.config.params?.({
+      accessToken: 'pat',
+      operation: 'gitlab_list_user_memberships',
+      userId: '7',
+      membershipType: 'Namespace',
+      perPage: '25',
+    })
+    expect(params).toMatchObject({ userId: '7', membershipType: 'Namespace', perPage: 25 })
   })
 })

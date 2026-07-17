@@ -2,6 +2,7 @@ import { GitLabIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GitLabResponse } from '@/tools/gitlab/types'
+import { coerceGitLabAccessLevel, GITLAB_ACCESS_LEVEL_OPTIONS } from '@/tools/gitlab/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -40,6 +41,7 @@ const USER_ID_OPS = [
   'gitlab_approve_user',
   'gitlab_reject_user',
   'gitlab_delete_user_identity',
+  'gitlab_list_user_memberships',
 ]
 
 /**
@@ -89,6 +91,9 @@ const SAML_LINK_OPS = [
 
 /** SAML operations that take a SAML group name. */
 const SAML_NAME_OPS = ['gitlab_add_saml_group_link', 'gitlab_delete_saml_group_link']
+
+/** Operations that take a single group ID (SAML links plus Get Group). */
+const GROUP_ID_OPS = [...SAML_LINK_OPS, 'gitlab_get_group']
 
 /** Ops where the User ID field is strictly required (Add Member also accepts a username instead). */
 const USER_ID_REQUIRED_OPS = USER_ID_OPS.filter((op) => op !== 'gitlab_add_member')
@@ -143,6 +148,9 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         // Project Operations
         { label: 'List Projects', id: 'gitlab_list_projects' },
         { label: 'Get Project', id: 'gitlab_get_project' },
+        // Group Operations
+        { label: 'List Groups', id: 'gitlab_list_groups' },
+        { label: 'Get Group', id: 'gitlab_get_group' },
         // Issue Operations
         { label: 'List Issues', id: 'gitlab_list_issues' },
         { label: 'Get Issue', id: 'gitlab_get_issue' },
@@ -196,6 +204,7 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
         { label: 'Approve Access Request', id: 'gitlab_approve_access_request' },
         { label: 'Deny Access Request', id: 'gitlab_deny_access_request' },
         { label: 'List SAML Group Links', id: 'gitlab_list_saml_group_links' },
+        { label: 'List User Memberships', id: 'gitlab_list_user_memberships' },
         { label: 'Search Users', id: 'gitlab_search_users' },
         // User Administration Operations (require an admin token)
         { label: 'Create User', id: 'gitlab_create_user' },
@@ -967,23 +976,34 @@ Return ONLY the commit message - no explanations, no extra text.`,
       id: 'searchQuery',
       title: 'Search',
       type: 'short-input',
-      placeholder: 'Search projects (name/path/description) or issues (title/description)',
+      placeholder: 'Search projects/groups (name/path) or issues (title/description)',
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['gitlab_list_projects', 'gitlab_list_issues'],
+        value: ['gitlab_list_projects', 'gitlab_list_groups', 'gitlab_list_issues'],
       },
     },
-    // List-projects filters
+    // List-projects / list-groups filters
     {
       id: 'owned',
       title: 'Owned Only',
       type: 'switch',
       mode: 'advanced',
-      description: 'Only projects explicitly owned by the current user',
+      description: 'Only resources explicitly owned by the current user',
       condition: {
         field: 'operation',
-        value: ['gitlab_list_projects'],
+        value: ['gitlab_list_projects', 'gitlab_list_groups'],
+      },
+    },
+    {
+      id: 'groupsTopLevelOnly',
+      title: 'Top-Level Only',
+      type: 'switch',
+      mode: 'advanced',
+      description: 'Only top-level groups, excluding subgroups',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_groups'],
       },
     },
     {
@@ -1365,6 +1385,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         field: 'operation',
         value: [
           'gitlab_list_projects',
+          'gitlab_list_groups',
           'gitlab_list_issues',
           'gitlab_list_merge_requests',
           'gitlab_list_pipelines',
@@ -1376,6 +1397,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
           'gitlab_list_members',
           'gitlab_list_invitations',
           'gitlab_list_access_requests',
+          'gitlab_list_user_memberships',
           'gitlab_search_users',
         ],
       },
@@ -1391,6 +1413,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         field: 'operation',
         value: [
           'gitlab_list_projects',
+          'gitlab_list_groups',
           'gitlab_list_issues',
           'gitlab_list_merge_requests',
           'gitlab_list_pipelines',
@@ -1402,6 +1425,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
           'gitlab_list_members',
           'gitlab_list_invitations',
           'gitlab_list_access_requests',
+          'gitlab_list_user_memberships',
           'gitlab_search_users',
         ],
       },
@@ -1443,7 +1467,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
       required: true,
       condition: {
         field: 'operation',
-        value: SAML_LINK_OPS,
+        value: GROUP_ID_OPS,
       },
     },
     // User ID (member target or admin user target)
@@ -1473,22 +1497,32 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         value: ['gitlab_add_member'],
       },
     },
-    // Access level (named dropdown mapping to GitLab integer access levels)
+    // Membership source filter for List User Memberships
+    {
+      id: 'membershipType',
+      title: 'Membership Type',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Projects', id: 'Project' },
+        { label: 'Groups', id: 'Namespace' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_user_memberships'],
+      },
+    },
+    // Access level. A combobox (not a dropdown) so the level can be bound to a
+    // runtime reference (e.g. a policy-table lookup) as well as picked by name.
+    // The resolved value is validated against the enum at execution time by
+    // coerceGitLabAccessLevel, which also accepts the level name ("Developer").
     {
       id: 'accessLevel',
       title: 'Access Level',
-      type: 'dropdown',
-      options: [
-        { label: 'No access', id: '0' },
-        { label: 'Minimal Access', id: '5' },
-        { label: 'Guest', id: '10' },
-        { label: 'Planner', id: '15' },
-        { label: 'Reporter', id: '20' },
-        { label: 'Security Manager', id: '25' },
-        { label: 'Developer', id: '30' },
-        { label: 'Maintainer', id: '40' },
-        { label: 'Owner', id: '50' },
-      ],
+      type: 'combobox',
+      options: GITLAB_ACCESS_LEVEL_OPTIONS,
       value: () => '30',
       required: {
         field: 'operation',
@@ -1505,18 +1539,8 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     {
       id: 'memberAccessLevel',
       title: 'Access Level',
-      type: 'dropdown',
-      options: [
-        { label: 'No access', id: '0' },
-        { label: 'Minimal Access', id: '5' },
-        { label: 'Guest', id: '10' },
-        { label: 'Planner', id: '15' },
-        { label: 'Reporter', id: '20' },
-        { label: 'Security Manager', id: '25' },
-        { label: 'Developer', id: '30' },
-        { label: 'Maintainer', id: '40' },
-        { label: 'Owner', id: '50' },
-      ],
+      type: 'combobox',
+      options: GITLAB_ACCESS_LEVEL_OPTIONS,
       required: true,
       condition: {
         field: 'operation',
@@ -1528,19 +1552,8 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     {
       id: 'invitationAccessLevel',
       title: 'Access Level',
-      type: 'dropdown',
-      options: [
-        { label: 'Leave unchanged', id: '' },
-        { label: 'No access', id: '0' },
-        { label: 'Minimal Access', id: '5' },
-        { label: 'Guest', id: '10' },
-        { label: 'Planner', id: '15' },
-        { label: 'Reporter', id: '20' },
-        { label: 'Security Manager', id: '25' },
-        { label: 'Developer', id: '30' },
-        { label: 'Maintainer', id: '40' },
-        { label: 'Owner', id: '50' },
-      ],
+      type: 'combobox',
+      options: [{ label: 'Leave unchanged', id: '' }, ...GITLAB_ACCESS_LEVEL_OPTIONS],
       value: () => '',
       condition: {
         field: 'operation',
@@ -1865,6 +1878,9 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     access: [
       'gitlab_list_projects',
       'gitlab_get_project',
+      'gitlab_list_groups',
+      'gitlab_get_group',
+      'gitlab_list_user_memberships',
       'gitlab_list_issues',
       'gitlab_get_issue',
       'gitlab_create_issue',
@@ -1958,6 +1974,39 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               ...baseParams,
               projectId: params.projectId.trim(),
             }
+
+          case 'gitlab_list_groups':
+            return {
+              ...baseParams,
+              owned: params.owned || undefined,
+              search: params.searchQuery?.trim() || undefined,
+              topLevelOnly: params.groupsTopLevelOnly || undefined,
+              perPage: params.perPage ? Number(params.perPage) : undefined,
+              page: params.page ? Number(params.page) : undefined,
+            }
+
+          case 'gitlab_get_group':
+            if (!params.groupId?.trim()) {
+              throw new Error('Group ID is required.')
+            }
+            return {
+              ...baseParams,
+              groupId: params.groupId.trim(),
+            }
+
+          case 'gitlab_list_user_memberships': {
+            const membershipUserId = String(params.userId ?? '').trim()
+            if (!membershipUserId) {
+              throw new Error('User ID is required.')
+            }
+            return {
+              ...baseParams,
+              userId: membershipUserId,
+              membershipType: params.membershipType || undefined,
+              perPage: params.perPage ? Number(params.perPage) : undefined,
+              page: params.page ? Number(params.page) : undefined,
+            }
+          }
 
           case 'gitlab_list_issues':
             if (!params.projectId?.trim()) {
@@ -2461,7 +2510,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               resourceId: params.resourceId.trim(),
               userId: addMemberUserId ? Number(addMemberUserId) : undefined,
               username: params.username?.trim() || undefined,
-              accessLevel: Number(params.accessLevel),
+              accessLevel: coerceGitLabAccessLevel(params.accessLevel),
               expiresAt: params.expiresAt?.trim() || undefined,
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
             }
@@ -2476,7 +2525,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
               userId: Number(params.userId),
-              accessLevel: Number(params.memberAccessLevel),
+              accessLevel: coerceGitLabAccessLevel(params.memberAccessLevel),
               expiresAt: params.clearExpiresAt ? '' : params.expiresAt?.trim() || undefined,
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
             }
@@ -2503,7 +2552,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
               email: params.email.trim(),
-              accessLevel: Number(params.accessLevel),
+              accessLevel: coerceGitLabAccessLevel(params.accessLevel),
               expiresAt: params.expiresAt?.trim() || undefined,
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
               inviteSource: params.inviteSource?.trim() || undefined,
@@ -2543,7 +2592,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               // Only send access_level when a level is chosen; "Leave unchanged"
               // ('') keeps the invitation's current level instead of resetting it.
               accessLevel: params.invitationAccessLevel
-                ? Number(params.invitationAccessLevel)
+                ? coerceGitLabAccessLevel(params.invitationAccessLevel)
                 : undefined,
               expiresAt: params.clearExpiresAt ? '' : params.expiresAt?.trim() || undefined,
             }
@@ -2580,7 +2629,9 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
               userId: Number(params.userId),
-              accessLevel: params.accessLevel ? Number(params.accessLevel) : undefined,
+              accessLevel: params.accessLevel
+                ? coerceGitLabAccessLevel(params.accessLevel)
+                : undefined,
             }
 
           case 'gitlab_deny_access_request':
@@ -2611,7 +2662,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               ...baseParams,
               groupId: params.groupId.trim(),
               samlGroupName: params.samlGroupName.trim(),
-              accessLevel: Number(params.accessLevel),
+              accessLevel: coerceGitLabAccessLevel(params.accessLevel),
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
               provider: params.samlProvider?.trim() || undefined,
             }
@@ -2831,6 +2882,14 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     resourceType: { type: 'string', description: "Access resource type ('project' or 'group')" },
     resourceId: { type: 'string', description: 'Project or group ID or URL-encoded path' },
     groupId: { type: 'string', description: 'Group ID or URL-encoded path' },
+    groupsTopLevelOnly: {
+      type: 'boolean',
+      description: 'Limit group listings to top-level groups, excluding subgroups',
+    },
+    membershipType: {
+      type: 'string',
+      description: "Membership source filter ('Project' or 'Namespace'; '' for all)",
+    },
     userId: { type: 'number', description: 'Target user ID' },
     username: { type: 'string', description: 'Username alternative for adding a member' },
     skipSubresources: {
@@ -2845,14 +2904,19 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     memberUserIds: { type: 'string', description: 'Comma-separated user IDs filter for members' },
     memberState: { type: 'string', description: "Member state filter ('active' or 'awaiting')" },
     showSeatInfo: { type: 'boolean', description: 'Include seat information for members' },
-    accessLevel: { type: 'number', description: 'GitLab access level (10-50)' },
+    accessLevel: {
+      type: 'string',
+      description: 'GitLab access level - name ("Developer") or integer (30). Accepts a reference.',
+    },
     memberAccessLevel: {
       type: 'string',
-      description: 'Access level for member updates (explicit choice, no default)',
+      description:
+        'Access level for member updates - name or integer, no default (explicit choice). Accepts a reference.',
     },
     invitationAccessLevel: {
       type: 'string',
-      description: 'Optional new access level for an invitation ("" leaves it unchanged)',
+      description:
+        'Optional new access level for an invitation - name or integer ("" leaves it unchanged). Accepts a reference.',
     },
     expiresAt: { type: 'string', description: 'Access expiration date (YYYY-MM-DD)' },
     clearExpiresAt: {
@@ -2890,6 +2954,10 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     // Project outputs
     projects: { type: 'json', description: 'List of projects' },
     project: { type: 'json', description: 'Project details' },
+    // Group outputs
+    groups: { type: 'json', description: 'List of groups' },
+    group: { type: 'json', description: 'Group details' },
+    memberships: { type: 'json', description: "A user's project and group memberships" },
     // Issue outputs
     issues: { type: 'json', description: 'List of issues' },
     issue: { type: 'json', description: 'Issue details' },
