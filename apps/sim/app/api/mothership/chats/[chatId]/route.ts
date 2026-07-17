@@ -26,6 +26,7 @@ import {
 } from '@/lib/copilot/request/http'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
+import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -68,7 +69,17 @@ export const GET = withRouteHandler(
 
       if (liveStreamId) {
         try {
-          const events = await readEvents(liveStreamId, '0')
+          const [events, previewSessions] = await Promise.all([
+            readEvents(liveStreamId, '0'),
+            readFilePreviewSessions(liveStreamId).catch((error) => {
+              logger.warn('Failed to read preview sessions for mothership chat', {
+                chatId,
+                streamId: liveStreamId,
+                error: toError(error).message,
+              })
+              return []
+            }),
+          ])
           const run = await getLatestRunForStream(liveStreamId, userId).catch((error) => {
             logger.warn('Failed to fetch latest run for mothership chat snapshot', {
               chatId,
@@ -80,7 +91,7 @@ export const GET = withRouteHandler(
 
           liveTurnSnapshot = {
             events: events.map(toStreamBatchEvent),
-            previewSessions: [],
+            previewSessions,
             status:
               typeof run?.status === 'string'
                 ? run.status
@@ -118,6 +129,19 @@ export const GET = withRouteHandler(
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
+          // Events stay out of the payload (the resume endpoint replays them),
+          // but the client still needs the run status to skip reconnecting to
+          // an already-terminal stream, and the preview sessions to seed the
+          // file preview panel before the reconnect lands.
+          ...(liveTurnSnapshot
+            ? {
+                streamSnapshot: {
+                  events: [],
+                  previewSessions: liveTurnSnapshot.previewSessions,
+                  status: liveTurnSnapshot.status,
+                },
+              }
+            : {}),
         },
       })
     } catch (error) {
