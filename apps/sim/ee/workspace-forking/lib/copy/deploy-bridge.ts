@@ -77,6 +77,40 @@ export async function listDeployedWorkflows(
     )
 }
 
+/**
+ * The complement of {@link listDeployedWorkflows}'s exclusion predicate: deployed,
+ * non-archived workflows the workspace admin marked "Exclude from sync". Only the
+ * diff preview reads this, to show which workflows a sync deliberately skips;
+ * the promote itself never touches them.
+ */
+export async function listForkExcludedDeployedWorkflows(
+  executor: DbOrTx,
+  workspaceId: string
+): Promise<Array<{ id: string; name: string }>> {
+  return executor
+    .select({ id: workflow.id, name: workflow.name })
+    .from(workflow)
+    .where(
+      and(
+        eq(workflow.workspaceId, workspaceId),
+        eq(workflow.isDeployed, true),
+        eq(workflow.forkSyncExcluded, true),
+        isNull(workflow.archivedAt),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(workflowDeploymentVersion)
+            .where(
+              and(
+                eq(workflowDeploymentVersion.workflowId, workflow.id),
+                eq(workflowDeploymentVersion.isActive, true)
+              )
+            )
+        )
+      )
+    )
+}
+
 /** The active deployment version number for a workflow, or null when it has none. */
 export async function getActiveDeploymentVersionNumber(
   executor: DbOrTx,

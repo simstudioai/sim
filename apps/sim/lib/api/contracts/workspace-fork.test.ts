@@ -6,6 +6,7 @@ import {
   forkLineageChildSchema,
   forkLineageNodeSchema,
   forkMappableResourceTypeSchema,
+  getForkDiffContract,
   getWorkspaceBackgroundWorkQuerySchema,
   updateForkExcludedWorkflowsBodySchema,
   updateForkMappingBodySchema,
@@ -161,5 +162,40 @@ describe('updateForkExcludedWorkflowsBodySchema', () => {
     expect(updateForkExcludedWorkflowsBodySchema.safeParse({ workflowIds: ['wf-1'] }).success).toBe(
       false
     )
+  })
+})
+
+describe('getForkDiffContract response excluded-workflow lists', () => {
+  const baseDiffResponse = {
+    sourceWorkspaceId: 'ws-src',
+    targetWorkspaceId: 'ws-tgt',
+    willUpdate: 0,
+    willCreate: 0,
+    willArchive: 0,
+    workflows: [],
+    unmappedRequired: [],
+    unmappedOptional: [],
+    mcpReauthServerIds: [],
+    inlineSecretSources: [],
+    dependentReconfigs: [],
+    resourceUsages: [],
+    copyableUnmapped: [],
+    clearedRefs: [],
+  }
+
+  it('defaults absent lists to empty (old-server tolerance)', () => {
+    const parsed = getForkDiffContract.response.schema.parse(baseDiffResponse)
+    expect(parsed.excludedSourceWorkflows).toEqual([])
+    expect(parsed.excludedTargetWorkflows).toEqual([])
+  })
+
+  it('carries the lists when present', () => {
+    const parsed = getForkDiffContract.response.schema.parse({
+      ...baseDiffResponse,
+      excludedSourceWorkflows: ['Scratch agent'],
+      excludedTargetWorkflows: ['Prod hotfix'],
+    })
+    expect(parsed.excludedSourceWorkflows).toEqual(['Scratch agent'])
+    expect(parsed.excludedTargetWorkflows).toEqual(['Prod hotfix'])
   })
 })

@@ -501,6 +501,16 @@ export const getForkDiffContract = defineRouteContract({
       willArchive: z.number().int(),
       /** Per-workflow change list for the sync preview. */
       workflows: z.array(forkWorkflowChangeSchema),
+      /**
+       * Names of deployed SOURCE workflows marked "Exclude from sync" - never sent.
+       * Defaulted so a new client tolerates an old server's response during rollout.
+       */
+      excludedSourceWorkflows: z.array(z.string()).default([]),
+      /**
+       * Names of mapped TARGET workflows marked "Exclude from sync" - the sync
+       * neither replaces nor archives them. Defaulted for rollout tolerance.
+       */
+      excludedTargetWorkflows: z.array(z.string()).default([]),
       unmappedRequired: z.array(forkUnmappedReferenceSchema),
       unmappedOptional: z.array(forkUnmappedReferenceSchema),
       /** Source MCP server ids that use OAuth and need re-authorization in the target. */
