@@ -381,6 +381,30 @@ describe('executeCreateWorkflow billing attribution', () => {
     expect(performCreateWorkflowMock).not.toHaveBeenCalled()
   })
 
+  it('rejects canonically ambiguous workflow-folder VFS paths', async () => {
+    listFoldersMock.mockResolvedValue([
+      { folderId: 'folder-cafe-nfc', folderName: 'Caf\u00e9', parentId: null },
+      { folderId: 'folder-cafe-nfd', folderName: 'Cafe\u0301', parentId: null },
+    ])
+
+    const result = await executeCreateWorkflow(
+      {
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderPath: 'workflows/Caf%C3%A9',
+      },
+      executionContext
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        'Folder path is ambiguous after canonicalization: workflows/Caf%C3%A9. Rename one of the conflicting folders and retry.',
+    })
+    expect(performCreateWorkflowMock).not.toHaveBeenCalled()
+    expect(workflowAuthzMockFns.mockAssertFolderMutable).not.toHaveBeenCalled()
+  })
+
   it('keeps same-workspace creation and subsequent execution on the immutable payer', async () => {
     const context: ExecutionContext = { ...executionContext, workflowId: '' }
     performCreateWorkflowMock.mockResolvedValue({
