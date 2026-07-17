@@ -77,7 +77,9 @@ export async function fanOutSlackTokenChain(
       and(
         installationFilter(teamId),
         since
-          ? sql`NOT EXISTS (SELECT 1 FROM ${account} sibling WHERE sibling.provider_id = 'slack' AND sibling.account_id LIKE ${`${teamId}-%`} AND sibling.updated_at > ${since})`
+          ? // Raw sql params skip drizzle's column mapping, and the driver
+            // rejects bare Date objects — serialize to ISO explicitly.
+            sql`NOT EXISTS (SELECT 1 FROM ${account} sibling WHERE sibling.provider_id = 'slack' AND sibling.account_id LIKE ${`${teamId}-%`} AND sibling.updated_at > ${since.toISOString()})`
           : undefined
       )
     )
