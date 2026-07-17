@@ -175,7 +175,7 @@ export function useCreateWorkflow() {
         body: {
           id,
           name: name || generateCreativeWorkflowName(),
-          description: description || 'New workflow',
+          description,
           workspaceId,
           folderId: folderId || null,
           sortOrder,
@@ -226,7 +226,7 @@ export function useCreateWorkflow() {
         name: variables.name || generateCreativeWorkflowName(),
         lastModified: new Date(),
         createdAt: new Date(),
-        description: variables.description || 'New workflow',
+        description: variables.description ?? '',
         workspaceId: variables.workspaceId,
         folderId: variables.folderId || null,
         sortOrder,
