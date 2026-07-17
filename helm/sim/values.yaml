@@ -288,6 +288,20 @@ app:
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: ""            # Azure container for OpenGraph preview images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: ""      # Azure container for workspace logos
 
+    # Google Cloud Storage Configuration (optional - for file storage)
+    # If configured, files will be stored in GCS instead of local storage
+    # Note: used when neither Azure Blob nor S3 is configured
+    GCS_PROJECT_ID: ""                                    # GCP project ID (optional — inferred from credentials/ADC when unset)
+    GCS_CREDENTIALS_JSON: ""                              # Inline service-account JSON. Leave empty to use Workload Identity / Application Default Credentials
+    GCS_BUCKET_NAME: ""                                   # GCS bucket for workspace files (all other GCS buckets fall back to it)
+    GCS_KB_BUCKET_NAME: ""                                # GCS bucket for knowledge base files
+    GCS_EXECUTION_FILES_BUCKET_NAME: ""                   # GCS bucket for workflow execution files
+    GCS_CHAT_BUCKET_NAME: ""                              # GCS bucket for deployed chat files
+    GCS_COPILOT_BUCKET_NAME: ""                           # GCS bucket for copilot files
+    GCS_PROFILE_PICTURES_BUCKET_NAME: ""                  # GCS bucket for user profile pictures
+    GCS_OG_IMAGES_BUCKET_NAME: ""                         # GCS bucket for OpenGraph preview images
+    GCS_WORKSPACE_LOGOS_BUCKET_NAME: ""                   # GCS bucket for workspace logos
+
   # Operational tunables shipped with the chart. These are rendered as inline `env:` on the
   # app container — NOT written into the chart-managed Secret and NOT required to be mapped
   # when externalSecrets.enabled=true. Override any key by setting `app.envDefaults.KEY` in

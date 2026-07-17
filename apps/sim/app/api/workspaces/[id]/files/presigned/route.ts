@@ -9,7 +9,7 @@ import {
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
+import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { assertWorkspaceFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
@@ -92,7 +92,7 @@ export const POST = withRouteHandler(
       metadata: { workspaceId, ...(targetFolderId ? { folderId: targetFolderId } : {}) },
     })
 
-    const finalPath = `/api/files/serve/${USE_BLOB_STORAGE ? 'blob' : 's3'}/${encodeURIComponent(key)}?context=workspace`
+    const finalPath = `/api/files/serve/${getServeStoragePrefix()}/${encodeURIComponent(key)}?context=workspace`
 
     logger.info(`Issued workspace presigned URL for ${fileName} -> ${key}`)
 
