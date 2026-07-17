@@ -91,20 +91,17 @@ async function fetchAdminUsersByEmails(
       const { data, error } = await client.admin.listUsers(
         {
           query: {
-            limit: 20,
-            searchField: 'email',
-            searchValue: email,
-            searchOperator: 'contains',
+            limit: 1,
+            filterField: 'email',
+            filterValue: email,
+            filterOperator: 'eq',
           },
         },
         { signal }
       )
       if (error) throw new Error(error.message ?? 'Failed to fetch user')
-      return (
-        (data?.users ?? [])
-          .map(mapUser)
-          .find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null
-      )
+      const user = (data?.users ?? [])[0]
+      return user ? mapUser(user) : null
     })
   )
   return results.filter((u): u is AdminUser => u !== null)
