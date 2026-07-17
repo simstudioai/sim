@@ -6,7 +6,6 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
-import { BLOB_CHAT_CONFIG, S3_CHAT_CONFIG } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
@@ -781,30 +780,6 @@ export async function assertToolFileAccess(
  * Get chat storage configuration based on current storage provider
  */
 async function getChatStorageConfig(): Promise<StorageConfig> {
-  const { USE_S3_STORAGE, USE_BLOB_STORAGE, USE_GCS_STORAGE } = await import('@/lib/uploads/config')
-
-  if (USE_BLOB_STORAGE) {
-    return {
-      containerName: BLOB_CHAT_CONFIG.containerName,
-      accountName: BLOB_CHAT_CONFIG.accountName,
-      accountKey: BLOB_CHAT_CONFIG.accountKey,
-      connectionString: BLOB_CHAT_CONFIG.connectionString,
-    }
-  }
-
-  if (USE_S3_STORAGE) {
-    return {
-      bucket: S3_CHAT_CONFIG.bucket,
-      region: S3_CHAT_CONFIG.region,
-    }
-  }
-
-  if (USE_GCS_STORAGE) {
-    const { GCS_CHAT_CONFIG } = await import('@/lib/uploads/config')
-    return {
-      bucket: GCS_CHAT_CONFIG.bucket,
-    }
-  }
-
-  return {}
+  const { getStorageConfig } = await import('@/lib/uploads/config')
+  return getStorageConfig('chat')
 }
