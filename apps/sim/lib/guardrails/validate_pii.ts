@@ -8,12 +8,16 @@ import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 const logger = createLogger('PIIValidator')
 
 /**
- * Compute the explicit entity list to send Presidio. When custom patterns are
- * present we must always send an explicit list (even empty) so the server detects
- * only the requested built-ins plus the custom entities — never "all". With no
- * built-ins and no patterns, `undefined` preserves the legacy "detect all" default.
+ * Entity list for the batch (data-retention) paths, where an empty selection with
+ * custom patterns means "redact ONLY these custom patterns" (the user unchecked
+ * every built-in entity). An explicit empty array is sent so the server detects
+ * only the custom entities, never "all". With neither, `undefined` preserves the
+ * legacy "detect all" default.
+ *
+ * The guardrails single-text path uses the opposite convention — empty selection
+ * means "detect all" — so it does NOT use this helper (see {@link analyze}).
  */
-function resolveEntities(
+function resolveBatchEntities(
   entityTypes: string[],
   patterns?: CustomPiiPattern[]
 ): string[] | undefined {
@@ -83,7 +87,11 @@ async function analyze(
   language: string,
   patterns?: CustomPiiPattern[]
 ): Promise<AnalyzerSpan[]> {
-  const entities = resolveEntities(entityTypes, patterns)
+  // Guardrails convention: an empty selection means "detect all". Sending no
+  // `entities` keeps that, and the server still runs the custom recognizers under
+  // detect-all — so a custom pattern augments the built-in detectors, never
+  // silently replaces them.
+  const entities = entityTypes.length > 0 ? entityTypes : undefined
 
   // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
   const response = await fetch(`${PII_URL}/analyze`, {
@@ -114,7 +122,7 @@ async function analyzeBatch(
   language: string,
   patterns?: CustomPiiPattern[]
 ): Promise<AnalyzerSpan[][]> {
-  const entities = resolveEntities(entityTypes, patterns)
+  const entities = resolveBatchEntities(entityTypes, patterns)
 
   // boundary-raw-fetch: internal call to the Presidio analyzer service via PII_URL
   const response = await fetch(`${PII_URL}/analyze_batch`, {
@@ -188,7 +196,7 @@ async function redactBatch(
   language: string,
   patterns?: CustomPiiPattern[]
 ): Promise<string[] | null> {
-  const entities = resolveEntities(entityTypes, patterns)
+  const entities = resolveBatchEntities(entityTypes, patterns)
 
   // boundary-raw-fetch: internal call to the Presidio combined redact service via PII_URL
   const response = await fetch(`${PII_URL}/redact_batch`, {

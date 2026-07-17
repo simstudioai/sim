@@ -326,7 +326,11 @@ def build_custom_recognizers(
         recognizers.append(
             PatternRecognizer(
                 supported_entity=entity,
-                patterns=[Pattern(name=p.name or entity, regex=p.regex, score=0.5)],
+                # Score 1.0 so a user's explicit pattern wins any overlap with a
+                # built-in detector (e.g. spaCy tagging "EMP-123456" as ORGANIZATION
+                # under detect-all). Presidio resolves overlapping spans by score, so
+                # the custom replacement — not the built-in token — is applied.
+                patterns=[Pattern(name=p.name or entity, regex=p.regex, score=1.0)],
                 supported_language=language,
             )
         )
@@ -337,12 +341,17 @@ def build_custom_recognizers(
 def resolve_entities(
     req_entities: list[str] | None, custom_entity_ids: list[str]
 ) -> list[str] | None:
-    """Effective entity filter: the requested built-ins plus the custom entity ids.
-    `None` (detect all built-ins) is preserved only when neither is present, so a
-    custom-only request never widens into detecting every built-in entity."""
-    if req_entities is None and not custom_entity_ids:
+    """Effective entity filter.
+
+    `None` means detect-all built-ins (the guardrails "empty selection = detect
+    everything" convention); the ad-hoc custom recognizers still fire under `None`,
+    so adding a custom pattern augments detect-all rather than silently disabling
+    the built-in detectors. An explicit list — including the empty list, which is
+    the data-retention "only these custom patterns" shape — is used verbatim, with
+    the custom ids appended."""
+    if req_entities is None:
         return None
-    return list(req_entities or []) + custom_entity_ids
+    return list(req_entities) + custom_entity_ids
 
 
 class AnalyzeRequest(BaseModel):
