@@ -12,6 +12,9 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Stores')
 
+/** localStorage key for the admin recent-impersonations list; kept through clearUserData. */
+export const RECENT_IMPERSONATIONS_STORAGE_KEY = 'recent-impersonations'
+
 /**
  * Reset all Zustand stores and React Query caches to initial state.
  */
@@ -50,8 +53,7 @@ export async function clearUserData(): Promise<void> {
   try {
     resetAllStores()
 
-    // Clear localStorage except for essential app settings
-    const keysToKeep = ['next-favicon', 'theme']
+    const keysToKeep = ['next-favicon', 'theme', RECENT_IMPERSONATIONS_STORAGE_KEY]
     const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
     keysToRemove.forEach((key) => localStorage.removeItem(key))
 
