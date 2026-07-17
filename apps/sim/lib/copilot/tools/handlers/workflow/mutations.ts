@@ -393,9 +393,23 @@ export async function executeCreateWorkflow(
     }
     const workspaceId =
       params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    const folderId = params?.folderId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
+    const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
+    let folderId =
+      typeof params?.folderId === 'string' && params.folderId.trim() ? params.folderId.trim() : null
+    if (folderPath) {
+      const relativePath = workflowFolderRelativePath(folderPath)
+      if (!relativePath) {
+        folderId = null
+      } else {
+        const target = resolveFolderIdByPath(folderPath, await loadFolderPathIndex(workspaceId))
+        if ('error' in target) return { success: false, error: target.error }
+        folderId = target.folderId
+      }
+    }
+
     await assertFolderMutable(folderId)
     assertWorkflowMutationNotAborted(context)
 
@@ -1230,40 +1244,57 @@ function workflowFolderRelativePath(rawPath: string): string {
   return trimmed.startsWith('workflows/') ? trimmed.slice('workflows/'.length) : trimmed
 }
 
+type FolderPathIndex = Map<string, string | null>
+
 /**
- * Load a lookup from each folder's canonical encoded VFS path to its id by
- * inverting the same {@link buildVfsFolderPathMap} the VFS uses to serve folder
- * paths, so a path the agent sees via glob round-trips to the right id. Fetched
- * once per manage_folder call and reused across target + parent resolution.
+ * Load an index from each canonical encoded VFS path to its folder id. A null
+ * value records that multiple folder ids collapse to the same canonical path,
+ * so callers can reject the ambiguous path instead of silently choosing one.
  */
-async function loadFolderPathToIdMap(workspaceId: string): Promise<Map<string, string>> {
-  const byPath = new Map<string, string>()
+async function loadFolderPathIndex(workspaceId: string): Promise<FolderPathIndex> {
+  const byPath: FolderPathIndex = new Map()
   for (const [folderId, encodedPath] of buildVfsFolderPathMap(
     await listFolders(workspaceId)
   ).entries()) {
-    byPath.set(encodedPath, folderId)
+    if (!byPath.has(encodedPath)) {
+      byPath.set(encodedPath, folderId)
+    } else if (byPath.get(encodedPath) !== folderId) {
+      byPath.set(encodedPath, null)
+    }
   }
   return byPath
 }
 
-function lookupFolderIdByPath(rawPath: string, byPath: Map<string, string>): string | null {
+function resolveFolderIdByPath(
+  rawPath: string,
+  byPath: FolderPathIndex,
+  label = 'Folder'
+): { folderId: string } | { error: string } {
   const relative = workflowFolderRelativePath(rawPath)
-  if (!relative) return null
-  return byPath.get(encodeVfsPathSegments(decodeVfsPathSegments(relative))) ?? null
+  if (!relative) return { error: `${label} not found at ${rawPath}` }
+
+  const canonicalPath = encodeVfsPathSegments(decodeVfsPathSegments(relative))
+  if (!byPath.has(canonicalPath)) return { error: `${label} not found at ${rawPath}` }
+
+  const folderId = byPath.get(canonicalPath)
+  if (!folderId) {
+    return {
+      error: `${label} path is ambiguous after canonicalization: ${rawPath}. Rename one of the conflicting folders and retry.`,
+    }
+  }
+  return { folderId }
 }
 
 /** Resolve the folder a manage_folder op targets, preferring folderId over path. */
 async function resolveManageFolderTarget(
   params: ManageFolderParams,
-  getFolderPaths: () => Promise<Map<string, string>>
+  getFolderPaths: () => Promise<FolderPathIndex>
 ): Promise<{ folderId: string } | { error: string }> {
   const directId = typeof params.folderId === 'string' ? params.folderId.trim() : ''
   if (directId) return { folderId: directId }
   const path = typeof params.path === 'string' ? params.path.trim() : ''
   if (!path) return { error: 'Provide the folder path (e.g. "workflows/Marketing") or folderId.' }
-  const folderId = lookupFolderIdByPath(path, await getFolderPaths())
-  if (!folderId) return { error: `Folder not found at ${path}` }
-  return { folderId }
+  return resolveFolderIdByPath(path, await getFolderPaths())
 }
 
 /**
@@ -1273,16 +1304,16 @@ async function resolveManageFolderTarget(
  */
 async function resolveManageFolderParent(
   params: ManageFolderParams,
-  getFolderPaths: () => Promise<Map<string, string>>
+  getFolderPaths: () => Promise<FolderPathIndex>
 ): Promise<{ parentId: string | null } | { error: string }> {
   const directId = typeof params.parentId === 'string' ? params.parentId.trim() : ''
   if (directId) return { parentId: directId }
   if (params.parentId === null) return { parentId: null }
   const dest = typeof params.destinationPath === 'string' ? params.destinationPath.trim() : ''
   if (!dest || !workflowFolderRelativePath(dest)) return { parentId: null }
-  const parentId = lookupFolderIdByPath(dest, await getFolderPaths())
-  if (!parentId) return { error: `Destination folder not found at ${dest}` }
-  return { parentId }
+  const parent = resolveFolderIdByPath(dest, await getFolderPaths(), 'Destination folder')
+  if ('error' in parent) return parent
+  return { parentId: parent.folderId }
 }
 
 /**
@@ -1302,8 +1333,8 @@ export async function executeManageFolder(
     // Fetch the workspace folder list at most once, lazily — only when a path
     // (vs an explicit id) actually needs resolving, and shared across the
     // target + parent lookups a single move/create performs.
-    let folderPathsPromise: Promise<Map<string, string>> | undefined
-    const getFolderPaths = () => (folderPathsPromise ??= loadFolderPathToIdMap(workspaceId))
+    let folderPathsPromise: Promise<FolderPathIndex> | undefined
+    const getFolderPaths = () => (folderPathsPromise ??= loadFolderPathIndex(workspaceId))
 
     switch (operation) {
       case 'create': {
@@ -1318,14 +1349,13 @@ export async function executeManageFolder(
           name = segments[segments.length - 1]
           const parentSegments = segments.slice(0, -1)
           if (parentSegments.length > 0) {
-            const resolved = lookupFolderIdByPath(
+            const parent = resolveFolderIdByPath(
               encodeVfsPathSegments(parentSegments),
-              await getFolderPaths()
+              await getFolderPaths(),
+              'Parent folder'
             )
-            if (!resolved) {
-              return { success: false, error: `Parent folder not found for ${path}` }
-            }
-            parentId = resolved
+            if ('error' in parent) return { success: false, error: parent.error }
+            parentId = parent.folderId
           }
         } else {
           const parent = await resolveManageFolderParent(params, getFolderPaths)
