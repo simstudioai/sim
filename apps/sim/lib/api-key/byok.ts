@@ -5,8 +5,10 @@ import { and, asc, eq } from 'drizzle-orm'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { getHostedModels } from '@/providers/models'
+import { getHostedModels, getProviderHosting } from '@/providers/models'
 import { PROVIDER_PLACEHOLDER_KEY } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { BYOKProviderId } from '@/tools/types'
@@ -87,12 +89,67 @@ export async function getBYOKKey(
   }
 }
 
+export interface ApiKeyResolution {
+  apiKey: string
+  isBYOK: boolean
+  /** Env var name of the platform key used (only when a hosted-key-pool key was acquired). */
+  hostedKeyEnvVar?: string
+}
+
 export async function getApiKeyWithBYOK(
   provider: string,
   model: string,
   workspaceId: string | undefined | null,
-  userProvidedKey?: string
-): Promise<{ apiKey: string; isBYOK: boolean }> {
+  userProvidedKey?: string,
+  userId?: string | null
+): Promise<ApiKeyResolution> {
+  // Unified hosted-key path (flag-gated). For any provider with a hosting config:
+  // workspace BYOK key wins, then a user-provided key (never billed via the pool),
+  // otherwise acquire a platform key through the shared hosted-key framework with no
+  // rate limiting. Mirrors tool hosted-key precedence. Falls through to the legacy
+  // per-provider logic when the flag is off or no platform keys are configured,
+  // keeping flag-off behavior identical.
+  if (isHosted && workspaceId) {
+    const hosting = getProviderHosting(provider)
+    if (hosting && (await isFeatureEnabled('hosted-key-llm', { userId }))) {
+      const byokResult = await getBYOKKey(workspaceId, hosting.byokProviderId)
+      if (byokResult) {
+        logger.info('Using BYOK key (hosted-key-llm)', { provider, model, workspaceId })
+        return byokResult
+      }
+
+      // A user-supplied key takes precedence over the platform pool — use it as-is
+      // and never bill it through hosted-key metrics/cost.
+      if (userProvidedKey) {
+        return { apiKey: userProvidedKey, isBYOK: false }
+      }
+
+      const acquired = await getHostedKeyRateLimiter().acquireKey(
+        hosting.byokProviderId,
+        hosting.envKeyPrefix,
+        { mode: 'none' },
+        workspaceId
+      )
+      if (acquired.success && acquired.key) {
+        logger.info('Using hosted platform key (hosted-key-llm)', {
+          provider,
+          model,
+          workspaceId,
+          key: acquired.envVarName,
+        })
+        return {
+          apiKey: acquired.key,
+          isBYOK: false,
+          hostedKeyEnvVar: acquired.envVarName,
+        }
+      }
+      logger.debug('No hosted platform keys configured, falling back to legacy path', {
+        provider,
+        model,
+      })
+    }
+  }
+
   const isOllamaModel =
     provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {

@@ -1,6 +1,15 @@
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
 
-export type HostedKeyRateLimitMode = 'per_request' | 'custom'
+export type HostedKeyRateLimitMode = 'per_request' | 'custom' | 'none'
+
+/**
+ * No rate limiting. Skips the FIFO queue and per-actor token buckets entirely;
+ * `acquireKey` only does round-robin key selection. Used by hosted LLM providers,
+ * which are not subject to shared per-workspace request limits.
+ */
+export interface NoRateLimit {
+  mode: 'none'
+}
 
 /**
  * Simple per-request rate limit configuration.
@@ -46,8 +55,11 @@ interface RateLimitDimension {
   extractUsage: (params: Record<string, unknown>, response: Record<string, unknown>) => number
 }
 
+/** Rate-limited configs (those that enforce a per-actor request limit). Excludes `none`. */
+export type EnforcedRateLimitConfig = PerRequestRateLimit | CustomRateLimit
+
 /** Union of all hosted key rate limit configuration types */
-export type HostedKeyRateLimitConfig = PerRequestRateLimit | CustomRateLimit
+export type HostedKeyRateLimitConfig = EnforcedRateLimitConfig | NoRateLimit
 
 /**
  * Result from acquiring a key from the hosted key rate limiter

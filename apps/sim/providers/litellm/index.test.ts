@@ -22,6 +22,9 @@ vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 
 vi.mock('@/lib/core/config/env', () => ({
   env: { LITELLM_BASE_URL: 'http://litellm.test', LITELLM_API_KEY: '' },
+  getEnv: (_key: string) => undefined,
+  isTruthy: (v: unknown) => v === true || v === 'true' || v === '1',
+  isFalsy: (v: unknown) => v === false || v === 'false' || v === '0',
 }))
 
 vi.mock('@/stores/providers', () => ({

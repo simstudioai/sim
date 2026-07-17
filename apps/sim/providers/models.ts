@@ -34,6 +34,7 @@ import {
   ZaiIcon,
 } from '@/components/icons'
 import type { ModelPricing, ProviderId } from '@/providers/types'
+import type { BYOKProviderId } from '@/tools/types'
 
 export interface ModelCapabilities {
   temperature?: {
@@ -88,6 +89,26 @@ export interface ProviderDefinition {
   contextInformationAvailable?: boolean
   /** Agent-block file attachment limit and large-file delivery for this provider. */
   fileAttachment?: ProviderFileAttachment
+  /**
+   * Hosted-key configuration. When set (and the `hosted-key-llm` flag is on), the
+   * platform supplies rate-limit-free API keys for this provider's models, BYOK
+   * workspace keys take precedence, and usage is billed/metered through the shared
+   * hosted-key framework. Absence means the provider is never platform-hosted.
+   */
+  hosting?: ProviderHostingConfig
+}
+
+/**
+ * Hosted-key settings for an LLM provider. Unlike tools (which declare a
+ * `per_request`/`custom` pricing config), LLM cost is always token-based and
+ * computed directly via `calculateCost` — there is no pricing field. LLMs are
+ * never rate-limited (acquired with `mode: 'none'`), so there is no `rateLimit`.
+ */
+export interface ProviderHostingConfig {
+  /** Env var prefix for platform keys, e.g. 'OPENAI_API_KEY' (resolves `_1.._N`). */
+  envKeyPrefix: string
+  /** BYOK provider id — workspace-key precedence + hosted-key metric labels. */
+  byokProviderId: BYOKProviderId
 }
 
 /**
@@ -116,9 +137,18 @@ export function getProviderFileAttachment(providerId: string): ProviderFileAttac
   return PROVIDER_DEFINITIONS[providerId]?.fileAttachment ?? DEFAULT_FILE_ATTACHMENT
 }
 
+/** Hosted-key config for a provider, or undefined when it is never platform-hosted. */
+export function getProviderHosting(providerId: string): ProviderHostingConfig | undefined {
+  return PROVIDER_DEFINITIONS[providerId]?.hosting
+}
+
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   fireworks: {
     id: 'fireworks',
+    hosting: {
+      envKeyPrefix: 'FIREWORKS_API_KEY',
+      byokProviderId: 'fireworks',
+    },
     name: 'Fireworks',
     description: 'Fast inference for open-source models via Fireworks AI',
     defaultModel: '',
@@ -135,6 +165,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   together: {
     id: 'together',
+    hosting: {
+      envKeyPrefix: 'TOGETHER_API_KEY',
+      byokProviderId: 'together',
+    },
     fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Together AI',
     description: 'Fast inference for open-source models via Together AI',
@@ -152,6 +186,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   baseten: {
     id: 'baseten',
+    hosting: {
+      envKeyPrefix: 'BASETEN_API_KEY',
+      byokProviderId: 'baseten',
+    },
     fileAttachment: { maxBytes: 25 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Baseten',
     description: 'Fast inference for open-source models via Baseten Model APIs',
@@ -185,6 +223,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   'ollama-cloud': {
     id: 'ollama-cloud',
+    hosting: {
+      envKeyPrefix: 'OLLAMA_CLOUD_API_KEY',
+      byokProviderId: 'ollama-cloud',
+    },
     name: 'Ollama Cloud',
     description: 'Hosted open-source models via Ollama Cloud (bring your own key)',
     defaultModel: '',
@@ -228,6 +270,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openai: {
     id: 'openai',
+    hosting: {
+      envKeyPrefix: 'OPENAI_API_KEY',
+      byokProviderId: 'openai',
+    },
     fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
     name: 'OpenAI',
     description: "OpenAI's models",
@@ -724,6 +770,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   anthropic: {
     id: 'anthropic',
+    hosting: {
+      envKeyPrefix: 'ANTHROPIC_API_KEY',
+      byokProviderId: 'anthropic',
+    },
     fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Anthropic',
     description: "Anthropic's Claude models",
@@ -1424,6 +1474,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   google: {
     id: 'google',
+    hosting: {
+      envKeyPrefix: 'GEMINI_API_KEY',
+      byokProviderId: 'google',
+    },
     fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
     name: 'Google',
     description: "Google's Gemini models",
@@ -2858,6 +2912,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   mistral: {
     id: 'mistral',
+    hosting: {
+      envKeyPrefix: 'MISTRAL_API_KEY',
+      byokProviderId: 'mistral',
+    },
     name: 'Mistral AI',
     description: "Mistral AI's language models",
     defaultModel: 'mistral-large-latest',

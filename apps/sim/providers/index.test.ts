@@ -85,6 +85,22 @@ describe('executeProviderRequest — BYOK regression', () => {
     expect(result.cost?.output).toBe(0)
   })
 
+  it('strips a client-supplied hostedKey so it cannot skew streaming cost/metrics', async () => {
+    // User-provided key path: no platform pool key acquired (no hostedKeyEnvVar).
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-user', isBYOK: false })
+    mockExecuteRequest.mockResolvedValue(makeAnthropicResponse())
+
+    await executeProviderRequest('anthropic', {
+      model: 'claude-opus-4-6',
+      workspaceId: 'ws-1',
+      // Untrusted, client-supplied — must not reach the provider/streaming settlement.
+      hostedKey: { provider: 'anthropic', envVar: 'ANTHROPIC_API_KEY_1' },
+    })
+
+    const passedRequest = mockExecuteRequest.mock.calls[0][0] as { hostedKey?: unknown }
+    expect(passedRequest.hostedKey).toBeUndefined()
+  })
+
   it('zeroes per-segment model cost for BYOK callers so trace aggregation does not re-charge', async () => {
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-byok', isBYOK: true })
     mockExecuteRequest.mockResolvedValue(makeAnthropicResponse())

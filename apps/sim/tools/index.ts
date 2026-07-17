@@ -3,6 +3,11 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { getBYOKKey } from '@/lib/api-key/byok'
+import {
+  calculateHostedCost,
+  classifyHostedKeyFailure,
+  emitHostedKeyUsage,
+} from '@/lib/api-key/hosted-cost'
 import { generateInternalToken } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
@@ -455,22 +460,6 @@ function isRateLimitError(error: unknown): boolean {
   return false
 }
 
-/**
- * Map a thrown tool error to a hosted-key failure reason for metrics. Mirrors
- * `isRateLimitError`: some providers signal quota/rate-limit via 401/403 with a
- * descriptive message, so those count as `rate_limited`, not `auth`.
- */
-function classifyHostedKeyFailure(error: unknown): 'rate_limited' | 'auth' | 'other' {
-  const status = (error as { status?: number } | null)?.status
-  if (status === 429 || status === 503) return 'rate_limited'
-  if (status === 401 || status === 403) {
-    const message = ((error as { message?: string } | null)?.message ?? '').toLowerCase()
-    if (message.includes('quota') || message.includes('rate limit')) return 'rate_limited'
-    return 'auth'
-  }
-  return 'other'
-}
-
 /** Context for retry with rate limit tracking */
 interface RetryContext {
   requestId: string
@@ -580,30 +569,15 @@ interface ToolCostResult {
 }
 
 /**
- * Calculate cost based on pricing model
+ * Calculate cost based on pricing model. Delegates to the shared
+ * {@link calculateHostedCost} so tools and LLM providers bill identically.
  */
 function calculateToolCost(
   pricing: ToolHostingPricing,
   params: Record<string, unknown>,
   response: Record<string, unknown>
 ): ToolCostResult {
-  switch (pricing.type) {
-    case 'per_request':
-      return { cost: pricing.cost }
-
-    case 'custom': {
-      const result = pricing.getCost(params, response)
-      if (typeof result === 'number') {
-        return { cost: result }
-      }
-      return result
-    }
-
-    default: {
-      const exhaustiveCheck: never = pricing
-      throw new Error(`Unknown pricing type: ${(exhaustiveCheck as ToolHostingPricing).type}`)
-    }
-  }
+  return calculateHostedCost(pricing, params, response)
 }
 
 interface HostedKeyCostResult {
@@ -730,8 +704,7 @@ async function applyHostedKeyCostToResult(
 
   const provider = tool.hosting?.byokProviderId || tool.id
   const key = envVarName ?? 'unknown'
-  hostedKeyMetrics.recordUsed({ provider, tool: tool.id, key })
-  hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
+  emitHostedKeyUsage({ provider, tool: tool.id, key, costTotal: hostedKeyCost })
 
   if (hostedKeyCost > 0) {
     finalResult.output = {

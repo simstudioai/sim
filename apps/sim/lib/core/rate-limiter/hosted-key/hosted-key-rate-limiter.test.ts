@@ -86,10 +86,13 @@ describe('HostedKeyRateLimiter', () => {
       }
       mockAdapter.consumeTokens.mockResolvedValue(allowedResult)
 
-      process.env.EXA_API_KEY_COUNT = undefined
-      process.env.EXA_API_KEY_1 = undefined
-      process.env.EXA_API_KEY_2 = undefined
-      process.env.EXA_API_KEY_3 = undefined
+      // Empty string is falsy, so no key resolves. (Assigning `undefined` would
+      // leave the string "undefined" under vitest's env handling, which the
+      // `_1.._N` probe — used when `_COUNT` is absent — would treat as present.)
+      process.env.EXA_API_KEY_COUNT = ''
+      process.env.EXA_API_KEY_1 = ''
+      process.env.EXA_API_KEY_2 = ''
+      process.env.EXA_API_KEY_3 = ''
 
       const result = await rateLimiter.acquireKey(
         testProvider,
@@ -100,6 +103,38 @@ describe('HostedKeyRateLimiter', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('No hosted keys configured')
+    })
+
+    it('mode: none returns a key without touching the queue or token bucket', async () => {
+      const result = await rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        { mode: 'none' },
+        'workspace-1'
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.key).toBe('test-key-1')
+      expect(result.envVarName).toBe('EXA_API_KEY_1')
+      expect(mockQueue.enqueue).not.toHaveBeenCalled()
+      expect(mockAdapter.consumeTokens).not.toHaveBeenCalled()
+    })
+
+    it('mode: none still reports an error when no keys are configured', async () => {
+      process.env.EXA_API_KEY_COUNT = ''
+      process.env.EXA_API_KEY_1 = ''
+      process.env.EXA_API_KEY_2 = ''
+      process.env.EXA_API_KEY_3 = ''
+
+      const result = await rateLimiter.acquireKey(
+        testProvider,
+        envKeyPrefix,
+        { mode: 'none' },
+        'workspace-1'
+      )
+
+      expect(result.success).toBe(false)
+      expect(mockQueue.enqueue).not.toHaveBeenCalled()
     })
 
     it('should rate limit billing actor when wait exceeds the queue cap', async () => {

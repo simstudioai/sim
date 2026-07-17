@@ -43,7 +43,12 @@ const {
 })
 
 vi.mock('openai', () => ({ AzureOpenAI: mockAzureOpenAI }))
-vi.mock('@/lib/core/config/env', () => ({ env: envState }))
+vi.mock('@/lib/core/config/env', () => ({
+  env: envState,
+  getEnv: (key: string) => (envState as Record<string, string | undefined>)[key],
+  isTruthy: (v: unknown) => v === true || v === 'true' || v === '1',
+  isFalsy: (v: unknown) => v === false || v === 'false' || v === '0',
+}))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidate,

@@ -64,6 +64,14 @@ const FEATURE_FLAGS = {
       'user context — use enabled:true for global rollout rather than per-user targeting.',
     fallback: 'MOTHERSHIP_BETA_FEATURES',
   },
+  'hosted-key-llm': {
+    description:
+      'Route hosted LLM provider calls through the hosted-key framework (acquire + centralized ' +
+      'cost + metrics), with no rate limiting. Off = legacy getRotatingApiKey path. Evaluated ' +
+      'server-side with userId only (no orgId in the provider request), so roll out globally or ' +
+      'per-userId.',
+    fallback: 'HOSTED_KEY_LLM',
+  },
   'table-snapshot-cache': {
     description:
       'Mount Sim tables into code sandboxes by reference via a version-keyed CSV snapshot in ' +

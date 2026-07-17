@@ -1,17 +1,21 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
+import { classifyHostedKeyFailure, emitHostedKeyUsage } from '@/lib/api-key/hosted-cost'
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
+import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import type { StreamingExecution } from '@/executor/types'
 import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
 import { getProviderExecutor } from '@/providers/registry'
+import { recordHostedStreamFailure } from '@/providers/streaming-execution'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   calculateCost,
   generateStructuredOutputInstructions,
+  isCachedInput,
   shouldBillModelUsage,
   sumToolCosts,
   supportsReasoningEffort,
@@ -31,6 +35,11 @@ export const MAX_TOOL_ITERATIONS = 20
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
   const model = sanitizedRequest.model
+
+  // `hostedKey` is server-only: strip any client-supplied value so it can never
+  // be trusted. executeProviderRequest sets it solely when it acquires a platform
+  // pool key, which gates streaming cost settlement / hosted-key metrics.
+  sanitizedRequest.hostedKey = undefined
 
   if (model && !supportsTemperature(model)) {
     sanitizedRequest.temperature = undefined
@@ -142,6 +151,8 @@ export async function executeProviderRequest(
 
   let resolvedRequest = sanitizeRequest(request)
   let isBYOK = false
+  /** Env var of the platform hosted-key used, when one was acquired from our pool. */
+  let hostedKeyEnvVar: string | undefined
 
   if (request.workspaceId) {
     try {
@@ -149,15 +160,22 @@ export async function executeProviderRequest(
         providerId,
         request.model,
         request.workspaceId,
-        request.apiKey
+        request.apiKey,
+        request.userId
       )
       resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
       isBYOK = result.isBYOK
+      hostedKeyEnvVar = result.hostedKeyEnvVar
+      if (hostedKeyEnvVar) {
+        // Thread to the streaming seam so it can emit hosted-key cost on drain.
+        resolvedRequest.hostedKey = { provider: providerId, envVar: hostedKeyEnvVar }
+      }
       logger.info('API key resolved', {
         provider: providerId,
         model: request.model,
         workspaceId: request.workspaceId,
         isBYOK,
+        hostedKey: hostedKeyEnvVar,
       })
     } catch (error) {
       logger.error('Failed to resolve API key:', {
@@ -197,12 +215,37 @@ export async function executeProviderRequest(
   await attachLargeFileRemoteUrls(sanitizedRequest, providerId)
   await uploadLargeFilesToProvider(sanitizedRequest, providerId)
 
-  const response = await provider.executeRequest(sanitizedRequest)
+  let response: ProviderResponse | ReadableStream | StreamingExecution
+  try {
+    response = await provider.executeRequest(sanitizedRequest)
+  } catch (error) {
+    if (hostedKeyEnvVar) {
+      hostedKeyMetrics.recordFailed({
+        provider: providerId,
+        tool: request.model,
+        key: hostedKeyEnvVar,
+        reason: classifyHostedKeyFailure(error),
+      })
+    }
+    throw error
+  }
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })
     if (isBYOK) {
       zeroCostForBYOK(response)
+    } else if (hostedKeyEnvVar) {
+      // Hosted key used: record usage at dispatch. Cost is settled per-provider on
+      // successful stream drain (createStreamingExecution, or gemini's bespoke
+      // finalizer); a mid-stream error records a failure here — provider-agnostic,
+      // so it covers gemini and any non-wrapper stream too.
+      const model = response.execution.output?.model ?? request.model
+      hostedKeyMetrics.recordUsed({ provider: providerId, tool: model, key: hostedKeyEnvVar })
+      response.stream = recordHostedStreamFailure(
+        response.stream,
+        { provider: providerId, envVar: hostedKeyEnvVar },
+        model
+      )
     }
     return response
   }
@@ -214,9 +257,13 @@ export async function executeProviderRequest(
 
   if (response.tokens) {
     const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens
-    const useCachedInput = !!request.context && request.context.length > 0
+    const useCachedInput = isCachedInput(request.context)
 
-    const shouldBill = shouldBillModelUsage(response.model) && !isBYOK
+    // Bill when a platform key was used (hosted-key pool) or for a legacy hosted
+    // model, and never for BYOK. The explicit hosted-key signal lets us bill any
+    // hosting-configured provider without changing getHostedModels().
+    const usedHostedKey = !!hostedKeyEnvVar
+    const shouldBill = !isBYOK && (usedHostedKey || shouldBillModelUsage(response.model))
     if (shouldBill) {
       const costMultiplier = getCostMultiplier()
       response.cost = calculateCost(
@@ -227,6 +274,14 @@ export async function executeProviderRequest(
         costMultiplier,
         costMultiplier
       )
+      if (usedHostedKey) {
+        emitHostedKeyUsage({
+          provider: providerId,
+          tool: response.model,
+          key: hostedKeyEnvVar as string,
+          costTotal: response.cost.total,
+        })
+      }
     } else {
       response.cost = {
         input: 0,

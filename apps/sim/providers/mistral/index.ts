@@ -19,6 +19,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isCachedInput,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -155,6 +156,8 @@ export const mistralProvider: ProviderConfig = {
           timing: { kind: 'simple', segmentName: request.model },
           initialTokens: { input: 0, output: 0, total: 0 },
           initialCost: { input: 0, output: 0, total: 0 },
+          hostedKey: request.hostedKey,
+          cached: isCachedInput(request.context),
           createStream: ({ output, finalizeTiming }) =>
             createReadableStreamFromMistralStream(streamResponse, (content, usage) => {
               output.content = content
@@ -480,6 +483,8 @@ export const mistralProvider: ProviderConfig = {
                   count: toolCalls.length,
                 }
               : undefined,
+          hostedKey: request.hostedKey,
+          cached: isCachedInput(request.context),
           createStream: ({ output }) =>
             createReadableStreamFromMistralStream(streamResponse, (content, usage) => {
               output.content = content

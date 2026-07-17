@@ -863,6 +863,11 @@ export function shouldBillModelUsage(model: string): boolean {
   return hostedModels.some((hostedModel) => model.toLowerCase() === hostedModel.toLowerCase())
 }
 
+/** Whether cached-input pricing applies — i.e. prior context/memory was supplied. */
+export function isCachedInput(context: string | null | undefined): boolean {
+  return !!context && context.length > 0
+}
+
 /**
  * Placeholder returned for providers that use their own credential mechanism
  * rather than a user-supplied API key (e.g. AWS Bedrock via IAM/instance profiles).

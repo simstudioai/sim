@@ -175,6 +175,12 @@ export interface ProviderRequest {
   blockNameMapping?: Record<string, string>
   isCopilotRequest?: boolean
   isBYOK?: boolean
+  /**
+   * Set when the request resolved to a platform hosted-key-pool key (not BYOK,
+   * not user-provided). Carries the provider id + env var name so the streaming
+   * cost seam can emit hosted-key usage/cost metrics on drain. Absent otherwise.
+   */
+  hostedKey?: { provider: string; envVar: string }
   azureEndpoint?: string
   azureApiVersion?: string
   vertexProject?: string
