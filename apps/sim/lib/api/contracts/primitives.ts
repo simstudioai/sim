@@ -119,6 +119,19 @@ export const userFileSchema = z
  * expressible policy, so `enabled: true` with an empty list (which would resolve
  * to off and silently skip masking) is rejected at the boundary.
  */
+/**
+ * A user-supplied custom regex pattern. `name` is a label; `regex` is matched
+ * against text; matches are replaced verbatim with `replacement`. Bounds guard
+ * the Presidio boundary (ReDoS/oversized payloads).
+ */
+export const customPatternSchema = z.object({
+  name: z.string().max(100, 'Pattern name is too long'),
+  regex: z.string().min(1, 'Pattern cannot be empty').max(512, 'Pattern is too long'),
+  replacement: z.string().max(100, 'Replacement is too long'),
+})
+
+export type CustomPiiPattern = z.output<typeof customPatternSchema>
+
 export const piiStagePolicySchema = z
   .object({
     enabled: z.boolean(),
@@ -126,11 +139,17 @@ export const piiStagePolicySchema = z
     entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
     /** Language whose Presidio recognizers apply; defaults to English. */
     language: z.enum(PII_LANGUAGE_CODES).optional(),
+    /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+    customPatterns: z.array(customPatternSchema).max(20).optional(),
   })
-  .refine((stage) => !stage.enabled || stage.entityTypes.length > 0, {
-    message: 'An enabled redaction stage must select at least one entity type.',
-    path: ['entityTypes'],
-  })
+  .refine(
+    (stage) =>
+      !stage.enabled || stage.entityTypes.length > 0 || (stage.customPatterns?.length ?? 0) > 0,
+    {
+      message: 'An enabled redaction stage must select at least one entity type or custom pattern.',
+      path: ['entityTypes'],
+    }
+  )
 
 export type PiiStagePolicy = z.output<typeof piiStagePolicySchema>
 
@@ -150,12 +169,14 @@ export const piiStagesSchema = z
   })
   .transform((stages) => {
     const entityTypes = stripNerEntities(stages.blockOutputs.entityTypes)
+    const customPatterns = stages.blockOutputs.customPatterns ?? []
     return {
       ...stages,
       blockOutputs: {
         ...stages.blockOutputs,
         entityTypes,
-        enabled: stages.blockOutputs.enabled && entityTypes.length > 0,
+        enabled:
+          stages.blockOutputs.enabled && (entityTypes.length > 0 || customPatterns.length > 0),
       },
     }
   })

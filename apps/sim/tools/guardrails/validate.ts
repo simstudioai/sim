@@ -1,4 +1,13 @@
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import type { ToolConfig } from '@/tools/types'
+
+/** A row from the `piiCustomPatterns` table subBlock (cells keyed by column header). */
+interface CustomPatternRow {
+  cells?: { Name?: string; Pattern?: string; Replacement?: string }
+  Name?: string
+  Pattern?: string
+  Replacement?: string
+}
 
 export interface GuardrailsValidateInput {
   input: string
@@ -20,10 +29,27 @@ export interface GuardrailsValidateInput {
   piiEntityTypes?: string[]
   piiMode?: string
   piiLanguage?: string
+  piiCustomPatterns?: CustomPatternRow[]
   _context?: {
     workflowId?: string
     workspaceId?: string
   }
+}
+
+/** Map the raw table rows into the wire shape, dropping rows with no pattern. */
+function toCustomPatterns(rows: CustomPatternRow[] | undefined): CustomPiiPattern[] | undefined {
+  if (!Array.isArray(rows)) return undefined
+  const patterns: CustomPiiPattern[] = []
+  for (const row of rows) {
+    const regex = (row?.cells?.Pattern ?? row?.Pattern ?? '').trim()
+    if (!regex) continue
+    patterns.push({
+      name: (row?.cells?.Name ?? row?.Name ?? '').trim(),
+      regex,
+      replacement: row?.cells?.Replacement ?? row?.Replacement ?? '',
+    })
+  }
+  return patterns.length > 0 ? patterns : undefined
 }
 
 export interface GuardrailsValidateOutput {
@@ -116,6 +142,12 @@ export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, Guardra
         visibility: 'user-only',
         description: 'Language for PII detection (default: en)',
       },
+      piiCustomPatterns: {
+        type: 'array',
+        required: false,
+        visibility: 'user-only',
+        description: 'Custom regex patterns to detect and replace (name, pattern, replacement)',
+      },
     },
 
     outputs: {
@@ -185,6 +217,7 @@ export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, Guardra
         piiEntityTypes: params.piiEntityTypes,
         piiMode: params.piiMode,
         piiLanguage: params.piiLanguage,
+        piiCustomPatterns: toCustomPatterns(params.piiCustomPatterns),
         workflowId: params._context?.workflowId,
         workspaceId: params._context?.workspaceId,
       }),
