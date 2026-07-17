@@ -72,7 +72,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 ## File Storage
 
-By default Sim writes uploads to local disk. For production, point it at AWS S3 or Azure Blob. See [Object Storage](/platform/self-hosting/object-storage) for the full setup, bucket layout, and IAM policy.
+By default Sim writes uploads to local disk. For production, point it at AWS S3, Azure Blob, or Google Cloud Storage. See [Object Storage](/platform/self-hosting/object-storage) for the full setup, bucket layout, and IAM policy.
 
 | Variable | Description |
 |----------|-------------|
@@ -82,6 +82,9 @@ By default Sim writes uploads to local disk. For production, point it at AWS S3 
 | `S3_BUCKET_NAME` | General workspace files bucket — set with `AWS_REGION` to enable S3 |
 | `AZURE_STORAGE_CONTAINER_NAME` | General files container — set with Azure credentials to enable Blob (takes precedence over S3) |
 | `AZURE_CONNECTION_STRING` | Azure connection string, or use `AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY` |
+| `GCS_BUCKET_NAME` | General workspace files bucket — enables GCS when neither Azure Blob nor S3 is configured |
+| `GCS_PROJECT_ID` | GCP project ID. Omit to infer from credentials/ADC |
+| `GCS_CREDENTIALS_JSON` | Inline service-account JSON. Omit to use Application Default Credentials (Workload Identity, `GOOGLE_APPLICATION_CREDENTIALS`) |
 
 ## Email Providers
 

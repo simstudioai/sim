@@ -7,7 +7,7 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
-import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
+import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -313,7 +313,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const finalPath = `/api/files/serve/${USE_BLOB_STORAGE ? 'blob' : 's3'}/${encodeURIComponent(presignedUrlResponse.key)}?context=${uploadType}`
+    const finalPath = `/api/files/serve/${getServeStoragePrefix()}/${encodeURIComponent(presignedUrlResponse.key)}?context=${uploadType}`
 
     return NextResponse.json({
       fileName,

@@ -278,6 +278,18 @@ export const env = createEnv({
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: z.string().optional(),                 // Azure container for OpenGraph images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: z.string().optional(),            // Azure container for workspace logos
 
+    // Cloud Storage - Google Cloud Storage
+    GCS_PROJECT_ID:                        z.string().optional(),                  // GCP project ID (optional — inferred from credentials/ADC when unset)
+    GCS_CREDENTIALS_JSON:                  z.string().optional(),                  // Inline service-account JSON. Omit to use Application Default Credentials (Workload Identity, GOOGLE_APPLICATION_CREDENTIALS)
+    GCS_BUCKET_NAME:                       z.string().optional(),                  // GCS bucket for general file storage (enables GCS)
+    GCS_KB_BUCKET_NAME:                    z.string().optional(),                  // GCS bucket for knowledge base files
+    GCS_EXECUTION_FILES_BUCKET_NAME:       z.string().optional(),                  // GCS bucket for workflow execution files
+    GCS_CHAT_BUCKET_NAME:                  z.string().optional(),                  // GCS bucket for chat logos
+    GCS_COPILOT_BUCKET_NAME:               z.string().optional(),                  // GCS bucket for copilot files
+    GCS_PROFILE_PICTURES_BUCKET_NAME:      z.string().optional(),                  // GCS bucket for profile pictures
+    GCS_OG_IMAGES_BUCKET_NAME:             z.string().optional(),                  // GCS bucket for OpenGraph images
+    GCS_WORKSPACE_LOGOS_BUCKET_NAME:       z.string().optional(),                  // GCS bucket for workspace logos
+
 
     // Admission & Burst Protection
     ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod

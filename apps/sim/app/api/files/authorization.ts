@@ -781,7 +781,7 @@ export async function assertToolFileAccess(
  * Get chat storage configuration based on current storage provider
  */
 async function getChatStorageConfig(): Promise<StorageConfig> {
-  const { USE_S3_STORAGE, USE_BLOB_STORAGE } = await import('@/lib/uploads/config')
+  const { USE_S3_STORAGE, USE_BLOB_STORAGE, USE_GCS_STORAGE } = await import('@/lib/uploads/config')
 
   if (USE_BLOB_STORAGE) {
     return {
@@ -796,6 +796,13 @@ async function getChatStorageConfig(): Promise<StorageConfig> {
     return {
       bucket: S3_CHAT_CONFIG.bucket,
       region: S3_CHAT_CONFIG.region,
+    }
+  }
+
+  if (USE_GCS_STORAGE) {
+    const { GCS_CHAT_CONFIG } = await import('@/lib/uploads/config')
+    return {
+      bucket: GCS_CHAT_CONFIG.bucket,
     }
   }
 

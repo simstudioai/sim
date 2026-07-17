@@ -492,8 +492,10 @@ async function handleExternalUrl(
     const {
       S3_EXECUTION_FILES_CONFIG,
       BLOB_EXECUTION_FILES_CONFIG,
+      GCS_EXECUTION_FILES_CONFIG,
       USE_S3_STORAGE,
       USE_BLOB_STORAGE,
+      USE_GCS_STORAGE,
     } = await import('@/lib/uploads/config')
 
     let isExecutionFile = false
@@ -506,6 +508,10 @@ async function handleExternalUrl(
         isExecutionFile = bucketInHost || bucketInPath
       } else if (USE_BLOB_STORAGE && BLOB_EXECUTION_FILES_CONFIG.containerName) {
         isExecutionFile = url.includes(`/${BLOB_EXECUTION_FILES_CONFIG.containerName}/`)
+      } else if (USE_GCS_STORAGE && GCS_EXECUTION_FILES_CONFIG.bucket) {
+        const bucketInHost = parsedUrl.hostname.startsWith(`${GCS_EXECUTION_FILES_CONFIG.bucket}.`)
+        const bucketInPath = parsedUrl.pathname.startsWith(`/${GCS_EXECUTION_FILES_CONFIG.bucket}/`)
+        isExecutionFile = bucketInHost || bucketInPath
       }
     } catch (error) {
       logger.warn('Failed to parse URL for execution file check:', error)

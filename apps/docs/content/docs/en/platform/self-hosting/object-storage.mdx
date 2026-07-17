@@ -1,6 +1,6 @@
 ---
 title: Object Storage
-description: Configure where Sim stores uploaded files — local disk, AWS S3, or Azure Blob
+description: Configure where Sim stores uploaded files — local disk, AWS S3, Azure Blob, or Google Cloud Storage
 ---
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
@@ -8,16 +8,17 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { FAQ } from '@/components/ui/faq'
 
-Sim stores every uploaded file — knowledge base documents, chat attachments, execution outputs, profile pictures, and more — in object storage. Three backends are supported:
+Sim stores every uploaded file — knowledge base documents, chat attachments, execution outputs, profile pictures, and more — in object storage. Four backends are supported:
 
 | Backend | When to use |
 |---------|-------------|
 | **Local disk** | Single-node Docker, local development, evaluation |
 | **[AWS S3](https://aws.amazon.com/s3/)** | Production, especially when running more than one app replica |
 | **[Azure Blob](https://learn.microsoft.com/azure/storage/blobs/)** | Production on Azure |
+| **[Google Cloud Storage](https://cloud.google.com/storage)** | Production on GCP |
 
 <Callout type="warning">
-  Local disk writes to the container's `/uploads` directory. Files are lost when the container is recreated unless that path is on a persistent volume, and they are **not** shared across replicas. For any multi-replica or production deployment, use S3 or Azure Blob.
+  Local disk writes to the container's `/uploads` directory. Files are lost when the container is recreated unless that path is on a persistent volume, and they are **not** shared across replicas. For any multi-replica or production deployment, use S3, Azure Blob, or Google Cloud Storage.
 </Callout>
 
 ## How the backend is selected
@@ -26,9 +27,10 @@ Sim picks the backend automatically from environment variables — there is no e
 
 1. **Azure Blob** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
 2. **AWS S3** — used if `S3_BUCKET_NAME` **and** `AWS_REGION` are set (and Azure is not configured).
-3. **Local disk** — the fallback when neither is configured.
+3. **Google Cloud Storage** — used if `GCS_BUCKET_NAME` is set (and neither Azure nor S3 is configured).
+4. **Local disk** — the fallback when none is configured.
 
-If both Azure and S3 are configured, **Azure wins**. Set only the variables for the backend you intend to use.
+If more than one backend is configured, the first match in that order wins. Set only the variables for the backend you intend to use.
 
 ## Set up AWS S3
 
@@ -201,6 +203,133 @@ AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 
 A full Helm example lives at `helm/sim/examples/values-azure.yaml`.
 
+## Set up Google Cloud Storage
+
+<Steps>
+
+<Step>
+
+### Create the buckets
+
+GCS uses one bucket per purpose, mirroring the S3 layout:
+
+```bash
+export PROJECT_ID=your-project-id
+export LOCATION=us-central1
+
+# Create buckets (names must be globally unique — prefix with your org)
+for name in workspace-files knowledge-base execution-files chat-files \
+            copilot-files profile-pictures og-images workspace-logos; do
+  gcloud storage buckets create "gs://myorg-sim-$name" \
+    --project "$PROJECT_ID" \
+    --location "$LOCATION" \
+    --uniform-bucket-level-access
+done
+```
+
+Keep all buckets **private** (no `allUsers` bindings). Sim serves files through short-lived V4 signed URLs, so the buckets never need public read access.
+
+Because uploads are sent **directly from the browser** via signed `PUT` requests, each bucket needs a CORS policy that allows your Sim origin:
+
+```bash
+cat > /tmp/cors.json <<'EOF'
+[
+  {
+    "origin": ["https://your-sim-domain.com"],
+    "method": ["GET", "PUT"],
+    "responseHeader": ["Content-Type", "ETag", "x-goog-meta-*"],
+    "maxAgeSeconds": 3600
+  }
+]
+EOF
+
+for name in workspace-files knowledge-base execution-files chat-files \
+            copilot-files profile-pictures og-images workspace-logos; do
+  gcloud storage buckets update "gs://myorg-sim-$name" --cors-file=/tmp/cors.json
+done
+```
+
+<Callout type="info">
+  `ETag` must be in `responseHeader` — large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Grant access
+
+Create a service account (or reuse the one your workload runs as) and grant it object access on the buckets:
+
+```bash
+gcloud iam service-accounts create sim-storage --project "$PROJECT_ID"
+
+for name in workspace-files knowledge-base execution-files chat-files \
+            copilot-files profile-pictures og-images workspace-logos; do
+  gcloud storage buckets add-iam-policy-binding "gs://myorg-sim-$name" \
+    --member "serviceAccount:sim-storage@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role roles/storage.objectAdmin
+done
+```
+
+You then have two ways to supply credentials:
+
+- **Application Default Credentials (recommended on GCP)** — run Sim with the service account via GKE Workload Identity (or attach it to the GCE instance) and leave `GCS_CREDENTIALS_JSON` unset. Because there is no private key in this mode, generating signed URLs uses the IAM `signBlob` API — grant the service account `roles/iam.serviceAccountTokenCreator` **on itself**:
+
+  ```bash
+  gcloud iam service-accounts add-iam-policy-binding \
+    "sim-storage@$PROJECT_ID.iam.gserviceaccount.com" \
+    --member "serviceAccount:sim-storage@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role roles/iam.serviceAccountTokenCreator
+  ```
+
+- **Inline key (for Docker Compose or non-GCP hosts)** — create a JSON key for the service account and set `GCS_CREDENTIALS_JSON` to its contents. With a private key present, signed URLs are generated locally and no extra IAM role is needed.
+
+</Step>
+
+<Step>
+
+### Configure environment variables
+
+```bash
+# Credentials — omit both when using Workload Identity / ADC
+GCS_PROJECT_ID=your-project-id            # optional; inferred from credentials when unset
+GCS_CREDENTIALS_JSON='{"type":"service_account","client_email":"...","private_key":"..."}'
+
+# Buckets (per purpose)
+GCS_BUCKET_NAME=myorg-sim-workspace-files
+GCS_KB_BUCKET_NAME=myorg-sim-knowledge-base
+GCS_EXECUTION_FILES_BUCKET_NAME=myorg-sim-execution-files
+GCS_CHAT_BUCKET_NAME=myorg-sim-chat-files
+GCS_COPILOT_BUCKET_NAME=myorg-sim-copilot-files
+GCS_PROFILE_PICTURES_BUCKET_NAME=myorg-sim-profile-pictures
+GCS_OG_IMAGES_BUCKET_NAME=myorg-sim-og-images
+GCS_WORKSPACE_LOGOS_BUCKET_NAME=myorg-sim-workspace-logos
+```
+
+Only `GCS_BUCKET_NAME` is strictly required to switch Sim into GCS mode. Add the others so each file type lands in its own bucket.
+
+</Step>
+
+</Steps>
+
+### GCS bucket reference
+
+| Variable | Stores | Required |
+|----------|--------|----------|
+| `GCS_BUCKET_NAME` | General workspace files | **Yes** (enables GCS) |
+| `GCS_PROJECT_ID` | GCP project ID | No (inferred from credentials/ADC) |
+| `GCS_CREDENTIALS_JSON` | Inline service-account JSON | No (uses Application Default Credentials if unset) |
+| `GCS_KB_BUCKET_NAME` | Knowledge base documents | Recommended |
+| `GCS_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files (default: `sim-execution-files`) | Recommended |
+| `GCS_CHAT_BUCKET_NAME` | Deployed chat assets | Recommended |
+| `GCS_COPILOT_BUCKET_NAME` | Copilot attachments | Recommended |
+| `GCS_PROFILE_PICTURES_BUCKET_NAME` | User avatars | Recommended |
+| `GCS_OG_IMAGES_BUCKET_NAME` | OpenGraph preview images (falls back to `GCS_BUCKET_NAME`) | Optional |
+| `GCS_WORKSPACE_LOGOS_BUCKET_NAME` | Workspace logos (falls back to `GCS_BUCKET_NAME`) | Optional |
+
+A full Helm example (Workload Identity, GKE) lives at `helm/sim/examples/values-gcp.yaml`.
+
 ## Set up an S3-compatible provider (R2, MinIO, B2)
 
 Sim works with any S3-compatible store by pointing the S3 client at a custom endpoint. Configure it exactly like AWS S3 (buckets, access key, secret), then add `S3_ENDPOINT` — and `S3_FORCE_PATH_STYLE` where the provider requires path-style addressing. Verified with [Cloudflare R2](https://developers.cloudflare.com/r2/), [MinIO](https://min.io/), [Backblaze B2](https://www.backblaze.com/cloud-storage), and [RustFS](https://rustfs.com/).
@@ -280,10 +409,11 @@ After restarting with the new configuration:
 If uploads fail, check the app logs for credential or permission errors (see [Troubleshooting](/platform/self-hosting/troubleshooting)).
 
 <FAQ items={[
-  { question: "What happens if I do not configure any storage variables?", answer: "Sim falls back to local disk, writing files to the /uploads directory inside the app container. This is fine for evaluation but not durable across container recreation and not shared across replicas — use S3 or Azure Blob for production." },
+  { question: "What happens if I do not configure any storage variables?", answer: "Sim falls back to local disk, writing files to the /uploads directory inside the app container. This is fine for evaluation but not durable across container recreation and not shared across replicas — use S3, Azure Blob, or Google Cloud Storage for production." },
   { question: "Do I have to create all eight S3 buckets?", answer: "No. Only AWS_REGION and S3_BUCKET_NAME are required to enable S3 mode. The purpose-specific buckets are recommended so each file type is isolated; og-images and workspace-logos fall back to the general bucket if their variables are unset." },
   { question: "How do I avoid storing AWS keys in plaintext?", answer: "On EC2/ECS/EKS, attach the IAM policy to the instance role, task role, or IRSA service-account role and leave AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY unset. Sim resolves credentials through the default AWS SDK provider chain automatically." },
-  { question: "Can I use both S3 and Azure Blob at the same time?", answer: "No. Sim selects a single backend. If both are configured, Azure Blob takes precedence. Set only the variables for the backend you want." },
+  { question: "Can I configure more than one cloud backend at the same time?", answer: "No. Sim selects a single backend, in the order Azure Blob, then S3, then Google Cloud Storage. Set only the variables for the backend you want." },
+  { question: "How do I use GCS without storing a service-account key?", answer: "Run Sim with GKE Workload Identity (or an attached GCE service account) and leave GCS_CREDENTIALS_JSON unset — credentials resolve through Application Default Credentials. Grant the service account roles/iam.serviceAccountTokenCreator on itself so signed URLs can be generated via the IAM signBlob API." },
   { question: "Are the buckets exposed publicly?", answer: "No, and they should not be. Keep them private with public access blocked. Sim serves files to users through short-lived presigned URLs, so the buckets never need public read permissions." },
   { question: "Can I use MinIO or Cloudflare R2?", answer: "Yes. Configure it like AWS S3, then set S3_ENDPOINT to your provider's endpoint. For R2, set AWS_REGION=auto and leave S3_FORCE_PATH_STYLE unset. For MinIO/Ceph, set S3_FORCE_PATH_STYLE=true. See the S3-compatible provider section above." },
 ]} />
