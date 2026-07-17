@@ -214,7 +214,10 @@ export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, Guardra
         bedrockAccessKeyId: params.bedrockAccessKeyId,
         bedrockSecretKey: params.bedrockSecretKey,
         bedrockRegion: params.bedrockRegion,
-        piiEntityTypes: params.piiEntityTypes,
+        // An empty entity-type checkbox serializes to null; the contract's array
+        // field accepts undefined (omitted), not null — so coerce. This is the
+        // common shape when only custom patterns are configured.
+        piiEntityTypes: Array.isArray(params.piiEntityTypes) ? params.piiEntityTypes : undefined,
         piiMode: params.piiMode,
         piiLanguage: params.piiLanguage,
         piiCustomPatterns: toCustomPatterns(params.piiCustomPatterns),
