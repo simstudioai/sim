@@ -19,6 +19,13 @@ const logger = createLogger('ConnectorSyncQueue')
 export interface ConnectorSyncPayload {
   connectorId: string
   fullSync?: boolean
+  /**
+   * Force re-hydration + re-indexing of already-synced documents for connectors
+   * whose rendered content can drift without a hash change (see
+   * `ConnectorMeta.rehydrateOnFullSync`). Unlike `fullSync`, this does NOT alter
+   * listing or bypass any deletion-reconciliation safety guard.
+   */
+  rehydrate?: boolean
   requestId: string
   billingAttribution: BillingAttributionSnapshot
 }
@@ -26,6 +33,7 @@ export interface ConnectorSyncPayload {
 export interface DispatchSyncOptions {
   billingAttribution: BillingAttributionSnapshot
   fullSync?: boolean
+  rehydrate?: boolean
   requestId?: string
 }
 
@@ -46,6 +54,9 @@ export function assertConnectorSyncPayload(value: unknown): ConnectorSyncPayload
   if (value.fullSync !== undefined && typeof value.fullSync !== 'boolean') {
     throw new Error('Connector sync payload fullSync must be a boolean when provided')
   }
+  if (value.rehydrate !== undefined && typeof value.rehydrate !== 'boolean') {
+    throw new Error('Connector sync payload rehydrate must be a boolean when provided')
+  }
   if (value.billingAttribution === undefined) {
     throw new Error('Connector sync payload requires billing attribution')
   }
@@ -53,6 +64,7 @@ export function assertConnectorSyncPayload(value: unknown): ConnectorSyncPayload
   return {
     connectorId: value.connectorId,
     fullSync: value.fullSync as boolean | undefined,
+    rehydrate: value.rehydrate as boolean | undefined,
     requestId: value.requestId,
     billingAttribution: assertBillingAttributionSnapshot(value.billingAttribution),
   }
@@ -74,6 +86,7 @@ export async function dispatchSync(
   const payload = assertConnectorSyncPayload({
     connectorId,
     fullSync: options?.fullSync,
+    rehydrate: options?.rehydrate,
     requestId,
     billingAttribution: options?.billingAttribution,
   })
@@ -147,6 +160,7 @@ export async function dispatchSync(
 
   executeSync(connectorId, {
     fullSync: payload.fullSync,
+    rehydrate: payload.rehydrate,
     billingAttribution: payload.billingAttribution,
   }).catch((error) => {
     logger.error(`Sync failed for connector ${connectorId}`, {

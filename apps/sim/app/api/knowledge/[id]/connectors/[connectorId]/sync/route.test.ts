@@ -138,11 +138,11 @@ describe('Connector Manual Sync API Route', () => {
     expect(mockDispatchSync).toHaveBeenCalledWith('conn-456', {
       billingAttribution,
       requestId: 'test-req-id',
-      fullSync: false,
+      rehydrate: false,
     })
   })
 
-  it('dispatches a full resync when fullSync=true is set', async () => {
+  it('dispatches a full resync when rehydrate=true is set', async () => {
     const billingAttribution = {
       actorUserId: 'external-admin',
       workspaceId: 'ws-1',
@@ -173,7 +173,7 @@ describe('Connector Manual Sync API Route', () => {
       'POST',
       undefined,
       {},
-      'http://localhost:3000/api/knowledge/kb-123/connectors/conn-456/sync?fullSync=true'
+      'http://localhost:3000/api/knowledge/kb-123/connectors/conn-456/sync?rehydrate=true'
     )
     const response = await POST(req as never, { params: mockParams })
 
@@ -181,7 +181,7 @@ describe('Connector Manual Sync API Route', () => {
     expect(mockDispatchSync).toHaveBeenCalledWith('conn-456', {
       billingAttribution,
       requestId: 'test-req-id',
-      fullSync: true,
+      rehydrate: true,
     })
   })
 })

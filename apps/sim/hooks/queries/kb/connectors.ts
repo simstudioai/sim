@@ -204,18 +204,18 @@ export function useDeleteConnector() {
 interface TriggerSyncParams {
   knowledgeBaseId: string
   connectorId: string
-  /** Force a full resync (re-hydrate + re-index rendered content). Defaults to incremental. */
-  fullSync?: boolean
+  /** Force re-hydration + re-index of rendered content (the "Full resync" action). */
+  rehydrate?: boolean
 }
 
 async function triggerSync({
   knowledgeBaseId,
   connectorId,
-  fullSync,
+  rehydrate,
 }: TriggerSyncParams): Promise<void> {
   await requestJson(triggerKnowledgeConnectorSyncContract, {
     params: { id: knowledgeBaseId, connectorId },
-    query: fullSync ? { fullSync: 'true' } : {},
+    query: rehydrate ? { rehydrate: 'true' } : {},
   })
 }
 

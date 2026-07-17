@@ -127,14 +127,14 @@ export function ConnectorsSection({
   }, [])
 
   const handleSync = useCallback(
-    (connectorId: string, fullSync = false) => {
+    (connectorId: string, rehydrate = false) => {
       if (isSyncOnCooldown(connectorId)) return
 
       syncTriggeredAt.current[connectorId] = Date.now()
       addToSet(setSyncingIds, connectorId)
 
       triggerSync(
-        { knowledgeBaseId, connectorId, fullSync },
+        { knowledgeBaseId, connectorId, rehydrate },
         {
           onSuccess: () => {
             setError(null)
@@ -226,7 +226,7 @@ export function ConnectorsSection({
               isSyncPending={syncingIds.has(connector.id)}
               isUpdating={updatingIds.has(connector.id)}
               syncCooldown={isSyncOnCooldown(connector.id)}
-              onSync={(fullSync) => handleSync(connector.id, fullSync)}
+              onSync={(rehydrate) => handleSync(connector.id, rehydrate)}
               onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
               onDelete={() => setDeleteTarget(connector.id)}
@@ -285,7 +285,7 @@ interface ConnectorCardProps {
   isSyncPending: boolean
   isUpdating: boolean
   syncCooldown: boolean
-  onSync: (fullSync?: boolean) => void
+  onSync: (rehydrate?: boolean) => void
   onEdit: () => void
   onTogglePause: () => void
   onDelete: () => void

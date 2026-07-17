@@ -318,7 +318,11 @@ async function resolveAccessToken(
  */
 export async function executeSync(
   connectorId: string,
-  options: { billingAttribution: BillingAttributionSnapshot; fullSync?: boolean }
+  options: {
+    billingAttribution: BillingAttributionSnapshot
+    fullSync?: boolean
+    rehydrate?: boolean
+  }
 ): Promise<SyncResult> {
   const billingAttribution = assertBillingAttributionSnapshot(options?.billingAttribution)
   const result: SyncResult = {
@@ -438,11 +442,16 @@ export async function executeSync(
       isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
 
     /**
-     * On an explicit full resync, re-hydrate and re-index connectors whose rendered
-     * content can drift without a hash change (transclusions) — see
-     * `ConnectorMeta.rehydrateOnFullSync`. Incremental syncs stay hash-gated.
+     * Re-hydrate and re-index connectors whose rendered content can drift without a
+     * hash change (transclusions) — see `ConnectorMeta.rehydrateOnFullSync`. Driven
+     * by the dedicated `rehydrate` request (the "Full resync" action) or implied by a
+     * true `fullSync`. This ONLY affects hydration/indexing — it does not change
+     * listing or bypass any deletion-reconciliation guard. Incremental syncs of other
+     * connectors stay hash-gated.
      */
-    const forceRehydrate = Boolean(options?.fullSync && connectorConfig.rehydrateOnFullSync)
+    const forceRehydrate = Boolean(
+      (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
+    )
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
       if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
