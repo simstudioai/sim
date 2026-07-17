@@ -749,9 +749,8 @@ export async function runWorkflowColumn(opts: {
     runDispatcherToCompletion,
   } = await import('./dispatcher')
 
-  // Per-window parallelism follows the payer's plan, resolved once here and
-  // persisted on the dispatch row so the dispatcher loop reads a stable value
-  // across checkpointed waits and task retries.
+  // Per-window parallelism follows the invoker's plan, resolved once here and
+  // threaded through the dispatcher invocation (task payload / loop arg).
   const concurrency = await resolveTableDispatchConcurrency({
     workspaceId,
     actorUserId: triggeredByUserId,
@@ -780,7 +779,6 @@ export async function runWorkflowColumn(opts: {
         : {}),
     },
     limit,
-    concurrency,
     isManualRun,
     triggeredByUserId,
   })
@@ -884,14 +882,14 @@ export async function runWorkflowColumn(opts: {
     ])
     await tasks.trigger<typeof tableRunDispatcherTask>(
       'table-run-dispatcher',
-      { dispatchId },
+      { dispatchId, concurrency },
       { concurrencyKey: dispatchId, region: await resolveTriggerRegion() }
     )
   } else {
     // Local / no-trigger.dev: drive the same loop in-process, fire-and-forget
     // so the HTTP request returns instantly (mirrors the trigger.dev path's
     // async fan-out).
-    void runDispatcherToCompletion(dispatchId).catch((err) =>
+    void runDispatcherToCompletion(dispatchId, concurrency).catch((err) =>
       logger.error(`[${requestId}] dispatcher loop failed`, {
         dispatchId,
         error: toError(err).message,

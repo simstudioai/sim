@@ -80,9 +80,6 @@ export interface DispatchRow {
   limit: DispatchLimit | null
   /** Units of `limit.type` already consumed (eligible rows dispatched). */
   processedCount: number
-  /** Rows executed in parallel per window, resolved from the payer's plan at
-   *  creation. Null on pre-column rows → legacy cap of 20. */
-  concurrency: number | null
   isManualRun: boolean
   /** User who triggered the run (for usage attribution); null for auto-fire. */
   triggeredByUserId: string | null
@@ -188,8 +185,6 @@ export async function insertDispatch(input: {
   mode: DispatchMode
   scope: DispatchScope
   limit?: DispatchLimit | null
-  /** Per-window parallelism from the payer's plan (see `resolveTableDispatchConcurrency`). */
-  concurrency: number
   isManualRun: boolean
   triggeredByUserId?: string | null
 }): Promise<string> {
@@ -202,7 +197,6 @@ export async function insertDispatch(input: {
     mode: input.mode,
     scope: input.scope,
     limit: input.limit ?? null,
-    concurrency: input.concurrency,
     status: 'pending',
     // -1 = "haven't started." First window's filter `position > -1` matches
     // position 0; subsequent iterations advance to `lastPosition` which then
@@ -292,7 +286,6 @@ export async function listActiveDispatches(tableId: string): Promise<DispatchRow
     cursor: row.cursor,
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
-    concurrency: row.concurrency,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
@@ -317,7 +310,6 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     cursor: row.cursor,
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
-    concurrency: row.concurrency,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
@@ -326,14 +318,23 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
 
 /** Drive `dispatcherStep` to completion. Shared between the trigger.dev task
  *  wrapper (`tableRunDispatcherTask`) and the in-process inline path so both
- *  runtimes use identical loop semantics + error logging. */
-export async function runDispatcherToCompletion(dispatchId: string): Promise<void> {
-  while ((await dispatcherStep(dispatchId)) === 'continue') {}
+ *  runtimes use identical loop semantics + error logging. `concurrency` is the
+ *  invoker's plan-resolved window size (see `resolveTableDispatchConcurrency`),
+ *  threaded via the task payload; absent on payloads from before the field
+ *  existed → legacy cap. */
+export async function runDispatcherToCompletion(
+  dispatchId: string,
+  concurrency?: number
+): Promise<void> {
+  while ((await dispatcherStep(dispatchId, concurrency)) === 'continue') {}
 }
 
 /** Run one window of the dispatcher state machine. Caller re-invokes (via the
  *  trigger.dev task wrapper) until the returned status is `'done'`. */
-export async function dispatcherStep(dispatchId: string): Promise<DispatcherStepResult> {
+export async function dispatcherStep(
+  dispatchId: string,
+  concurrency?: number
+): Promise<DispatcherStepResult> {
   const dispatch = await readDispatch(dispatchId)
   if (!dispatch) {
     logger.warn(`[${dispatchId}] dispatch row missing — aborting`)
@@ -383,10 +384,10 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     })
   }
 
-  // Window size = the dispatch's plan-resolved parallelism, so one window
+  // Window size = the invoker's plan-resolved parallelism, so one window
   // saturates the cell pool before the next is loaded — yields a row-major
-  // scan-line crawl. Pre-column dispatches fall back to the legacy cap.
-  const windowSize = dispatch.concurrency ?? TABLE_CONCURRENCY_LIMIT
+  // scan-line crawl. Payloads without the field fall back to the legacy cap.
+  const windowSize = concurrency ?? TABLE_CONCURRENCY_LIMIT
 
   const filters = [
     eq(userTableRows.tableId, dispatch.tableId),
@@ -800,7 +801,6 @@ export async function markActiveDispatchesCancelled(
     cursor: row.cursor,
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
-    concurrency: row.concurrency,
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
