@@ -8,7 +8,6 @@ export const useTerminalStore = create<TerminalState>()(
     (set) => ({
       terminalHeight: TERMINAL_HEIGHT.DEFAULT,
       lastExpandedHeight: TERMINAL_HEIGHT.DEFAULT,
-      isResizing: false,
       /**
        * Updates the terminal height and synchronizes the CSS custom property.
        *
@@ -33,17 +32,10 @@ export const useTerminalStore = create<TerminalState>()(
           document.documentElement.style.setProperty('--terminal-height', `${clampedHeight}px`)
         }
       },
-      /**
-       * Updates the terminal resize state used to coordinate layout transitions.
-       *
-       * @param isResizing - True while the terminal is being resized via mouse drag.
-       */
-      setIsResizing: (isResizing) => {
-        set({ isResizing })
-      },
       outputPanelWidth: OUTPUT_PANEL_WIDTH.DEFAULT,
       /**
-       * Updates the output panel width, enforcing the minimum constraint.
+       * Updates the output panel width, enforcing the minimum constraint and
+       * synchronizing the `--output-panel-width` CSS custom property.
        *
        * @param width - Desired width in pixels for the output panel.
        */
@@ -51,7 +43,6 @@ export const useTerminalStore = create<TerminalState>()(
         const clampedWidth = Math.max(OUTPUT_PANEL_WIDTH.MIN, width)
         set({ outputPanelWidth: clampedWidth })
 
-        // Update CSS variable for immediate visual feedback
         if (typeof window !== 'undefined') {
           document.documentElement.style.setProperty('--output-panel-width', `${clampedWidth}px`)
         }
@@ -99,9 +90,8 @@ export const useTerminalStore = create<TerminalState>()(
     {
       name: 'terminal-state',
       /**
-       * Persist only the durable terminal UI preferences. The transient
-       * `isResizing` drag flag and the `_hasHydrated` hydration marker are
-       * excluded so they always start fresh on load.
+       * Persist only the durable terminal UI preferences. The `_hasHydrated`
+       * hydration marker is excluded so it always starts fresh on load.
        */
       partialize: (state) => ({
         terminalHeight: state.terminalHeight,
