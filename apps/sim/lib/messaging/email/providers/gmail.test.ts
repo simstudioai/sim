@@ -164,6 +164,43 @@ describe('Gmail mail provider', () => {
       expect(raw).toContain(Buffer.from('report body').toString('base64'))
     })
 
+    it('joins multiple recipients into one To header', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'msg-3' }), { status: 200 })
+      )
+
+      const provider = createGmailProvider()
+      await provider!.send({ ...BASE_DATA, to: ['a@example.com', 'b@example.com'] })
+
+      const [, init] = mockFetch.mock.calls[0]
+      expect((init.body as Buffer).toString()).toContain('To: a@example.com, b@example.com')
+    })
+
+    it('sends text-only messages', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'msg-4' }), { status: 200 })
+      )
+
+      const provider = createGmailProvider()
+      await provider!.send({ ...BASE_DATA, html: undefined, text: 'plain body' })
+
+      const [, init] = mockFetch.mock.calls[0]
+      const raw = (init.body as Buffer).toString()
+      expect(raw).toContain('Content-Type: text/plain')
+      expect(raw).toContain('plain body')
+      expect(raw).not.toContain('text/html')
+    })
+
+    it('treats an accepted send with an empty response body as success (no fallback re-send)', async () => {
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }))
+
+      const provider = createGmailProvider()
+      const result = await provider!.send(BASE_DATA)
+
+      expect(result.success).toBe(true)
+      expect(result.data).toEqual({ id: undefined })
+    })
+
     it('throws when no access token can be obtained', async () => {
       mockGetAccessToken.mockResolvedValueOnce({ token: null })
 

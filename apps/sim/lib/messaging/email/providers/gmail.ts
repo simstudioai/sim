@@ -41,14 +41,22 @@ function parseServiceAccount(credentialsJson: string): GmailServiceAccount | nul
   return credentials as GmailServiceAccount
 }
 
+/**
+ * RFC 822 requires CRLF line endings throughout; MailComposer preserves
+ * caller-supplied bare-LF endings inside html/text bodies, so normalize them.
+ */
+function normalizeCrlf(value: string | undefined): string | undefined {
+  return value?.replace(/\r?\n/g, '\r\n')
+}
+
 /** Build the raw RFC 822 message via nodemailer's composer (multipart, attachments, headers). */
 function buildRawMessage(data: ProcessedEmailData): Promise<Buffer> {
   const composer = new MailComposer({
     from: data.senderEmail,
     to: data.to,
     subject: data.subject,
-    html: data.html,
-    text: data.text,
+    html: normalizeCrlf(data.html),
+    text: normalizeCrlf(data.text),
     replyTo: data.replyTo,
     headers: Object.keys(data.headers).length > 0 ? data.headers : undefined,
     attachments: data.attachments?.map((att) => ({
@@ -123,7 +131,10 @@ export function createGmailProvider(): MailProvider | null {
         )
       }
 
-      const result = (await response.json()) as { id?: string }
+      // Gmail accepted the message once the status is 2xx; a missing or
+      // malformed body must not surface as a send failure, or the mailer's
+      // fallback chain would deliver the same email again via another provider.
+      const result = (await response.json().catch(() => ({}))) as { id?: string }
       return {
         success: true,
         message: 'Email sent successfully via Gmail',
