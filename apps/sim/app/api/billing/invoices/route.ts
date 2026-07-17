@@ -17,8 +17,13 @@ const logger = createLogger('BillingInvoices')
 /** Cap the number of invoices returned to the most recent statements; the UI links out to Stripe's portal for the full history. */
 const MAX_INVOICES = 5
 
-/** Stripe page size when scanning for finalized invoices; also bounds the has-more probe. */
-const STRIPE_PAGE_SIZE = MAX_INVOICES + 1
+/**
+ * Stripe list page size when scanning for finalized invoices. Kept independent of
+ * (and larger than) `MAX_INVOICES` so lowering the display cap never shrinks the
+ * draft-scan window — a long tail of interspersed draft invoices could otherwise
+ * bury finalized statements past the `MAX_STRIPE_PAGES` cap and hide the section.
+ */
+const STRIPE_PAGE_SIZE = 20
 
 /** Safety cap on pagination when a customer has many draft invoices interspersed. */
 const MAX_STRIPE_PAGES = 5
