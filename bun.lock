@@ -194,6 +194,7 @@
         "@tiptap/suggestion": "3.26.1",
         "@trigger.dev/sdk": "4.4.3",
         "@typescript/typescript6": "^6.0.2",
+        "@wasm-fmt/ruff_fmt": "0.15.20",
         "ajv": "8.18.0",
         "better-auth": "1.6.13",
         "binary-extensions": "3.1.0",
@@ -256,6 +257,7 @@
         "posthog-js": "1.364.4",
         "posthog-node": "5.28.9",
         "pptxgenjs": "4.0.1",
+        "prettier": "3.8.4",
         "prismjs": "^1.30.0",
         "react": "19.2.4",
         "react-dom": "19.2.4",
@@ -2080,6 +2082,8 @@
     "@vitest/spy": ["@vitest/spy@4.1.9", "", {}, "sha512-fHpsS6mIi+PiEW+vcRVOMkX1oSaPKne3VOclSFICPcGOmfKgXPU5iAah+wcNcj2xPrCCmfq99IDGf+EojhhvhA=="],
 
     "@vitest/utils": ["@vitest/utils@4.1.9", "", { "dependencies": { "@vitest/pretty-format": "4.1.9", "convert-source-map": "^2.0.0", "tinyrainbow": "^3.1.0" } }, "sha512-A51o8ymO5PpqlWNnBP9ZHPXDIpuMtTLlGSjN7la4US+LJzoUMyhwjA5QXlm39JexgwHKW4Xjs8Z2d3dLCXOeuA=="],
+
+    "@wasm-fmt/ruff_fmt": ["@wasm-fmt/ruff_fmt@0.15.20", "", {}, "sha512-PYij4wTiDSTx6MyBGHSY0nWDjSiTbOB3moPJiZTBL8F0JZLEfHAi4lYAn9SC9Hzm8tVeTnL7Qyf1iPW0TKHVEg=="],
 
     "@webgpu/types": ["@webgpu/types@0.1.70", "", {}, "sha512-LFiNHHKMvmAEvwVew3JLJmTdShhbdwRFSImUshGhE2mGE8ybQzIo63l5uRp+YKnNx+8Qno8Kf6gN+DKMreIJCA=="],
 

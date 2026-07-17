@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import { isRecordLike } from '@sim/utils/object'
 import { describe, expect, it, vi } from 'vitest'
 import { applyOperationsToWorkflowState } from './engine'
 
@@ -55,6 +57,12 @@ vi.mock('@/blocks/registry', () => ({
     return blocks[type] || undefined
   },
 }))
+
+function findBlockIdByName(blocks: unknown, name: string): string | undefined {
+  if (!isRecordLike(blocks)) return undefined
+
+  return Object.entries(blocks).find(([, block]) => isRecordLike(block) && block.name === name)?.[0]
+}
 
 function makeLoopWorkflow() {
   return {
@@ -186,6 +194,98 @@ function makeNestedLoopWorkflow() {
 }
 
 describe('handleEditOperation nestedNodes merge', () => {
+  it('tracks top-level Function IDs for submitted add and edit code', () => {
+    const workflow = makeLoopWorkflow()
+    workflow.blocks['existing-function'] = {
+      id: 'existing-function',
+      type: 'function',
+      name: 'Existing Function',
+      position: { x: 200, y: 200 },
+      enabled: true,
+      subBlocks: {
+        code: { id: 'code', type: 'code', value: 'return 0;' },
+        language: { id: 'language', type: 'dropdown', value: 'javascript' },
+      },
+      outputs: {},
+      data: {},
+    }
+
+    const { state, functionCodeBlockIds } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'existing-function',
+        params: { inputs: { code: 'const edited=1;return edited;' } },
+      },
+      {
+        operation_type: 'add',
+        block_id: 'added-function',
+        params: {
+          type: 'function',
+          name: 'Added Function',
+          inputs: { code: 'const added=1;return added;' },
+        },
+      },
+    ])
+
+    const addedFunctionId = findBlockIdByName(state.blocks, 'Added Function')
+    expect(addedFunctionId).toBeDefined()
+    expect(functionCodeBlockIds).toEqual(new Set([addedFunctionId, 'existing-function']))
+  })
+
+  it('tracks a Function ID when code is submitted during subflow insertion', () => {
+    const { state, functionCodeBlockIds } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+      {
+        operation_type: 'insert_into_subflow',
+        block_id: 'inserted-function',
+        params: {
+          subflowId: 'loop-1',
+          type: 'function',
+          name: 'Inserted Function',
+          inputs: { code: 'const inserted=1;return inserted;' },
+        },
+      },
+    ])
+
+    const insertedFunctionId = findBlockIdByName(state.blocks, 'Inserted Function')
+    expect(insertedFunctionId).toBeDefined()
+    expect(functionCodeBlockIds).toEqual(new Set([insertedFunctionId]))
+  })
+
+  it('tracks resolved Function block IDs with submitted code', () => {
+    const workflow = makeLoopWorkflow()
+    workflow.blocks['existing-function'] = {
+      id: 'existing-function',
+      type: 'function',
+      name: 'Existing Function',
+      position: { x: 200, y: 200 },
+      enabled: true,
+      subBlocks: {
+        code: { id: 'code', type: 'code', value: 'return 0;' },
+        language: { id: 'language', type: 'dropdown', value: 'javascript' },
+      },
+      outputs: {},
+      data: { parentId: 'loop-1', extent: 'parent' },
+    }
+
+    const { functionCodeBlockIds } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'loop-1',
+        params: {
+          nestedNodes: {
+            'incoming-function': {
+              type: 'function',
+              name: 'Existing Function',
+              inputs: { code: 'const value=1;return value;' },
+            },
+          },
+        },
+      },
+    ])
+
+    expect(functionCodeBlockIds).toEqual(new Set(['existing-function']))
+  })
+
   it('preserves existing child block IDs when editing a loop with nestedNodes', () => {
     const workflow = makeLoopWorkflow()
 

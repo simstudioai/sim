@@ -131,12 +131,14 @@ const nextConfig: NextConfig = {
     '@e2b/code-interpreter',
     'e2b',
     '@earendil-works/pi-coding-agent',
+    '@wasm-fmt/ruff_fmt',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
     '/*': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',
+      './node_modules/@wasm-fmt/ruff_fmt/**/*',
       './lib/execution/sandbox/bundles/*.cjs',
     ],
   },

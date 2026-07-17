@@ -13,6 +13,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { formatChangedFunctionCode } from '@/lib/copilot/tools/server/workflow/edit-workflow/function-code-formatting'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import {
@@ -161,7 +162,24 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       state: modifiedWorkflowState,
       validationErrors,
       skippedItems,
+      functionCodeBlockIds,
     } = applyOperationsToWorkflowState(workflowState, operationsToApply, permissionConfig)
+
+    const codeFormatting = await formatChangedFunctionCode(
+      functionCodeBlockIds,
+      modifiedWorkflowState
+    )
+    const codeFormattingFailures = codeFormatting.errors.map(({ blockId, language }) => ({
+      blockId,
+      language,
+    }))
+    if (codeFormattingFailures.length > 0) {
+      logger.warn('Function code formatting failed open', {
+        workflowId,
+        failureCount: codeFormattingFailures.length,
+        blocks: codeFormattingFailures,
+      })
+    }
 
     // Add credential validation errors
     validationErrors.push(...credentialErrors)
@@ -396,6 +414,15 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
       workflowLint,
       ...(workflowLintMessage && { workflowLintMessage }),
+      ...(functionCodeBlockIds.size > 0 && {
+        codeFormatting: {
+          changedBlockIds: codeFormatting.changedBlockIds,
+          failures: codeFormattingFailures,
+        },
+        ...(codeFormattingFailures.length > 0 && {
+          codeFormattingMessage: `${codeFormattingFailures.length} Function block(s) could not be formatted, so their original code was kept unchanged.`,
+        }),
+      }),
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,

@@ -137,6 +137,7 @@ export interface ApplyOperationsResult {
   state: any
   validationErrors: ValidationError[]
   skippedItems: SkippedItem[]
+  functionCodeBlockIds: Set<string>
 }
 
 export interface OperationContext {
@@ -144,6 +145,7 @@ export interface OperationContext {
   skippedItems: SkippedItem[]
   validationErrors: ValidationError[]
   permissionConfig: PermissionGroupConfig | null
+  functionCodeBlockIds: Set<string>
   deferredConnections: Array<{
     blockId: string
     connections: Record<string, any>
