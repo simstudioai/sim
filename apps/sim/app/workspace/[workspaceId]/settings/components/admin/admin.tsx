@@ -29,7 +29,7 @@ import { clearUserData } from '@/stores'
 const PAGE_SIZE = 20 as const
 
 const USER_TABLE_HEADER = (
-  <div className='flex items-center gap-3 border-[var(--border)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
+  <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
     <span className='w-[170px]'>Name</span>
     <span className='flex-1'>Email</span>
     <span className='w-[60px]'>Role</span>
@@ -174,13 +174,7 @@ export function Admin() {
   ])
 
   const renderUserRow = (u: AdminUser) => (
-    <div
-      key={u.id}
-      className={cn(
-        'flex flex-col gap-2 px-3 py-2 text-small',
-        'border-[var(--border)] border-b last:border-b-0'
-      )}
-    >
+    <div key={u.id} className='flex flex-col gap-2 px-3 py-2 text-small'>
       <div className='flex items-center gap-3'>
         <span className='w-[170px] truncate text-[var(--text-primary)]'>{u.name || '—'}</span>
         <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
