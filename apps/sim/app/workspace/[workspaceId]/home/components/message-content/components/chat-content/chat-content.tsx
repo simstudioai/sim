@@ -10,7 +10,6 @@ import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
-import type { Grammar } from 'prismjs'
 import '@sim/emcn/components/code/code.css'
 import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } from '@sim/emcn'
 import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
@@ -166,19 +165,26 @@ function fileIconLabel(ref: string, fallback: string): string {
  * Bounded LRU cache for Prism highlight output. Chat rows are virtualized, so a
  * message re-highlights every time it scrolls back into view; a component
  * `useMemo` would not survive the unmount, so the cache lives at module scope.
+ * Output for an unregistered language is never cached — it renders through the
+ * JavaScript fallback, so caching it would keep serving that stale render if the
+ * real grammar registers later in the session.
  */
 const HIGHLIGHT_CACHE_LIMIT = 512
 const highlightCache = new Map<string, string>()
 
-function highlight(code: string, grammar: Grammar | undefined, language: string): string {
-  const key = `${language}\n${code}`
+function highlight(code: string, language: string): string {
+  const resolved = LANG_ALIASES[language] || language || 'javascript'
+  const grammar = languages[resolved]
+  if (!grammar) return prismHighlight(code, languages.javascript, resolved)
+
+  const key = `${resolved}\n${code}`
   const cached = highlightCache.get(key)
   if (cached !== undefined) {
     highlightCache.delete(key)
     highlightCache.set(key, cached)
     return cached
   }
-  const html = prismHighlight(code, grammar, language)
+  const html = prismHighlight(code, grammar, resolved)
   highlightCache.set(key, html)
   if (highlightCache.size > HIGHLIGHT_CACHE_LIMIT) {
     const oldest = highlightCache.keys().next().value
@@ -233,9 +239,7 @@ const MARKDOWN_COMPONENTS = {
       )
     }
 
-    const resolved = LANG_ALIASES[language] || language || 'javascript'
-    const grammar = languages[resolved] || languages.javascript
-    const html = highlight(codeString.trimEnd(), grammar, resolved)
+    const html = highlight(codeString.trimEnd(), language)
 
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
