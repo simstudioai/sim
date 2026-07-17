@@ -277,6 +277,13 @@ const MARKDOWN_COMPONENTS = {
         </ExternalLink>
       )
     }
+    if (href?.startsWith('mailto:')) {
+      return (
+        <a href={href} className='not-prose text-[var(--text-primary)] no-underline'>
+          {children}
+        </a>
+      )
+    }
     return (
       <a
         href={href}
