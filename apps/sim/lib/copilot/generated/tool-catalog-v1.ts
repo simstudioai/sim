@@ -439,7 +439,11 @@ export const CreateWorkflow: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      folderId: { type: 'string', description: 'Optional folder ID.' },
+      folderPath: {
+        type: 'string',
+        description:
+          'Optional canonical workflow-folder VFS path copied from glob("workflows/**"), for example "workflows/Dream" or "workflows/Client%20Work/Intake". Omit for the workspace root.',
+      },
       name: { type: 'string', description: 'Workflow name.' },
       workspaceId: { type: 'string', description: 'Optional workspace ID.' },
     },

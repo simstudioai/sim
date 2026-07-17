@@ -124,7 +124,7 @@ vi.mock('../access', () => ({
 
 import { applyCreateWorkflowOutputToContext } from '@/lib/copilot/request/tools/workflow-context'
 import { performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import { verifyFolderWorkspace } from '@/lib/workflows/utils'
+import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
 import {
   executeCreateWorkflow,
   executeMoveWorkflow,
@@ -136,6 +136,7 @@ import {
 } from './mutations'
 
 const performUpdateWorkflowMock = vi.mocked(performUpdateWorkflow)
+const listFoldersMock = vi.mocked(listFolders)
 const verifyFolderWorkspaceMock = vi.mocked(verifyFolderWorkspace)
 const billingAttribution: BillingAttributionSnapshot = {
   actorUserId: 'user-1',
@@ -291,6 +292,7 @@ describe('executeCreateWorkflow billing attribution', () => {
       payerUsage: { currentUsage: 1, limit: 10 },
     })
     reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
+    listFoldersMock.mockResolvedValue([])
   })
 
   it('ignores legacy description input instead of persisting it', async () => {
@@ -318,6 +320,65 @@ describe('executeCreateWorkflow billing attribution', () => {
       name: 'Created Workflow',
       folderId: null,
     })
+  })
+
+  it('canonicalizes a workflow-folder VFS path and resolves its internal ID', async () => {
+    listFoldersMock.mockResolvedValue([
+      { folderId: 'folder-dream', folderName: 'Dream', parentId: null },
+      {
+        folderId: 'folder-launch-plans',
+        folderName: 'Launch Plans',
+        parentId: 'folder-dream',
+      },
+    ])
+    performCreateWorkflowMock.mockResolvedValue({
+      success: true,
+      workflow: {
+        id: 'created-workflow',
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderId: 'folder-launch-plans',
+      },
+    })
+
+    const result = await executeCreateWorkflow(
+      {
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderPath: 'workflows/Dream/Launch%20Plans',
+      },
+      executionContext
+    )
+
+    expect(result.success).toBe(true)
+    expect(performCreateWorkflowMock).toHaveBeenCalledWith({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      name: 'Created Workflow',
+      folderId: 'folder-launch-plans',
+    })
+    expect(workflowAuthzMockFns.mockAssertFolderMutable).toHaveBeenCalledWith('folder-launch-plans')
+  })
+
+  it('fails clearly when a workflow-folder VFS path does not exist', async () => {
+    listFoldersMock.mockResolvedValue([
+      { folderId: 'folder-existing', folderName: 'Existing', parentId: null },
+    ])
+
+    const result = await executeCreateWorkflow(
+      {
+        name: 'Created Workflow',
+        workspaceId: 'workspace-1',
+        folderPath: 'workflows/Dream',
+      },
+      executionContext
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Folder not found at workflows/Dream',
+    })
+    expect(performCreateWorkflowMock).not.toHaveBeenCalled()
   })
 
   it('keeps same-workspace creation and subsequent execution on the immutable payer', async () => {

@@ -393,9 +393,24 @@ export async function executeCreateWorkflow(
     }
     const workspaceId =
       params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    const folderId = params?.folderId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
+    const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
+    let folderId =
+      typeof params?.folderId === 'string' && params.folderId.trim() ? params.folderId.trim() : null
+    if (folderPath) {
+      const relativePath = workflowFolderRelativePath(folderPath)
+      if (!relativePath) {
+        folderId = null
+      } else {
+        folderId = lookupFolderIdByPath(folderPath, await loadFolderPathToIdMap(workspaceId))
+        if (!folderId) {
+          return { success: false, error: `Folder not found at ${folderPath}` }
+        }
+      }
+    }
+
     await assertFolderMutable(folderId)
     assertWorkflowMutationNotAborted(context)
 
