@@ -182,7 +182,7 @@ function ExternalLinkTooltip({ href, hostname }: ExternalLinkTooltipProps) {
   const { data } = useLinkPreview(href)
   const preview = data?.preview
 
-  if (!preview?.title && !preview?.description) {
+  if (!preview) {
     return <span className='break-all'>{href}</span>
   }
 

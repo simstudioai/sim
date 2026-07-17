@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
@@ -7,6 +8,7 @@ import { getLinkPreviewContract } from '@/lib/api/contracts/link-preview'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { enforceUserRateLimit } from '@/lib/core/rate-limiter/route-helpers'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -39,13 +41,15 @@ function decodeHtmlEntities(value: string): string {
  */
 function metaContent(html: string, key: string): string | null {
   const attr = `(?:property|name)=["']${key}["']`
+  const content = `content=(?:"([^"]*)"|'([^']*)')`
   const patterns = [
-    new RegExp(`<meta[^>]*${attr}[^>]*content=["']([^"']*)["']`, 'i'),
-    new RegExp(`<meta[^>]*content=["']([^"']*)["'][^>]*${attr}`, 'i'),
+    new RegExp(`<meta[^>]*${attr}[^>]*${content}`, 'i'),
+    new RegExp(`<meta[^>]*${content}[^>]*${attr}`, 'i'),
   ]
   for (const pattern of patterns) {
     const match = html.match(pattern)
-    if (match?.[1]) return decodeHtmlEntities(match[1]).trim() || null
+    const value = match?.[1] ?? match?.[2]
+    if (value) return decodeHtmlEntities(value).trim() || null
   }
   return null
 }
@@ -75,6 +79,7 @@ function parsePreview(html: string): LinkPreview {
 
 async function fetchPreview(url: string): Promise<LinkPreview> {
   const response = await secureFetchWithValidation(url, {
+    allowHttp: true,
     timeout: FETCH_TIMEOUT_MS,
     maxRedirects: MAX_REDIRECTS,
     maxResponseBytes: MAX_RESPONSE_BYTES,
@@ -97,12 +102,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const rateLimited = await enforceUserRateLimit('link-preview', session.user.id)
+  if (rateLimited) return rateLimited
+
   const parsed = await parseRequest(getLinkPreviewContract, request, {})
   if (!parsed.success) return parsed.response
   const { url } = parsed.data.query
 
   const redis = getRedisClient()
-  const cacheKey = `${CACHE_KEY_PREFIX}${url}`
+  const cacheKey = `${CACHE_KEY_PREFIX}${createHash('sha256').update(url).digest('hex')}`
   if (redis) {
     try {
       const cached = await redis.get(cacheKey)
