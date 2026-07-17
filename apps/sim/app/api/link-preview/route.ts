@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -126,7 +127,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     preview = await fetchPreview(url)
   } catch (error) {
-    logger.info('Link preview fetch failed; returning null preview', { url, error })
+    logger.info('Link preview fetch failed; returning null preview', {
+      host: new URL(url).hostname,
+      error: getErrorMessage(error, 'unknown error').replaceAll(url, '[url]'),
+    })
   }
 
   if (redis) {
