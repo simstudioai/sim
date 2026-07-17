@@ -8,9 +8,9 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { betterAuth, type User } from 'better-auth'
+import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -34,8 +34,13 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
+import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
-import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
+import {
+  assertPersonalCheckoutAllowed,
+  authorizeSubscriptionReference,
+  isPersonalCheckoutRequest,
+} from '@/lib/billing/authorization'
 import {
   getOrganizationIdForSubscriptionReference,
   syncSubscriptionPlan,
@@ -46,7 +51,8 @@ import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { isTeam } from '@/lib/billing/plan-helpers'
+import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
+import { isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
@@ -58,7 +64,6 @@ import {
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
 import {
-  handleOrganizationPlanDowngrade,
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
@@ -193,10 +198,13 @@ export const auth = betterAuth({
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
     ...additionalTrustedOrigins,
   ].filter(Boolean),
-  database: drizzleAdapter(db, {
-    provider: 'pg',
-    schema,
-  }),
+  database: (options: BetterAuthOptions) =>
+    guardSubscriptionPlanWrites(
+      drizzleAdapter(db, {
+        provider: 'pg',
+        schema,
+      })(options)
+    ),
   session: {
     cookieCache: {
       enabled: true,
@@ -900,6 +908,21 @@ export const auth = betterAuth({
               message: 'Sign-ups from this email domain are not allowed.',
             })
           }
+        }
+      }
+
+      /**
+       * Personal checkout guard. The Stripe plugin's `authorizeReference`
+       * only runs for organization references (it skips references equal to
+       * the session user), so duplicate-coverage enforcement for personal
+       * checkouts lives here: a member of an org with an entitled paid
+       * subscription must not buy a personal plan on top of it.
+       */
+      if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
+        const session = await getSessionFromCtx(ctx)
+        const sessionUserId = session?.user?.id
+        if (sessionUserId && isPersonalCheckoutRequest(ctx.body ?? {}, sessionUserId)) {
+          await assertPersonalCheckoutAllowed(sessionUserId)
         }
       }
 
@@ -3140,8 +3163,21 @@ export const auth = betterAuth({
             subscription: {
               enabled: true,
               plans: getPlans(),
-              authorizeReference: async ({ user, referenceId, action }) => {
-                return await authorizeSubscriptionReference(user.id, referenceId, action)
+              authorizeReference: async ({ user, referenceId, action }, ctx) => {
+                const body: unknown = ctx?.body
+                const requestedPlan =
+                  typeof body === 'object' &&
+                  body !== null &&
+                  'plan' in body &&
+                  typeof body.plan === 'string'
+                    ? body.plan
+                    : undefined
+                return await authorizeSubscriptionReference(
+                  user.id,
+                  referenceId,
+                  action,
+                  requestedPlan
+                )
               },
               getCheckoutSessionParams: async () => ({
                 params: { allow_promotion_codes: true },
@@ -3175,11 +3211,16 @@ export const auth = betterAuth({
                   )
                 }
 
-                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+                const syncedPlan = await syncSubscriptionPlan(
+                  subscription.id,
+                  subscription.plan,
+                  planFromStripe,
+                  subscription.referenceId
+                )
 
                 const subscriptionForOrg = {
                   ...subscription,
-                  plan: planFromStripe ?? subscription.plan,
+                  plan: syncedPlan ?? subscription.plan,
                   enterpriseOperationId: stripeSubscription.metadata?.enterpriseOperationId ?? null,
                 }
 
@@ -3202,7 +3243,29 @@ export const auth = betterAuth({
                   throw orgError
                 }
 
-                await handleSubscriptionCreated(resolvedSubscription, event.id)
+                /**
+                 * Transactional fence behind the personal-checkout admission
+                 * guard: if the user joined a paid organization while their
+                 * checkout was in flight, pause the fresh personal Pro at
+                 * period end (same state a paid-org joiner's personal Pro
+                 * enters; restored automatically if they leave the org).
+                 *
+                 * Runs BEFORE the free→paid transition handling: a personal
+                 * subscription born covered is not a free→paid transition —
+                 * the org plan keeps governing the user — so the usage reset
+                 * (which would wipe org-attributed current-period usage) and
+                 * its instrumentation must not run. Gated on `covered`, not
+                 * `paused`, so event retries decide identically even when the
+                 * join path already paused the subscription.
+                 */
+                const coveredByOrganization = isPro(resolvedSubscription.plan)
+                  ? (await pauseProSubscriptionForOrgCoverage(resolvedSubscription.referenceId))
+                      .covered
+                  : false
+
+                if (!coveredByOrganization) {
+                  await handleSubscriptionCreated(resolvedSubscription, event.id)
+                }
 
                 await syncSubscriptionUsageLimits(resolvedSubscription)
 
@@ -3238,8 +3301,6 @@ export const auth = betterAuth({
                 const isUpgradeToTeam =
                   isTeamPlan && !isTeam(subscription.plan) && referenceOrganizationId == null
 
-                const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
-
                 logger.info('[onSubscriptionUpdate] Subscription updated', {
                   subscriptionId: subscription.id,
                   status: subscription.status,
@@ -3258,11 +3319,24 @@ export const auth = betterAuth({
                   )
                 }
 
-                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+                const syncedPlan = await syncSubscriptionPlan(
+                  subscription.id,
+                  subscription.plan,
+                  planFromStripe,
+                  subscription.referenceId
+                )
+
+                /**
+                 * All downstream processing keys off the plan the DB actually
+                 * holds after the sync — a plan write refused by the org/plan
+                 * invariant must not leak the rejected Stripe plan into org
+                 * resolution, seat sync, or usage limits.
+                 */
+                const effectivePlanForTeamFeatures = syncedPlan ?? subscription.plan
 
                 const subscriptionForOrg = {
                   ...subscription,
-                  plan: planFromStripe ?? subscription.plan,
+                  plan: effectivePlanForTeamFeatures,
                   enterpriseOperationId: stripeSubscription.metadata?.enterpriseOperationId ?? null,
                 }
 
@@ -3333,16 +3407,6 @@ export const auth = betterAuth({
                       error,
                     })
                   }
-                } else {
-                  await handleOrganizationPlanDowngrade(
-                    {
-                      id: resolvedSubscription.id,
-                      plan: effectivePlanForTeamFeatures ?? null,
-                      referenceId: resolvedSubscription.referenceId,
-                      status: resolvedSubscription.status ?? null,
-                    },
-                    event.id
-                  )
                 }
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')

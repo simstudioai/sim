@@ -10,9 +10,11 @@ import {
 } from '@/lib/billing/core/plan'
 import {
   getPlanTierCredits,
+  isOrgPlan,
   isEnterprise as isPlanEnterprise,
   isPro as isPlanPro,
   isTeam as isPlanTeam,
+  sqlIsPaid,
 } from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
@@ -87,16 +89,53 @@ export async function writeBillingInterval(
 /**
  * Sync the subscription's `plan` column to match Stripe. Closes a gap
  * where plan changes (Pro → Team upgrades, tier swaps) updated price,
- * seats, and referenceId at Stripe but left the DB plan stale. Returns
- * `true` if a write was issued, `false` if no change was needed.
+ * seats, and referenceId at Stripe but left the DB plan stale.
+ *
+ * Enforces the billing invariant that organization-referenced
+ * subscriptions only ever hold Team or Enterprise plans: when Stripe
+ * resolves to a non-org plan (e.g. a Pro price was manually swapped onto
+ * an org subscription in the Stripe dashboard), the write is refused and
+ * an error is logged so operators fix the price in Stripe — the DB row
+ * never becomes an org-scoped Pro subscription.
+ *
+ * Returns the plan the DB row holds after the call. Callers must drive all
+ * downstream processing (org ensure, seat sync, usage limits) from this
+ * value — never from the raw Stripe plan — so a refused write cannot leak
+ * the rejected plan into the rest of the webhook handler.
+ *
+ * The organization lookup is inlined rather than delegated to
+ * `isSubscriptionOrgScoped` because that helper lives in `core/billing.ts`,
+ * which imports this module — delegating would create an import cycle.
  */
 export async function syncSubscriptionPlan(
   subscriptionId: string,
   currentPlan: string | null,
-  planFromStripe: string | null
-): Promise<boolean> {
-  if (!planFromStripe) return false
-  if (currentPlan === planFromStripe) return false
+  planFromStripe: string | null,
+  referenceId: string
+): Promise<string | null> {
+  if (!planFromStripe) return currentPlan
+  if (currentPlan === planFromStripe) return currentPlan
+
+  if (!isOrgPlan(planFromStripe)) {
+    const [referencedOrganization] = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, referenceId))
+      .limit(1)
+
+    if (referencedOrganization) {
+      logger.error(
+        'Refusing to sync a non-org plan onto an organization-referenced subscription — fix the price in Stripe',
+        {
+          subscriptionId,
+          organizationId: referenceId,
+          currentPlan,
+          rejectedPlan: planFromStripe,
+        }
+      )
+      return currentPlan
+    }
+  }
 
   await db
     .update(subscription)
@@ -109,7 +148,7 @@ export async function syncSubscriptionPlan(
     newPlan: planFromStripe,
   })
 
-  return true
+  return planFromStripe
 }
 
 /**
@@ -185,6 +224,47 @@ export async function hasPaidSubscription(
     }
 
     return true
+  }
+}
+
+export type OrganizationCoverageResult =
+  | { status: 'covered'; organizationId: string }
+  | { status: 'not-covered' }
+  | { status: 'unknown' }
+
+/**
+ * Check whether an organization already covers this user with an entitled
+ * paid subscription (the user is a member of the org, any role).
+ *
+ * Used to block redundant personal checkouts: a member of a paid org has
+ * their usage pooled to the org (personal Pro subscriptions are paused on
+ * join), so buying a personal plan would double-bill the same human.
+ *
+ * Returns `'unknown'` on error so callers can fail closed (block checkout
+ * rather than risk a duplicate subscription) with accurate messaging.
+ */
+export async function getOrganizationCoverageForMember(
+  userId: string
+): Promise<OrganizationCoverageResult> {
+  try {
+    const [row] = await db
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .innerJoin(subscription, eq(subscription.referenceId, member.organizationId))
+      .where(
+        and(
+          eq(member.userId, userId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPaid(subscription.plan)
+        )
+      )
+      .limit(1)
+
+    if (row) return { status: 'covered', organizationId: row.organizationId }
+    return { status: 'not-covered' }
+  } catch (error) {
+    logger.error('Error checking organization coverage for member', { error, userId })
+    return { status: 'unknown' }
   }
 }
 
