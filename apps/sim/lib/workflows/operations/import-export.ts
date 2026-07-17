@@ -679,10 +679,9 @@ export async function persistImportedWorkflow({
   const createdWorkflow = await createWorkflow({
     name: workflowName,
     description:
-      getMeaningfulWorkflowDescription(
-        descriptionOverride || workflowData.metadata?.description,
-        workflowName
-      ) ?? '',
+      getMeaningfulWorkflowDescription(descriptionOverride, workflowName) ??
+      getMeaningfulWorkflowDescription(workflowData.metadata?.description, workflowName) ??
+      '',
     workspaceId,
     folderId,
     sortOrder,
