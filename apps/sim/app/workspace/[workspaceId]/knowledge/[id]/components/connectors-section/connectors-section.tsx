@@ -339,6 +339,14 @@ function ConnectorCard({
   )
   const syncLogs = detail?.syncLogs ?? []
 
+  const canFullResync = Boolean(connectorDef?.rehydrateOnFullSync)
+  const syncDisabled =
+    connector.status === 'syncing' ||
+    connector.status === 'disabled' ||
+    isSyncPending ||
+    syncCooldown
+  const syncTooltip = syncCooldown ? 'Sync recently triggered' : canFullResync ? 'Sync' : 'Sync now'
+
   return (
     <div
       className={cn(
@@ -421,20 +429,47 @@ function ConnectorCard({
         <div className='flex flex-shrink-0 items-center gap-0.5'>
           {canEdit && (
             <>
-              <DropdownMenu>
+              {canFullResync ? (
+                <DropdownMenu>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      {/* span keeps the tooltip hoverable while the trigger button is disabled */}
+                      <span className='inline-flex'>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            aria-label='Sync options'
+                            className={CONNECTOR_ACTION_BUTTON_CLASSES}
+                            disabled={syncDisabled}
+                          >
+                            <RefreshCw
+                              className={cn(
+                                'size-3.5',
+                                connector.status === 'syncing' && 'animate-spin'
+                              )}
+                            />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>{syncTooltip}</Tooltip.Content>
+                  </Tooltip.Root>
+                  <DropdownMenuContent align='end'>
+                    <DropdownMenuItem onSelect={() => onSync(false)}>Sync now</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => onSync(true)}>Full resync</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <DropdownMenuTrigger asChild>
+                    {/* span keeps the tooltip hoverable while the button is disabled */}
+                    <span className='inline-flex'>
                       <Button
                         variant='ghost'
-                        aria-label='Sync options'
+                        aria-label='Sync now'
                         className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                        disabled={
-                          connector.status === 'syncing' ||
-                          connector.status === 'disabled' ||
-                          isSyncPending ||
-                          syncCooldown
-                        }
+                        disabled={syncDisabled}
+                        onClick={() => onSync(false)}
                       >
                         <RefreshCw
                           className={cn(
@@ -443,17 +478,11 @@ function ConnectorCard({
                           )}
                         />
                       </Button>
-                    </DropdownMenuTrigger>
+                    </span>
                   </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    {syncCooldown ? 'Sync recently triggered' : 'Sync'}
-                  </Tooltip.Content>
+                  <Tooltip.Content>{syncTooltip}</Tooltip.Content>
                 </Tooltip.Root>
-                <DropdownMenuContent align='end'>
-                  <DropdownMenuItem onSelect={() => onSync(false)}>Sync now</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => onSync(true)}>Full resync</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              )}
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>

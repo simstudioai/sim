@@ -29,7 +29,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
   const parsed = await parseRequest(triggerKnowledgeConnectorSyncContract, request, context)
   if (!parsed.success) return parsed.response
   const { id: knowledgeBaseId, connectorId } = parsed.data.params
-  const rehydrate = parsed.data.query?.rehydrate === 'true'
+  const { rehydrate } = parsed.data.query
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })

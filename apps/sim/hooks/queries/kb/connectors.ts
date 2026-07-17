@@ -215,7 +215,7 @@ async function triggerSync({
 }: TriggerSyncParams): Promise<void> {
   await requestJson(triggerKnowledgeConnectorSyncContract, {
     params: { id: knowledgeBaseId, connectorId },
-    query: rehydrate ? { rehydrate: 'true' } : {},
+    query: rehydrate ? { rehydrate: true } : {},
   })
 }
 
