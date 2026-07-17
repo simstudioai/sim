@@ -11,7 +11,7 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
-import { Checkbox, CopyCodeButton, cn, highlight, languages } from '@sim/emcn'
+import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } from '@sim/emcn'
 import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
@@ -161,6 +161,38 @@ function fileIconLabel(ref: string, fallback: string): string {
   return fallback
 }
 
+/**
+ * Bounded LRU cache for Prism highlight output. Chat rows are virtualized, so a
+ * message re-highlights every time it scrolls back into view; a component
+ * `useMemo` would not survive the unmount, so the cache lives at module scope.
+ * Output for an unregistered language is never cached — it renders through the
+ * JavaScript fallback, so caching it would keep serving that stale render if the
+ * real grammar registers later in the session.
+ */
+const HIGHLIGHT_CACHE_LIMIT = 512
+const highlightCache = new Map<string, string>()
+
+function highlight(code: string, language: string): string {
+  const resolved = LANG_ALIASES[language] || language || 'javascript'
+  const grammar = languages[resolved]
+  if (!grammar) return prismHighlight(code, languages.javascript, resolved)
+
+  const key = `${resolved}\n${code}`
+  const cached = highlightCache.get(key)
+  if (cached !== undefined) {
+    highlightCache.delete(key)
+    highlightCache.set(key, cached)
+    return cached
+  }
+  const html = prismHighlight(code, grammar, resolved)
+  highlightCache.set(key, html)
+  if (highlightCache.size > HIGHLIGHT_CACHE_LIMIT) {
+    const oldest = highlightCache.keys().next().value
+    if (oldest !== undefined) highlightCache.delete(oldest)
+  }
+  return html
+}
+
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
     return (
@@ -207,9 +239,7 @@ const MARKDOWN_COMPONENTS = {
       )
     }
 
-    const resolved = LANG_ALIASES[language] || language || 'javascript'
-    const grammar = languages[resolved] || languages.javascript
-    const html = highlight(codeString.trimEnd(), grammar, resolved)
+    const html = highlight(codeString.trimEnd(), language)
 
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
@@ -412,9 +442,9 @@ function ChatContentInner({
    * position (`E`/`qe` in streamdown 2.5), so a re-parse of unchanged content
    * without the animate plugin bails at every unoverridden element (`p`,
    * `strong`, `tr`, headings, …) and leaves the stale per-char span DOM in
-   * place. Every instance renders through the streaming parser (see
-   * `streamingTree` below) so the remount only sheds the spans, never
-   * re-interprets the markdown.
+   * place. The settled instance keeps the streaming parser (`parserTree`
+   * below) so the remount only sheds the spans, never re-interprets the
+   * markdown.
    *
    * The drain is deliberately one-way: a stream that resumes afterwards
    * (reconnect/continuation) reveals paced but unfaded, because re-arming
@@ -459,18 +489,19 @@ function ChatContentInner({
   }, [isRevealing, animationDrained, streamedThisSession])
 
   /**
-   * Every mount renders through the streaming parser (remend +
-   * incomplete-markdown repair + block-split) — `mode='static'` is never used.
-   * The two pipelines parse edge-case markdown differently (unbalanced fences,
-   * list continuation across blocks), so a message you watched stream would
-   * render subtly differently from the same message reloaded from the DB; one
-   * pipeline makes in-session and refreshed renders byte-identical. The rows
-   * are virtualized, so only visible messages pay the block-split mount cost.
-   * `streamingTree` (the remount key and animation props) still drops at
-   * drain, so a settled instance re-renders through the SAME parser minus the
-   * per-word animation spans — identical pixels.
+   * `parserTree` (drives `mode`) stays latched for the mount's life: streaming
+   * mode is the only one that applies remend/incomplete-markdown repair and
+   * block-split parsing, so a settled message must KEEP the streaming parser —
+   * swapping to `mode='static'` at drain re-parses the same source through a
+   * different pipeline (no remend, whole-doc parse) and visibly flashes on any
+   * reply with unbalanced markdown. `streamingTree` (drives the remount key
+   * and animation props) additionally drops at drain, so the settled instance
+   * re-renders through the SAME parser minus the per-word animation spans —
+   * byte-identical pixels. Only never-streamed mounts (reloaded history)
+   * render static.
    */
-  const streamingTree = (isRevealing || streamedThisSession) && !animationDrained
+  const parserTree = isRevealing || streamedThisSession
+  const streamingTree = parserTree && !animationDrained
 
   /**
    * One-way fade cutoff (see {@link FADE_MAX_REVEALED_CHARS}). Latched so a
@@ -573,6 +604,7 @@ function ChatContentInner({
             >
               <Streamdown
                 key={streamingTree ? 'stream' : 'settled'}
+                mode={parserTree ? undefined : 'static'}
                 animated={fadeActive ? STREAM_ANIMATION : false}
                 isAnimating={streamingTree}
                 components={MARKDOWN_COMPONENTS}
