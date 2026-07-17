@@ -236,6 +236,7 @@ export class BlockExecutor {
         const redactionOptions = {
           entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
           language: ctx.piiBlockOutputRedaction.language,
+          customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
           onFailure: 'throw' as const,
         }
         // Tools like the function executor offload large outputs to large-value
@@ -889,6 +890,7 @@ export class BlockExecutor {
       fullContent = await redactObjectStrings(fullContent, {
         entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
         language: ctx.piiBlockOutputRedaction.language,
+        customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
         onFailure: 'throw',
       })
     }

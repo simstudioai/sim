@@ -1153,6 +1153,13 @@ export const chat = pgTable(
   }
 )
 
+/** A user-supplied custom regex pattern; matches are replaced verbatim with `replacement`. */
+export interface CustomPiiPattern {
+  name: string
+  regex: string
+  replacement: string
+}
+
 /** Per-stage PII redaction policy stored on a {@link PiiRedactionRule}. */
 export interface PiiStagePolicy {
   enabled: boolean
@@ -1160,6 +1167,8 @@ export interface PiiStagePolicy {
   entityTypes: string[]
   /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
   language?: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
 }
 
 /**

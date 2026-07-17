@@ -1,6 +1,7 @@
 import type { Edge } from 'reactflow'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import type { NodeMetadata } from '@/executor/dag/types'
 import type {
   BlockLog,
@@ -159,6 +160,8 @@ export interface PiiBlockOutputRedaction {
   entityTypes: string[]
   /** Language whose Presidio recognizers apply. */
   language: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
 }
 
 export interface ContextExtensions {

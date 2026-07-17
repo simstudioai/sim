@@ -25,6 +25,7 @@ import {
   gmailUntrashThreadV2Tool,
   gmailUpdateLabelV2Tool,
 } from '@/tools/gmail'
+import { guardrailsValidateTool } from '@/tools/guardrails'
 import { httpRequestTool } from '@/tools/http'
 import {
   slackAddReactionTool,
@@ -85,6 +86,7 @@ import type { ToolConfig } from '@/tools/types'
 export const tools: Record<string, ToolConfig> = {
   http_request: httpRequestTool,
   function_execute: functionExecuteTool,
+  guardrails_validate: guardrailsValidateTool,
   gmail_send_v2: gmailSendV2Tool,
   gmail_read_v2: gmailReadV2Tool,
   gmail_search_v2: gmailSearchV2Tool,

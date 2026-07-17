@@ -1,7 +1,8 @@
-import type { DataRetentionSettings, PiiStagePolicy } from '@sim/db/schema'
+import type { CustomPiiPattern, DataRetentionSettings, PiiStagePolicy } from '@sim/db/schema'
 import {
   coercePiiLanguage,
   DEFAULT_PII_LANGUAGE,
+  sanitizeCustomPatterns,
   stripNerEntities,
 } from '@/lib/guardrails/pii-entities'
 
@@ -12,6 +13,8 @@ export interface EffectivePiiStage {
   entityTypes: string[]
   /** Language whose Presidio recognizers apply when masking. */
   language: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns: CustomPiiPattern[]
 }
 
 /**
@@ -29,6 +32,7 @@ const DISABLED_STAGE: EffectivePiiStage = {
   enabled: false,
   entityTypes: [],
   language: DEFAULT_PII_LANGUAGE,
+  customPatterns: [],
 }
 
 export const DEFAULT_PII_REDACTION: EffectivePiiRedaction = {
@@ -58,11 +62,13 @@ function toEffectiveStage(
   const types = opts?.regexOnly
     ? stripNerEntities(sanitizeEntityTypes(policy?.entityTypes))
     : sanitizeEntityTypes(policy?.entityTypes)
-  if (!policy?.enabled || types.length === 0) return DISABLED_STAGE
+  const customPatterns = sanitizeCustomPatterns(policy?.customPatterns)
+  if (!policy?.enabled || (types.length === 0 && customPatterns.length === 0)) return DISABLED_STAGE
   return {
     enabled: true,
     entityTypes: types,
     language: coercePiiLanguage(policy.language) ?? DEFAULT_PII_LANGUAGE,
+    customPatterns,
   }
 }
 
@@ -99,6 +105,7 @@ export function resolveEffectivePiiRedaction(params: {
         enabled: true,
         entityTypes: types,
         language: coercePiiLanguage(rule.language) ?? DEFAULT_PII_LANGUAGE,
+        customPatterns: [],
       },
     }
   }

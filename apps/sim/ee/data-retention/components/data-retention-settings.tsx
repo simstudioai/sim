@@ -19,10 +19,12 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { ArrowRight, Plus } from 'lucide-react'
+import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import {
+  type CustomPiiPattern,
   emptyPiiStages,
   getEntityGroupsForLanguage,
   isEntitySupportedForLanguage,
@@ -35,6 +37,7 @@ import {
   type PiiStageKey,
   type PiiStagePolicy,
   type PiiStages,
+  sanitizeCustomPatterns,
   stripNerEntities,
 } from '@/lib/guardrails/pii-entities'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
@@ -137,15 +140,18 @@ function buildRetentionOverride(workspaceId: string, draft: PolicyDraft): Retent
 }
 
 /** Stable serialization of a stage set for dirty-detection. */
-function serializeStages(stages: PiiStages): Array<[PiiStageKey, boolean, string[], PIILanguage]> {
+function serializeStages(
+  stages: PiiStages
+): Array<[PiiStageKey, boolean, string[], PIILanguage, CustomPiiPattern[]]> {
   return PII_STAGES.map((key) => {
     const policy = stages[key]
-    return [key, policy.enabled, [...policy.entityTypes].sort(), policy.language] as [
-      PiiStageKey,
-      boolean,
-      string[],
-      PIILanguage,
-    ]
+    return [
+      key,
+      policy.enabled,
+      [...policy.entityTypes].sort(),
+      policy.language,
+      policy.customPatterns ?? [],
+    ] as [PiiStageKey, boolean, string[], PIILanguage, CustomPiiPattern[]]
   })
 }
 
@@ -161,22 +167,29 @@ function normalizePolicyDraft(draft: PolicyDraft): string {
   })
 }
 
-/** A stage is "on" iff it has at least one entity type selected. */
+/** A stage is "on" iff it has at least one entity type or custom pattern. */
 function stageHasContent(policy: PiiStagePolicy): boolean {
-  return policy.entityTypes.length > 0
+  return policy.entityTypes.length > 0 || (policy.customPatterns?.length ?? 0) > 0
 }
 
 function anyStageHasContent(stages: PiiStages): boolean {
   return PII_STAGES.some((key) => stageHasContent(stages[key]))
 }
 
-/** Persist-time guarantee that `enabled` mirrors "has entity types" for every stage. */
+/** Persist-time guarantee that `enabled` mirrors "has content" for every stage. */
 function withSyncedEnabled(stages: PiiStages): PiiStages {
   return PII_STAGES.reduce((acc, key) => {
     // Block outputs are regex-only — strip any NER before persisting.
     const entityTypes =
       key === 'blockOutputs' ? stripNerEntities(stages[key].entityTypes) : stages[key].entityTypes
-    acc[key] = { ...stages[key], entityTypes, enabled: entityTypes.length > 0 }
+    // Drop half-typed rows (empty regex) so the boundary contract never rejects the save.
+    const customPatterns = sanitizeCustomPatterns(stages[key].customPatterns)
+    acc[key] = {
+      ...stages[key],
+      entityTypes,
+      customPatterns,
+      enabled: entityTypes.length > 0 || customPatterns.length > 0,
+    }
     return acc
   }, {} as PiiStages)
 }
@@ -195,7 +208,8 @@ function stageSummary(stages: PiiStages): string {
   }
   return PII_STAGES.map((key) => {
     const policy = stages[key]
-    return `${short[key]} ${stageHasContent(policy) ? policy.entityTypes.length : 'off'}`
+    const count = policy.entityTypes.length + (policy.customPatterns?.length ?? 0)
+    return `${short[key]} ${stageHasContent(policy) ? count : 'off'}`
   }).join(' · ')
 }
 
@@ -343,8 +357,10 @@ function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanel
     regexOnly: stageKey === 'blockOutputs',
   })
 
-  function update(entityTypes: string[], language = value.language) {
-    onChange({ ...value, language, entityTypes, enabled: entityTypes.length > 0 })
+  function update(patch: Partial<PiiStagePolicy>) {
+    const merged = { ...value, ...patch }
+    const enabled = merged.entityTypes.length > 0 || (merged.customPatterns?.length ?? 0) > 0
+    onChange({ ...merged, enabled })
   }
 
   return (
@@ -363,18 +379,36 @@ function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanel
         <EntityCheckboxGrid
           groups={groups}
           selected={value.entityTypes}
-          onChange={(entityTypes) => update(entityTypes)}
+          onChange={(entityTypes) => update({ entityTypes })}
           belowSearch={
             <div className='flex items-center justify-between gap-3'>
               <span className='text-[var(--text-muted)] text-small'>Language</span>
               <PiiLanguageSelect
                 value={value.language}
                 onChange={(language) =>
-                  update(pruneEntitiesForLanguage(value.entityTypes, language), language)
+                  update({
+                    language,
+                    entityTypes: pruneEntitiesForLanguage(value.entityTypes, language),
+                  })
                 }
               />
             </div>
           }
+        />
+      </div>
+
+      <div className='flex flex-col gap-2'>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-[var(--text-muted)] text-small'>Custom patterns</span>
+          <Info side='top' align='start'>
+            Redact anything a regular expression can match (employee ids, internal urls, ticket
+            numbers). Each match is replaced with its replacement text, wrapped in angle brackets
+            (e.g. EMPLOYEE_ID → &lt;EMPLOYEE_ID&gt;).
+          </Info>
+        </div>
+        <CustomPatternsEditor
+          patterns={value.customPatterns ?? []}
+          onChange={(customPatterns) => update({ customPatterns })}
         />
       </div>
     </div>
@@ -529,7 +563,10 @@ function PolicyDetail({
                         [effectiveStage]: {
                           ...draft.piiStages[effectiveStage],
                           entityTypes: [],
-                          enabled: false,
+                          // Clearing entity types leaves any custom patterns intact,
+                          // so the stage stays enabled while patterns remain.
+                          enabled:
+                            (draft.piiStages[effectiveStage].customPatterns?.length ?? 0) > 0,
                         },
                       },
                     })
