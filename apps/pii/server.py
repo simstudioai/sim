@@ -281,17 +281,27 @@ CUSTOM_ENTITY_PREFIX = "CUSTOM_"
 
 
 class CustomPattern(BaseModel):
-    """A user-supplied regex pattern. Matches are replaced with `replacement`."""
+    """A user-supplied regex pattern. Matches are replaced with `replacement`,
+    wrapped in angle brackets (see `_wrap_token`)."""
 
     regex: str
     replacement: str = ""
     name: str = ""
 
 
+def _wrap_token(replacement: str) -> str:
+    """Wrap the redaction token in angle brackets so custom matches read like the
+    built-in Presidio tokens (`<PERSON>`, `<EMAIL_ADDRESS>`). A value the user
+    already bracketed is left as-is so it never double-wraps to `<<X>>`."""
+    if len(replacement) >= 2 and replacement.startswith("<") and replacement.endswith(">"):
+        return replacement
+    return f"<{replacement}>"
+
+
 def custom_operators(patterns: list[CustomPattern] | None) -> dict[str, dict[str, Any]]:
     """Raw replace-operator per custom pattern, keyed by its internal entity id."""
     return {
-        f"{CUSTOM_ENTITY_PREFIX}{i}": {"type": "replace", "new_value": p.replacement}
+        f"{CUSTOM_ENTITY_PREFIX}{i}": {"type": "replace", "new_value": _wrap_token(p.replacement)}
         for i, p in enumerate(patterns or [])
     }
 

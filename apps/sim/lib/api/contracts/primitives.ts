@@ -122,8 +122,9 @@ export const userFileSchema = z
  */
 /**
  * A user-supplied custom regex pattern. `name` is a label; `regex` is matched
- * against text; matches are replaced verbatim with `replacement`. Bounds guard
- * the Presidio boundary (ReDoS/oversized payloads).
+ * against text; matches are replaced with `replacement` wrapped in angle brackets
+ * (`EMPLOYEE_ID` → `<EMPLOYEE_ID>`). Bounds guard the Presidio boundary
+ * (ReDoS/oversized payloads).
  *
  * The `regex` is validated for both syntax and catastrophic-backtracking safety
  * here at the write boundary — not just in the editor — so an invalid or unsafe

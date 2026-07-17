@@ -402,7 +402,8 @@ function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanel
           <span className='text-[var(--text-muted)] text-small'>Custom patterns</span>
           <Info side='top' align='start'>
             Redact anything a regular expression can match (employee ids, internal urls, ticket
-            numbers). Each match is replaced with its replacement text.
+            numbers). Each match is replaced with its replacement text, wrapped in angle brackets
+            (e.g. EMPLOYEE_ID → &lt;EMPLOYEE_ID&gt;).
           </Info>
         </div>
         <CustomPatternsEditor

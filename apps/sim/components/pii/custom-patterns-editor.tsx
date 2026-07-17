@@ -56,7 +56,7 @@ export function CustomPatternsEditor({ patterns, onChange }: CustomPatternsEdito
                 className='flex-1'
               />
               <ChipInput
-                placeholder='Replacement'
+                placeholder='EMPLOYEE_ID'
                 value={pattern.replacement}
                 onChange={(e) => updateRow(index, { replacement: e.target.value })}
                 className='w-[26%]'

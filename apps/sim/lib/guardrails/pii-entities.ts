@@ -274,8 +274,9 @@ export const PII_STAGES = ['input', 'blockOutputs', 'logs'] as const
 export type PiiStageKey = (typeof PII_STAGES)[number]
 
 /**
- * A user-supplied custom regex pattern. Matches are replaced verbatim with
- * `replacement` (the internal Presidio entity id is never surfaced). `name` is a
+ * A user-supplied custom regex pattern. Matches are replaced with `replacement`
+ * wrapped in angle brackets (e.g. `EMPLOYEE_ID` → `<EMPLOYEE_ID>`), mirroring the
+ * built-in Presidio tokens; the internal entity id is never surfaced. `name` is a
  * human label only.
  */
 export interface CustomPiiPattern {
