@@ -22,8 +22,9 @@ export interface ConnectorSyncPayload {
   /**
    * Force re-hydration + re-indexing of already-synced documents for connectors
    * whose rendered content can drift without a hash change (see
-   * `ConnectorMeta.rehydrateOnFullSync`). Unlike `fullSync`, this does NOT alter
-   * listing or bypass any deletion-reconciliation safety guard.
+   * `ConnectorMeta.rehydrateOnFullSync`). Forces a full (non-incremental) listing
+   * so every document is re-hydrated, but — unlike `fullSync` — keeps every
+   * deletion-reconciliation safety guard armed.
    */
   rehydrate?: boolean
   requestId: string

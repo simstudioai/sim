@@ -432,11 +432,17 @@ export async function executeSync(
     let hasMore = true
     const syncContext: Record<string, unknown> = { syncRunId: generateId() }
 
-    // Determine if this sync should be incremental
+    /**
+     * Determine if this sync should be incremental. A `rehydrate` request forces a
+     * full listing too: re-hydration must see *every* document (a container page can
+     * be unchanged itself yet transclude a page that changed), and an incremental
+     * listing would omit those unchanged containers, so they'd never be re-fetched.
+     */
     const isIncremental =
       connectorConfig.supportsIncrementalSync &&
       connector.syncMode !== 'full' &&
       !options?.fullSync &&
+      !options?.rehydrate &&
       connector.lastSyncAt != null
     const lastSyncAt =
       isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
@@ -445,9 +451,10 @@ export async function executeSync(
      * Re-hydrate and re-index connectors whose rendered content can drift without a
      * hash change (transclusions) — see `ConnectorMeta.rehydrateOnFullSync`. Driven
      * by the dedicated `rehydrate` request (the "Full resync" action) or implied by a
-     * true `fullSync`. This ONLY affects hydration/indexing — it does not change
-     * listing or bypass any deletion-reconciliation guard. Incremental syncs of other
-     * connectors stay hash-gated.
+     * true `fullSync`. It forces a full listing (above) and re-indexes unchanged
+     * deferred docs, but — unlike `fullSync` — it does NOT bypass any
+     * deletion-reconciliation safety guard. Incremental syncs of other connectors
+     * stay hash-gated.
      */
     const forceRehydrate = Boolean(
       (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync

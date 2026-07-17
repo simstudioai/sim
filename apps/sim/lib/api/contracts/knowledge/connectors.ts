@@ -154,10 +154,10 @@ export const deleteKnowledgeConnectorContract = defineRouteContract({
 export const triggerKnowledgeConnectorSyncQuerySchema = z.object({
   /**
    * Force re-hydration: for connectors whose rendered content can drift without a
-   * hash change (e.g. Confluence transclusions), re-fetch and re-index every
-   * already-synced document rather than only hash-changed ones. Listing and
-   * deletion reconciliation are unchanged from a normal sync. Defaults to the
-   * normal hash-gated sync.
+   * hash change (e.g. Confluence transclusions), do a full listing and re-fetch +
+   * re-index every already-synced document rather than only hash-changed ones. The
+   * deletion-reconciliation safety guards stay armed. Defaults to the normal
+   * hash-gated sync.
    */
   rehydrate: booleanQueryFlagSchema.optional().default(false),
 })
