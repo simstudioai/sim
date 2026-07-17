@@ -70,10 +70,13 @@ interface UseDragResizeOptions {
  * (other pointers are ignored, so a second touch cannot kill the gesture) or
  * window `blur`, so an interrupted gesture can never leave the listeners or
  * body cursor stuck. A single-flight guard prevents stacking listeners across
- * rapid presses, and an unmount cleanup tears down a drag still in flight.
+ * rapid presses, and unmounting mid-drag finalizes it the same way a release
+ * does — committing the last value and dropping the scoped override — so
+ * navigating away can neither lose the resize nor strand the override on a
+ * surviving target element.
  */
 export function useDragResize(options: UseDragResizeOptions) {
-  const cleanupRef = useRef<(() => void) | null>(null)
+  const teardownRef = useRef<(() => void) | null>(null)
   const optionsRef = useRef(options)
 
   useEffect(() => {
@@ -81,7 +84,7 @@ export function useDragResize(options: UseDragResizeOptions) {
   }, [options])
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
-    if (cleanupRef.current) return
+    if (teardownRef.current) return
     if (optionsRef.current.onStart?.() === false) return
 
     const handle = e.currentTarget
@@ -123,7 +126,7 @@ export function useDragResize(options: UseDragResizeOptions) {
       document.removeEventListener('pointerup', onPointerEnd)
       document.removeEventListener('pointercancel', onPointerEnd)
       window.removeEventListener('blur', endDrag)
-      cleanupRef.current = null
+      teardownRef.current = null
     }
 
     function endDrag() {
@@ -144,14 +147,14 @@ export function useDragResize(options: UseDragResizeOptions) {
       endDrag()
     }
 
-    cleanupRef.current = cleanup
+    teardownRef.current = endDrag
     document.addEventListener('pointermove', onPointerMove)
     document.addEventListener('pointerup', onPointerEnd)
     document.addEventListener('pointercancel', onPointerEnd)
     window.addEventListener('blur', endDrag)
   }, [])
 
-  useEffect(() => () => cleanupRef.current?.(), [])
+  useEffect(() => () => teardownRef.current?.(), [])
 
   return { handlePointerDown }
 }

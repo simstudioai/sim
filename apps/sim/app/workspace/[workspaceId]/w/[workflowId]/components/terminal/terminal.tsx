@@ -1255,10 +1255,10 @@ export const Terminal = memo(function Terminal() {
   /**
    * Adjust output panel width on resize.
    * Closes the output panel if there's not enough space for the minimum width.
-   * The clamp compares against the live `--output-panel-width` CSS variable
-   * (the visual width — during a drag it runs ahead of the store, which only
-   * commits on release) so a resize mid-drag can never stomp the drag with a
-   * stale store value; the store value is the fallback before any write.
+   * The clamp compares against the live `--output-panel-width` — read from the
+   * terminal element first (where a drag writes its scoped override), then
+   * `:root` (the committed value), then the store — so a resize mid-drag can
+   * never stomp the drag with a stale value.
    */
   useEffect(() => {
     const el = terminalRef.current
@@ -1276,7 +1276,8 @@ export const Terminal = memo(function Terminal() {
       }
 
       const liveWidth = Number.parseFloat(
-        document.documentElement.style.getPropertyValue('--output-panel-width')
+        el.style.getPropertyValue('--output-panel-width') ||
+          document.documentElement.style.getPropertyValue('--output-panel-width')
       )
       const currentWidth = Number.isNaN(liveWidth) ? outputPanelWidth : liveWidth
       if (currentWidth > maxWidth) {
