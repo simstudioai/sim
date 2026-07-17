@@ -209,6 +209,45 @@ describe('Tool Parameters Utils', () => {
       expect(selfHostedSchema.properties.apiKey.description).not.toContain('hosted key')
     })
 
+    it.concurrent('keeps the key required for conditionally hosted tools', () => {
+      const enabled = Object.assign(
+        (params: Record<string, unknown>) => params.provider === 'falai',
+        {
+          condition: { field: 'provider', operator: 'equals' as const, value: 'falai' },
+        }
+      )
+      const conditionalTool = {
+        ...mockToolConfig,
+        id: 'conditional_hosted_tool',
+        params: {
+          apiKey: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Provider API Key',
+          },
+        },
+        hosting: {
+          enabled,
+          envKeyPrefix: 'FALAI_API_KEY',
+          apiKeyParam: 'apiKey',
+          byokProviderId: 'falai',
+          pricing: { type: 'per_request' as const, cost: 0.01 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 100 },
+        },
+      }
+
+      const schema = createUserToolSchema(conditionalTool, {
+        surface: 'copilot',
+        hostedKeySupport: true,
+      })
+
+      // Injection only happens when the predicate passes at runtime, so the
+      // schema must not promise a hosted key for every configuration.
+      expect(schema.required).toContain('apiKey')
+      expect(schema.properties.apiKey.description).not.toContain('hosted key')
+    })
+
     it.concurrent('does not relax required keys on tools without hosting', () => {
       const plainTool = {
         ...mockToolConfig,

@@ -131,10 +131,14 @@ export interface UserToolSchemaOptions {
   surface?: 'default' | 'copilot'
   /**
    * Set when the deployment provides hosted API keys for tools with a
-   * `hosting` config. The hosted key param then stays in the schema only as an
-   * optional bring-your-own-key override instead of a required argument — the
-   * executor injects the hosted key server-side after validation, and the key
-   * value itself is never exposed to the model or the mothership.
+   * `hosting` config. For unconditionally hosted tools the key param then
+   * stays in the schema only as an optional bring-your-own-key override
+   * instead of a required argument — the executor injects the hosted key
+   * server-side after validation, and the key value itself is never exposed
+   * to the model or the mothership. Tools with a conditional
+   * `hosting.enabled` predicate keep the key required, since injection only
+   * happens for configurations that satisfy the predicate (mirrors the VFS
+   * `conditional_hosted_or_byok` auth mode).
    */
   hostedKeySupport?: boolean
 }
@@ -514,7 +518,9 @@ export function createUserToolSchema(
 ): ToolSchema {
   const surface = options.surface ?? 'default'
   const hostedApiKeyParam =
-    options.hostedKeySupport && toolConfig.hosting ? toolConfig.hosting.apiKeyParam : undefined
+    options.hostedKeySupport && toolConfig.hosting && !toolConfig.hosting.enabled
+      ? toolConfig.hosting.apiKeyParam
+      : undefined
   const schema: ToolSchema = {
     type: 'object',
     properties: {},
