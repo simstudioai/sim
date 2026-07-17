@@ -14,27 +14,27 @@ function applyOutputPanelWidth(width: number): void {
 
 /**
  * Handles the terminal output panel drag-resize with zero React renders
- * during the drag. The terminal rect is captured once on drag start (its
- * size cannot change mid-drag, and this keeps forced layout reads off the
- * per-move path). The final width is committed to the store (one re-render
- * + one localStorage write) when the drag ends.
+ * during the drag. The terminal element is captured once on drag start and
+ * its rect is re-read per frame (rAF-aligned, before the CSS-var write), so
+ * the clamp stays correct even if the terminal resizes mid-drag. The final
+ * width is committed to the store (one re-render + one localStorage write)
+ * when the drag ends.
  *
  * @returns Pointer-down handler for the resize handle
  */
 export function useOutputPanelResize() {
   const setOutputPanelWidth = useTerminalStore((s) => s.setOutputPanelWidth)
-  const terminalRectRef = useRef<DOMRect | null>(null)
+  const terminalElRef = useRef<Element | null>(null)
 
-  const captureTerminalRect = useCallback(() => {
-    const terminalEl = document.querySelector('[aria-label="Terminal"]')
-    if (!terminalEl) return false
-    terminalRectRef.current = terminalEl.getBoundingClientRect()
-    return true
+  const captureTerminalElement = useCallback(() => {
+    terminalElRef.current = document.querySelector('[aria-label="Terminal"]')
+    return terminalElRef.current !== null
   }, [])
 
   const computeOutputPanelWidth = useCallback((ev: PointerEvent) => {
-    const terminalRect = terminalRectRef.current
-    if (!terminalRect) return null
+    const terminalEl = terminalElRef.current
+    if (!terminalEl) return null
+    const terminalRect = terminalEl.getBoundingClientRect()
     const newWidth = terminalRect.right - ev.clientX
     const maxWidth = terminalRect.width - TERMINAL_BLOCK_COLUMN_WIDTH
     return Math.max(OUTPUT_PANEL_WIDTH.MIN, Math.min(newWidth, maxWidth))
@@ -45,6 +45,6 @@ export function useOutputPanelResize() {
     compute: computeOutputPanelWidth,
     apply: applyOutputPanelWidth,
     commit: setOutputPanelWidth,
-    onStart: captureTerminalRect,
+    onStart: captureTerminalElement,
   })
 }

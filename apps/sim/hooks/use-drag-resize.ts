@@ -5,8 +5,9 @@ interface UseDragResizeOptions {
   cursor: 'ew-resize' | 'ns-resize'
   /**
    * Maps a pointer position to the clamped target dimension, or `null` to
-   * ignore the move. Runs on every pointermove, so it must stay cheap (no
-   * layout reads — capture rects in `onStart` instead).
+   * ignore the move. Runs at most once per animation frame (before `apply`,
+   * so a layout read here happens against clean layout) and once more on
+   * release, so it may read layout but must stay cheap.
    */
   compute: (ev: PointerEvent) => number | null
   /**
@@ -20,8 +21,9 @@ interface UseDragResizeOptions {
    */
   commit: (value: number) => void
   /**
-   * Optional drag-start hook (e.g. capture an anchor rect, set a store flag).
-   * Return `false` to abort the drag before any listeners are attached.
+   * Optional drag-start hook (e.g. capture an anchor element, set a store
+   * flag). Return `false` to abort the drag before any listeners are
+   * attached.
    */
   onStart?: () => boolean | undefined
   /** Optional drag-end hook, invoked after teardown and commit */
@@ -35,13 +37,15 @@ interface UseDragResizeOptions {
  *
  * pointerdown  → capture the pointer on the handle (so move/up keep arriving
  *                even when the cursor leaves the window or crosses an iframe)
- * pointermove  → `compute` the clamped value immediately (cheap math), then
- *                `apply` it inside a requestAnimationFrame callback so DOM
- *                writes align with the browser paint cycle
- * pointerup    → cancel any pending RAF, tear down, and `commit` the last
- *                computed value once — committing the tracked value (rather
- *                than reading it back out of the DOM) means a fast
- *                single-frame flick is never lost to a cancelled RAF
+ * pointermove  → remember the latest pointer event and schedule a
+ *                requestAnimationFrame callback that `compute`s the clamped
+ *                value from it and `apply`s it, so both any layout read and
+ *                the DOM write align with the browser paint cycle
+ * pointerup    → tear down, `compute` the final value from the latest
+ *                pointer event, `apply` and `commit` it once — deriving the
+ *                final value from the event (rather than reading state back
+ *                out of the DOM) means a fast single-frame flick is never
+ *                lost to a cancelled RAF
  *
  * The drag is torn down by `pointerup`/`pointercancel` of the captured
  * pointer (other pointers are ignored, so a second touch cannot kill the
@@ -69,16 +73,16 @@ export function useDragResize(options: UseDragResizeOptions) {
     handle.setPointerCapture?.(pointerId)
 
     let rafId: number | null = null
-    let pendingValue: number | null = null
+    let lastEvent: PointerEvent | null = null
 
     const onPointerMove = (ev: PointerEvent) => {
       if (ev.pointerId !== pointerId) return
-      const value = optionsRef.current.compute(ev)
-      if (value === null) return
-      pendingValue = value
+      lastEvent = ev
       rafId ??= requestAnimationFrame(() => {
-        if (pendingValue !== null) optionsRef.current.apply(pendingValue)
         rafId = null
+        if (lastEvent === null) return
+        const value = optionsRef.current.compute(lastEvent)
+        if (value !== null) optionsRef.current.apply(value)
       })
     }
 
@@ -99,7 +103,13 @@ export function useDragResize(options: UseDragResizeOptions) {
 
     function endDrag() {
       cleanup()
-      if (pendingValue !== null) optionsRef.current.commit(pendingValue)
+      if (lastEvent !== null) {
+        const value = optionsRef.current.compute(lastEvent)
+        if (value !== null) {
+          optionsRef.current.apply(value)
+          optionsRef.current.commit(value)
+        }
+      }
       optionsRef.current.onEnd?.()
     }
 
