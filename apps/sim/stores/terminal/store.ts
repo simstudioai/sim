@@ -50,6 +50,11 @@ export const useTerminalStore = create<TerminalState>()(
       setOutputPanelWidth: (width) => {
         const clampedWidth = Math.max(OUTPUT_PANEL_WIDTH.MIN, width)
         set({ outputPanelWidth: clampedWidth })
+
+        // Update CSS variable for immediate visual feedback
+        if (typeof window !== 'undefined') {
+          document.documentElement.style.setProperty('--output-panel-width', `${clampedWidth}px`)
+        }
       },
       openOnRun: true,
       /**
@@ -107,14 +112,19 @@ export const useTerminalStore = create<TerminalState>()(
         structuredView: state.structuredView,
       }),
       /**
-       * Synchronizes the `--terminal-height` CSS custom property with the
-       * persisted store value after client-side rehydration.
+       * Synchronizes the `--terminal-height` and `--output-panel-width` CSS
+       * custom properties with the persisted store values after client-side
+       * rehydration.
        */
       onRehydrateStorage: () => (state) => {
         if (state && typeof window !== 'undefined') {
           document.documentElement.style.setProperty(
             '--terminal-height',
             `${state.terminalHeight}px`
+          )
+          document.documentElement.style.setProperty(
+            '--output-panel-width',
+            `${state.outputPanelWidth}px`
           )
         }
       },
