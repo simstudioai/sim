@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { createAzureProvider } from '@/lib/messaging/email/providers/azure'
+import { createGmailProvider } from '@/lib/messaging/email/providers/gmail'
 import { createResendProvider } from '@/lib/messaging/email/providers/resend'
 import { createSesProvider } from '@/lib/messaging/email/providers/ses'
 import { createSmtpProvider } from '@/lib/messaging/email/providers/smtp'
@@ -12,6 +13,7 @@ const factories = [
   createSesProvider,
   createSmtpProvider,
   createAzureProvider,
+  createGmailProvider,
 ] as const
 
 function safeCreate(factory: () => MailProvider | null): MailProvider | null {

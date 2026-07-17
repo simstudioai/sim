@@ -88,7 +88,7 @@ By default Sim writes uploads to local disk. For production, point it at AWS S3,
 
 ## Email Providers
 
-Configure one provider — the mailer auto-detects in priority order: **Resend → AWS SES → SMTP → Azure Communication Services**. If none are configured, emails are logged to the console instead.
+Configure one provider — the mailer auto-detects in priority order: **Resend → AWS SES → SMTP → Azure Communication Services → Gmail**. If none are configured, emails are logged to the console instead.
 
 | Variable | Description |
 |----------|-------------|
@@ -123,6 +123,15 @@ Configure one provider — the mailer auto-detects in priority order: **Resend �
 | Variable | Description |
 |----------|-------------|
 | `AZURE_ACS_CONNECTION_STRING` | Azure Communication Services connection string |
+
+**Gmail** (Google-native — GCP has no first-party transactional email service, so the native path is the Gmail API with a Google Workspace sender)
+
+| Variable | Description |
+|----------|-------------|
+| `GMAIL_CREDENTIALS_JSON` | Inline service-account JSON. The service account needs [domain-wide delegation](https://developers.google.com/workspace/guides/create-credentials#delegate_domain-wide_authority_to_a_service_account) granted for the `https://www.googleapis.com/auth/gmail.send` scope in the Workspace admin console |
+| `GMAIL_SENDER` | The Workspace user the service account impersonates when sending (e.g. `noreply@yourdomain.com`). `FROM_EMAIL_ADDRESS` should match this user or one of its registered aliases — Gmail rewrites unrecognized From addresses |
+
+Alternatively, the [Google Workspace SMTP relay](https://support.google.com/a/answer/2956491) works through the generic SMTP provider (`SMTP_HOST=smtp-relay.gmail.com`, port `587`) with no service account required.
 
 ## Limits
 
