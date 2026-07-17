@@ -12,10 +12,14 @@ import { useSidebarStore } from '@/stores/sidebar/store'
  *                add `is-resizing` class directly to the DOM (no React
  *                round-trip, so the CSS width transition is suppressed from the
  *                very first frame)
- * pointermove  → write to --sidebar-width inside a requestAnimationFrame
- *                callback (aligns work with the browser paint cycle)
+ * pointermove  → write --sidebar-width to `.sidebar-shell-outer` (the element
+ *                that sizes the rail) inside a requestAnimationFrame callback.
+ *                Scoping the variable to that subtree keeps the style recalc
+ *                local; writing it to `:root` instead forces a whole-document
+ *                recalc (~150x slower on a large canvas).
  * pointerup    → cancel any pending RAF, tear down, persist final width to
- *                Zustand once (one React re-render to save to localStorage)
+ *                Zustand once (writes the authoritative `:root` value for
+ *                on-demand readers), then drop the scoped override
  *
  * The drag is torn down by `pointerup`, `pointercancel`, or window `blur`, so an
  * interrupted gesture (release outside the window, alt-tab, context menu, the OS
@@ -36,6 +40,8 @@ export function useSidebarResize() {
       const handle = e.currentTarget
       const pointerId = e.pointerId
       const sidebar = document.querySelector<HTMLElement>('.sidebar-container')
+      const shell = document.querySelector<HTMLElement>('.sidebar-shell-outer')
+      const target = shell ?? document.documentElement
       sidebar?.classList.add('is-resizing')
       document.documentElement.classList.add('sidebar-resizing')
       document.body.style.cursor = 'ew-resize'
@@ -43,13 +49,15 @@ export function useSidebarResize() {
       handle.setPointerCapture?.(pointerId)
 
       let rafId: number | null = null
+      let lastWidth: number | null = null
 
       const onPointerMove = (ev: PointerEvent) => {
         if (rafId !== null) cancelAnimationFrame(rafId)
         rafId = requestAnimationFrame(() => {
           const max = Math.max(SIDEBAR_WIDTH.MIN, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
           const clamped = Math.min(Math.max(ev.clientX, SIDEBAR_WIDTH.MIN), max)
-          document.documentElement.style.setProperty('--sidebar-width', `${clamped}px`)
+          target.style.setProperty('--sidebar-width', `${clamped}px`)
+          lastWidth = clamped
           rafId = null
         })
       }
@@ -73,9 +81,10 @@ export function useSidebarResize() {
 
       function endDrag() {
         cleanup()
-        const raw = document.documentElement.style.getPropertyValue('--sidebar-width')
-        const finalWidth = Number.parseFloat(raw)
-        if (!Number.isNaN(finalWidth)) setSidebarWidth(finalWidth)
+        if (lastWidth !== null) {
+          setSidebarWidth(lastWidth)
+          if (target !== document.documentElement) target.style.removeProperty('--sidebar-width')
+        }
       }
 
       cleanupRef.current = cleanup
