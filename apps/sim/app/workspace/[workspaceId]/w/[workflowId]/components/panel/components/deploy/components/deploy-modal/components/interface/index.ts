@@ -1,0 +1,1 @@
+export { InterfaceDeploy } from './interface'

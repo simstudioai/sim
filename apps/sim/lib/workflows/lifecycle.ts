@@ -6,6 +6,7 @@ import {
   workflow,
   workflowDeploymentVersion,
   workflowFolder,
+  workflowInterface,
   workflowMcpTool,
   workflowSchedule,
   workspace,
@@ -139,6 +140,15 @@ export async function archiveWorkflow(
         isActive: false,
       })
       .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
+
+    await tx
+      .update(workflowInterface)
+      .set({
+        archivedAt: now,
+        updatedAt: now,
+        isActive: false,
+      })
+      .where(and(eq(workflowInterface.workflowId, workflowId), isNull(workflowInterface.archivedAt)))
 
     await tx
       .update(workflowMcpTool)
@@ -275,6 +285,10 @@ export async function restoreWorkflow(
       .update(chat)
       .set({ archivedAt: null, updatedAt: now })
       .where(eq(chat.workflowId, workflowId))
+
+    // Intentionally do not clear workflow_interface.archivedAt — restore must not
+    // auto-republish interfaces (avoids identifier collisions and resurrecting
+    // surfaces the user would need to Publish again explicitly).
 
     await tx
       .update(workflowMcpTool)

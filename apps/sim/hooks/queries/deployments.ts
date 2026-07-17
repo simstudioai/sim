@@ -62,11 +62,15 @@ export const deploymentKeys = {
  * Used by mutation onSuccess callbacks and manual invalidation after chat deployments.
  */
 export function invalidateDeploymentQueries(queryClient: QueryClient, workflowId: string) {
+  // Keep in sync with interfaceKeys.status(workflowId) in hooks/queries/interfaces.ts
+  // (avoid importing that module here — it depends on this file).
+  const interfaceStatusKey = ['interfaces', 'status', workflowId] as const
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: deploymentKeys.info(workflowId) }),
     queryClient.invalidateQueries({ queryKey: deploymentKeys.deployedState(workflowId) }),
     queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) }),
     queryClient.invalidateQueries({ queryKey: deploymentKeys.chatStatus(workflowId) }),
+    queryClient.invalidateQueries({ queryKey: interfaceStatusKey }),
   ])
 }
 

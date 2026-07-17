@@ -1026,4 +1026,18 @@ export const PlatformEvents = {
       'chat.has_output_configs': attrs.hasOutputConfigs,
     })
   },
+
+  interfaceDeployed: (attrs: {
+    interfaceId: string
+    workflowId: string
+    authType: 'public'
+    hasOutputConfigs: boolean
+  }) => {
+    trackPlatformEvent('platform.interface.deployed', {
+      'interface.id': attrs.interfaceId,
+      'workflow.id': attrs.workflowId,
+      'interface.auth_type': attrs.authType,
+      'interface.has_output_configs': attrs.hasOutputConfigs,
+    })
+  },
 }

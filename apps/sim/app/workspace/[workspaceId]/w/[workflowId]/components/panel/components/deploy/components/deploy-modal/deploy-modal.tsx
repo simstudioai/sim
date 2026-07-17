@@ -46,6 +46,7 @@ import {
   useDeployWorkflow,
   useUndeployWorkflow,
 } from '@/hooks/queries/deployments'
+import { useInterfaceDeploymentInfo } from '@/hooks/queries/interfaces'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
@@ -55,7 +56,14 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { ApiDeploy, ChatDeploy, type ExistingChat, GeneralDeploy, McpDeploy } from './components'
+import {
+  ApiDeploy,
+  ChatDeploy,
+  type ExistingChat,
+  GeneralDeploy,
+  InterfaceDeploy,
+  McpDeploy,
+} from './components'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
 
 const logger = createLogger('DeployModal')
@@ -82,9 +90,9 @@ interface WorkflowDeploymentInfoUI {
   isPublicApi: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'mcp'
+type TabView = 'general' | 'api' | 'chat' | 'mcp' | 'interface'
 
-const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp'])
+const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp', 'interface'])
 
 function isDeployModalTab(value: unknown): value is TabView {
   return typeof value === 'string' && DEPLOY_MODAL_TABS.has(value as TabView)
@@ -111,6 +119,8 @@ export function DeployModal({
   const workflowWorkspaceId = workflowMetadata?.workspaceId ?? null
   const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
+  const [interfaceSubmitting, setInterfaceSubmitting] = useState(false)
+  const [isInterfaceFormValid, setIsInterfaceFormValid] = useState(false)
   const [deployError, setDeployError] = useState<string | null>(null)
   const [isFinalizingDeploy, setIsFinalizingDeploy] = useState(false)
   const [isActivatingVersion, setIsActivatingVersion] = useState(false)
@@ -162,6 +172,13 @@ export function DeployModal({
     existingChat,
     refetch: refetchChatInfo,
   } = useChatDeploymentInfo(workflowId, { enabled: open })
+
+  const {
+    isLoading: isLoadingInterface,
+    interfaceExists,
+    existingInterface,
+    refetch: refetchInterfaceInfo,
+  } = useInterfaceDeploymentInfo(workflowId, { enabled: open })
 
   const { data: mcpServers = [] } = useWorkflowMcpServers(workflowWorkspaceId || '')
   const hasMcpServers = mcpServers.length > 0
@@ -526,6 +543,7 @@ export function DeployModal({
               {!permissionConfig.hideDeployChatbot && (
                 <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               )}
+              <ModalTabsTrigger value='interface'>Interface</ModalTabsTrigger>
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
@@ -596,6 +614,26 @@ export function DeployModal({
                     onCanSaveChange={setMcpToolCanSave}
                     onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
                     onActiveServerChange={setMcpActiveServerId}
+                  />
+                )}
+              </ModalTabsContent>
+
+              <ModalTabsContent value='interface' className='h-full overflow-y-auto'>
+                {workflowId && (
+                  <InterfaceDeploy
+                    workflowId={workflowId}
+                    existingInterface={existingInterface}
+                    isLoading={isLoadingInterface}
+                    submitting={interfaceSubmitting}
+                    setSubmitting={setInterfaceSubmitting}
+                    onValidationChange={setIsInterfaceFormValid}
+                    onDeployed={() => {
+                      if (workflowId) invalidateDeploymentQueries(queryClient, workflowId)
+                      refetchInterfaceInfo()
+                    }}
+                    onRefetch={async () => {
+                      await refetchInterfaceInfo()
+                    }}
                   />
                 )}
               </ModalTabsContent>
@@ -704,6 +742,23 @@ export function DeployModal({
                     <Tooltip.Content>{mcpToolSaveDisabledReason}</Tooltip.Content>
                   )}
                 </Tooltip.Root>
+              </div>
+            </ModalFooter>
+          )}
+          {activeTab === 'interface' && (
+            <ModalFooter className='items-center justify-between'>
+              <div />
+              <div className='flex items-center gap-2'>
+                {interfaceExists ? (
+                  <Badge variant='green' size='lg' dot>
+                    Published
+                  </Badge>
+                ) : null}
+                <span className='text-[var(--text-tertiary)] text-xs'>
+                  {isInterfaceFormValid
+                    ? 'Ready to publish'
+                    : 'Generate a preview before publishing'}
+                </span>
               </div>
             </ModalFooter>
           )}

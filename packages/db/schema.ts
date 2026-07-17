@@ -1152,6 +1152,51 @@ export const chat = pgTable(
   }
 )
 
+/**
+ * Deployed workflow interface (form/button UI) surface.
+ * Spec JSON is untyped at the DB layer; apps/sim validates InterfaceSpec.
+ */
+export const workflowInterface = pgTable(
+  'workflow_interface',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    identifier: text('identifier').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    isActive: boolean('is_active').notNull().default(true),
+    customizations: json('customizations').default('{}'),
+    authType: text('auth_type').notNull().default('public'),
+    outputConfigs: json('output_configs').default('[]'),
+    spec: jsonb('spec').notNull().default({}),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      identifierIdx: uniqueIndex('workflow_interface_identifier_idx')
+        .on(table.identifier)
+        .where(sql`${table.archivedAt} IS NULL`),
+      workflowActiveIdx: uniqueIndex('workflow_interface_workflow_active_idx')
+        .on(table.workflowId)
+        .where(sql`${table.archivedAt} IS NULL`),
+      archivedAtPartialIdx: index('workflow_interface_archived_at_partial_idx')
+        .on(table.archivedAt)
+        .where(sql`${table.archivedAt} IS NOT NULL`),
+      workflowArchivedAtIdx: index('workflow_interface_workflow_archived_at_idx').on(
+        table.workflowId,
+        table.archivedAt
+      ),
+    }
+  }
+)
+
 /** Per-stage PII redaction policy stored on a {@link PiiRedactionRule}. */
 export interface PiiStagePolicy {
   enabled: boolean

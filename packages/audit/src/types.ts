@@ -19,6 +19,11 @@ export const AuditAction = {
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
 
+  // Workflow Interface
+  INTERFACE_DEPLOYED: 'interface.deployed',
+  INTERFACE_UPDATED: 'interface.updated',
+  INTERFACE_DELETED: 'interface.deleted',
+
   // Custom Blocks (deploy-as-block)
   CUSTOM_BLOCK_PUBLISHED: 'custom_block.published',
   CUSTOM_BLOCK_UPDATED: 'custom_block.updated',
@@ -211,6 +216,7 @@ export const AuditResourceType = {
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
   CHAT: 'chat',
+  INTERFACE: 'interface',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
   CUSTOM_BLOCK: 'custom_block',

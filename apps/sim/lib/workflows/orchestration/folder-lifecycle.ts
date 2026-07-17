@@ -432,6 +432,8 @@ async function restoreFolderRecursively(
       .where(inArray(workflowSchedule.workflowId, workflowIds))
     await tx.update(webhook).set(restoreSet).where(inArray(webhook.workflowId, workflowIds))
     await tx.update(chat).set(restoreSet).where(inArray(chat.workflowId, workflowIds))
+    // Intentionally do not restore workflow_interface rows — interfaces stay
+    // archived until the user publishes again (same policy as workflow restore).
     await tx
       .update(workflowMcpTool)
       .set(restoreSet)
