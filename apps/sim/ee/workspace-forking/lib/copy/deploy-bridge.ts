@@ -37,7 +37,10 @@ export interface DeployedWorkflowSummary {
  * left by an inconsistent state) has nothing to copy, so excluding it here keeps the
  * diff/plan counts aligned with what apply actually writes instead of over-reporting
  * then silently skipping it. Correlated `exists` (not a join) so a workflow is never
- * double-listed if more than one active version row ever exists.
+ * double-listed if more than one active version row ever exists. Workflows marked
+ * `forkSyncExcluded` never participate as a source: this one predicate keeps them
+ * out of the diff preview, promote (both directions), fork creation, and the
+ * mapping-view reference scan.
  */
 export async function listDeployedWorkflows(
   executor: DbOrTx,
@@ -57,6 +60,7 @@ export async function listDeployedWorkflows(
       and(
         eq(workflow.workspaceId, workspaceId),
         eq(workflow.isDeployed, true),
+        eq(workflow.forkSyncExcluded, false),
         isNull(workflow.archivedAt),
         exists(
           db

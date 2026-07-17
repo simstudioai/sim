@@ -7,6 +7,7 @@ import {
   forkLineageNodeSchema,
   forkMappableResourceTypeSchema,
   getWorkspaceBackgroundWorkQuerySchema,
+  updateForkExcludedWorkflowsBodySchema,
   updateForkMappingBodySchema,
 } from '@/lib/api/contracts/workspace-fork'
 
@@ -127,5 +128,38 @@ describe('updateForkMappingBodySchema', () => {
       })
       expect(result.success).toBe(false)
     }
+  })
+})
+
+describe('updateForkExcludedWorkflowsBodySchema', () => {
+  it('accepts a batch of workflow ids with the exclusion flag', () => {
+    const parsed = updateForkExcludedWorkflowsBodySchema.parse({
+      workflowIds: ['wf-1', 'wf-2'],
+      forkSyncExcluded: true,
+    })
+    expect(parsed).toEqual({ workflowIds: ['wf-1', 'wf-2'], forkSyncExcluded: true })
+  })
+
+  it('rejects an empty id list, empty ids, and oversized batches', () => {
+    expect(
+      updateForkExcludedWorkflowsBodySchema.safeParse({ workflowIds: [], forkSyncExcluded: true })
+        .success
+    ).toBe(false)
+    expect(
+      updateForkExcludedWorkflowsBodySchema.safeParse({ workflowIds: [''], forkSyncExcluded: true })
+        .success
+    ).toBe(false)
+    expect(
+      updateForkExcludedWorkflowsBodySchema.safeParse({
+        workflowIds: Array.from({ length: 1001 }, (_, index) => `wf-${index}`),
+        forkSyncExcluded: false,
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires the forkSyncExcluded flag', () => {
+    expect(updateForkExcludedWorkflowsBodySchema.safeParse({ workflowIds: ['wf-1'] }).success).toBe(
+      false
+    )
   })
 })

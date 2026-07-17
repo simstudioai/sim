@@ -777,3 +777,30 @@ export const unlinkForkContract = defineRouteContract({
 })
 export type UnlinkForkBody = z.input<typeof unlinkForkBodySchema>
 export type UnlinkForkResponse = z.output<typeof unlinkForkContract.response.schema>
+
+export const updateForkExcludedWorkflowsBodySchema = z.object({
+  /** Workflows to mark or unmark; ids outside the workspace are ignored. */
+  workflowIds: z
+    .array(z.string().min(1, 'workflowIds entries cannot be empty'))
+    .min(1, 'workflowIds cannot be empty')
+    .max(1000, 'Cannot update more than 1000 workflows at once'),
+  /** True marks the workflows "Exclude from sync"; false includes them again. */
+  forkSyncExcluded: z.boolean(),
+})
+export const updateForkExcludedWorkflowsContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/fork/excluded-workflows',
+  params: workspaceIdParamsSchema,
+  body: updateForkExcludedWorkflowsBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      /** Number of workflows actually updated (ids outside the workspace are skipped). */
+      updated: z.number().int(),
+    }),
+  },
+})
+export type UpdateForkExcludedWorkflowsBody = z.input<typeof updateForkExcludedWorkflowsBodySchema>
+export type UpdateForkExcludedWorkflowsResponse = z.output<
+  typeof updateForkExcludedWorkflowsContract.response.schema
+>
