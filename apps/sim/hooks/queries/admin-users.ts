@@ -12,9 +12,10 @@ export const adminUserKeys = {
   lists: () => [...adminUserKeys.all, 'list'] as const,
   list: (offset: number, limit: number, searchQuery: string) =>
     [...adminUserKeys.lists(), offset, limit, searchQuery] as const,
+  byEmails: (emails: string[]) => [...adminUserKeys.lists(), 'byEmails', emails] as const,
 }
 
-interface AdminUser {
+export interface AdminUser {
   id: string
   name: string
   email: string
@@ -79,6 +80,44 @@ async function fetchAdminUsers(
     users: (data?.users ?? []).map(mapUser),
     total: data?.total ?? 0,
   }
+}
+
+async function fetchAdminUsersByEmails(
+  emails: string[],
+  signal?: AbortSignal
+): Promise<AdminUser[]> {
+  const results = await Promise.all(
+    emails.map(async (email) => {
+      const { data, error } = await client.admin.listUsers(
+        {
+          query: {
+            limit: 5,
+            searchField: 'email',
+            searchValue: email,
+            searchOperator: 'contains',
+          },
+        },
+        { signal }
+      )
+      if (error) throw new Error(error.message ?? 'Failed to fetch user')
+      return (
+        (data?.users ?? [])
+          .map(mapUser)
+          .find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null
+      )
+    })
+  )
+  return results.filter((u): u is AdminUser => u !== null)
+}
+
+/** Resolves each email to its exact-match user; unmatched emails are dropped. */
+export function useAdminUsersByEmails(emails: string[]) {
+  return useQuery({
+    queryKey: adminUserKeys.byEmails(emails),
+    queryFn: ({ signal }) => fetchAdminUsersByEmails(emails, signal),
+    enabled: emails.length > 0,
+    staleTime: ADMIN_USER_LIST_STALE_TIME,
+  })
 }
 
 export function useAdminUsers(offset: number, limit: number, searchQuery: string) {

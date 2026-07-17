@@ -2,6 +2,7 @@
 
 import { createLogger } from '@sim/logger'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/app/workspace/[workspaceId]/settings/components/admin/use-recent-impersonations'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { useExecutionStore } from '@/stores/execution'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -50,8 +51,7 @@ export async function clearUserData(): Promise<void> {
   try {
     resetAllStores()
 
-    // Clear localStorage except for essential app settings
-    const keysToKeep = ['next-favicon', 'theme']
+    const keysToKeep = ['next-favicon', 'theme', RECENT_IMPERSONATIONS_STORAGE_KEY]
     const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
     keysToRemove.forEach((key) => localStorage.removeItem(key))
 
