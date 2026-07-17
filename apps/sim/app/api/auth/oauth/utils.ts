@@ -31,6 +31,7 @@ import {
   extractSlackTeamId,
   fanOutSlackTokenChain,
   getFreshestSlackChain,
+  hasSlackChainMoved,
   isSlackProvider,
 } from '@/lib/oauth/slack'
 import {
@@ -673,12 +674,15 @@ interface CoalescedRefreshOptions {
 /**
  * Slack lock budgets sized past `TOKEN_REFRESH_TIMEOUT_MS` (15s) in
  * lib/oauth/oauth.ts: installation-keyed locks make every sibling row's request
- * a follower of one refresh. The lock TTL must not expire under a live refresh
- * (15s provider call plus DB reads and the fan-out write), and followers poll
- * for the lock's full lifetime so a slow-but-successful refresh is still
- * observed rather than reported as a failure.
+ * a follower of one refresh, so the TTL covers the provider call plus generous
+ * headroom for the surrounding DB reads and the fan-out write, and followers
+ * poll for the lock's full lifetime so a slow-but-successful refresh is still
+ * observed rather than reported as a failure. These budgets are latency knobs,
+ * not correctness guarantees — chain integrity under lock expiry or unlocked
+ * concurrent writers is enforced by the version-guarded fan-out
+ * (`ifChainUnchangedSince` in lib/oauth/slack.ts).
  */
-const SLACK_LOCK_TTL_SEC = 20
+const SLACK_LOCK_TTL_SEC = 30
 const SLACK_FOLLOWER_MAX_WAIT_MS = SLACK_LOCK_TTL_SEC * 1000
 
 async function performCoalescedRefresh({
@@ -727,6 +731,7 @@ async function performCoalescedRefresh({
       onLeader: async () => {
         try {
           let refreshTokenToUse = refreshToken
+          let slackChainVersion: Date | null = null
           if (slackTeamId) {
             const freshest = await getFreshestSlackChain(slackTeamId)
             if (!freshest) {
@@ -734,16 +739,21 @@ async function performCoalescedRefresh({
                 `No refresh-capable account row found for Slack installation ${slackTeamId}`
               )
             }
+            slackChainVersion = freshest.chainVersion
             if (
               freshest.accessToken &&
               freshest.accessTokenExpiresAt &&
               freshest.accessTokenExpiresAt > new Date()
             ) {
-              await fanOutSlackTokenChain(slackTeamId, {
-                accessToken: freshest.accessToken,
-                refreshToken: freshest.refreshToken,
-                accessTokenExpiresAt: freshest.accessTokenExpiresAt,
-              })
+              await fanOutSlackTokenChain(
+                slackTeamId,
+                {
+                  accessToken: freshest.accessToken,
+                  refreshToken: freshest.refreshToken,
+                  accessTokenExpiresAt: freshest.accessTokenExpiresAt,
+                },
+                { ifChainUnchangedSince: freshest.chainVersion }
+              )
               logger.info('Reused freshest Slack installation token', logContext)
               return freshest.accessToken
             }
@@ -758,7 +768,18 @@ async function performCoalescedRefresh({
               errorCode: result.errorCode,
             })
             if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
-              await markCredentialDead(scopeKey, result.errorCode)
+              // A refresh that lost a race with a concurrent connect fails with
+              // a revoked/rotated-out token even though the installation just
+              // got a live chain — dead-flagging then would take down a healthy
+              // credential for an hour.
+              if (
+                slackChainVersion &&
+                (await hasSlackChainMoved(slackTeamId!, slackChainVersion))
+              ) {
+                logger.info('Skipping dead flag: Slack chain moved during refresh', logContext)
+              } else {
+                await markCredentialDead(scopeKey, result.errorCode)
+              }
             }
             return null
           }
@@ -766,11 +787,15 @@ async function performCoalescedRefresh({
           const accessTokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000)
 
           if (slackTeamId) {
-            await fanOutSlackTokenChain(slackTeamId, {
-              accessToken: result.accessToken,
-              refreshToken: result.refreshToken || refreshTokenToUse,
-              accessTokenExpiresAt,
-            })
+            await fanOutSlackTokenChain(
+              slackTeamId,
+              {
+                accessToken: result.accessToken,
+                refreshToken: result.refreshToken || refreshTokenToUse,
+                accessTokenExpiresAt,
+              },
+              { ifChainUnchangedSince: slackChainVersion ?? undefined }
+            )
           } else {
             const updateData: Record<string, unknown> = {
               accessToken: result.accessToken,

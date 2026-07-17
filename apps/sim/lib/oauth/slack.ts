@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
-import { and, eq, isNotNull, like, sql } from 'drizzle-orm'
+import { and, eq, gt, isNotNull, like, max, sql } from 'drizzle-orm'
 
 /**
  * Slack bot tokens belong to the installation (team × app), not to the OAuth
@@ -40,13 +40,31 @@ interface SlackTokenChain {
   accessTokenExpiresAt: Date | null
 }
 
+interface FanOutOptions {
+  /**
+   * Version guard: skip the write entirely when any sibling row was updated
+   * after this timestamp. A refresh leader holds its chain snapshot across a
+   * multi-second provider call while a concurrent OAuth connect (whose
+   * `account.create.after` fan-out takes no lock) may land the newly issued
+   * chain first — an unconditional write would then overwrite the live chain
+   * with a stale one. Omit for connect-time fan-out, whose chain is by
+   * definition the newest.
+   */
+  ifChainUnchangedSince?: Date
+}
+
 /**
  * Writes a token chain to every account row of a Slack installation. Rotation
  * revokes whatever the sibling rows were holding, so a successful refresh or a
  * fresh connect must overwrite all copies or the stale ones fail with
  * `token_revoked` at call time.
  */
-export async function fanOutSlackTokenChain(teamId: string, chain: SlackTokenChain): Promise<void> {
+export async function fanOutSlackTokenChain(
+  teamId: string,
+  chain: SlackTokenChain,
+  options?: FanOutOptions
+): Promise<void> {
+  const since = options?.ifChainUnchangedSince
   await db
     .update(account)
     .set({
@@ -55,13 +73,40 @@ export async function fanOutSlackTokenChain(teamId: string, chain: SlackTokenCha
       ...(chain.refreshToken ? { refreshToken: chain.refreshToken } : {}),
       updatedAt: new Date(),
     })
-    .where(installationFilter(teamId))
+    .where(
+      and(
+        installationFilter(teamId),
+        since
+          ? sql`NOT EXISTS (SELECT 1 FROM ${account} sibling WHERE sibling.provider_id = 'slack' AND sibling.account_id LIKE ${`${teamId}-%`} AND sibling.updated_at > ${since})`
+          : undefined
+      )
+    )
+}
+
+/**
+ * True when any account row of the installation was updated after `since` —
+ * i.e. another writer (a fresh connect or a competing refresh) landed a newer
+ * chain while the caller was working from an older snapshot.
+ */
+export async function hasSlackChainMoved(teamId: string, since: Date): Promise<boolean> {
+  const [row] = await db
+    .select({ moved: max(account.updatedAt) })
+    .from(account)
+    .where(and(installationFilter(teamId), gt(account.updatedAt, since)))
+    .limit(1)
+  return row?.moved != null
 }
 
 interface FreshestSlackChain {
   accessToken: string | null
   refreshToken: string
   accessTokenExpiresAt: Date | null
+  /**
+   * Max `updated_at` across the installation's rows at read time — the version
+   * guard passed back into {@link fanOutSlackTokenChain} / consulted via
+   * {@link hasSlackChainMoved} after the provider round-trip.
+   */
+  chainVersion: Date
 }
 
 /**
@@ -76,6 +121,9 @@ export async function getFreshestSlackChain(teamId: string): Promise<FreshestSla
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
+      chainVersion: sql<
+        Date | string | null
+      >`(SELECT max(sibling.updated_at) FROM ${account} sibling WHERE sibling.provider_id = 'slack' AND sibling.account_id LIKE ${`${teamId}-%`})`,
     })
     .from(account)
     .where(and(installationFilter(teamId), isNotNull(account.refreshToken)))
@@ -87,5 +135,6 @@ export async function getFreshestSlackChain(teamId: string): Promise<FreshestSla
     accessToken: row.accessToken,
     refreshToken: row.refreshToken,
     accessTokenExpiresAt: row.accessTokenExpiresAt,
+    chainVersion: row.chainVersion ? new Date(row.chainVersion) : new Date(0),
   }
 }

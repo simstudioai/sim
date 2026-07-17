@@ -328,7 +328,7 @@ describe('OAuth Utils', () => {
       expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe(
         'oauth:refresh:slack:T08CM6ZNYBE'
       )
-      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][2]).toBe(20)
+      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][2]).toBe(30)
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'live-rt')
       expect(mockSet).toHaveBeenCalledWith(
         expect.objectContaining({ accessToken: 'new-at', refreshToken: 'new-rt' })
@@ -384,6 +384,7 @@ describe('OAuth Utils', () => {
         ok: false,
         errorCode: 'token_revoked',
       })
+      mockSelectChain([])
 
       await expect(refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')).rejects.toThrow(
         'Failed to refresh token'
@@ -395,6 +396,29 @@ describe('OAuth Utils', () => {
         'EX',
         3600
       )
+    })
+
+    it('skips the dead flag when the chain moved during the failed refresh', async () => {
+      const fakeRedis = {
+        set: vi.fn().mockResolvedValue('OK'),
+        get: vi.fn().mockResolvedValue(null),
+        del: vi.fn().mockResolvedValue(1),
+      }
+      redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeRedis)
+      mockSelectOrderedChain([
+        { accessToken: 'stale-at', refreshToken: 'live-rt', accessTokenExpiresAt: past },
+      ])
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: false,
+        errorCode: 'token_revoked',
+      })
+      mockSelectChain([{ moved: new Date() }])
+
+      await expect(refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')).rejects.toThrow(
+        'Failed to refresh token'
+      )
+
+      expect(fakeRedis.set).not.toHaveBeenCalled()
     })
   })
 
