@@ -150,10 +150,22 @@ export const deleteKnowledgeConnectorContract = defineRouteContract({
   },
 })
 
+export const triggerKnowledgeConnectorSyncQuerySchema = z.object({
+  /**
+   * Force a full resync: re-list everything and, for connectors whose rendered
+   * content can drift without a hash change (e.g. Confluence transclusions),
+   * re-hydrate and re-index every document rather than only hash-changed ones.
+   * Omitted performs the normal incremental, hash-gated sync. Modeled as a string
+   * literal (not a boolean) so it round-trips cleanly through the query string.
+   */
+  fullSync: z.enum(['true', 'false']).optional(),
+})
+
 export const triggerKnowledgeConnectorSyncContract = defineRouteContract({
   method: 'POST',
   path: '/api/knowledge/[id]/connectors/[connectorId]/sync',
   params: knowledgeConnectorParamsSchema,
+  query: triggerKnowledgeConnectorSyncQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({

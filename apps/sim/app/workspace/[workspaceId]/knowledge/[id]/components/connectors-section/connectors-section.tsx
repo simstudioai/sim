@@ -1,7 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Badge, Button, Checkbox, ChipConfirmModal, cn, Loader, Tooltip } from '@sim/emcn'
+import {
+  Badge,
+  Button,
+  Checkbox,
+  ChipConfirmModal,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Loader,
+  Tooltip,
+} from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
@@ -115,14 +127,14 @@ export function ConnectorsSection({
   }, [])
 
   const handleSync = useCallback(
-    (connectorId: string) => {
+    (connectorId: string, fullSync = false) => {
       if (isSyncOnCooldown(connectorId)) return
 
       syncTriggeredAt.current[connectorId] = Date.now()
       addToSet(setSyncingIds, connectorId)
 
       triggerSync(
-        { knowledgeBaseId, connectorId },
+        { knowledgeBaseId, connectorId, fullSync },
         {
           onSuccess: () => {
             setError(null)
@@ -214,7 +226,7 @@ export function ConnectorsSection({
               isSyncPending={syncingIds.has(connector.id)}
               isUpdating={updatingIds.has(connector.id)}
               syncCooldown={isSyncOnCooldown(connector.id)}
-              onSync={() => handleSync(connector.id)}
+              onSync={(fullSync) => handleSync(connector.id, fullSync)}
               onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
               onDelete={() => setDeleteTarget(connector.id)}
@@ -273,7 +285,7 @@ interface ConnectorCardProps {
   isSyncPending: boolean
   isUpdating: boolean
   syncCooldown: boolean
-  onSync: () => void
+  onSync: (fullSync?: boolean) => void
   onEdit: () => void
   onTogglePause: () => void
   onDelete: () => void
@@ -409,28 +421,39 @@ function ConnectorCard({
         <div className='flex flex-shrink-0 items-center gap-0.5'>
           {canEdit && (
             <>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className={CONNECTOR_ACTION_BUTTON_CLASSES}
-                    onClick={onSync}
-                    disabled={
-                      connector.status === 'syncing' ||
-                      connector.status === 'disabled' ||
-                      isSyncPending ||
-                      syncCooldown
-                    }
-                  >
-                    <RefreshCw
-                      className={cn('size-3.5', connector.status === 'syncing' && 'animate-spin')}
-                    />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  {syncCooldown ? 'Sync recently triggered' : 'Sync now'}
-                </Tooltip.Content>
-              </Tooltip.Root>
+              <DropdownMenu>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        aria-label='Sync options'
+                        className={CONNECTOR_ACTION_BUTTON_CLASSES}
+                        disabled={
+                          connector.status === 'syncing' ||
+                          connector.status === 'disabled' ||
+                          isSyncPending ||
+                          syncCooldown
+                        }
+                      >
+                        <RefreshCw
+                          className={cn(
+                            'size-3.5',
+                            connector.status === 'syncing' && 'animate-spin'
+                          )}
+                        />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    {syncCooldown ? 'Sync recently triggered' : 'Sync'}
+                  </Tooltip.Content>
+                </Tooltip.Root>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem onSelect={() => onSync(false)}>Sync now</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onSync(true)}>Full resync</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>

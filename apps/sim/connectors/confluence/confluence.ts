@@ -156,6 +156,14 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
 export const confluenceConnector: ConnectorConfig = {
   ...confluenceConnectorMeta,
 
+  /**
+   * Confluence pages can transclude other pages (Include Page / Excerpt macros).
+   * Editing an included page changes a container page's rendered `view` without
+   * bumping the container's version, so its version-based hash can't detect the
+   * change. A full resync re-hydrates and re-indexes to pick up that drift.
+   */
+  rehydrateOnFullSync: true,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
