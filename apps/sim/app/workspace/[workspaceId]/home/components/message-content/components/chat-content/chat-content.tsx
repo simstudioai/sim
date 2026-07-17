@@ -11,8 +11,9 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
-import { Checkbox, CopyCodeButton, cn, highlight, languages } from '@sim/emcn'
+import { Checkbox, CopyCodeButton, cn, highlight, languages, Tooltip } from '@sim/emcn'
 import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
+import { faviconUrl } from '@/lib/core/utils/favicon'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
@@ -22,6 +23,7 @@ import {
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { useLinkPreview } from '@/hooks/queries/link-preview'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
 
@@ -160,6 +162,55 @@ function fileIconLabel(ref: string, fallback: string): string {
   return fallback
 }
 
+/** Hides a favicon img that failed to load so the link degrades to plain text. */
+function hideBrokenFavicon(e: React.SyntheticEvent<HTMLImageElement>): void {
+  e.currentTarget.style.display = 'none'
+}
+
+interface ExternalLinkTooltipProps {
+  href: string
+  hostname: string
+}
+
+/**
+ * OG-metadata card for an external link's tooltip. Rendered only while the
+ * tooltip is open (Radix lazy-mounts content), so the preview request fires on
+ * hover intent; until metadata arrives — or when the site has none — it shows
+ * the destination URL.
+ */
+function ExternalLinkTooltip({ href, hostname }: ExternalLinkTooltipProps) {
+  const { data } = useLinkPreview(href)
+  const preview = data?.preview
+
+  if (!preview?.title && !preview?.description) {
+    return <span className='break-all'>{href}</span>
+  }
+
+  return (
+    <span className='flex flex-col gap-0.5'>
+      {preview.title && <span className='font-medium'>{preview.title}</span>}
+      {preview.description && (
+        <span className='line-clamp-2 text-[var(--text-muted)]'>{preview.description}</span>
+      )}
+      <span className='text-[var(--text-muted)]'>{preview.siteName ?? hostname}</span>
+    </span>
+  )
+}
+
+/**
+ * Hostname for an external http(s) link, used to fetch its favicon. Returns
+ * null for relative, anchor, mailto, and unparsable hrefs so those keep the
+ * plain underlined treatment.
+ */
+function externalLinkHostname(href?: string): string | null {
+  if (!href || !/^https?:\/\//i.test(href)) return null
+  try {
+    return new URL(href).hostname
+  } catch {
+    return null
+  }
+}
+
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
     return (
@@ -266,6 +317,34 @@ const MARKDOWN_COMPONENTS = {
           )}
           {children}
         </a>
+      )
+    }
+    const hostname = externalLinkHostname(href)
+    if (hostname && href) {
+      return (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <a
+              href={href}
+              className='not-prose group text-[var(--text-primary)] no-underline'
+              target='_blank'
+              rel='noopener noreferrer'
+            >
+              <img
+                src={faviconUrl(hostname, 32)}
+                alt=''
+                className='relative top-[0.5px] mr-[2px] inline size-[12px] rounded-[3px]'
+                onError={hideBrokenFavicon}
+              />
+              <span className='underline decoration-[color:var(--text-muted)] underline-offset-4 transition-colors group-hover:decoration-[color:var(--text-primary)]'>
+                {children}
+              </span>
+            </a>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>
+            <ExternalLinkTooltip href={href} hostname={hostname} />
+          </Tooltip.Content>
+        </Tooltip.Root>
       )
     }
     return (
