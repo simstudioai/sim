@@ -68,7 +68,6 @@ export function serializeWorkflowMeta(
   wf: {
     id: string
     name: string
-    description?: string | null
     folderId?: string | null
     isDeployed: boolean
     deployedAt?: Date | null
@@ -86,7 +85,6 @@ export function serializeWorkflowMeta(
     {
       id: wf.id,
       name: wf.name,
-      description: wf.description || undefined,
       folderId: wf.folderId || undefined,
       locked,
       lockedBy: locked ? (directLock ? 'workflow' : 'folder') : undefined,

@@ -221,10 +221,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        description: {
-          type: 'string',
-          description: 'Optional workflow description.',
-        },
         folderId: {
           type: 'string',
           description: 'Optional folder ID.',
@@ -648,7 +644,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         iconUrl: {
           type: 'string',
           description:
-            'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an external image URL. Omit to use the organization\'s default icon',
+            'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an https image URL. Omit to use the organization\'s default icon',
         },
         inputs: {
           type: 'array',

@@ -74,6 +74,21 @@ describe('buildWorkspaceMd - workflow VFS state paths', () => {
     expect(md).toContain('VFS dir: `workflows/Root%20Flow`')
     expect(md).toContain('VFS state path: `workflows/Root%20Flow/state.json`')
   })
+
+  it('never exposes workflow descriptions in markdown or the typed snapshot', () => {
+    const workflowWithPrivateDescription = {
+      id: 'wf-1',
+      name: 'Private Flow',
+      description: 'PRIVATE WORKFLOW DESCRIPTION',
+      isDeployed: false,
+      folderPath: null,
+    }
+    const data = baseData({ workflows: [workflowWithPrivateDescription] })
+
+    expect(buildWorkspaceMd(data)).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
+    expect(JSON.stringify(buildVfsSnapshot(data))).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
+    expect(buildVfsSnapshot(data).workflows?.[0]).not.toHaveProperty('description')
+  })
 })
 
 describe('buildWorkspaceMd - connected integrations / credentials', () => {

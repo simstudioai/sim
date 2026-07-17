@@ -55,7 +55,6 @@ export interface WorkspaceMdData {
   workflows: Array<{
     id: string
     name: string
-    description?: string | null
     isDeployed: boolean
     lastRunAt?: Date | null
     folderPath?: string | null
@@ -158,7 +157,6 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
       const workflowDir = canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath })
       parts.push(`${indent}  VFS dir: \`${workflowDir}\``)
       parts.push(`${indent}  VFS state path: \`${workflowDir}/state.json\``)
-      if (wf.description) parts.push(`${indent}  ${wf.description}`)
       // `deployed` is a structural flag (kept); `lastRunAt` is intentionally
       // omitted — it changes on every run and would bust the cached prompt
       // prefix that carries this inventory. Current run data lives in
@@ -366,7 +364,6 @@ async function buildWorkspaceMdData(
         .select({
           id: workflow.id,
           name: workflow.name,
-          description: workflow.description,
           isDeployed: workflow.isDeployed,
           lastRunAt: workflow.lastRunAt,
           folderId: workflow.folderId,
@@ -589,7 +586,6 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
     id: wf.id,
     name: wf.name,
     path: canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath }),
-    ...(wf.description ? { description: wf.description } : {}),
     ...(wf.isDeployed ? { isDeployed: true } : {}),
     ...(wf.folderPath ? { folderPath: wf.folderPath } : {}),
   }))

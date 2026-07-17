@@ -12,6 +12,7 @@ import {
   serializeIntegrationSchema,
   serializeKBMeta,
   serializeTableMeta,
+  serializeWorkflowMeta,
 } from './serializers'
 
 function hostedTool(id: string, conditional = false): ToolConfig {
@@ -85,6 +86,26 @@ describe('VFS metadata serializers', () => {
 
     expect(table.rowCount).toBe(137)
     expect(knowledgeBase.documentCount).toBe(19)
+  })
+
+  it('never includes a workflow description in workflow metadata', () => {
+    const workflowWithPrivateDescription = {
+      id: 'workflow-1',
+      name: 'Private Flow',
+      description: 'PRIVATE WORKFLOW DESCRIPTION',
+      folderId: null,
+      isDeployed: false,
+      deployedAt: null,
+      runCount: 0,
+      lastRunAt: null,
+      createdAt: new Date('2026-07-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-07-02T00:00:00.000Z'),
+    }
+
+    const metadata = JSON.parse(serializeWorkflowMeta(workflowWithPrivateDescription))
+
+    expect(metadata).not.toHaveProperty('description')
+    expect(JSON.stringify(metadata)).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
   })
 })
 
