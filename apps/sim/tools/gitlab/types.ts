@@ -273,7 +273,10 @@ export interface GitLabListGroupsParams extends GitLabBaseParams {
   owned?: boolean
   search?: string
   topLevelOnly?: boolean
-  orderBy?: 'name' | 'path' | 'id'
+  visibility?: 'public' | 'internal' | 'private'
+  minAccessLevel?: number
+  allAvailable?: boolean
+  orderBy?: 'name' | 'path' | 'id' | 'similarity'
   sort?: 'asc' | 'desc'
   perPage?: number
   page?: number

@@ -242,6 +242,11 @@ describe('GitLabBlock group operations', () => {
       owned: true,
       searchQuery: 'plat',
       groupsTopLevelOnly: true,
+      visibility: 'private',
+      groupMinAccessLevel: '30',
+      groupAllAvailable: true,
+      groupOrderBy: 'similarity',
+      sortOrder: 'asc',
       perPage: '50',
       page: '2',
     })
@@ -249,6 +254,11 @@ describe('GitLabBlock group operations', () => {
       owned: true,
       search: 'plat',
       topLevelOnly: true,
+      visibility: 'private',
+      minAccessLevel: 30,
+      allAvailable: true,
+      orderBy: 'similarity',
+      sort: 'asc',
       perPage: 50,
       page: 2,
     })

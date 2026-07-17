@@ -77,7 +77,7 @@ export function getGitLabApiBase(rawHost: unknown): string {
  */
 export const GITLAB_ACCESS_LEVELS = [
   { name: 'No access', value: 0 },
-  { name: 'Minimal Access', value: 5 },
+  { name: 'Minimal access', value: 5 },
   { name: 'Guest', value: 10 },
   { name: 'Planner', value: 15 },
   { name: 'Reporter', value: 20 },

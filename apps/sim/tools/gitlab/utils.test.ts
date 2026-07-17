@@ -126,6 +126,7 @@ describe('coerceGitLabAccessLevel', () => {
   it('throws for values outside the enum', () => {
     expect(() => coerceGitLabAccessLevel(999)).toThrow(InvalidGitLabAccessLevelError)
     expect(() => coerceGitLabAccessLevel(31)).toThrow(InvalidGitLabAccessLevelError)
+    expect(() => coerceGitLabAccessLevel('35')).toThrow(InvalidGitLabAccessLevelError)
     expect(() => coerceGitLabAccessLevel('root')).toThrow(InvalidGitLabAccessLevelError)
     expect(() => coerceGitLabAccessLevel('')).toThrow(InvalidGitLabAccessLevelError)
     expect(() => coerceGitLabAccessLevel('   ')).toThrow(InvalidGitLabAccessLevelError)

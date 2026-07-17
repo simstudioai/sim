@@ -1011,6 +1011,34 @@ Return ONLY the commit message - no explanations, no extra text.`,
       },
     },
     {
+      id: 'groupAllAvailable',
+      title: 'All Available',
+      type: 'switch',
+      mode: 'advanced',
+      description:
+        'Include groups you can access but are not a member of (ignored when Owned Only or Minimum Access Level is set)',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_groups'],
+      },
+    },
+    {
+      id: 'groupMinAccessLevel',
+      title: 'Minimum Access Level',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        ...GITLAB_ACCESS_LEVEL_OPTIONS.filter((option) => option.id !== '0'),
+      ],
+      value: () => '',
+      mode: 'advanced',
+      description: 'Only groups where you have at least this access level',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_groups'],
+      },
+    },
+    {
       id: 'membership',
       title: 'Member Only',
       type: 'switch',
@@ -1035,7 +1063,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
       mode: 'advanced',
       condition: {
         field: 'operation',
-        value: ['gitlab_list_projects'],
+        value: ['gitlab_list_projects', 'gitlab_list_groups'],
       },
     },
     // List-issues filters
@@ -1103,6 +1131,24 @@ Return ONLY the commit message - no explanations, no extra text.`,
       condition: {
         field: 'operation',
         value: ['gitlab_list_projects'],
+      },
+    },
+    {
+      id: 'groupOrderBy',
+      title: 'Order By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (name)', id: '' },
+        { label: 'Name', id: 'name' },
+        { label: 'Path', id: 'path' },
+        { label: 'ID', id: 'id' },
+        { label: 'Similarity (requires search)', id: 'similarity' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['gitlab_list_groups'],
       },
     },
     {
@@ -1200,6 +1246,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
         field: 'operation',
         value: [
           'gitlab_list_projects',
+          'gitlab_list_groups',
           'gitlab_list_issues',
           'gitlab_list_merge_requests',
           'gitlab_list_pipelines',
@@ -1985,6 +2032,13 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               owned: params.owned || undefined,
               search: params.searchQuery?.trim() || undefined,
               topLevelOnly: params.groupsTopLevelOnly || undefined,
+              visibility: params.visibility || undefined,
+              minAccessLevel: params.groupMinAccessLevel
+                ? Number(params.groupMinAccessLevel)
+                : undefined,
+              allAvailable: params.groupAllAvailable || undefined,
+              orderBy: params.groupOrderBy || undefined,
+              sort: params.sortOrder || undefined,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
             }
@@ -2815,7 +2869,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     searchQuery: { type: 'string', description: 'Search filter for project/issue listings' },
     owned: { type: 'boolean', description: 'Only owned projects' },
     membership: { type: 'boolean', description: 'Only projects the user is a member of' },
-    visibility: { type: 'string', description: 'Project visibility filter' },
+    visibility: { type: 'string', description: 'Project or group visibility filter' },
     assigneeId: { type: 'number', description: 'Assignee user ID filter for issues' },
     milestoneTitle: { type: 'string', description: 'Milestone title filter for issues' },
     sourceBranchFilter: { type: 'string', description: 'Source branch filter for MR listings' },
@@ -2901,6 +2955,18 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     groupsTopLevelOnly: {
       type: 'boolean',
       description: 'Limit group listings to top-level groups, excluding subgroups',
+    },
+    groupOrderBy: {
+      type: 'string',
+      description: "Order group listings by field ('name', 'path', 'id', or 'similarity')",
+    },
+    groupAllAvailable: {
+      type: 'boolean',
+      description: 'Include groups the user can access but is not a member of',
+    },
+    groupMinAccessLevel: {
+      type: 'string',
+      description: 'Minimum access level filter for group listings (integer access level)',
     },
     membershipType: {
       type: 'string',

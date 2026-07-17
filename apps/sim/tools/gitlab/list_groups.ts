@@ -39,11 +39,32 @@ export const gitlabListGroupsTool: ToolConfig<GitLabListGroupsParams, GitLabList
       visibility: 'user-or-llm',
       description: 'Limit to top-level groups, excluding subgroups',
     },
+    visibility: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by visibility: public, internal, or private',
+    },
+    minAccessLevel: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only groups where the current user has at least this access level, as an integer (e.g. 30 for Developer). Valid values: 5, 10, 15, 20, 25, 30, 40, 50.',
+    },
+    allAvailable: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Include all groups the user can access, not only groups they are a member of (ignored when owned or a minimum access level is set)',
+    },
     orderBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Order by field (name, path, id)',
+      description:
+        'Order by field (name, path, id, similarity). similarity requires a search term.',
     },
     sort: {
       type: 'string',
@@ -71,6 +92,11 @@ export const gitlabListGroupsTool: ToolConfig<GitLabListGroupsParams, GitLabList
       if (params.owned) queryParams.append('owned', 'true')
       if (params.search) queryParams.append('search', params.search)
       if (params.topLevelOnly) queryParams.append('top_level_only', 'true')
+      if (params.visibility) queryParams.append('visibility', params.visibility)
+      if (params.minAccessLevel && params.minAccessLevel > 0) {
+        queryParams.append('min_access_level', String(params.minAccessLevel))
+      }
+      if (params.allAvailable) queryParams.append('all_available', 'true')
       if (params.orderBy) queryParams.append('order_by', params.orderBy)
       if (params.sort) queryParams.append('sort', params.sort)
       if (params.perPage) queryParams.append('per_page', String(params.perPage))
