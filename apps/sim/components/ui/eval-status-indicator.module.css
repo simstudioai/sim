@@ -1,0 +1,157 @@
+/**
+ * EvalStatusIndicator gooey animation
+ *
+ * Shares the ThinkingLoader's metaball material: ink shapes are blurred with
+ * feGaussianBlur, then feColorMatrix crushes the soft alpha back to hard
+ * edges, so the indicator composites cleanly on any background. All statuses
+ * stack inside one filtered group; because the alpha crush happens after the
+ * stages composite, a status change reads as one shape melting into the next.
+ *
+ * Ink is near-black on light surfaces and off-white in dark mode; the
+ * `failed` frame class re-points the shared gradient vars to signal orange.
+ */
+
+.frame {
+  flex: none;
+  /* Ink material (center → edge radial gradient + white inner glow), same
+     stops as the ThinkingLoader. Light mode = the dark-grey ink. */
+  --esi-grad-inner: #2c2c2c;
+  --esi-grad-outer: #5f5f5f;
+  --esi-glow: rgba(255, 255, 255, 0.6);
+  /* Faint full ring behind the partial arc. */
+  --esi-track: rgba(0, 0, 0, 0.1);
+}
+
+/* Gradient stops + glow flood read the theme vars via CSS (a raw `var()` in
+   an SVG presentation attribute would not resolve). stop-color/flood-color
+   are transitionable even when fed by a var, so flipping to the failed
+   palette tweens the ink instead of hard-swapping it. */
+.gradInner {
+  stop-color: var(--esi-grad-inner);
+  transition: stop-color 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.gradOuter {
+  stop-color: var(--esi-grad-outer);
+  transition: stop-color 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.glow {
+  flood-color: var(--esi-glow);
+  transition: flood-color 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+:global(.dark) .frame {
+  --esi-grad-inner: #a7a7a7;
+  --esi-grad-outer: #d6d6d6;
+  --esi-glow: rgba(255, 255, 255, 0.9);
+  --esi-track: rgba(255, 255, 255, 0.14);
+}
+
+/* An explicit `.light` wrapper re-asserts the dark-grey ink even under an
+   outer `.dark` theme — the nearer theme wins (ordered after the `.dark`
+   rule so this takes precedence on equal specificity). */
+:global(.light) .frame {
+  --esi-grad-inner: #2c2c2c;
+  --esi-grad-outer: #5f5f5f;
+  --esi-glow: rgba(255, 255, 255, 0.6);
+  --esi-track: rgba(0, 0, 0, 0.1);
+}
+
+/* Failed ink: signal orange, dark center → lighter edge like the grey
+   material. `.frame.failed` ties with the theme rules at two classes, so
+   source order after them lets it win; the dark variant re-wins at three. */
+.frame.failed {
+  --esi-grad-inner: #c93a17;
+  --esi-grad-outer: #ec6a3c;
+}
+:global(.dark) .frame.failed {
+  --esi-grad-inner: #e2542c;
+  --esi-grad-outer: #ff9268;
+}
+
+/* Statuses crossfade; the goo (applied after they composite) turns the fade
+   into a melt. */
+.stage {
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+.stageActive {
+  opacity: 1;
+}
+
+/* progress — two bars pinch together inside the ring arcs (the
+   ThinkingLoader squeeze). The shared negative delay phase-locks instances
+   mounted at different times. */
+.squeezeBarL {
+  animation: squeeze-l 0.6s infinite alternate;
+  animation-delay: var(--esi-sync, 0s);
+}
+.squeezeBarR {
+  animation: squeeze-r 0.6s infinite alternate;
+  animation-delay: var(--esi-sync, 0s);
+}
+@keyframes squeeze-l {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(10px);
+  }
+}
+@keyframes squeeze-r {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-10px);
+  }
+}
+
+/* partial — faint full track behind the ink arc. Lives outside the filtered
+   group (the alpha crush would erase a low-opacity shape), so it fades on
+   its own transition in step with the stage crossfade. */
+.track {
+  stroke: var(--esi-track);
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+.trackActive {
+  opacity: 1;
+}
+
+/* Dip-and-pop bounce for settling into complete/failed: scale down slightly,
+   overshoot back up, land. Runs on the wrapper around the filtered group so
+   the goo melt (ring → disc) plays inside it concurrently. */
+.popTarget {
+  transform-box: view-box;
+  transform-origin: center;
+}
+.pop {
+  animation: settle-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes settle-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(0.82);
+  }
+  75% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame * {
+    animation: none;
+  }
+  .gradInner,
+  .gradOuter,
+  .glow {
+    transition: none;
+  }
+}

@@ -1,4 +1,8 @@
 export { Button, buttonVariants } from './button'
+export {
+  EvalStatusIndicator,
+  type EvalStatusIndicatorStatus,
+} from './eval-status-indicator'
 export { GeneratedPasswordInput } from './generated-password-input'
 export { Progress } from './progress'
 export { SearchHighlight } from './search-highlight'
