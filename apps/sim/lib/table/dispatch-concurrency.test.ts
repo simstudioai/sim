@@ -42,7 +42,7 @@ describe('getTableDispatchConcurrency', () => {
     mockFlags.isBillingEnabled = true
   })
 
-  it('resolves plan-bucketed defaults', () => {
+  it('resolves free vs paid defaults', () => {
     expect(getTableDispatchConcurrency(null)).toBe(20)
     expect(getTableDispatchConcurrency('free')).toBe(20)
     expect(getTableDispatchConcurrency('pro_6000')).toBe(50)
@@ -50,20 +50,20 @@ describe('getTableDispatchConcurrency', () => {
     expect(getTableDispatchConcurrency('enterprise')).toBe(50)
   })
 
-  it('applies env overrides per plan', () => {
+  it('applies env overrides', () => {
     mockEnv.TABLE_DISPATCH_CONCURRENCY_FREE = '5'
-    mockEnv.TABLE_DISPATCH_CONCURRENCY_ENTERPRISE = '200'
+    mockEnv.TABLE_DISPATCH_CONCURRENCY_PAID = '200'
 
     expect(getTableDispatchConcurrency('free')).toBe(5)
-    expect(getTableDispatchConcurrency('pro_6000')).toBe(50)
+    expect(getTableDispatchConcurrency('pro_6000')).toBe(200)
     expect(getTableDispatchConcurrency('enterprise')).toBe(200)
   })
 
-  it('uses the highest configured tier when billing is disabled', () => {
+  it('uses the paid value when billing is disabled', () => {
     mockFlags.isBillingEnabled = false
     expect(getTableDispatchConcurrency(null)).toBe(50)
 
-    mockEnv.TABLE_DISPATCH_CONCURRENCY_TEAM = '120'
+    mockEnv.TABLE_DISPATCH_CONCURRENCY_PAID = '120'
     expect(getTableDispatchConcurrency(null)).toBe(120)
   })
 })
@@ -73,10 +73,10 @@ describe('getMaxTableDispatchConcurrency', () => {
     for (const key of Object.keys(mockEnv)) delete mockEnv[key]
   })
 
-  it('returns the highest per-plan value', () => {
+  it('returns the highest configured value', () => {
     expect(getMaxTableDispatchConcurrency()).toBe(50)
 
-    mockEnv.TABLE_DISPATCH_CONCURRENCY_PRO = '80'
+    mockEnv.TABLE_DISPATCH_CONCURRENCY_FREE = '80'
     expect(getMaxTableDispatchConcurrency()).toBe(80)
   })
 })

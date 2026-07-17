@@ -1,61 +1,52 @@
-import { getPlanTypeForLimits, type PlanCategory } from '@/lib/billing/plan-helpers'
+import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 /**
- * Default per-plan table dispatch concurrency — how many rows one table run
- * executes in parallel (the dispatcher window size). Overridable via the
- * `TABLE_DISPATCH_CONCURRENCY_{FREE,PRO,TEAM,ENTERPRISE}` env vars.
+ * Default table dispatch concurrency — how many rows one table run executes
+ * in parallel (the dispatcher window size). Free vs paid (Pro, Max,
+ * Enterprise); overridable via `TABLE_DISPATCH_CONCURRENCY_{FREE,PAID}`.
  */
 export const DEFAULT_TABLE_DISPATCH_CONCURRENCY = {
   free: 20,
-  pro: 50,
-  team: 50,
-  enterprise: 50,
-} as const satisfies Record<PlanCategory, number>
+  paid: 50,
+} as const
 
 /**
- * Resolves per-plan dispatch concurrency, applying env overrides on top of
- * the defaults.
+ * Resolves dispatch concurrency limits, applying env overrides on top of the
+ * defaults.
  */
-export function getTableDispatchConcurrencyLimits(): Record<PlanCategory, number> {
+export function getTableDispatchConcurrencyLimits(): { free: number; paid: number } {
   return {
     free: envNumber(env.TABLE_DISPATCH_CONCURRENCY_FREE, DEFAULT_TABLE_DISPATCH_CONCURRENCY.free, {
       min: 1,
       integer: true,
     }),
-    pro: envNumber(env.TABLE_DISPATCH_CONCURRENCY_PRO, DEFAULT_TABLE_DISPATCH_CONCURRENCY.pro, {
+    paid: envNumber(env.TABLE_DISPATCH_CONCURRENCY_PAID, DEFAULT_TABLE_DISPATCH_CONCURRENCY.paid, {
       min: 1,
       integer: true,
     }),
-    team: envNumber(env.TABLE_DISPATCH_CONCURRENCY_TEAM, DEFAULT_TABLE_DISPATCH_CONCURRENCY.team, {
-      min: 1,
-      integer: true,
-    }),
-    enterprise: envNumber(
-      env.TABLE_DISPATCH_CONCURRENCY_ENTERPRISE,
-      DEFAULT_TABLE_DISPATCH_CONCURRENCY.enterprise,
-      { min: 1, integer: true }
-    ),
   }
 }
 
 /**
  * Dispatch concurrency for one payer plan. Billing-disabled deployments get
- * the highest configured tier.
+ * the paid value.
  */
 export function getTableDispatchConcurrency(plan: string | null | undefined): number {
-  if (!isBillingEnabled) return getMaxTableDispatchConcurrency()
-  return getTableDispatchConcurrencyLimits()[getPlanTypeForLimits(plan)]
+  const limits = getTableDispatchConcurrencyLimits()
+  if (!isBillingEnabled) return limits.paid
+  return getPlanTypeForLimits(plan) === 'free' ? limits.free : limits.paid
 }
 
 /**
- * Highest configured dispatch concurrency across plans. The
- * `workflow-group-cell` trigger.dev queue cap derives from this so the
- * server-side per-table ceiling never throttles below a plan's window.
+ * Highest configured dispatch concurrency. The `workflow-group-cell`
+ * trigger.dev queue cap derives from this so the server-side per-table
+ * ceiling never throttles below a plan's window.
  */
 export function getMaxTableDispatchConcurrency(): number {
-  return Math.max(...Object.values(getTableDispatchConcurrencyLimits()))
+  const limits = getTableDispatchConcurrencyLimits()
+  return Math.max(limits.free, limits.paid)
 }
 
 /**
@@ -67,7 +58,7 @@ export async function resolveTableDispatchConcurrency(input: {
   workspaceId: string
   actorUserId?: string | null
 }): Promise<number> {
-  if (!isBillingEnabled) return getMaxTableDispatchConcurrency()
+  if (!isBillingEnabled) return getTableDispatchConcurrencyLimits().paid
   const { resolveBillingAttribution, resolveSystemBillingAttribution } = await import(
     '@/lib/billing/core/billing-attribution'
   )
