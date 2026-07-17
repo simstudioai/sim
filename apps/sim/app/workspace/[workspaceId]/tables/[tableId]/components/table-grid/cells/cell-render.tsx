@@ -4,6 +4,7 @@ import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
+import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata } from '@/lib/table'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
@@ -368,7 +369,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       return (
         <span className={cn('flex min-w-0 items-center gap-1.5', isEditing && 'invisible')}>
           <img
-            src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(kind.domain)}&sz=16`}
+            src={faviconUrl(kind.domain, 16)}
             alt=''
             width={12}
             height={12}

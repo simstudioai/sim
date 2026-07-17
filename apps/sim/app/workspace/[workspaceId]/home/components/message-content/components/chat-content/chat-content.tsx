@@ -24,6 +24,7 @@ import {
 import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
+import { ExternalLink, externalLinkHostname } from './external-link'
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -264,6 +265,21 @@ const MARKDOWN_COMPONENTS = {
               className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
             />
           )}
+          {children}
+        </a>
+      )
+    }
+    const hostname = externalLinkHostname(href)
+    if (hostname && href) {
+      return (
+        <ExternalLink href={href} hostname={hostname}>
+          {children}
+        </ExternalLink>
+      )
+    }
+    if (href?.startsWith('mailto:')) {
+      return (
+        <a href={href} className='not-prose text-[var(--text-primary)] no-underline'>
           {children}
         </a>
       )
