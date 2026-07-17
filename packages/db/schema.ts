@@ -168,6 +168,7 @@ export const workflow = pgTable(
     deployedAt: timestamp('deployed_at'),
     isPublicApi: boolean('is_public_api').notNull().default(false),
     locked: boolean('locked').notNull().default(false),
+    forkSyncExcluded: boolean('fork_sync_excluded').notNull().default(false),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),

@@ -24,6 +24,7 @@ const listColumns = {
   updatedAt: workflow.updatedAt,
   archivedAt: workflow.archivedAt,
   locked: workflow.locked,
+  forkSyncExcluded: workflow.forkSyncExcluded,
   isDeployed: workflow.isDeployed,
 } as const
 
@@ -40,6 +41,7 @@ type WorkflowListRow = {
   updatedAt: Date
   archivedAt: Date | null
   locked: boolean
+  forkSyncExcluded: boolean
   isDeployed: boolean
 }
 

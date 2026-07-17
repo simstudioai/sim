@@ -12,14 +12,19 @@ import {
   type RollbackForkBody,
   rollbackForkContract,
   type UnlinkForkBody,
+  type UpdateForkExcludedWorkflowsBody,
   type UpdateForkMappingBody,
   unlinkForkContract,
+  updateForkExcludedWorkflowsContract,
   updateForkMappingContract,
 } from '@/lib/api/contracts/workspace-fork'
 import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work'
 import { deploymentKeys } from '@/hooks/queries/deployments'
+import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 export type ForkDirection = 'push' | 'pull'
 
@@ -198,6 +203,46 @@ export function useRollbackFork() {
       // so the cached deployed snapshots are stale - refresh them so change detection
       // doesn't falsely show "Update" (mirrors usePromoteFork).
       queryClient.invalidateQueries({ queryKey: deploymentKeys.all })
+    },
+  })
+}
+
+/**
+ * Toggle "Exclude from sync" for a batch of workflows (one request per folder or
+ * row click in the Excluded workflows tree). Optimistically flips the flag in the
+ * workspace's cached workflow list so the tree responds instantly, then reconciles.
+ */
+export function useUpdateForkExcludedWorkflows() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { workspaceId: string; body: UpdateForkExcludedWorkflowsBody }) =>
+      requestJson(updateForkExcludedWorkflowsContract, {
+        params: { id: vars.workspaceId },
+        body: vars.body,
+      }),
+    onMutate: async (vars) => {
+      const listKey = workflowKeys.list(vars.workspaceId, 'active')
+      await queryClient.cancelQueries({ queryKey: listKey })
+      const snapshot = queryClient.getQueryData<WorkflowMetadata[]>(listKey)
+      const toggledIds = new Set(vars.body.workflowIds)
+      queryClient.setQueryData<WorkflowMetadata[]>(listKey, (old) =>
+        (old ?? []).map((w) =>
+          toggledIds.has(w.id) ? { ...w, forkSyncExcluded: vars.body.forkSyncExcluded } : w
+        )
+      )
+      return { snapshot }
+    },
+    onError: (_error, vars, context) => {
+      if (context?.snapshot) {
+        queryClient.setQueryData(workflowKeys.list(vars.workspaceId, 'active'), context.snapshot)
+      }
+    },
+    onSettled: (_data, _error, vars) => {
+      // Exclusion changes what a sync or a new fork copies: refresh every edge's diff
+      // preview and the fork modal's deployed-workflow count with the list itself.
+      queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.resources(vars.workspaceId) })
+      return invalidateWorkflowLists(queryClient, vars.workspaceId)
     },
   })
 }
