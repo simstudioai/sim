@@ -33,10 +33,12 @@ interface ExternalLinkProps {
  * Favicon + quiet-underline external link with an OG-preview tooltip. The
  * preview query fires when the link renders, so metadata is normally cached
  * (client and server side) before the first hover; the tooltip shows the
- * destination URL until metadata arrives or when the site has none.
+ * destination URL until metadata arrives or when the site has none. Previews
+ * are https-only — plain-http links keep the URL tooltip, since fetching them
+ * server-side would reach the URL validator's self-host loopback exception.
  */
 export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
-  const { data } = useLinkPreview(href)
+  const { data } = useLinkPreview(href.startsWith('https://') ? href : undefined)
   const preview = data?.preview
 
   return (

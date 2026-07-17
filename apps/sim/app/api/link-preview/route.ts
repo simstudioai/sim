@@ -26,13 +26,12 @@ const NEGATIVE_CACHE_TTL_SECONDS = 60 * 60
 const CACHE_KEY_PREFIX = 'link-preview:v1:'
 
 /**
- * Parses preview metadata from the document head. Only the head matters for
- * previews, so the input is truncated at `<body>` before parsing; cheerio
- * handles attribute order, quoting, and entity decoding.
+ * Parses preview metadata from the fetched document (already capped at
+ * MAX_RESPONSE_BYTES); cheerio handles attribute order, quoting, and entity
+ * decoding.
  */
 function parsePreview(html: string): LinkPreview {
-  const bodyIndex = html.search(/<body[\s>]/i)
-  const $ = cheerio.load(bodyIndex === -1 ? html : html.slice(0, bodyIndex))
+  const $ = cheerio.load(html)
 
   const meta = (key: string): string | null => {
     const value = $(`meta[property="${key}"], meta[name="${key}"]`).first().attr('content')
@@ -54,7 +53,6 @@ function parsePreview(html: string): LinkPreview {
 
 async function fetchPreview(url: string): Promise<LinkPreview> {
   const response = await secureFetchWithValidation(url, {
-    allowHttp: true,
     timeout: FETCH_TIMEOUT_MS,
     maxRedirects: MAX_REDIRECTS,
     maxResponseBytes: MAX_RESPONSE_BYTES,
@@ -83,6 +81,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const parsed = await parseRequest(getLinkPreviewContract, request, {})
   if (!parsed.success) return parsed.response
   const { url } = parsed.data.query
+
+  if (!url.startsWith('https://')) {
+    return NextResponse.json({ preview: null })
+  }
 
   const redis = getRedisClient()
   const cacheKey = `${CACHE_KEY_PREFIX}${createHash('sha256').update(url).digest('hex')}`
