@@ -307,7 +307,7 @@ GCS_OG_IMAGES_BUCKET_NAME=myorg-sim-og-images
 GCS_WORKSPACE_LOGOS_BUCKET_NAME=myorg-sim-workspace-logos
 ```
 
-Only `GCS_BUCKET_NAME` is strictly required to switch Sim into GCS mode. Add the others so each file type lands in its own bucket.
+Only `GCS_BUCKET_NAME` is strictly required to switch Sim into GCS mode. Every purpose-specific bucket falls back to the general bucket when unset — add the others so each file type lands in its own bucket.
 
 </Step>
 
@@ -320,11 +320,11 @@ Only `GCS_BUCKET_NAME` is strictly required to switch Sim into GCS mode. Add the
 | `GCS_BUCKET_NAME` | General workspace files | **Yes** (enables GCS) |
 | `GCS_PROJECT_ID` | GCP project ID | No (inferred from credentials/ADC) |
 | `GCS_CREDENTIALS_JSON` | Inline service-account JSON | No (uses Application Default Credentials if unset) |
-| `GCS_KB_BUCKET_NAME` | Knowledge base documents | Recommended |
-| `GCS_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files (default: `sim-execution-files`) | Recommended |
-| `GCS_CHAT_BUCKET_NAME` | Deployed chat assets | Recommended |
-| `GCS_COPILOT_BUCKET_NAME` | Copilot attachments | Recommended |
-| `GCS_PROFILE_PICTURES_BUCKET_NAME` | User avatars | Recommended |
+| `GCS_KB_BUCKET_NAME` | Knowledge base documents | Recommended (falls back to `GCS_BUCKET_NAME`) |
+| `GCS_EXECUTION_FILES_BUCKET_NAME` | Workflow execution files | Recommended (falls back to `GCS_BUCKET_NAME`) |
+| `GCS_CHAT_BUCKET_NAME` | Deployed chat assets | Recommended (falls back to `GCS_BUCKET_NAME`) |
+| `GCS_COPILOT_BUCKET_NAME` | Copilot attachments | Recommended (falls back to `GCS_BUCKET_NAME`) |
+| `GCS_PROFILE_PICTURES_BUCKET_NAME` | User avatars | Recommended (falls back to `GCS_BUCKET_NAME`) |
 | `GCS_OG_IMAGES_BUCKET_NAME` | OpenGraph preview images (falls back to `GCS_BUCKET_NAME`) | Optional |
 | `GCS_WORKSPACE_LOGOS_BUCKET_NAME` | Workspace logos (falls back to `GCS_BUCKET_NAME`) | Optional |
 

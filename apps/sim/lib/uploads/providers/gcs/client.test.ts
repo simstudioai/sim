@@ -452,6 +452,19 @@ describe('GCS Client', () => {
       })
     })
 
+    it('should restore quotes on ETags stripped by the browser upload client', async () => {
+      mockFetch.mockResolvedValueOnce(new Response('<Complete/>', { status: 200 }))
+
+      await completeGcsMultipartUpload('key.csv', 'upload-123', [
+        { PartNumber: 1, ETag: 'etag-1' },
+      ])
+
+      const [, init] = mockFetch.mock.calls[0]
+      expect(init.body).toBe(
+        '<CompleteMultipartUpload><Part><PartNumber>1</PartNumber><ETag>&quot;etag-1&quot;</ETag></Part></CompleteMultipartUpload>'
+      )
+    })
+
     it('should abort a multipart upload via DELETE', async () => {
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }))
 

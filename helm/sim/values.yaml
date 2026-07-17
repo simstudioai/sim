@@ -293,7 +293,7 @@ app:
     # Note: used when neither Azure Blob nor S3 is configured
     GCS_PROJECT_ID: ""                                    # GCP project ID (optional — inferred from credentials/ADC when unset)
     GCS_CREDENTIALS_JSON: ""                              # Inline service-account JSON. Leave empty to use Workload Identity / Application Default Credentials
-    GCS_BUCKET_NAME: ""                                   # GCS bucket for workspace files
+    GCS_BUCKET_NAME: ""                                   # GCS bucket for workspace files (all other GCS buckets fall back to it)
     GCS_KB_BUCKET_NAME: ""                                # GCS bucket for knowledge base files
     GCS_EXECUTION_FILES_BUCKET_NAME: ""                   # GCS bucket for workflow execution files
     GCS_CHAT_BUCKET_NAME: ""                              # GCS bucket for deployed chat files

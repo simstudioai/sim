@@ -371,6 +371,15 @@ export async function deleteFromGcs(key: string, customConfig?: GcsConfig): Prom
   await storage.bucket(config.bucket).file(key).delete({ ignoreNotFound: true })
 }
 
+/**
+ * Normalize an ETag to the quoted form GCS expects in CompleteMultipartUpload.
+ * The shared browser upload client strips quotes from part ETags (S3 tolerates
+ * either form), so quotes are restored here before building the completion XML.
+ */
+function normalizeEtag(etag: string): string {
+  return etag.startsWith('"') ? etag : `"${etag}"`
+}
+
 /** Escape a value for embedding in an XML text node. */
 function escapeXml(value: string): string {
   return value
@@ -524,7 +533,7 @@ export async function completeGcsMultipartUpload(
   const partsXml = sortedParts
     .map(
       (part) =>
-        `<Part><PartNumber>${part.PartNumber}</PartNumber><ETag>${escapeXml(part.ETag)}</ETag></Part>`
+        `<Part><PartNumber>${part.PartNumber}</PartNumber><ETag>${escapeXml(normalizeEtag(part.ETag))}</ETag></Part>`
     )
     .join('')
   const body = `<CompleteMultipartUpload>${partsXml}</CompleteMultipartUpload>`

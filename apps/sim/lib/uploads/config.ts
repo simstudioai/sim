@@ -46,7 +46,7 @@ export const GCS_KB_CONFIG = {
 }
 
 export const GCS_EXECUTION_FILES_CONFIG = {
-  bucket: env.GCS_EXECUTION_FILES_BUCKET_NAME || 'sim-execution-files',
+  bucket: env.GCS_EXECUTION_FILES_BUCKET_NAME || '',
 }
 
 export const GCS_CHAT_CONFIG = {
@@ -327,23 +327,29 @@ function getBlobConfig(context: StorageContext): StorageConfig {
 }
 
 /**
- * Get GCS configuration for a given context
+ * Get GCS configuration for a given context.
+ *
+ * Every context falls back to the general bucket when its dedicated bucket is
+ * unset. GCS bucket names are globally unique, so an S3-style literal default
+ * (e.g. `sim-execution-files`) would point at a bucket the operator does not
+ * own; falling back keeps uploads, downloads, and serving consistent when only
+ * `GCS_BUCKET_NAME` is configured.
  */
 function getGcsConfig(context: StorageContext): StorageConfig {
   switch (context) {
     case 'knowledge-base':
-      return { bucket: GCS_KB_CONFIG.bucket }
+      return { bucket: GCS_KB_CONFIG.bucket || GCS_CONFIG.bucket }
     case 'chat':
-      return { bucket: GCS_CHAT_CONFIG.bucket }
+      return { bucket: GCS_CHAT_CONFIG.bucket || GCS_CONFIG.bucket }
     case 'copilot':
-      return { bucket: GCS_COPILOT_CONFIG.bucket }
+      return { bucket: GCS_COPILOT_CONFIG.bucket || GCS_CONFIG.bucket }
     case 'execution':
-      return { bucket: GCS_EXECUTION_FILES_CONFIG.bucket }
+      return { bucket: GCS_EXECUTION_FILES_CONFIG.bucket || GCS_CONFIG.bucket }
     case 'mothership':
     case 'workspace':
       return { bucket: GCS_CONFIG.bucket }
     case 'profile-pictures':
-      return { bucket: GCS_PROFILE_PICTURES_CONFIG.bucket }
+      return { bucket: GCS_PROFILE_PICTURES_CONFIG.bucket || GCS_CONFIG.bucket }
     case 'og-images':
       return { bucket: GCS_OG_IMAGES_CONFIG.bucket || GCS_CONFIG.bucket }
     case 'workspace-logos':
