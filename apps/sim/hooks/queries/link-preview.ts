@@ -17,8 +17,10 @@ async function fetchLinkPreview(url: string, signal?: AbortSignal): Promise<Link
 
 /**
  * OG metadata for an external URL, fetched through the SSRF-hardened
- * `/api/link-preview` proxy. Mount the consuming component lazily (e.g. inside
- * a tooltip that renders on open) so the request only fires on intent.
+ * `/api/link-preview` proxy. Fires when the consuming component renders so the
+ * preview is normally cached before the user hovers; results are long-lived
+ * (client staleTime + 24h server-side Redis cache) and failures are not
+ * retried.
  */
 export function useLinkPreview(url?: string) {
   return useQuery({

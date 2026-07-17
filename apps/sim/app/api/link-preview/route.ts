@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
+import * as cheerio from 'cheerio'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { LinkPreview } from '@/lib/api/contracts/link-preview'
@@ -24,51 +25,24 @@ const CACHE_TTL_SECONDS = 24 * 60 * 60
 const NEGATIVE_CACHE_TTL_SECONDS = 60 * 60
 const CACHE_KEY_PREFIX = 'link-preview:v1:'
 
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
-    .replace(/&#x27;/gi, "'")
-    .replace(/&nbsp;/g, ' ')
-}
-
 /**
- * Content of a `<meta>` tag matched by `property` or `name`, handling either
- * attribute order. Only the document head matters for previews, so callers
- * pass a head-truncated HTML string.
+ * Parses preview metadata from the document head. Only the head matters for
+ * previews, so the input is truncated at `<body>` before parsing; cheerio
+ * handles attribute order, quoting, and entity decoding.
  */
-function metaContent(html: string, key: string): string | null {
-  const attr = `(?:property|name)=["']${key}["']`
-  const content = `content=(?:"([^"]*)"|'([^']*)')`
-  const patterns = [
-    new RegExp(`<meta[^>]*${attr}[^>]*${content}`, 'i'),
-    new RegExp(`<meta[^>]*${content}[^>]*${attr}`, 'i'),
-  ]
-  for (const pattern of patterns) {
-    const match = html.match(pattern)
-    const value = match?.[1] ?? match?.[2]
-    if (value) return decodeHtmlEntities(value).trim() || null
-  }
-  return null
-}
-
 function parsePreview(html: string): LinkPreview {
   const bodyIndex = html.search(/<body[\s>]/i)
-  const head = bodyIndex === -1 ? html : html.slice(0, bodyIndex)
+  const $ = cheerio.load(bodyIndex === -1 ? html : html.slice(0, bodyIndex))
 
-  const titleTag = head.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]
+  const meta = (key: string): string | null => {
+    const value = $(`meta[property="${key}"], meta[name="${key}"]`).first().attr('content')
+    return value?.trim() || null
+  }
+
   const title =
-    metaContent(head, 'og:title') ??
-    metaContent(head, 'twitter:title') ??
-    (titleTag ? decodeHtmlEntities(titleTag).trim() || null : null)
-  const description =
-    metaContent(head, 'og:description') ??
-    metaContent(head, 'twitter:description') ??
-    metaContent(head, 'description')
-  const siteName = metaContent(head, 'og:site_name')
+    meta('og:title') ?? meta('twitter:title') ?? ($('title').first().text().trim() || null)
+  const description = meta('og:description') ?? meta('twitter:description') ?? meta('description')
+  const siteName = meta('og:site_name')
 
   if (!title && !description && !siteName) return null
   return {
