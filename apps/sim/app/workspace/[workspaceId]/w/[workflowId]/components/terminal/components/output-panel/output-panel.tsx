@@ -77,12 +77,12 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
 
 /**
  * Props for the OutputPanel component
- * Store-backed settings (wrapText, openOnRun, structuredView, outputPanelWidth)
+ * Store-backed settings (wrapText, openOnRun, structuredView)
  * are accessed directly from useTerminalStore to reduce prop drilling.
  */
 export interface OutputPanelProps {
   selectedEntry: ConsoleEntry
-  handleOutputPanelResizeMouseDown: (e: React.MouseEvent) => void
+  handleOutputPanelResizePointerDown: (e: React.PointerEvent<HTMLElement>) => void
   handleHeaderClick: () => void
   isExpanded: boolean
   expandToLastHeight: () => void
@@ -109,7 +109,7 @@ export interface OutputPanelProps {
  */
 export const OutputPanel = React.memo(function OutputPanel({
   selectedEntry,
-  handleOutputPanelResizeMouseDown,
+  handleOutputPanelResizePointerDown,
   handleHeaderClick,
   isExpanded,
   expandToLastHeight,
@@ -130,7 +130,6 @@ export const OutputPanel = React.memo(function OutputPanel({
   handleClearConsoleFromMenu,
 }: OutputPanelProps) {
   // Access store-backed settings directly to reduce prop drilling
-  const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
   const wrapText = useTerminalStore((state) => state.wrapText)
   const setWrapText = useTerminalStore((state) => state.setWrapText)
   const openOnRun = useTerminalStore((state) => state.openOnRun)
@@ -293,12 +292,12 @@ export const OutputPanel = React.memo(function OutputPanel({
     <>
       <div
         className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--bg)]'
-        style={{ width: `${outputPanelWidth}px` }}
+        style={{ width: 'var(--output-panel-width)' }}
       >
         {/* Horizontal Resize Handle */}
         <div
           className='-ml-1 absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
-          onMouseDown={handleOutputPanelResizeMouseDown}
+          onPointerDown={handleOutputPanelResizePointerDown}
           role='separator'
           aria-label='Resize output panel'
           aria-orientation='vertical'

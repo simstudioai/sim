@@ -720,8 +720,8 @@ export const Terminal = memo(function Terminal() {
 
   const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
-  const { handleMouseDown } = useTerminalResize()
-  const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
+  const { handlePointerDown } = useTerminalResize()
+  const { handlePointerDown: handleOutputPanelResizePointerDown } = useOutputPanelResize()
 
   const {
     filters,
@@ -1255,6 +1255,10 @@ export const Terminal = memo(function Terminal() {
   /**
    * Adjust output panel width on resize.
    * Closes the output panel if there's not enough space for the minimum width.
+   * The clamp compares against the live `--output-panel-width` CSS variable
+   * (the visual width — during a drag it runs ahead of the store, which only
+   * commits on release) so a resize mid-drag can never stomp the drag with a
+   * stale store value; the store value is the fallback before any write.
    */
   useEffect(() => {
     const el = terminalRef.current
@@ -1271,7 +1275,11 @@ export const Terminal = memo(function Terminal() {
         return
       }
 
-      if (outputPanelWidth > maxWidth) {
+      const liveWidth = Number.parseFloat(
+        document.documentElement.style.getPropertyValue('--output-panel-width')
+      )
+      const currentWidth = Number.isNaN(liveWidth) ? outputPanelWidth : liveWidth
+      if (currentWidth > maxWidth) {
         setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
       }
     }
@@ -1301,7 +1309,7 @@ export const Terminal = memo(function Terminal() {
         {/* Resize Handle */}
         <div
           className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='horizontal'
           aria-label='Resize terminal'
@@ -1311,7 +1319,7 @@ export const Terminal = memo(function Terminal() {
           {/* Left Section - Logs */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
-            style={selectedEntry ? { width: `calc(100% - ${outputPanelWidth}px)` } : undefined}
+            style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
           >
             {/* Header */}
             <div
@@ -1497,7 +1505,7 @@ export const Terminal = memo(function Terminal() {
           {selectedEntry && (
             <OutputPanel
               selectedEntry={selectedEntry}
-              handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
+              handleOutputPanelResizePointerDown={handleOutputPanelResizePointerDown}
               handleHeaderClick={handleHeaderClick}
               isExpanded={isExpanded}
               expandToLastHeight={expandToLastHeight}
