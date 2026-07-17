@@ -13,18 +13,17 @@ function computePanelWidth(ev: PointerEvent): number {
   return Math.min(Math.max(newWidth, PANEL_WIDTH.MIN), maxWidth)
 }
 
-/**
- * Applies the panel width per frame. The `--panel-width` CSS variable alone
- * sizes `.panel-container`, so no React work happens during the drag.
- */
-function applyPanelWidth(width: number): void {
-  document.documentElement.style.setProperty('--panel-width', `${width}px`)
+/** The `.panel-container` element sizes itself from `--panel-width`. */
+function getPanelContainer(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('.panel-container')
 }
 
 /**
- * Handles panel drag-resize with zero React renders during the drag.
- * The final width is committed to the store (one re-render + one
- * localStorage write) when the drag ends.
+ * Handles panel drag-resize with zero React renders during the drag. The
+ * `--panel-width` variable is written to `.panel-container` (a scoped style
+ * recalc) rather than `:root` (a whole-document recalc), and the final width
+ * is committed to the store (one re-render + one localStorage write) when the
+ * drag ends.
  *
  * @returns Pointer-down handler for the resize handle
  */
@@ -33,8 +32,9 @@ export function usePanelResize() {
 
   return useDragResize({
     cursor: 'ew-resize',
+    cssVar: '--panel-width',
+    getTarget: getPanelContainer,
     compute: computePanelWidth,
-    apply: applyPanelWidth,
     commit: setPanelWidth,
   })
 }

@@ -13,26 +13,33 @@ function computeTerminalHeight(ev: PointerEvent): number {
   return Math.min(Math.max(newHeight, TERMINAL_HEIGHT.MIN), maxHeight)
 }
 
-/**
- * Applies the terminal height per frame. The `--terminal-height` CSS
- * variable alone sizes `.terminal-container`, so no React work happens on
- * ordinary frames. The store is committed mid-drag only when the height
- * crosses the expanded threshold, so `isExpanded` subscribers (header
- * chevron, auto-open logic) still flip live during the drag.
- */
-function applyTerminalHeight(height: number): void {
-  document.documentElement.style.setProperty('--terminal-height', `${height}px`)
+/** The `.terminal-container` element sizes itself from `--terminal-height`. */
+function getTerminalContainer(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('.terminal-container')
+}
 
-  const store = useTerminalStore.getState()
-  const wasExpanded = store.terminalHeight > TERMINAL_CONFIG.NEAR_MIN_THRESHOLD
+/**
+ * Updates the store height mid-drag only when it crosses the expanded
+ * threshold, so `isExpanded` subscribers (header chevron, auto-open logic)
+ * still flip live during the drag. Writes store state directly rather than
+ * calling `setTerminalHeight` so it does not also write `--terminal-height` to
+ * `:root` (a whole-document recalc) — the scoped CSS-var write handled by
+ * {@link useDragResize} already drives the visual, and the final value is
+ * persisted through `setTerminalHeight` on release.
+ */
+function syncExpandedThreshold(height: number): void {
+  const wasExpanded =
+    useTerminalStore.getState().terminalHeight > TERMINAL_CONFIG.NEAR_MIN_THRESHOLD
   const nowExpanded = height > TERMINAL_CONFIG.NEAR_MIN_THRESHOLD
-  if (wasExpanded !== nowExpanded) store.setTerminalHeight(height)
+  if (wasExpanded !== nowExpanded) useTerminalStore.setState({ terminalHeight: height })
 }
 
 /**
  * Handles terminal drag-resize with zero React renders during the drag
- * (except at expanded-threshold crossings). The final height is committed
- * to the store (one re-render + one localStorage write) when the drag ends.
+ * (except at expanded-threshold crossings). The `--terminal-height` variable
+ * is written to `.terminal-container` (a scoped style recalc) rather than
+ * `:root` (a whole-document recalc), and the final height is committed to the
+ * store (one re-render + one localStorage write) when the drag ends.
  *
  * @returns Pointer-down handler for the resize handle
  */
@@ -41,8 +48,10 @@ export function useTerminalResize() {
 
   return useDragResize({
     cursor: 'ns-resize',
+    cssVar: '--terminal-height',
+    getTarget: getTerminalContainer,
     compute: computeTerminalHeight,
-    apply: applyTerminalHeight,
     commit: setTerminalHeight,
+    onApply: syncExpandedThreshold,
   })
 }

@@ -4,31 +4,24 @@ import { OUTPUT_PANEL_WIDTH, TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/consta
 import { useTerminalStore } from '@/stores/terminal'
 
 /**
- * Applies the output panel width per frame. The `--output-panel-width` CSS
- * variable alone sizes the output panel and its sibling logs column, so no
- * React work happens during the drag.
- */
-function applyOutputPanelWidth(width: number): void {
-  document.documentElement.style.setProperty('--output-panel-width', `${width}px`)
-}
-
-/**
  * Handles the terminal output panel drag-resize with zero React renders
- * during the drag. The terminal element is captured once on drag start and
- * its rect is re-read per frame (rAF-aligned, before the CSS-var write), so
- * the clamp stays correct even if the terminal resizes mid-drag. The final
- * width is committed to the store (one re-render + one localStorage write)
- * when the drag ends.
+ * during the drag. `--output-panel-width` is written to `.terminal-container`
+ * (which both the output panel and its sibling logs column inherit from) — a
+ * scoped style recalc rather than a whole-document one on `:root`. The
+ * terminal rect is re-read per frame (rAF-aligned, before the write), so the
+ * clamp stays correct even if the terminal resizes mid-drag. The final width
+ * is committed to the store (one re-render + one localStorage write) when the
+ * drag ends.
  *
  * @returns Pointer-down handler for the resize handle
  */
 export function useOutputPanelResize() {
   const setOutputPanelWidth = useTerminalStore((s) => s.setOutputPanelWidth)
-  const terminalElRef = useRef<Element | null>(null)
+  const terminalElRef = useRef<HTMLElement | null>(null)
 
-  const captureTerminalElement = useCallback(() => {
-    terminalElRef.current = document.querySelector('[aria-label="Terminal"]')
-    return terminalElRef.current !== null
+  const getTerminalElement = useCallback(() => {
+    terminalElRef.current = document.querySelector<HTMLElement>('.terminal-container')
+    return terminalElRef.current
   }, [])
 
   const computeOutputPanelWidth = useCallback((ev: PointerEvent) => {
@@ -42,9 +35,9 @@ export function useOutputPanelResize() {
 
   return useDragResize({
     cursor: 'ew-resize',
+    cssVar: '--output-panel-width',
+    getTarget: getTerminalElement,
     compute: computeOutputPanelWidth,
-    apply: applyOutputPanelWidth,
     commit: setOutputPanelWidth,
-    onStart: captureTerminalElement,
   })
 }
