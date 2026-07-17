@@ -164,6 +164,8 @@ export function applyOperationsToWorkflowState(
   // Collect skipped items across all operations
   const skippedItems: SkippedItem[] = []
 
+  const functionCodeBlockIds = new Set<string>()
+
   // Normalize block IDs to UUIDs before processing
   const { normalizedOperations } = normalizeBlockIdsInOperations(operations)
 
@@ -184,6 +186,7 @@ export function applyOperationsToWorkflowState(
     skippedItems,
     validationErrors,
     permissionConfig,
+    functionCodeBlockIds,
     deferredConnections: [],
   }
 
@@ -288,7 +291,7 @@ export function applyOperationsToWorkflowState(
     )
   }
 
-  return { state: modifiedState, validationErrors, skippedItems }
+  return { state: modifiedState, validationErrors, skippedItems, functionCodeBlockIds }
 }
 
 /**

@@ -24,6 +24,14 @@ import {
 
 const logger = createLogger('EditWorkflowServerTool')
 
+function recordSubmittedCodeInput(
+  blockId: string,
+  inputs: Record<string, unknown> | undefined,
+  ctx: OperationContext
+): void {
+  if (typeof inputs?.code === 'string') ctx.functionCodeBlockIds.add(blockId)
+}
+
 /**
  * Applies loop/parallel container config from `inputs` onto a block state (data.loopType, etc.).
  */
@@ -111,6 +119,7 @@ function processNestedNodesForParent(
       applyLoopOrParallelContainerData(childBlockState, childBlock)
     }
     modifiedState.blocks[childId] = childBlockState
+    recordSubmittedCodeInput(childId, childBlock.inputs, ctx)
 
     if (childBlock.connections) {
       deferredConnections.push({
@@ -204,6 +213,7 @@ function mergeNestedNodesForParent(
           existingId
         )
         validationErrors.push(...childValidation.errors)
+        recordSubmittedCodeInput(existingId, childValidation.validInputs, ctx)
 
         Object.entries(childValidation.validInputs).forEach(([key, value]) => {
           if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
@@ -279,6 +289,7 @@ function mergeNestedNodesForParent(
       applyLoopOrParallelContainerData(childBlockState, childBlock)
     }
     modifiedState.blocks[childId] = childBlockState
+    recordSubmittedCodeInput(childId, childBlock.inputs, ctx)
 
     if (childBlock.connections) {
       deferredConnections.push({
@@ -428,6 +439,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     // Validate inputs against block configuration
     const validationResult = validateInputsForBlock(block.type, params.inputs, block_id)
     validationErrors.push(...validationResult.errors)
+    recordSubmittedCodeInput(block_id, validationResult.validInputs, ctx)
 
     Object.entries(validationResult.validInputs).forEach(([inputKey, value]) => {
       // Normalize common field name variations (LLM may use plural/singular inconsistently)
@@ -795,6 +807,7 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
   // Add parent block FIRST before adding children
   // This ensures children can reference valid parentId
   modifiedState.blocks[block_id] = newBlock
+  recordSubmittedCodeInput(block_id, params.inputs, ctx)
 
   // Handle nested nodes (for loops/parallels created from scratch)
   if (params.nestedNodes) {
@@ -900,6 +913,7 @@ export function handleInsertIntoSubflowOperation(
       // Validate inputs against block configuration
       const validationResult = validateInputsForBlock(existingBlock.type, params.inputs, block_id)
       validationErrors.push(...validationResult.errors)
+      recordSubmittedCodeInput(block_id, validationResult.validInputs, ctx)
 
       Object.entries(validationResult.validInputs).forEach(([key, value]) => {
         // Skip runtime subblock IDs (webhookId, triggerPath)
@@ -986,6 +1000,7 @@ export function handleInsertIntoSubflowOperation(
       skippedItems
     )
     modifiedState.blocks[block_id] = newBlock
+    recordSubmittedCodeInput(block_id, params.inputs, ctx)
     if (params.type === 'loop' || params.type === 'parallel') {
       applyLoopOrParallelContainerData(newBlock, params)
     }
