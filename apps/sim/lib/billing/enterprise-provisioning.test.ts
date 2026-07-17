@@ -160,11 +160,10 @@ function context() {
 }
 
 describe('Enterprise issuance serialization decisions', () => {
-  it('preserves legacy request keys when no concurrency override is supplied', () => {
+  it('derives included usage from invoice amount in the request key', () => {
     const input = {
       ownerUserId: 'owner-1',
       monthlyInvoiceAmountUsd: 125,
-      includedMonthlyCredits: 20000,
       usageLimitCredits: 24000,
       seats: 12,
       requestedByEmail: 'admin@sim.ai',
@@ -172,14 +171,17 @@ describe('Enterprise issuance serialization decisions', () => {
     }
 
     expect(buildEnterpriseProvisioningRequestKey(input, 'org-1')).toBe(
-      'enterprise-v2:owner-1:org-1:12500:20000:24000:12'
+      'enterprise-v2:owner-1:org-1:12500:25000:24000:12'
     )
     expect(
       buildEnterpriseProvisioningRequestKey({ ...input, concurrencyLimit: 1250 }, 'org-1')
-    ).toBe('enterprise-v2:owner-1:org-1:12500:20000:24000:12:1250')
+    ).toBe('enterprise-v2:owner-1:org-1:12500:25000:24000:12:1250')
     expect(
       buildEnterpriseProvisioningRequestKey({ ...input, pausePaymentCollection: true }, 'org-1')
-    ).toBe('enterprise-v2:owner-1:org-1:12500:20000:24000:12:draft-collection')
+    ).toBe('enterprise-v2:owner-1:org-1:12500:25000:24000:12:draft-collection')
+    expect(
+      buildEnterpriseProvisioningRequestKey({ ...input, usageLimitCredits: undefined }, 'org-1')
+    ).toBe('enterprise-v2:owner-1:org-1:12500:25000:25000:12')
   })
 
   it('deduplicates an identical unresolved request to the existing outbox operation', () => {
