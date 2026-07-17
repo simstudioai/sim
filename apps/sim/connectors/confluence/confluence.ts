@@ -92,6 +92,16 @@ async function fetchLabelsForPages(
 }
 
 /**
+ * Body representation marker embedded in the contentHash. Bumping this
+ * invalidates every previously-synced Confluence document so a one-time
+ * re-hydration picks up content newly reachable by the current extraction
+ * (e.g. the switch from `storage` to rendered `view`, which expands Include
+ * Page / Excerpt macros). Without it, already-indexed pages whose version is
+ * unchanged classify as `unchanged` and keep their stale (empty) content.
+ */
+const CONTENT_REPRESENTATION = 'view'
+
+/**
  * Produces a canonical metadata stub with a deterministic contentHash that
  * does not depend on which API surface (v1 CQL or v2) returned the page.
  */
@@ -115,7 +125,7 @@ function pageToStub(
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: options.sourceUrl,
-    contentHash: `confluence:${page.id}:${versionKey}`,
+    contentHash: `confluence:${CONTENT_REPRESENTATION}:${page.id}:${versionKey}`,
     metadata: {
       spaceId: options.spaceId,
       status: page.status,
