@@ -91,7 +91,7 @@ async function fetchAdminUsersByEmails(
       const { data, error } = await client.admin.listUsers(
         {
           query: {
-            limit: 5,
+            limit: 20,
             searchField: 'email',
             searchValue: email,
             searchOperator: 'contains',

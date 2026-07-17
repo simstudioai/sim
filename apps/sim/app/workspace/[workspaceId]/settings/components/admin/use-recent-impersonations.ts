@@ -1,7 +1,5 @@
 import { useCallback, useState } from 'react'
-
-/** Survives clearUserData via the keysToKeep allowlist in @/stores. */
-export const RECENT_IMPERSONATIONS_STORAGE_KEY = 'recent-impersonations'
+import { RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/stores'
 
 const MAX_RECENT = 5
 
@@ -24,7 +22,11 @@ export function useRecentImpersonations() {
 
   const recordImpersonation = useCallback((email: string) => {
     const next = [email, ...readRecentEmails().filter((e) => e !== email)].slice(0, MAX_RECENT)
-    localStorage.setItem(RECENT_IMPERSONATIONS_STORAGE_KEY, JSON.stringify(next))
+    try {
+      localStorage.setItem(RECENT_IMPERSONATIONS_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      /* best-effort: recording must never block the impersonation transition */
+    }
     setRecentEmails(next)
   }, [])
 

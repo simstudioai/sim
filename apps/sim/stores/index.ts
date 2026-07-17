@@ -2,7 +2,6 @@
 
 import { createLogger } from '@sim/logger'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/app/workspace/[workspaceId]/settings/components/admin/use-recent-impersonations'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { useExecutionStore } from '@/stores/execution'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -12,6 +11,9 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Stores')
+
+/** localStorage key for the admin recent-impersonations list; kept through clearUserData. */
+export const RECENT_IMPERSONATIONS_STORAGE_KEY = 'recent-impersonations'
 
 /**
  * Reset all Zustand stores and React Query caches to initial state.
