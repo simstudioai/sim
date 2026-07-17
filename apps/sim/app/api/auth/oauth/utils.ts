@@ -21,7 +21,6 @@ import {
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
 import { refreshOAuthToken } from '@/lib/oauth'
-import { OAuthRefreshError } from '@/lib/oauth/errors'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -671,12 +670,6 @@ interface CoalescedRefreshOptions {
   userId?: string
 }
 
-interface CoalescedRefreshOutcome {
-  accessToken: string | null
-  /** Present when the refresh failed with a known provider error; absent on follower timeout / transient failure. */
-  error?: OAuthRefreshError
-}
-
 /**
  * Slack lock budgets sized past `TOKEN_REFRESH_TIMEOUT_MS` (15s) in
  * lib/oauth/oauth.ts: installation-keyed locks make every sibling row's request
@@ -695,7 +688,7 @@ async function performCoalescedRefresh({
   providerAccountId,
   requestId,
   userId,
-}: CoalescedRefreshOptions): Promise<CoalescedRefreshOutcome> {
+}: CoalescedRefreshOptions): Promise<string | null> {
   /**
    * Slack bot tokens are per-installation (team × app): every account row for
    * one team holds a copy of the same rotating chain, so refreshes are locked,
@@ -718,13 +711,13 @@ async function performCoalescedRefresh({
       ...logContext,
       errorCode: deadCode,
     })
-    return { accessToken: null, error: new OAuthRefreshError(providerId, deadCode) }
+    return null
   }
 
   const lockKey = `oauth:refresh:${scopeKey}`
 
   const refreshPromise = coalesceLocally(lockKey, () =>
-    withLeaderLock<CoalescedRefreshOutcome>({
+    withLeaderLock<string>({
       key: lockKey,
       // Installation-keyed Slack locks gather followers from every sibling row,
       // so their wait and the lock TTL must outlast the 15s provider timeout —
@@ -752,7 +745,7 @@ async function performCoalescedRefresh({
                 accessTokenExpiresAt: freshest.accessTokenExpiresAt,
               })
               logger.info('Reused freshest Slack installation token', logContext)
-              return { accessToken: freshest.accessToken }
+              return freshest.accessToken
             }
             refreshTokenToUse = freshest.refreshToken
           }
@@ -767,20 +760,7 @@ async function performCoalescedRefresh({
             if (result.errorCode && isTerminalRefreshError(result.errorCode)) {
               await markCredentialDead(scopeKey, result.errorCode)
             }
-            return {
-              accessToken: null,
-              // No errorCode = transient (timeout/network), not a provider rejection —
-              // stay errorless so callers keep their null-fallback behavior.
-              ...(result.errorCode
-                ? {
-                    error: new OAuthRefreshError(
-                      providerId,
-                      result.errorCode,
-                      result.errorDescription
-                    ),
-                  }
-                : {}),
-            }
+            return null
           }
 
           const accessTokenExpiresAt = new Date(Date.now() + result.expiresIn * 1000)
@@ -808,13 +788,13 @@ async function performCoalescedRefresh({
           }
 
           logger.info('Successfully refreshed access token', logContext)
-          return { accessToken: result.accessToken }
+          return result.accessToken
         } catch (error) {
           logger.error('Refresh failed inside leader path', {
             ...logContext,
             error: toError(error).message,
           })
-          return { accessToken: null }
+          return null
         }
       },
       onFollower: async () => {
@@ -833,7 +813,7 @@ async function performCoalescedRefresh({
             row.accessTokenExpiresAt > new Date()
           ) {
             logger.info('Got fresh access token from coalesced refresh', logContext)
-            return { accessToken: row.accessToken }
+            return row.accessToken
           }
           return null
         } catch (error) {
@@ -848,13 +828,13 @@ async function performCoalescedRefresh({
   )
 
   try {
-    return (await refreshPromise) ?? { accessToken: null }
+    return await refreshPromise
   } catch (error) {
     logger.error('Coalesced refresh did not settle', {
       ...logContext,
       error: toError(error).message,
     })
-    return { accessToken: null }
+    return null
   }
 }
 
@@ -898,18 +878,17 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     })
 
   if (accessTokenNeedsRefresh || instagramNeedsProactiveRefresh) {
-    const outcome = await performCoalescedRefresh({
+    const fresh = await performCoalescedRefresh({
       accountId: credential.id,
       providerId,
       refreshToken: credential.refreshToken!,
       providerAccountId: credential.providerAccountId,
       userId,
     })
-    if (outcome.accessToken) return outcome.accessToken
+    if (fresh) return fresh
     if (!accessTokenNeedsRefresh && credential.accessToken) {
       return credential.accessToken
     }
-    if (outcome.error) throw outcome.error
     return null
   }
 
@@ -1002,7 +981,7 @@ export async function resolveCredentialAccessToken(
     const resolvedCredentialId =
       (credential as { resolvedCredentialId?: string }).resolvedCredentialId ?? credentialId
 
-    const outcome = await performCoalescedRefresh({
+    const fresh = await performCoalescedRefresh({
       accountId: resolvedCredentialId,
       providerId: credential.providerId,
       refreshToken: credential.refreshToken!,
@@ -1010,7 +989,7 @@ export async function resolveCredentialAccessToken(
       requestId,
       userId: credential.userId,
     })
-    if (outcome.accessToken) return { accessToken: outcome.accessToken }
+    if (fresh) return { accessToken: fresh }
 
     // If refresh was only triggered proactively (Microsoft refresh-token aging /
     // Instagram long-lived nearing expiry), the still-valid access token is fine.
@@ -1107,7 +1086,7 @@ export async function refreshTokenIfNeeded(
     return { accessToken: credential.accessToken, refreshed: false }
   }
 
-  const outcome = await performCoalescedRefresh({
+  const fresh = await performCoalescedRefresh({
     accountId: resolvedCredentialId,
     providerId: credential.providerId,
     refreshToken: credential.refreshToken!,
@@ -1115,11 +1094,11 @@ export async function refreshTokenIfNeeded(
     requestId,
     userId: credential.userId,
   })
-  if (outcome.accessToken) return { accessToken: outcome.accessToken, refreshed: true }
+  if (fresh) return { accessToken: fresh, refreshed: true }
 
   if (!accessTokenNeedsRefresh && credential.accessToken) {
     logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
     return { accessToken: credential.accessToken, refreshed: false }
   }
-  throw outcome.error ?? new Error('Failed to refresh token')
+  throw new Error('Failed to refresh token')
 }

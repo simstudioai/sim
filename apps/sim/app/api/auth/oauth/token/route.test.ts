@@ -27,7 +27,6 @@ vi.mock('@/lib/auth/credential-access', () => ({
 }))
 
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
-import { OAuthRefreshError } from '@/lib/oauth/errors'
 import { GET, POST } from '@/app/api/auth/oauth/token/route'
 
 describe('OAuth Token API Routes', () => {
@@ -299,38 +298,6 @@ describe('OAuth Token API Routes', () => {
             expect(data).toHaveProperty('code', code)
           }
         }
-      )
-    })
-
-    it('should surface the provider error detail on typed refresh failures', async () => {
-      mockAuthorizeCredentialUse.mockResolvedValueOnce({
-        ok: true,
-        authType: 'session',
-        requesterUserId: 'test-user-id',
-        credentialOwnerUserId: 'owner-user-id',
-      })
-      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
-        id: 'credential-id',
-        accessToken: 'test-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-      })
-      authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockRejectedValueOnce(
-        new OAuthRefreshError('google', 'invalid_grant', 'Token has been expired or revoked.')
-      )
-
-      const req = createMockRequest('POST', {
-        credentialId: 'credential-id',
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(401)
-      expect(data).toHaveProperty(
-        'error',
-        'Failed to refresh access token: invalid_grant (google: Token has been expired or revoked.)'
       )
     })
 

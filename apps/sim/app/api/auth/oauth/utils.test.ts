@@ -166,46 +166,6 @@ describe('OAuth Utils', () => {
 
       await expect(
         refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
-      ).rejects.toThrow('invalid_grant (google)')
-    })
-
-    it('should preserve the provider error description in the thrown error', async () => {
-      const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-      }
-
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: false,
-        errorCode: 'invalid_grant',
-        errorDescription: 'Token has been expired or revoked.',
-        message: 'Failed',
-      })
-
-      await expect(
-        refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
-      ).rejects.toThrow('invalid_grant (google: Token has been expired or revoked.)')
-    })
-
-    it('should throw the generic error on transient failures without a provider code', async () => {
-      const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-      }
-
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: false,
-        message: 'fetch failed',
-      })
-
-      await expect(
-        refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
       ).rejects.toThrow('Failed to refresh token')
     })
 
@@ -426,7 +386,7 @@ describe('OAuth Utils', () => {
       })
 
       await expect(refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')).rejects.toThrow(
-        'token_revoked (slack)'
+        'Failed to refresh token'
       )
 
       expect(fakeRedis.set).toHaveBeenCalledWith(
