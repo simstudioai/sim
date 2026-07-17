@@ -114,6 +114,17 @@ export class InvalidGitLabAccessLevelError extends Error {
 }
 
 /**
+ * Whether an access-level field carries a value to send. Distinguishes a real
+ * level - including numeric `0` ("No access") - from "not provided" (undefined,
+ * null, or the empty-string "leave unchanged" sentinel). A bare truthiness check
+ * would wrongly treat a runtime-resolved `0` as absent, rejecting it on required
+ * operations and silently omitting it on optional ones.
+ */
+export function hasGitLabAccessLevel(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}
+
+/**
  * Coerces a runtime access-level value to the GitLab integer. Accepts an integer
  * (`30`), a numeric string (`'30'`), or a level name (`'Developer'`,
  * case-insensitive). This runs at execution time - after reference expressions

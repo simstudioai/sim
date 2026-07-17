@@ -6,6 +6,7 @@ import {
   coerceGitLabAccessLevel,
   getGitLabApiBase,
   getGitLabResourcePath,
+  hasGitLabAccessLevel,
   InvalidGitLabAccessLevelError,
   normalizeGitLabHost,
   UnsafeGitLabHostError,
@@ -134,5 +135,20 @@ describe('coerceGitLabAccessLevel', () => {
 
   it('names the offending value and valid levels in the error message', () => {
     expect(() => coerceGitLabAccessLevel('boss')).toThrow(/Developer \(30\)/)
+  })
+})
+
+describe('hasGitLabAccessLevel', () => {
+  it('treats numeric zero ("No access") and its string form as provided', () => {
+    expect(hasGitLabAccessLevel(0)).toBe(true)
+    expect(hasGitLabAccessLevel('0')).toBe(true)
+    expect(hasGitLabAccessLevel(30)).toBe(true)
+    expect(hasGitLabAccessLevel('Developer')).toBe(true)
+  })
+
+  it('treats undefined, null, and the empty-string sentinel as not provided', () => {
+    expect(hasGitLabAccessLevel(undefined)).toBe(false)
+    expect(hasGitLabAccessLevel(null)).toBe(false)
+    expect(hasGitLabAccessLevel('')).toBe(false)
   })
 })

@@ -2,7 +2,11 @@ import { GitLabIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GitLabResponse } from '@/tools/gitlab/types'
-import { coerceGitLabAccessLevel, GITLAB_ACCESS_LEVEL_OPTIONS } from '@/tools/gitlab/utils'
+import {
+  coerceGitLabAccessLevel,
+  GITLAB_ACCESS_LEVEL_OPTIONS,
+  hasGitLabAccessLevel,
+} from '@/tools/gitlab/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -2498,7 +2502,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             if (
               !params.resourceId?.trim() ||
               (!addMemberUserId && !params.username?.trim()) ||
-              !params.accessLevel
+              !hasGitLabAccessLevel(params.accessLevel)
             ) {
               throw new Error(
                 'Project / Group ID, User ID (or Username), and Access Level are required.'
@@ -2517,7 +2521,11 @@ Return ONLY the JSON array - no explanations, no extra text.`,
           }
 
           case 'gitlab_update_member':
-            if (!params.resourceId?.trim() || !params.userId || !params.memberAccessLevel) {
+            if (
+              !params.resourceId?.trim() ||
+              !params.userId ||
+              !hasGitLabAccessLevel(params.memberAccessLevel)
+            ) {
               throw new Error('Project / Group ID, User ID, and Access Level are required.')
             }
             return {
@@ -2544,7 +2552,11 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             }
 
           case 'gitlab_invite_member':
-            if (!params.resourceId?.trim() || !params.email?.trim() || !params.accessLevel) {
+            if (
+              !params.resourceId?.trim() ||
+              !params.email?.trim() ||
+              !hasGitLabAccessLevel(params.accessLevel)
+            ) {
               throw new Error('Project / Group ID, Email, and Access Level are required.')
             }
             return {
@@ -2576,7 +2588,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               throw new Error('Project / Group ID and Email are required.')
             }
             if (
-              !params.invitationAccessLevel &&
+              !hasGitLabAccessLevel(params.invitationAccessLevel) &&
               !params.expiresAt?.trim() &&
               !params.clearExpiresAt
             ) {
@@ -2591,7 +2603,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               email: params.email.trim(),
               // Only send access_level when a level is chosen; "Leave unchanged"
               // ('') keeps the invitation's current level instead of resetting it.
-              accessLevel: params.invitationAccessLevel
+              accessLevel: hasGitLabAccessLevel(params.invitationAccessLevel)
                 ? coerceGitLabAccessLevel(params.invitationAccessLevel)
                 : undefined,
               expiresAt: params.clearExpiresAt ? '' : params.expiresAt?.trim() || undefined,
@@ -2629,7 +2641,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               resourceType: params.resourceType || 'project',
               resourceId: params.resourceId.trim(),
               userId: Number(params.userId),
-              accessLevel: params.accessLevel
+              accessLevel: hasGitLabAccessLevel(params.accessLevel)
                 ? coerceGitLabAccessLevel(params.accessLevel)
                 : undefined,
             }
@@ -2655,7 +2667,11 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             }
 
           case 'gitlab_add_saml_group_link':
-            if (!params.groupId?.trim() || !params.samlGroupName?.trim() || !params.accessLevel) {
+            if (
+              !params.groupId?.trim() ||
+              !params.samlGroupName?.trim() ||
+              !hasGitLabAccessLevel(params.accessLevel)
+            ) {
               throw new Error('Group ID, SAML Group Name, and Access Level are required.')
             }
             return {
