@@ -142,6 +142,95 @@ describe('Tool Parameters Utils', () => {
       expect(schema.properties).toHaveProperty('message')
     })
 
+    it.concurrent('keeps the hosted key param optional when hosted keys are supported', () => {
+      const hostedTool = {
+        ...mockToolConfig,
+        id: 'hosted_key_tool',
+        params: {
+          query: {
+            type: 'string',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Search query',
+          },
+          apiKey: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Exa AI API Key',
+          },
+        },
+        hosting: {
+          envKeyPrefix: 'EXA_API_KEY',
+          apiKeyParam: 'apiKey',
+          byokProviderId: 'exa',
+          pricing: { type: 'per_request' as const, cost: 0.005 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 100 },
+        },
+      }
+
+      const hostedSchema = createUserToolSchema(hostedTool, {
+        surface: 'copilot',
+        hostedKeySupport: true,
+      })
+
+      // The key stays available as a bring-your-own-key override but is never
+      // a required argument — the executor injects the hosted key server-side.
+      expect(hostedSchema.properties).toHaveProperty('apiKey')
+      expect(hostedSchema.required).not.toContain('apiKey')
+      expect(hostedSchema.properties.apiKey.description).toContain('hosted key')
+      expect(hostedSchema.required).toContain('query')
+    })
+
+    it.concurrent('keeps the hosted key param required without hosted key support', () => {
+      const hostedTool = {
+        ...mockToolConfig,
+        id: 'hosted_key_tool_self_hosted',
+        params: {
+          apiKey: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Exa AI API Key',
+          },
+        },
+        hosting: {
+          envKeyPrefix: 'EXA_API_KEY',
+          apiKeyParam: 'apiKey',
+          byokProviderId: 'exa',
+          pricing: { type: 'per_request' as const, cost: 0.005 },
+          rateLimit: { mode: 'per_request' as const, requestsPerMinute: 100 },
+        },
+      }
+
+      const selfHostedSchema = createUserToolSchema(hostedTool, { surface: 'copilot' })
+
+      expect(selfHostedSchema.required).toContain('apiKey')
+      expect(selfHostedSchema.properties.apiKey.description).not.toContain('hosted key')
+    })
+
+    it.concurrent('does not relax required keys on tools without hosting', () => {
+      const plainTool = {
+        ...mockToolConfig,
+        id: 'plain_key_tool',
+        params: {
+          apiKey: {
+            type: 'string',
+            required: true,
+            visibility: 'user-only' as ParameterVisibility,
+            description: 'Service API Key',
+          },
+        },
+      }
+
+      const schema = createUserToolSchema(plainTool, {
+        surface: 'copilot',
+        hostedKeySupport: true,
+      })
+
+      expect(schema.required).toContain('apiKey')
+    })
+
     it.concurrent('adds credentialId only for copilot-facing oauth schemas', () => {
       const oauthTool = {
         ...mockToolConfig,

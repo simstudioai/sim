@@ -129,6 +129,14 @@ export interface ToolSchema {
 
 export interface UserToolSchemaOptions {
   surface?: 'default' | 'copilot'
+  /**
+   * Set when the deployment provides hosted API keys for tools with a
+   * `hosting` config. The hosted key param then stays in the schema only as an
+   * optional bring-your-own-key override instead of a required argument — the
+   * executor injects the hosted key server-side after validation, and the key
+   * value itself is never exposed to the model or the mothership.
+   */
+  hostedKeySupport?: boolean
 }
 
 export interface LLMToolSchemaResult {
@@ -505,6 +513,8 @@ export function createUserToolSchema(
   options: UserToolSchemaOptions = {}
 ): ToolSchema {
   const surface = options.surface ?? 'default'
+  const hostedApiKeyParam =
+    options.hostedKeySupport && toolConfig.hosting ? toolConfig.hosting.apiKeyParam : undefined
   const schema: ToolSchema = {
     type: 'object',
     properties: {},
@@ -519,9 +529,17 @@ export function createUserToolSchema(
     }
 
     const propertySchema = buildParameterSchema(toolConfig.id, paramId, param, options)
+    if (paramId === hostedApiKeyParam) {
+      propertySchema.description = [
+        propertySchema.description,
+        'Optional: Sim provides a hosted key for this tool. Omit this parameter unless intentionally overriding with your own key.',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    }
     schema.properties[paramId] = propertySchema
 
-    if (param.required) {
+    if (param.required && paramId !== hostedApiKeyParam) {
       schema.required.push(paramId)
     }
   }
