@@ -2801,6 +2801,52 @@ export function LinqIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ClickUpIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const bodyGradientId = `clickup_body_${id}`
+  const arrowGradientId = `clickup_arrow_${id}`
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54.8 65.8' fill='none'>
+      <linearGradient
+        id={bodyGradientId}
+        gradientUnits='userSpaceOnUse'
+        x1='0'
+        y1='15.0492'
+        x2='54.8446'
+        y2='15.0492'
+        gradientTransform='matrix(1 0 0 -1 0 69.3604)'
+      >
+        <stop offset='0' stopColor='#8930FD' />
+        <stop offset='1' stopColor='#49CCF9' />
+      </linearGradient>
+      <linearGradient
+        id={arrowGradientId}
+        gradientUnits='userSpaceOnUse'
+        x1='1.1953'
+        y1='53.166'
+        x2='53.7447'
+        y2='53.166'
+        gradientTransform='matrix(1 0 0 -1 0 69.3604)'
+      >
+        <stop offset='0' stopColor='#FF02F0' />
+        <stop offset='1' stopColor='#FFC800' />
+      </linearGradient>
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill={`url(#${bodyGradientId})`}
+        d='M0,50.6l10.1-7.8c5.4,7,11.1,10.3,17.4,10.3c6.3,0,11.9-3.2,17-10.2l10.3,7.6c-7.4,10-16.6,15.3-27.3,15.3C16.9,65.8,7.6,60.5,0,50.6z'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill={`url(#${arrowGradientId})`}
+        d='M27.5,16.9l-18,15.5l-8.3-9.7L27.6,0l26.2,22.7l-8.4,9.6L27.5,16.9z'
+      />
+    </svg>
+  )
+}
+
 export function LinearIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -3774,6 +3820,20 @@ export const ZaiIcon = (props: SVGProps<SVGSVGElement>) => (
     />
     <polygon fill='#FFFFFF' points='24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1' />
     <path d='M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z' fill='#FFFFFF' />
+  </svg>
+)
+
+export const KimiIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...props} height='1em' viewBox='0 0 24 24' width='1em' xmlns='http://www.w3.org/2000/svg'>
+    <title>Kimi</title>
+    <path
+      d='M21.846 0a1.923 1.923 0 110 3.846H20.15a.226.226 0 01-.227-.226V1.923C19.923.861 20.784 0 21.846 0z'
+      fill='#1783FF'
+    />
+    <path
+      d='M11.065 11.199l7.257-7.2c.137-.136.06-.41-.116-.41H14.3a.164.164 0 00-.117.051l-7.82 7.756c-.122.12-.302.013-.302-.179V3.82c0-.127-.083-.23-.185-.23H3.186c-.103 0-.186.103-.186.23V19.77c0 .128.083.23.186.23h2.69c.103 0 .186-.102.186-.23v-3.25c0-.069.025-.135.069-.178l2.424-2.406a.158.158 0 01.205-.023l6.484 4.772a7.677 7.677 0 003.453 1.283c.108.012.2-.095.2-.23v-3.06c0-.117-.07-.212-.164-.227a5.028 5.028 0 01-2.027-.807l-5.613-4.064c-.117-.078-.132-.279-.028-.381z'
+      fill='currentColor'
+    />
   </svg>
 )
 
@@ -8661,6 +8721,27 @@ export function JupyterIcon(props: SVGProps<SVGSVGElement>) {
       <use xlinkHref='#jupyter-path-9' transform='translate(3.21 4.88)' fill='#F37726' />
       <use xlinkHref='#jupyter-path-10' transform='translate(3.28 43.09)' fill='#9E9E9E' />
       <use xlinkHref='#jupyter-path-11' transform='translate(1.87 5.43)' fill='#616262' />
+    </svg>
+  )
+}
+
+export function RocketlaneIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 19.001 16.514' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <g transform='translate(0 -6.486)'>
+        <path
+          fillRule='evenodd'
+          clipRule='evenodd'
+          d='M15.446 6.94198L19.0007 14.7744L15.446 22.6068C14.652 22.862 13.8054 22.9998 12.9266 22.9998C11.714 22.9998 10.5627 22.7374 9.52637 22.2664L12.9266 14.7744L9.52637 7.28242C10.5627 6.81133 11.714 6.54895 12.9266 6.54895C13.8054 6.54895 14.652 6.68677 15.446 6.94198Z'
+          fill='#0F62FE'
+        />
+        <path
+          fillRule='evenodd'
+          clipRule='evenodd'
+          d='M6.03112 7.01001L9.52638 14.7114L6.03112 22.4129C5.13054 22.7516 4.15483 22.9369 3.13585 22.9369C2.02543 22.9369 0.96641 22.7168 0 22.318L3.45221 14.7114L2.49902e-08 7.10487C0.96641 6.70602 2.02543 6.48599 3.13585 6.48599C4.15483 6.48599 5.13054 6.67128 6.03112 7.01001Z'
+          fill='currentColor'
+        />
+      </g>
     </svg>
   )
 }

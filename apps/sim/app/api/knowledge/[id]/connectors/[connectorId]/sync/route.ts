@@ -29,6 +29,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
   const parsed = await parseRequest(triggerKnowledgeConnectorSyncContract, request, context)
   if (!parsed.success) return parsed.response
   const { id: knowledgeBaseId, connectorId } = parsed.data.params
+  const { rehydrate } = parsed.data.query
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -81,7 +82,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
             workspaceId: kbWorkspaceId,
           })
 
-    logger.info(`[${requestId}] Manual sync triggered for connector ${connectorId}`)
+    logger.info(
+      `[${requestId}] Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`
+    )
 
     captureServerEvent(
       auth.userId,
@@ -109,12 +112,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
         knowledgeBaseName: writeCheck.knowledgeBase.name,
         connectorType: connectorRows[0].connectorType,
         connectorStatus: connectorRows[0].status,
-        syncType: 'manual',
+        syncType: rehydrate ? 'manual-rehydrate' : 'manual',
       },
       request,
     })
 
-    dispatchSync(connectorId, { billingAttribution, requestId }).catch((error) => {
+    dispatchSync(connectorId, { billingAttribution, requestId, rehydrate }).catch((error) => {
       logger.error(
         `[${requestId}] Failed to dispatch manual sync for connector ${connectorId}`,
         error

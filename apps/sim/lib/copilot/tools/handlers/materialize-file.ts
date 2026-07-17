@@ -83,7 +83,10 @@ async function executeSave(
       .update(workspaceFiles)
       .set({
         context: 'workspace',
+        // A workspace file has no birth chat or message — clear both provenance
+        // fields so the row reads as workspace-owned, not stale chat-owned.
         chatId: null,
+        messageId: null,
         originalName: row.displayName ?? row.originalName,
         size: verifiedSize,
       })
@@ -174,7 +177,7 @@ async function executeImport(
     }
   }
 
-  const { name: rawName, description: workflowDescription } = extractWorkflowMetadata(parsed)
+  const { name: rawName } = extractWorkflowMetadata(parsed)
 
   const workflowId = generateId()
   const now = new Date()
@@ -186,7 +189,6 @@ async function executeImport(
     workspaceId,
     folderId: null,
     name: dedupedName,
-    description: workflowDescription,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,

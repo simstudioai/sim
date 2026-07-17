@@ -111,7 +111,7 @@ app:
     
     # Email & Communication
     # Configure one provider — the mailer auto-detects in priority order:
-    # Resend → AWS SES → SMTP → Azure Communication Services.
+    # Resend → AWS SES → SMTP → Azure Communication Services → Gmail.
     EMAIL_VERIFICATION_ENABLED: ""                        # Set to "true" to enable email verification for user registration and login (default "false" via envDefaults)
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
@@ -123,6 +123,8 @@ app:
     SMTP_USER: ""                                         # SMTP username (optional — omit for unauthenticated relays like MailHog)
     SMTP_PASS: ""                                         # SMTP password (optional — omit for unauthenticated relays)
     SMTP_SECURE: ""                                       # Set to "true" to force TLS on connect; defaults to true when SMTP_PORT=465
+    GMAIL_CREDENTIALS_JSON: ""                            # Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
+    GMAIL_SENDER: ""                                      # Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 
 
     # OAuth Integration Credentials (leave empty if not using)
@@ -287,6 +289,20 @@ app:
     AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: ""     # Azure container for user profile pictures
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: ""            # Azure container for OpenGraph preview images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: ""      # Azure container for workspace logos
+
+    # Google Cloud Storage Configuration (optional - for file storage)
+    # If configured, files will be stored in GCS instead of local storage
+    # Note: used when neither Azure Blob nor S3 is configured
+    GCS_PROJECT_ID: ""                                    # GCP project ID (optional — inferred from credentials/ADC when unset)
+    GCS_CREDENTIALS_JSON: ""                              # Inline service-account JSON. Leave empty to use Workload Identity / Application Default Credentials
+    GCS_BUCKET_NAME: ""                                   # GCS bucket for workspace files (all other GCS buckets fall back to it)
+    GCS_KB_BUCKET_NAME: ""                                # GCS bucket for knowledge base files
+    GCS_EXECUTION_FILES_BUCKET_NAME: ""                   # GCS bucket for workflow execution files
+    GCS_CHAT_BUCKET_NAME: ""                              # GCS bucket for deployed chat files
+    GCS_COPILOT_BUCKET_NAME: ""                           # GCS bucket for copilot files
+    GCS_PROFILE_PICTURES_BUCKET_NAME: ""                  # GCS bucket for user profile pictures
+    GCS_OG_IMAGES_BUCKET_NAME: ""                         # GCS bucket for OpenGraph preview images
+    GCS_WORKSPACE_LOGOS_BUCKET_NAME: ""                   # GCS bucket for workspace logos
 
   # Operational tunables shipped with the chart. These are rendered as inline `env:` on the
   # app container — NOT written into the chart-managed Secret and NOT required to be mapped
@@ -835,18 +851,6 @@ pii:
     tag: ""          # defaults to Chart.AppVersion
     digest: ""       # sha256: pin overrides tag
     pullPolicy: IfNotPresent
-
-  # NER engine: "spacy" (default) or "gliner" (opt-in zero-shot transformer NER
-  # for PERSON/LOCATION/NRP/DATE_TIME; regex/checksum recognizers are identical
-  # on both engines). The image ships both engines, so this is a pure env flip
-  # — no image change needed. Note: gliner on CPU is orders of magnitude slower
-  # than spacy; it is intended for GPU nodes.
-  engine: "spacy"
-
-  # Torch device for the gliner engine: "cpu", "cuda", or "cuda:N". Empty
-  # auto-detects (cuda when a GPU is visible, else cpu). GPU resource requests
-  # (nvidia.com/gpu) are not wired yet — GPU scheduling is an infra follow-up.
-  device: ""
 
   # Number of replicas
   replicaCount: 1

@@ -90,6 +90,30 @@ app:
     GOOGLE_CLOUD_PROJECT: "your-project-id"
     GOOGLE_CLOUD_REGION: "us-central1"
 
+    # Google Cloud Storage Configuration (RECOMMENDED for production)
+    # Create GCS buckets in your project and grant the Workload Identity
+    # service account roles/storage.objectAdmin on them. Signed-URL generation
+    # without a key file additionally requires roles/iam.serviceAccountTokenCreator
+    # on the service account itself (or set GCS_CREDENTIALS_JSON to inline
+    # service-account JSON with a private key).
+    GCS_PROJECT_ID: "your-project-id"
+    GCS_BUCKET_NAME: "myorg-sim-workspace-files"          # Workspace files (enables GCS)
+    GCS_KB_BUCKET_NAME: "myorg-sim-knowledge-base"        # Knowledge base documents
+    GCS_EXECUTION_FILES_BUCKET_NAME: "myorg-sim-execution-files"  # Workflow execution outputs
+    GCS_CHAT_BUCKET_NAME: "myorg-sim-chat-files"          # Deployed chat assets
+    GCS_COPILOT_BUCKET_NAME: "myorg-sim-copilot-files"    # Copilot attachments
+    GCS_PROFILE_PICTURES_BUCKET_NAME: "myorg-sim-profile-pictures"  # User avatars
+    GCS_OG_IMAGES_BUCKET_NAME: "myorg-sim-og-images"      # OpenGraph preview images
+    GCS_WORKSPACE_LOGOS_BUCKET_NAME: "myorg-sim-workspace-logos"    # Workspace logos
+
+    # Email via the Gmail API (Google-native transactional mail)
+    # Requires a Google Workspace domain: grant the service account domain-wide
+    # delegation for the gmail.send scope in the Workspace admin console.
+    # Alternatively use the Workspace SMTP relay via SMTP_HOST=smtp-relay.gmail.com.
+    # GMAIL_CREDENTIALS_JSON: '{"type":"service_account","client_email":"...","private_key":"..."}'
+    # GMAIL_SENDER: "noreply@yourdomain.com"
+    # FROM_EMAIL_ADDRESS: "Sim <noreply@yourdomain.com>"
+
 # Realtime service
 realtime:
   enabled: true

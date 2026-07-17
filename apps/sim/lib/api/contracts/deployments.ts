@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
+import {
+  DEPLOYMENT_COMPONENT_STATUSES,
+  DEPLOYMENT_OPERATION_ACTIONS,
+  DEPLOYMENT_OPERATION_STATUSES,
+} from '@/lib/workflows/deployment-lifecycle'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const deployedWorkflowStateSchema = z.custom<WorkflowState>(
@@ -56,6 +61,46 @@ export const activateDeploymentVersionBodySchema = z.object({
 
 export type ActivateDeploymentVersionBody = z.input<typeof activateDeploymentVersionBodySchema>
 
+export const deploymentOperationStatusSchema = z.enum(DEPLOYMENT_OPERATION_STATUSES)
+
+export const deploymentComponentReadinessSchema = z.enum([
+  ...DEPLOYMENT_COMPONENT_STATUSES,
+  'not_applicable',
+])
+
+export const deploymentReadinessSchema = z.object({
+  webhooks: deploymentComponentReadinessSchema,
+  schedules: deploymentComponentReadinessSchema,
+  mcp: deploymentComponentReadinessSchema,
+})
+
+export const deploymentOperationSummarySchema = z.object({
+  id: z.string(),
+  deploymentVersionId: z.string(),
+  version: z.number().int().positive(),
+  action: z.enum(DEPLOYMENT_OPERATION_ACTIONS),
+  status: deploymentOperationStatusSchema,
+  readiness: deploymentReadinessSchema,
+  requestedAt: z.string(),
+  activatedAt: z.string().nullable().optional(),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+      retryable: z.boolean(),
+    })
+    .nullable()
+    .optional(),
+})
+
+export type DeploymentOperationSummary = z.output<typeof deploymentOperationSummarySchema>
+
+export const activeDeploymentSummarySchema = z.object({
+  deploymentVersionId: z.string(),
+  version: z.number().int().positive(),
+  deployedAt: z.string(),
+})
+
 export const deploymentVersionPatchBodySchema = deploymentVersionMetadataFieldsSchema
   .extend({
     isActive: z.literal(true).optional(),
@@ -74,6 +119,8 @@ export const deploymentInfoResponseSchema = z.object({
   needsRedeployment: z.boolean().optional(),
   isPublicApi: z.boolean().optional(),
   warnings: z.array(z.string()).optional(),
+  activeDeployment: activeDeploymentSummarySchema.nullable().optional(),
+  latestDeploymentAttempt: deploymentOperationSummarySchema.nullable().optional(),
 })
 
 export type DeploymentInfoResponse = z.output<typeof deploymentInfoResponseSchema>
@@ -89,6 +136,7 @@ export const deploymentVersionSchema = z.object({
   createdAt: z.string(),
   createdBy: z.string().nullable().optional(),
   deployedBy: z.string().nullable().optional(),
+  latestOperationStatus: deploymentOperationStatusSchema.nullable().optional(),
 })
 
 export type DeploymentVersion = z.output<typeof deploymentVersionSchema>
@@ -168,10 +216,12 @@ export type UpdateDeploymentVersionMetadataResponse = z.output<
 
 export const activateDeploymentVersionResponseSchema = z.object({
   success: z.literal(true),
-  deployedAt: z.string(),
+  deployedAt: z.string().nullable().optional(),
   warnings: z.array(z.string()).optional(),
   name: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
+  activeDeployment: activeDeploymentSummarySchema.nullable().optional(),
+  latestDeploymentAttempt: deploymentOperationSummarySchema.nullable().optional(),
 })
 
 export type ActivateDeploymentVersionResponse = z.output<

@@ -46,6 +46,13 @@ export interface TokenServiceAccountDescriptor {
   docsUrl: string
   /** Optional one-line caveat rendered under the token field. */
   helpText?: string
+  /**
+   * HTTP auth scheme the pasted token requires at execution time. Defaults to
+   * `bearer` (`Authorization: Bearer <token>`); `x-api-token` providers (e.g.
+   * Pipedrive) send the token in an `x-api-token` header instead, and the
+   * token route surfaces this so tool header builders can switch schemes.
+   */
+  authStyle?: 'bearer' | 'x-api-token'
 }
 
 export const HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID = 'hubspot-service-account' as const
@@ -53,6 +60,7 @@ export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' a
 export const NOTION_SERVICE_ACCOUNT_PROVIDER_ID = 'notion-service-account' as const
 export const ASANA_SERVICE_ACCOUNT_PROVIDER_ID = 'asana-service-account' as const
 export const ATTIO_SERVICE_ACCOUNT_PROVIDER_ID = 'attio-service-account' as const
+export const CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID = 'clickup-service-account' as const
 export const LINEAR_SERVICE_ACCOUNT_PROVIDER_ID = 'linear-service-account' as const
 export const MONDAY_SERVICE_ACCOUNT_PROVIDER_ID = 'monday-service-account' as const
 export const SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID = 'shopify-service-account' as const
@@ -60,6 +68,7 @@ export const WEBFLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'webflow-service-account' as 
 export const TRELLO_SERVICE_ACCOUNT_PROVIDER_ID = 'trello-service-account' as const
 export const CALCOM_SERVICE_ACCOUNT_PROVIDER_ID = 'calcom-service-account' as const
 export const WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID = 'wealthbox-service-account' as const
+export const PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'pipedrive-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -69,6 +78,7 @@ export type TokenServiceAccountProviderId =
   | typeof NOTION_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ASANA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATTIO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof LINEAR_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MONDAY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID
@@ -76,6 +86,7 @@ export type TokenServiceAccountProviderId =
   | typeof TRELLO_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CALCOM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   TokenServiceAccountProviderId,
@@ -171,6 +182,23 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/attio-service-account',
     helpText:
       'Check the scopes granted to the key in Attio — tools whose scopes are missing will fail at run time.',
+  },
+  [CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ClickUp',
+    tokenNoun: 'personal API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'pk_...',
+        secret: true,
+        hintPattern: /^pk_/,
+        hintMessage: 'ClickUp personal API tokens start with pk_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/clickup-service-account',
   },
   [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -303,6 +331,24 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/wealthbox-service-account',
     helpText:
       'Trial accounts cannot use the Wealthbox API; contact Wealthbox support if API Access is missing from your Settings.',
+  },
+  [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Pipedrive',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste personal API token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/pipedrive-service-account',
+    helpText:
+      'Each Pipedrive user has one API token per company — regenerating it breaks every integration using the old value, and API-token traffic gets lower rate limits than OAuth.',
+    authStyle: 'x-api-token',
   },
 }
 

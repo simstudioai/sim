@@ -9,6 +9,7 @@ import {
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, gt, isNull, like, or } from 'drizzle-orm'
+import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 
 const logger = createLogger('TikTokWebhookTargets')
 const ACCOUNT_ID_UUID_SUFFIX = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -70,8 +71,7 @@ export async function findTikTokWebhookTargetPage(
       and(
         eq(webhookCredentialIdExpression(webhook.providerConfig), credential.id),
         eq(webhook.provider, 'tiktok'),
-        eq(webhook.isActive, true),
-        isNull(webhook.archivedAt)
+        deliverableWebhookPredicate(webhook)
       )
     )
     .innerJoin(

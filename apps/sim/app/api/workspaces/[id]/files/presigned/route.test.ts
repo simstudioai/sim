@@ -35,9 +35,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
-  get USE_BLOB_STORAGE() {
-    return mockUseBlobStorage.value
-  },
+  getServeStoragePrefix: () => (mockUseBlobStorage.value ? 'blob' : 's3'),
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)

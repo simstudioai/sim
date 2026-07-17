@@ -24,6 +24,7 @@ import {
 import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
+import { ExternalLink, externalLinkHostname } from './external-link'
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -101,7 +102,8 @@ function endsInlineWord(value: string): boolean {
 
 function nextInlineSegmentLabel(segment?: ContentSegment): string {
   if (!segment) return ''
-  if (segment.type === 'text' || segment.type === 'thinking') return segment.content
+  // Thinking segments are never rendered, so they contribute no following text.
+  if (segment.type === 'text') return segment.content
   if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id || ''
   return ''
 }
@@ -240,7 +242,7 @@ const MARKDOWN_COMPONENTS = {
           className={cn(
             'text-[var(--text-primary)]',
             kind
-              ? 'not-prose inline-flex items-center gap-[5px] no-underline'
+              ? 'not-prose inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] no-underline transition-colors hover-hover:bg-[var(--surface-6)]'
               : 'underline decoration-dashed underline-offset-4'
           )}
           onClick={(e) => {
@@ -260,9 +262,24 @@ const MARKDOWN_COMPONENTS = {
           {kind && ref && (
             <ContextMentionIcon
               context={{ kind, label: kind === 'file' ? fileIconLabel(ref, label) : label }}
-              className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
+              className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
             />
           )}
+          {children}
+        </a>
+      )
+    }
+    const hostname = externalLinkHostname(href)
+    if (hostname && href) {
+      return (
+        <ExternalLink href={href} hostname={hostname}>
+          {children}
+        </ExternalLink>
+      )
+    }
+    if (href?.startsWith('mailto:')) {
+      return (
+        <a href={href} className='not-prose text-[var(--text-primary)] no-underline'>
           {children}
         </a>
       )
@@ -343,17 +360,25 @@ const MARKDOWN_COMPONENTS = {
 interface ChatContentProps {
   content: string
   isStreaming?: boolean
+  /** Transcript-derived answers for this message's question card (renders the recap). */
+  questionAnswers?: string[]
   onOptionSelect?: (id: string) => void
+  onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   onRevealStateChange?: (isRevealing: boolean) => void
+  /** Reports whether this segment is actively painting text or its own pending-tag indicator. */
+  onStreamActivityChange?: (active: boolean) => void
 }
 
 function ChatContentInner({
   content,
   isStreaming = false,
+  questionAnswers,
   onOptionSelect,
+  onQuestionDismiss,
   onWorkspaceResourceSelect,
   onRevealStateChange,
+  onStreamActivityChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
@@ -363,7 +388,8 @@ function ChatContentInner({
 
   const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
   const streamedContent = useSmoothText(displayContent, isStreaming)
-  const isRevealing = isStreaming || streamedContent.length < displayContent.length
+  const hasRevealBacklog = streamedContent.length < displayContent.length
+  const isRevealing = isStreaming || hasRevealBacklog
 
   useEffect(() => {
     onRevealStateChangeRef.current?.(isRevealing)
@@ -386,9 +412,9 @@ function ChatContentInner({
    * position (`E`/`qe` in streamdown 2.5), so a re-parse of unchanged content
    * without the animate plugin bails at every unoverridden element (`p`,
    * `strong`, `tr`, headings, …) and leaves the stale per-char span DOM in
-   * place. The settled instance keeps the streaming parser (`parserTree`
-   * below) so the remount only sheds the spans, never re-interprets the
-   * markdown.
+   * place. Every instance renders through the streaming parser (see
+   * `streamingTree` below) so the remount only sheds the spans, never
+   * re-interprets the markdown.
    *
    * The drain is deliberately one-way: a stream that resumes afterwards
    * (reconnect/continuation) reveals paced but unfaded, because re-arming
@@ -433,19 +459,18 @@ function ChatContentInner({
   }, [isRevealing, animationDrained, streamedThisSession])
 
   /**
-   * `parserTree` (drives `mode`) stays latched for the mount's life: streaming
-   * mode is the only one that applies remend/incomplete-markdown repair and
-   * block-split parsing, so a settled message must KEEP the streaming parser —
-   * swapping to `mode='static'` at drain re-parses the same source through a
-   * different pipeline (no remend, whole-doc parse) and visibly flashes on any
-   * reply with unbalanced markdown. `streamingTree` (drives the remount key
-   * and animation props) additionally drops at drain, so the settled instance
-   * re-renders through the SAME parser minus the per-word animation spans —
-   * byte-identical pixels. Only never-streamed mounts (reloaded history)
-   * render static.
+   * Every mount renders through the streaming parser (remend +
+   * incomplete-markdown repair + block-split) — `mode='static'` is never used.
+   * The two pipelines parse edge-case markdown differently (unbalanced fences,
+   * list continuation across blocks), so a message you watched stream would
+   * render subtly differently from the same message reloaded from the DB; one
+   * pipeline makes in-session and refreshed renders byte-identical. The rows
+   * are virtualized, so only visible messages pay the block-split mount cost.
+   * `streamingTree` (the remount key and animation props) still drops at
+   * drain, so a settled instance re-renders through the SAME parser minus the
+   * per-word animation spans — identical pixels.
    */
-  const parserTree = isRevealing || streamedThisSession
-  const streamingTree = parserTree && !animationDrained
+  const streamingTree = (isRevealing || streamedThisSession) && !animationDrained
 
   /**
    * One-way fade cutoff (see {@link FADE_MAX_REVEALED_CHARS}). Latched so a
@@ -474,6 +499,12 @@ function ChatContentInner({
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
   )
+  const hasPendingIndicator = parsed.hasPendingTag && isRevealing
+
+  useEffect(() => {
+    onStreamActivityChange?.(hasRevealBacklog || hasPendingIndicator)
+    return () => onStreamActivityChange?.(false)
+  }, [hasPendingIndicator, hasRevealBacklog, onStreamActivityChange])
 
   type BlockSegment = Exclude<
     ContentSegment,
@@ -507,7 +538,11 @@ function ChatContentInner({
         `[${label}](<#wsres-${s.data.type}-${ref}>)`,
         nextSegment
       )
-    } else if (s.type === 'text' || s.type === 'thinking') {
+    } else if (s.type === 'thinking') {
+      // Model-emitted <thinking> tag bodies are reasoning, not answer text —
+      // never rendered (matches the block-level thinking omission in
+      // message-content and the tag stripping in the inbox executor).
+    } else if (s.type === 'text') {
       pendingMarkdown += s.content
     } else {
       flushMarkdown()
@@ -538,7 +573,6 @@ function ChatContentInner({
             >
               <Streamdown
                 key={streamingTree ? 'stream' : 'settled'}
-                mode={parserTree ? undefined : 'static'}
                 animated={fadeActive ? STREAM_ANIMATION : false}
                 isAnimating={streamingTree}
                 components={MARKDOWN_COMPONENTS}
@@ -552,11 +586,13 @@ function ChatContentInner({
           <SpecialTags
             key={`special-${group.index}`}
             segment={group.segment}
+            questionAnswers={questionAnswers}
             onOptionSelect={onOptionSelect}
+            onQuestionDismiss={onQuestionDismiss}
           />
         )
       })}
-      {parsed.hasPendingTag && isRevealing && <PendingTagIndicator />}
+      {hasPendingIndicator && <PendingTagIndicator />}
     </div>
   )
 }

@@ -152,6 +152,10 @@ export interface ForkSyncController {
   workflowChanges: ForkWorkflowChange[]
   /** Names of target workflows this sync archives, for the confirm modal. */
   archivedWorkflowNames: string[]
+  /** Names of deployed SOURCE workflows marked "Exclude from sync" - never sent. */
+  excludedSourceWorkflows: string[]
+  /** Names of mapped TARGET workflows marked "Exclude from sync" - never replaced or archived. */
+  excludedTargetWorkflows: string[]
   mcpReauthCount: number
   inlineSecretCount: number
   dirty: boolean
@@ -796,6 +800,8 @@ export function useForkSync(params: {
     dependentClears,
     workflowChanges,
     archivedWorkflowNames,
+    excludedSourceWorkflows: diff.data?.excludedSourceWorkflows ?? [],
+    excludedTargetWorkflows: diff.data?.excludedTargetWorkflows ?? [],
     mcpReauthCount: diff.data?.mcpReauthServerIds.length ?? 0,
     inlineSecretCount: diff.data?.inlineSecretSources.length ?? 0,
     dirty,

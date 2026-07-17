@@ -1,4 +1,31 @@
 import { functionExecuteTool } from '@/tools/function'
+import {
+  gmailAddLabelV2Tool,
+  gmailArchiveV2Tool,
+  gmailCreateLabelV2Tool,
+  gmailDeleteDraftV2Tool,
+  gmailDeleteLabelV2Tool,
+  gmailDeleteV2Tool,
+  gmailDraftV2Tool,
+  gmailEditDraftV2Tool,
+  gmailGetDraftV2Tool,
+  gmailGetThreadV2Tool,
+  gmailListDraftsV2Tool,
+  gmailListLabelsV2Tool,
+  gmailListThreadsV2Tool,
+  gmailMarkReadV2Tool,
+  gmailMarkUnreadV2Tool,
+  gmailMoveV2Tool,
+  gmailReadV2Tool,
+  gmailRemoveLabelV2Tool,
+  gmailSearchV2Tool,
+  gmailSendV2Tool,
+  gmailTrashThreadV2Tool,
+  gmailUnarchiveV2Tool,
+  gmailUntrashThreadV2Tool,
+  gmailUpdateLabelV2Tool,
+} from '@/tools/gmail'
+import { guardrailsValidateTool } from '@/tools/guardrails'
 import { httpRequestTool } from '@/tools/http'
 import {
   slackAddReactionTool,
@@ -52,12 +79,38 @@ import type { ToolConfig } from '@/tools/types'
  * next.config.ts) so the local dev server never compiles the full ~247-tool
  * graph (~2,074 modules) that the shared workspace layout otherwise drags into
  * every route. Only these tools execute in minimal mode; unset the flag for the
- * full set. Slack tools are included so the Slack block (action + native trigger)
- * works end-to-end in minimal dev. NEVER aliased in production.
+ * full set. The slack and gmail v2 sets back the `slack`/`slack_v2` and
+ * `gmail_v2` blocks kept in `blocks/registry-maps.minimal.ts`. NEVER aliased in
+ * production.
  */
 export const tools: Record<string, ToolConfig> = {
   http_request: httpRequestTool,
   function_execute: functionExecuteTool,
+  guardrails_validate: guardrailsValidateTool,
+  gmail_send_v2: gmailSendV2Tool,
+  gmail_read_v2: gmailReadV2Tool,
+  gmail_search_v2: gmailSearchV2Tool,
+  gmail_draft_v2: gmailDraftV2Tool,
+  gmail_move_v2: gmailMoveV2Tool,
+  gmail_mark_read_v2: gmailMarkReadV2Tool,
+  gmail_mark_unread_v2: gmailMarkUnreadV2Tool,
+  gmail_archive_v2: gmailArchiveV2Tool,
+  gmail_unarchive_v2: gmailUnarchiveV2Tool,
+  gmail_delete_v2: gmailDeleteV2Tool,
+  gmail_add_label_v2: gmailAddLabelV2Tool,
+  gmail_remove_label_v2: gmailRemoveLabelV2Tool,
+  gmail_create_label_v2: gmailCreateLabelV2Tool,
+  gmail_delete_draft_v2: gmailDeleteDraftV2Tool,
+  gmail_delete_label_v2: gmailDeleteLabelV2Tool,
+  gmail_edit_draft_v2: gmailEditDraftV2Tool,
+  gmail_get_draft_v2: gmailGetDraftV2Tool,
+  gmail_get_thread_v2: gmailGetThreadV2Tool,
+  gmail_list_drafts_v2: gmailListDraftsV2Tool,
+  gmail_list_labels_v2: gmailListLabelsV2Tool,
+  gmail_list_threads_v2: gmailListThreadsV2Tool,
+  gmail_trash_thread_v2: gmailTrashThreadV2Tool,
+  gmail_untrash_thread_v2: gmailUntrashThreadV2Tool,
+  gmail_update_label_v2: gmailUpdateLabelV2Tool,
   slack_add_reaction: slackAddReactionTool,
   slack_archive_conversation: slackArchiveConversationTool,
   slack_canvas: slackCanvasTool,

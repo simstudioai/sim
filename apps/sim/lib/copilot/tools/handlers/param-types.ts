@@ -32,8 +32,10 @@ export interface GetBlockUpstreamReferencesParams {
 export interface CreateWorkflowParams {
   name?: string
   workspaceId?: string
+  /** Canonical workflow-folder VFS path, for example `workflows/Dream`. */
+  folderPath?: string
+  /** Legacy executor input. New tool calls use folderPath and resolve the ID internally. */
   folderId?: string
-  description?: string
 }
 
 export interface CreateFolderParams {
@@ -245,12 +247,6 @@ export interface CreateWorkspaceMcpServerParams {
 export interface RenameWorkflowParams {
   workflowId: string
   name: string
-}
-
-export interface UpdateWorkflowParams {
-  workflowId: string
-  name?: string
-  description?: string
 }
 
 export interface DeleteWorkflowParams {

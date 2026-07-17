@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Chip,
   ChipConfirmModal,
+  chipGeometryClass,
   chipVariants,
   cn,
   DropdownMenu,
@@ -33,6 +34,15 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
+
+/**
+ * Derives the single-letter avatar initial for a workspace, ignoring the word
+ * "workspace" in the name (e.g. "Acme Workspace" → "A").
+ */
+function getWorkspaceInitial(name: string | undefined): string {
+  const stripped = (name ?? '').replace(/workspace/gi, '').trim()
+  return (stripped[0] || name?.[0] || 'W').toUpperCase()
+}
 
 interface DisabledReasonTooltipProps {
   reason: string | null
@@ -182,11 +192,7 @@ function WorkspaceHeaderImpl({
     }
   }, [isWorkspaceMenuOpen, editingWorkspaceId, editingName, workspaces, onRenameWorkspace])
 
-  const workspaceInitial = (() => {
-    const name = activeWorkspace?.name || ''
-    const stripped = name.replace(/workspace/gi, '').trim()
-    return (stripped[0] || name[0] || 'W').toUpperCase()
-  })()
+  const workspaceInitial = getWorkspaceInitial(activeWorkspace?.name)
 
   /**
    * Opens the context menu for a workspace at the specified position
@@ -418,8 +424,7 @@ function WorkspaceHeaderImpl({
               <>
                 <div className='-mx-1.5 flex max-h-[94px] flex-col gap-0.5 overflow-y-auto px-1.5'>
                   {workspaces.map((workspace) => {
-                    const stripped = workspace.name.replace(/workspace/gi, '').trim()
-                    const initial = (stripped[0] || workspace.name[0] || 'W').toUpperCase()
+                    const initial = getWorkspaceInitial(workspace.name)
                     const isActive = workspace.id === workspaceId
                     const isMenuOpen = menuOpenWorkspaceId === workspace.id
 
@@ -640,7 +645,8 @@ function WorkspaceHeaderImpl({
           type='button'
           aria-label='Switch workspace'
           className={cn(
-            'mx-0.5 h-[30px] items-center gap-2 rounded-lg px-2',
+            chipGeometryClass,
+            'mx-0.5',
             isCollapsed ? 'flex' : 'inline-flex min-w-0 max-w-full'
           )}
           title={activeWorkspace?.name}

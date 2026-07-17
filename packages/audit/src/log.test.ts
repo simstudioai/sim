@@ -37,7 +37,7 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 import { sleep } from '@sim/utils/helpers'
-import { AuditAction, AuditResourceType, recordAudit } from './index'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditBatch } from './index'
 
 const flush = () => sleep(10)
 
@@ -382,6 +382,68 @@ describe('recordAudit', () => {
         })
       )
     })
+  })
+})
+
+describe('recordAuditBatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('writes all entries in a single insert', async () => {
+    recordAuditBatch([
+      {
+        workspaceId: 'ws-1',
+        actorId: null,
+        actorName: 'Billing System',
+        action: AuditAction.WORKSPACE_UPDATED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: 'ws-1',
+      },
+      {
+        workspaceId: 'ws-2',
+        actorId: null,
+        actorName: 'Billing System',
+        action: AuditAction.WORKSPACE_UPDATED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: 'ws-2',
+      },
+    ])
+
+    await flush()
+
+    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      expect.objectContaining({ workspaceId: 'ws-1', actorId: null, actorName: 'Billing System' }),
+      expect.objectContaining({ workspaceId: 'ws-2', actorId: null, actorName: 'Billing System' }),
+    ])
+  })
+
+  it('does nothing for an empty batch', async () => {
+    recordAuditBatch([])
+
+    await flush()
+
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('does not throw when the batch insert fails', async () => {
+    dbChainMockFns.values.mockImplementation(() => Promise.reject(new Error('DB connection lost')))
+
+    expect(() => {
+      recordAuditBatch([
+        {
+          workspaceId: 'ws-1',
+          actorId: null,
+          actorName: 'Billing System',
+          action: AuditAction.WORKSPACE_UPDATED,
+          resourceType: AuditResourceType.WORKSPACE,
+        },
+      ])
+    }).not.toThrow()
+
+    await flush()
   })
 })
 

@@ -219,6 +219,68 @@ describe('zai provider definition', () => {
   })
 })
 
+describe('kimi provider definition', () => {
+  const kimi = PROVIDER_DEFINITIONS.kimi
+
+  const expectedModels = [
+    { id: 'kimi-k3', contextWindow: 1048576 },
+    { id: 'kimi-k2.7-code', contextWindow: 262144 },
+    { id: 'kimi-k2.7-code-highspeed', contextWindow: 262144 },
+    { id: 'kimi-k2.6', contextWindow: 262144 },
+  ]
+
+  it('is registered with kimi-k2.6 as the default model', () => {
+    expect(kimi).toBeDefined()
+    expect(kimi.id).toBe('kimi')
+    // kimi-k2.6 (not the flagship kimi-k3) — k3 access is tier-gated on Moonshot accounts,
+    // and the default must be a model every account can serve.
+    expect(kimi.defaultModel).toBe('kimi-k2.6')
+    // No fallback pattern — an unscoped `/^kimi/` would overmatch Kimi weights re-hosted by
+    // other providers and misroute them to Moonshot's hosted billing.
+    expect(kimi.modelPatterns).toEqual([])
+  })
+
+  it('exposes every Kimi model with the documented context window', () => {
+    expect(kimi.models.map((m) => m.id)).toEqual(expectedModels.map((m) => m.id))
+    for (const expected of expectedModels) {
+      const model = kimi.models.find((m) => m.id === expected.id)
+      expect(model?.contextWindow).toBe(expected.contextWindow)
+    }
+  })
+
+  it('declares no temperature capability since every current Kimi model pins it server-side', () => {
+    expect(kimi.capabilities?.temperature).toBeUndefined()
+    for (const model of kimi.models) {
+      expect(model.capabilities.temperature).toBeUndefined()
+    }
+  })
+
+  it('exposes the thinking toggle only on kimi-k2.6', () => {
+    for (const model of kimi.models) {
+      const hasToggle = model.id === 'kimi-k2.6'
+      if (hasToggle) {
+        expect(model.capabilities.thinking).toEqual({
+          levels: ['disabled', 'enabled'],
+          default: 'enabled',
+        })
+      } else {
+        expect(model.capabilities.thinking).toBeUndefined()
+      }
+    }
+  })
+
+  it('routes every kimi model ID to the kimi provider', () => {
+    const baseModels = getBaseModelProviders()
+    for (const expected of expectedModels) {
+      expect(baseModels[expected.id]).toBe('kimi')
+    }
+  })
+
+  it('is included in getHostedModels since Sim provides the Kimi key server-side', () => {
+    expect(getHostedModels()).toContain('kimi-k3')
+  })
+})
+
 describe('xai provider definition', () => {
   const xai = PROVIDER_DEFINITIONS.xai
 

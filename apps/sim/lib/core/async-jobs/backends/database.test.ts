@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({
@@ -76,5 +77,38 @@ describe('DatabaseJobQueue enqueue', () => {
       acceptance: 'unknown',
       retryable: true,
     })
+  })
+})
+
+describe('DatabaseJobQueue batchEnqueueAndWait', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('caps overlapping batches sharing a concurrencyKey at the shared limit', async () => {
+    const queue = new DatabaseJobQueue()
+    let inFlight = 0
+    let maxInFlight = 0
+    const makeItem = () => ({
+      payload: {},
+      options: {
+        concurrencyKey: 'table-1',
+        concurrencyLimit: 2,
+        runner: async () => {
+          inFlight += 1
+          maxInFlight = Math.max(maxInFlight, inFlight)
+          await sleep(1)
+          inFlight -= 1
+        },
+      },
+    })
+
+    await Promise.all([
+      queue.batchEnqueueAndWait('workflow-group-cell', [makeItem(), makeItem()]),
+      queue.batchEnqueueAndWait('workflow-group-cell', [makeItem(), makeItem()]),
+    ])
+
+    expect(maxInFlight).toBe(2)
   })
 })

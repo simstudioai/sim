@@ -94,7 +94,8 @@ export const GET = withRouteHandler(
       const fullPath = path.join('/')
       const isS3Path = path[0] === 's3'
       const isBlobPath = path[0] === 'blob'
-      const isCloudPath = isS3Path || isBlobPath
+      const isGcsPath = path[0] === 'gcs'
+      const isCloudPath = isS3Path || isBlobPath || isGcsPath
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
       const isPublicByKeyPrefix =

@@ -14,6 +14,7 @@ import { vi } from 'vitest'
  */
 export const auditMockFns = {
   mockRecordAudit: vi.fn(),
+  mockRecordAuditBatch: vi.fn(),
 }
 
 /**
@@ -26,6 +27,7 @@ export const auditMockFns = {
  */
 export const auditMock = {
   recordAudit: auditMockFns.mockRecordAudit,
+  recordAuditBatch: auditMockFns.mockRecordAuditBatch,
   AuditAction: {
     API_KEY_CREATED: 'api_key.created',
     API_KEY_UPDATED: 'api_key.updated',
@@ -141,6 +143,8 @@ export const auditMock = {
     WORKFLOW_DUPLICATED: 'workflow.duplicated',
     WORKFLOW_LOCKED: 'workflow.locked',
     WORKFLOW_UNLOCKED: 'workflow.unlocked',
+    WORKFLOW_FORK_SYNC_EXCLUDED: 'workflow.fork_sync_excluded',
+    WORKFLOW_FORK_SYNC_INCLUDED: 'workflow.fork_sync_included',
     WORKFLOW_DEPLOYMENT_ACTIVATED: 'workflow.deployment_activated',
     WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
     WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',

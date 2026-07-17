@@ -395,6 +395,30 @@ describe('processOutboxEvents — handler timeout', () => {
     expect(timeoutUpdate?.set.attempts).toBe(1)
     expect(timeoutUpdate?.set.lastError).toMatch(/timed out/)
   })
+
+  it('aborts the handler signal when its execution window expires', async () => {
+    let handlerSignal: AbortSignal | undefined
+    const handler = vi.fn(
+      async (
+        _payload: unknown,
+        context: { maxAttempts: number; signal: AbortSignal }
+      ): Promise<void> => {
+        handlerSignal = context.signal
+        expect(context.maxAttempts).toBe(10)
+        await new Promise<void>((resolve) => {
+          context.signal.addEventListener('abort', () => resolve(), { once: true })
+        })
+      }
+    )
+    state.claimedRows = [makePendingRow({ attempts: 0 })]
+
+    const promise = processOutboxEvents({ 'test.event': handler })
+    await vi.advanceTimersByTimeAsync(90 * 1000 + 1)
+    const result = await promise
+
+    expect(handlerSignal?.aborted).toBe(true)
+    expect(result.leaseLost).toBe(1)
+  })
 })
 
 describe('processOutboxEvents — reaper recovery', () => {

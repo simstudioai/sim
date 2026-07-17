@@ -6,6 +6,7 @@ import { and, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   deriveEnterpriseOperationStatus,
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
@@ -234,7 +235,6 @@ export interface IssueEnterpriseProvisioningInput {
   ownerUserId: string
   organizationName?: string
   monthlyInvoiceAmountUsd: number
-  includedMonthlyCredits: number
   usageLimitCredits?: number
   seats: number
   concurrencyLimit?: number
@@ -281,13 +281,14 @@ export function buildEnterpriseProvisioningRequestKey(
   input: IssueEnterpriseProvisioningInput,
   organizationId: string
 ): string {
+  const includedMonthlyCredits = dollarsToCredits(input.monthlyInvoiceAmountUsd)
   const requestTerms: Array<string | number> = [
     'enterprise-v2',
     input.ownerUserId,
     organizationId,
     Math.round(input.monthlyInvoiceAmountUsd * 100),
-    input.includedMonthlyCredits,
-    input.usageLimitCredits ?? input.includedMonthlyCredits,
+    includedMonthlyCredits,
+    input.usageLimitCredits ?? includedMonthlyCredits,
     input.seats,
   ]
   if (input.concurrencyLimit !== undefined) requestTerms.push(input.concurrencyLimit)
@@ -422,6 +423,7 @@ export async function issueEnterpriseProvisioning(
       'Monthly invoice amount must be at least $0.01 and use whole cents'
     )
   }
+  const includedMonthlyCredits = dollarsToCredits(input.monthlyInvoiceAmountUsd)
   if (
     input.concurrencyLimit !== undefined &&
     parseBillingConcurrencyLimit(input.concurrencyLimit) !== input.concurrencyLimit
@@ -548,8 +550,8 @@ export async function issueEnterpriseProvisioning(
       requestedByEmail: input.requestedByEmail,
       requestedByUserId: input.requestedByUserId,
       invoiceAmountCents,
-      includedMonthlyCredits: input.includedMonthlyCredits,
-      usageLimitCredits: input.usageLimitCredits ?? input.includedMonthlyCredits,
+      includedMonthlyCredits,
+      usageLimitCredits: input.usageLimitCredits ?? includedMonthlyCredits,
       seats: input.seats,
       ...(input.concurrencyLimit !== undefined ? { concurrencyLimit: input.concurrencyLimit } : {}),
       pausePaymentCollection: input.pausePaymentCollection ?? false,

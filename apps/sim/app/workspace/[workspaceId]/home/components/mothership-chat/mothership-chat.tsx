@@ -20,7 +20,11 @@ import {
   MessageContent,
   type MessagePhase,
 } from '@/app/workspace/[workspaceId]/home/components/message-content'
-import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
+import {
+  PendingTagIndicator,
+  parseLastQuestionTag,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
@@ -39,6 +43,7 @@ import type {
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
+import { shouldShowAssistantMessageActions } from './message-actions-visibility'
 
 interface MothershipChatProps {
   messages: ChatMessage[]
@@ -88,6 +93,14 @@ const ROW_HEIGHT_ESTIMATE = {
  * and the streaming tail stay painted without a blank flash before measurement.
  */
 const OVERSCAN = 6
+
+/**
+ * How close to the bottom (px) the transcript must be to count as pinned for
+ * re-pinning across container resizes. Covers the fractional sub-pixel gap a
+ * DPR-scaled `scrollTop` can leave, without capturing a user who deliberately
+ * scrolled up.
+ */
+const PIN_THRESHOLD = 2
 
 /**
  * Initial-scroll sentinel. Distinct from every real `chatId` value — including
@@ -163,6 +176,8 @@ interface AssistantMessageRowProps {
   message: ChatMessage
   isStreaming: boolean
   precedingUserContent?: string
+  /** Transcript-derived answers for this message's question card (renders the recap). */
+  questionAnswers?: string[]
   rowClassName: string
   onOptionSelect?: (id: string) => void
   onAnimatingChange?: (animating: boolean) => void
@@ -172,6 +187,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   message,
   isStreaming,
   precedingUserContent,
+  questionAnswers,
   rowClassName,
   onOptionSelect,
   onAnimatingChange,
@@ -181,6 +197,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   const trimmedContent = message.content?.trim() ?? ''
 
   const [phase, setPhase] = useState<MessagePhase>(isStreaming ? 'streaming' : 'settled')
+  const [dismissedQuestionTag, setDismissedQuestionTag] = useState<string | null>(null)
 
   const onAnimatingChangeRef = useRef(onAnimatingChange)
   onAnimatingChangeRef.current = onAnimatingChange
@@ -197,7 +214,23 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     return null
   }
 
-  const showActions = phase === 'settled' && (message.content || hasAnyBlocks)
+  // A trailing question card replaces the copy/thumbs row while active or
+  // answered. Its raw tag is the dismissal identity so a later question added
+  // to the same turn cannot inherit an earlier card's dismissed state.
+  const endsWithQuestion = trimmedContent.endsWith('</question>')
+  const questionTag = endsWithQuestion
+    ? trimmedContent.slice(trimmedContent.lastIndexOf('<question>'))
+    : null
+  const questionDismissed = questionTag !== null && dismissedQuestionTag === questionTag
+  const handleQuestionDismiss = () => {
+    if (questionTag) setDismissedQuestionTag(questionTag)
+  }
+  const showActions = shouldShowAssistantMessageActions({
+    phase,
+    hasContent: Boolean(message.content) || hasAnyBlocks,
+    endsWithQuestion,
+    questionDismissed,
+  })
 
   return (
     <div className={rowClassName}>
@@ -205,7 +238,9 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         blocks={blocks}
         fallbackContent={message.content}
         isStreaming={isStreaming}
+        questionAnswers={questionAnswers}
         onOptionSelect={onOptionSelect}
+        onQuestionDismiss={handleQuestionDismiss}
         onPhaseChange={setPhase}
       />
       {showActions && (
@@ -271,6 +306,32 @@ export function MothershipChat({
   const hasMessages = messages.length > 0
 
   /**
+   * Keep a bottom-pinned transcript pinned when the scroll container resizes.
+   * Growing or shrinking the multi-line input (or resizing the panel/window)
+   * changes the container height while `scrollTop` stays put, which silently
+   * unpins the chat from the bottom — the last message slides behind the
+   * input. Pinned-ness is sampled on every scroll (before the resize lands),
+   * so a user who scrolled up is never yanked back down.
+   */
+  useEffect(() => {
+    const el = scrollElementRef.current
+    if (!el) return
+    let wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= PIN_THRESHOLD
+    const onScroll = () => {
+      wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= PIN_THRESHOLD
+    }
+    const observer = new ResizeObserver(() => {
+      if (wasAtBottom) el.scrollTop = el.scrollHeight - el.clientHeight
+    })
+    el.addEventListener('scroll', onScroll, { passive: true })
+    observer.observe(el)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      observer.disconnect()
+    }
+  }, [])
+
+  /**
    * Stable per-row identity for virtualizer measurement caching and React
    * reconciliation. User rows key on their message id; assistant rows key on
    * their turn position (`assistant:<userId>:<ordinal>`) so a streaming
@@ -301,6 +362,34 @@ export function MothershipChat({
       if (message.role === 'user') lastUserContent = message.content
     }
     return out
+  }, [messages])
+
+  /**
+   * Pairs each assistant question card with the user message that answered it
+   * (strict `Prompt — Answer` match). The paired user message is hidden — the
+   * answered card IS the user turn — and the assistant row renders the card
+   * as a recap with these answers, both live and after reload.
+   */
+  const questionPairing = useMemo(() => {
+    const answersByIndex: Array<string[] | undefined> = []
+    const hiddenUserByIndex: Array<boolean | undefined> = []
+    for (const [index, message] of messages.entries()) {
+      if (message.role !== 'assistant') continue
+      // Check the answering user message BEFORE scanning content: a pairing
+      // needs one anyway, and this skips the O(content) `includes` scan over
+      // the still-growing streaming message (always the last row) on every
+      // snapshot flush.
+      const next = messages[index + 1]
+      if (!next || next.role !== 'user' || !next.content) continue
+      if (!message.content?.includes('</question>')) continue
+      const questions = parseLastQuestionTag(message.content)
+      if (!questions) continue
+      const answers = parseQuestionAnswerMessage(questions, next.content)
+      if (!answers) continue
+      answersByIndex[index] = answers
+      hiddenUserByIndex[index + 1] = true
+    }
+    return { answersByIndex, hiddenUserByIndex }
   }, [messages])
 
   /**
@@ -434,19 +523,22 @@ export function MothershipChat({
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
                     {msg.role === 'user' ? (
-                      <UserMessageRow
-                        content={msg.content}
-                        contexts={msg.contexts}
-                        attachments={msg.attachments}
-                        rowClassName={cn(styles.userRow, styles.rowGap)}
-                        bubbleClassName={styles.userBubble}
-                        attachmentWidthClassName={styles.attachmentWidth}
-                      />
+                      questionPairing.hiddenUserByIndex[index] ? null : (
+                        <UserMessageRow
+                          content={msg.content}
+                          contexts={msg.contexts}
+                          attachments={msg.attachments}
+                          rowClassName={cn(styles.userRow, styles.rowGap)}
+                          bubbleClassName={styles.userBubble}
+                          attachmentWidthClassName={styles.attachmentWidth}
+                        />
+                      )
                     ) : (
                       <AssistantMessageRow
                         message={msg}
                         isStreaming={isStreamActive && isLast}
                         precedingUserContent={precedingUserContentByIndex[index]}
+                        questionAnswers={questionPairing.answersByIndex[index]}
                         rowClassName={cn(styles.assistantRow, styles.rowGap)}
                         onOptionSelect={isLast ? stableOnOptionSelect : undefined}
                         onAnimatingChange={isLast ? setLastRowAnimating : undefined}

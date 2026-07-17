@@ -214,6 +214,17 @@ Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, 
       },
       dependsOn: ['validationType'],
     },
+    {
+      id: 'piiCustomPatterns',
+      title: 'Custom Patterns',
+      type: 'table',
+      columns: ['Name', 'Pattern', 'Replacement'],
+      condition: {
+        field: 'validationType',
+        value: ['pii'],
+      },
+      dependsOn: ['validationType'],
+    },
   ],
   tools: {
     access: ['guardrails_validate'],
@@ -259,6 +270,10 @@ Return ONLY the regex pattern - no explanations, no quotes, no forward slashes, 
     piiLanguage: {
       type: 'string',
       description: 'Language for PII detection (default: en)',
+    },
+    piiCustomPatterns: {
+      type: 'json',
+      description: 'Custom regex patterns to detect and replace (name, pattern, replacement rows)',
     },
   },
   outputs: {

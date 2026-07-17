@@ -62,6 +62,55 @@ describe('copilot tool executor fallback', () => {
     expect(result).toEqual({ success: true, output: { emails: [] } })
   })
 
+  it('threads billing attribution into _context for dynamic tools (MCP)', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: {} })
+
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      organizationId: null,
+      billedAccountUserId: 'owner-1',
+      billingEntity: { type: 'user', id: 'owner-1' },
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+      payerSubscription: null,
+    }
+
+    await executeTool(
+      'mcp-server-1-web_search_exa',
+      { query: 'test' },
+      {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        billingAttribution: billingAttribution as never,
+      }
+    )
+
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'mcp-server-1-web_search_exa',
+      expect.objectContaining({
+        _context: expect.objectContaining({
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          billingAttribution,
+        }),
+      })
+    )
+  })
+
+  it('omits billingAttribution from _context when the context has none', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: {} })
+
+    await executeTool('gmail_read', {}, { userId: 'user-1', workflowId: 'workflow-1' })
+
+    const appParams = executeAppTool.mock.calls[0][1] as Record<string, unknown>
+    expect(appParams._context).not.toHaveProperty('billingAttribution')
+  })
+
   it('uses the registered handler for client-routed tools when running headless (Mothership block)', async () => {
     isKnownTool.mockReturnValue(true)
     isSimExecuted.mockReturnValue(false)
@@ -117,6 +166,31 @@ describe('copilot tool executor fallback', () => {
         }),
       })
     )
+  })
+
+  it('converts function_execute timeout before invoking its registered Sim handler', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const handler = vi.fn().mockResolvedValue({ success: true, output: { result: 'ok' } })
+    registerHandler('function_execute', handler)
+
+    const context = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'ws-1',
+      copilotToolExecution: true,
+    }
+    await executeTool('function_execute', { code: 'return 1', timeout: 7 }, context)
+
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'return 1',
+        timeout: 7000,
+      }),
+      context
+    )
+    expect(executeAppTool).not.toHaveBeenCalled()
   })
 
   it('defaults copilot function_execute timeout to 10 seconds when omitted', async () => {

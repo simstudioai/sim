@@ -24,6 +24,7 @@ const {
 vi.mock('@/lib/uploads/config', () => ({
   USE_S3_STORAGE: true,
   USE_BLOB_STORAGE: false,
+  USE_GCS_STORAGE: false,
   getStorageConfig: () => ({ bucket: 'b', region: 'r' }),
 }))
 

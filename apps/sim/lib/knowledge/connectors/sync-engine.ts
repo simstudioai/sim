@@ -84,10 +84,17 @@ type DocClassification =
  *   is already indexed is kept as-is (last-known-good) rather than downgraded.
  * - `drop`: empty, non-deferred content that cannot be indexed.
  * - `add` / `update` / `unchanged`: normal content reconciliation by content hash.
+ *
+ * `forceRehydrate` (set on a full resync of a `rehydrateOnFullSync` connector) promotes
+ * an otherwise-`unchanged` deferred document to `update` so its content is re-fetched —
+ * needed when rendered content can drift without the hash changing (e.g. Confluence
+ * transclusions). Non-deferred docs already carry final content from listing, so they
+ * are left `unchanged` (re-indexing identical content would be pointless).
  */
 export function classifyExternalDoc(
   extDoc: Pick<ExternalDocument, 'content' | 'contentDeferred' | 'contentHash' | 'skippedReason'>,
-  existing: { id: string; contentHash: string | null } | undefined
+  existing: { id: string; contentHash: string | null } | undefined,
+  forceRehydrate = false
 ): DocClassification {
   if (extDoc.skippedReason) {
     return existing ? { type: 'unchanged' } : { type: 'skip' }
@@ -99,6 +106,9 @@ export function classifyExternalDoc(
     return { type: 'add' }
   }
   if (existing.contentHash !== extDoc.contentHash) {
+    return { type: 'update', existingId: existing.id }
+  }
+  if (forceRehydrate && extDoc.contentDeferred) {
     return { type: 'update', existingId: existing.id }
   }
   return { type: 'unchanged' }
@@ -308,7 +318,11 @@ async function resolveAccessToken(
  */
 export async function executeSync(
   connectorId: string,
-  options: { billingAttribution: BillingAttributionSnapshot; fullSync?: boolean }
+  options: {
+    billingAttribution: BillingAttributionSnapshot
+    fullSync?: boolean
+    rehydrate?: boolean
+  }
 ): Promise<SyncResult> {
   const billingAttribution = assertBillingAttributionSnapshot(options?.billingAttribution)
   const result: SyncResult = {
@@ -418,14 +432,33 @@ export async function executeSync(
     let hasMore = true
     const syncContext: Record<string, unknown> = { syncRunId: generateId() }
 
-    // Determine if this sync should be incremental
+    /**
+     * Determine if this sync should be incremental. A `rehydrate` request forces a
+     * full listing too: re-hydration must see *every* document (a container page can
+     * be unchanged itself yet transclude a page that changed), and an incremental
+     * listing would omit those unchanged containers, so they'd never be re-fetched.
+     */
     const isIncremental =
       connectorConfig.supportsIncrementalSync &&
       connector.syncMode !== 'full' &&
       !options?.fullSync &&
+      !options?.rehydrate &&
       connector.lastSyncAt != null
     const lastSyncAt =
       isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
+
+    /**
+     * Re-hydrate and re-index connectors whose rendered content can drift without a
+     * hash change (transclusions) — see `ConnectorMeta.rehydrateOnFullSync`. Driven
+     * by the dedicated `rehydrate` request (the "Full resync" action) or implied by a
+     * true `fullSync`. It forces a full listing (above) and re-indexes unchanged
+     * deferred docs, but — unlike `fullSync` — it does NOT bypass any
+     * deletion-reconciliation safety guard. Incremental syncs of other connectors
+     * stay hash-gated.
+     */
+    const forceRehydrate = Boolean(
+      (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
+    )
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
       if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
@@ -551,7 +584,7 @@ export async function executeSync(
       }
 
       const existing = existingByExternalId.get(extDoc.externalId)
-      const classification = classifyExternalDoc(extDoc, existing)
+      const classification = classifyExternalDoc(extDoc, existing, forceRehydrate)
 
       switch (classification.type) {
         case 'skip':
@@ -635,8 +668,15 @@ export async function executeSync(
               return null
             }
             const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
+            /**
+             * Normally an update whose hydrated hash matches the stored hash is a
+             * no-op (content unchanged). On a forced re-hydration the hash is
+             * version-based and cannot reflect the rendered-dependency change we are
+             * refreshing for, so re-index unconditionally instead of skipping.
+             */
             if (
               op.type === 'update' &&
+              !forceRehydrate &&
               existingByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
             ) {
               result.docsUnchanged++

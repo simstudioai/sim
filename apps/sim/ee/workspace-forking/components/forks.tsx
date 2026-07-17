@@ -31,6 +31,7 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { ForkActivityPanel } from '@/ee/workspace-forking/components/fork-activity-panel/fork-activity-panel'
+import { ForkExcludedWorkflows } from '@/ee/workspace-forking/components/fork-excluded-workflows/fork-excluded-workflows'
 import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
 import {
   ARCHIVED_PREVIEW_LIMIT,
@@ -313,11 +314,17 @@ export function Forks() {
   const runRollback = async () => {
     if (!undoableRun) return
     try {
-      await rollback.mutateAsync({
+      const result = await rollback.mutateAsync({
         workspaceId,
         body: { otherWorkspaceId: undoableRun.otherWorkspaceId },
       })
-      toast.success(`Undid sync from "${undoableRun.otherName}"`)
+      if (result.pendingActivations.length > 0) {
+        toast.warning(`Undid sync from "${undoableRun.otherName}"`, {
+          description: `${result.pendingActivations.length} restored deployment(s) are still activating. Undo stays available until they finish, in case a retry is needed.`,
+        })
+      } else {
+        toast.success(`Undid sync from "${undoableRun.otherName}"`)
+      }
       setConfirmRollbackOpen(false)
     } catch (err) {
       toast.error(getErrorMessage(err, 'Undo failed'))
@@ -367,7 +374,6 @@ export function Forks() {
   const parentVisible =
     parent !== null && (!searchLower || parent.name.toLowerCase().includes(searchLower))
   const filteredForks = forks.filter((fork) => fork.name.toLowerCase().includes(searchLower))
-  const hasRows = parent !== null || forks.length > 0
 
   // The sync detail exists only for the PARENT edge: sync (and the mapping re-picks it
   // persists) belongs to the child workspace configuring how it maps its parent's
@@ -442,9 +448,7 @@ export function Forks() {
                 {getErrorMessage(lineage.error, 'Failed to load forks')}
               </p>
             </div>
-          ) : lineage.isLoading ? null : !hasRows ? (
-            <SettingsEmptyState>Click "Create fork" above to get started</SettingsEmptyState>
-          ) : (
+          ) : lineage.isLoading ? null : (
             <div className='flex flex-col gap-7'>
               {parentVisible && parent !== null && (
                 <SettingsSection label='Parent'>
@@ -505,6 +509,9 @@ export function Forks() {
                       : 'No forks yet — click "Create fork" above to get started'}
                   </SettingsEmptyState>
                 )}
+              </SettingsSection>
+              <SettingsSection label='Excluded workflows'>
+                <ForkExcludedWorkflows workspaceId={workspaceId} />
               </SettingsSection>
             </div>
           )}

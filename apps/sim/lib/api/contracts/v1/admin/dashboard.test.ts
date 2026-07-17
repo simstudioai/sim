@@ -74,7 +74,6 @@ describe('admin dashboard credit grant contract', () => {
       adminDashboardIssueEnterpriseBodySchema.safeParse({
         ownerUserId: 'owner-1',
         monthlyInvoiceAmountUsd: 500,
-        includedMonthlyDollars: 500,
         seats: 10,
         concurrencyLimit: 1250,
         pausePaymentCollection: true,
@@ -90,7 +89,6 @@ describe('admin dashboard credit grant contract', () => {
       adminDashboardIssueEnterpriseBodySchema.safeParse({
         ownerUserId: 'owner-1',
         monthlyInvoiceAmountUsd: 500,
-        includedMonthlyDollars: 500,
         seats: 10,
         concurrencyLimit: null,
       }).success

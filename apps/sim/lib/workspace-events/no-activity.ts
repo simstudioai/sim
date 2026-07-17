@@ -2,6 +2,7 @@ import { db, dbReplica } from '@sim/db'
 import { webhook, workflow, workflowDeploymentVersion, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
 import { SIM_RULE_COOLDOWN_HOURS, SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
 import { dispatchSimEvent } from '@/lib/workspace-events/emitter'
 import { buildNoActivityEventPayload } from '@/lib/workspace-events/payload'
@@ -56,8 +57,7 @@ async function fetchNoActivitySubscriptionPage(
     .where(
       and(
         eq(webhook.provider, SIM_TRIGGER_PROVIDER),
-        eq(webhook.isActive, true),
-        isNull(webhook.archivedAt),
+        deliverableWebhookPredicate(webhook),
         eq(workflow.isDeployed, true),
         isNull(workflow.archivedAt),
         sql`${webhook.providerConfig}->>'eventType' = 'no_activity'`,

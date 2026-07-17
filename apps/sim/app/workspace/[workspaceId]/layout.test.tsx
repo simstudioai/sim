@@ -157,7 +157,8 @@ describe('WorkspaceLayout host context', () => {
       expect.anything(),
       'workspace-b',
       'viewer-1',
-      HOST_CONTEXT
+      HOST_CONTEXT,
+      'org-a'
     )
     expect(mockBrandingProvider).toHaveBeenCalledWith(
       expect.objectContaining({

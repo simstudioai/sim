@@ -720,8 +720,8 @@ export const Terminal = memo(function Terminal() {
 
   const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
-  const { handleMouseDown } = useTerminalResize()
-  const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
+  const { handlePointerDown } = useTerminalResize()
+  const { handlePointerDown: handleOutputPanelResizePointerDown } = useOutputPanelResize()
 
   const {
     filters,
@@ -1255,6 +1255,15 @@ export const Terminal = memo(function Terminal() {
   /**
    * Adjust output panel width on resize.
    * Closes the output panel if there's not enough space for the minimum width.
+   *
+   * An active output-panel drag owns clamping — its own compute clamps every
+   * frame against the live terminal rect, and its scoped inline override on
+   * `.terminal-container` (present only while that drag runs) would mask a
+   * store-driven `:root` write here anyway — so this skips while it is active.
+   * Otherwise the width is read from the committed `--output-panel-width` on
+   * `:root`, which the store setter writes synchronously and is therefore
+   * fresher than the React store value (a render behind the commit), falling
+   * back to the store value before any commit exists.
    */
   useEffect(() => {
     const el = terminalRef.current
@@ -1262,6 +1271,8 @@ export const Terminal = memo(function Terminal() {
 
     const handleResize = () => {
       if (!selectedEntry) return
+
+      if (el.style.getPropertyValue('--output-panel-width')) return
 
       const maxWidth = el.getBoundingClientRect().width - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
@@ -1271,7 +1282,11 @@ export const Terminal = memo(function Terminal() {
         return
       }
 
-      if (outputPanelWidth > maxWidth) {
+      const committed = Number.parseFloat(
+        document.documentElement.style.getPropertyValue('--output-panel-width')
+      )
+      const currentWidth = Number.isNaN(committed) ? outputPanelWidth : committed
+      if (currentWidth > maxWidth) {
         setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
       }
     }
@@ -1301,7 +1316,7 @@ export const Terminal = memo(function Terminal() {
         {/* Resize Handle */}
         <div
           className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           role='separator'
           aria-orientation='horizontal'
           aria-label='Resize terminal'
@@ -1311,7 +1326,7 @@ export const Terminal = memo(function Terminal() {
           {/* Left Section - Logs */}
           <div
             className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
-            style={selectedEntry ? { width: `calc(100% - ${outputPanelWidth}px)` } : undefined}
+            style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
           >
             {/* Header */}
             <div
@@ -1497,7 +1512,7 @@ export const Terminal = memo(function Terminal() {
           {selectedEntry && (
             <OutputPanel
               selectedEntry={selectedEntry}
-              handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
+              handleOutputPanelResizePointerDown={handleOutputPanelResizePointerDown}
               handleHeaderClick={handleHeaderClick}
               isExpanded={isExpanded}
               expandToLastHeight={expandToLastHeight}

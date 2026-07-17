@@ -112,7 +112,6 @@ export const adminDashboardIssueEnterpriseBodySchema = z.object({
   ownerUserId: z.string().min(1),
   organizationName: z.string().trim().min(1).max(120).optional(),
   monthlyInvoiceAmountUsd: z.number().min(0.01).max(10_000_000).multipleOf(0.01),
-  includedMonthlyDollars: creditAlignedDollarAmountSchema,
   usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
   seats: z.number().int().positive().max(100_000),
   concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).optional(),

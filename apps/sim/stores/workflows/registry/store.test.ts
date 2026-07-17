@@ -152,6 +152,43 @@ describe('registry store loadWorkflowState (collapsed cache)', () => {
     expect(useWorkflowRegistry.getState().hydration.phase).toBe('ready')
   })
 
+  it('preserves the cached in-flight deployment attempt across envelope hydration', async () => {
+    const client = sharedQueryClient.current as QueryClient
+    const preparingAttempt = {
+      id: 'op-1',
+      deploymentVersionId: 'dv-1',
+      version: 2,
+      action: 'deploy',
+      status: 'preparing',
+      readiness: { webhooks: 'pending', schedules: 'pending', mcp: 'pending' },
+      requestedAt: '2026-07-14T00:00:00.000Z',
+      activatedAt: null,
+      error: null,
+    }
+    client.setQueryData(['deployments', 'info', 'wf-1'], {
+      isDeployed: false,
+      deployedAt: null,
+      apiKey: 'Workspace API keys',
+      needsRedeployment: true,
+      isPublicApi: false,
+      warnings: ['Deployment preparation is queued'],
+      activeDeployment: null,
+      latestDeploymentAttempt: preparingAttempt,
+    })
+    mockRequestJson.mockResolvedValue({ data: makeEnvelope({ isDeployed: false }) })
+
+    await useWorkflowRegistry.getState().loadWorkflowState('wf-1')
+
+    const deploymentInfo = client.getQueryData(['deployments', 'info', 'wf-1'])
+    expect(deploymentInfo).toMatchObject({
+      isDeployed: false,
+      apiKey: 'Workspace API keys',
+      needsRedeployment: true,
+      warnings: ['Deployment preparation is queued'],
+      latestDeploymentAttempt: { id: 'op-1', status: 'preparing' },
+    })
+  })
+
   it('hydrates the SAME workflowKeys.state(id) cache entry the hooks read', async () => {
     const envelope = makeEnvelope()
     mockRequestJson.mockResolvedValue({ data: envelope })

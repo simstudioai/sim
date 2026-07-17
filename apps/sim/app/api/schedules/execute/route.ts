@@ -165,6 +165,7 @@ async function claimWorkflowSchedules(queuedAt: Date, limit: number) {
         lastQueuedAt: workflowSchedule.lastQueuedAt,
         timezone: workflowSchedule.timezone,
         deploymentVersionId: workflowSchedule.deploymentVersionId,
+        deploymentOperationId: workflowSchedule.deploymentOperationId,
         sourceType: workflowSchedule.sourceType,
       })
 
@@ -864,6 +865,7 @@ async function processScheduleItem(
     workspaceId,
     billingAttribution,
     deploymentVersionId: schedule.deploymentVersionId || undefined,
+    deploymentOperationId: schedule.deploymentOperationId || undefined,
     cronExpression: schedule.cronExpression || undefined,
     timezone: schedule.timezone || undefined,
     lastRanAt: schedule.lastRanAt?.toISOString(),

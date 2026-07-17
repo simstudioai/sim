@@ -81,6 +81,7 @@ import {
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import {
   loadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
@@ -665,6 +666,7 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
+      deploymentVersionId: admittedDeploymentVersionId,
       executionId: rawBodyExecutionId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
@@ -673,6 +675,12 @@ async function handleExecutePost(
       parentWorkspaceId,
     } = validation.data
     const triggerBlockId = parsedTriggerBlockId ?? startBlockId
+    if (admittedDeploymentVersionId && !isMcpBridgeRequest) {
+      return NextResponse.json(
+        { error: 'deploymentVersionId is reserved for internal MCP execution' },
+        { status: 400 }
+      )
+    }
     const headerExecutionId = headerValidation.data[WORKFLOW_EXECUTION_ID_HEADER]
     let legacyBodyExecutionId: string | undefined
     if (!headerExecutionId && rawBodyExecutionId !== undefined) {
@@ -803,6 +811,7 @@ async function handleExecutePost(
               includeFileBase64,
               base64MaxBytes,
               workflowStateOverride,
+              deploymentVersionId: _deploymentVersionId,
               triggerBlockId: _triggerBlockId,
               stopAfterBlockId: _stopAfterBlockId,
               runFromBlock: _runFromBlock,
@@ -1074,7 +1083,13 @@ async function handleExecutePost(
       }
       const workflowData = shouldUseDraftState
         ? await loadWorkflowFromNormalizedTables(workflowId)
-        : await loadDeployedWorkflowState(workflowId, workspaceId)
+        : admittedDeploymentVersionId
+          ? await loadWorkflowDeploymentVersionState(
+              workflowId,
+              admittedDeploymentVersionId,
+              workspaceId
+            )
+          : await loadDeployedWorkflowState(workflowId, workspaceId)
 
       if (req.signal.aborted) {
         await releaseExecutionSlot(executionId)

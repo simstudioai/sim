@@ -35,8 +35,11 @@ vi.mock('@/lib/billing/core/plan', () => ({
 vi.mock('@/lib/billing/plan-helpers', () => ({
   getPlanTierCredits: mockGetPlanTierCredits,
   isEnterprise: vi.fn().mockReturnValue(false),
+  isOrgPlan: (plan: string | null | undefined) =>
+    plan === 'enterprise' || plan === 'team' || Boolean(plan?.startsWith('team_')),
   isPro: vi.fn(),
   isTeam: vi.fn(),
+  sqlIsPaid: vi.fn(() => ({ type: 'sqlIsPaid' })),
 }))
 
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
@@ -63,10 +66,12 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 import {
+  getOrganizationCoverageForMember,
   getOrganizationIdForSubscriptionReference,
   hasPaidSubscription,
   hasWorkspaceLiveSyncAccess,
   isWorkspaceOnEnterprisePlan,
+  syncSubscriptionPlan,
 } from '@/lib/billing/core/subscription'
 
 describe('hasPaidSubscription', () => {
@@ -98,6 +103,79 @@ describe('hasPaidSubscription', () => {
     await expect(hasPaidSubscription('org-1', { onError: 'throw' })).rejects.toThrow(
       'db unavailable'
     )
+  })
+})
+
+describe('syncSubscriptionPlan', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('writes the resolved plan for a user-referenced subscription and returns it', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    await expect(syncSubscriptionPlan('sub-1', 'pro_6000', 'pro_25000', 'user-1')).resolves.toBe(
+      'pro_25000'
+    )
+    expect(dbChainMockFns.update).toHaveBeenCalled()
+  })
+
+  it('writes a team plan onto an org-referenced subscription without an org lookup', async () => {
+    await expect(syncSubscriptionPlan('sub-1', 'pro_6000', 'team_6000', 'org-1')).resolves.toBe(
+      'team_6000'
+    )
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalled()
+  })
+
+  it('refuses a pro plan on an org-referenced subscription and returns the current plan', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'org-1' }])
+
+    await expect(syncSubscriptionPlan('sub-1', 'team_6000', 'pro_6000', 'org-1')).resolves.toBe(
+      'team_6000'
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('returns the current plan when the Stripe plan is unchanged or unresolved', async () => {
+    await expect(syncSubscriptionPlan('sub-1', 'team_6000', 'team_6000', 'org-1')).resolves.toBe(
+      'team_6000'
+    )
+    await expect(syncSubscriptionPlan('sub-1', 'team_6000', null, 'org-1')).resolves.toBe(
+      'team_6000'
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('getOrganizationCoverageForMember', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('reports covered with the organization id when an entitled paid org exists', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ organizationId: 'org-1' }])
+
+    await expect(getOrganizationCoverageForMember('user-1')).resolves.toEqual({
+      status: 'covered',
+      organizationId: 'org-1',
+    })
+  })
+
+  it('reports not-covered when the user has no entitled paid org membership', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    await expect(getOrganizationCoverageForMember('user-1')).resolves.toEqual({
+      status: 'not-covered',
+    })
+  })
+
+  it('reports unknown on lookup errors so callers fail closed', async () => {
+    dbChainMockFns.limit.mockRejectedValueOnce(new Error('db unavailable'))
+
+    await expect(getOrganizationCoverageForMember('user-1')).resolves.toEqual({
+      status: 'unknown',
+    })
   })
 })
 
