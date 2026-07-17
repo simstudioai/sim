@@ -55,12 +55,12 @@ export function useSidebarResize() {
       let lastWidth: number | null = null
 
       const onPointerMove = (ev: PointerEvent) => {
+        const max = Math.max(SIDEBAR_WIDTH.MIN, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+        const clamped = Math.min(Math.max(ev.clientX, SIDEBAR_WIDTH.MIN), max)
+        lastWidth = clamped
         if (rafId !== null) cancelAnimationFrame(rafId)
         rafId = requestAnimationFrame(() => {
-          const max = Math.max(SIDEBAR_WIDTH.MIN, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
-          const clamped = Math.min(Math.max(ev.clientX, SIDEBAR_WIDTH.MIN), max)
           target.style.setProperty('--sidebar-width', `${clamped}px`)
-          lastWidth = clamped
           rafId = null
         })
       }
