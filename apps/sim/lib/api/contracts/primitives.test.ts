@@ -26,6 +26,20 @@ describe('customPatternSchema', () => {
       customPatternSchema.safeParse({ name: '', regex: 'a'.repeat(513), replacement: '' }).success
     ).toBe(false)
   })
+
+  it('rejects a syntactically invalid regex at the boundary (not just in the editor)', () => {
+    const parsed = customPatternSchema.safeParse({ name: 'bad', regex: '(', replacement: '' })
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      expect(parsed.error.issues[0].path).toEqual(['regex'])
+    }
+  })
+
+  it('rejects a catastrophic-backtracking regex at the boundary', () => {
+    expect(
+      customPatternSchema.safeParse({ name: 'evil', regex: '(a+)+$', replacement: '' }).success
+    ).toBe(false)
+  })
 })
 
 describe('piiStagePolicySchema', () => {

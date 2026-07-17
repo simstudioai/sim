@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
+import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
 export const unknownRecordSchema = z.record(z.string(), z.unknown())
 
@@ -123,10 +124,27 @@ export const userFileSchema = z
  * A user-supplied custom regex pattern. `name` is a label; `regex` is matched
  * against text; matches are replaced verbatim with `replacement`. Bounds guard
  * the Presidio boundary (ReDoS/oversized payloads).
+ *
+ * The `regex` is validated for both syntax and catastrophic-backtracking safety
+ * here at the write boundary — not just in the editor — so an invalid or unsafe
+ * pattern can never be persisted or reach Presidio (where it would abort the
+ * batch on a 400, or time out and silently fail open, leaving PII unredacted).
  */
 export const customPatternSchema = z.object({
   name: z.string().max(100, 'Pattern name is too long'),
-  regex: z.string().min(1, 'Pattern cannot be empty').max(512, 'Pattern is too long'),
+  regex: z
+    .string()
+    .min(1, 'Pattern cannot be empty')
+    .max(512, 'Pattern is too long')
+    .superRefine((regex, ctx) => {
+      const result = validateRegexPattern(regex)
+      if (!result.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: result.error ?? 'Invalid regex pattern',
+        })
+      }
+    }),
   replacement: z.string().max(100, 'Replacement is too long'),
 })
 
