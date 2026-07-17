@@ -237,7 +237,17 @@ cat > /tmp/cors.json <<'EOF'
   {
     "origin": ["https://your-sim-domain.com"],
     "method": ["GET", "PUT"],
-    "responseHeader": ["Content-Type", "ETag", "x-goog-meta-*"],
+    "responseHeader": [
+      "Content-Type",
+      "ETag",
+      "x-goog-meta-originalname",
+      "x-goog-meta-uploadedat",
+      "x-goog-meta-purpose",
+      "x-goog-meta-userid",
+      "x-goog-meta-workspaceid",
+      "x-goog-meta-workflowid",
+      "x-goog-meta-executionid"
+    ],
     "maxAgeSeconds": 3600
   }
 ]
@@ -250,7 +260,7 @@ done
 ```
 
 <Callout type="info">
-  `ETag` must be in `responseHeader` — large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise.
+  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise.
 </Callout>
 
 </Step>

@@ -538,10 +538,24 @@ export async function completeGcsMultipartUpload(
     .join('')
   const body = `<CompleteMultipartUpload>${partsXml}</CompleteMultipartUpload>`
 
-  await gcsXmlApiRequest('POST', config.bucket, key, `uploadId=${encodeURIComponent(uploadId)}`, {
-    headers: { 'Content-Type': 'application/xml' },
-    body,
-  })
+  const response = await gcsXmlApiRequest(
+    'POST',
+    config.bucket,
+    key,
+    `uploadId=${encodeURIComponent(uploadId)}`,
+    {
+      headers: { 'Content-Type': 'application/xml' },
+      body,
+    }
+  )
+
+  // The S3 XML dialect permits a 200 response carrying an error document; GCS
+  // does not document that behavior, but checking is cheap insurance against
+  // reporting a failed completion as success.
+  const responseXml = await response.text()
+  if (responseXml.includes('<Error')) {
+    throw new Error(`GCS multipart completion failed for ${key}: ${responseXml.slice(0, 500)}`)
+  }
 
   return {
     location: buildGcsObjectUrl(config.bucket, key),
