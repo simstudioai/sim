@@ -11,6 +11,7 @@ import {
   type WorkflowStateContractInput,
   workflowVariablesContract,
 } from '@/lib/api/contracts/workflows'
+import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
 import {
   type ExportWorkflowState,
@@ -677,7 +678,11 @@ export async function persistImportedWorkflow({
 
   const createdWorkflow = await createWorkflow({
     name: workflowName,
-    description: descriptionOverride || workflowData.metadata?.description || '',
+    description:
+      getMeaningfulWorkflowDescription(
+        descriptionOverride || workflowData.metadata?.description,
+        workflowName
+      ) ?? '',
     workspaceId,
     folderId,
     sortOrder,
