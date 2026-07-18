@@ -19,6 +19,7 @@ const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : us
 
 export interface SettingsAction {
   text: string
+  textTone?: 'error'
   icon?: ComponentType<{ className?: string }>
   variant?: 'primary' | 'destructive'
   active?: boolean
@@ -69,6 +70,7 @@ function computeSignature(config: SettingsHeaderConfig): string {
     back: config.back ? [config.back.text, config.back.icon ? 1 : 0] : null,
     actions: config.actions?.map((action) => [
       action.text,
+      action.textTone ?? '',
       action.variant ?? '',
       action.active ?? false,
       action.disabled ?? false,
@@ -155,7 +157,11 @@ export function SettingsHeaderShell({ children }: { children: ReactNode }) {
                 }
                 disabled={action.disabled}
               >
-                {action.text}
+                {action.textTone === 'error' ? (
+                  <span className='text-[var(--text-error)]'>{action.text}</span>
+                ) : (
+                  action.text
+                )}
               </Chip>
             )
             return action.tooltip ? (
