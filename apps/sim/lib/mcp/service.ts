@@ -12,6 +12,7 @@ import { isTest } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
+import { mcpConnectionPool } from '@/lib/mcp/connection-pool'
 import {
   isMcpDomainAllowed,
   validateMcpDomain,
@@ -303,6 +304,46 @@ class McpService {
   }
 
   /**
+   * Run `fn` against a connected client for `config`. When allowed, the client is
+   * drawn from the warm pool and returned to it afterward (never disconnected); a
+   * throw from `fn` — which for the MCP transport signals a protocol/session/
+   * transport failure, not a tool-level error (those return `isError`) — evicts
+   * the pooled connection so the caller's retry rebuilds it. Otherwise a one-shot
+   * connection is created and always disconnected. Pooling is skipped for calls
+   * carrying per-request headers, which must not ride a connection shared under
+   * different headers.
+   */
+  private async withServerClient<T>(
+    config: McpServerConfig,
+    resolvedIP: string | null,
+    userId: string | undefined,
+    opts: { allowPool: boolean },
+    fn: (client: McpClient) => Promise<T>
+  ): Promise<T> {
+    const pool = mcpConnectionPool
+    if (opts.allowPool && pool) {
+      const client = await pool.acquire({
+        key: config.id,
+        configUpdatedAt: config.updatedAt,
+        create: () => this.createClient(config, resolvedIP, userId),
+      })
+      try {
+        return await fn(client)
+      } catch (error) {
+        await pool.evict(config.id, 'operation failed')
+        throw error
+      }
+    }
+
+    const client = await this.createClient(config, resolvedIP, userId)
+    try {
+      return await fn(client)
+    } finally {
+      await client.disconnect()
+    }
+  }
+
+  /**
    * Execute a tool on a specific server with retry logic for session errors.
    * Retries once on session-related errors (400, 404, session ID issues).
    */
@@ -332,18 +373,20 @@ class McpService {
           userId,
           workspaceId
         )
-        if (extraHeaders && Object.keys(extraHeaders).length > 0) {
+        const hasExtraHeaders = Boolean(extraHeaders && Object.keys(extraHeaders).length > 0)
+        if (hasExtraHeaders) {
           resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
         }
-        const client = await this.createClient(resolvedConfig, resolvedIP, userId)
 
-        try {
-          const result = await client.callTool(toolCall)
-          logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
-          return result
-        } finally {
-          await client.disconnect()
-        }
+        const result = await this.withServerClient(
+          resolvedConfig,
+          resolvedIP,
+          userId,
+          { allowPool: !hasExtraHeaders },
+          (client) => client.callTool(toolCall)
+        )
+        logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
+        return result
       } catch (error) {
         if (this.isSessionError(error) && attempt < maxRetries - 1) {
           logger.warn(
@@ -576,16 +619,17 @@ class McpService {
               userId,
               workspaceId
             )
-            const client = await this.createClient(resolvedConfig, resolvedIP, userId)
-            try {
-              const tools = await client.listTools()
-              logger.debug(
-                `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
-              )
-              return { kind: 'fetched', tools, resolvedConfig, resolvedIP }
-            } finally {
-              await client.disconnect()
-            }
+            const tools = await this.withServerClient(
+              resolvedConfig,
+              resolvedIP,
+              userId,
+              { allowPool: true },
+              (client) => client.listTools()
+            )
+            logger.debug(
+              `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
+            )
+            return { kind: 'fetched', tools, resolvedConfig, resolvedIP }
           } catch (error) {
             if (isOauthAuthorizationError(error, config.authType)) {
               return { kind: 'oauth-pending' }
@@ -788,27 +832,27 @@ class McpService {
           userId,
           workspaceId
         )
-        const client = await this.createClient(resolvedConfig, resolvedIP, userId)
-
-        try {
-          const tools = await client.listTools()
-          logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
-          await Promise.allSettled([
-            this.cacheAdapter
-              .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
-              .catch((err) =>
-                logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err)
-              ),
-            this.clearServerFailure(workspaceId, serverId),
-            this.updateServerStatus(serverId, workspaceId, {
-              outcome: 'connected',
-              toolCount: tools.length,
-            }),
-          ])
-          return tools
-        } finally {
-          await client.disconnect()
-        }
+        const tools = await this.withServerClient(
+          resolvedConfig,
+          resolvedIP,
+          userId,
+          { allowPool: true },
+          (client) => client.listTools()
+        )
+        logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
+        await Promise.allSettled([
+          this.cacheAdapter
+            .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
+            .catch((err) =>
+              logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err)
+            ),
+          this.clearServerFailure(workspaceId, serverId),
+          this.updateServerStatus(serverId, workspaceId, {
+            outcome: 'connected',
+            toolCount: tools.length,
+          }),
+        ])
+        return tools
       } catch (error) {
         if (isRetryableDiscoveryError(error) && attempt < maxRetries - 1) {
           logger.warn(
@@ -859,9 +903,13 @@ class McpService {
             userId,
             workspaceId
           )
-          const client = await this.createClient(resolvedConfig, resolvedIP, userId)
-          const tools = await client.listTools()
-          await client.disconnect()
+          const tools = await this.withServerClient(
+            resolvedConfig,
+            resolvedIP,
+            userId,
+            { allowPool: true },
+            (client) => client.listTools()
+          )
 
           summaries.push({
             id: config.id,
@@ -921,6 +969,7 @@ class McpService {
           rows.flatMap((r) => [
             this.cacheAdapter.delete(serverCacheKey(workspaceId, r.id)),
             this.cacheAdapter.delete(failureCacheKey(workspaceId, r.id)),
+            mcpConnectionPool?.evict(r.id, 'cache cleared'),
           ])
         )
         logger.debug(`Cleared MCP tool cache for workspace ${workspaceId} (${rows.length} servers)`)
