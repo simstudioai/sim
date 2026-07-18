@@ -351,6 +351,7 @@ export async function performUpdateMcpServer(
     })
     const shouldClearOauth = urlChanged || credsChanged
     const resolvedAuthType = (updateData.authType ?? currentServer.authType) as McpAuthType
+    const authTypeChanged = resolvedAuthType !== currentServer.authType
     if (shouldClearOauth && resolvedAuthType === 'oauth') {
       updateData.connectionStatus = 'disconnected'
       updateData.lastConnected = null
@@ -385,7 +386,7 @@ export async function performUpdateMcpServer(
       urlChanged ||
       credsChanged ||
       params.transport !== undefined ||
-      params.authType !== undefined ||
+      authTypeChanged ||
       params.enabled !== undefined ||
       params.headers !== undefined ||
       params.timeout !== undefined ||
