@@ -116,6 +116,28 @@ describe('MCP server refresh route', () => {
     )
   })
 
+  it('preserves OAuth pending when the status reread is still stale connected', async () => {
+    mockDiscoverServerTools.mockRejectedValueOnce(
+      new McpOauthAuthorizationRequiredError('server-1', 'OAuth Server')
+    )
+    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'disconnected',
+        error: null,
+        toolCount: 0,
+        workflowsUpdated: 0,
+      })
+    )
+  })
+
   it('reports a sanitized discovery timeout when persistence leaves disconnected without an error', async () => {
     mockDiscoverServerTools.mockRejectedValueOnce(new Error('upstream request timeout'))
 

@@ -289,7 +289,7 @@ export const POST = withRouteHandler(
 
           if (!newerSuccessWonRace) {
             connectionStatus = 'disconnected'
-            lastError = discoveryError
+            lastError = oauthAuthorizationRequired ? null : discoveryError
             toolCount = 0
           }
         } else if (
