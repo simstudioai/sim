@@ -433,9 +433,21 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
  *
  * The `Agent` is captured for the lifetime of the returned function, so repeated
  * calls (e.g. a provider tool loop) reuse its keep-alive connections.
+ *
+ * `allowH2` opts the pinned Agent into HTTP/2 (ALPN-negotiated, h1.1 fallback).
+ * It defaults to `false` to leave existing consumers unchanged. Enabling it does
+ * not weaken pinning: the pinned `connect.lookup` forces every connection on the
+ * Agent to `resolvedIP` regardless of authority, so h2 connection coalescing can
+ * never reach an address other than the validated one.
  */
-export function createPinnedFetch(resolvedIP: string): typeof fetch {
-  const dispatcher = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
+export function createPinnedFetch(
+  resolvedIP: string,
+  options?: { allowH2?: boolean }
+): typeof fetch {
+  const dispatcher = new Agent({
+    allowH2: options?.allowH2 ?? false,
+    connect: { lookup: createPinnedLookup(resolvedIP) },
+  })
 
   const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)
