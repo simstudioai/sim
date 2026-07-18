@@ -88,6 +88,11 @@ describe('MCP server lifecycle orchestration', () => {
 
     expect(result.success).toBe(true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ authType: 'oauth' }))
+    // Flipping to OAuth must reset the server to disconnected — it hasn't
+    // completed an auth flow, so it can't remain 'connected'.
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionStatus: 'disconnected', lastConnected: null })
+    )
     expect(mockClearCache).toHaveBeenCalledWith('workspace-1')
   })
 })
