@@ -273,7 +273,9 @@ export const POST = withRouteHandler(
           const newerSuccessWonRace =
             refreshedServer?.lastToolsRefresh != null &&
             (server.lastToolsRefresh == null ||
-              refreshedServer.lastToolsRefresh > server.lastToolsRefresh)
+              refreshedServer.lastToolsRefresh > server.lastToolsRefresh) &&
+            refreshedServer.lastConnected != null &&
+            (server.lastConnected == null || refreshedServer.lastConnected > server.lastConnected)
 
           if (!newerSuccessWonRace) {
             connectionStatus = 'disconnected'

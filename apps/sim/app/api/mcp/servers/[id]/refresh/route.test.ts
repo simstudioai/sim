@@ -164,6 +164,32 @@ describe('MCP server refresh route', () => {
     expect(mockClearCache).not.toHaveBeenCalled()
   })
 
+  it('reports the discovery failure when only cache invalidation advanced', async () => {
+    mockDiscoverServerTools.mockRejectedValueOnce(new Error('Connection failed'))
+    const cacheInvalidatedServer = {
+      ...initialServer,
+      lastToolsRefresh: new Date(initialServer.lastToolsRefresh.getTime() + 60_000),
+      toolCount: 0,
+    }
+    mockSelect.mockReturnValueOnce(selectRows([cacheInvalidatedServer]))
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'disconnected',
+        error: 'Internal server error',
+        toolCount: 0,
+        workflowsUpdated: 0,
+      })
+    )
+    expect(mockClearCache).not.toHaveBeenCalled()
+  })
+
   it('does not 500 when workflow sync fails after a successful discovery', async () => {
     mockDiscoverServerTools.mockResolvedValueOnce({
       tools: [
