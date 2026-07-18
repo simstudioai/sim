@@ -1,0 +1,99 @@
+---
+slug: byok-multi-model-ai-agent-builder
+title: "BYOK Multi-Model AI Agent Builder: How Sim's Bring-Your-Own-Key Works"
+description: Sim is a multi-model AI agent builder with hosted, BYOK, and local execution across 100+ models. Learn how bring-your-own-key works, when to use each mode, and how model flexibility compares across platforms.
+date: 2026-07-18
+updated: 2026-07-18
+authors:
+  - andrew
+readingTime: 9
+tags: [BYOK, Multi-Model, AI Agents, Sim]
+ogImage: /library/byok-multi-model-ai-agent-builder/cover.jpg
+canonical: https://www.sim.ai/library/byok-multi-model-ai-agent-builder
+draft: false
+faq:
+  - q: "Which providers are BYOK-eligible?"
+    a: "Sim accepts your own keys for the major providers including OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Mistral, Azure, AWS Bedrock, Vertex AI, and OpenRouter. You enter each key per provider, and Sim routes calls for that provider's models directly through your account. Eligibility tracks the provider's own API access, so any model you can reach with your key works in Sim."
+  - q: "Can I mix hosted, BYOK, and local keys within one agent?"
+    a: "Yes. A single agent can call a hosted model in one step, a BYOK model in another, and a local model through Ollama or vLLM in a third. Each block chooses its own model and execution mode, so you assign the cheapest or most private option to each task without splitting your agent across tools."
+  - q: "How is billing separated per mode?"
+    a: "Hosted models bill through Sim credits at roughly 1.1x provider rates. BYOK models bill directly from the provider to your account at provider rates, with no Sim markup. Local models run on your own hardware and carry no per-call charge, so each mode keeps its costs on its own ledger."
+  - q: "Does switching modes require rebuilding the agent?"
+    a: "No. You change a block's model or execution mode in place, and the rest of the agent's logic stays intact. Moving a prototype from hosted to BYOK is a settings change, not a rebuild."
+---
+
+## TL;DR
+
+Sim is a multi-model AI agent builder that supports 100+ models across providers like OpenAI, Anthropic, Google, and xAI, with three ways to run them: hosted, BYOK, and local.
+
+- **Choose hosted** when you want zero setup. Sim uses its own keys at roughly 1.1x provider rates, billed as credits.
+- **Choose BYOK** when you want cost control. You enter your own provider keys and pay the provider directly at their rates, with no markup.
+- **Choose local** when you need offline or on-prem execution through Ollama or vLLM.
+- **Compare on four axes:** how many models a platform supports, whether you own the keys, what billing rate you pay, and whether it runs self-hosted. Single-vendor stacks and automation platforms lose on model count and key ownership.
+
+## What a BYOK multi-model AI agent builder is
+
+A BYOK multi-model AI agent builder is a platform that lets you build AI agents while supplying your own provider API keys, so you route work to whichever model you choose instead of being tied to one vendor's models. BYOK stands for bring-your-own-key. You connect an account you already hold with a provider like OpenAI, Anthropic, or Google, and the platform runs your agents against that account rather than reselling access through its own keys.
+
+Sim sits squarely in this category. Sim supports over 100 models across major providers including OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Mistral, Azure, AWS Bedrock, Vertex AI, and OpenRouter. You pick the model per agent, and you decide how that model gets paid for.
+
+The category exists because most agent tools force a tradeoff Sim removes. Single-vendor agent stacks like OpenAI's own tooling lock you to that vendor's models, so a price change or a deprecated model becomes your problem. Automation platforms such as n8n, Zapier, Make, and Gumloop bolt AI onto a fixed list of supported models, which limits both your model choice and your billing options.
+
+A true BYOK builder gives you three ways to run a model. You use the platform's hosted keys, bring your own provider key, or run a local model on your own hardware. Sim offers all three, which is what separates a provider-agnostic builder from a tool that added an AI feature on top of a fixed set of models.
+
+## How BYOK works in Sim
+
+BYOK in Sim starts with per-provider key entry. You paste an API key from a supported provider like OpenAI, Anthropic, Google, or xAI into your Sim workspace, and every agent you build can call that provider's models directly using your own credentials. Each provider gets its own key slot, so you can add OpenAI and Anthropic keys side by side and route different agents or different steps to different providers.
+
+Billing goes straight to the provider at provider rates. When an agent runs on a BYOK key, the request hits the provider under your account, and the provider charges you directly with no markup from Sim. That differs from hosted mode, where Sim supplies the keys and bills you in credits at roughly 1.1x provider rates. At high volume, sending traffic through your own keys removes the markup entirely and gives you the provider's native billing, quotas, and rate limits.
+
+You keep full model choice across all 100+ supported models when you switch to BYOK. Adding your own key doesn't shrink the menu or force a specific model. You still pick any model the provider offers, from a flagship reasoning model to a cheaper fast one, and you can change that selection per agent without touching your keys. The three execution modes, hosted, BYOK, and local, all draw from the same model catalog, so moving an agent from hosted to BYOK is a billing and credential change, not a rebuild.
+
+The practical result is direct cost control without losing flexibility. You see exactly what each provider charges because the invoice comes from the provider, and you can shift spend between providers by editing keys and model selections rather than migrating platforms. A developer optimizing for cost can run cheap providers like Groq or DeepSeek on BYOK keys while keeping a premium provider on hand for harder tasks, all inside one agent. Setup takes one step per provider you want to use, and every model stays available the moment the key is saved.
+
+## Hosted, BYOK, and local: choosing between the three
+
+Hosted mode is the right choice when you want to start building without touching a single API key. Sim runs the model on its own keys and bills you in credits at roughly 1.1x the provider's published rates. That small margin buys zero setup, so you can prototype an agent, test a dozen models against your prompt, and ship a first version before you ever create a provider account. For early exploration where speed matters more than per-token cost, hosted removes the friction that would otherwise slow you down.
+
+BYOK becomes the better choice the moment your spend starts to scale. You enter your own provider key, Sim routes calls through it, and you pay OpenAI, Anthropic, or Google directly at their rates with no markup. On a low-traffic prototype the 1.1x hosted margin is trivial. On a production agent making millions of calls a month, that same margin turns into a real line item, and paying the provider directly removes it. If you already hold provider credits, negotiated pricing, or committed-use discounts, BYOK lets you apply them straight through Sim.
+
+Local mode fits when your data cannot leave your own infrastructure. Sim connects to models running on Ollama or vLLM, so inference happens on hardware you control and no prompt or response reaches an external provider. Regulated industries, air-gapped deployments, and teams with strict data-residency rules need this, and no amount of markup savings substitutes for it. Local also keeps an agent running when you have no internet connection or want to avoid per-token costs entirely on hardware you already own.
+
+Most teams move through these modes as they grow, prototyping on hosted, shifting heavy workloads to BYOK, and reserving local for the workloads that compliance dictates.
+
+## Comparing model flexibility across platforms
+
+Model flexibility separates these platforms more than any single feature, so the comparison below lays out the four axes a technical buyer actually weighs.
+
+| Axis | Sim | Single-vendor agent stack (OpenAI) | Automation platforms (n8n, Zapier, Make, Gumloop) |
+| --- | --- | --- | --- |
+| Model count | 100+ across 12 providers | OpenAI models only | Fixed list, usually a handful of providers |
+| Key ownership | Hosted, BYOK, or local | Vendor's keys or your OpenAI key | Platform-managed, limited BYOK |
+| Billing rate | ~1.1x hosted, provider rate on BYOK, free local | Provider rate | Bundled into platform pricing or task credits |
+| Self-host compatibility | Ollama, vLLM, fully local | None | Varies (n8n self-hosts, most do not for AI) |
+
+The automation platforms earn their reputation on breadth and ease. Zapier connects thousands of apps with almost no configuration, Make gives you a visual canvas that non-developers can follow, and n8n self-hosts its entire workflow engine. Gumloop wraps AI steps in a friendly builder that gets a prototype running fast. If your problem is stitching SaaS tools together, these platforms solve it well, and model choice is a secondary concern.
+
+OpenAI's own stack has the opposite strength. You get tight integration with frontier models and first-party tooling, which matters when you are building squarely on GPT and want the shortest path to production.
+
+The structural limit shows up the moment you want to run several providers under one roof at provider rates. Automation platforms bolt AI onto a fixed model list, so BYOK is partial and local models are rarely an option. OpenAI's stack ties you to one roadmap by design. Sim treats every provider as interchangeable at the execution layer, which is why hosted, BYOK, and local coexist inside the same agent. A platform built around one vendor cannot retrofit that without rebuilding its core, and an automation tool that added AI as a feature was never designed to price or route across a dozen providers.
+
+## Why model flexibility is a structural differentiator
+
+When you build an agent on a single provider's stack, you inherit that provider's roadmap as your own risk surface. If OpenAI raises prices, deprecates a model your prompts depend on, or ships a weaker successor to the version you tuned against, your agent absorbs the change with no fallback. Model flexibility removes that dependency because you can route the same agent to Anthropic, Google, or a local model the moment one provider's economics or capabilities stop working for you.
+
+Automation platforms like n8n, Zapier, Make, and Gumloop reduce that risk on paper by offering an AI step, but the model list is a feature bolted onto a workflow engine that was designed for something else. The AI step usually maps to a fixed set of hosted models the platform resells, so you rarely control the API key, the billing rate, or whether you can run inference locally. When the platform decides which models to expose, its commercial priorities set your ceiling, not your workload.
+
+Sim treats provider-agnostic execution as the base layer rather than an add-on. Every model call routes through the same abstraction, so hosted, BYOK, and local modes are three paths through one execution path instead of three separate products. That structure is why you can enter your own key per provider and pay the provider directly, and why switching from a hosted model to a local Ollama deployment doesn't force you to rebuild the agent. A platform that started from a fixed model list can't retrofit that ownership without rewriting how inference is billed and routed.
+
+## Decision framework: which setup fits your situation
+
+If you're prototyping or building your first few agents, start with hosted mode. You enter no keys, Sim runs on its own provider access, and you pay credits at roughly 1.1x provider rates while you figure out which models fit the job.
+
+Once an agent moves to production and your token volume climbs, switch to BYOK. You enter your own provider keys, pay the provider directly at their rates, and drop the hosted markup that grows with every call. At scale, that difference in billing rate is the whole reason to make the switch.
+
+If you handle regulated data or need agents to run without an outbound internet call, run models locally through Ollama or vLLM. Nothing leaves your infrastructure, which satisfies data-residency rules that hosted and BYOK both violate by sending prompts to a third-party API.
+
+For a multi-team organization standardizing on one provider, BYOK also keeps billing and model governance in one account you already control.
+
+None of these three modes is the correct default. The right one follows from your call volume, how much control you need over billing and models, and where your data is allowed to travel.
