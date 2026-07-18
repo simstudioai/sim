@@ -99,13 +99,13 @@ type ServerStatusUpdate =
       outcome: 'connected'
       toolCount: number
       configUpdatedAt: string
-      discoveryStartedAt: Date
+      publicationOrder: Date
     }
   | {
       outcome: 'failed'
       error: string
       configUpdatedAt: string
-      discoveryStartedAt: Date
+      publicationOrder: Date
     }
 
 function isOauthAuthorizationError(error: unknown, authType: McpServerConfig['authType']): boolean {
@@ -429,7 +429,7 @@ class McpService {
         lt(mcpServers.updatedAt, configUpdatedAt.endExclusive),
         or(
           isNull(mcpServers.lastToolsRefresh),
-          lte(mcpServers.lastToolsRefresh, update.discoveryStartedAt)
+          lte(mcpServers.lastToolsRefresh, update.publicationOrder)
         )
       )
 
@@ -441,10 +441,10 @@ class McpService {
             lastConnected: now,
             lastError: null,
             toolCount: update.toolCount,
-            // This column is also the publication ordering token. Persist the
-            // discovery start (rather than finish) so a newer-started run can
-            // still publish after an older run completes while it is in flight.
-            lastToolsRefresh: update.discoveryStartedAt,
+            // The cache mutation id is a monotonic millisecond timestamp. Use
+            // that same token here so cache and database publication cannot
+            // choose different winners during begin-mutation retries.
+            lastToolsRefresh: update.publicationOrder,
             statusConfig: {
               consecutiveFailures: 0,
               lastSuccessfulDiscovery: now.toISOString(),
@@ -485,7 +485,7 @@ class McpService {
           connectionStatus: isErrorState ? 'error' : 'disconnected',
           lastError: update.error || 'Unknown error',
           toolCount: 0,
-          lastToolsRefresh: update.discoveryStartedAt,
+          lastToolsRefresh: update.publicationOrder,
           statusConfig: {
             consecutiveFailures: newFailures,
             lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
@@ -538,7 +538,7 @@ class McpService {
     serverId: string,
     workspaceId: string,
     configUpdatedAt: string,
-    discoveryStartedAt: Date
+    publicationOrder: Date
   ): Promise<boolean> {
     try {
       const configUpdatedAtBounds = getTimestampMillisecondBounds(configUpdatedAt)
@@ -548,7 +548,7 @@ class McpService {
           connectionStatus: 'disconnected',
           lastError: null,
           toolCount: 0,
-          lastToolsRefresh: discoveryStartedAt,
+          lastToolsRefresh: publicationOrder,
         })
         .where(
           and(
@@ -559,7 +559,7 @@ class McpService {
             lt(mcpServers.updatedAt, configUpdatedAtBounds.endExclusive),
             or(
               isNull(mcpServers.lastToolsRefresh),
-              lte(mcpServers.lastToolsRefresh, discoveryStartedAt)
+              lte(mcpServers.lastToolsRefresh, publicationOrder)
             )
           )
         )
@@ -636,8 +636,7 @@ class McpService {
     workspaceId: string,
     config: McpServerConfig,
     mutation: CacheMutation | null,
-    tools: McpTool[],
-    discoveryStartedAt: Date
+    tools: McpTool[]
   ): Promise<boolean> {
     const cacheApplied = await this.applyServerCacheMutation(
       workspaceId,
@@ -650,13 +649,13 @@ class McpService {
       },
       [failureCacheKey(workspaceId, config.id)]
     )
-    if (!cacheApplied) return false
+    if (!cacheApplied || !mutation) return false
 
     const statusApplied = await this.updateServerStatus(config.id, workspaceId, {
       outcome: 'connected',
       toolCount: tools.length,
       configUpdatedAt: config.updatedAt!,
-      discoveryStartedAt,
+      publicationOrder: new Date(mutation.id),
     })
     if (statusApplied) return true
 
@@ -675,8 +674,7 @@ class McpService {
     config: McpServerConfig,
     mutation: CacheMutation | null,
     error: unknown,
-    message: string,
-    discoveryStartedAt: Date
+    message: string
   ): Promise<boolean> {
     const cacheApplied = await this.applyServerCacheMutation(
       workspaceId,
@@ -691,13 +689,13 @@ class McpService {
           },
       [serverCacheKey(workspaceId, config.id)]
     )
-    if (!cacheApplied) return false
+    if (!cacheApplied || !mutation) return false
 
     const statusApplied = await this.updateServerStatus(config.id, workspaceId, {
       outcome: 'failed',
       error: message,
       configUpdatedAt: config.updatedAt!,
-      discoveryStartedAt,
+      publicationOrder: new Date(mutation.id),
     })
     if (statusApplied) return true
 
@@ -712,8 +710,7 @@ class McpService {
   private async publishOauthPending(
     workspaceId: string,
     config: McpServerConfig,
-    mutation: CacheMutation | null,
-    discoveryStartedAt: Date
+    mutation: CacheMutation | null
   ): Promise<boolean> {
     const cacheApplied = await this.applyServerCacheMutation(
       workspaceId,
@@ -722,13 +719,13 @@ class McpService {
       null,
       [serverCacheKey(workspaceId, config.id), failureCacheKey(workspaceId, config.id)]
     )
-    if (!cacheApplied) return false
+    if (!cacheApplied || !mutation) return false
 
     return this.markServerOauthPending(
       config.id,
       workspaceId,
       config.updatedAt!,
-      discoveryStartedAt
+      new Date(mutation.id)
     )
   }
 
@@ -738,8 +735,6 @@ class McpService {
     forceRefresh = false
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
-    const discoveryStartedAt = new Date()
-
     try {
       logger.info(`[${requestId}] Discovering MCP tools for workspace ${workspaceId}`)
 
@@ -822,8 +817,7 @@ class McpService {
               workspaceId,
               outcome.resolvedConfig,
               outcome.mutation,
-              outcome.tools,
-              discoveryStartedAt
+              outcome.tools
             )
             if (!published) {
               logger.info(
@@ -847,12 +841,7 @@ class McpService {
             logger.info(
               `[${requestId}] Skipping server ${server.name}: OAuth authorization pending`
             )
-            await this.publishOauthPending(
-              workspaceId,
-              outcome.config,
-              outcome.mutation,
-              discoveryStartedAt
-            )
+            await this.publishOauthPending(workspaceId, outcome.config, outcome.mutation)
             return { tools: [], cached: 0, fetched: 0, failed: 0, liveConnection: null }
           }
           if (outcome.kind === 'unhealthy') {
@@ -867,8 +856,7 @@ class McpService {
             outcome.config,
             outcome.mutation,
             outcome.originalError,
-            outcome.message,
-            discoveryStartedAt
+            outcome.message
           )
           return { tools: [], cached: 0, fetched: 0, failed: 1, liveConnection: null }
         })
@@ -941,7 +929,6 @@ class McpService {
     forceRefresh: boolean
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
-    const discoveryStartedAt = new Date()
     const maxRetries = 2
 
     if (!forceRefresh) {
@@ -991,8 +978,7 @@ class McpService {
             workspaceId,
             resolvedConfig,
             mutation,
-            tools,
-            discoveryStartedAt
+            tools
           )
           if (!published) {
             logger.info(
@@ -1015,15 +1001,14 @@ class McpService {
         }
         if (config) {
           if (isOauthAuthorizationError(error, config.authType)) {
-            await this.publishOauthPending(workspaceId, config, mutation, discoveryStartedAt)
+            await this.publishOauthPending(workspaceId, config, mutation)
           } else {
             await this.publishFailedDiscovery(
               workspaceId,
               config,
               mutation,
               error,
-              getDiscoveryFailureMessage(error, config.authType, 'Connection failed'),
-              discoveryStartedAt
+              getDiscoveryFailureMessage(error, config.authType, 'Connection failed')
             )
           }
         }

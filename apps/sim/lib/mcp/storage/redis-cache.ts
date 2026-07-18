@@ -9,6 +9,15 @@ const REDIS_KEY_PREFIX = 'mcp:tools:'
 const MUTATION_KEY_PREFIX = 'mcp:tools-mutation:'
 const MUTATION_TTL_MS = 24 * 60 * 60 * 1000
 
+const BEGIN_MUTATION = `
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+local redisTime = redis.call('TIME')
+local now = tonumber(redisTime[1]) * 1000 + math.floor(tonumber(redisTime[2]) / 1000)
+local mutationId = math.max(current + 1, now)
+redis.call('SET', KEYS[1], tostring(mutationId), 'PX', ARGV[1])
+return mutationId
+`
+
 const SET_IF_CURRENT_MUTATION = `
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then
   return 0
@@ -99,11 +108,12 @@ export class RedisMcpCache implements McpCacheStorageAdapter {
   async beginMutation(scopeKey: string): Promise<number> {
     try {
       const mutationKey = this.getMutationKey(scopeKey)
-      const transaction = this.redis.multi()
-      transaction.incr(mutationKey)
-      transaction.pexpire(mutationKey, MUTATION_TTL_MS)
-      const results = await transaction.exec()
-      const mutationId = results?.[0]?.[1]
+      const mutationId = await this.redis.eval(
+        BEGIN_MUTATION,
+        1,
+        mutationKey,
+        String(MUTATION_TTL_MS)
+      )
       if (typeof mutationId !== 'number') {
         throw new Error('Redis did not return an MCP cache mutation id')
       }
@@ -199,25 +209,9 @@ export class RedisMcpCache implements McpCacheStorageAdapter {
   async clear(): Promise<void> {
     try {
       let cursor = '0'
-      let deletedCount = 0
-
-      do {
-        const [nextCursor, keys] = await this.redis.scan(
-          cursor,
-          'MATCH',
-          `${REDIS_KEY_PREFIX}*`,
-          'COUNT',
-          100
-        )
-        cursor = nextCursor
-
-        if (keys.length > 0) {
-          await this.redis.del(...keys)
-          deletedCount += keys.length
-        }
-      } while (cursor !== '0')
-
-      cursor = '0'
+      // Invalidate existing mutation owners before deleting their cache
+      // entries. An old writer either commits before this point and is then
+      // deleted, or observes the advanced id and cannot commit afterward.
       do {
         const [nextCursor, keys] = await this.redis.scan(
           cursor,
@@ -234,6 +228,24 @@ export class RedisMcpCache implements McpCacheStorageAdapter {
             transaction.pexpire(key, MUTATION_TTL_MS)
           }
           await transaction.exec()
+        }
+      } while (cursor !== '0')
+
+      cursor = '0'
+      let deletedCount = 0
+      do {
+        const [nextCursor, keys] = await this.redis.scan(
+          cursor,
+          'MATCH',
+          `${REDIS_KEY_PREFIX}*`,
+          'COUNT',
+          100
+        )
+        cursor = nextCursor
+
+        if (keys.length > 0) {
+          await this.redis.del(...keys)
+          deletedCount += keys.length
         }
       } while (cursor !== '0')
 

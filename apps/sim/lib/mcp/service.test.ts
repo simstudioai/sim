@@ -48,7 +48,8 @@ const {
       cacheStore.delete(key)
     }),
     beginMutation: vi.fn(async (scopeKey: string) => {
-      const mutationId = ++nextMutationId
+      const mutationId = Math.max(nextMutationId + 1, Date.now())
+      nextMutationId = mutationId
       cacheMutations.set(scopeKey, mutationId)
       return mutationId
     }),
@@ -89,10 +90,12 @@ const {
       }
     ),
     clear: vi.fn(async () => {
-      cacheStore.clear()
       for (const scopeKey of cacheMutations.keys()) {
-        cacheMutations.set(scopeKey, ++nextMutationId)
+        const mutationId = Math.max(nextMutationId + 1, Date.now())
+        nextMutationId = mutationId
+        cacheMutations.set(scopeKey, mutationId)
       }
+      cacheStore.clear()
     }),
     dispose: () => {},
   }
@@ -560,6 +563,56 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockUpdateSet).toHaveBeenCalledTimes(1)
   })
 
+  it('uses the cache mutation token to order database publication after a begin retry', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+
+      let rejectOlderBegin: ((error: Error) => void) | undefined
+      mockCacheAdapter.beginMutation.mockImplementationOnce(
+        () =>
+          new Promise<number>((_resolve, reject) => {
+            rejectOlderBegin = reject
+          })
+      )
+      mockListTools
+        .mockRejectedValueOnce(new Error('Later-started discovery failed'))
+        .mockResolvedValueOnce([tool('retry-winner', 'mcp-a')])
+
+      vi.setSystemTime(new Date('2030-02-01T00:00:00.000Z'))
+      const older = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, false)
+      await vi.waitFor(() => expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(1))
+
+      const laterMutationTime = new Date('2030-02-01T00:00:01.000Z')
+      vi.setSystemTime(laterMutationTime)
+      const later = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+      await expect(later).rejects.toThrow('Later-started discovery failed')
+
+      const retriedMutationTime = new Date('2030-02-01T00:00:02.000Z')
+      vi.setSystemTime(retriedMutationTime)
+      rejectOlderBegin?.(new Error('Transient mutation start failure'))
+      await expect(older).resolves.toEqual([tool('retry-winner', 'mcp-a')])
+
+      const publications = mockUpdateSet.mock.calls
+        .map(([update]) => update)
+        .filter((update) => update.lastToolsRefresh)
+      expect(publications.map((update) => update.connectionStatus)).toEqual([
+        'disconnected',
+        'connected',
+      ])
+      expect(publications.map((update) => update.lastToolsRefresh)).toEqual([
+        laterMutationTime,
+        retriedMutationTime,
+      ])
+      expect(cacheStore.get(`workspace:${WORKSPACE_ID}:server:mcp-a`)?.tools).toEqual([
+        tool('retry-winner', 'mcp-a'),
+      ])
+      expect(cacheStore.has(`workspace:${WORKSPACE_ID}:server:mcp-a:failure`)).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('fails a newer discovery closed while an older mutation remains the owner', async () => {
     const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
@@ -763,21 +816,21 @@ describe('McpService.discoverTools per-server caching', () => {
           })
         )
 
-      const olderStartedAt = new Date('2026-02-01T00:00:00.000Z')
+      const olderStartedAt = new Date('2030-02-01T00:00:00.000Z')
       vi.setSystemTime(olderStartedAt)
       const older = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, false)
       await vi.waitFor(() => expect(mockListTools).toHaveBeenCalledTimes(1))
 
-      const newerStartedAt = new Date('2026-02-01T00:00:01.000Z')
+      const newerStartedAt = new Date('2030-02-01T00:00:01.000Z')
       vi.setSystemTime(newerStartedAt)
       const newer = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
       await vi.waitFor(() => expect(mockListTools).toHaveBeenCalledTimes(2))
 
-      vi.setSystemTime(new Date('2026-02-01T00:00:02.000Z'))
+      vi.setSystemTime(new Date('2030-02-01T00:00:02.000Z'))
       resolveOlder?.([tool('old-tool', 'mcp-a')])
       await expect(older).resolves.toEqual([])
 
-      vi.setSystemTime(new Date('2026-02-01T00:00:03.000Z'))
+      vi.setSystemTime(new Date('2030-02-01T00:00:03.000Z'))
       resolveNewer?.([tool('new-tool', 'mcp-a')])
       await expect(newer).resolves.toEqual([tool('new-tool', 'mcp-a')])
 
@@ -785,7 +838,8 @@ describe('McpService.discoverTools per-server caching', () => {
         .map(([update]) => update)
         .filter((update) => update.connectionStatus === 'connected')
         .map((update) => update.lastToolsRefresh)
-      expect(publishedRefreshTimes).toEqual([newerStartedAt])
+      expect(publishedRefreshTimes).toHaveLength(1)
+      expect(publishedRefreshTimes[0].getTime()).toBeGreaterThanOrEqual(newerStartedAt.getTime())
     } finally {
       vi.useRealTimers()
     }

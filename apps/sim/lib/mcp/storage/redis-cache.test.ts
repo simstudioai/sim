@@ -23,11 +23,16 @@ describe('RedisMcpCache ordered mutations', () => {
   const redis = {
     multi: vi.fn(() => multi),
     eval: vi.fn(),
+    scan: vi.fn(),
+    del: vi.fn(),
   }
   const cache = new RedisMcpCache(redis as unknown as Redis)
 
   beforeEach(() => {
     vi.clearAllMocks()
+    redis.eval.mockReset()
+    redis.scan.mockReset()
+    redis.del.mockReset()
     multi.incr.mockReturnValue(multi)
     multi.pexpire.mockReturnValue(multi)
     multi.exec.mockResolvedValue([
@@ -36,13 +41,17 @@ describe('RedisMcpCache ordered mutations', () => {
     ])
   })
 
-  it('allocates a shared per-server mutation id with an expiry', async () => {
-    await expect(cache.beginMutation('workspace:w:server:s')).resolves.toBe(7)
+  it('allocates a timestamp-based per-server mutation id with an expiry', async () => {
+    const mutationId = 1_900_000_000_000
+    redis.eval.mockResolvedValueOnce(mutationId)
 
-    expect(multi.incr).toHaveBeenCalledWith('mcp:tools-mutation:workspace:w:server:s')
-    expect(multi.pexpire).toHaveBeenCalledWith(
+    await expect(cache.beginMutation('workspace:w:server:s')).resolves.toBe(mutationId)
+
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.stringMatching(/redis\.call\('TIME'\).*math\.max/s),
+      1,
       'mcp:tools-mutation:workspace:w:server:s',
-      24 * 60 * 60 * 1000
+      String(24 * 60 * 60 * 1000)
     )
   })
 
@@ -116,6 +125,27 @@ describe('RedisMcpCache ordered mutations', () => {
       '1',
       expect.stringContaining('new-tool'),
       '60000'
+    )
+  })
+
+  it('invalidates mutation owners before deleting entries during a full clear', async () => {
+    redis.scan
+      .mockResolvedValueOnce(['0', ['mcp:tools-mutation:workspace:w:server:s']])
+      .mockResolvedValueOnce([
+        '0',
+        ['mcp:tools:workspace:w:server:s', 'mcp:tools:workspace:w:server:s:failure'],
+      ])
+    redis.del.mockResolvedValueOnce(2)
+
+    await cache.clear()
+
+    expect(multi.incr).toHaveBeenCalledWith('mcp:tools-mutation:workspace:w:server:s')
+    expect(redis.del).toHaveBeenCalledWith(
+      'mcp:tools:workspace:w:server:s',
+      'mcp:tools:workspace:w:server:s:failure'
+    )
+    expect(multi.exec.mock.invocationCallOrder[0]).toBeLessThan(
+      redis.del.mock.invocationCallOrder[0]
     )
   })
 })

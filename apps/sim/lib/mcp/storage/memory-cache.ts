@@ -91,7 +91,8 @@ export class MemoryMcpCache implements McpCacheStorageAdapter {
   }
 
   async beginMutation(scopeKey: string): Promise<number> {
-    const mutationId = ++this.nextMutationId
+    const mutationId = Math.max(this.nextMutationId + 1, Date.now())
+    this.nextMutationId = mutationId
     this.mutationVersions.set(scopeKey, mutationId)
     return mutationId
   }
@@ -138,10 +139,12 @@ export class MemoryMcpCache implements McpCacheStorageAdapter {
   }
 
   async clear(): Promise<void> {
-    this.cache.clear()
     for (const scopeKey of this.mutationVersions.keys()) {
-      this.mutationVersions.set(scopeKey, ++this.nextMutationId)
+      const mutationId = Math.max(this.nextMutationId + 1, Date.now())
+      this.nextMutationId = mutationId
+      this.mutationVersions.set(scopeKey, mutationId)
     }
+    this.cache.clear()
   }
 
   dispose(): void {

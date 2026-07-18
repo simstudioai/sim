@@ -16,9 +16,10 @@ export interface McpCacheStorageAdapter {
   set(key: string, tools: McpTool[], ttlMs: number): Promise<void>
   delete(key: string): Promise<void>
   /**
-   * Starts an ordered mutation for one server. Conditional writes using an
-   * older mutation id must be ignored so a slow discovery cannot overwrite a
-   * newer result.
+   * Starts an ordered mutation for one server and returns a monotonic Unix
+   * timestamp in milliseconds. Conditional writes using an older mutation id
+   * must be ignored so a slow discovery cannot overwrite a newer result. The
+   * same value orders database publication for an end-to-end consistent state.
    */
   beginMutation(scopeKey: string): Promise<number>
   setIfCurrentMutation(

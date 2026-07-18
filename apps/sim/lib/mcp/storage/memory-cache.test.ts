@@ -167,8 +167,12 @@ describe('MemoryMcpCache', () => {
 
   describe('ordered mutations', () => {
     it('prevents an older discovery from overwriting a newer cache result', async () => {
+      const beforeMutation = Date.now()
       const older = await cache.beginMutation('server-1')
       const newer = await cache.beginMutation('server-1')
+
+      expect(older).toBeGreaterThanOrEqual(beforeMutation)
+      expect(newer).toBeGreaterThan(older)
 
       expect(
         await cache.setIfCurrentMutation(
