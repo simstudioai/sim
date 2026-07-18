@@ -24,6 +24,8 @@ export type LogLevel =
 export const CORE_TRIGGER_TYPES = [
   'manual',
   'api',
+  'app',
+  'interface',
   'schedule',
   'chat',
   'webhook',

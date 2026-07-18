@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { FULLSTACK_TOOL_NAMES } from '@/lib/apps/agent/fullstack-contract'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { markAsyncToolDelivered, upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
@@ -52,6 +53,7 @@ import {
 } from './types'
 
 const logger = createLogger('CopilotToolHandler')
+const FULLSTACK_TOOLS = new Set<string>(FULLSTACK_TOOL_NAMES)
 
 function applyToolDisplay(toolCall: ToolCallState | undefined): void {
   if (!toolCall?.name) return
@@ -398,7 +400,10 @@ async function handleCallPhase(
   const catalogEntry = getToolEntry(toolName)
   const isInternal = internal || catalogEntry?.internal === true
   const staticSimExecuted = isSimExecuted(toolName)
-  const willDispatch = !isInternal && (staticSimExecuted || simExecutable || clientExecutable)
+  const fullstackSimExecuted =
+    execContext.requestMode === 'fullstack' && FULLSTACK_TOOLS.has(toolName)
+  const willDispatch =
+    !isInternal && (staticSimExecuted || simExecutable || clientExecutable || fullstackSimExecuted)
   logger.info('Tool call routing decision', {
     toolCallId,
     toolName,
@@ -409,6 +414,7 @@ async function handleCallPhase(
     clientExecutable,
     simExecutable,
     staticSimExecuted,
+    fullstackSimExecuted,
     internal: isInternal,
     hasPendingPromise: context.pendingToolPromises.has(toolCallId),
     existingStatus: existing?.status,

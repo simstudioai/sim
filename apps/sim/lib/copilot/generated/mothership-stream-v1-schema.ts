@@ -10,6 +10,64 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
       additionalProperties: true,
       type: 'object',
     },
+    MothershipStreamV1AppEventEnvelope: {
+      additionalProperties: false,
+      properties: {
+        payload: {
+          $ref: '#/$defs/MothershipStreamV1AppPayload',
+        },
+        scope: {
+          $ref: '#/$defs/MothershipStreamV1StreamScope',
+        },
+        seq: {
+          type: 'integer',
+        },
+        stream: {
+          $ref: '#/$defs/MothershipStreamV1StreamRef',
+        },
+        trace: {
+          $ref: '#/$defs/MothershipStreamV1Trace',
+        },
+        ts: {
+          type: 'string',
+        },
+        type: {
+          $ref: '#/$defs/MothershipStreamV1EventType',
+        },
+        v: {
+          enum: [1],
+          type: 'integer',
+        },
+      },
+      required: ['v', 'seq', 'ts', 'stream', 'type', 'payload'],
+      type: 'object',
+    },
+    MothershipStreamV1AppEventName: {
+      enum: [
+        'app.revision.created',
+        'app.build.started',
+        'app.build.finished',
+        'app.release.prepared',
+        'app.release.published',
+        'app.release.revoked',
+        'app.binding.drift',
+        'app.preview.ready',
+      ],
+      type: 'string',
+    },
+    MothershipStreamV1AppPayload: {
+      additionalProperties: false,
+      properties: {
+        event: {
+          $ref: '#/$defs/MothershipStreamV1AppEventName',
+        },
+        payload: {
+          $ref: '#/$defs/MothershipStreamV1AdditionalPropertiesMap',
+        },
+      },
+      required: ['event'],
+      type: 'object',
+    },
     MothershipStreamV1AsyncToolRecordStatus: {
       enum: ['pending', 'running', 'completed', 'failed', 'cancelled', 'delivered'],
       type: 'string',
@@ -357,7 +415,7 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
       type: 'object',
     },
     MothershipStreamV1EventType: {
-      enum: ['session', 'text', 'tool', 'span', 'resource', 'run', 'error', 'complete'],
+      enum: ['session', 'text', 'tool', 'app', 'span', 'resource', 'run', 'error', 'complete'],
       type: 'string',
     },
     MothershipStreamV1ResourceDescriptor: {
@@ -1380,6 +1438,9 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
     },
     {
       $ref: '#/$defs/MothershipStreamV1ToolResultEventEnvelope',
+    },
+    {
+      $ref: '#/$defs/MothershipStreamV1AppEventEnvelope',
     },
     {
       $ref: '#/$defs/MothershipStreamV1SubagentSpanStartEventEnvelope',

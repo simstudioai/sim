@@ -8,6 +8,7 @@ export interface ServerToolContext {
   userPermission?: string
   chatId?: string
   messageId?: string
+  requestMode?: string
   /**
    * The invoking subagent's channel id (its outer tool_use id). Used to scope
    * the workspace_file -> edit_content intent handoff to a single file subagent

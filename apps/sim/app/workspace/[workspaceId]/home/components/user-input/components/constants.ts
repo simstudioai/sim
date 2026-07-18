@@ -58,13 +58,13 @@ const FIELD_MIRROR_CLASSES = cn(
 
 /**
  * The textarea grows to its full content height (`h-auto`, no internal scroll);
- * the shared scroller clips and scrolls it. Its text is transparent so the
- * mirror overlay shows through; only the caret paints.
+ * the shared scroller clips and scrolls it. PromptEditor makes its text
+ * transparent only while mention/skill decoration requires the mirror overlay.
  */
 export const TEXTAREA_BASE_CLASSES = cn(
   FIELD_MIRROR_CLASSES,
   'block h-auto resize-none overflow-hidden',
-  'text-transparent caret-[var(--text-primary)] outline-none',
+  'caret-[var(--text-primary)] outline-none',
   'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
   'focus-visible:ring-0 focus-visible:ring-offset-0'
 )

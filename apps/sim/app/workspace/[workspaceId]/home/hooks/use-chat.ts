@@ -75,6 +75,7 @@ import {
 import {
   fetchMothershipChatHistory,
   type MothershipChatHistory,
+  type MothershipChatMetadata,
   mothershipChatKeys,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
@@ -1031,6 +1032,7 @@ export function getMothershipUseChatOptions(
   options: Pick<
     UseChatOptions,
     | 'onResourceEvent'
+    | 'onToolResult'
     | 'onStreamEnd'
     | 'initialActiveResourceId'
     | 'activeResourceState'
@@ -1161,18 +1163,23 @@ export function useChat(
       queryClient.setQueryData<MothershipChatHistory>(
         mothershipChatKeys.detail(chatId),
         (current) => {
+          const listMetadata = queryClient
+            .getQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId))
+            ?.find((chat) => chat.id === chatId)
           const base: MothershipChatHistory = current ?? {
             id: chatId,
+            type: listMetadata?.type ?? 'mothership',
             title: null,
             messages: [],
             activeStreamId: null,
             resources: resourcesRef.current,
+            linkedAppProject: null,
           }
           return updater(base)
         }
       )
     },
-    [queryClient]
+    [queryClient, workspaceId]
   )
 
   // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`

@@ -62,6 +62,45 @@ describe('copilot tool executor fallback', () => {
     expect(result).toEqual({ success: true, output: { emails: [] } })
   })
 
+  it('rejects workflow mutation tools in Full-stack chats before dispatch', async () => {
+    const result = await executeTool(
+      'edit_workflow',
+      { operations: [] },
+      {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        requestMode: 'fullstack',
+      }
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Tool edit_workflow is not allowed in Full-stack chats.',
+    })
+    expect(executeAppTool).not.toHaveBeenCalled()
+  })
+
+  it('dispatches allowlisted Full-stack tools through registered Sim handlers', async () => {
+    isKnownTool.mockReturnValue(false)
+    const handler = vi.fn().mockResolvedValue({ success: true, output: { buildId: 'build-1' } })
+    registerHandler('app_build', handler)
+    const context = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      requestMode: 'fullstack',
+    }
+
+    const result = await executeTool('app_build', { projectId: 'project-1' }, context)
+
+    expect(handler).toHaveBeenCalledWith({ projectId: 'project-1' }, context)
+    expect(result).toEqual({ success: true, output: { buildId: 'build-1' } })
+    expect(executeAppTool).not.toHaveBeenCalled()
+  })
+
   it('uses the registered handler for client-routed tools when running headless (Mothership block)', async () => {
     isKnownTool.mockReturnValue(true)
     isSimExecuted.mockReturnValue(false)

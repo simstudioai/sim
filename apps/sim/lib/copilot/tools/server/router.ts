@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
+import { fullstackAppServerTools } from '@/lib/apps/agent/fullstack-tools'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   CreateFile,
@@ -86,6 +87,12 @@ const CUSTOM_BLOCK_OVERLAY_TOOLS = new Set(['edit_workflow', 'get_blocks_metadat
 const VISIBILITY_GATED_TOOLS = new Set(['get_blocks_metadata', 'get_trigger_blocks'])
 
 const WRITE_ACTIONS: Record<string, string[]> = {
+  app_bind_action: ['*'],
+  app_refresh_binding: ['*'],
+  app_detach_action: ['*'],
+  app_write_files: ['*'],
+  app_build: ['*'],
+  app_prepare_publish: ['*'],
   [KnowledgeBase.id]: [
     'create',
     'add_file',
@@ -157,6 +164,7 @@ function isWriteAction(toolName: string, action: string | undefined): boolean {
 
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const baseServerToolRegistry: Record<string, BaseServerTool> = {
+  ...Object.fromEntries(fullstackAppServerTools.map((tool) => [tool.name, tool])),
   [getBlocksMetadataServerTool.name]: getBlocksMetadataServerTool,
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,

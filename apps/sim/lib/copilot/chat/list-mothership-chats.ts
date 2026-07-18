@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 
@@ -18,6 +18,7 @@ export async function listMothershipChats(
   const chats = await db
     .select({
       id: copilotChats.id,
+      type: copilotChats.type,
       title: copilotChats.title,
       updatedAt: copilotChats.updatedAt,
       activeStreamId: copilotChats.conversationId,
@@ -29,7 +30,7 @@ export async function listMothershipChats(
       and(
         eq(copilotChats.userId, userId),
         eq(copilotChats.workspaceId, workspaceId),
-        eq(copilotChats.type, 'mothership')
+        inArray(copilotChats.type, ['mothership', 'fullstack'])
       )
     )
     .orderBy(desc(copilotChats.pinned), desc(copilotChats.updatedAt))
@@ -41,6 +42,7 @@ export async function listMothershipChats(
 
   return chats.map((c) => ({
     id: c.id,
+    type: c.type === 'fullstack' ? 'fullstack' : 'mothership',
     title: c.title,
     updatedAt: c.updatedAt.toISOString(),
     activeStreamId: streamMarkers.get(c.id)?.streamId ?? null,

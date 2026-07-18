@@ -72,6 +72,10 @@ export function PromptEditor({
 }: PromptEditorProps) {
   const { textareaRef, value } = editor
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const hasDecoratedTokens = useMemo(() => {
+    if (!value || editor.contexts.length === 0) return false
+    return computeMentionHighlightRanges(value, extractContextTokens(editor.contexts)).length > 0
+  }, [editor.contexts, value])
 
   /**
    * Autosize: grow the textarea to its full content height; the scroller caps
@@ -191,9 +195,11 @@ export function PromptEditor({
           height and the overlay fills it via `inset-0`, so both are flow
           children of the same scroller and co-scroll natively. */}
       <div className='relative'>
-        <div className={OVERLAY_CLASSES} aria-hidden='true'>
-          {overlayContent}
-        </div>
+        {hasDecoratedTokens ? (
+          <div className={OVERLAY_CLASSES} aria-hidden='true'>
+            {overlayContent}
+          </div>
+        ) : null}
 
         <textarea
           ref={textareaRef}
@@ -211,7 +217,11 @@ export function PromptEditor({
           placeholder={placeholder}
           aria-label={ariaLabel}
           rows={1}
-          className={cn(TEXTAREA_BASE_CLASSES, readOnly && 'cursor-default caret-transparent')}
+          className={cn(
+            TEXTAREA_BASE_CLASSES,
+            hasDecoratedTokens ? 'text-transparent' : 'text-[var(--text-primary)]',
+            readOnly && 'cursor-default caret-transparent'
+          )}
         />
       </div>
 

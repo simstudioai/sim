@@ -370,6 +370,20 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(insertedChatRows[0].title).toBe('Fork | Generate Logs')
   })
 
+  it('preserves the immutable fullstack type when forking', async () => {
+    mockSelectRows.mockResolvedValue([{ ...parentRow, type: 'fullstack' }])
+
+    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+
+    expect(res.status).toBe(200)
+    expect(insertedChatRows).toEqual([
+      expect.objectContaining({
+        type: 'fullstack',
+        workspaceId: 'ws-1',
+      }),
+    ])
+  })
+
   it('still succeeds when the copilot-service clone fails (best-effort)', async () => {
     mockFetchGo.mockRejectedValue(new Error('mothership unreachable'))
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))

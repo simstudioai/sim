@@ -4,10 +4,16 @@
 import { permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockTransaction, mockArchiveWorkflowsForWorkspace } = vi.hoisted(() => ({
+const {
+  mockSelect,
+  mockTransaction,
+  mockArchiveWorkflowsForWorkspace,
+  mockRevokeAllCallableReleasesForWorkspace,
+} = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockTransaction: vi.fn(),
   mockArchiveWorkflowsForWorkspace: vi.fn(),
+  mockRevokeAllCallableReleasesForWorkspace: vi.fn(),
 }))
 
 const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
@@ -21,6 +27,11 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('@/lib/workflows/lifecycle', () => ({
   archiveWorkflowsForWorkspace: (...args: unknown[]) => mockArchiveWorkflowsForWorkspace(...args),
+}))
+
+vi.mock('@/lib/apps/pins', () => ({
+  revokeAllCallableReleasesForWorkspace: (...args: unknown[]) =>
+    mockRevokeAllCallableReleasesForWorkspace(...args),
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
@@ -78,6 +89,7 @@ describe('workspace lifecycle', () => {
     expect(mockArchiveWorkflowsForWorkspace).toHaveBeenCalledWith('workspace-1', {
       requestId: 'req-1',
     })
+    expect(mockRevokeAllCallableReleasesForWorkspace).toHaveBeenCalledWith('workspace-1')
     expect(tx.update).toHaveBeenCalledTimes(10)
     expect(tx.delete).toHaveBeenCalledTimes(1)
   })
@@ -99,6 +111,7 @@ describe('workspace lifecycle', () => {
     expect(mockArchiveWorkflowsForWorkspace).toHaveBeenCalledWith('workspace-1', {
       requestId: 'req-1',
     })
+    expect(mockRevokeAllCallableReleasesForWorkspace).toHaveBeenCalledWith('workspace-1')
     expect(mockTransaction).not.toHaveBeenCalled()
   })
 })

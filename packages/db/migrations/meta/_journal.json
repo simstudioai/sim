@@ -1842,6 +1842,62 @@
       "when": 1784254902721,
       "tag": "0263_workflow_interface",
       "breakpoints": true
+    },
+    {
+      "idx": 264,
+      "version": "7",
+      "when": 1784300000000,
+      "tag": "0264_fullstack_apps",
+      "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1784301000000,
+      "tag": "0265_app_project_created_by_set_null",
+      "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1784302000000,
+      "tag": "0266_app_release_revoked_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1784303000000,
+      "tag": "0267_app_preview_session_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1784304000000,
+      "tag": "0268_app_build_status_created_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1784305000000,
+      "tag": "0269_app_preview_session_build_pin",
+      "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1784306000000,
+      "tag": "0270_app_preview_session_build_set_null",
+      "breakpoints": true
+    },
+    {
+      "idx": 271,
+      "version": "7",
+      "when": 1784340600435,
+      "tag": "0271_flawless_toad_men",
+      "breakpoints": true
     }
   ]
 }

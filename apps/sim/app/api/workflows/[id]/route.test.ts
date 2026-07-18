@@ -446,6 +446,50 @@ describe('Workflow By ID API Route', () => {
       expect(data.error).toBe('Cannot delete the only workflow in the workspace')
     })
 
+    it('returns a conflict with app links when deployment pins retain the workflow', async () => {
+      const mockWorkflow = {
+        id: 'workflow-123',
+        userId: 'user-123',
+        name: 'Test Workflow',
+        workspaceId: 'workspace-456',
+      }
+      const apps = [
+        {
+          projectId: 'app-123',
+          publicId: 'public-123',
+          name: 'Pinned App',
+          releaseIds: ['release-123'],
+        },
+      ]
+
+      mockGetSession({ user: { id: 'user-123' } })
+      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
+        workflow: mockWorkflow,
+        workspacePermission: 'admin',
+      })
+      mockPerformDeleteWorkflow.mockResolvedValue({
+        success: false,
+        error: 'Cannot delete workflow while Full-stack App deployment pins exist.',
+        errorCode: 'validation',
+        apps,
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
+        method: 'DELETE',
+      })
+      const response = await DELETE(req, { params: Promise.resolve({ id: 'workflow-123' }) })
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Cannot delete workflow while Full-stack App deployment pins exist.',
+        code: 'PINNED_APP_RELEASES_EXIST',
+        apps,
+      })
+    })
+
     it('should allow user with write permission to delete workflow', async () => {
       const mockWorkflow = {
         id: 'workflow-123',

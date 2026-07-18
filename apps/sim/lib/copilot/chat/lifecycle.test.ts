@@ -149,6 +149,21 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     expect(result.conversationHistory).toEqual([userMsg, asstMsg])
   })
 
+  it('rejects reopening a chat under a different immutable type', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, type: 'fullstack' }])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    const result = await resolveOrCreateChat({
+      chatId: CHAT_ID,
+      userId: USER_ID,
+      model: 'm',
+      type: 'mothership',
+    })
+
+    expect(result.chat).toBeNull()
+    expect(result.isNew).toBe(false)
+  })
+
   it('resolveOrCreateChat creates a new chat with an empty transcript', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([chatRow])
 
@@ -161,5 +176,23 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     expect(Object.hasOwn(insertValues, 'messages')).toBe(false)
     // a brand-new chat must not trigger a messages read
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+  })
+
+  it('gives a new fullstack chat a useful fallback title before title generation', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...chatRow, type: 'fullstack' }])
+
+    await resolveOrCreateChat({
+      userId: USER_ID,
+      model: 'm',
+      workspaceId: 'workspace-1',
+      type: 'fullstack',
+    })
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'fullstack',
+        title: 'Full-stack App',
+      })
+    )
   })
 })

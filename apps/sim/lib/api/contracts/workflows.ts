@@ -322,6 +322,8 @@ export const executeWorkflowRunFromBlockSchema = z.object({
 export const executeWorkflowTriggerTypeSchema = z.enum([
   'manual',
   'api',
+  'app',
+  'interface',
   'schedule',
   'chat',
   'webhook',

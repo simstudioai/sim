@@ -108,7 +108,7 @@ describe('workflow lifecycle', () => {
     const result = await archiveWorkflow('workflow-1', { requestId: 'req-1' })
 
     expect(result.archived).toBe(true)
-    expect(tx.update).toHaveBeenCalledTimes(7)
+    expect(tx.update).toHaveBeenCalledTimes(8)
     const supersedeSet = tx.update.mock.results[0]?.value.set
     expect(supersedeSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'superseded' }))
     expect(tx.delete).toHaveBeenCalledTimes(1)

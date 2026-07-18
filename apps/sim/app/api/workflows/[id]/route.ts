@@ -214,9 +214,20 @@ export const DELETE = withRouteHandler(
       })
 
       if (!result.success) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
-        return NextResponse.json({ error: result.error }, { status })
+        const status = result.apps?.length
+          ? 409
+          : result.errorCode === 'not_found'
+            ? 404
+            : result.errorCode === 'validation'
+              ? 400
+              : 500
+        return NextResponse.json(
+          {
+            error: result.error,
+            ...(result.apps ? { apps: result.apps, code: 'PINNED_APP_RELEASES_EXIST' } : {}),
+          },
+          { status }
+        )
       }
 
       captureServerEvent(

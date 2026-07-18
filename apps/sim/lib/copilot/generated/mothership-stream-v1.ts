@@ -13,6 +13,7 @@ export type MothershipStreamV1EventEnvelope =
   | MothershipStreamV1ToolCallEventEnvelope
   | MothershipStreamV1ToolArgsDeltaEventEnvelope
   | MothershipStreamV1ToolResultEventEnvelope
+  | MothershipStreamV1AppEventEnvelope
   | MothershipStreamV1SubagentSpanStartEventEnvelope
   | MothershipStreamV1SubagentSpanEndEventEnvelope
   | MothershipStreamV1StructuredResultSpanEventEnvelope
@@ -36,6 +37,25 @@ export type MothershipStreamV1ToolStatus =
   | 'cancelled'
   | 'skipped'
   | 'rejected'
+export type MothershipStreamV1AppEventName =
+  | 'app.revision.created'
+  | 'app.build.started'
+  | 'app.build.finished'
+  | 'app.release.prepared'
+  | 'app.release.published'
+  | 'app.release.revoked'
+  | 'app.binding.drift'
+  | 'app.preview.ready'
+export type MothershipStreamV1EventType =
+  | 'session'
+  | 'text'
+  | 'tool'
+  | 'app'
+  | 'span'
+  | 'resource'
+  | 'run'
+  | 'error'
+  | 'complete'
 export type MothershipStreamV1CompletionStatus = 'complete' | 'error' | 'cancelled'
 
 export interface MothershipStreamV1SessionStartEventEnvelope {
@@ -199,6 +219,20 @@ export interface MothershipStreamV1ToolResultPayload {
   success: boolean
   toolCallId: string
   toolName: string
+}
+export interface MothershipStreamV1AppEventEnvelope {
+  payload: MothershipStreamV1AppPayload
+  scope?: MothershipStreamV1StreamScope
+  seq: number
+  stream: MothershipStreamV1StreamRef
+  trace?: MothershipStreamV1Trace
+  ts: string
+  type: MothershipStreamV1EventType
+  v: 1
+}
+export interface MothershipStreamV1AppPayload {
+  event: MothershipStreamV1AppEventName
+  payload?: MothershipStreamV1AdditionalPropertiesMap
 }
 export interface MothershipStreamV1SubagentSpanStartEventEnvelope {
   payload: MothershipStreamV1SubagentSpanStartPayload
@@ -411,6 +445,17 @@ export interface MothershipStreamV1UsageData {
   total_tokens?: number
 }
 
+export const MothershipStreamV1AppEventName = {
+  'app.revision.created': 'app.revision.created',
+  'app.build.started': 'app.build.started',
+  'app.build.finished': 'app.build.finished',
+  'app.release.prepared': 'app.release.prepared',
+  'app.release.published': 'app.release.published',
+  'app.release.revoked': 'app.release.revoked',
+  'app.binding.drift': 'app.binding.drift',
+  'app.preview.ready': 'app.preview.ready',
+} as const
+
 export type MothershipStreamV1AsyncToolRecordStatus =
   | 'pending'
   | 'running'
@@ -434,20 +479,11 @@ export const MothershipStreamV1CompletionStatus = {
   cancelled: 'cancelled',
 } as const
 
-export type MothershipStreamV1EventType =
-  | 'session'
-  | 'text'
-  | 'tool'
-  | 'span'
-  | 'resource'
-  | 'run'
-  | 'error'
-  | 'complete'
-
 export const MothershipStreamV1EventType = {
   session: 'session',
   text: 'text',
   tool: 'tool',
+  app: 'app',
   span: 'span',
   resource: 'resource',
   run: 'run',

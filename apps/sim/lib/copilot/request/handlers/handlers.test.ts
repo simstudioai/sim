@@ -1029,6 +1029,37 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
+  it('dispatches allowlisted App tools in Full-stack mode before Go catalog generation', async () => {
+    isSimExecuted.mockReturnValueOnce(false)
+    execContext.requestMode = 'fullstack'
+    executeTool.mockResolvedValueOnce({ success: true, output: { buildId: 'build-1' } })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-app-build',
+          toolName: 'app_build',
+          arguments: { projectId: 'app-1' },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sleep(0)
+
+    expect(executeTool).toHaveBeenCalledWith(
+      'app_build',
+      { projectId: 'app-1' },
+      expect.objectContaining({ requestMode: 'fullstack' })
+    )
+  })
+
   it('rebinds a gateway call to the resolved integration operation and branded activity', async () => {
     isSimExecuted.mockReturnValue(false)
     executeTool.mockResolvedValueOnce({ success: true, output: { emails: [] } })

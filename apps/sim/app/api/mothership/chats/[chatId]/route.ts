@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   deleteMothershipChatContract,
@@ -10,6 +10,7 @@ import {
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { getLinkedAppProjectForChat } from '@/lib/apps/projects'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
 import {
@@ -46,7 +47,8 @@ export const GET = withRouteHandler(
       const { chatId } = paramsResult.data.params
 
       const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
-      if (!chat || chat.type !== 'mothership') {
+      // Chat type is immutable; mothership + fullstack share this reopen path.
+      if (!chat || (chat.type !== 'mothership' && chat.type !== 'fullstack')) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
@@ -113,17 +115,23 @@ export const GET = withRouteHandler(
         activeStreamId: liveStreamId,
         ...(streamSnapshot ? { streamSnapshot } : {}),
       })
+      const linkedAppProject =
+        chat.type === 'fullstack' && chat.workspaceId
+          ? await getLinkedAppProjectForChat(chat.id, chat.workspaceId)
+          : null
 
       return NextResponse.json({
         success: true,
         chat: {
           id: chat.id,
+          type: chat.type,
           title: chat.title,
           messages: effectiveMessages,
           activeStreamId: liveStreamId,
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
+          linkedAppProject,
           ...(streamSnapshot ? { streamSnapshot } : {}),
         },
       })
@@ -171,7 +179,7 @@ export const PATCH = withRouteHandler(
           and(
             eq(copilotChats.id, chatId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            inArray(copilotChats.type, ['mothership', 'fullstack'])
           )
         )
         .returning({
@@ -242,7 +250,7 @@ export const DELETE = withRouteHandler(
       const { chatId } = parsed.data.params
 
       const chat = await getAccessibleCopilotChatAuth(chatId, userId)
-      if (!chat || chat.type !== 'mothership') {
+      if (!chat || (chat.type !== 'mothership' && chat.type !== 'fullstack')) {
         return NextResponse.json({ success: true })
       }
 
@@ -252,7 +260,7 @@ export const DELETE = withRouteHandler(
           and(
             eq(copilotChats.id, chatId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
+            inArray(copilotChats.type, ['mothership', 'fullstack'])
           )
         )
         .returning({

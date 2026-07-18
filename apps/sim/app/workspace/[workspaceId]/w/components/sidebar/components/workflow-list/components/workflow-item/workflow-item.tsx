@@ -109,13 +109,17 @@ export const WorkflowItem = memo(function WorkflowItem({
     setIsDeleteModalOpen(true)
   }, [])
 
-  const { isDeleting: isDeletingWorkflows, handleDeleteWorkflow: handleDeleteWorkflows } =
-    useDeleteWorkflow({
-      workspaceId,
-      workflowIds: capturedSelectionRef.current?.workflowIds || [],
-      isActive: (workflowIds) => workflowIds.includes(activeWorkflowIdRef.current ?? ''),
-      onSuccess: () => setIsDeleteModalOpen(false),
-    })
+  const {
+    isDeleting: isDeletingWorkflows,
+    handleDeleteWorkflow: handleDeleteWorkflows,
+    pinnedApps,
+    clearPinnedApps,
+  } = useDeleteWorkflow({
+    workspaceId,
+    workflowIds: capturedSelectionRef.current?.workflowIds || [],
+    isActive: (workflowIds) => workflowIds.includes(activeWorkflowIdRef.current ?? ''),
+    onSuccess: () => setIsDeleteModalOpen(false),
+  })
 
   const { isDeleting: isDeletingSelection, handleDeleteSelection } = useDeleteSelection({
     workspaceId,
@@ -508,11 +512,16 @@ export const WorkflowItem = memo(function WorkflowItem({
 
       <DeleteModal
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        onClose={() => {
+          clearPinnedApps()
+          setIsDeleteModalOpen(false)
+        }}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
         itemType={deleteItemType}
         itemName={deleteModalNames}
+        blockedApps={deleteItemType === 'workflow' ? pinnedApps : []}
+        workspaceId={workspaceId}
       />
     </>
   )

@@ -110,7 +110,13 @@ vi.mock('@/lib/copilot/request/tools/executor', () => ({
 
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { CopilotBackendError } from '@/lib/copilot/request/go/stream'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+import { resolveCopilotRequestMode, runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+
+describe('resolveCopilotRequestMode', () => {
+  it('keeps Full-stack mode across resume payloads whose generic mode is agent', () => {
+    expect(resolveCopilotRequestMode({ chatType: 'fullstack', mode: 'agent' })).toBe('fullstack')
+  })
+})
 
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {

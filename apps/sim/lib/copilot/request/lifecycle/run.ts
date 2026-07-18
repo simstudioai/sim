@@ -952,6 +952,13 @@ async function runCheckpointLoop(
 // Execution context builder
 // ---------------------------------------------------------------------------
 
+export function resolveCopilotRequestMode(
+  requestPayload: Record<string, unknown>
+): string | undefined {
+  if (requestPayload.chatType === 'fullstack') return 'fullstack'
+  return typeof requestPayload.mode === 'string' ? requestPayload.mode : undefined
+}
+
 async function buildExecutionContext(
   requestPayload: Record<string, unknown>,
   params: {
@@ -977,7 +984,7 @@ async function buildExecutionContext(
   } = params
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
-  const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
+  const requestMode = resolveCopilotRequestMode(requestPayload)
   const userPermission =
     typeof requestPayload?.userPermission === 'string' ? requestPayload.userPermission : undefined
 

@@ -1,0 +1,2 @@
+-- No-op schema checkpoint.
+-- Folded into 0264_fullstack_apps before this unshipped workstream is committed.

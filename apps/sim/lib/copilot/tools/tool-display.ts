@@ -170,6 +170,14 @@ const TOOL_TITLES: Record<string, string> = {
   // covers only the instant before the integration is known. The raw
   // humanized name ("Call Integration Tool") must never render.
   call_integration_tool: 'Calling integration',
+  // Full-stack App lifecycle tools
+  app_bind_action: 'Binding App action',
+  app_refresh_binding: 'Refreshing App binding',
+  app_detach_action: 'Detaching App action',
+  app_write_files: 'Writing App files',
+  app_build: 'Building App',
+  app_prepare_publish: 'Preparing App release',
+  app_list_callable_releases: 'Listing App releases',
   read: 'Reading file',
   search_library_docs: 'Searching library docs',
   user_table: 'Managing table',

@@ -170,7 +170,7 @@ export const Panel = memo(function Panel() {
   const { navigateToSettings } = useSettingsNavigation()
 
   // Delete workflow hook
-  const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
+  const { isDeleting, handleDeleteWorkflow, pinnedApps, clearPinnedApps } = useDeleteWorkflow({
     workspaceId,
     workflowIds: activeWorkflowId || '',
     isActive: true,
@@ -942,26 +942,56 @@ export const Panel = memo(function Panel() {
       {/* Delete Confirmation Modal */}
       <ChipConfirmModal
         open={isDeleteModalOpen}
-        onOpenChange={setIsDeleteModalOpen}
+        onOpenChange={(open) => {
+          if (!open) clearPinnedApps()
+          setIsDeleteModalOpen(open)
+        }}
         srTitle='Delete Workflow'
         title='Delete Workflow'
-        text={[
-          'Are you sure you want to delete ',
-          { text: currentWorkflow?.name ?? 'this workflow', bold: true },
-          '? ',
-          {
-            text: 'All associated blocks, executions, and configuration will be removed.',
-            error: true,
-          },
-          ' You can restore it from Recently Deleted in Settings.',
-        ]}
+        text={
+          pinnedApps.length > 0
+            ? [
+                {
+                  text: 'This workflow cannot be deleted while published Full-stack Apps retain its deployment version.',
+                  error: true,
+                },
+                ' Revoke or detach the listed App releases first.',
+              ]
+            : [
+                'Are you sure you want to delete ',
+                { text: currentWorkflow?.name ?? 'this workflow', bold: true },
+                '? ',
+                {
+                  text: 'All associated blocks, executions, and configuration will be removed.',
+                  error: true,
+                },
+                ' You can restore it from Recently Deleted in Settings.',
+              ]
+        }
         confirm={{
-          label: 'Delete',
+          label: pinnedApps.length > 0 ? 'Blocked by Apps' : 'Delete',
           onClick: handleDeleteWorkflow,
           pending: isDeleting,
           pendingLabel: 'Deleting...',
+          disabled: pinnedApps.length > 0,
         }}
-      />
+      >
+        {pinnedApps.length > 0 ? (
+          <div className='space-y-1 px-2 text-[var(--text-secondary)] text-xs'>
+            {pinnedApps.map((app) => (
+              <a
+                key={app.projectId}
+                href={`/workspace/${workspaceId}/apps/${app.projectId}`}
+                target='_blank'
+                rel='noreferrer'
+                className='block underline underline-offset-2'
+              >
+                Open {app.name || app.publicId}
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </ChipConfirmModal>
 
       {/* Floating Variables Modal */}
       <Variables readOnly={workflowLocked} />

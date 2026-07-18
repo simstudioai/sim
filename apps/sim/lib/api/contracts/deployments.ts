@@ -252,6 +252,12 @@ export const undeployWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/workflows/[id]/deploy',
   params: workflowIdParamsSchema,
+  query: z.object({
+    acknowledgePinnedApps: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((v) => v === 'true'),
+  }),
   response: {
     mode: 'json',
     schema: deploymentInfoResponseSchema,

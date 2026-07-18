@@ -94,6 +94,12 @@ export interface PerformDeleteWorkflowResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
+  apps?: Array<{
+    projectId: string
+    publicId: string
+    name: string
+    releaseIds: string[]
+  }>
 }
 
 export interface PerformRestoreWorkflowParams {
@@ -394,6 +400,20 @@ export async function performDeleteWorkflow(
 
   if (!workflowRecord) {
     return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
+  }
+
+  const { listAppsRetainingWorkflows, workflowHasAppDeploymentPins } = await import(
+    '@/lib/apps/pins'
+  )
+  if (await workflowHasAppDeploymentPins(workflowId)) {
+    const apps = await listAppsRetainingWorkflows([workflowId])
+    return {
+      success: false,
+      error:
+        'Cannot delete workflow while Full-stack App deployment pins exist. Detach actions and revoke callable releases first.',
+      errorCode: 'validation',
+      apps,
+    }
   }
 
   if (!skipLastWorkflowGuard && workflowRecord.workspaceId) {

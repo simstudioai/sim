@@ -17,13 +17,14 @@ describe('deployment query helpers', () => {
 
     await invalidateDeploymentQueries(queryClient as any, 'wf-1')
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(4)
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(5)
     expect(queryClient.invalidateQueries.mock.calls.map(([call]) => call)).toEqual(
       expect.arrayContaining([
         { queryKey: ['deployments', 'info', 'wf-1'] },
         { queryKey: ['deployments', 'deployedState', 'wf-1'] },
         { queryKey: ['deployments', 'versions', 'wf-1'] },
         { queryKey: ['deployments', 'chatStatus', 'wf-1'] },
+        { queryKey: ['interfaces', 'status', 'wf-1'] },
       ])
     )
   })

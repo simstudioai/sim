@@ -207,6 +207,7 @@ export type CopilotStopOutcomeValue = (typeof CopilotStopOutcome)[CopilotStopOut
 
 export const CopilotSurface = {
   Copilot: 'copilot',
+  Fullstack: 'fullstack',
   Mothership: 'mothership',
 } as const
 

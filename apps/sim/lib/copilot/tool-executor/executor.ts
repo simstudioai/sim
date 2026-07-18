@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { FULLSTACK_TOOL_NAMES } from '@/lib/apps/agent/fullstack-contract'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { executeTool as executeAppTool } from '@/tools'
 import { isClientExecuted, isKnownTool, isSimExecuted } from './router'
@@ -14,6 +15,7 @@ const logger = createLogger('ToolExecutor')
 const FUNCTION_EXECUTE_TOOL_ID = 'function_execute'
 const DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS = 10
 const MILLISECONDS_PER_SECOND = 1000
+const FULLSTACK_TOOLS = new Set<string>(FULLSTACK_TOOL_NAMES)
 
 const handlerRegistry = new Map<string, ToolHandler>()
 
@@ -44,6 +46,14 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (context.requestMode === 'fullstack' && !FULLSTACK_TOOLS.has(toolId)) {
+    logger.warn('Rejected non-App tool in Full-stack chat', { toolId })
+    return {
+      success: false,
+      error: `Tool ${toolId} is not allowed in Full-stack chats.`,
+    }
+  }
+
   const normalizedParams = normalizeToolParams(toolId, params, context)
 
   // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never
@@ -51,8 +61,9 @@ export async function executeTool(
   // is no client to delegate to, so fall back to the registered server-side handler when one
   // exists — otherwise the call would route to executeAppTool and throw "Tool not found".
   const canUseRegisteredHandler =
-    isKnownTool(toolId) &&
-    (isSimExecuted(toolId) || (isClientExecuted(toolId) && hasHandler(toolId)))
+    hasHandler(toolId) &&
+    ((isKnownTool(toolId) && (isSimExecuted(toolId) || isClientExecuted(toolId))) ||
+      (context.requestMode === 'fullstack' && FULLSTACK_TOOLS.has(toolId)))
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(normalizedParams, context)
     return executeAppTool(toolId, appParams)

@@ -4,10 +4,7 @@ import {
   type InterfaceSpec,
   interfaceSpecSchema,
 } from '@/lib/interfaces/spec/schema'
-import {
-  type FlattenOutputsBlockInput,
-  flattenWorkflowOutputs,
-} from '@/lib/workflows/blocks/flatten-outputs'
+import { flattenWorkflowOutputs } from '@/lib/workflows/blocks/flatten-outputs'
 
 export interface OutputConfig {
   blockId: string
@@ -43,7 +40,16 @@ export function validateInterfaceSpec(
   fields: ApiStartField[],
   options?: {
     outputConfigs?: OutputConfig[]
-    blocks?: Record<string, FlattenOutputsBlockInput & { id?: string }>
+    blocks?: Record<
+      string,
+      {
+        id?: string
+        type: string
+        name?: string
+        triggerMode?: boolean
+        subBlocks?: Record<string, unknown>
+      }
+    >
     edges?: Array<{ source: string; target: string }>
   }
 ): ValidateInterfaceSpecResult {

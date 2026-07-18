@@ -23,6 +23,186 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  app_bind_action: {
+    parameters: {
+      type: 'object',
+      properties: {
+        actionId: {
+          type: 'string',
+          description: 'Action id within the App. Defaults to "main".',
+          default: 'main',
+        },
+        deploymentVersionId: {
+          type: 'string',
+          description: 'Deployed version ID to pin.',
+        },
+        outputAllowlist: {
+          type: 'array',
+          description: 'Optional output mappings: [{ key, blockId, path }].',
+          items: {
+            type: 'object',
+            properties: {
+              blockId: {
+                type: 'string',
+                description: 'Source block ID inside the workflow.',
+              },
+              key: {
+                type: 'string',
+                description: 'Stable output key exposed to the App.',
+              },
+              path: {
+                type: 'string',
+                description: 'Dot-path within the block output.',
+              },
+            },
+            required: ['key', 'blockId', 'path'],
+          },
+        },
+        projectId: {
+          type: 'string',
+          description: 'App project ID.',
+        },
+        workflowId: {
+          type: 'string',
+          description: 'Workflow ID to bind.',
+        },
+      },
+      required: ['projectId', 'workflowId', 'deploymentVersionId'],
+    },
+    resultSchema: undefined,
+  },
+  app_build: {
+    parameters: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'App project ID.',
+        },
+        revisionId: {
+          type: 'string',
+          description: 'Optional revision; defaults to the current draft.',
+        },
+      },
+      required: ['projectId'],
+    },
+    resultSchema: undefined,
+  },
+  app_detach_action: {
+    parameters: {
+      type: 'object',
+      properties: {
+        actionId: {
+          type: 'string',
+          description: 'Action id to detach.',
+        },
+        projectId: {
+          type: 'string',
+          description: 'App project ID.',
+        },
+      },
+      required: ['projectId', 'actionId'],
+    },
+    resultSchema: undefined,
+  },
+  app_list_callable_releases: {
+    parameters: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'App project ID.',
+        },
+      },
+      required: ['projectId'],
+    },
+    resultSchema: undefined,
+  },
+  app_prepare_publish: {
+    parameters: {
+      type: 'object',
+      properties: {
+        buildId: {
+          type: 'string',
+          description: 'Optional succeeded build id; defaults to latest for the revision.',
+        },
+        projectId: {
+          type: 'string',
+          description: 'App project ID.',
+        },
+        publish: {
+          type: 'boolean',
+          description:
+            'When true, also publishes the prepared release to the live pointer. Requires explicit user confirmation.',
+          default: false,
+        },
+        revisionId: {
+          type: 'string',
+          description: 'Optional revision; defaults to the current draft.',
+        },
+      },
+      required: ['projectId'],
+    },
+    resultSchema: undefined,
+  },
+  app_refresh_binding: {
+    parameters: {
+      type: 'object',
+      properties: {
+        actionId: {
+          type: 'string',
+          description: 'Optional action id; omit to refresh every bound action.',
+        },
+        projectId: {
+          type: 'string',
+          description: 'App project ID.',
+        },
+      },
+      required: ['projectId'],
+    },
+    resultSchema: undefined,
+  },
+  app_write_files: {
+    parameters: {
+      type: 'object',
+      properties: {
+        expectedRevisionId: {
+          type: 'string',
+          description: 'Optional optimistic concurrency check against the current draft revision.',
+        },
+        files: {
+          type: 'array',
+          description: 'Files to write: [{ path, content }]. Paths must be under src/ or public/.',
+          items: {
+            type: 'object',
+            properties: {
+              content: {
+                type: 'string',
+                description: 'Full file contents.',
+              },
+              path: {
+                type: 'string',
+                description: 'File path under src/ or public/.',
+              },
+            },
+            required: ['path', 'content'],
+          },
+        },
+        mode: {
+          type: 'string',
+          description: 'merge keeps existing files; replace overwrites the revision file set.',
+          enum: ['merge', 'replace'],
+          default: 'merge',
+        },
+        projectId: {
+          type: 'string',
+          description: 'App project ID.',
+        },
+      },
+      required: ['projectId', 'files'],
+    },
+    resultSchema: undefined,
+  },
   auth: {
     parameters: {
       properties: {
@@ -221,13 +401,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        description: {
+        folderPath: {
           type: 'string',
-          description: 'Optional workflow description.',
-        },
-        folderId: {
-          type: 'string',
-          description: 'Optional folder ID.',
+          description:
+            'Optional canonical workflow-folder VFS path copied from glob("workflows/**"), for example "workflows/Dream" or "workflows/Client%20Work/Intake". Omit for the workspace root.',
         },
         name: {
           type: 'string',
@@ -648,7 +825,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         iconUrl: {
           type: 'string',
           description:
-            'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an external image URL. Omit to use the organization\'s default icon',
+            'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an https image URL. Omit to use the organization\'s default icon',
         },
         inputs: {
           type: 'array',

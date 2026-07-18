@@ -201,8 +201,9 @@ async function buildCleanupRunner(jobType: CleanupJobType): Promise<EnqueueOptio
 }
 
 /** Job type → plan whose housekeeping is global, not per-workspace. */
-const GLOBAL_HOUSEKEEPING_PLAN: Partial<Record<CleanupJobType, PlanCategory>> = {
+export const GLOBAL_HOUSEKEEPING_PLAN: Partial<Record<CleanupJobType, PlanCategory>> = {
   'cleanup-logs': 'free',
+  'cleanup-soft-deletes': 'free',
 }
 
 async function forEachCleanupChunk(

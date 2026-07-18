@@ -36,7 +36,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workflowId, workspaceId } = parsed.data.body
+    const { workflowId, workspaceId, acknowledgePinnedApps } = parsed.data.body
 
     const access = await authorizeDeploymentWorkflow(auth.userId, workflowId, workspaceId, 'admin')
     if (!access.ok) return access.response
@@ -55,9 +55,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowId,
       userId: auth.userId,
       requestId,
+      acknowledgePinnedApps,
     })
 
     if (!result.success) {
+      if (result.code === 'PINNED_APP_RELEASES_EXIST') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: result.error,
+            code: result.code,
+            apps: result.apps,
+          },
+          { status: 409 }
+        )
+      }
       return deploymentToolError(result.error || 'Failed to undeploy workflow', 500)
     }
 

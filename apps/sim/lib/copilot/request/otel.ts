@@ -400,6 +400,8 @@ function truncateUserMessagePreview(raw: unknown): string | undefined {
 // on the root span for dashboard filtering.
 interface CopilotOtelRequestShape {
   branchKind?: 'workflow' | 'workspace'
+  /** Immutable chat type when known (e.g. fullstack). Overrides surface mapping. */
+  chatType?: string
   mode?: string
   model?: string
   provider?: string
@@ -506,6 +508,10 @@ const INTERRUPT_WAIT_MS_THRESHOLD = 50
 function applyRequestShape(span: Span, shape: CopilotOtelRequestShape): void {
   if (shape.branchKind) {
     span.setAttribute(TraceAttr.CopilotBranchKind, shape.branchKind)
+  }
+  if (shape.chatType === 'fullstack') {
+    span.setAttribute(TraceAttr.CopilotSurface, CopilotSurface.Fullstack)
+  } else if (shape.branchKind) {
     span.setAttribute(
       TraceAttr.CopilotSurface,
       shape.branchKind === CopilotBranchKind.Workflow

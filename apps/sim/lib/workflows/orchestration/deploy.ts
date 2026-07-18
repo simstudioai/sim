@@ -437,11 +437,23 @@ export interface PerformFullUndeployParams {
   requestId?: string
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
+  /**
+   * Required when callable app release pins exist on this workflow.
+   * Ack continues undeploy while preserving pins (Apps keep running).
+   */
+  acknowledgePinnedApps?: boolean
 }
 
 export interface PerformFullUndeployResult {
   success: boolean
   error?: string
+  code?: string
+  apps?: Array<{
+    projectId: string
+    publicId: string
+    name: string
+    releaseIds: string[]
+  }>
   warnings?: string[]
 }
 
@@ -466,6 +478,18 @@ export async function performFullUndeploy(
 
   if (!workflowRecord) {
     return { success: false, error: 'Workflow not found' }
+  }
+
+  const { listAppsPinnedToWorkflows } = await import('@/lib/apps/pins')
+  const pinnedApps = await listAppsPinnedToWorkflows([workflowId])
+  if (pinnedApps.length > 0 && !params.acknowledgePinnedApps) {
+    return {
+      success: false,
+      error:
+        'This workflow has callable Full-stack App releases pinned to a deployment version. Undeploy will not stop those apps. Acknowledge to continue.',
+      code: 'PINNED_APP_RELEASES_EXIST',
+      apps: pinnedApps,
+    }
   }
 
   const workflowData = workflowRecord as Record<string, unknown>

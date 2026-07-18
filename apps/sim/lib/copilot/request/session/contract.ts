@@ -292,6 +292,10 @@ function isValidCompletePayload(payload: JsonRecord): boolean {
   return typeof payload.status === 'string'
 }
 
+function isValidAppPayload(payload: JsonRecord): boolean {
+  return typeof payload.event === 'string' && payload.event.startsWith('app.')
+}
+
 function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnvelope {
   if (!isValidEnvelopeShell(value)) return false
   const payload = value.payload as JsonRecord
@@ -302,6 +306,8 @@ function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnv
       return isValidTextPayload(payload)
     case MothershipStreamV1EventType.tool:
       return isValidToolPayload(payload)
+    case MothershipStreamV1EventType.app:
+      return isValidAppPayload(payload)
     case MothershipStreamV1EventType.span:
       return isValidSpanPayload(payload)
     case MothershipStreamV1EventType.resource:

@@ -2,7 +2,11 @@ import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcri
 import { MothershipStreamV1SessionKind } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
-import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import {
+  type MothershipChatHistory,
+  type MothershipChatMetadata,
+  mothershipChatKeys,
+} from '@/hooks/queries/mothership-chats'
 
 type SessionEvent = Extract<PersistedStreamEventEnvelope, { type: 'session' }>
 
@@ -40,15 +44,20 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
           contentBlocks: deps.streamingBlocksRef.current,
         })
         const seededMessages = [userMsg, assistantMessage]
+        const listMetadata = deps.queryClient
+          .getQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(deps.workspaceId))
+          ?.find((chat) => chat.id === payloadChatId)
         deps.queryClient.setQueryData<MothershipChatHistory>(
           mothershipChatKeys.detail(payloadChatId),
-          {
+          (current) => ({
             id: payloadChatId,
-            title: null,
+            type: current?.type ?? listMetadata?.type ?? 'mothership',
+            title: current?.title ?? null,
             messages: seededMessages,
             activeStreamId,
             resources: deps.resourcesRef.current,
-          }
+            linkedAppProject: current?.linkedAppProject ?? null,
+          })
         )
       }
       deps.setPendingMessages([])

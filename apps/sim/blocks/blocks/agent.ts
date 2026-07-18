@@ -21,8 +21,6 @@ import {
   getVerbosityValuesForModel,
   supportsTemperature,
 } from '@/providers/models'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
@@ -31,6 +29,23 @@ const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
 const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
+
+/**
+ * Load workflow stores only when a dynamic option list is opened. Importing
+ * them while the static block registry initializes creates a registry → Agent
+ * block → workflow store → registry cycle.
+ */
+async function getActiveAgentModel(blockId: string): Promise<string | undefined> {
+  const [{ useWorkflowRegistry }, { useSubBlockStore }] = await Promise.all([
+    import('@/stores/workflows/registry/store'),
+    import('@/stores/workflows/subblock/store'),
+  ])
+  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+  if (!activeWorkflowId) return undefined
+  return useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]?.model as
+    | string
+    | undefined
+}
 
 interface AgentResponse extends ToolResponse {
   output: {
@@ -167,20 +182,7 @@ Return ONLY the JSON array.`,
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
         const autoOption = { label: 'auto', id: 'auto' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
+        const modelValue = await getActiveAgentModel(blockId)
 
         if (!modelValue) {
           return [
@@ -223,20 +225,7 @@ Return ONLY the JSON array.`,
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
         const autoOption = { label: 'auto', id: 'auto' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [
-            autoOption,
-            { label: 'low', id: 'low' },
-            { label: 'medium', id: 'medium' },
-            { label: 'high', id: 'high' },
-          ]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
+        const modelValue = await getActiveAgentModel(blockId)
 
         if (!modelValue) {
           return [
@@ -281,15 +270,7 @@ Return ONLY the JSON array.`,
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
         const noneOption = { label: 'none', id: 'none' }
-
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (!activeWorkflowId) {
-          return [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]
-        }
-
-        const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-        const blockValues = workflowValues?.[blockId]
-        const modelValue = blockValues?.model as string
+        const modelValue = await getActiveAgentModel(blockId)
 
         if (!modelValue) {
           return [noneOption, { label: 'low', id: 'low' }, { label: 'high', id: 'high' }]

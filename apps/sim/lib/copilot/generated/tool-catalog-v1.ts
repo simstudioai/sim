@@ -8,6 +8,13 @@ export interface ToolCatalogEntry {
   hidden?: boolean
   id:
     | 'agent'
+    | 'app_bind_action'
+    | 'app_build'
+    | 'app_detach_action'
+    | 'app_list_callable_releases'
+    | 'app_prepare_publish'
+    | 'app_refresh_binding'
+    | 'app_write_files'
     | 'auth'
     | 'call_integration_tool'
     | 'check_deployment_status'
@@ -105,6 +112,13 @@ export interface ToolCatalogEntry {
   mode: 'async' | 'sync'
   name:
     | 'agent'
+    | 'app_bind_action'
+    | 'app_build'
+    | 'app_detach_action'
+    | 'app_list_callable_releases'
+    | 'app_prepare_publish'
+    | 'app_refresh_binding'
+    | 'app_write_files'
     | 'auth'
     | 'call_integration_tool'
     | 'check_deployment_status'
@@ -199,7 +213,7 @@ export interface ToolCatalogEntry {
     | 'workflow'
     | 'workspace_file'
   parameters: unknown
-  requiredPermission?: 'admin' | 'write'
+  requiredPermission?: 'admin' | 'read' | 'write'
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
   subagentId?:
@@ -230,6 +244,174 @@ export const Agent: ToolCatalogEntry = {
   },
   subagentId: 'agent',
   internal: true,
+  requiredPermission: 'write',
+}
+
+export const AppBindAction: ToolCatalogEntry = {
+  id: 'app_bind_action',
+  name: 'app_bind_action',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      actionId: {
+        type: 'string',
+        description: 'Action id within the App. Defaults to "main".',
+        default: 'main',
+      },
+      deploymentVersionId: { type: 'string', description: 'Deployed version ID to pin.' },
+      outputAllowlist: {
+        type: 'array',
+        description: 'Optional output mappings: [{ key, blockId, path }].',
+        items: {
+          type: 'object',
+          properties: {
+            blockId: { type: 'string', description: 'Source block ID inside the workflow.' },
+            key: { type: 'string', description: 'Stable output key exposed to the App.' },
+            path: { type: 'string', description: 'Dot-path within the block output.' },
+          },
+          required: ['key', 'blockId', 'path'],
+        },
+      },
+      projectId: { type: 'string', description: 'App project ID.' },
+      workflowId: { type: 'string', description: 'Workflow ID to bind.' },
+    },
+    required: ['projectId', 'workflowId', 'deploymentVersionId'],
+  },
+  requiredPermission: 'write',
+}
+
+export const AppBuild: ToolCatalogEntry = {
+  id: 'app_build',
+  name: 'app_build',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'App project ID.' },
+      revisionId: {
+        type: 'string',
+        description: 'Optional revision; defaults to the current draft.',
+      },
+    },
+    required: ['projectId'],
+  },
+  requiredPermission: 'write',
+}
+
+export const AppDetachAction: ToolCatalogEntry = {
+  id: 'app_detach_action',
+  name: 'app_detach_action',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      actionId: { type: 'string', description: 'Action id to detach.' },
+      projectId: { type: 'string', description: 'App project ID.' },
+    },
+    required: ['projectId', 'actionId'],
+  },
+  requiredPermission: 'write',
+}
+
+export const AppListCallableReleases: ToolCatalogEntry = {
+  id: 'app_list_callable_releases',
+  name: 'app_list_callable_releases',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: { projectId: { type: 'string', description: 'App project ID.' } },
+    required: ['projectId'],
+  },
+  requiredPermission: 'read',
+}
+
+export const AppPreparePublish: ToolCatalogEntry = {
+  id: 'app_prepare_publish',
+  name: 'app_prepare_publish',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      buildId: {
+        type: 'string',
+        description: 'Optional succeeded build id; defaults to latest for the revision.',
+      },
+      projectId: { type: 'string', description: 'App project ID.' },
+      publish: {
+        type: 'boolean',
+        description:
+          'When true, also publishes the prepared release to the live pointer. Requires explicit user confirmation.',
+        default: false,
+      },
+      revisionId: {
+        type: 'string',
+        description: 'Optional revision; defaults to the current draft.',
+      },
+    },
+    required: ['projectId'],
+  },
+  requiredPermission: 'admin',
+}
+
+export const AppRefreshBinding: ToolCatalogEntry = {
+  id: 'app_refresh_binding',
+  name: 'app_refresh_binding',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      actionId: {
+        type: 'string',
+        description: 'Optional action id; omit to refresh every bound action.',
+      },
+      projectId: { type: 'string', description: 'App project ID.' },
+    },
+    required: ['projectId'],
+  },
+  requiredPermission: 'write',
+}
+
+export const AppWriteFiles: ToolCatalogEntry = {
+  id: 'app_write_files',
+  name: 'app_write_files',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      expectedRevisionId: {
+        type: 'string',
+        description: 'Optional optimistic concurrency check against the current draft revision.',
+      },
+      files: {
+        type: 'array',
+        description: 'Files to write: [{ path, content }]. Paths must be under src/ or public/.',
+        items: {
+          type: 'object',
+          properties: {
+            content: { type: 'string', description: 'Full file contents.' },
+            path: { type: 'string', description: 'File path under src/ or public/.' },
+          },
+          required: ['path', 'content'],
+        },
+      },
+      mode: {
+        type: 'string',
+        description: 'merge keeps existing files; replace overwrites the revision file set.',
+        enum: ['merge', 'replace'],
+        default: 'merge',
+      },
+      projectId: { type: 'string', description: 'App project ID.' },
+    },
+    required: ['projectId', 'files'],
+  },
   requiredPermission: 'write',
 }
 
@@ -439,8 +621,11 @@ export const CreateWorkflow: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      description: { type: 'string', description: 'Optional workflow description.' },
-      folderId: { type: 'string', description: 'Optional folder ID.' },
+      folderPath: {
+        type: 'string',
+        description:
+          'Optional canonical workflow-folder VFS path copied from glob("workflows/**"), for example "workflows/Dream" or "workflows/Client%20Work/Intake". Omit for the workspace root.',
+      },
       name: { type: 'string', description: 'Workflow name.' },
       workspaceId: { type: 'string', description: 'Optional workspace ID.' },
     },
@@ -844,7 +1029,7 @@ export const DeployCustomBlock: ToolCatalogEntry = {
       iconUrl: {
         type: 'string',
         description:
-          'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an external image URL. Omit to use the organization\'s default icon',
+          'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an https image URL. Omit to use the organization\'s default icon',
       },
       inputs: {
         type: 'array',
@@ -4790,6 +4975,13 @@ export const WorkspaceFileOperationValues = [
 
 export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Agent.id]: Agent,
+  [AppBindAction.id]: AppBindAction,
+  [AppBuild.id]: AppBuild,
+  [AppDetachAction.id]: AppDetachAction,
+  [AppListCallableReleases.id]: AppListCallableReleases,
+  [AppPreparePublish.id]: AppPreparePublish,
+  [AppRefreshBinding.id]: AppRefreshBinding,
+  [AppWriteFiles.id]: AppWriteFiles,
   [Auth.id]: Auth,
   [CallIntegrationTool.id]: CallIntegrationTool,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,

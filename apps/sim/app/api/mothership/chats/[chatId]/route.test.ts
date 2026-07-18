@@ -36,6 +36,14 @@ vi.mock('@sim/db', () => ({
 }))
 
 vi.mock('@sim/db/schema', () => ({
+  appProject: {
+    id: 'appProject.id',
+    workspaceId: 'appProject.workspaceId',
+    archivedAt: 'appProject.archivedAt',
+    lastBuilderChatId: 'appProject.lastBuilderChatId',
+    createdFromChatId: 'appProject.createdFromChatId',
+    updatedAt: 'appProject.updatedAt',
+  },
   copilotChats: {
     id: 'copilotChats.id',
     userId: 'copilotChats.userId',
@@ -48,7 +56,11 @@ vi.mock('@sim/db/schema', () => ({
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
+  desc: vi.fn((field: unknown) => ({ type: 'desc', field })),
   eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
+  inArray: vi.fn((field: unknown, values: unknown[]) => ({ type: 'inArray', field, values })),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
+  or: vi.fn((...conditions: unknown[]) => ({ type: 'or', conditions })),
   sql: Object.assign(
     vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
       type: 'sql',

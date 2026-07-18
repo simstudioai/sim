@@ -16,8 +16,9 @@ function getPathValue(root: unknown, path: string): unknown {
 
 /**
  * Strip LargeValueRef pointers (including nested) from selected values.
+ * Shared by Interface and Full-stack Apps public execute surfaces.
  */
-function sanitizePublicValue(value: unknown, seen = new WeakSet<object>()): unknown {
+export function sanitizePublicValue(value: unknown, seen = new WeakSet<object>()): unknown {
   if (isLargeValueRef(value)) {
     if (typeof value.preview === 'string') return value.preview
     if (value.preview !== undefined && value.preview !== null) {

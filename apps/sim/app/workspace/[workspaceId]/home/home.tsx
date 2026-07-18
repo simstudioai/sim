@@ -11,9 +11,10 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button } from '@sim/emcn'
+import { Button, toast } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
@@ -38,8 +39,11 @@ import {
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
+import { appKeys } from '@/hooks/queries/apps'
 import { useFolders } from '@/hooks/queries/folders'
 import {
+  mothershipChatKeys,
+  useCreateMothershipChat,
   useMarkMothershipChatRead,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
@@ -82,6 +86,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
+  const queryClient = useQueryClient()
   /**
    * URL is the single source of truth for the selected resource. `Home` renders
    * client-side, so nuqs reads `?resource=` from the URL on mount — the same
@@ -192,8 +197,16 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   const wasSendingRef = useRef(false)
 
-  const { isPending: isChatHistoryPending } = useMothershipChatHistory(chatId)
+  const { data: chatHistory, isPending: isChatHistoryPending } = useMothershipChatHistory(chatId)
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
+  const createFullstackChat = useCreateMothershipChat(workspaceId, 'fullstack')
+  const [homeMode, setHomeMode] = useState<'backend' | 'fullstack'>('backend')
+  const isFullstackChat = chatHistory?.type === 'fullstack'
+
+  useEffect(() => {
+    if (!chatId || !chatHistory) return
+    setHomeMode(chatHistory.type === 'fullstack' ? 'fullstack' : 'backend')
+  }, [chatHistory, chatId])
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
 
@@ -241,6 +254,15 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     chatId,
     getMothershipUseChatOptions({
       onResourceEvent: handleResourceEvent,
+      onToolResult: (toolName, success) => {
+        if (!success || !toolName.startsWith('app_')) return
+        void queryClient.invalidateQueries({ queryKey: appKeys.all })
+        if (chatId) {
+          void queryClient.invalidateQueries({
+            queryKey: mothershipChatKeys.detail(chatId),
+          })
+        }
+      },
       activeResourceState,
       onRequestStarted: ({ requestId, userMessageId }) => {
         captureEvent(posthogRef.current, 'task_request_started', {
@@ -292,6 +314,15 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     })
     void stopGeneration().catch(() => {})
   }, [workspaceId, getCurrentRequestId, stopGeneration])
+
+  const handleStartFullstackChat = useCallback(async () => {
+    try {
+      const { id } = await createFullstackChat.mutateAsync()
+      router.push(`/workspace/${workspaceId}/chat/${id}`)
+    } catch {
+      toast.error('Failed to start Full-stack chat')
+    }
+  }, [createFullstackChat, router, workspaceId])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -445,36 +476,138 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   if (!hasMessages && !showChatSkeleton) {
     return (
       <div className='relative h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
-        <div className='absolute top-[8.5px] right-[16px] z-10'>
+        <div className='absolute top-[8.5px] right-[16px] z-10 flex items-center gap-3'>
+          <div
+            role='group'
+            aria-label='Mothership mode'
+            className='flex rounded-md border border-[var(--border)] p-0.5 text-xs'
+          >
+            <button
+              type='button'
+              aria-pressed={homeMode === 'backend'}
+              className={`rounded px-2 py-1 ${homeMode === 'backend' ? 'bg-[var(--surface-2)]' : 'opacity-60'}`}
+              onClick={() => setHomeMode('backend')}
+            >
+              Backend
+            </button>
+            <button
+              type='button'
+              aria-pressed={homeMode === 'fullstack'}
+              className={`rounded px-2 py-1 ${homeMode === 'fullstack' ? 'bg-[var(--surface-2)]' : 'opacity-60'}`}
+              onClick={() => setHomeMode('fullstack')}
+            >
+              Full-stack
+            </button>
+          </div>
           <CreditsChip />
         </div>
         {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
         <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-          <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
-            What should we get done{firstName ? `, ${firstName}` : ''}?
-          </h1>
-          <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
-            <ChatSurfaceProvider
-              userId={userId}
-              onContextAdd={handleContextAdd}
-              onContextRemove={handleInitialContextRemove}
-            >
-              <UserInput
-                ref={initialViewUserInputRef}
-                defaultValue={initialPrompt}
-                draftScopeKey={draftScopeKey}
-                onSubmit={handleSubmit}
-                isSending={isSending}
-                onStopGeneration={handleStopGeneration}
-              />
-            </ChatSurfaceProvider>
-            {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
-            <div className='absolute inset-x-0 top-full'>
-              <SuggestedActions
-                onSelectPrompt={(prompt) => initialViewUserInputRef.current?.populatePrompt(prompt)}
-              />
+          {homeMode === 'fullstack' ? (
+            <div className='mb-7 flex w-full max-w-[48rem] flex-col items-center gap-4 text-center'>
+              <h1 className='text-balance font-season text-[30px] text-[var(--text-primary)]'>
+                Full-stack apps
+              </h1>
+              <p className='text-[var(--text-secondary)] text-sm'>
+                Build, preview, and publish React apps backed by existing deployed workflows.
+              </p>
+              {chatId && isFullstackChat ? (
+                <>
+                  <div className='flex flex-wrap items-center justify-center gap-2'>
+                    {chatHistory.linkedAppProject ? (
+                      <Button
+                        type='button'
+                        variant='default'
+                        onClick={() =>
+                          router.push(
+                            `/workspace/${workspaceId}/apps/${chatHistory.linkedAppProject!.id}`
+                          )
+                        }
+                      >
+                        Open {chatHistory.linkedAppProject.name}
+                      </Button>
+                    ) : (
+                      <Button
+                        type='button'
+                        variant='default'
+                        onClick={() =>
+                          router.push(
+                            `/workspace/${workspaceId}/apps?chatId=${encodeURIComponent(chatId)}`
+                          )
+                        }
+                      >
+                        Create linked App
+                      </Button>
+                    )}
+                  </div>
+                  <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
+                    <ChatSurfaceProvider
+                      userId={userId}
+                      onContextAdd={handleContextAdd}
+                      onContextRemove={handleInitialContextRemove}
+                    >
+                      <UserInput
+                        ref={initialViewUserInputRef}
+                        defaultValue={initialPrompt}
+                        draftScopeKey={draftScopeKey}
+                        onSubmit={handleSubmit}
+                        isSending={isSending}
+                        onStopGeneration={handleStopGeneration}
+                      />
+                    </ChatSurfaceProvider>
+                  </div>
+                </>
+              ) : (
+                <div className='flex flex-wrap items-center justify-center gap-2'>
+                  <Button
+                    type='button'
+                    disabled={createFullstackChat.isPending}
+                    onClick={() => void handleStartFullstackChat()}
+                  >
+                    {createFullstackChat.isPending ? 'Starting…' : 'Start Full-stack chat'}
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='default'
+                    onClick={() => router.push(`/workspace/${workspaceId}/apps`)}
+                  >
+                    Open Apps
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
+          ) : null}
+          {homeMode === 'backend' ? (
+            <>
+              <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
+                What should we get done{firstName ? `, ${firstName}` : ''}?
+              </h1>
+              <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
+                <ChatSurfaceProvider
+                  userId={userId}
+                  onContextAdd={handleContextAdd}
+                  onContextRemove={handleInitialContextRemove}
+                >
+                  <UserInput
+                    ref={initialViewUserInputRef}
+                    defaultValue={initialPrompt}
+                    draftScopeKey={draftScopeKey}
+                    onSubmit={handleSubmit}
+                    isSending={isSending}
+                    onStopGeneration={handleStopGeneration}
+                  />
+                </ChatSurfaceProvider>
+                {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
+                <div className='absolute inset-x-0 top-full'>
+                  <SuggestedActions
+                    onSelectPrompt={(prompt) =>
+                      initialViewUserInputRef.current?.populatePrompt(prompt)
+                    }
+                  />
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     )
@@ -483,6 +616,39 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
       <div className='flex h-full min-w-[320px] flex-1 flex-col'>
+        {isFullstackChat && chatId ? (
+          <div className='flex items-center justify-between gap-3 border-[var(--border)] border-b px-4 py-2'>
+            <div className='min-w-0'>
+              <p className='font-medium text-[var(--text-primary)] text-sm'>Full-stack App</p>
+              <p className='text-[var(--text-tertiary)] text-xs'>
+                Workflow graphs are read-only from this chat.
+              </p>
+            </div>
+            {chatHistory.linkedAppProject ? (
+              <Button
+                type='button'
+                variant='default'
+                className='shrink-0'
+                onClick={() =>
+                  router.push(`/workspace/${workspaceId}/apps/${chatHistory.linkedAppProject!.id}`)
+                }
+              >
+                Open {chatHistory.linkedAppProject.name}
+              </Button>
+            ) : (
+              <Button
+                type='button'
+                variant='default'
+                className='shrink-0'
+                onClick={() =>
+                  router.push(`/workspace/${workspaceId}/apps?chatId=${encodeURIComponent(chatId)}`)
+                }
+              >
+                Create linked App
+              </Button>
+            )}
+          </div>
+        ) : null}
         <MothershipChat
           messages={messages}
           isSending={isSending}

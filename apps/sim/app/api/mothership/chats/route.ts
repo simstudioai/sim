@@ -7,6 +7,7 @@ import {
   listMothershipChatsContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { assertAppPermission } from '@/lib/apps/permissions'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
@@ -40,7 +41,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { workspaceId } = queryResult.data.query
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
-
     const data = await listMothershipChats(userId, workspaceId)
 
     return NextResponse.json({ success: true, data })
@@ -66,9 +66,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const validation = await parseRequest(createMothershipChatContract, request, {})
     if (!validation.success) return validation.response
-    const { workspaceId } = validation.data.body
+    const { workspaceId, type } = validation.data.body
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
+    if (type === 'fullstack') {
+      const permission = await assertAppPermission(userId, workspaceId, 'edit')
+      if (!permission.ok) {
+        return NextResponse.json({ error: permission.message }, { status: permission.status })
+      }
+    }
 
     const now = new Date()
     const [chat] = await db
@@ -76,8 +82,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       .values({
         userId,
         workspaceId,
-        type: 'mothership',
-        title: null,
+        type: type === 'fullstack' ? 'fullstack' : 'mothership',
+        title: type === 'fullstack' ? 'Full-stack App' : null,
         model: 'claude-opus-4-8',
         updatedAt: now,
         lastSeenAt: now,

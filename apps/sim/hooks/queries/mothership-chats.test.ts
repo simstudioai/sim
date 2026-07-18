@@ -54,6 +54,7 @@ describe('tasks query boundary parsing', () => {
         data: [
           {
             id: 'chat-1',
+            type: 'mothership',
             title: 'Launch plan',
             updatedAt: '2026-04-11T10:00:00.000Z',
             activeStreamId: 'stream-1',
@@ -107,10 +108,12 @@ describe('tasks query boundary parsing', () => {
         success: true,
         chat: {
           id: 'chat-1',
+          type: 'mothership',
           title: 'Task history',
           messages: [],
           activeStreamId: 'stream-1',
           resources: [{ type: 'file', id: 'file-1', title: 'Spec.md' }],
+          linkedAppProject: null,
           streamSnapshot: {
             events: [],
             previewSessions: [],
@@ -124,10 +127,12 @@ describe('tasks query boundary parsing', () => {
 
     expect(history).toEqual({
       id: 'chat-1',
+      type: 'mothership',
       title: 'Task history',
       messages: [],
       activeStreamId: 'stream-1',
       resources: [{ type: 'file', id: 'file-1', title: 'Spec.md' }],
+      linkedAppProject: null,
       streamSnapshot: {
         events: [],
         previewSessions: [],

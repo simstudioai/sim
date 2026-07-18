@@ -2404,7 +2404,7 @@ export const docsEmbeddings = pgTable(
   })
 )
 
-export const chatTypeEnum = pgEnum('chat_type', ['mothership', 'copilot'])
+export const chatTypeEnum = pgEnum('chat_type', ['mothership', 'copilot', 'fullstack'])
 
 export const copilotChats = pgTable(
   'copilot_chats',
@@ -4030,5 +4030,330 @@ export const dataDrainRuns = pgTable(
   },
   (table) => ({
     drainStartedIdx: index('data_drain_runs_drain_started_idx').on(table.drainId, table.startedAt),
+  })
+)
+
+// ---------------------------------------------------------------------------
+// Full-stack Apps product
+// ---------------------------------------------------------------------------
+
+export const appReleaseStateEnum = pgEnum('app_release_state', ['prepared', 'published', 'revoked'])
+
+/** Why a release left `published` — vacated by pointer move vs explicit kill switch. */
+export const appReleaseRevokedReasonEnum = pgEnum('app_release_revoked_reason', [
+  'vacated',
+  'manual',
+])
+
+export const appBuildStatusEnum = pgEnum('app_build_status', [
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+])
+
+export const appDeploymentPinKindEnum = pgEnum('app_deployment_pin_kind', ['release', 'preview'])
+
+/**
+ * App project. `publishedReleaseId` is enforced in application code to reference a
+ * same-project callable release (avoids circular FK with app_release).
+ */
+export const appProject = pgTable(
+  'app_project',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** Stable public identifier — globally unique, never recycled. */
+    publicId: text('public_id').notNull(),
+    /** Cosmetic slug — unique per workspace. */
+    slug: text('slug').notNull(),
+    draftRevisionId: text('draft_revision_id'),
+    /** Callable current publish pointer; null when none / after revoke-current. */
+    publishedReleaseId: text('published_release_id'),
+    createdFromChatId: uuid('created_from_chat_id').references(() => copilotChats.id, {
+      onDelete: 'set null',
+    }),
+    lastBuilderChatId: uuid('last_builder_chat_id').references(() => copilotChats.id, {
+      onDelete: 'set null',
+    }),
+    version: integer('version').notNull().default(0),
+    archivedAt: timestamp('archived_at'),
+    // Nullable SET NULL: deleting a user must not delete a workspace-owned public app.
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    publicIdUnique: uniqueIndex('app_project_public_id_unique').on(table.publicId),
+    workspaceSlugUnique: uniqueIndex('app_project_workspace_slug_unique')
+      .on(table.workspaceId, table.slug)
+      .where(sql`${table.archivedAt} IS NULL`),
+    activeCreatedFromChatUnique: uniqueIndex('app_project_active_created_from_chat_unique')
+      .on(table.createdFromChatId)
+      .where(sql`${table.createdFromChatId} IS NOT NULL AND ${table.archivedAt} IS NULL`),
+    workspaceIdx: index('app_project_workspace_idx').on(table.workspaceId),
+    archivedAtIdx: index('app_project_archived_at_idx').on(table.archivedAt),
+  })
+)
+
+export const appSourceBlob = pgTable(
+  'app_source_blob',
+  {
+    hash: text('hash').primaryKey(),
+    content: text('content').notNull(),
+    byteSize: integer('byte_size').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    createdAtIdx: index('app_source_blob_created_at_idx').on(table.createdAt),
+  })
+)
+
+export const appSourceRevision = pgTable(
+  'app_source_revision',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => appProject.id, { onDelete: 'cascade' }),
+    parentRevisionId: text('parent_revision_id'),
+    sourceTreeHash: text('source_tree_hash').notNull(),
+    actionManifestHash: text('action_manifest_hash').notNull(),
+    templateVersion: text('template_version').notNull(),
+    sdkVersion: text('sdk_version').notNull(),
+    lockfileHash: text('lockfile_hash').notNull(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    projectCreatedIdx: index('app_source_revision_project_created_idx').on(
+      table.projectId,
+      table.createdAt
+    ),
+  })
+)
+
+export const appSourceFile = pgTable(
+  'app_source_file',
+  {
+    id: text('id').primaryKey(),
+    revisionId: text('revision_id')
+      .notNull()
+      .references(() => appSourceRevision.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    contentHash: text('content_hash')
+      .notNull()
+      .references(() => appSourceBlob.hash, { onDelete: 'restrict' }),
+  },
+  (table) => ({
+    revisionPathUnique: uniqueIndex('app_source_file_revision_path_unique').on(
+      table.revisionId,
+      table.path
+    ),
+  })
+)
+
+/** Immutable revision action snapshot — no retention FK to deployment versions. */
+export const appRevisionAction = pgTable(
+  'app_revision_action',
+  {
+    id: text('id').primaryKey(),
+    revisionId: text('revision_id')
+      .notNull()
+      .references(() => appSourceRevision.id, { onDelete: 'cascade' }),
+    actionId: text('action_id').notNull(),
+    workflowId: text('workflow_id').notNull(),
+    deploymentVersionId: text('deployment_version_id').notNull(),
+    inputSchema: jsonb('input_schema').notNull(),
+    outputAllowlist: jsonb('output_allowlist').notNull().default(sql`'[]'::jsonb`),
+    executionPolicy: text('execution_policy').notNull().default('sync'),
+    schemaHash: text('schema_hash').notNull(),
+  },
+  (table) => ({
+    revisionActionUnique: uniqueIndex('app_revision_action_revision_action_unique').on(
+      table.revisionId,
+      table.actionId
+    ),
+  })
+)
+
+export const appBuild = pgTable(
+  'app_build',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => appProject.id, { onDelete: 'cascade' }),
+    revisionId: text('revision_id')
+      .notNull()
+      .references(() => appSourceRevision.id, { onDelete: 'cascade' }),
+    status: appBuildStatusEnum('status').notNull().default('queued'),
+    diagnostics: jsonb('diagnostics').notNull().default(sql`'{}'::jsonb`),
+    artifactManifestHash: text('artifact_manifest_hash'),
+    buildImageDigest: text('build_image_digest'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    finishedAt: timestamp('finished_at'),
+  },
+  (table) => ({
+    projectCreatedIdx: index('app_build_project_created_idx').on(table.projectId, table.createdAt),
+    statusCreatedIdx: index('app_build_status_created_idx').on(table.status, table.createdAt),
+  })
+)
+
+export const appArtifactBlob = pgTable(
+  'app_artifact_blob',
+  {
+    hash: text('hash').primaryKey(),
+    storageKey: text('storage_key').notNull(),
+    contentType: text('content_type').notNull(),
+    byteSize: integer('byte_size').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    createdAtIdx: index('app_artifact_blob_created_at_idx').on(table.createdAt),
+  })
+)
+
+export const appRelease = pgTable(
+  'app_release',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => appProject.id, { onDelete: 'cascade' }),
+    revisionId: text('revision_id')
+      .notNull()
+      .references(() => appSourceRevision.id, { onDelete: 'restrict' }),
+    buildId: text('build_id').references(() => appBuild.id, { onDelete: 'set null' }),
+    state: appReleaseStateEnum('state').notNull().default('prepared'),
+    artifactManifestHash: text('artifact_manifest_hash').notNull(),
+    templateVersion: text('template_version').notNull(),
+    sdkVersion: text('sdk_version').notNull(),
+    publishedAt: timestamp('published_at'),
+    revokedAt: timestamp('revoked_at'),
+    /** Set when state=revoked: vacated (pointer move) vs manual (kill switch). */
+    revokedReason: appReleaseRevokedReasonEnum('revoked_reason'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    projectStateIdx: index('app_release_project_state_idx').on(table.projectId, table.state),
+    releaseStateCheck: check(
+      'app_release_state_timestamps_check',
+      sql`(
+        ("state" = 'prepared' AND "published_at" IS NULL AND "revoked_at" IS NULL AND "revoked_reason" IS NULL) OR
+        ("state" = 'published' AND "published_at" IS NOT NULL AND "revoked_at" IS NULL AND "revoked_reason" IS NULL) OR
+        ("state" = 'revoked' AND "published_at" IS NOT NULL AND "revoked_at" IS NOT NULL AND "revoked_reason" IS NOT NULL)
+      )`
+    ),
+  })
+)
+
+/** Immutable release action snapshot — no retention FK to deployment versions. */
+export const appReleaseAction = pgTable(
+  'app_release_action',
+  {
+    id: text('id').primaryKey(),
+    releaseId: text('release_id')
+      .notNull()
+      .references(() => appRelease.id, { onDelete: 'cascade' }),
+    actionId: text('action_id').notNull(),
+    workflowId: text('workflow_id').notNull(),
+    deploymentVersionId: text('deployment_version_id').notNull(),
+    inputSchema: jsonb('input_schema').notNull(),
+    outputAllowlist: jsonb('output_allowlist').notNull().default(sql`'[]'::jsonb`),
+    executionPolicy: text('execution_policy').notNull().default('sync'),
+    schemaHash: text('schema_hash').notNull(),
+  },
+  (table) => ({
+    releaseActionUnique: uniqueIndex('app_release_action_release_action_unique').on(
+      table.releaseId,
+      table.actionId
+    ),
+  })
+)
+
+export const appPreviewSession = pgTable(
+  'app_preview_session',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => appProject.id, { onDelete: 'cascade' }),
+    revisionId: text('revision_id')
+      .notNull()
+      .references(() => appSourceRevision.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    channelNonce: text('channel_nonce').notNull(),
+    /** Frozen build for this preview — never "latest successful". Cleared on stop. */
+    buildId: text('build_id').references(() => appBuild.id, { onDelete: 'set null' }),
+    /** Frozen content-addressed artifact; null for fixture/diagnostic shell. */
+    artifactManifestHash: text('artifact_manifest_hash'),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+    stoppedAt: timestamp('stopped_at'),
+  },
+  (table) => ({
+    projectIdx: index('app_preview_session_project_idx').on(table.projectId),
+    expiresAtIdx: index('app_preview_session_expires_at_idx').on(table.expiresAt),
+    /** At most one live preview session per builder × project. */
+    activeUserProjectUnique: uniqueIndex('app_preview_session_active_user_project_unique')
+      .on(table.projectId, table.userId)
+      .where(sql`${table.stoppedAt} IS NULL`),
+  })
+)
+
+/**
+ * Sole GC retention FK to workflow_deployment_version.
+ * Release pins inserted on publish; deleted on revoke.
+ * Preview pins carry TTL + session.
+ */
+export const appDeploymentPin = pgTable(
+  'app_deployment_pin',
+  {
+    id: text('id').primaryKey(),
+    kind: appDeploymentPinKindEnum('kind').notNull(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => appProject.id, { onDelete: 'cascade' }),
+    releaseId: text('release_id').references(() => appRelease.id, { onDelete: 'cascade' }),
+    previewSessionId: text('preview_session_id').references(() => appPreviewSession.id, {
+      onDelete: 'cascade',
+    }),
+    revisionId: text('revision_id').references(() => appSourceRevision.id, {
+      onDelete: 'cascade',
+    }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'restrict' }),
+    deploymentVersionId: text('deployment_version_id')
+      .notNull()
+      .references(() => workflowDeploymentVersion.id, { onDelete: 'restrict' }),
+    expiresAt: timestamp('expires_at'),
+    sessionStartedAt: timestamp('session_started_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pinKindCheck: check(
+      'app_deployment_pin_kind_check',
+      sql`(
+        ("kind" = 'release' AND "release_id" IS NOT NULL AND "preview_session_id" IS NULL AND "revision_id" IS NULL AND "expires_at" IS NULL AND "session_started_at" IS NULL) OR
+        ("kind" = 'preview' AND "release_id" IS NULL AND "preview_session_id" IS NOT NULL AND "revision_id" IS NOT NULL AND "expires_at" IS NOT NULL AND "session_started_at" IS NOT NULL)
+      )`
+    ),
+    releasePinUnique: uniqueIndex('app_deployment_pin_release_unique')
+      .on(table.releaseId, table.deploymentVersionId)
+      .where(sql`${table.kind} = 'release'`),
+    previewPinUnique: uniqueIndex('app_deployment_pin_preview_unique')
+      .on(table.previewSessionId, table.deploymentVersionId)
+      .where(sql`${table.kind} = 'preview'`),
+    expiresAtIdx: index('app_deployment_pin_expires_at_idx').on(table.expiresAt),
+    versionIdx: index('app_deployment_pin_version_idx').on(table.deploymentVersionId),
+    workflowIdx: index('app_deployment_pin_workflow_idx').on(table.workflowId),
   })
 )

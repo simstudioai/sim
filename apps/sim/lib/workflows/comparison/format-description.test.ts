@@ -21,6 +21,20 @@ vi.mock('@/blocks/types', () => ({
 }))
 
 vi.mock('@/executor/constants', () => ({
+  EDGE: {
+    CONDITION_PREFIX: 'condition-',
+    CONDITION_TRUE: 'condition-true',
+    CONDITION_FALSE: 'condition-false',
+    ROUTER_PREFIX: 'router-',
+    LOOP_CONTINUE: 'loop_continue',
+    LOOP_CONTINUE_ALT: 'loop-continue-source',
+    LOOP_EXIT: 'loop_exit',
+    PARALLEL_CONTINUE: 'parallel_continue',
+    PARALLEL_EXIT: 'parallel_exit',
+    ERROR: 'error',
+    SOURCE: 'source',
+    DEFAULT: 'default',
+  },
   isUuid: (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
 }))
 

@@ -347,6 +347,8 @@ export function useDeployWorkflow() {
  */
 interface UndeployWorkflowVariables {
   workflowId: string
+  /** Required when callable Full-stack App pins exist (server returns 409 otherwise). */
+  acknowledgePinnedApps?: boolean
 }
 
 /**
@@ -357,9 +359,10 @@ export function useUndeployWorkflow() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workflowId }: UndeployWorkflowVariables) => {
+    mutationFn: async ({ workflowId, acknowledgePinnedApps }: UndeployWorkflowVariables) => {
       return requestJson(undeployWorkflowContract, {
         params: { id: workflowId },
+        query: acknowledgePinnedApps ? { acknowledgePinnedApps: 'true' } : {},
       })
     },
     onSettled: (_data, error, variables) => {

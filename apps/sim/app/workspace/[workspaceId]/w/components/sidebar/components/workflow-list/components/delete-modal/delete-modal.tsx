@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChipConfirmModal, type ChipConfirmTextSegment, ChipModalField } from '@sim/emcn'
+import type { PinnedAppDeleteConflict } from '@/app/workspace/[workspaceId]/w/hooks/use-delete-workflow'
 
 interface DeleteModalProps {
   /**
@@ -30,6 +31,9 @@ interface DeleteModalProps {
    * Can be a single name or an array of names for multiple items
    */
   itemName?: string | string[]
+  /** Apps whose callable releases prevent the selected workflow from being deleted. */
+  blockedApps?: PinnedAppDeleteConflict[]
+  workspaceId?: string
 }
 
 /**
@@ -46,6 +50,8 @@ export function DeleteModal({
   isDeleting,
   itemType,
   itemName,
+  blockedApps = [],
+  workspaceId,
 }: DeleteModalProps) {
   const [confirmationText, setConfirmationText] = useState('')
   const [prevIsOpen, setPrevIsOpen] = useState(false)
@@ -83,6 +89,15 @@ export function DeleteModal({
 
   const buildDescriptionSegments = (): ChipConfirmTextSegment[] => {
     if (itemType === 'workflow') {
+      if (blockedApps.length > 0) {
+        return [
+          {
+            text: 'This workflow cannot be deleted while published Full-stack Apps retain its deployment version.',
+            error: true,
+          },
+          ' Revoke or detach the listed App releases first.',
+        ]
+      }
       const warning = {
         text: 'All associated blocks, executions, and configuration will be removed.',
         error: true,
@@ -207,13 +222,28 @@ export function DeleteModal({
           : 'This action cannot be undone.',
       ]}
       confirm={{
-        label: 'Delete',
+        label: blockedApps.length > 0 ? 'Blocked by Apps' : 'Delete',
         onClick: onConfirm,
         pending: isDeleting,
         pendingLabel: 'Deleting...',
-        disabled: !isConfirmed,
+        disabled: !isConfirmed || blockedApps.length > 0,
       }}
     >
+      {blockedApps.length > 0 && workspaceId ? (
+        <div className='space-y-1 px-2 text-[var(--text-secondary)] text-xs'>
+          {blockedApps.map((app) => (
+            <a
+              key={app.projectId}
+              href={`/workspace/${workspaceId}/apps/${app.projectId}`}
+              target='_blank'
+              rel='noreferrer'
+              className='block underline underline-offset-2'
+            >
+              Open {app.name || app.publicId}
+            </a>
+          ))}
+        </div>
+      ) : null}
       {isWorkspace && workspaceName && (
         <ChipModalField
           type='input'

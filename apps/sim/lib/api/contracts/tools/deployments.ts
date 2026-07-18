@@ -33,6 +33,7 @@ export const deploymentsDeployContract = defineRouteContract({
 export const deploymentsUndeployBodySchema = z.object({
   workflowId: workflowIdSchema,
   workspaceId: workspaceIdSchema,
+  acknowledgePinnedApps: z.boolean().optional(),
 })
 
 export type DeploymentsUndeployBody = z.input<typeof deploymentsUndeployBodySchema>

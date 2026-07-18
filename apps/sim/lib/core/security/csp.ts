@@ -1,3 +1,4 @@
+import { parse as parseDomain } from 'tldts'
 import { env, getEnv } from '../config/env'
 import { isDev, isHosted, isReactGrabEnabled } from '../config/env-flags'
 
@@ -110,6 +111,36 @@ const STATIC_CONNECT_SRC = [
     : []),
 ] as const
 
+/**
+ * Apps iframe source for frame-src. Mirrors getAppsFrameSrcSources() but stays
+ * local to this file — next.config loads CSP before @/ path aliases resolve.
+ * Only emit frame-src when APP_PUBLIC_ORIGIN is a valid absolute origin that
+ * does not share a registrable domain with the Sim app URL.
+ */
+function getAppsPublicOriginFrameSrc(): string[] {
+  const origin = getEnv('NEXT_PUBLIC_APP_PUBLIC_ORIGIN') || getEnv('APP_PUBLIC_ORIGIN')
+  const simUrl = getEnv('NEXT_PUBLIC_APP_URL')
+  if (!origin || !simUrl) return []
+  try {
+    const appOrigin = new URL(origin)
+    const simOrigin = new URL(simUrl)
+    // Localhost special-case: full hostname is the isolation unit.
+    const appHost = appOrigin.hostname.toLowerCase()
+    const simHost = simOrigin.hostname.toLowerCase()
+    if (appHost === simHost) return []
+    if (appHost.endsWith('.localhost') || simHost === 'localhost' || appHost === 'localhost') {
+      return [appOrigin.origin]
+    }
+    // Registrable-domain check without importing @/lib/apps/origin (build-time).
+    const appDomain = parseDomain(appHost, { allowPrivateDomains: true }).domain?.toLowerCase()
+    const simDomain = parseDomain(simHost, { allowPrivateDomains: true }).domain?.toLowerCase()
+    if (appDomain && simDomain && appDomain === simDomain) return []
+    return [appOrigin.origin]
+  } catch {
+    return []
+  }
+}
+
 const STATIC_FRAME_SRC = [
   "'self'",
   'blob:',
@@ -170,7 +201,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
   ],
 
-  'frame-src': [...STATIC_FRAME_SRC],
+  'frame-src': [...STATIC_FRAME_SRC, ...getAppsPublicOriginFrameSrc()],
   'frame-ancestors': ["'self'"],
   'form-action': ["'self'"],
   'base-uri': ["'self'"],
@@ -224,6 +255,8 @@ export function generateRuntimeCSP(): string {
       ...privacyDomains,
       ...termsDomains,
     ],
+
+    'frame-src': [...STATIC_FRAME_SRC, ...getAppsPublicOriginFrameSrc()],
   }
 
   return buildCSPString(runtimeDirectives)

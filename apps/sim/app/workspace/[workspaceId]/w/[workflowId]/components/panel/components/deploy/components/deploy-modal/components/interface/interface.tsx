@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Input, Label, Loader, Textarea, toast } from '@sim/emcn'
+import { Button, Combobox, Input, Label, Loader, Textarea, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { InterfaceRenderer } from '@/components/interfaces'
@@ -20,6 +20,23 @@ const logger = createLogger('InterfaceDeploy')
 
 const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
 const DEFAULT_PRIMARY_COLOR = '#2563eb'
+const CUSTOM_COLOR_VALUE = '__custom__'
+
+const COLOR_PRESETS = [
+  { label: 'Blue', value: '#2563eb' },
+  { label: 'Green', value: '#059669' },
+  { label: 'Orange', value: '#ea580c' },
+  { label: 'Slate', value: '#334155' },
+  { label: 'Rose', value: '#e11d48' },
+  { label: 'Brand', value: 'var(--brand-hover)' },
+] as const
+
+const PRESET_COLOR_VALUES = new Set<string>(COLOR_PRESETS.map((preset) => preset.value))
+
+const COLOR_OPTIONS = [
+  ...COLOR_PRESETS.map((preset) => ({ label: preset.label, value: preset.value })),
+  { label: 'Custom…', value: CUSTOM_COLOR_VALUE },
+]
 
 interface InterfaceDeployProps {
   workflowId: string
@@ -84,6 +101,7 @@ export function InterfaceDeploy({
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_PRIMARY_COLOR)
+  const [useCustomColor, setUseCustomColor] = useState(false)
   const [brief, setBrief] = useState('')
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([])
   const [spec, setSpec] = useState<InterfaceSpec | null>(null)
@@ -100,6 +118,7 @@ export function InterfaceDeploy({
     setTitle(state.title)
     setDescription(state.description)
     setPrimaryColor(state.primaryColor)
+    setUseCustomColor(!PRESET_COLOR_VALUES.has(state.primaryColor))
     setBrief(state.brief)
     setSelectedOutputs(state.selectedOutputs)
     setSpec(state.spec)
@@ -202,6 +221,8 @@ export function InterfaceDeploy({
     if (!spec) return null
     return toPublicInterfaceDto({ title: title || 'Interface', description, primaryColor }, spec)
   }, [spec, title, description, primaryColor])
+
+  const colorSelectValue = useCustomColor ? CUSTOM_COLOR_VALUE : primaryColor
 
   const handleGenerate = async () => {
     setFormError(null)
@@ -351,15 +372,39 @@ export function InterfaceDeploy({
       <div className='grid gap-4 sm:grid-cols-2'>
         <div className='space-y-1.5'>
           <Label htmlFor='interface-color'>Primary color</Label>
-          <Input
-            id='interface-color'
-            value={primaryColor}
-            onChange={(e) => {
-              markDirty()
-              setPrimaryColor(e.target.value)
-            }}
-            placeholder='#2563eb'
-          />
+          <div className='flex items-center gap-2'>
+            <span
+              aria-hidden
+              className='h-8 w-8 shrink-0 rounded-md border border-[var(--border)]'
+              style={{ background: primaryColor || DEFAULT_PRIMARY_COLOR }}
+            />
+            <Combobox
+              className='min-w-0 flex-1'
+              options={COLOR_OPTIONS}
+              value={colorSelectValue}
+              onChange={(value) => {
+                markDirty()
+                if (value === CUSTOM_COLOR_VALUE) {
+                  setUseCustomColor(true)
+                  return
+                }
+                setUseCustomColor(false)
+                setPrimaryColor(value)
+              }}
+              placeholder='Choose a color'
+            />
+          </div>
+          {useCustomColor ? (
+            <Input
+              id='interface-color'
+              value={primaryColor}
+              onChange={(e) => {
+                markDirty()
+                setPrimaryColor(e.target.value)
+              }}
+              placeholder='#2563eb or var(--token)'
+            />
+          ) : null}
         </div>
         <div className='space-y-1.5'>
           <Label>Outputs to display</Label>
@@ -420,8 +465,8 @@ export function InterfaceDeploy({
       </div>
 
       {previewDto ? (
-        <div className='rounded-lg border border-[var(--border)] bg-[var(--bg-primary)]'>
-          <div className='border-[var(--border)] border-b px-4 py-2 font-medium text-sm'>
+        <div className='overflow-hidden rounded-lg border border-[var(--border)]'>
+          <div className='border-[var(--border)] border-b bg-[var(--bg-primary)] px-4 py-2 font-medium text-sm'>
             Preview
           </div>
           <InterfaceRenderer

@@ -52,6 +52,19 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Mothership/Full-stack contracts are owned by simstudioai/copilot and
+      # consumed as generated TS under apps/sim/lib/copilot/generated. Checkout
+      # the sibling at ../copilot so bun run mship:check can detect drift.
+      - name: Checkout copilot contracts sibling
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: simstudioai/copilot
+          path: ../copilot
+          fetch-depth: 1
+
+      - name: Verify mothership contracts are in sync
+        run: bun run mship:check
+
       # Surfaces known CVEs in the dependency tree. Non-blocking until the
       # existing advisory backlog is triaged, then flip to a required gate by
       # removing continue-on-error.

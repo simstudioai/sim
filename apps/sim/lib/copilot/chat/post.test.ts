@@ -30,6 +30,7 @@ const {
   finalizeAssistantTurn,
   appendCopilotChatMessages,
   mockPublishStatusChanged,
+  getLinkedAppProjectForChat,
 } = vi.hoisted(() => ({
   getEffectiveDecryptedEnv: vi.fn(),
   generateWorkspaceSnapshot: vi.fn(),
@@ -45,6 +46,7 @@ const {
   finalizeAssistantTurn: vi.fn(),
   appendCopilotChatMessages: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
+  getLinkedAppProjectForChat: vi.fn(),
 }))
 
 const getSession = authMockFns.mockGetSession
@@ -67,6 +69,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution,
+}))
+
+vi.mock('@/lib/apps/projects', () => ({
+  getLinkedAppProjectForChat,
 }))
 
 vi.mock('@/lib/environment/utils', () => ({
@@ -172,6 +178,7 @@ describe('handleUnifiedChatPost', () => {
     acquirePendingChatStream.mockResolvedValue(true)
     getPendingChatStreamId.mockResolvedValue(null)
     releasePendingChatStream.mockResolvedValue(undefined)
+    getLinkedAppProjectForChat.mockResolvedValue(null)
     resolveOrCreateChat.mockResolvedValue({
       chatId: 'chat-1',
       chat: { id: 'chat-1' },
@@ -265,6 +272,54 @@ describe('handleUnifiedChatPost', () => {
             billingAttribution,
             requestMode: 'agent',
           }),
+        }),
+      })
+    )
+  })
+
+  it('preserves fullstack type in the Go payload and Sim execution context', async () => {
+    getLinkedAppProjectForChat.mockResolvedValueOnce({
+      id: 'app-1',
+      name: 'My App',
+      slug: 'my-app',
+      publicId: 'public-1',
+      draftRevisionId: 'revision-1',
+      publishedReleaseId: null,
+    })
+    resolveOrCreateChat.mockResolvedValueOnce({
+      chatId: 'chat-fullstack',
+      chat: {
+        id: 'chat-fullstack',
+        type: 'fullstack',
+        workspaceId: 'ws-1',
+      },
+      conversationHistory: [],
+      isNew: false,
+    })
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Build my app',
+          workspaceId: 'ws-1',
+          chatId: 'chat-fullstack',
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(createSSEStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestPayload: expect.objectContaining({
+          chatType: 'fullstack',
+          appProject: expect.objectContaining({
+            id: 'app-1',
+            draftRevisionId: 'revision-1',
+          }),
+        }),
+        orchestrateOptions: expect.objectContaining({
+          executionContext: expect.objectContaining({ requestMode: 'fullstack' }),
         }),
       })
     )

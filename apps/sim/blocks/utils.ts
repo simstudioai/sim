@@ -11,12 +11,12 @@ import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/block
 import {
   getBaseModelProviders,
   getHostedModels,
+  getProviderFromModel,
   getProviderIcon,
   getProviderModels,
   orderModelIdsByReleaseDate,
 } from '@/providers/models'
 import { isPiSupportedProvider } from '@/providers/pi-providers'
-import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
 export const VERTEX_MODELS = getProviderModels('vertex')

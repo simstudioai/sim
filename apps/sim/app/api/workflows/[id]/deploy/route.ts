@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { updatePublicApiContract } from '@/lib/api/contracts/deployments'
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -238,7 +238,7 @@ export const PATCH = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
     const { id } = await params
 
@@ -253,13 +253,32 @@ export const DELETE = withRouteHandler(
       }
       await assertWorkflowMutable(id)
 
+      const acknowledgePinnedApps =
+        request.nextUrl.searchParams.get('acknowledgePinnedApps') === 'true' ||
+        (await request
+          .clone()
+          .json()
+          .then((body: { acknowledgePinnedApps?: boolean }) => body?.acknowledgePinnedApps === true)
+          .catch(() => false))
+
       const result = await performFullUndeploy({
         workflowId: id,
         userId: session!.user.id,
         requestId,
+        acknowledgePinnedApps,
       })
 
       if (!result.success) {
+        if (result.code === 'PINNED_APP_RELEASES_EXIST') {
+          return NextResponse.json(
+            {
+              error: result.error,
+              code: result.code,
+              apps: result.apps,
+            },
+            { status: 409 }
+          )
+        }
         return createErrorResponse(result.error || 'Failed to undeploy workflow', 500)
       }
 

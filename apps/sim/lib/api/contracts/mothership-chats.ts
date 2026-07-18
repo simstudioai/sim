@@ -29,6 +29,8 @@ export const updateMothershipChatBodySchema = z
 
 export const createMothershipChatBodySchema = z.object({
   workspaceId: z.string().min(1),
+  /** Immutable for the session once created. Full-stack chats use Apps tools only. */
+  type: z.enum(['mothership', 'fullstack']).optional().default('mothership'),
 })
 export type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
 
@@ -246,6 +248,7 @@ export const removeMothershipChatResourceContract = defineRouteContract({
 
 export const mothershipChatSchema = z.object({
   id: z.string(),
+  type: z.enum(['mothership', 'fullstack']),
   title: z.string().nullable(),
   updatedAt: dateStringSchema,
   activeStreamId: z.string().nullable(),
@@ -352,12 +355,22 @@ export const getMothershipChatResponseSchema = z.object({
   chat: z
     .object({
       id: z.string(),
+      type: z.enum(['mothership', 'fullstack']),
       title: z.string().nullable(),
       messages: z.array(z.unknown()),
       activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),
       createdAt: z.union([z.string(), z.date()]).nullable().optional(),
       updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
+      linkedAppProject: z
+        .object({
+          id: z.string(),
+          name: z.string(),
+          slug: z.string(),
+          publicId: z.string(),
+          publishedReleaseId: z.string().nullable(),
+        })
+        .nullable(),
       streamSnapshot: mothershipChatStreamSnapshotSchema.optional(),
     })
     .passthrough(),

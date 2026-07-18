@@ -23,6 +23,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import type { DeploymentOperationSummary } from '@/lib/api/contracts/deployments'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
@@ -128,6 +129,12 @@ export function DeployModal({
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
   const [undeployTargetWorkflowId, setUndeployTargetWorkflowId] = useState<string | null>(null)
+  const [pinnedAppsWarning, setPinnedAppsWarning] = useState<Array<{
+    projectId: string
+    name: string
+    publicId: string
+    releaseIds: string[]
+  }> | null>(null)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [mcpToolSaveDisabledReason, setMcpToolSaveDisabledReason] = useState<string | null>(null)
@@ -392,13 +399,18 @@ export function DeployModal({
     const targetWorkflowId = undeployTargetWorkflowId
     if (workflowId !== targetWorkflowId || !isWorkflowStillActive(targetWorkflowId)) {
       setUndeployTargetWorkflowId(null)
+      setPinnedAppsWarning(null)
       return
     }
 
     try {
-      const result = await undeployMutation.mutateAsync({ workflowId: targetWorkflowId })
+      const result = await undeployMutation.mutateAsync({
+        workflowId: targetWorkflowId,
+        acknowledgePinnedApps: Boolean(pinnedAppsWarning?.length),
+      })
       if (!isWorkflowStillActive(targetWorkflowId)) return
       setUndeployTargetWorkflowId(null)
+      setPinnedAppsWarning(null)
       onOpenChange(false)
       /**
        * Partial cleanup warnings (e.g. external subscription teardown left to
@@ -410,6 +422,30 @@ export function DeployModal({
       }
     } catch (error: unknown) {
       if (!isWorkflowStillActive(targetWorkflowId)) return
+      if (
+        isApiClientError(error) &&
+        error.status === 409 &&
+        error.code === 'PINNED_APP_RELEASES_EXIST'
+      ) {
+        const apps = (
+          error.body as {
+            apps?: Array<{
+              projectId: string
+              name: string
+              publicId: string
+              releaseIds: string[]
+            }>
+          }
+        )?.apps
+        if (apps?.length) {
+          setPinnedAppsWarning(apps)
+        } else {
+          toast.error('Failed to list pinned Apps', {
+            description: 'The server reported pinned releases without identifying their Apps.',
+          })
+        }
+        return
+      }
       logger.error('Error undeploying workflow:', { error })
       toast.error('Failed to undeploy workflow', { description: toError(error).message })
     }
@@ -768,7 +804,10 @@ export function DeployModal({
       <ChipConfirmModal
         open={Boolean(undeployTargetWorkflowId)}
         onOpenChange={(nextOpen) => {
-          if (!nextOpen) setUndeployTargetWorkflowId(null)
+          if (!nextOpen) {
+            setUndeployTargetWorkflowId(null)
+            setPinnedAppsWarning(null)
+          }
         }}
         srTitle='Undeploy API'
         title='Undeploy API'
@@ -778,14 +817,46 @@ export function DeployModal({
             text: 'This will remove the API endpoint and make it unavailable to external users.',
             error: true,
           },
+          ...(pinnedAppsWarning
+            ? [
+                ' Full-stack Apps with callable pins will keep running: ',
+                {
+                  text:
+                    pinnedAppsWarning
+                      .map(
+                        (app) =>
+                          `${app.name || app.publicId} (${app.releaseIds.length} release${app.releaseIds.length === 1 ? '' : 's'})`
+                      )
+                      .join(', ') || 'one or more apps',
+                  error: true,
+                },
+                '. Confirm again to undeploy while preserving those pins.',
+              ]
+            : []),
         ]}
         confirm={{
-          label: 'Undeploy',
+          label: pinnedAppsWarning ? 'Undeploy anyway' : 'Undeploy',
           onClick: handleUndeploy,
           pending: isUndeploying,
           pendingLabel: 'Undeploying...',
         }}
-      />
+      >
+        {pinnedAppsWarning ? (
+          <div className='space-y-1 px-2 text-[var(--text-secondary)] text-xs'>
+            {pinnedAppsWarning.map((app) => (
+              <a
+                key={app.projectId}
+                href={`/workspace/${workspaceId}/apps/${app.projectId}`}
+                target='_blank'
+                rel='noreferrer'
+                className='block underline hover:text-[var(--text-primary)]'
+              >
+                Open {app.name || app.publicId}
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </ChipConfirmModal>
 
       <CreateApiKeyModal
         open={isCreateKeyModalOpen}

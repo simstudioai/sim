@@ -516,9 +516,43 @@ async function cleanupOrphanedKnowledgeBaseBindings(
   return stats
 }
 
+async function runGlobalAppHousekeeping(label: string): Promise<void> {
+  try {
+    const { sweepExpiredPreviewPins } = await import('@/lib/apps/pins')
+    const swept = await sweepExpiredPreviewPins()
+    if (swept > 0) {
+      logger.info(`[${label}] Swept ${swept} expired app preview pins/sessions`)
+    }
+  } catch (error) {
+    logger.error(`[${label}] Preview pin sweep failed`, { error })
+  }
+
+  try {
+    const { finalizeStaleRunningBuilds } = await import('@/lib/apps/build/stale-builds')
+    const stale = await finalizeStaleRunningBuilds()
+    if (stale > 0) {
+      logger.info(`[${label}] Finalized ${stale} stale running app builds`)
+    }
+  } catch (error) {
+    logger.error(`[${label}] Stale app build sweep failed`, { error })
+  }
+
+  try {
+    const { runAppBlobGc } = await import('@/lib/apps/blob-gc')
+    const result = await runAppBlobGc()
+    logger.info(`[${label}] App blob GC`, result)
+  } catch (error) {
+    logger.error(`[${label}] App blob GC failed`, { error })
+  }
+}
+
 export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise<void> {
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label } = payload
+
+  if (payload.runGlobalHousekeeping) {
+    await runGlobalAppHousekeeping(label)
+  }
 
   if (workspaceIds.length === 0) {
     logger.info(`[${label}] No workspaces to process`)
@@ -550,7 +584,28 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
     selectExpiredWorkspaceFiles(workspaceIds, retentionDate),
   ])
 
-  const doomedWorkflowIds = doomedWorkflows.map((w) => w.id)
+  // Skip workflows still referenced by callable app release pins or active preview pins.
+  const { appDeploymentPin } = await import('@sim/db/schema')
+  const candidateWorkflowIds = doomedWorkflows.map((w) => w.id)
+  const pinnedWorkflowIds = new Set<string>()
+  if (candidateWorkflowIds.length > 0) {
+    for (const chunk of chunkArray(candidateWorkflowIds, 200)) {
+      const pins = await db
+        .select({ workflowId: appDeploymentPin.workflowId })
+        .from(appDeploymentPin)
+        .where(inArray(appDeploymentPin.workflowId, chunk))
+      for (const pin of pins) {
+        pinnedWorkflowIds.add(pin.workflowId)
+      }
+    }
+  }
+  const doomedWorkflowIds = candidateWorkflowIds.filter((id) => !pinnedWorkflowIds.has(id))
+  if (pinnedWorkflowIds.size > 0) {
+    logger.info(
+      `[${label}] Skipping ${pinnedWorkflowIds.size} workflows retained by app_deployment_pin`
+    )
+  }
+
   let chatCleanup: { execute: () => Promise<void> } | null = null
 
   if (doomedWorkflowIds.length > 0) {

@@ -12,6 +12,8 @@ export async function register() {
     if (nodeInstrumentation.register) {
       await nodeInstrumentation.register()
     }
+    const { validateAppsOriginAtStartup } = await import('./lib/apps/startup')
+    validateAppsOriginAtStartup()
   }
 
   // Load Edge Runtime-specific instrumentation

@@ -194,6 +194,13 @@ export const AuditAction = {
   WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled',
   WORKFLOW_EXPORTED: 'workflow.exported',
 
+  // Full-stack Apps
+  APP_CREATED: 'app.created',
+  APP_PUBLISHED: 'app.published',
+  APP_REVOKED: 'app.revoked',
+  APP_ROLLED_BACK: 'app.rolled_back',
+  APP_ARCHIVED: 'app.archived',
+
   // Workspaces
   WORKSPACE_CREATED: 'workspace.created',
   WORKSPACE_UPDATED: 'workspace.updated',
@@ -217,6 +224,7 @@ export const AuditResourceType = {
   BYOK_KEY: 'byok_key',
   CHAT: 'chat',
   INTERFACE: 'interface',
+  APP: 'app',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
   CUSTOM_BLOCK: 'custom_block',

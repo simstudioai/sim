@@ -36,6 +36,10 @@ export async function archiveWorkspace(
     return { archived: false }
   }
 
+  // Full-stack Apps: revoke/archive apps and remove pins before workflows are purged.
+  const { revokeAllCallableReleasesForWorkspace } = await import('@/lib/apps/pins')
+  await revokeAllCallableReleasesForWorkspace(workspaceId)
+
   if (workspaceRecord.archivedAt) {
     await archiveWorkflowsForWorkspace(workspaceId, options)
     return { archived: false, workspaceName: workspaceRecord.name }

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { useDeleteWorkflowMutation, useWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 
@@ -26,6 +27,13 @@ interface UseDeleteWorkflowProps {
   onSuccess?: () => void
 }
 
+export interface PinnedAppDeleteConflict {
+  projectId: string
+  publicId: string
+  name: string
+  releaseIds: string[]
+}
+
 /**
  * Hook for managing workflow deletion with navigation logic.
  *
@@ -42,6 +50,7 @@ export function useDeleteWorkflow({
   const { data: workflowList = [] } = useWorkflows(workspaceId)
   const deleteWorkflowMutation = useDeleteWorkflowMutation()
   const [isDeleting, setIsDeleting] = useState(false)
+  const [pinnedApps, setPinnedApps] = useState<PinnedAppDeleteConflict[]>([])
 
   /**
    * Delete the workflow(s) and navigate if needed
@@ -56,6 +65,7 @@ export function useDeleteWorkflow({
     }
 
     setIsDeleting(true)
+    setPinnedApps([])
     try {
       const workflowIdsToDelete = Array.isArray(workflowIds) ? workflowIds : [workflowIds]
 
@@ -94,6 +104,12 @@ export function useDeleteWorkflow({
         }
       }
 
+      await Promise.all(
+        workflowIdsToDelete.map((id) =>
+          deleteWorkflowMutation.mutateAsync({ workspaceId, workflowId: id })
+        )
+      )
+
       if (isActiveWorkflowBeingDeleted) {
         if (nextWorkflowId) {
           router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
@@ -102,18 +118,21 @@ export function useDeleteWorkflow({
         }
       }
 
-      await Promise.all(
-        workflowIdsToDelete.map((id) =>
-          deleteWorkflowMutation.mutateAsync({ workspaceId, workflowId: id })
-        )
-      )
-
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
 
       logger.info('Workflow(s) deleted successfully', { workflowIds: workflowIdsToDelete })
       onSuccess?.()
     } catch (error) {
+      if (
+        isApiClientError(error) &&
+        error.status === 409 &&
+        error.code === 'PINNED_APP_RELEASES_EXIST'
+      ) {
+        const apps = (error.body as { apps?: PinnedAppDeleteConflict[] }).apps
+        setPinnedApps(Array.isArray(apps) ? apps : [])
+        return
+      }
       logger.error('Error deleting workflow(s):', { error })
       throw error
     } finally {
@@ -133,5 +152,7 @@ export function useDeleteWorkflow({
   return {
     isDeleting,
     handleDeleteWorkflow,
+    pinnedApps,
+    clearPinnedApps: () => setPinnedApps([]),
   }
 }

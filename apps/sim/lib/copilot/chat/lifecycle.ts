@@ -229,7 +229,7 @@ export async function resolveOrCreateChat(params: {
   workflowId?: string
   workspaceId?: string
   model: string
-  type?: 'mothership' | 'copilot'
+  type?: 'mothership' | 'fullstack' | 'copilot'
 }): Promise<ChatLoadResult> {
   const { chatId, userId, workflowId, workspaceId, model, type } = params
 
@@ -241,6 +241,16 @@ export async function resolveOrCreateChat(params: {
     const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
 
     if (chat) {
+      if (type && chat.type !== type) {
+        logger.warn('Copilot chat type mismatch', {
+          chatId,
+          userId,
+          expectedType: type,
+          chatType: chat.type,
+        })
+        return { chatId, chat: null, conversationHistory: [], isNew: false }
+      }
+
       if (workflowId && chat.workflowId !== workflowId) {
         logger.warn('Copilot chat workflow mismatch', {
           chatId,
@@ -290,7 +300,7 @@ export async function resolveOrCreateChat(params: {
       ...(workflowId ? { workflowId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
       type: type ?? 'copilot',
-      title: null,
+      title: type === 'fullstack' ? 'Full-stack App' : null,
       model,
       lastSeenAt: now,
     })

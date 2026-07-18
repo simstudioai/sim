@@ -45,4 +45,7 @@ next-env.d.ts
 # Uploads
 /uploads
 
+# App build artifacts (local APPS_ARTIFACT_ROOT default)
+.artifacts/
+
 .trigger

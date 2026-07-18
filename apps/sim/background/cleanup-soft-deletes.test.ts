@@ -14,6 +14,7 @@ const {
   mockDeleteFileMetadata,
   mockDeleteFiles,
   mockDeleteRowsById,
+  mockFinalizeStaleRunningBuilds,
   mockHardDeleteDocuments,
   mockIsUsingCloudStorage,
   mockKnowledgeBaseContainerDelete,
@@ -21,10 +22,12 @@ const {
   mockOrderBy,
   mockPrepareChatCleanup,
   mockResolveStorageBillingContext,
+  mockRunAppBlobGc,
   mockSelect,
   mockSelectRowsByIdChunks,
   mockTask,
   mockTransaction,
+  mockSweepExpiredPreviewPins,
   mockWhere,
 } = vi.hoisted(() => {
   const mockLimit = vi.fn(async () => [] as Array<{ key: string }>)
@@ -51,6 +54,7 @@ const {
     mockDeleteFileMetadata: vi.fn(async () => true),
     mockDeleteFiles: vi.fn(async () => ({ deleted: 0, failed: [] as Array<{ key: string }> })),
     mockDeleteRowsById: vi.fn(async () => ({ deleted: 0, failed: 0 })),
+    mockFinalizeStaleRunningBuilds: vi.fn(async () => 0),
     mockHardDeleteDocuments: vi.fn(async (ids: string[]) => ids.length),
     mockIsUsingCloudStorage: vi.fn(() => true),
     mockKnowledgeBaseContainerDelete,
@@ -58,10 +62,20 @@ const {
     mockOrderBy,
     mockPrepareChatCleanup: vi.fn(async () => ({ execute: vi.fn(async () => undefined) })),
     mockResolveStorageBillingContext: vi.fn(),
+    mockRunAppBlobGc: vi.fn(async () => ({
+      dryRun: false,
+      sourceCandidates: 0,
+      sourceDeleted: 0,
+      artifactCandidates: 0,
+      artifactDeleted: 0,
+      artifactSkippedUnsafe: 0,
+      artifactAborted: false,
+    })),
     mockSelect,
     mockSelectRowsByIdChunks: vi.fn(async () => [] as unknown[]),
     mockTask: vi.fn((config: unknown) => config),
     mockTransaction: vi.fn(),
+    mockSweepExpiredPreviewPins: vi.fn(async () => 0),
     mockWhere,
   }
 })
@@ -80,6 +94,7 @@ vi.mock('@sim/db/schema', () => {
   const wsFileCols = ['id', 'key', 'context', 'size', 'workspaceId', 'deletedAt', 'uploadedAt']
   const softCols = ['id', 'archivedAt', 'deletedAt', 'workspaceId']
   return {
+    appDeploymentPin: table(['id', 'workflowId']),
     copilotChats: table(['id', 'workflowId']),
     document: table(['id', 'storageKey', 'knowledgeBaseId']),
     knowledgeBase: table(softCols),
@@ -127,6 +142,11 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({
 }))
 
 vi.mock('@/lib/cleanup/chat-cleanup', () => ({ prepareChatCleanup: mockPrepareChatCleanup }))
+vi.mock('@/lib/apps/blob-gc', () => ({ runAppBlobGc: mockRunAppBlobGc }))
+vi.mock('@/lib/apps/build/stale-builds', () => ({
+  finalizeStaleRunningBuilds: mockFinalizeStaleRunningBuilds,
+}))
+vi.mock('@/lib/apps/pins', () => ({ sweepExpiredPreviewPins: mockSweepExpiredPreviewPins }))
 
 vi.mock('@/lib/billing/storage', () => ({
   decrementStorageUsageForBillingContextInTx: mockDecrementStorageUsageForBillingContextInTx,
@@ -201,6 +221,18 @@ describe('cleanup soft deletes', () => {
     expect(
       mockDeleteRowsById.mock.calls.some(([, , ids]) => (ids as string[]).includes('file-failed'))
     ).toBe(false)
+  })
+
+  it('runs app housekeeping for the dispatcher-armed global payload', async () => {
+    await runCleanupSoftDeletes({
+      ...basePayload,
+      workspaceIds: [],
+      runGlobalHousekeeping: true,
+    })
+
+    expect(mockSweepExpiredPreviewPins).toHaveBeenCalledOnce()
+    expect(mockFinalizeStaleRunningBuilds).toHaveBeenCalledOnce()
+    expect(mockRunAppBlobGc).toHaveBeenCalledOnce()
   })
 
   it('decrements the current workspace payer only for rows conditionally deleted', async () => {

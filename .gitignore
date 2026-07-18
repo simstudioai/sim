@@ -75,6 +75,10 @@ collector-config.yaml
 docker-compose.collector.yml
 start-collector.sh
 
+# App build artifacts (content-addressed blobs/manifests)
+.artifacts/
+**/.artifacts/
+
 # Turborepo
 .turbo
 

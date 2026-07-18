@@ -5,18 +5,31 @@ import { copilotHttpMock, copilotHttpMockFns, permissionsMock } from '@sim/testi
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockFrom, mockWhere, mockOrderBy, mockReconcileChatStreamMarkers } = vi.hoisted(
-  () => ({
-    mockSelect: vi.fn(),
-    mockFrom: vi.fn(),
-    mockWhere: vi.fn(),
-    mockOrderBy: vi.fn(),
-    mockReconcileChatStreamMarkers: vi.fn(),
-  })
-)
+const {
+  mockSelect,
+  mockFrom,
+  mockWhere,
+  mockOrderBy,
+  mockInsert,
+  mockInsertValues,
+  mockInsertReturning,
+  mockAssertAppPermission,
+  mockReconcileChatStreamMarkers,
+} = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockFrom: vi.fn(),
+  mockWhere: vi.fn(),
+  mockOrderBy: vi.fn(),
+  mockInsert: vi.fn(),
+  mockInsertValues: vi.fn(),
+  mockInsertReturning: vi.fn(),
+  mockAssertAppPermission: vi.fn(),
+  mockReconcileChatStreamMarkers: vi.fn(),
+}))
 
 vi.mock('@sim/db', () => ({
   db: {
+    insert: mockInsert,
     select: mockSelect,
   },
 }))
@@ -38,10 +51,12 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   desc: vi.fn((field: unknown) => ({ type: 'desc', field })),
   eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
+  inArray: vi.fn((field: unknown, values: unknown[]) => ({ type: 'inArray', field, values })),
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/apps/permissions', () => ({ assertAppPermission: mockAssertAppPermission }))
 
 vi.mock('@/lib/copilot/chat/stream-liveness', () => ({
   reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
@@ -55,7 +70,7 @@ vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),
 }))
 
-import { GET } from '@/app/api/mothership/chats/route'
+import { GET, POST } from '@/app/api/mothership/chats/route'
 
 function createRequest(workspaceId: string) {
   return new NextRequest(`http://localhost:3000/api/mothership/chats?workspaceId=${workspaceId}`, {
@@ -76,6 +91,10 @@ describe('GET /api/mothership/chats', () => {
     mockWhere.mockReturnValue({ orderBy: mockOrderBy })
     mockFrom.mockReturnValue({ where: mockWhere })
     mockSelect.mockReturnValue({ from: mockFrom })
+    mockInsertReturning.mockResolvedValue([{ id: 'chat-fullstack' }])
+    mockInsertValues.mockReturnValue({ returning: mockInsertReturning })
+    mockInsert.mockReturnValue({ values: mockInsertValues })
+    mockAssertAppPermission.mockResolvedValue({ ok: true })
 
     mockReconcileChatStreamMarkers.mockImplementation(
       async (candidates: Array<{ chatId: string; streamId: string | null }>) =>
@@ -89,6 +108,26 @@ describe('GET /api/mothership/chats', () => {
             },
           ])
         )
+    )
+  })
+
+  it('creates a server-enforced fullstack chat for a workspace writer', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/mothership/chats', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workspaceId: 'ws-1', type: 'fullstack' }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockAssertAppPermission).toHaveBeenCalledWith('user-1', 'ws-1', 'edit')
+    expect(mockInsertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        type: 'fullstack',
+        title: 'Full-stack App',
+      })
     )
   })
 

@@ -24,6 +24,14 @@ services:
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
+      - APP_PUBLIC_ORIGIN=${APP_PUBLIC_ORIGIN:-http://apps.localhost:3005}
+      - NEXT_PUBLIC_APP_PUBLIC_ORIGIN=${NEXT_PUBLIC_APP_PUBLIC_ORIGIN:-http://apps.localhost:3005}
+      - APPS_PROXY_HOP_SECRET=${APPS_PROXY_HOP_SECRET:-dev-apps-proxy-hop-secret-min-32-chars}
+      - APPS_ABUSE_TOKEN_SECRET=${APPS_ABUSE_TOKEN_SECRET:-dev-apps-abuse-token-secret-min-32-chars}
+      - APPS_ALLOW_FIXTURE_BUILDS=${APPS_ALLOW_FIXTURE_BUILDS:-true}
+      - APPS_ARTIFACT_ROOT=/app/.artifacts
+    volumes:
+      - apps_artifacts:/app/.artifacts
     depends_on:
       db:
         condition: service_healthy
@@ -80,6 +88,29 @@ services:
     command: ['bun', 'run', 'db:migrate']
     restart: 'no'
 
+  # Full-stack Apps static host + action reverse proxy (distinct hostname).
+  # Map apps.localhost → 127.0.0.1 in /etc/hosts (or use a local DNS helper).
+  apps-host:
+    image: oven/bun:1.3
+    working_dir: /app/apps/apps-host
+    volumes:
+      - ./apps/apps-host:/app/apps/apps-host
+      - apps_artifacts:/app/.artifacts
+    command: ['bun', 'run', 'src/server.ts']
+    ports:
+      - '3005:3005'
+    environment:
+      - APPS_HOST_PORT=3005
+      - APPS_INTERNAL_GATEWAY_URL=${APPS_INTERNAL_GATEWAY_URL:-http://simstudio:3000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://sim.localhost:3000}
+      - APPS_PROXY_HOP_SECRET=${APPS_PROXY_HOP_SECRET:-dev-apps-proxy-hop-secret-min-32-chars}
+      - APP_PUBLIC_ORIGIN=${APP_PUBLIC_ORIGIN:-http://apps.localhost:3005}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://sim.localhost:3000}
+      - APPS_ARTIFACT_ROOT=/app/.artifacts
+    depends_on:
+      simstudio:
+        condition: service_healthy
+
   db:
     image: pgvector/pgvector:pg17
     restart: always
@@ -99,3 +130,4 @@ services:
 
 volumes:
   postgres_data:
+  apps_artifacts:

@@ -1,0 +1,13 @@
+{
+  "name": "sim-e2b-app-build-toolchain",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@vitejs/plugin-react": "6.0.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "scheduler": "0.27.0",
+    "typescript": "7.0.2",
+    "vite": "8.0.16"
+  }
+}

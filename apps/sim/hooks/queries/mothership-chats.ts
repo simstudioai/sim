@@ -32,6 +32,7 @@ import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
   id: string
+  type: 'mothership' | 'fullstack'
   name: string
   updatedAt: Date
   isActive: boolean
@@ -41,6 +42,7 @@ export interface MothershipChatMetadata {
 
 export interface MothershipChatHistory {
   id: string
+  type: 'mothership' | 'fullstack'
   title: string | null
   messages: PersistedMessage[]
   activeStreamId: string | null
@@ -49,6 +51,13 @@ export interface MothershipChatHistory {
     events: StreamBatchEvent[]
     previewSessions: FilePreviewSession[]
     status: string
+  } | null
+  linkedAppProject: {
+    id: string
+    name: string
+    slug: string
+    publicId: string
+    publishedReleaseId: string | null
   } | null
 }
 
@@ -162,6 +171,10 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
   const chat = value.chat
 
   assertValid(typeof chat.id === 'string', `${chatContext}.id must be a string`)
+  assertValid(
+    chat.type === undefined || chat.type === 'mothership' || chat.type === 'fullstack',
+    `${chatContext}.type is invalid`
+  )
   assertValid(isNullableString(chat.title), `${chatContext}.title must be a string or null`)
   assertValid(Array.isArray(chat.messages), `${chatContext}.messages must be an array`)
   assertValid(
@@ -171,11 +184,46 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
 
   return {
     id: chat.id,
+    type: chat.type === 'fullstack' ? 'fullstack' : 'mothership',
     title: chat.title,
     messages: normalizeMessages(chat.messages),
     activeStreamId: chat.activeStreamId,
     resources: parseResources(chat.resources, `${chatContext}.resources`),
     streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
+    linkedAppProject:
+      chat.linkedAppProject === null || chat.linkedAppProject === undefined
+        ? null
+        : (() => {
+            assertValid(
+              isRecordLike(chat.linkedAppProject),
+              `${chatContext}.linkedAppProject must be an object or null`
+            )
+            const app = chat.linkedAppProject
+            assertValid(typeof app.id === 'string', `${chatContext}.linkedAppProject.id is invalid`)
+            assertValid(
+              typeof app.name === 'string',
+              `${chatContext}.linkedAppProject.name is invalid`
+            )
+            assertValid(
+              typeof app.slug === 'string',
+              `${chatContext}.linkedAppProject.slug is invalid`
+            )
+            assertValid(
+              typeof app.publicId === 'string',
+              `${chatContext}.linkedAppProject.publicId is invalid`
+            )
+            assertValid(
+              isNullableString(app.publishedReleaseId),
+              `${chatContext}.linkedAppProject.publishedReleaseId is invalid`
+            )
+            return {
+              id: app.id,
+              name: app.name,
+              slug: app.slug,
+              publicId: app.publicId,
+              publishedReleaseId: app.publishedReleaseId,
+            }
+          })(),
   }
 }
 
@@ -191,6 +239,7 @@ export function mapChat(chat: MothershipChat): MothershipChatMetadata {
   const updatedAt = new Date(chat.updatedAt)
   return {
     id: chat.id,
+    type: chat.type,
     name: chat.title ?? 'New chat',
     updatedAt,
     isActive: chat.activeStreamId !== null,
@@ -632,17 +681,23 @@ export function useSetMothershipChatPinned(workspaceId?: string) {
   })
 }
 
-async function createChat(workspaceId: string): Promise<{ id: string }> {
-  const { id } = await requestJson(createMothershipChatContract, { body: { workspaceId } })
+async function createChat(
+  workspaceId: string,
+  type: 'mothership' | 'fullstack'
+): Promise<{ id: string }> {
+  const { id } = await requestJson(createMothershipChatContract, { body: { workspaceId, type } })
   return { id }
 }
 
-export function useCreateMothershipChat(workspaceId?: string) {
+export function useCreateMothershipChat(
+  workspaceId?: string,
+  type: 'mothership' | 'fullstack' = 'mothership'
+) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => {
       if (!workspaceId) throw new Error('workspaceId is required')
-      return createChat(workspaceId)
+      return createChat(workspaceId, type)
     },
     onSuccess: (data) => {
       if (!workspaceId) return
@@ -651,6 +706,7 @@ export function useCreateMothershipChat(workspaceId?: string) {
         []
       const newChat: MothershipChatMetadata = {
         id: data.id,
+        type,
         name: 'New chat',
         updatedAt: new Date(),
         isActive: false,
@@ -698,6 +754,7 @@ export function useForkMothershipChat(workspaceId?: string) {
         const baseName = (sourceChat?.name ?? 'New chat').replace(/^Fork \| /, '')
         const optimisticChat: MothershipChatMetadata = {
           id: data.id,
+          type: sourceChat?.type ?? 'mothership',
           name: `Fork | ${baseName}`,
           updatedAt: new Date(),
           isActive: false,

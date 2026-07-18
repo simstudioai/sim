@@ -47,6 +47,21 @@ export const env = createEnv({
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
     INTERNAL_JWT_SECRET:                   z.string().min(32).optional(),          // Dedicated signing key for internal JWTs (falls back to INTERNAL_API_SECRET); separating limits blast radius if one leaks
 
+    // Full-stack Apps (separate origin — never add APP_PUBLIC_ORIGIN to Better Auth trustedOrigins)
+    APP_PUBLIC_ORIGIN:                     z.string().url().optional(),            // Distinct apps hostname origin (e.g. https://apps.localhost:3005); required for Full-stack Apps
+    APPS_PROXY_HOP_SECRET:                 z.string().min(32).optional(),          // HMAC secret for apps-domain → Sim hop proof (min 32 chars)
+    APPS_ABUSE_TOKEN_SECRET:               z.string().min(32).optional(),          // Optional dedicated secret for visitor abuse tokens (falls back to hop secret)
+    APPS_INTERNAL_GATEWAY_URL:             z.string().url().optional(),            // Sim base URL the apps-host proxies to (defaults to NEXT_PUBLIC_APP_URL)
+    E2B_APP_BUILD_TEMPLATE_ID:             z.string().optional(),                  // Tagged E2B app-build image with curated deps (no user npm)
+    E2B_APP_BUILD_IMAGE_DIGEST:            z.string().min(1).optional(),           // e2b-build:<buildId> emitted by build-app-e2b-template.ts
+    APPS_ALLOW_FIXTURE_BUILDS:             z.boolean().optional(),                 // Dev-only: allow hash-only fixture builds (never for real artifacts)
+    APPS_ALLOW_LOCAL_VITE_BUILDS:          z.boolean().optional(),                 // Dev/staging: trusted local Vite build (no E2B); never silent fallback from E2B
+    APPS_ARTIFACT_ROOT:                    z.string().optional(),                  // Shared content-addressed artifact root (blobs/ + manifests/); apps-host must use the same path
+    APPS_MONOREPO_ROOT:                    z.string().optional(),                  // Optional override for local Vite toolchain root (defaults to cwd/../..)
+    APPS_TOOLCHAIN_ROOT:                   z.string().optional(),                  // Alias for APPS_MONOREPO_ROOT
+    APPS_BLOB_GC_DRY_RUN:                  z.boolean().optional(),                 // Log orphan source/artifact blobs without deleting them
+    APPS_BLOB_GC_MIN_AGE_HOURS:            z.coerce.number().positive().optional(), // Grace period before orphan blobs become eligible (default 24h)
+
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     /** Enables attributed-v1 only after compatible Copilot instances are deployed. */
@@ -555,6 +570,7 @@ export const env = createEnv({
     NEXT_PUBLIC_INBOX_ENABLED:             z.boolean().optional(),                   // Enable inbox (Sim Mailer) on self-hosted
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
     NEXT_PUBLIC_TURNSTILE_SITE_KEY:        z.string().min(1).optional(),           // Cloudflare Turnstile site key for captcha widget
+    NEXT_PUBLIC_APP_PUBLIC_ORIGIN:         z.string().url().optional(),            // Client-visible apps origin for preview iframes / builder frame-src
   },
 
   // Variables available on both server and client
@@ -595,6 +611,7 @@ export const env = createEnv({
     NEXT_PUBLIC_INBOX_ENABLED: process.env.NEXT_PUBLIC_INBOX_ENABLED,
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    NEXT_PUBLIC_APP_PUBLIC_ORIGIN: process.env.NEXT_PUBLIC_APP_PUBLIC_ORIGIN,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
     NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: process.env.NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS,
     NEXT_PUBLIC_AZURE_CONFIGURED: process.env.NEXT_PUBLIC_AZURE_CONFIGURED,

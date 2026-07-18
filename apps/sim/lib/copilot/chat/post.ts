@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
+import { getLinkedAppProjectForChat } from '@/lib/apps/projects'
 import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
@@ -826,7 +827,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
               workspaceId: branch.workspaceId,
               model: branch.titleModel,
-              type: branch.kind === 'workflow' ? 'copilot' : 'mothership',
+              ...(branch.kind === 'workflow'
+                ? { type: 'copilot' as const }
+                : body.chatId
+                  ? {}
+                  : { type: 'mothership' as const }),
             }),
           activeOtelRoot.context
         )
@@ -842,6 +847,24 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.finish('error')
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
         }
+      }
+
+      const effectiveChatType =
+        branch.kind === 'workflow'
+          ? 'copilot'
+          : currentChat?.type === 'fullstack'
+            ? 'fullstack'
+            : 'mothership'
+      if (
+        currentChat?.type &&
+        ((branch.kind === 'workspace' &&
+          currentChat.type !== 'mothership' &&
+          currentChat.type !== 'fullstack') ||
+          (branch.kind === 'workflow' && currentChat.type !== 'copilot'))
+      ) {
+        activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 404)
+        activeOtelRoot.finish('error')
+        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
@@ -887,6 +910,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // into a simple TraceQL filter.
       activeOtelRoot.setRequestShape({
         branchKind: branch.kind,
+        chatType: effectiveChatType,
         mode: body.mode,
         model: branch.effectiveModel,
         provider: body.provider,
@@ -989,6 +1013,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const vfs = workspaceSnapshot?.snapshot
 
       executionContext.userPermission = userPermission ?? undefined
+      executionContext.requestMode =
+        effectiveChatType === 'fullstack' ? 'fullstack' : executionContext.requestMode
 
       // buildPayload is the last synchronous step before the outbound
       // Sim → Go HTTP call. It runs per-tool schema generation (subscription
@@ -1048,6 +1074,20 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         },
         activeOtelRoot.context
       )
+      requestPayload.chatType = effectiveChatType
+      if (effectiveChatType === 'fullstack' && actualChatId && branch.workspaceId) {
+        const linkedApp = await getLinkedAppProjectForChat(actualChatId, branch.workspaceId)
+        if (linkedApp) {
+          requestPayload.appProject = {
+            id: linkedApp.id,
+            name: linkedApp.name,
+            slug: linkedApp.slug,
+            publicId: linkedApp.publicId,
+            draftRevisionId: linkedApp.draftRevisionId,
+            publishedReleaseId: linkedApp.publishedReleaseId,
+          }
+        }
+      }
 
       if (actualChatId) {
         activeOtelRoot.span.setAttribute(TraceAttr.ChatId, actualChatId)

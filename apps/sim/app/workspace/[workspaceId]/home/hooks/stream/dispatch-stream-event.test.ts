@@ -10,6 +10,7 @@ const handlers = vi.hoisted(() => ({
   handleSessionEvent: vi.fn(),
   handleTextEvent: vi.fn(),
   handleToolEvent: vi.fn(),
+  handleAppEvent: vi.fn(),
   handleResourceEvent: vi.fn(),
   handleRunEvent: vi.fn(),
   handleSpanEvent: vi.fn(),
@@ -25,6 +26,9 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/stream/handle-text-event', () 
 }))
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/stream/handle-tool-event', () => ({
   handleToolEvent: handlers.handleToolEvent,
+}))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/stream/handle-app-event', () => ({
+  handleAppEvent: handlers.handleAppEvent,
 }))
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event', () => ({
   handleResourceEvent: handlers.handleResourceEvent,
@@ -75,6 +79,7 @@ describe('dispatchStreamEvent', () => {
     dispatchStreamEvent(ctx, event(MothershipStreamV1EventType.session))
     dispatchStreamEvent(ctx, event(MothershipStreamV1EventType.text))
     dispatchStreamEvent(ctx, event(MothershipStreamV1EventType.tool))
+    dispatchStreamEvent(ctx, event(MothershipStreamV1EventType.app))
     dispatchStreamEvent(ctx, event(MothershipStreamV1EventType.resource))
     dispatchStreamEvent(ctx, event(MothershipStreamV1EventType.run))
     dispatchStreamEvent(ctx, event(MothershipStreamV1EventType.span))
@@ -84,6 +89,7 @@ describe('dispatchStreamEvent', () => {
     expect(handlers.handleSessionEvent).toHaveBeenCalledTimes(1)
     expect(handlers.handleTextEvent).toHaveBeenCalledTimes(1)
     expect(handlers.handleToolEvent).toHaveBeenCalledTimes(1)
+    expect(handlers.handleAppEvent).toHaveBeenCalledTimes(1)
     expect(handlers.handleResourceEvent).toHaveBeenCalledTimes(1)
     expect(handlers.handleRunEvent).toHaveBeenCalledTimes(1)
     expect(handlers.handleSpanEvent).toHaveBeenCalledTimes(1)

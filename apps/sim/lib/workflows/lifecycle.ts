@@ -148,7 +148,9 @@ export async function archiveWorkflow(
         updatedAt: now,
         isActive: false,
       })
-      .where(and(eq(workflowInterface.workflowId, workflowId), isNull(workflowInterface.archivedAt)))
+      .where(
+        and(eq(workflowInterface.workflowId, workflowId), isNull(workflowInterface.archivedAt))
+      )
 
     await tx
       .update(workflowMcpTool)

@@ -1,0 +1,4 @@
+-- No-op Drizzle schema snapshot checkpoint.
+-- The Full-stack Apps schema is created by 0264_fullstack_apps; keeping this
+-- journal entry pairs the generated 0271 snapshot with the migration history
+-- without attempting to create the same tables and enums a second time.

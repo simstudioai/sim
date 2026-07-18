@@ -31,7 +31,7 @@ vi.mock('@/lib/workspaces/policy', () => ({
   isOrganizationWorkspace: vi.fn(),
 }))
 
-import { dispatchCleanupJobs } from '@/lib/billing/cleanup-dispatcher'
+import { dispatchCleanupJobs, GLOBAL_HOUSEKEEPING_PLAN } from '@/lib/billing/cleanup-dispatcher'
 
 describe('dispatchCleanupJobs billing gate', () => {
   beforeEach(() => {
@@ -45,5 +45,11 @@ describe('dispatchCleanupJobs billing gate', () => {
     expect(result).toEqual({ jobIds: [], jobCount: 0, chunkCount: 0, workspaceCount: 0 })
     expect(mockIsTriggerAvailable).not.toHaveBeenCalled()
     expect(mockSelect).not.toHaveBeenCalled()
+  })
+})
+
+describe('global cleanup housekeeping', () => {
+  it('assigns app housekeeping to the soft-delete dispatch', () => {
+    expect(GLOBAL_HOUSEKEEPING_PLAN['cleanup-soft-deletes']).toBe('free')
   })
 })
