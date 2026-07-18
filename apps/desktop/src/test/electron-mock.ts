@@ -14,6 +14,7 @@ export const app = {
   getName: vi.fn(() => 'Sim'),
   setName: vi.fn(),
   getPath: vi.fn(() => '/tmp/sim-desktop-test'),
+  getAppPath: vi.fn(() => '/tmp/sim-desktop-test/app'),
   isReady: vi.fn(() => true),
   on: vi.fn(),
   once: vi.fn(),
@@ -81,6 +82,42 @@ export const screen = {
     bounds: { x: 0, y: 0, width: 1728, height: 1117 },
     workArea: { x: 0, y: 25, width: 1728, height: 1092 },
   })),
+  getCursorScreenPoint: vi.fn(() => ({ x: 100, y: 100 })),
+  getDisplayNearestPoint: vi.fn(() => ({
+    bounds: { x: 0, y: 0, width: 1728, height: 1117 },
+    workArea: { x: 0, y: 25, width: 1728, height: 1092 },
+  })),
+}
+
+export const globalShortcut = {
+  register: vi.fn(() => true),
+  unregister: vi.fn(),
+  isRegistered: vi.fn(() => false),
+  unregisterAll: vi.fn(),
+}
+
+export const nativeImage = {
+  createFromPath: vi.fn(() => ({
+    isEmpty: vi.fn(() => false),
+    setTemplateImage: vi.fn(),
+  })),
+  createEmpty: vi.fn(() => ({
+    isEmpty: vi.fn(() => true),
+    setTemplateImage: vi.fn(),
+  })),
+}
+
+export class Tray {
+  static instances: Tray[] = []
+  constructor(public image: unknown) {
+    Tray.instances.push(this)
+  }
+  setToolTip = vi.fn()
+  setContextMenu = vi.fn()
+  popUpContextMenu = vi.fn()
+  on = vi.fn()
+  destroy = vi.fn()
+  isDestroyed = vi.fn(() => false)
 }
 
 function createWebContentsMock() {
@@ -143,6 +180,7 @@ export class BrowserWindow {
     executeJavaScript: vi.fn(() => Promise.resolve(true)),
     send: vi.fn(),
     setWindowOpenHandler: vi.fn(),
+    isDevToolsOpened: vi.fn(() => false),
     session: { addWordToSpellCheckerDictionary: vi.fn() },
   }
   on = vi.fn()
@@ -151,16 +189,22 @@ export class BrowserWindow {
   isMinimized = vi.fn(() => false)
   isFullScreen = vi.fn(() => false)
   isMaximized = vi.fn(() => false)
+  isVisible = vi.fn(() => false)
   getNormalBounds = vi.fn(() => ({ x: 0, y: 0, width: 1360, height: 860 }))
+  getBounds = vi.fn(() => ({ x: 524, y: 298, width: 680, height: 150 }))
+  setBounds = vi.fn()
   loadURL = vi.fn(() => Promise.resolve())
   loadFile = vi.fn(() => Promise.resolve())
   focus = vi.fn()
   show = vi.fn()
   showInactive = vi.fn()
+  hide = vi.fn()
   close = vi.fn()
   destroy = vi.fn()
   restore = vi.fn()
   setPosition = vi.fn()
+  setVisibleOnAllWorkspaces = vi.fn()
+  setAlwaysOnTop = vi.fn()
   getSize = vi.fn(() => [1180, 850])
   getContentSize = vi.fn(() => [1180, 850])
   contentView = {

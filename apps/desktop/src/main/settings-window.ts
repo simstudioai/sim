@@ -25,7 +25,7 @@ export function openSettingsWindow(deps: SettingsWindowDeps): void {
   settingsWindow = new BrowserWindow({
     title: 'Sim Settings',
     width: 460,
-    height: 290,
+    height: 430,
     resizable: false,
     minimizable: false,
     maximizable: false,

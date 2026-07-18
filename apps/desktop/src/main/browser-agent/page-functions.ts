@@ -274,6 +274,73 @@ export function clickElement(id: number): unknown {
   return { clicked: true, element: label }
 }
 
+/**
+ * Prepares an element for NATIVE typing (driver-side CDP `Input.insertText`):
+ * focuses it and selects its current content so the inserted text REPLACES
+ * what's there — including inside code editors (CodeMirror/Monaco), whose
+ * models sync from the DOM selection / native input pipeline.
+ */
+export function focusElementForTyping(id: number): unknown {
+  const el = (window.__simAgentElements || [])[id]
+  if (!el || !el.isConnected) return { error: 'stale' }
+  el.scrollIntoView({ block: 'center' })
+
+  if (el instanceof HTMLInputElement && el.type === 'password') {
+    return { error: 'password' }
+  }
+
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    el.focus()
+    el.select()
+    return { focused: true, kind: el instanceof HTMLInputElement ? 'input' : 'textarea' }
+  }
+
+  // Editors often register a wrapper as the interactive element while the
+  // actual editable surface is a descendant.
+  const editable =
+    el instanceof HTMLElement && el.isContentEditable
+      ? el
+      : el.querySelector<HTMLElement>('[contenteditable="true"], [contenteditable=""]')
+  if (editable) {
+    editable.focus()
+    const selection = editable.ownerDocument.defaultView?.getSelection()
+    if (selection) {
+      const range = editable.ownerDocument.createRange()
+      range.selectNodeContents(editable)
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+    return { focused: true, kind: 'contenteditable' }
+  }
+  return { error: 'not-editable' }
+}
+
+/**
+ * Reads back the focused element's state after a native key/type action so
+ * the driver can report what actually happened instead of assuming success.
+ */
+export function readActiveElementState(): unknown {
+  const active = document.activeElement as HTMLElement | null
+  if (!active || active === document.body) {
+    return { activeElement: 'body', selectedChars: 0, valueLength: 0, valuePreview: '' }
+  }
+  let value = ''
+  let selectedChars = 0
+  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+    value = active.value
+    selectedChars = Math.abs((active.selectionEnd ?? 0) - (active.selectionStart ?? 0))
+  } else {
+    value = active.innerText || active.textContent || ''
+    selectedChars = window.getSelection()?.toString().length ?? 0
+  }
+  return {
+    activeElement: active.tagName.toLowerCase(),
+    selectedChars,
+    valueLength: value.length,
+    valuePreview: value.replace(/\s+/g, ' ').trim().slice(0, 120),
+  }
+}
+
 export function typeIntoElement(id: number, text: string, submit: boolean): unknown {
   const el = (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale' }

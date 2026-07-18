@@ -48,6 +48,24 @@ describe('registerIpcHandlers', () => {
       localFilesystem: new LocalFilesystemService({
         chooseDirectory: vi.fn(async () => null),
       }),
+      launcher: {
+        openChat: vi.fn(),
+        openApp: vi.fn(),
+        hide: vi.fn(),
+        resize: vi.fn(),
+      },
+      launcherShortcut: {
+        get: vi.fn(() => ({
+          shortcut: 'Alt+Space',
+          presets: ['Alt+Space'],
+          status: 'registered' as const,
+        })),
+        set: vi.fn(() => ({
+          shortcut: 'Control+Space',
+          presets: ['Alt+Space'],
+          status: 'registered' as const,
+        })),
+      },
     }
     registerIpcHandlers(deps)
   })
@@ -137,5 +155,60 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(evilEvent, { action: 'reload' })).not.toThrow()
     expect(() => handler?.(appEvent, 'not-an-object')).not.toThrow()
     expect(() => handler?.(appEvent, { action: 'reload' })).not.toThrow()
+  })
+
+  it('restricts launcher channels to the app origin and validates ids', () => {
+    const { on } = collectHandlers()
+    const openChat = on.get('launcher:open-chat')
+
+    openChat?.(evilEvent, { workspaceId: 'ws1' })
+    openChat?.(fileEvent, { workspaceId: 'ws1' })
+    expect(deps.launcher.openChat).not.toHaveBeenCalled()
+
+    // Ids that could escape the URL path are rejected.
+    openChat?.(appEvent, { workspaceId: 'ws1/../../admin' })
+    openChat?.(appEvent, { workspaceId: 'ws1', chatId: 'c1?x=1' })
+    openChat?.(appEvent, { workspaceId: '' })
+    openChat?.(appEvent, 'not-an-object')
+    expect(deps.launcher.openChat).not.toHaveBeenCalled()
+
+    openChat?.(appEvent, { workspaceId: 'ws1', chatId: 'chat_2-a' })
+    expect(deps.launcher.openChat).toHaveBeenCalledWith({
+      workspaceId: 'ws1',
+      chatId: 'chat_2-a',
+    })
+    openChat?.(appEvent, { workspaceId: 'ws1' })
+    expect(deps.launcher.openChat).toHaveBeenCalledWith({ workspaceId: 'ws1' })
+
+    on.get('launcher:open-app')?.(evilEvent)
+    expect(deps.launcher.openApp).not.toHaveBeenCalled()
+    on.get('launcher:open-app')?.(appEvent)
+    expect(deps.launcher.openApp).toHaveBeenCalledTimes(1)
+
+    on.get('launcher:close')?.(evilEvent)
+    expect(deps.launcher.hide).not.toHaveBeenCalled()
+    on.get('launcher:close')?.(appEvent)
+    expect(deps.launcher.hide).toHaveBeenCalledTimes(1)
+
+    on.get('launcher:resize')?.(appEvent, 'tall')
+    on.get('launcher:resize')?.(appEvent, Number.NaN)
+    expect(deps.launcher.resize).not.toHaveBeenCalled()
+    on.get('launcher:resize')?.(appEvent, 400)
+    expect(deps.launcher.resize).toHaveBeenCalledWith(400)
+  })
+
+  it('restricts launcher shortcut settings to bundled local pages', async () => {
+    const { invoke } = collectHandlers()
+    expect(await invoke.get('settings:launcher-shortcut-get')?.(appEvent)).toBeNull()
+    expect(await invoke.get('settings:launcher-shortcut-get')?.(fileEvent)).toMatchObject({
+      shortcut: 'Alt+Space',
+      status: 'registered',
+    })
+    expect(await invoke.get('settings:launcher-shortcut-set')?.(appEvent, 'Control+Space')).toBe(
+      null
+    )
+    expect(await invoke.get('settings:launcher-shortcut-set')?.(fileEvent, 42)).toBeNull()
+    await invoke.get('settings:launcher-shortcut-set')?.(fileEvent, 'Control+Space')
+    expect(deps.launcherShortcut.set).toHaveBeenCalledWith('Control+Space')
   })
 })

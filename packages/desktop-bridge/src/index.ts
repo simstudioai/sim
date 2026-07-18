@@ -131,6 +131,35 @@ export type LocalFilesystemResponse =
       error: string
     }
 
+/** Registration outcome of the Quick Ask global shortcut. */
+export type LauncherShortcutStatus = 'registered' | 'failed' | 'disabled'
+
+export interface LauncherShortcutSettings {
+  shortcut: string
+  presets: string[]
+  status: LauncherShortcutStatus
+}
+
+/**
+ * The Quick Ask launcher surface of the preload bridge, used by the
+ * `/desktop/launcher` page loaded inside the floating panel window.
+ */
+export interface SimDesktopLauncherApi {
+  /**
+   * Dismiss the panel and open the main window on the given chat (or the
+   * workspace's home surface when `chatId` is omitted).
+   */
+  openChat(target: { workspaceId: string; chatId?: string }): void
+  /** Dismiss the panel and bring up the main window (sign-in, generic open). */
+  openApp(): void
+  /** Dismiss the panel (Esc). */
+  close(): void
+  /** Grow/shrink the panel to fit content; the main process clamps. */
+  resize(height: number): void
+  /** Fires each time the panel is summoned. Returns an unsubscribe function. */
+  onShown(callback: () => void): () => void
+}
+
 export interface SimDesktopApi {
   getAppVersion(): Promise<string>
   openExternal(url: string): Promise<boolean>
@@ -141,6 +170,9 @@ export interface SimDesktopApi {
   settingsClose(): void
   settingsGet(): Promise<{ origin: string; isDefault: boolean } | null>
   settingsSave(origin: string): Promise<{ ok: boolean; error?: string }>
+  settingsGetLauncherShortcut(): Promise<LauncherShortcutSettings | null>
+  settingsSaveLauncherShortcut(shortcut: string): Promise<LauncherShortcutSettings | null>
   localFilesystem(request: LocalFilesystemRequest): Promise<LocalFilesystemResponse>
   browserAgent?: SimDesktopBrowserAgentApi
+  launcher?: SimDesktopLauncherApi
 }

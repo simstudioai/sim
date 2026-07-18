@@ -155,7 +155,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         key: {
           type: 'string',
-          description: "Key or combination, e.g. 'Enter' or 'Control+A'.",
+          description: "Key or combination, e.g. 'Enter', 'Backspace', or 'Cmd+A'.",
         },
       },
       required: ['key'],
@@ -265,7 +265,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         text: {
           type: 'string',
-          description: 'The text to type.',
+          description: "The text to type. Replaces the element's current content.",
         },
       },
       required: ['elementId', 'text'],

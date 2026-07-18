@@ -1,3 +1,4 @@
+import type { LauncherShortcutSettings } from '@sim/desktop-bridge'
 import { isBrowserToolName } from '@sim/browser-protocol'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import { app, ipcMain } from 'electron'
@@ -8,6 +9,33 @@ import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { openExternalSafe } from '@/main/navigation'
 import { ensureMicrophoneAccess } from '@/main/window'
 
+/** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+
+export interface LauncherOpenChatTarget {
+  workspaceId: string
+  chatId?: string
+}
+
+/**
+ * Validates the launcher's open-chat payload. Both ids are embedded into a
+ * loadURL path, so they are allowlisted to opaque-token characters — no
+ * slashes, dots, or percent escapes.
+ */
+export function parseLauncherOpenChatTarget(raw: unknown): LauncherOpenChatTarget | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null
+  }
+  const { workspaceId, chatId } = raw as { workspaceId?: unknown; chatId?: unknown }
+  if (typeof workspaceId !== 'string' || !ID_PATTERN.test(workspaceId)) {
+    return null
+  }
+  if (chatId !== undefined && (typeof chatId !== 'string' || !ID_PATTERN.test(chatId))) {
+    return null
+  }
+  return { workspaceId, ...(chatId !== undefined ? { chatId } : {}) }
+}
+
 export interface IpcDeps {
   config: ConfigStore
   appOrigin: () => string
@@ -17,6 +45,16 @@ export interface IpcDeps {
   closeSettings: () => void
   applyOrigin: (raw: string) => Promise<OriginValidation>
   localFilesystem: LocalFilesystemService
+  launcher: {
+    openChat: (target: LauncherOpenChatTarget) => void
+    openApp: () => void
+    hide: () => void
+    resize: (height: number) => void
+  }
+  launcherShortcut: {
+    get: () => LauncherShortcutSettings
+    set: (shortcut: string) => LauncherShortcutSettings
+  }
 }
 
 function isLocalPageSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
@@ -141,5 +179,50 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       return { ok: false, error: 'Not allowed' }
     }
     return deps.applyOrigin(raw)
+  })
+
+  ipcMain.handle('settings:launcher-shortcut-get', (event) => {
+    if (!isLocalPageSender(event)) {
+      return null
+    }
+    return deps.launcherShortcut.get()
+  })
+
+  ipcMain.handle('settings:launcher-shortcut-set', (event, raw: unknown) => {
+    if (!isLocalPageSender(event) || typeof raw !== 'string') {
+      return null
+    }
+    return deps.launcherShortcut.set(raw)
+  })
+
+  ipcMain.on('launcher:open-chat', (event, raw: unknown) => {
+    if (!isAppOriginSender(event, deps.appOrigin())) {
+      return
+    }
+    const target = parseLauncherOpenChatTarget(raw)
+    if (target) {
+      deps.launcher.openChat(target)
+    }
+  })
+
+  ipcMain.on('launcher:open-app', (event) => {
+    if (isAppOriginSender(event, deps.appOrigin())) {
+      deps.launcher.openApp()
+    }
+  })
+
+  ipcMain.on('launcher:close', (event) => {
+    if (isAppOriginSender(event, deps.appOrigin())) {
+      deps.launcher.hide()
+    }
+  })
+
+  ipcMain.on('launcher:resize', (event, height: unknown) => {
+    if (!isAppOriginSender(event, deps.appOrigin())) {
+      return
+    }
+    if (typeof height === 'number' && Number.isFinite(height)) {
+      deps.launcher.resize(height)
+    }
   })
 }
