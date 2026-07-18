@@ -3,6 +3,7 @@
  */
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 
 const { mockClearCache, mockDiscoverServerTools, mockSelect, mockUpdate, mockUpdateSet } =
   vi.hoisted(() => ({
@@ -56,6 +57,7 @@ const initialServer = {
   workspaceId: 'workspace-1',
   name: 'OAuth Server',
   url: 'https://example.com/mcp',
+  authType: 'oauth',
   connectionStatus: 'connected',
   lastError: null,
   lastConnected: new Date('2026-01-01T00:00:00.000Z'),
@@ -93,7 +95,9 @@ describe('MCP server refresh route', () => {
   })
 
   it('preserves the service-persisted OAuth pending status', async () => {
-    mockDiscoverServerTools.mockRejectedValueOnce(new Error('OAuth authorization required'))
+    mockDiscoverServerTools.mockRejectedValueOnce(
+      new McpOauthAuthorizationRequiredError('server-1', 'OAuth Server')
+    )
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -109,6 +113,25 @@ describe('MCP server refresh route', () => {
     )
     expect(mockUpdateSet).not.toHaveBeenCalledWith(
       expect.objectContaining({ connectionStatus: expect.anything() })
+    )
+  })
+
+  it('reports a sanitized discovery timeout when persistence leaves disconnected without an error', async () => {
+    mockDiscoverServerTools.mockRejectedValueOnce(new Error('upstream request timeout'))
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'disconnected',
+        error: 'Request timed out',
+        toolCount: 0,
+        workflowsUpdated: 0,
+      })
     )
   })
 

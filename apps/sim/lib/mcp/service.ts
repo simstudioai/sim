@@ -734,7 +734,10 @@ class McpService {
       null,
       [serverCacheKey(workspaceId, serverId), failureCacheKey(workspaceId, serverId)]
     )
-    if (cacheApplied !== 'applied') return
+    if (cacheApplied === 'superseded') return
+    if (cacheApplied === 'unavailable') {
+      await this.bestEffortInvalidateServerCache(workspaceId, serverId)
+    }
 
     await this.markServerCacheInvalidated(serverId, workspaceId, new Date(mutation.id))
   }

@@ -1,3 +1,4 @@
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { db } from '@sim/db'
 import { mcpServers, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -10,7 +11,11 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { type McpServerDiscoveryState, mcpService } from '@/lib/mcp/service'
-import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
+import {
+  McpOauthAuthorizationRequiredError,
+  type McpTool,
+  type McpToolSchema,
+} from '@/lib/mcp/types'
 import {
   categorizeError,
   createMcpErrorResponse,
@@ -190,6 +195,7 @@ export const POST = withRouteHandler(
         let discoveredTools: McpTool[] = []
         let discoveryState: McpServerDiscoveryState | null = null
         let discoveryError: string | null = null
+        let oauthAuthorizationRequired = false
 
         try {
           const discovery = await mcpService.discoverServerToolsWithMetadata(
@@ -204,6 +210,10 @@ export const POST = withRouteHandler(
             `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`
           )
         } catch (error) {
+          oauthAuthorizationRequired =
+            server.authType === 'oauth' &&
+            (error instanceof McpOauthAuthorizationRequiredError ||
+              error instanceof UnauthorizedError)
           discoveryError = truncate(categorizeError(error).message, 200, '')
           logger.warn(`[${requestId}] Failed to connect to server ${serverId}`, {
             error: discoveryError,
@@ -282,6 +292,14 @@ export const POST = withRouteHandler(
             lastError = discoveryError
             toolCount = 0
           }
+        } else if (
+          discoveryError !== null &&
+          connectionStatus === 'disconnected' &&
+          lastError === null &&
+          !oauthAuthorizationRequired
+        ) {
+          lastError = discoveryError
+          toolCount = 0
         }
 
         return createMcpSuccessResponse({

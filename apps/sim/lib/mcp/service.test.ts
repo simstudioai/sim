@@ -737,6 +737,49 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockCacheAdapter.delete).toHaveBeenCalledWith(failureKey)
   })
 
+  it('best-effort deletes both cache keys and publishes the barrier when ordered invalidation fails', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const failureKey = `${serverKey}:failure`
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    cacheStore.set(serverKey, {
+      tools: [tool('stale-tool', 'mcp-a')],
+      expiry: Date.now() + 60_000,
+    })
+    cacheStore.set(failureKey, { tools: [], expiry: Date.now() + 60_000 })
+    mockCacheAdapter.applyMutationIfCurrent.mockRejectedValueOnce(
+      new Error('atomic invalidation unavailable')
+    )
+
+    await mcpService.clearCache(WORKSPACE_ID)
+
+    const mutationId = mockCacheAdapter.applyMutationIfCurrent.mock.calls[0][1]
+    expect(cacheStore.has(serverKey)).toBe(false)
+    expect(cacheStore.has(failureKey)).toBe(false)
+    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(serverKey)
+    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(failureKey)
+    expect(mockUpdateSet).toHaveBeenCalledWith({
+      toolCount: 0,
+      lastToolsRefresh: new Date(mutationId),
+    })
+  })
+
+  it('preserves a newer cache winner when invalidation is superseded', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const failureKey = `${serverKey}:failure`
+    const winner = tool('winner-tool', 'mcp-a')
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    cacheStore.set(serverKey, { tools: [winner], expiry: Date.now() + 60_000 })
+    cacheStore.set(failureKey, { tools: [], expiry: Date.now() + 60_000 })
+    mockCacheAdapter.applyMutationIfCurrent.mockResolvedValueOnce(false)
+
+    await mcpService.clearCache(WORKSPACE_ID)
+
+    expect(cacheStore.get(serverKey)?.tools).toEqual([winner])
+    expect(cacheStore.has(failureKey)).toBe(true)
+    expect(mockCacheAdapter.delete).not.toHaveBeenCalled()
+    expect(mockUpdateSet).not.toHaveBeenCalled()
+  })
+
   it('does not negative-cache OAuth-required errors', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))
