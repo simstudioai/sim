@@ -52,10 +52,11 @@ export function isYamlComplexityError(error: unknown): error is YamlComplexityEr
 /**
  * Exact serialized length (in UTF-16 code units — the unit V8 allocates for the
  * resulting string) that `JSON.stringify` produces for a string, accounting for
- * the escape expansion of quotes, backslashes, and control characters. Computed
- * precisely rather than with a flat multiplier so plain text is charged its
- * true size (no false rejection of large legitimate documents) while
- * escape-heavy strings are charged their real, larger cost (no cap bypass).
+ * the escape expansion of quotes, backslashes, control characters, and lone
+ * surrogates. Computed precisely rather than with a flat multiplier so plain
+ * text is charged its true size (no false rejection of large legitimate
+ * documents) while escape-heavy strings are charged their real, larger cost
+ * (no cap bypass).
  */
 function serializedStringLength(value: string): number {
   let length = 2 // surrounding quotes
@@ -67,6 +68,16 @@ function serializedStringLength(value: string): number {
       // \b \t \n \f \r use two-char escapes; other control chars use \uXXXX (six)
       length +=
         code === 0x08 || code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d ? 2 : 6
+    } else if (code >= 0xd800 && code <= 0xdfff) {
+      // Well-formed JSON.stringify emits a valid high+low surrogate pair as-is
+      // (two code units) but escapes a lone surrogate to \uXXXX (six).
+      const next = i + 1 < value.length ? value.charCodeAt(i + 1) : 0
+      if (code <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) {
+        length += 2
+        i++
+      } else {
+        length += 6
+      }
     } else {
       length += 1
     }

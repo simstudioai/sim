@@ -112,4 +112,16 @@ describe('assertYamlWithinLimits', () => {
     expect(() => assertYamlWithinLimits({ text: escapeHeavy })).toThrow(YamlComplexityError)
     expect(escapeHeavy.length).toBeLessThan(64 * 1024 * 1024)
   })
+
+  it('charges lone surrogates at their escaped length', () => {
+    // JSON.stringify escapes a lone surrogate to \uXXXX (six units). ~11M of
+    // them estimate to ~66 MB (> 64 MB) though the raw length is under the cap.
+    const loneSurrogates = String.fromCharCode(0xd800).repeat(11 * 1024 * 1024)
+    expect(loneSurrogates.length).toBeLessThan(64 * 1024 * 1024)
+    expect(() => assertYamlWithinLimits({ text: loneSurrogates })).toThrow(YamlComplexityError)
+    // A valid surrogate pair (astral char) is emitted as-is, so ~10M of them
+    // (~20M code units, ~20 MB) stays well under the cap.
+    const astral = String.fromCodePoint(0x1f600).repeat(10 * 1024 * 1024)
+    expect(() => assertYamlWithinLimits({ text: astral })).not.toThrow()
+  })
 })
