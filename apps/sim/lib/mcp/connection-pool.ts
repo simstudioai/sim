@@ -1,32 +1,20 @@
 /**
- * MCP Connection Pool
+ * Warm MCP connection pool: one reused connection per (server, workspace, user)
+ * for the tool-exec and discovery hot paths, replacing connect-per-operation.
  *
- * Serves warm, reused MCP connections to the tool-execution hot paths
- * (`executeTool` / discovery), replacing the connect-per-operation pattern that
- * pays a full connect + `initialize` + teardown on every call.
+ * The key includes the workspace + user because a server's headers/URL resolve
+ * from the caller's env (`resolveMcpConfigEnvVars`), so two users must never share
+ * a credential-bearing connection. Concurrent borrowers multiplex over one client
+ * (the SDK tracks requests by id); creation is single-flight; liveness is
+ * ping-cached; reconnect is demand-driven (callers' retries re-acquire).
  *
- * Design (verified against LibreChat, Cline, VS Code, and the MCP TS SDK):
- * - **One warm connection per server**, keyed by server id. Concurrent requests
- *   multiplex safely over a single transport (SDK tracks each request by id), so
- *   no per-server sub-pool is needed.
- * - **Demand-driven reconnect, not a background loop**: on a dead/stale
- *   connection the caller's existing retry re-acquires a fresh one. This mirrors
- *   VS Code's model and keeps the pool free of reconnect-storm machinery.
- * - **Single-flight creation** so a burst of concurrent acquires for the same
- *   server performs exactly one connect (the LibreChat app-repo race this fixes).
- * - **Liveness is TTL-cached** — at most one `ping()` per {@link LIVENESS_TTL_MS}
- *   window, never per request.
- * - **Eviction** on: config change (`updatedAt` moved), max age (so the pinned
- *   SSRF `resolvedIP` re-resolves), idle timeout, transport close, and explicit
- *   session-error eviction by the caller.
- *
- * Connections are per-process (no cross-replica sharing on ECS), consistent with
- * every reference client. Callers must NOT disconnect an acquired client — the
- * pool owns its lifecycle.
- *
- * A server that also supports `listChanged` keeps a separate connection in the
- * connection manager (for notifications); the two lifecycles are intentionally
- * distinct — this pool is not the notification path and does not consolidate it.
+ * Connections are ref-counted. Eviction *retires* an entry — removes it from the
+ * pool so no new borrower can take it — but the socket is closed only once the
+ * last in-flight borrower releases, so a sibling failure, idle sweep, or config
+ * change never tears down a connection mid-request. Retirement is identity-checked,
+ * so a stale `onClose` can't disconnect a replacement stored under the same key.
+ * Pools are per-process. Callers must release every acquired lease and must not
+ * disconnect the client themselves.
  */
 
 import { createLogger } from '@sim/logger'
@@ -36,44 +24,44 @@ import type { McpClient } from '@/lib/mcp/client'
 const logger = createLogger('McpConnectionPool')
 
 const MAX_POOL_SIZE = 100
-/** Max connection lifetime; on expiry the pinned SSRF `resolvedIP` re-resolves. */
+/** Max lifetime; on expiry the pinned SSRF `resolvedIP` re-resolves. */
 const MAX_CONNECTION_AGE_MS = 10 * 60 * 1000
-/** Liveness (`ping`) is checked at most once per this window per connection. */
 const LIVENESS_TTL_MS = 60 * 1000
+const LIVENESS_PING_TIMEOUT_MS = 5 * 1000
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000
 const IDLE_CHECK_INTERVAL_MS = 60 * 1000
 
-/** Parameters for acquiring (or lazily creating) a pooled connection. */
 export interface AcquireParams {
-  /** Pool key — the MCP server id. */
+  /** Auth-scoped pool key — `${serverId}:${workspaceId}:${userId}`. */
   key: string
-  /**
-   * The server config's `updatedAt` (ISO string) at acquire time. When it moves
-   * past the pooled connection's creation time the connection is rebuilt, so a
-   * config edit never rides a stale warm connection.
-   */
+  /** Server id, for bulk `evictServer` on config change/delete. */
+  serverId: string
+  /** Server config `updatedAt`; a newer value than the pooled entry rebuilds it. */
   configUpdatedAt?: string
-  /**
-   * Factory that constructs and connects a fresh {@link McpClient}. Invoked only
-   * on a genuine miss; concurrent misses for the same key share one invocation.
-   */
+  /** Builds and connects a fresh client; invoked once per miss (single-flight). */
   create: () => Promise<McpClient>
 }
 
+/** A borrowed connection. `release(poison)` must be called exactly once; pass `poison: true` to retire on failure. */
+export interface ConnectionLease {
+  client: McpClient
+  release: (poison?: boolean) => Promise<void>
+}
+
 interface PoolEntry {
+  key: string
+  serverId: string
   client: McpClient
   createdAt: number
-  /** `configUpdatedAt` (ms epoch) the connection was built against; 0 if unknown. */
   configUpdatedAtMs: number
   lastActivityAt: number
   lastLivenessCheckAt: number
+  borrowers: number
+  retired: boolean
+  closing: boolean
 }
 
-/**
- * Parses an ISO timestamp to epoch ms, or 0 when absent/invalid. A `0` sentinel
- * means "unknown" and never triggers staleness on its own (0 is always ≤ an
- * entry's recorded value), so a missing `updatedAt` degrades to no-op, not churn.
- */
+/** ISO → epoch ms; `0` (unknown) is always ≤ a real stamp, so it never rebuilds. */
 function toEpochMs(iso: string | undefined): number {
   if (!iso) return 0
   const ms = Date.parse(iso)
@@ -82,153 +70,175 @@ function toEpochMs(iso: string | undefined): number {
 
 export class McpConnectionPool {
   private entries = new Map<string, PoolEntry>()
-  private pending = new Map<string, Promise<McpClient>>()
+  private pending = new Map<string, Promise<PoolEntry>>()
   private idleCheckTimer: ReturnType<typeof setInterval> | null = null
   private disposed = false
 
-  /**
-   * Return a warm, live connection for `key`, creating one on a miss. The caller
-   * must not disconnect the returned client; call {@link evict} to drop it (e.g.
-   * on a session error) so the next acquire rebuilds it.
-   */
-  async acquire(params: AcquireParams): Promise<McpClient> {
-    if (this.disposed) return params.create()
-
-    const inFlight = this.pending.get(params.key)
-    if (inFlight) return inFlight
-
-    const reusable = await this.tryReuse(params)
-    if (reusable) return reusable
-
-    return this.create(params)
+  /** Borrow a warm connection for `key`, creating one on a miss. Caller must `release`. */
+  async acquire(params: AcquireParams): Promise<ConnectionLease> {
+    if (this.disposed) {
+      const client = await params.create()
+      return { client, release: () => client.disconnect().catch(() => {}) }
+    }
+    const entry = await this.resolveEntry(params)
+    entry.borrowers++
+    entry.lastActivityAt = Date.now()
+    return { client: entry.client, release: (poison) => this.release(entry, poison ?? false) }
   }
 
-  /**
-   * Returns the pooled client for `key` if it passes every reuse check
-   * (config-fresh, within max age, connected, and live), refreshing its liveness
-   * stamp as a side effect. Evicts and returns `null` on any failed check.
-   */
-  private async tryReuse(params: AcquireParams): Promise<McpClient | null> {
-    const entry = this.entries.get(params.key)
-    if (!entry) return null
+  private async resolveEntry(params: AcquireParams): Promise<PoolEntry> {
+    const pending = this.pending.get(params.key)
+    if (pending) {
+      // A joiner may hold a newer config than the create used; rebuild if so.
+      const entry = await pending
+      if (!entry.retired && toEpochMs(params.configUpdatedAt) <= entry.configUpdatedAtMs) {
+        return entry
+      }
+      this.retire(entry)
+      return this.resolveEntry(params)
+    }
 
+    const current = this.entries.get(params.key)
+    if (current) {
+      const reusable = await this.tryReuse(params, current)
+      if (reusable) return reusable
+    }
+    return this.createEntry(params)
+  }
+
+  /** Return `entry` if config-fresh, in-age, connected, and live; else retire it and return null. */
+  private async tryReuse(params: AcquireParams, entry: PoolEntry): Promise<PoolEntry | null> {
     const now = Date.now()
-    const configUpdatedAtMs = toEpochMs(params.configUpdatedAt)
-
-    if (configUpdatedAtMs > entry.configUpdatedAtMs) {
-      await this.evict(params.key, 'config changed')
+    if (toEpochMs(params.configUpdatedAt) > entry.configUpdatedAtMs) {
+      this.retire(entry)
       return null
     }
     if (now - entry.createdAt > MAX_CONNECTION_AGE_MS) {
-      await this.evict(params.key, 'max age reached')
+      this.retire(entry)
       return null
     }
     if (!entry.client.getStatus().connected) {
-      await this.evict(params.key, 'not connected')
+      this.retire(entry)
       return null
     }
     if (now - entry.lastLivenessCheckAt > LIVENESS_TTL_MS) {
       const alive = await entry.client
-        .ping()
+        .ping(LIVENESS_PING_TIMEOUT_MS)
         .then(() => true)
         .catch(() => false)
       if (!alive) {
-        await this.evict(params.key, 'ping failed')
+        this.retire(entry)
         return null
       }
       entry.lastLivenessCheckAt = now
     }
-
-    entry.lastActivityAt = now
-    return entry.client
+    return entry
   }
 
-  /** Single-flight creation: concurrent misses for one key share this invocation. */
-  private create(params: AcquireParams): Promise<McpClient> {
-    // Re-check under the synchronous part of this call: two acquires can both
-    // clear the top-of-`acquire` pending check before either reaches here (the
-    // `await tryReuse` between them yields), so the first to arrive registers the
-    // pending promise and any follower joins it instead of connecting again.
+  private createEntry(params: AcquireParams): Promise<PoolEntry> {
+    // Re-check: the `await` in `resolveEntry` yields, so two acquires can both
+    // reach here; the first registers the pending create, the rest join.
     const inFlight = this.pending.get(params.key)
     if (inFlight) return inFlight
 
     const creation = (async () => {
       const client = await params.create()
-      if (this.disposed) {
-        await client.disconnect().catch(() => {})
-        return client
-      }
-      this.evictLruIfFull()
       const now = Date.now()
-      this.entries.set(params.key, {
+      const entry: PoolEntry = {
+        key: params.key,
+        serverId: params.serverId,
         client,
         createdAt: now,
         configUpdatedAtMs: toEpochMs(params.configUpdatedAt),
         lastActivityAt: now,
         lastLivenessCheckAt: now,
-      })
-      client.onClose(this.makeTransportCloseHandler(params.key))
+        borrowers: 0,
+        retired: false,
+        closing: false,
+      }
+      if (this.disposed) {
+        entry.retired = true
+        void client.disconnect().catch(() => {})
+        return entry
+      }
+      this.evictLruIfFull()
+      this.entries.set(params.key, entry)
+      client.onClose(this.makeCloseHandler(entry))
       this.ensureIdleCheck()
-      return client
+      return entry
     })()
 
     this.pending.set(params.key, creation)
     return creation.finally(() => {
-      // Identity guard: only clear our own pending entry, never a newer attempt's.
       if (this.pending.get(params.key) === creation) this.pending.delete(params.key)
     })
   }
 
-  /**
-   * Builds the transport-close handler in its own scope so it captures only the
-   * `key` string — never the `create` params, which transitively retain the
-   * resolved config (and its auth secrets), `resolvedIP`, and the service. Those
-   * must not stay alive for the connection's lifetime.
-   */
-  private makeTransportCloseHandler(key: string): () => void {
-    return () => void this.evict(key, 'transport closed')
+  private async release(entry: PoolEntry, poison: boolean): Promise<void> {
+    entry.borrowers = Math.max(0, entry.borrowers - 1)
+    entry.lastActivityAt = Date.now()
+    if (poison) this.retire(entry)
+    await this.closeIfIdle(entry)
   }
 
-  /** Drop and disconnect the pooled connection for `key`, if any. */
-  async evict(key: string, reason: string): Promise<void> {
-    const entry = this.entries.get(key)
-    if (!entry) return
-    this.entries.delete(key)
-    logger.info(`Evicting pooled MCP connection ${key}: ${reason}`)
+  /** Own scope so the handler captures only `entry` (never the create params / secrets). */
+  private makeCloseHandler(entry: PoolEntry): () => void {
+    return () => {
+      if (this.entries.get(entry.key) === entry) this.retire(entry)
+    }
+  }
+
+  /** Remove `entry` from the pool so no new borrower takes it; close it once idle. */
+  private retire(entry: PoolEntry): void {
+    if (!entry.retired) {
+      entry.retired = true
+      if (this.entries.get(entry.key) === entry) this.entries.delete(entry.key)
+    }
+    void this.closeIfIdle(entry)
+  }
+
+  private async closeIfIdle(entry: PoolEntry): Promise<void> {
+    if (!entry.retired || entry.borrowers > 0 || entry.closing) return
+    entry.closing = true
+    logger.info(`Closing pooled MCP connection ${entry.key}`)
     await entry.client.disconnect().catch((error) => {
-      logger.warn(`Error disconnecting evicted MCP connection ${key}:`, error)
+      logger.warn(`Error disconnecting pooled MCP connection ${entry.key}:`, error)
     })
   }
 
-  /** Evict the least-recently-used connection when the pool is at capacity. */
-  private evictLruIfFull(): void {
-    if (this.entries.size < MAX_POOL_SIZE) return
-    let lruKey: string | undefined
-    let oldest = Number.POSITIVE_INFINITY
-    for (const [key, entry] of this.entries) {
-      if (entry.lastActivityAt < oldest) {
-        oldest = entry.lastActivityAt
-        lruKey = key
+  /** Retire every connection for a server (all users) — config changed or deleted. */
+  async evictServer(serverId: string, reason: string): Promise<void> {
+    for (const entry of this.entries.values()) {
+      if (entry.serverId === serverId) {
+        logger.info(`Evicting pooled MCP connection ${entry.key}: ${reason}`)
+        this.retire(entry)
       }
     }
-    if (lruKey) void this.evict(lruKey, 'pool at capacity (LRU)')
+  }
+
+  private evictLruIfFull(): void {
+    if (this.entries.size < MAX_POOL_SIZE) return
+    let lru: PoolEntry | undefined
+    for (const entry of this.entries.values()) {
+      if (!lru || entry.lastActivityAt < lru.lastActivityAt) lru = entry
+    }
+    // Retiring a still-borrowed LRU frees the map slot now; its socket closes on release.
+    if (lru) this.retire(lru)
   }
 
   private ensureIdleCheck(): void {
     if (this.idleCheckTimer) return
     this.idleCheckTimer = setInterval(() => {
       const now = Date.now()
-      for (const [key, entry] of this.entries) {
-        if (now - entry.lastActivityAt > IDLE_TIMEOUT_MS) {
-          void this.evict(key, 'idle timeout')
-        }
+      for (const entry of this.entries.values()) {
+        if (entry.borrowers === 0 && now - entry.lastActivityAt > IDLE_TIMEOUT_MS)
+          this.retire(entry)
       }
       if (this.entries.size === 0 && this.idleCheckTimer) {
         clearInterval(this.idleCheckTimer)
         this.idleCheckTimer = null
       }
     }, IDLE_CHECK_INTERVAL_MS)
-    // Never keep the process (or a test runner) alive for the sweep.
     this.idleCheckTimer.unref?.()
   }
 

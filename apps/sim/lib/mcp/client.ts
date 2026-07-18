@@ -350,14 +350,18 @@ export class McpClient {
     }
   }
 
-  async ping(): Promise<{ _meta?: Record<string, any> }> {
+  async ping(timeoutMs?: number): Promise<{ _meta?: Record<string, any> }> {
     if (!this.isConnected) {
       throw new McpConnectionError('Not connected to server', this.config.name)
     }
 
     try {
       logger.info(`[${this.config.name}] Sending ping to server`)
-      const response = await this.client.ping()
+      // Bound the ping so a half-open connection (no FIN/RST, so `onclose` never
+      // fires) is detected quickly instead of stalling on the SDK's 60s default.
+      const response = await this.client.ping(
+        timeoutMs !== undefined ? { timeout: timeoutMs } : undefined
+      )
       logger.info(`[${this.config.name}] Ping successful`)
       return response
     } catch (error) {

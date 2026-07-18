@@ -101,6 +101,14 @@ function isTimeoutError(error: unknown): boolean {
   return getErrorMessage(error, '').toLowerCase().includes('timed out')
 }
 
+/** A pooled connection is dead and must be retired — a stale session or a closed transport, not a benign tool/consent error. */
+function isDeadConnectionError(error: unknown): boolean {
+  if (error instanceof StreamableHTTPError) {
+    return error.code === 404 || error.code === 400
+  }
+  return error instanceof McpError && error.code === ErrorCode.ConnectionClosed
+}
+
 /** Transient failures a read-only `tools/list` may safely retry (idempotent, unlike `tools/call`); excludes OAuth and terminal 4xx. */
 function isRetryableDiscoveryError(error: unknown): boolean {
   if (isTimeoutError(error)) return true
@@ -303,39 +311,46 @@ class McpService {
     })
   }
 
+  /** Auth-scoped pool key: a server's resolved credentials depend on the (user, workspace) env. */
+  private poolKey(
+    serverId: string,
+    workspaceId: string | undefined,
+    userId: string | undefined
+  ): string {
+    return `${serverId}:${workspaceId ?? ''}:${userId ?? ''}`
+  }
+
   /**
-   * Run `fn` against a connected client for `config`. When allowed, the client is
-   * drawn from the warm pool and returned to it afterward (never disconnected); a
-   * throw from `fn` — which for the MCP transport signals a protocol/session/
-   * transport failure, not a tool-level error (those return `isError`) — evicts
-   * the pooled connection so the caller's retry rebuilds it. Otherwise a one-shot
-   * connection is created and always disconnected. Pooling is skipped for calls
-   * carrying per-request headers, which must not ride a connection shared under
-   * different headers.
+   * Run `fn` against a connected client. When `allowPool`, borrow from the warm
+   * pool (`create` runs only on a miss, so a hit skips env resolution + DNS); a
+   * dead-connection error retires it, benign tool/consent errors keep it warm.
+   * Otherwise connect one-shot and always disconnect.
    */
   private async withServerClient<T>(
-    config: McpServerConfig,
-    resolvedIP: string | null,
-    userId: string | undefined,
-    opts: { allowPool: boolean },
+    opts: { key: string; serverId: string; configUpdatedAt?: string; allowPool: boolean },
+    create: () => Promise<McpClient>,
     fn: (client: McpClient) => Promise<T>
   ): Promise<T> {
     const pool = mcpConnectionPool
     if (opts.allowPool && pool) {
-      const client = await pool.acquire({
-        key: config.id,
-        configUpdatedAt: config.updatedAt,
-        create: () => this.createClient(config, resolvedIP, userId),
+      const lease = await pool.acquire({
+        key: opts.key,
+        serverId: opts.serverId,
+        configUpdatedAt: opts.configUpdatedAt,
+        create,
       })
+      let poison = false
       try {
-        return await fn(client)
+        return await fn(lease.client)
       } catch (error) {
-        await pool.evict(config.id, 'operation failed')
+        poison = isDeadConnectionError(error)
         throw error
+      } finally {
+        await lease.release(poison)
       }
     }
 
-    const client = await this.createClient(config, resolvedIP, userId)
+    const client = await create()
     try {
       return await fn(client)
     } finally {
@@ -368,21 +383,27 @@ class McpService {
           throw new Error(`Server ${serverId} not found or not accessible`)
         }
 
-        const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
-          config,
-          userId,
-          workspaceId
-        )
         const hasExtraHeaders = Boolean(extraHeaders && Object.keys(extraHeaders).length > 0)
-        if (hasExtraHeaders) {
-          resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
+        const create = async () => {
+          const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+            config,
+            userId,
+            workspaceId
+          )
+          if (hasExtraHeaders) {
+            resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
+          }
+          return this.createClient(resolvedConfig, resolvedIP, userId)
         }
 
         const result = await this.withServerClient(
-          resolvedConfig,
-          resolvedIP,
-          userId,
-          { allowPool: !hasExtraHeaders },
+          {
+            key: this.poolKey(serverId, workspaceId, userId),
+            serverId,
+            configUpdatedAt: config.updatedAt,
+            allowPool: !hasExtraHeaders,
+          },
+          create,
           (client) => client.callTool(toolCall)
         )
         logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
@@ -620,10 +641,13 @@ class McpService {
               workspaceId
             )
             const tools = await this.withServerClient(
-              resolvedConfig,
-              resolvedIP,
-              userId,
-              { allowPool: true },
+              {
+                key: this.poolKey(config.id, workspaceId, userId),
+                serverId: config.id,
+                configUpdatedAt: config.updatedAt,
+                allowPool: true,
+              },
+              () => this.createClient(resolvedConfig, resolvedIP, userId),
               (client) => client.listTools()
             )
             logger.debug(
@@ -827,16 +851,22 @@ class McpService {
         }
         authType = config.authType
 
-        const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
-          config,
-          userId,
-          workspaceId
-        )
+        const create = async () => {
+          const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+            config,
+            userId,
+            workspaceId
+          )
+          return this.createClient(resolvedConfig, resolvedIP, userId)
+        }
         const tools = await this.withServerClient(
-          resolvedConfig,
-          resolvedIP,
-          userId,
-          { allowPool: true },
+          {
+            key: this.poolKey(serverId, workspaceId, userId),
+            serverId,
+            configUpdatedAt: config.updatedAt,
+            allowPool: true,
+          },
+          create,
           (client) => client.listTools()
         )
         logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
@@ -898,16 +928,22 @@ class McpService {
 
       for (const config of servers) {
         try {
-          const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
-            config,
-            userId,
-            workspaceId
-          )
+          const create = async () => {
+            const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+              config,
+              userId,
+              workspaceId
+            )
+            return this.createClient(resolvedConfig, resolvedIP, userId)
+          }
           const tools = await this.withServerClient(
-            resolvedConfig,
-            resolvedIP,
-            userId,
-            { allowPool: true },
+            {
+              key: this.poolKey(config.id, workspaceId, userId),
+              serverId: config.id,
+              configUpdatedAt: config.updatedAt,
+              allowPool: true,
+            },
+            create,
             (client) => client.listTools()
           )
 
@@ -969,7 +1005,7 @@ class McpService {
           rows.flatMap((r) => [
             this.cacheAdapter.delete(serverCacheKey(workspaceId, r.id)),
             this.cacheAdapter.delete(failureCacheKey(workspaceId, r.id)),
-            mcpConnectionPool?.evict(r.id, 'cache cleared'),
+            mcpConnectionPool?.evictServer(r.id, 'cache cleared'),
           ])
         )
         logger.debug(`Cleared MCP tool cache for workspace ${workspaceId} (${rows.length} servers)`)
