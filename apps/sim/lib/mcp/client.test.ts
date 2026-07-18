@@ -4,7 +4,7 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockSdkConnect, mockSdkListTools } = vi.hoisted(() => ({
+const { mockLogger, mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
   mockLogger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -13,10 +13,15 @@ const { mockLogger, mockSdkConnect, mockSdkListTools } = vi.hoisted(() => ({
   },
   mockSdkConnect: vi.fn().mockResolvedValue(undefined),
   mockSdkListTools: vi.fn().mockResolvedValue({ tools: [] }),
+  mockPinnedClose: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@sim/logger', () => ({
   createLogger: () => mockLogger,
+}))
+
+vi.mock('@/lib/mcp/pinned-fetch', () => ({
+  createPinnedMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
 }))
 
 /**
@@ -264,6 +269,34 @@ describe('McpClient notification handler', () => {
     await expect(client.connect()).rejects.toThrow('Upstream rejected')
 
     expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(secret)
+  })
+
+  it('closes the pinned transport Agent when connect fails', async () => {
+    mockSdkConnect.mockRejectedValueOnce(new Error('connect boom'))
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      resolvedIP: '203.0.113.10',
+    })
+
+    // A failed connect discards the client without a disconnect(), so the Agent
+    // must be released on the failure path or its h2 sockets leak.
+    await expect(client.connect()).rejects.toThrow()
+
+    expect(mockPinnedClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the pinned transport Agent on disconnect', async () => {
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      resolvedIP: '203.0.113.10',
+    })
+
+    await client.connect()
+    await client.disconnect()
+
+    expect(mockPinnedClose).toHaveBeenCalledTimes(1)
   })
 
   it('does not misclassify rejected static headers as an OAuth authorization flow', async () => {

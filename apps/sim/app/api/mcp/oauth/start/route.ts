@@ -26,7 +26,7 @@ const logger = createLogger('McpOauthStartAPI')
 const OAUTH_START_TTL_MS = 10 * 60 * 1000
 const MAX_SURFACED_ERROR_LENGTH = 250
 const DCR_UNSUPPORTED_MESSAGE =
-  "This server doesn't support OAuth client registration. Configure a token instead."
+  "This server doesn't support automatic OAuth client registration. Add a pre-registered OAuth client ID and secret, or configure a token instead."
 
 function isDynamicClientRegistrationUnsupported(error: unknown): boolean {
   return getErrorMessage(error, '')

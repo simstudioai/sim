@@ -176,7 +176,7 @@ describe('MCP OAuth start route', () => {
 
     expect(response.status).toBe(422)
     expect(body.error).toBe(
-      "This server doesn't support OAuth client registration. Configure a token instead."
+      "This server doesn't support automatic OAuth client registration. Add a pre-registered OAuth client ID and secret, or configure a token instead."
     )
   })
 })
