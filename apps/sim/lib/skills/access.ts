@@ -302,10 +302,7 @@ export async function removeWorkspaceSkillMembershipsTx(
         eq(skillMember.status, 'active'),
         inArray(
           skillMember.skillId,
-          tx
-            .select({ id: skill.id })
-            .from(skill)
-            .where(inArray(skill.workspaceId, workspaceIds))
+          tx.select({ id: skill.id }).from(skill).where(inArray(skill.workspaceId, workspaceIds))
         )
       )
     )

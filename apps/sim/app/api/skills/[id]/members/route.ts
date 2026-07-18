@@ -5,10 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  removeSkillMemberContract,
-  upsertSkillMemberContract,
-} from '@/lib/api/contracts/skills'
+import { removeSkillMemberContract, upsertSkillMemberContract } from '@/lib/api/contracts/skills'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -136,7 +133,11 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
 
     const { userId, role } = parsed.data.body
 
-    const targetWorkspacePerm = await getUserEntityPermissions(userId, 'workspace', gate.workspaceId)
+    const targetWorkspacePerm = await getUserEntityPermissions(
+      userId,
+      'workspace',
+      gate.workspaceId
+    )
     if (targetWorkspacePerm === null) {
       return NextResponse.json({ error: 'User is not a member of this workspace' }, { status: 400 })
     }

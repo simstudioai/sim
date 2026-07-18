@@ -5,30 +5,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckWorkspaceAccess, mockGetUsersWithPermissions, dbState, makeChain, dbMock } =
   vi.hoisted(() => {
-  const state = { results: [] as unknown[][] }
-  const chainFactory = () => {
-    const resolve = () => Promise.resolve(state.results.shift() ?? [])
-    const chain: any = {}
-    chain.from = vi.fn(() => chain)
-    chain.innerJoin = vi.fn(() => chain)
-    chain.where = vi.fn(() => chain)
-    chain.set = vi.fn(() => chain)
-    chain.limit = vi.fn(() => resolve())
-    chain.returning = vi.fn(() => resolve())
-    chain.then = (onFulfilled: any, onRejected: any) => resolve().then(onFulfilled, onRejected)
-    return chain
-  }
-  return {
-    mockCheckWorkspaceAccess: vi.fn(),
-    mockGetUsersWithPermissions: vi.fn(),
-    dbState: state,
-    makeChain: chainFactory,
-    dbMock: {
-      select: vi.fn(() => chainFactory()),
-      update: vi.fn(() => chainFactory()),
-    },
-  }
-})
+    const state = { results: [] as unknown[][] }
+    const chainFactory = () => {
+      const resolve = () => Promise.resolve(state.results.shift() ?? [])
+      const chain: any = {}
+      chain.from = vi.fn(() => chain)
+      chain.innerJoin = vi.fn(() => chain)
+      chain.where = vi.fn(() => chain)
+      chain.set = vi.fn(() => chain)
+      chain.limit = vi.fn(() => resolve())
+      chain.returning = vi.fn(() => resolve())
+      chain.then = (onFulfilled: any, onRejected: any) => resolve().then(onFulfilled, onRejected)
+      return chain
+    }
+    return {
+      mockCheckWorkspaceAccess: vi.fn(),
+      mockGetUsersWithPermissions: vi.fn(),
+      dbState: state,
+      makeChain: chainFactory,
+      dbMock: {
+        select: vi.fn(() => chainFactory()),
+        update: vi.fn(() => chainFactory()),
+      },
+    }
+  })
 
 vi.mock('@sim/db', () => ({
   db: dbMock,
@@ -246,7 +246,9 @@ describe('getSkillAccessForUser + resolveSkillRoleFromAccess', () => {
     expect(resolveSkillRoleFromAccess({ id: 's-admin', workspaceShared: false }, access)).toBe(
       'admin'
     )
-    expect(resolveSkillRoleFromAccess({ id: 's-revoked', workspaceShared: true }, access)).toBeNull()
+    expect(
+      resolveSkillRoleFromAccess({ id: 's-revoked', workspaceShared: true }, access)
+    ).toBeNull()
     expect(resolveSkillRoleFromAccess({ id: 's-shared', workspaceShared: true }, access)).toBe(
       'member'
     )

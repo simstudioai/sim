@@ -212,19 +212,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     const workspaceAccess = await checkWorkspaceAccess(ws.id, userId)
     const userPermission = workspaceAccess.permission
-    const [
-      attachmentResult,
-      workspaceContext,
-      integrationTools,
-      billingAttribution,
-      entitlements,
-    ] = await Promise.all([
-      fetchAttachments(),
-      generateWorkspaceContext(ws.id, userId, { workspaceAccess }),
-      buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-      resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
-      computeWorkspaceEntitlements(ws.id, userId),
-    ])
+    const [attachmentResult, workspaceContext, integrationTools, billingAttribution, entitlements] =
+      await Promise.all([
+        fetchAttachments(),
+        generateWorkspaceContext(ws.id, userId, { workspaceAccess }),
+        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
+        resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
+        computeWorkspaceEntitlements(ws.id, userId),
+      ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
 
     const truncatedTask = {
