@@ -209,6 +209,35 @@ return result`,
     expect(result).toEqual({ code, changed: false, error: null })
   })
 
+  it('preserves JavaScript grouping without confusing call or control parentheses', async () => {
+    const code =
+      'const value=combine({{EXPRESSION}});if({{FLAG}}){return value}return 2*({{EXPRESSION}});'
+
+    await expect(formatFunctionCode(code, CodeLanguage.JavaScript)).resolves.toEqual({
+      code: `const value = combine({{EXPRESSION}});
+if ({{FLAG}}) {
+  return value;
+}
+return 2 * ({{EXPRESSION}});`,
+      changed: true,
+      error: null,
+    })
+  })
+
+  it('preserves Python grouping without confusing call or control parentheses', async () => {
+    const code =
+      'value=combine({{EXPRESSION}})\nif ({{FLAG}}):\n return value\nreturn ({{EXPRESSION}})'
+
+    await expect(formatFunctionCode(code, CodeLanguage.Python)).resolves.toEqual({
+      code: `value = combine({{EXPRESSION}})
+if ({{FLAG}}):
+    return value
+return ({{EXPRESSION}})`,
+      changed: true,
+      error: null,
+    })
+  })
+
   it('keeps Python boundary keywords language-specific', async () => {
     const cases = [
       ['and', 'or'],

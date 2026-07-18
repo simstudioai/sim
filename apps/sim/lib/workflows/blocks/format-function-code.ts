@@ -1,4 +1,6 @@
+import { isDeepStrictEqual } from 'node:util'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { ParserOptions } from 'prettier'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
 import { createEnvVarPattern, replaceValidReferences } from '@/executor/utils/reference-validation'
 
@@ -23,6 +25,19 @@ const PYTHON_CODE_FORMAT_OPTIONS = {
 } as const
 
 const PYTHON_WRAPPER_NAME = '__sim_format_function__'
+const JAVASCRIPT_AST_METADATA_KEYS = new Set([
+  'comments',
+  'end',
+  'errors',
+  'extra',
+  'innerComments',
+  'leadingComments',
+  'loc',
+  'range',
+  'start',
+  'tokens',
+  'trailingComments',
+])
 
 const JAVASCRIPT_EXPRESSION_PREFIX_KEYWORDS = new Set([
   'await',
@@ -135,6 +150,39 @@ function looksLikeLanguageComparison(
   return previousTokenEndsExpression && nextTokenStartsExpression
 }
 
+function createParenthesizedEnvVarPattern(language: FormattableCodeLanguage): RegExp {
+  const triviaPattern =
+    language === CodeLanguage.JavaScript
+      ? String.raw`(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*`
+      : String.raw`(?:\s|#[^\n]*(?:\n|$))*`
+  return new RegExp(`\\(${triviaPattern}${createEnvVarPattern().source}${triviaPattern}\\)`, 'g')
+}
+
+function isParenthesizedEnvExpression(
+  index: number,
+  source: string,
+  language: FormattableCodeLanguage
+): boolean {
+  const sourceBeforeReference = source.slice(0, index).trimEnd()
+  const previousCharacter = sourceBeforeReference.at(-1)
+  const previousIdentifier = sourceBeforeReference.match(IDENTIFIER_AT_END)?.[0]
+  const prefixKeywords =
+    language === CodeLanguage.Python
+      ? PYTHON_EXPRESSION_PREFIX_KEYWORDS
+      : JAVASCRIPT_EXPRESSION_PREFIX_KEYWORDS
+  const operatorKeywords =
+    language === CodeLanguage.Python
+      ? PYTHON_EXPRESSION_OPERATOR_KEYWORDS
+      : JAVASCRIPT_EXPRESSION_OPERATOR_KEYWORDS
+
+  return (
+    !previousCharacter ||
+    (!EXPRESSION_END_CHARACTER.test(previousCharacter) && previousCharacter !== '.') ||
+    prefixKeywords.has(previousIdentifier ?? '') ||
+    operatorKeywords.has(previousIdentifier ?? '')
+  )
+}
+
 function protectSimReferences(
   code: string,
   language: FormattableCodeLanguage
@@ -161,7 +209,12 @@ function protectSimReferences(
       ? value
       : replaceReference(value)
   )
-  const protectedCode = withProtectedWorkflowReferences.replace(
+  const withProtectedParenthesizedEnvReferences = withProtectedWorkflowReferences.replace(
+    createParenthesizedEnvVarPattern(language),
+    (value, _envName, index, source) =>
+      isParenthesizedEnvExpression(index, source, language) ? replaceReference(value) : value
+  )
+  const protectedCode = withProtectedParenthesizedEnvReferences.replace(
     createEnvVarPattern(),
     replaceReference
   )
@@ -176,6 +229,30 @@ function restoreSimReferences(code: string, references: ProtectedReference[]): s
       (restoredCode, reference) => restoredCode.replaceAll(reference.token, reference.value),
       code
     )
+}
+
+function haveEqualReferences(
+  expectedReferences: ProtectedReference[],
+  actualReferences: ProtectedReference[]
+): boolean {
+  return (
+    expectedReferences.length === actualReferences.length &&
+    expectedReferences.every(
+      (reference, index) => reference.value === actualReferences[index]?.value
+    )
+  )
+}
+
+function normalizeJavaScriptAst(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeJavaScriptAst)
+  if (value === null || typeof value !== 'object') return value
+
+  const normalized: Record<string, unknown> = {}
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (JAVASCRIPT_AST_METADATA_KEYS.has(key)) continue
+    normalized[key] = normalizeJavaScriptAst(nestedValue)
+  }
+  return normalized
 }
 
 function wrapPythonFunctionBody(code: string): string {
@@ -200,11 +277,61 @@ async function formatJavaScript(code: string): Promise<string> {
   return format(code, FUNCTION_CODE_FORMAT_OPTIONS)
 }
 
+async function parseJavaScript(code: string): Promise<unknown> {
+  const { parsers } = await import('prettier/plugins/babel')
+  const parser = parsers.babel
+  const options = {
+    ...FUNCTION_CODE_FORMAT_OPTIONS,
+    locEnd: parser.locEnd,
+    locStart: parser.locStart,
+    originalText: code,
+  } as ParserOptions
+  return parser.parse(code, options)
+}
+
+async function assertEquivalentJavaScriptSyntax(source: string, formattedCode: string) {
+  const [sourceAst, formattedAst] = await Promise.all([
+    parseJavaScript(source),
+    parseJavaScript(formattedCode),
+  ])
+
+  if (!isDeepStrictEqual(normalizeJavaScriptAst(sourceAst), normalizeJavaScriptAst(formattedAst))) {
+    throw new Error('JavaScript formatter changed the code syntax tree')
+  }
+}
+
 async function formatPython(code: string): Promise<string> {
   const { format } = await import('@wasm-fmt/ruff_fmt/node')
   const wrappedCode = wrapPythonFunctionBody(code)
   const formattedCode = format(wrappedCode, 'function.py', PYTHON_CODE_FORMAT_OPTIONS)
   return unwrapPythonFunctionBody(formattedCode)
+}
+
+async function formatProtectedCode(
+  code: string,
+  language: FormattableCodeLanguage
+): Promise<string> {
+  return language === CodeLanguage.JavaScript ? formatJavaScript(code) : formatPython(code)
+}
+
+async function validateFormattedCode(
+  formattedCode: string,
+  language: FormattableCodeLanguage,
+  expectedReferences: ProtectedReference[]
+): Promise<void> {
+  const protectedFormattedCode = protectSimReferences(formattedCode, language)
+  if (!haveEqualReferences(expectedReferences, protectedFormattedCode.references)) {
+    throw new Error(`${getLanguageDisplayName(language)} formatter changed Sim references`)
+  }
+
+  const secondFormattedCode = await formatProtectedCode(protectedFormattedCode.code, language)
+  const secondRestoredCode = restoreSimReferences(
+    secondFormattedCode.trimEnd(),
+    protectedFormattedCode.references
+  )
+  if (secondRestoredCode !== formattedCode) {
+    throw new Error(`${getLanguageDisplayName(language)} formatter did not produce stable output`)
+  }
 }
 
 /**
@@ -220,11 +347,12 @@ export async function formatFunctionCode(
   const protectedSource = protectSimReferences(code, language)
 
   try {
-    const formattedCode =
-      language === CodeLanguage.JavaScript
-        ? await formatJavaScript(protectedSource.code)
-        : await formatPython(protectedSource.code)
+    const formattedCode = await formatProtectedCode(protectedSource.code, language)
+    if (language === CodeLanguage.JavaScript) {
+      await assertEquivalentJavaScriptSyntax(protectedSource.code, formattedCode)
+    }
     const restoredCode = restoreSimReferences(formattedCode.trimEnd(), protectedSource.references)
+    await validateFormattedCode(restoredCode, language, protectedSource.references)
 
     return {
       code: restoredCode,
