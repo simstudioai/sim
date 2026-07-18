@@ -159,6 +159,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   nvidia: buildProviderMetadata('nvidia'),
   meta: buildProviderMetadata('meta'),
   zai: buildProviderMetadata('zai'),
+  kimi: buildProviderMetadata('kimi'),
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
@@ -905,8 +906,12 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const isGeminiModel = provider === 'google'
   const isZaiModel = provider === 'zai'
   const isXaiModel = provider === 'xai'
+  const isKimiModel = provider === 'kimi'
 
-  if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel || isZaiModel || isXaiModel)) {
+  if (
+    isHosted &&
+    (isOpenAIModel || isClaudeModel || isGeminiModel || isZaiModel || isXaiModel || isKimiModel)
+  ) {
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 

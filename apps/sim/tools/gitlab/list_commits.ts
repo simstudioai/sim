@@ -26,7 +26,7 @@ export const gitlabListCommitsTool: ToolConfig<GitLabListCommitsParams, GitLabLi
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Project ID or URL-encoded path',
+        description: 'Project ID or path (e.g. mygroup/myproject)',
       },
       refName: {
         type: 'string',
@@ -123,7 +123,8 @@ export const gitlabListCommitsTool: ToolConfig<GitLabListCommitsParams, GitLabLi
       },
       total: {
         type: 'number',
-        description: 'Total number of commits',
+        description:
+          'Number of commits returned on this page (GitLab does not report a grand total for commits)',
       },
     },
   }

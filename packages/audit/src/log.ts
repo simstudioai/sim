@@ -44,10 +44,73 @@ export function recordAudit(params: AuditLogParams): void {
   })
 }
 
-async function insertAuditLog(params: AuditLogParams): Promise<void> {
-  const ipAddress = params.request ? getClientIp(params.request) : undefined
-  const userAgent = params.request?.headers.get('user-agent') ?? undefined
+/**
+ * Rows per INSERT statement. Keeps each statement's bind-parameter count
+ * far below Postgres's 65k limit while still writing large batches in a
+ * handful of round-trips.
+ */
+const AUDIT_BATCH_CHUNK_SIZE = 500
 
+/**
+ * Fire-and-forget batch audit write: one INSERT per chunk instead of one
+ * pooled query per entry, so callers auditing many resources at once (e.g.
+ * a bulk workspace detach) do not fan out N concurrent pool checkouts.
+ *
+ * Unlike {@link recordAudit} there is no lazy actor resolution — entries
+ * are inserted exactly as provided. Callers must pass an `actorId` that is
+ * a real `user.id` or `null`, and should supply `actorName`/`actorEmail`
+ * labels for system actors.
+ */
+export function recordAuditBatch(entries: AuditLogParams[]): void {
+  insertAuditLogBatch(entries).catch((error) => {
+    logger.error('Failed to record audit log batch', { error, count: entries.length })
+  })
+}
+
+/**
+ * Build the `audit_log` row for an entry. Shared by the single and batch
+ * insert paths so the write shape cannot drift between them. Actor fields
+ * are taken as-is — lazy actor resolution is layered on top by
+ * {@link recordAudit} only.
+ */
+function buildAuditRow(
+  params: AuditLogParams,
+  actor: { actorId: string | null; actorName?: string | null; actorEmail?: string | null }
+) {
+  return {
+    id: generateShortId(),
+    workspaceId: params.workspaceId || null,
+    actorId: actor.actorId,
+    action: params.action,
+    resourceType: params.resourceType,
+    resourceId: params.resourceId,
+    actorName: actor.actorName ?? undefined,
+    actorEmail: actor.actorEmail ?? undefined,
+    resourceName: params.resourceName,
+    description: params.description,
+    metadata: params.metadata ?? {},
+    ipAddress: params.request ? getClientIp(params.request) : undefined,
+    userAgent: params.request?.headers.get('user-agent') ?? undefined,
+  }
+}
+
+async function insertAuditLogBatch(entries: AuditLogParams[]): Promise<void> {
+  if (entries.length === 0) return
+
+  const rows = entries.map((params) =>
+    buildAuditRow(params, {
+      actorId: params.actorId,
+      actorName: params.actorName,
+      actorEmail: params.actorEmail,
+    })
+  )
+
+  for (let index = 0; index < rows.length; index += AUDIT_BATCH_CHUNK_SIZE) {
+    await db.insert(auditLog).values(rows.slice(index, index + AUDIT_BATCH_CHUNK_SIZE))
+  }
+}
+
+async function insertAuditLog(params: AuditLogParams): Promise<void> {
   let { actorName, actorEmail } = params
 
   /**
@@ -81,19 +144,5 @@ async function insertAuditLog(params: AuditLogParams): Promise<void> {
     }
   }
 
-  await db.insert(auditLog).values({
-    id: generateShortId(),
-    workspaceId: params.workspaceId || null,
-    actorId,
-    action: params.action,
-    resourceType: params.resourceType,
-    resourceId: params.resourceId,
-    actorName: actorName ?? undefined,
-    actorEmail: actorEmail ?? undefined,
-    resourceName: params.resourceName,
-    description: params.description,
-    metadata: params.metadata ?? {},
-    ipAddress,
-    userAgent,
-  })
+  await db.insert(auditLog).values(buildAuditRow(params, { actorId, actorName, actorEmail }))
 }

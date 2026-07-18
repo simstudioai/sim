@@ -25,6 +25,18 @@ export type AppSession = {
   }
 } | null
 
+/**
+ * Reads the organization plugin's `activeOrganizationId` off a session object
+ * (server `getSession()` result or client {@link AppSession}). Better Auth's
+ * inferred server session type does not declare the field, so this is the one
+ * place the untyped read happens.
+ */
+export function getActiveOrganizationId(session: unknown): string | null {
+  if (!isRecordLike(session) || !isRecordLike(session.session)) return null
+  const value = session.session.activeOrganizationId
+  return typeof value === 'string' ? value : null
+}
+
 interface BetterAuthErrorEnvelope {
   data: null
   error: {

@@ -4,6 +4,7 @@ import type {
   PipedriveGetPipelinesResponse,
 } from '@/tools/pipedrive/types'
 import { PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
+import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('PipedriveGetPipelines')
@@ -23,6 +24,13 @@ export const pipedriveGetPipelinesTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'The access token for the Pipedrive API',
+    },
+    authStyle: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Auth scheme for the token; set by the credential resolver for API-token service accounts',
     },
     sort_by: {
       type: 'string',
@@ -64,16 +72,7 @@ export const pipedriveGetPipelinesTool: ToolConfig<
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        Accept: 'application/json',
-      }
-    },
+    headers: (params) => getPipedriveAuthHeaders(params),
   },
 
   transformResponse: async (response: Response) => {

@@ -222,30 +222,38 @@ describe('vfs mv/cp', () => {
       expect(result.error).toContain('must be a folder')
     })
 
-    it('does not create destination folders for unresolved sources', async () => {
+    it('resolves sources at their exact path only — no cross-folder name fallback', async () => {
+      mocks.getWorkspaceFileByName.mockResolvedValue(null)
+      mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
+
       const result = await executeVfsMv(
         { sources: ['files/report.pdf'], destination: 'files/Archive/' },
         context
       )
+
       expect(result.success).toBe(false)
       expect(result.error).toContain('Not found')
       expect(mocks.performMoveRenameWorkspaceFile).not.toHaveBeenCalled()
       expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
     })
 
-    it('rejects copying workspace files', async () => {
+    it('rejects copying workspace files — cp is workflows-only', async () => {
+      mocks.getWorkspaceFileByName.mockResolvedValue({ id: 'file-1', name: 'template.md' })
+
       const result = await executeVfsCp(
         { sources: ['files/template.md'], destination: 'files/Reports/january.md' },
         context
       )
+
       expect(result.success).toBe(false)
       expect(result.error).toContain('cp only duplicates workflows')
+      expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
     })
 
-    it('moves and renames a file folder', async () => {
+    it('moves and renames a file folder via performUpdateWorkspaceFileFolder', async () => {
       mocks.findWorkspaceFileFolderIdByPath
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce('folder-src')
+        .mockResolvedValueOnce(null) // destination is not an existing folder
+        .mockResolvedValueOnce('folder-src') // source resolves as folder
       mocks.performUpdateWorkspaceFileFolder.mockResolvedValue({
         success: true,
         folder: { name: 'Reports 2025' },
@@ -291,6 +299,7 @@ describe('vfs mv/cp', () => {
         expect.objectContaining({ workflowId: 'wf-1', name: 'New Name', folderId: null })
       )
       expect(result.success).toBe(true)
+      expect(result.output).toMatchObject({ results: [{ to: 'workflows/New%20Name' }] })
     })
 
     it('moves a workflow into an existing folder keeping its name', async () => {
@@ -305,24 +314,27 @@ describe('vfs mv/cp', () => {
         context
       )
 
+      expect(mocks.assertFolderMutable).toHaveBeenCalledWith('fold-1')
       expect(mocks.performUpdateWorkflow).toHaveBeenCalledWith(
         expect.objectContaining({ workflowId: 'wf-1', name: undefined, folderId: 'fold-1' })
       )
       expect(result.success).toBe(true)
     })
 
-    it('surfaces locked-workflow rejections', async () => {
+    it('surfaces locked-workflow rejections per item', async () => {
       mocks.workflowRows.mockReturnValue([{ id: 'wf-1', name: 'Locked One', folderId: null }])
       mocks.assertWorkflowMutable.mockRejectedValue(new Error('Workflow is locked'))
+
       const result = await executeVfsMv(
         { sources: ['workflows/Locked%20One'], destination: 'workflows/Renamed' },
         context
       )
+
       expect(result.success).toBe(false)
       expect(result.error).toContain('locked')
     })
 
-    it('duplicates a workflow with cp', async () => {
+    it('duplicates a workflow with cp (locked source allowed)', async () => {
       mocks.workflowRows.mockReturnValue([{ id: 'wf-1', name: 'Template', folderId: null }])
       mocks.duplicateWorkflow.mockResolvedValue({ id: 'wf-2', name: 'My Copy' })
 
@@ -341,6 +353,7 @@ describe('vfs mv/cp', () => {
         })
       )
       expect(result.success).toBe(true)
+      expect(result.output).toMatchObject({ results: [{ to: 'workflows/My%20Copy', id: 'wf-2' }] })
     })
 
     it('rejects copying workflow folders', async () => {
@@ -366,6 +379,7 @@ describe('vfs mv/cp', () => {
         { sources: ['workflows/Q1'], destination: 'workflows/Archive/Q1 2026' },
         context
       )
+
       expect(mocks.performUpdateFolder).toHaveBeenCalledWith(
         expect.objectContaining({ folderId: 'fold-1', name: 'Q1 2026', parentId: 'fold-2' })
       )
@@ -376,17 +390,24 @@ describe('vfs mv/cp', () => {
   describe('mkdir', () => {
     it('creates a nested file folder chain', async () => {
       const result = await executeVfsMkdir({ paths: ['files/Reports/2026'] }, context)
+
       expect(mocks.ensureWorkspaceFileFolderPath).toHaveBeenCalledWith({
         workspaceId: 'ws-1',
         userId: 'user-1',
         pathSegments: ['Reports', '2026'],
       })
       expect(result.success).toBe(true)
+      expect(result.output).toMatchObject({
+        results: [{ from: 'files/Reports/2026', to: 'files/Reports/2026', kind: 'file_folder' }],
+      })
     })
 
-    it('creates a workflow folder', async () => {
+    it('creates a workflow folder via performCreateFolder', async () => {
+      mocks.listFolders.mockResolvedValue([])
       mocks.performCreateFolder.mockResolvedValue({ success: true, folder: { id: 'fold-new' } })
+
       const result = await executeVfsMkdir({ paths: ['workflows/Archive'] }, context)
+
       expect(mocks.performCreateFolder).toHaveBeenCalledWith({
         workspaceId: 'ws-1',
         userId: 'user-1',
@@ -394,6 +415,9 @@ describe('vfs mv/cp', () => {
         parentId: undefined,
       })
       expect(result.success).toBe(true)
+      expect(result.output).toMatchObject({
+        results: [{ to: 'workflows/Archive', kind: 'workflow_folder', id: 'fold-new' }],
+      })
     })
 
     it('rejects flat namespaces and reserved paths', async () => {
@@ -405,36 +429,44 @@ describe('vfs mv/cp', () => {
           { from: 'files/.plans/wf_1', error: expect.stringContaining('Reserved') },
         ],
       })
+      expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
     })
 
     it('rejects creation inside a locked workflow folder', async () => {
+      mocks.listFolders.mockResolvedValue([])
       mocks.assertFolderMutable.mockRejectedValue(new Error('Folder is locked'))
+
       const result = await executeVfsMkdir({ paths: ['workflows/Locked/Sub'] }, context)
+
       expect(result.success).toBe(false)
       expect(result.error).toContain('locked')
       expect(mocks.performCreateFolder).not.toHaveBeenCalled()
     })
   })
 
-  describe('flat namespaces', () => {
+  describe('tables and knowledge bases (flat namespaces)', () => {
     it('renames a table', async () => {
       mocks.listTables.mockResolvedValue([{ id: 'tbl-1', name: 'Leads' }])
       mocks.renameTable.mockResolvedValue({ id: 'tbl-1', name: 'Customers' })
+
       const result = await executeVfsMv(
         { sources: ['tables/Leads'], destination: 'tables/Customers' },
         context
       )
+
       expect(mocks.renameTable).toHaveBeenCalledWith('tbl-1', 'Customers', expect.any(String))
       expect(result.success).toBe(true)
+      expect(result.output).toMatchObject({ results: [{ to: 'tables/Customers', kind: 'table' }] })
     })
 
-    it('rejects nested table destinations', async () => {
+    it('rejects nested table destinations as flat-namespace violations', async () => {
       const result = await executeVfsMv(
         { sources: ['tables/Leads'], destination: 'tables/CRM/Leads' },
         context
       )
       expect(result.success).toBe(false)
       expect(result.error).toContain('flat namespace')
+      expect(mocks.renameTable).not.toHaveBeenCalled()
     })
 
     it('rejects copying tables', async () => {
@@ -450,11 +482,18 @@ describe('vfs mv/cp', () => {
       mocks.getKnowledgeBases.mockResolvedValue([{ id: 'kb-1', name: 'Docs' }])
       mocks.checkKnowledgeBaseWriteAccess.mockResolvedValue({ hasAccess: true })
       mocks.updateKnowledgeBase.mockResolvedValue({ id: 'kb-1', name: 'Product Docs' })
+
       const result = await executeVfsMv(
         { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
         context
       )
+
       expect(mocks.checkKnowledgeBaseWriteAccess).toHaveBeenCalledWith('kb-1', 'user-1')
+      expect(mocks.updateKnowledgeBase).toHaveBeenCalledWith(
+        'kb-1',
+        { name: 'Product Docs' },
+        expect.any(String)
+      )
       expect(result.success).toBe(true)
     })
 

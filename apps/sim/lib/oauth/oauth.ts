@@ -8,6 +8,7 @@ import {
   AzureIcon,
   BoxCompanyIcon,
   CalComIcon,
+  ClickUpIcon,
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
@@ -626,6 +627,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'notion',
   },
+  clickup: {
+    name: 'ClickUp',
+    icon: ClickUpIcon,
+    services: {
+      clickup: {
+        name: 'ClickUp',
+        description: 'Manage tasks, lists, and comments in ClickUp.',
+        providerId: 'clickup',
+        serviceAccountProviderId: 'clickup-service-account',
+        icon: ClickUpIcon,
+        baseProviderIcon: ClickUpIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'clickup',
+  },
   linear: {
     name: 'Linear',
     icon: LinearIcon,
@@ -677,6 +694,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: BoxCompanyIcon,
         baseProviderIcon: BoxCompanyIcon,
         scopes: ['root_readwrite', 'sign_requests.readwrite'],
+        serviceAccountProviderId: 'box-service-account',
       },
     },
     defaultService: 'box',
@@ -930,6 +948,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Pipedrive',
         description: 'Manage deals, contacts, and sales pipeline in Pipedrive CRM.',
         providerId: 'pipedrive',
+        serviceAccountProviderId: 'pipedrive-service-account',
         icon: PipedriveIcon,
         baseProviderIcon: PipedriveIcon,
         scopes: [
@@ -1026,6 +1045,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Salesforce',
         description: 'Access and manage your Salesforce CRM data.',
         providerId: 'salesforce',
+        serviceAccountProviderId: 'salesforce-service-account',
         icon: SalesforceIcon,
         baseProviderIcon: SalesforceIcon,
         scopes: ['api', 'refresh_token', 'openid'],
@@ -1056,6 +1076,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'cloud_recording:read:list_recording_files',
           'cloud_recording:delete:recording_file',
         ],
+        serviceAccountProviderId: 'zoom-service-account',
       },
     },
     defaultService: 'zoom',
@@ -1268,6 +1289,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'clickup': {
+      const { clientId, clientSecret } = getCredentials(
+        env.CLICKUP_CLIENT_ID,
+        env.CLICKUP_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.clickup.com/api/v2/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'linear': {

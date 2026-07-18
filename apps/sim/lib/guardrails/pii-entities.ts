@@ -273,11 +273,25 @@ export function getEntityGroupsForLanguage(language: PIILanguage, opts?: { regex
 export const PII_STAGES = ['input', 'blockOutputs', 'logs'] as const
 export type PiiStageKey = (typeof PII_STAGES)[number]
 
+/**
+ * A user-supplied custom regex pattern. Matches are replaced with `replacement`
+ * wrapped in angle brackets (e.g. `EMPLOYEE_ID` → `<EMPLOYEE_ID>`), mirroring the
+ * built-in Presidio tokens; the internal entity id is never surfaced. `name` is a
+ * human label only.
+ */
+export interface CustomPiiPattern {
+  name: string
+  regex: string
+  replacement: string
+}
+
 /** Per-stage redaction policy. `enabled: false` makes the stage a no-op. */
 export interface PiiStagePolicy {
   enabled: boolean
   entityTypes: string[]
   language: PIILanguage
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
 }
 
 export type PiiStages = Record<PiiStageKey, PiiStagePolicy>
@@ -320,7 +334,24 @@ export const RISKY_PII_ENTITIES: ReadonlySet<PIIEntityType> = new Set<PIIEntityT
 
 /** A fully-disabled stage policy for new drafts. */
 export function emptyStagePolicy(): PiiStagePolicy {
-  return { enabled: false, entityTypes: [], language: DEFAULT_PII_LANGUAGE }
+  return { enabled: false, entityTypes: [], language: DEFAULT_PII_LANGUAGE, customPatterns: [] }
+}
+
+/** Coerce an untrusted value into a clean `CustomPiiPattern[]` (drops malformed rows). */
+export function sanitizeCustomPatterns(value: unknown): CustomPiiPattern[] {
+  if (!Array.isArray(value)) return []
+  const out: CustomPiiPattern[] = []
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue
+    const { name, regex, replacement } = raw as Record<string, unknown>
+    if (typeof regex !== 'string' || regex.length === 0) continue
+    out.push({
+      name: typeof name === 'string' ? name : '',
+      regex,
+      replacement: typeof replacement === 'string' ? replacement : '',
+    })
+  }
+  return out
 }
 
 /** A fully-disabled stage set for new drafts. */
@@ -348,11 +379,13 @@ export function normalizeRuleStages(rule: {
       ? policy.entityTypes.filter((t): t is string => typeof t === 'string')
       : [],
     language: coercePiiLanguage(policy?.language) ?? DEFAULT_PII_LANGUAGE,
+    customPatterns: sanitizeCustomPatterns(policy?.customPatterns),
   })
 
   if (rule.stages) {
     // Block outputs are regex-only (no spaCy NER) — strip NER from any stored
-    // rule so hydrated drafts never carry it; a stage left empty becomes disabled.
+    // rule so hydrated drafts never carry it; a stage with neither regex entities
+    // nor custom patterns becomes disabled.
     const blockOutputs = sanitize(rule.stages.blockOutputs)
     const blockOutputsEntities = stripNerEntities(blockOutputs.entityTypes)
     return {
@@ -360,7 +393,9 @@ export function normalizeRuleStages(rule: {
       blockOutputs: {
         ...blockOutputs,
         entityTypes: blockOutputsEntities,
-        enabled: blockOutputs.enabled && blockOutputsEntities.length > 0,
+        enabled:
+          blockOutputs.enabled &&
+          (blockOutputsEntities.length > 0 || (blockOutputs.customPatterns?.length ?? 0) > 0),
       },
       logs: sanitize(rule.stages.logs),
     }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip } from '@sim/emcn'
+import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -23,6 +23,8 @@ import {
   mcpServerIdParam,
   mcpServerIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import { getRefreshActionState } from '@/app/workspace/[workspaceId]/settings/components/mcp/refresh-action-state'
+import { getServerToolsLabel } from '@/app/workspace/[workspaceId]/settings/components/mcp/server-tools-label'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -61,16 +63,6 @@ function formatTransportLabel(transport: string): string {
     .join('-')
 }
 
-function formatToolsLabel(tools: McpTool[], connectionStatus?: string): string {
-  if (connectionStatus === 'error') {
-    return 'Unable to connect'
-  }
-  const count = tools.length
-  const plural = count !== 1 ? 's' : ''
-  const names = count > 0 ? `: ${tools.map((t) => t.name).join(', ')}` : ''
-  return `${count} tool${plural}${names}`
-}
-
 interface ServerListItemProps {
   canManage: boolean
   server: McpServer
@@ -93,8 +85,14 @@ function ServerListItem({
   onViewDetails,
 }: ServerListItemProps) {
   const transportLabel = formatTransportLabel(server.transport || 'http')
-  const toolsLabel = formatToolsLabel(tools, server.connectionStatus)
-  const isError = server.connectionStatus === 'error'
+  const toolsLabel = getServerToolsLabel(
+    tools,
+    server.connectionStatus,
+    server.lastError,
+    server.authType
+  )
+  const hasConnectionIssue =
+    server.connectionStatus === 'error' || server.connectionStatus === 'disconnected'
 
   return (
     <div className='flex items-center justify-between gap-3'>
@@ -108,7 +106,7 @@ function ServerListItem({
         <p
           className={cn(
             'truncate text-sm',
-            isError ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
+            hasConnectionIssue ? 'text-[var(--text-error)]' : 'text-[var(--text-muted)]'
           )}
         >
           {isRefreshing
@@ -231,6 +229,7 @@ export function MCP() {
       logger.info(`Removed MCP server: ${serverId}`)
     } catch (error) {
       logger.error('Failed to remove MCP server:', error)
+      toast.error('Failed to remove MCP server', { description: getErrorMessage(error) })
     } finally {
       setDeletingServers((prev) => {
         const newSet = new Set(prev)
@@ -308,23 +307,16 @@ export function MCP() {
       }
     } catch (error) {
       logger.error('Failed to refresh MCP server:', error)
+      toast.error('Failed to refresh MCP server', { description: getErrorMessage(error) })
     }
   }
 
   useEffect(() => {
-    if (!refreshServerMutation.isSuccess) return
+    if (!refreshServerMutation.isSuccess && !refreshServerMutation.isError) return
     const timeout = window.setTimeout(() => refreshServerMutation.reset(), 3000)
     return () => window.clearTimeout(timeout)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation object is unstable; isSuccess flag is the trigger
-  }, [refreshServerMutation.isSuccess])
-
-  const refreshingServerId = refreshServerMutation.isPending
-    ? refreshServerMutation.variables?.serverId
-    : null
-  const refreshedServerId = refreshServerMutation.isSuccess
-    ? refreshServerMutation.variables?.serverId
-    : null
-  const refreshedWorkflowsUpdated = refreshServerMutation.data?.workflowsUpdated
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation object is unstable; status flags are the triggers
+  }, [refreshServerMutation.isSuccess, refreshServerMutation.isError])
 
   const editingServer = editingServerId
     ? (servers.find((s) => s.id === editingServerId) as McpServer | undefined)
@@ -389,15 +381,14 @@ export function MCP() {
   if (selectedServer) {
     const { server, tools } = selectedServer
     const transportLabel = formatTransportLabel(server.transport || 'http')
-
-    const refreshLabel =
-      refreshingServerId === server.id
-        ? 'Refreshing...'
-        : refreshedServerId === server.id
-          ? refreshedWorkflowsUpdated
-            ? `Synced (${refreshedWorkflowsUpdated} workflow${refreshedWorkflowsUpdated === 1 ? '' : 's'})`
-            : 'Refreshed'
-          : 'Refresh tools'
+    const isCurrentRefresh = refreshServerMutation.variables?.serverId === server.id
+    const refreshAction = getRefreshActionState({
+      mutationStatus: isCurrentRefresh ? refreshServerMutation.status : 'idle',
+      connectionStatus: isCurrentRefresh ? refreshServerMutation.data?.status : undefined,
+      authType: server.authType,
+      error: isCurrentRefresh ? refreshServerMutation.data?.error : undefined,
+      workflowsUpdated: isCurrentRefresh ? refreshServerMutation.data?.workflowsUpdated : undefined,
+    })
 
     return (
       <SettingsPanel
@@ -407,9 +398,10 @@ export function MCP() {
           canEdit
             ? [
                 {
-                  text: refreshLabel,
+                  text: refreshAction.text,
+                  textTone: refreshAction.textTone,
                   onSelect: () => handleRefreshServer(server.id),
-                  disabled: refreshingServerId === server.id || refreshedServerId === server.id,
+                  disabled: refreshAction.disabled,
                 },
                 {
                   text: 'Edit',
@@ -438,11 +430,16 @@ export function MCP() {
               </div>
             )}
 
-            {server.connectionStatus === 'error' && (
+            {server.connectionStatus !== 'connected' && (
               <div className='flex flex-col gap-2'>
                 <span className='text-[var(--text-muted)] text-caption'>Status</span>
                 <p className='text-[var(--text-error)] text-sm'>
-                  {server.lastError || 'Unable to connect'}
+                  {getServerToolsLabel(
+                    [],
+                    server.connectionStatus,
+                    server.lastError,
+                    server.authType
+                  )}
                 </p>
               </div>
             )}
@@ -664,7 +661,10 @@ export function MCP() {
                   tools={tools}
                   isDeleting={deletingServers.has(server.id)}
                   isLoadingTools={isLoadingTools}
-                  isRefreshing={refreshingServerId === server.id}
+                  isRefreshing={
+                    refreshServerMutation.isPending &&
+                    refreshServerMutation.variables?.serverId === server.id
+                  }
                   onRemove={() => handleRemoveServer(server.id)}
                   onViewDetails={() => handleViewDetails(server.id)}
                 />

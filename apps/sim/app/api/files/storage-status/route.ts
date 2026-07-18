@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/files/storage-status
- * Whether S3 or Azure Blob is configured (needed for Instagram file-upload publish).
+ * Whether S3, Azure Blob, or Google Cloud Storage is configured (needed for Instagram file-upload publish).
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()

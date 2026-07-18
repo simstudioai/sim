@@ -10,7 +10,8 @@ import logging
 import time
 from typing import Any
 
-from fastapi import FastAPI
+import regex as regex_module
+from fastapi import FastAPI, HTTPException
 from presidio_analyzer import (
     AnalyzerEngine,
     BatchAnalyzerEngine,
@@ -220,9 +221,11 @@ def _analyze_one(
     entities: list[str] | None,
     score_threshold: float | None,
     return_decision_process: bool = False,
+    ad_hoc_recognizers: list[PatternRecognizer] | None = None,
 ):
     # Regex-only requests reuse a blank NlpArtifacts to skip the spaCy NLP pass;
-    # otherwise analyze() computes artifacts (runs spaCy) as usual.
+    # otherwise analyze() computes artifacts (runs spaCy) as usual. Custom-pattern
+    # recognizers are regex-based, so they run fine against the blank artifacts.
     nlp_artifacts = (
         _BLANK_ARTIFACTS.get(language) if _regex_only(entities, score_threshold) else None
     )
@@ -233,6 +236,7 @@ def _analyze_one(
         score_threshold=score_threshold,
         return_decision_process=return_decision_process,
         nlp_artifacts=nlp_artifacts,
+        ad_hoc_recognizers=ad_hoc_recognizers or None,
     )
 
 
@@ -241,6 +245,7 @@ def _analyze_many(
     language: str,
     entities: list[str] | None,
     score_threshold: float | None,
+    ad_hoc_recognizers: list[PatternRecognizer] | None = None,
 ):
     """Analyze many texts, skipping the spaCy pass for regex-only requests."""
     if _regex_only(entities, score_threshold):
@@ -252,6 +257,7 @@ def _analyze_many(
                 entities=entities,
                 score_threshold=score_threshold,
                 nlp_artifacts=blank,
+                ad_hoc_recognizers=ad_hoc_recognizers or None,
             )
             for text in texts
         ]
@@ -261,11 +267,91 @@ def _analyze_many(
             language=language,
             entities=entities or None,
             score_threshold=score_threshold,
+            ad_hoc_recognizers=ad_hoc_recognizers or None,
         )
     )
 
 
 app = FastAPI(title="Sim Presidio", docs_url=None, redoc_url=None)
+
+# Internal entity id assigned to the i-th user-supplied custom pattern. Never
+# surfaced: the anonymizer maps it back to the pattern's chosen `replacement`, and
+# callers relabel any leftover CUSTOM_<i> span to the pattern's display name.
+CUSTOM_ENTITY_PREFIX = "CUSTOM_"
+
+
+class CustomPattern(BaseModel):
+    """A user-supplied regex pattern. Matches are replaced with `replacement`,
+    wrapped in angle brackets (see `_wrap_token`)."""
+
+    regex: str
+    replacement: str = ""
+    name: str = ""
+
+
+def _wrap_token(replacement: str) -> str:
+    """Wrap the redaction token in angle brackets so custom matches read like the
+    built-in Presidio tokens (`<PERSON>`, `<EMAIL_ADDRESS>`). A value the user
+    already bracketed is left as-is so it never double-wraps to `<<X>>`."""
+    if len(replacement) >= 2 and replacement.startswith("<") and replacement.endswith(">"):
+        return replacement
+    return f"<{replacement}>"
+
+
+def custom_operators(patterns: list[CustomPattern] | None) -> dict[str, dict[str, Any]]:
+    """Raw replace-operator per custom pattern, keyed by its internal entity id."""
+    return {
+        f"{CUSTOM_ENTITY_PREFIX}{i}": {"type": "replace", "new_value": _wrap_token(p.replacement)}
+        for i, p in enumerate(patterns or [])
+    }
+
+
+def build_custom_recognizers(
+    patterns: list[CustomPattern] | None, language: str
+) -> tuple[list[PatternRecognizer], list[str]]:
+    """Ad-hoc PatternRecognizers + their entity ids for the given custom patterns.
+
+    Each regex is precompiled so a malformed pattern fails fast as a 400 rather
+    than surfacing later as an opaque analyze-time 500."""
+    recognizers: list[PatternRecognizer] = []
+    entity_ids: list[str] = []
+    for i, p in enumerate(patterns or []):
+        try:
+            regex_module.compile(p.regex)
+        except regex_module.error as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid custom pattern regex: {exc}"
+            ) from exc
+        entity = f"{CUSTOM_ENTITY_PREFIX}{i}"
+        recognizers.append(
+            PatternRecognizer(
+                supported_entity=entity,
+                # Score 1.0 so a user's explicit pattern wins any overlap with a
+                # built-in detector (e.g. spaCy tagging "EMP-123456" as ORGANIZATION
+                # under detect-all). Presidio resolves overlapping spans by score, so
+                # the custom replacement — not the built-in token — is applied.
+                patterns=[Pattern(name=p.name or entity, regex=p.regex, score=1.0)],
+                supported_language=language,
+            )
+        )
+        entity_ids.append(entity)
+    return recognizers, entity_ids
+
+
+def resolve_entities(
+    req_entities: list[str] | None, custom_entity_ids: list[str]
+) -> list[str] | None:
+    """Effective entity filter.
+
+    `None` means detect-all built-ins (the guardrails "empty selection = detect
+    everything" convention); the ad-hoc custom recognizers still fire under `None`,
+    so adding a custom pattern augments detect-all rather than silently disabling
+    the built-in detectors. An explicit list — including the empty list, which is
+    the data-retention "only these custom patterns" shape — is used verbatim, with
+    the custom ids appended."""
+    if req_entities is None:
+        return None
+    return list(req_entities) + custom_entity_ids
 
 
 class AnalyzeRequest(BaseModel):
@@ -274,6 +360,7 @@ class AnalyzeRequest(BaseModel):
     entities: list[str] | None = None
     score_threshold: float | None = None
     return_decision_process: bool = False
+    patterns: list[CustomPattern] | None = None
 
 
 class AnalyzeBatchRequest(BaseModel):
@@ -281,6 +368,7 @@ class AnalyzeBatchRequest(BaseModel):
     language: str = "en"
     entities: list[str] | None = None
     score_threshold: float | None = None
+    patterns: list[CustomPattern] | None = None
 
 
 class AnonymizeRequest(BaseModel):
@@ -288,6 +376,7 @@ class AnonymizeRequest(BaseModel):
     analyzer_results: list[dict[str, Any]] = []
     anonymizers: dict[str, dict[str, Any]] | None = None
     operators: dict[str, dict[str, Any]] | None = None
+    patterns: list[CustomPattern] | None = None
 
 
 class AnonymizeBatchItem(BaseModel):
@@ -299,6 +388,7 @@ class AnonymizeBatchRequest(BaseModel):
     items: list[AnonymizeBatchItem] = []
     anonymizers: dict[str, dict[str, Any]] | None = None
     operators: dict[str, dict[str, Any]] | None = None
+    patterns: list[CustomPattern] | None = None
 
 
 class RedactRequest(BaseModel):
@@ -308,6 +398,7 @@ class RedactRequest(BaseModel):
     score_threshold: float | None = None
     anonymizers: dict[str, dict[str, Any]] | None = None
     operators: dict[str, dict[str, Any]] | None = None
+    patterns: list[CustomPattern] | None = None
 
 
 class RedactBatchRequest(BaseModel):
@@ -317,6 +408,7 @@ class RedactBatchRequest(BaseModel):
     score_threshold: float | None = None
     anonymizers: dict[str, dict[str, Any]] | None = None
     operators: dict[str, dict[str, Any]] | None = None
+    patterns: list[CustomPattern] | None = None
 
 
 def build_operators(
@@ -330,6 +422,17 @@ def build_operators(
         op_type = op_cfg.pop("type", "replace")
         operators[entity] = OperatorConfig(op_type, op_cfg)
     return operators
+
+
+def resolve_operators(
+    anonymizers: dict[str, dict[str, Any]] | None,
+    operators: dict[str, dict[str, Any]] | None,
+    patterns: list[CustomPattern] | None,
+) -> dict[str, OperatorConfig] | None:
+    """Merge the caller's operators with the per-custom-pattern replace operators."""
+    raw = dict(anonymizers or operators or {})
+    raw.update(custom_operators(patterns))
+    return build_operators(raw)
 
 
 def run_anonymize(
@@ -366,12 +469,15 @@ def supported_entities(language: str = "en") -> list[str]:
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest) -> list[dict[str, Any]]:
     started = time.perf_counter()
+    recognizers, custom_ids = build_custom_recognizers(req.patterns, req.language)
+    entities = resolve_entities(req.entities, custom_ids)
     results = _analyze_one(
         req.text,
         req.language,
-        req.entities,
+        entities,
         req.score_threshold,
         req.return_decision_process,
+        recognizers,
     )
     logger.info(
         "analyze lang=%s chars=%d entities=%d duration_ms=%.1f",
@@ -387,14 +493,16 @@ def analyze(req: AnalyzeRequest) -> list[dict[str, Any]]:
 def analyze_batch(req: AnalyzeBatchRequest) -> list[list[dict[str, Any]]]:
     """Analyze many texts in one pass (spaCy nlp.pipe), returning one span list
     per input in request order — the batched counterpart to /analyze."""
-    results = _analyze_many(req.texts, req.language, req.entities, req.score_threshold)
+    recognizers, custom_ids = build_custom_recognizers(req.patterns, req.language)
+    entities = resolve_entities(req.entities, custom_ids)
+    results = _analyze_many(req.texts, req.language, entities, req.score_threshold, recognizers)
     return [[r.to_dict() for r in per_text] for per_text in results]
 
 
 @app.post("/anonymize")
 def anonymize(req: AnonymizeRequest) -> dict[str, Any]:
     started = time.perf_counter()
-    operators = build_operators(req.anonymizers or req.operators)
+    operators = resolve_operators(req.anonymizers, req.operators, req.patterns)
     result = run_anonymize(req.text, req.analyzer_results, operators)
     logger.info(
         "anonymize chars=%d spans=%d duration_ms=%.1f",
@@ -422,7 +530,7 @@ def anonymize_batch(req: AnonymizeBatchRequest) -> dict[str, list[str]]:
     """Mask many texts in one pass, returning masked text per item in request
     order — the batched counterpart to /anonymize. Anonymization is pure string
     work (no NLP), so callers should send only items with detected spans."""
-    operators = build_operators(req.anonymizers or req.operators)
+    operators = resolve_operators(req.anonymizers, req.operators, req.patterns)
     return {
         "texts": [
             run_anonymize(item.text, item.analyzer_results, operators).text
@@ -438,8 +546,12 @@ def redact(req: RedactRequest) -> dict[str, str]:
     with no detected PII passes through unchanged. The analyzer results feed the
     anonymizer directly (no dict round-trip)."""
     started = time.perf_counter()
-    operators = build_operators(req.anonymizers or req.operators)
-    results = _analyze_one(req.text, req.language, req.entities, req.score_threshold)
+    recognizers, custom_ids = build_custom_recognizers(req.patterns, req.language)
+    entities = resolve_entities(req.entities, custom_ids)
+    operators = resolve_operators(req.anonymizers, req.operators, req.patterns)
+    results = _analyze_one(
+        req.text, req.language, entities, req.score_threshold, ad_hoc_recognizers=recognizers
+    )
     text = (
         req.text
         if not results
@@ -466,8 +578,10 @@ def redact_batch(req: RedactBatchRequest) -> dict[str, list[str]]:
     the anonymizer directly (no dict round-trip), and anonymization runs only on
     texts that actually matched."""
     started = time.perf_counter()
-    operators = build_operators(req.anonymizers or req.operators)
-    analyzed = _analyze_many(req.texts, req.language, req.entities, req.score_threshold)
+    recognizers, custom_ids = build_custom_recognizers(req.patterns, req.language)
+    entities = resolve_entities(req.entities, custom_ids)
+    operators = resolve_operators(req.anonymizers, req.operators, req.patterns)
+    analyzed = _analyze_many(req.texts, req.language, entities, req.score_threshold, recognizers)
     masked: list[str] = []
     total_spans = 0
     for text, per_text in zip(req.texts, analyzed):
@@ -484,8 +598,8 @@ def redact_batch(req: RedactBatchRequest) -> dict[str, list[str]]:
         "redact_batch lang=%s texts=%d entities=%s nlp=%s spans=%d duration_ms=%.1f",
         req.language,
         len(req.texts),
-        len(req.entities) if req.entities else "all",
-        "skip" if _regex_only(req.entities, req.score_threshold) else "full",
+        len(entities) if entities else "all",
+        "skip" if _regex_only(entities, req.score_threshold) else "full",
         total_spans,
         (time.perf_counter() - started) * 1000,
     )

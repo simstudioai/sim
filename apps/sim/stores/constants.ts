@@ -18,6 +18,9 @@ const API_ENDPOINTS = {
  * @see layout.tsx for pre-hydration script that reads localStorage
  */
 
+/** Inset gap in pixels between the viewport edge and the content window */
+export const CONTENT_WINDOW_GAP = 8
+
 /** Sidebar width constraints */
 export const SIDEBAR_WIDTH = {
   DEFAULT: 248,

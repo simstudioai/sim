@@ -45,6 +45,7 @@ import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 const logger = createLogger('VfsMutateTools')
 
 type MutateVerb = 'mv' | 'cp'
+
 type MutateCategory = 'files' | 'workflows' | 'tables' | 'knowledgebases'
 
 const MUTATE_CATEGORIES = new Set<string>(['files', 'workflows', 'tables', 'knowledgebases'])
@@ -64,6 +65,7 @@ interface VfsMutateOutcome {
   error?: string
 }
 
+/** Top-level VFS segment of a raw (possibly encoded) path. */
 function topLevelSegment(path: string): string {
   return path.trim().replace(/^\/+/, '').split('/')[0] ?? ''
 }
@@ -81,9 +83,7 @@ function classifyCategory(path: string): { category: MutateCategory } | { error:
 function normalizeSources(raw: unknown): string[] {
   if (typeof raw === 'string') return raw.trim() ? [raw.trim()] : []
   if (!Array.isArray(raw)) return []
-  return raw.filter(
-    (source): source is string => typeof source === 'string' && source.trim().length > 0
-  )
+  return raw.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
 }
 
 function hasTrailingSlash(path: string): boolean {
@@ -97,7 +97,7 @@ function assertMutationNotAborted(context: ExecutionContext): void {
 }
 
 function buildResult(verb: MutateVerb | 'mkdir', outcomes: VfsMutateOutcome[]): ToolCallResult {
-  const failed = outcomes.filter((outcome) => outcome.error)
+  const failed = outcomes.filter((o) => o.error)
   if (failed.length === outcomes.length) {
     return {
       success: false,
@@ -122,6 +122,10 @@ export async function executeVfsCp(
   return executeVfsMutate('cp', params, context)
 }
 
+/**
+ * mkdir -p over the VFS: creates each folder path (missing parents included)
+ * under files/ or workflows/. Existing folders are not an error.
+ */
 export async function executeVfsMkdir(
   params: Record<string, unknown>,
   context: ExecutionContext
@@ -137,8 +141,8 @@ export async function executeVfsMkdir(
     assertMutationNotAborted(context)
 
     let ensureWorkflowFolder: ((segments: string[]) => Promise<string | null>) | undefined
-    const outcomes: VfsMutateOutcome[] = []
 
+    const outcomes: VfsMutateOutcome[] = []
     for (const path of paths) {
       const top = topLevelSegment(path)
       const segments = decodeVfsPathSegments(path).slice(1)
@@ -230,7 +234,8 @@ async function executeVfsMutate(
       }
     }
 
-    if (topLevelSegment(destination) !== category) {
+    const destTop = topLevelSegment(destination)
+    if (destTop !== category) {
       return {
         success: false,
         error: `Cannot ${verb} across categories: ${category}/ sources cannot target "${destination}". Resources stay within their category.`,
@@ -251,12 +256,26 @@ async function executeVfsMutate(
 }
 
 interface DestinationPlan {
+  /** True when sources move INTO the destination folder keeping their names. */
   dirMode: boolean
+  /** Decoded display-name segments of the destination folder. */
   folderSegments: string[]
+  /** New leaf name; set only when `dirMode` is false. */
   leafName?: string
+  /**
+   * Resolve the destination folder id, creating missing folders on first call.
+   * Deferred and memoized so nothing is created until a source is confirmed
+   * valid — a fully-failed mv/cp must not leave folders behind.
+   */
   ensureFolderId: () => Promise<string | null>
 }
 
+/**
+ * Shared destination interpretation for every category with folders: an
+ * existing folder (or a trailing "/") means move/copy INTO it keeping names;
+ * otherwise the last segment is the new name and the preceding segments are
+ * the target folder. Folder creation is deferred to `ensureFolderId`.
+ */
 async function planDestination(args: {
   destination: string
   sourceCount: number
@@ -297,6 +316,12 @@ async function planDestination(args: {
   return plan(false, rest.slice(0, -1), rest.at(-1) as string)
 }
 
+/**
+ * Resolve a `files/...` source to the file at EXACTLY that path (folder-
+ * anchored). Deliberately not the lenient read-side resolver — on a
+ * destructive path a bare-name fallback could match a file in a different
+ * folder than the one named.
+ */
 async function resolveFileAtExactPath(
   workspaceId: string,
   segments: string[]
@@ -345,6 +370,8 @@ async function mutateWorkspaceFiles(
   })
   if ('error' in dest) return { success: false, error: dest.error }
 
+  // Resolve every source read-only before mutating anything, so a fully
+  // invalid call cannot create destination folders as a side effect.
   type SourceRef =
     | { source: string; file: WorkspaceFileRecord }
     | { source: string; folderId: string }
@@ -376,11 +403,12 @@ async function mutateWorkspaceFiles(
     if ('file' in ref) {
       assertMutationNotAborted(context)
       const targetName = dest.dirMode ? ref.file.name : (dest.leafName as string)
+      const targetFolderId = await dest.ensureFolderId()
       const result = await performMoveRenameWorkspaceFile({
         workspaceId,
         userId: context.userId,
         fileId: ref.file.id,
-        targetFolderId: await dest.ensureFolderId(),
+        targetFolderId,
         newName: targetName,
       })
       outcomes.push(
@@ -440,6 +468,11 @@ async function loadWorkflowFolderIndex(workspaceId: string): Promise<WorkflowFol
   return { folderPathById, folderIdByPath }
 }
 
+/**
+ * mkdir -p for workflow folders: resolves each segment against the index,
+ * creating missing ones (locked parents rejected) and keeping the index maps
+ * current so later paths in the same call see the new folders.
+ */
 function makeWorkflowFolderEnsurer(
   workspaceId: string,
   userId: string,
@@ -503,6 +536,7 @@ async function mutateWorkflows(
   }
 
   const ensureWorkflowFolderPath = makeWorkflowFolderEnsurer(workspaceId, context.userId, index)
+
   const dest = await planDestination({
     destination,
     sourceCount: sources.length,
@@ -514,6 +548,7 @@ async function mutateWorkflows(
     return { success: false, error: 'Workflow name must be 200 characters or less' }
   }
 
+  // Resolve every source against the in-memory maps before mutating anything.
   type SourceRef =
     | { source: string; workflow: (typeof workflowRows)[number] }
     | { source: string; folderId: string }
@@ -526,9 +561,9 @@ async function mutateWorkflows(
       continue
     }
     const encoded = encodeVfsPathSegments(segments)
-    const workflow = workflowByPath.get(`workflows/${encoded}`)
-    if (workflow) {
-      refs.push({ source, workflow })
+    const wf = workflowByPath.get(`workflows/${encoded}`)
+    if (wf) {
+      refs.push({ source, workflow: wf })
       continue
     }
     const folderId = folderIdByPath.get(encoded)
@@ -544,16 +579,17 @@ async function mutateWorkflows(
     }
 
     if ('workflow' in ref) {
-      const workflow = ref.workflow
-      const targetName = dest.dirMode ? workflow.name : (dest.leafName as string)
+      const wf = ref.workflow
+      const targetName = dest.dirMode ? wf.name : (dest.leafName as string)
       try {
         assertMutationNotAborted(context)
         if (verb === 'cp') {
+          const targetFolderId = await dest.ensureFolderId()
           const duplicated = await duplicateWorkflow({
-            sourceWorkflowId: workflow.id,
+            sourceWorkflowId: wf.id,
             userId: context.userId,
             workspaceId,
-            folderId: await dest.ensureFolderId(),
+            folderId: targetFolderId,
             name: targetName,
             requestId: generateRequestId(),
           })
@@ -564,8 +600,8 @@ async function mutateWorkflows(
             id: duplicated.id,
           })
         } else {
-          await ensureWorkflowAccess(workflow.id, context.userId, 'write')
-          await assertWorkflowMutable(workflow.id)
+          await ensureWorkflowAccess(wf.id, context.userId, 'write')
+          await assertWorkflowMutable(wf.id)
           const targetFolderId = await dest.ensureFolderId()
           await assertFolderMutable(targetFolderId)
           if (targetFolderId && !(await verifyFolderWorkspace(targetFolderId, workspaceId))) {
@@ -577,11 +613,11 @@ async function mutateWorkflows(
             continue
           }
           const result = await performUpdateWorkflow({
-            workflowId: workflow.id,
+            workflowId: wf.id,
             userId: context.userId,
             workspaceId,
-            currentName: workflow.name,
-            currentFolderId: workflow.folderId,
+            currentName: wf.name,
+            currentFolderId: wf.folderId,
             name: dest.dirMode ? undefined : targetName,
             folderId: targetFolderId,
           })
@@ -591,7 +627,7 @@ async function mutateWorkflows(
                   from: ref.source,
                   to: `workflows/${encodeVfsPathSegments([...dest.folderSegments, targetName])}`,
                   kind: 'workflow',
-                  id: workflow.id,
+                  id: wf.id,
                 }
               : {
                   from: ref.source,
@@ -692,7 +728,7 @@ async function renameFlatResource(
 
   if (category === 'tables') {
     const tables = await listTables(workspaceId)
-    const match = tables.find((table) => normalizeVfsSegment(table.name) === canonicalSource)
+    const match = tables.find((t) => normalizeVfsSegment(t.name) === canonicalSource)
     if (!match) {
       return { success: false, error: `Table not found at ${sources[0]}` }
     }
@@ -711,10 +747,8 @@ async function renameFlatResource(
   if (newName.toLowerCase() === 'connectors') {
     return { success: false, error: '"knowledgebases/connectors" is a reserved path.' }
   }
-  const knowledgeBases = await getKnowledgeBases(context.userId, workspaceId)
-  const match = knowledgeBases.find(
-    (knowledgeBase) => normalizeVfsSegment(knowledgeBase.name) === canonicalSource
-  )
+  const kbs = await getKnowledgeBases(context.userId, workspaceId)
+  const match = kbs.find((kb) => normalizeVfsSegment(kb.name) === canonicalSource)
   if (!match) {
     return { success: false, error: `Knowledge base not found at ${sources[0]}` }
   }

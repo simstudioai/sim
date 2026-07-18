@@ -37,12 +37,16 @@ function getToolCallIdFromResultEvent(event: ToolResultStreamEvent): string {
   return event.payload.toolCallId
 }
 
-function markToolCallSeen(toolCallId: string): void {
-  addToSet(seenToolCalls, toolCallId)
+function toolCallDedupeKey(toolCallId: string, toolName: string): string {
+  return `${toolCallId}\u0000${toolName}`
 }
 
-function wasToolCallSeen(toolCallId: string): boolean {
-  return seenToolCalls.has(toolCallId)
+function markToolCallSeen(toolCallId: string, toolName: string): void {
+  addToSet(seenToolCalls, toolCallDedupeKey(toolCallId, toolName))
+}
+
+function wasToolCallSeen(toolCallId: string, toolName: string): boolean {
+  return seenToolCalls.has(toolCallDedupeKey(toolCallId, toolName))
 }
 
 export function markToolResultSeen(toolCallId: string): void {
@@ -59,8 +63,13 @@ export function shouldSkipToolCallEvent(event: StreamEvent): boolean {
   if (event.payload.status === TOOL_CALL_STATUS.generating) return false
   const toolCallId = getToolCallIdFromCallEvent(event)
   if (event.payload.partial === true) return false
-  if (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId)) return true
-  markToolCallSeen(toolCallId)
+  const toolName = event.payload.toolName
+  // A resolved integration gateway intentionally emits two authoritative
+  // call frames under one provider call ID: first call_integration_tool, then
+  // the exact request-local operation. Deduplicate retransmits of the same
+  // frame, but allow the name transition through to execution and UI rebinding.
+  if (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId, toolName)) return true
+  markToolCallSeen(toolCallId, toolName)
   return false
 }
 

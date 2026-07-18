@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { mcpServerTestBodySchema } from '@/lib/api/contracts/mcp'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -50,17 +49,35 @@ interface TestConnectionResult {
 }
 
 /**
- * Extracts a user-friendly error message from connection errors.
- * Keeps diagnostic info (timeout, DNS, HTTP status) but strips
- * verbose internals (Zod details, full response bodies, stack traces).
+ * Maps connection failures to allowlisted messages. Upstream response bodies
+ * may echo configured credentials, so arbitrary error text must not reach API
+ * responses or logs.
  */
 function sanitizeConnectionError(error: unknown): string {
   if (!(error instanceof Error)) {
     return 'Unknown connection error'
   }
 
-  const firstLine = error.message.split('\n')[0]
-  return truncate(firstLine, 200)
+  const message = error.message.toLowerCase()
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return 'Connection timed out'
+  }
+  if (message.includes('401') || message.includes('unauthorized')) {
+    return 'HTTP 401: Unauthorized'
+  }
+  if (message.includes('403') || message.includes('forbidden')) {
+    return 'HTTP 403: Forbidden'
+  }
+  if (message.includes('enotfound') || message.includes('could not resolve')) {
+    return 'MCP server hostname could not be resolved'
+  }
+  if (message.includes('econnrefused') || message.includes('connection refused')) {
+    return 'Connection refused'
+  }
+  if (message.includes('certificate') || message.includes('tls') || message.includes('ssl')) {
+    return 'TLS connection failed'
+  }
+  return 'Connection failed'
 }
 
 /**
@@ -172,8 +189,14 @@ export const POST = withRouteHandler(
 
       const result: TestConnectionResult = { success: false }
 
-      // Skip unauth connect when the server returns an RFC 9728 OAuth challenge.
-      if (testConfig.url) {
+      /** An explicit static Bearer token takes precedence over optional OAuth discovery. */
+      const hasStaticBearerToken = Object.entries(testConfig.headers ?? {}).some(
+        ([name, value]) =>
+          name.toLowerCase() === 'authorization' && /^Bearer\s+\S+/i.test(value.trim())
+      )
+      if (hasStaticBearerToken) {
+        result.authType = 'headers'
+      } else if (testConfig.url) {
         const detectedAuthType = await detectMcpAuthType(testConfig.url, resolvedIP)
         if (detectedAuthType === 'oauth') {
           result.authRequired = true
@@ -199,8 +222,8 @@ export const POST = withRouteHandler(
           const tools = await client.listTools()
           result.toolCount = tools.length
           result.success = true
-        } catch (toolError) {
-          logger.warn(`[${requestId}] Connection established but could not list tools:`, toolError)
+        } catch {
+          logger.warn(`[${requestId}] Connection established but could not list tools`)
           result.success = false
           result.error = 'Connection established but could not list tools'
           result.warnings = result.warnings || []
@@ -224,16 +247,15 @@ export const POST = withRouteHandler(
           capabilities: result.supportedCapabilities,
         })
       } catch (error) {
-        logger.warn(`[${requestId}] MCP server test failed:`, error)
-
         result.success = false
         result.error = sanitizeConnectionError(error)
+        logger.warn(`[${requestId}] MCP server test failed`, { error: result.error })
       } finally {
         if (client) {
           try {
             await client.disconnect()
-          } catch (disconnectError) {
-            logger.debug(`[${requestId}] Test client disconnect error (expected):`, disconnectError)
+          } catch {
+            logger.debug(`[${requestId}] Test client disconnect error (expected)`)
           }
         }
       }

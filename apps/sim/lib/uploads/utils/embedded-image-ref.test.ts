@@ -14,6 +14,7 @@ describe('extractEmbeddedFileRef', () => {
     })
     expect(extractEmbeddedFileRef(`/api/files/serve/s3/${ENCODED}`)).toEqual({ key: KEY })
     expect(extractEmbeddedFileRef(`/api/files/serve/blob/${ENCODED}`)).toEqual({ key: KEY })
+    expect(extractEmbeddedFileRef(`/api/files/serve/gcs/${ENCODED}`)).toEqual({ key: KEY })
   })
 
   it('parses view-url and in-app-path embeds to the file id', () => {

@@ -30,6 +30,7 @@ export const sseHandlers: Record<string, StreamHandler> = {
 export const subAgentHandlers: Record<string, StreamHandler> = {
   [MothershipStreamV1EventType.text]: handleTextEvent('subagent'),
   [MothershipStreamV1EventType.tool]: (e, c, ec, o) => handleToolEvent(e, c, ec, o, 'subagent'),
+  [MothershipStreamV1EventType.run]: handleRunEvent,
   [MothershipStreamV1EventType.span]: handleSpanEvent,
 }
 

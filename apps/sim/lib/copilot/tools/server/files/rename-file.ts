@@ -30,8 +30,12 @@ interface RenameFileResult {
   }
 }
 
+/**
+ * Removed from the mothership catalog in favor of mv; the executor stays
+ * registered under its literal name so in-flight checkpoints paused on
+ * rename_file still resume. Delete after the mv release soaks.
+ */
 export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResult> = {
-  // Grace-period executor for checkpoints created before mv replaced rename_file.
   name: 'rename_file',
   async execute(params: RenameFileArgs, context?: ServerToolContext): Promise<RenameFileResult> {
     if (!context?.userId) {

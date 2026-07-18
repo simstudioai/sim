@@ -3,11 +3,13 @@ import {
   ASANA_SERVICE_ACCOUNT_PROVIDER_ID,
   ATTIO_SERVICE_ACCOUNT_PROVIDER_ID,
   CALCOM_SERVICE_ACCOUNT_PROVIDER_ID,
+  CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID,
   HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID,
   isTokenServiceAccountProviderId,
   LINEAR_SERVICE_ACCOUNT_PROVIDER_ID,
   MONDAY_SERVICE_ACCOUNT_PROVIDER_ID,
   NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
+  PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountProviderId,
@@ -19,10 +21,12 @@ import { validateAirtableServiceAccount } from '@/lib/credentials/token-service-
 import { validateAsanaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/asana'
 import { validateAttioServiceAccount } from '@/lib/credentials/token-service-accounts/validators/attio'
 import { validateCalcomServiceAccount } from '@/lib/credentials/token-service-accounts/validators/calcom'
+import { validateClickupServiceAccount } from '@/lib/credentials/token-service-accounts/validators/clickup'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
 import { validateLinearServiceAccount } from '@/lib/credentials/token-service-accounts/validators/linear'
 import { validateMondayServiceAccount } from '@/lib/credentials/token-service-accounts/validators/monday'
 import { validateNotionServiceAccount } from '@/lib/credentials/token-service-accounts/validators/notion'
+import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
 import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trello'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
@@ -67,6 +71,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [NOTION_SERVICE_ACCOUNT_PROVIDER_ID]: validateNotionServiceAccount,
   [ASANA_SERVICE_ACCOUNT_PROVIDER_ID]: validateAsanaServiceAccount,
   [ATTIO_SERVICE_ACCOUNT_PROVIDER_ID]: validateAttioServiceAccount,
+  [CLICKUP_SERVICE_ACCOUNT_PROVIDER_ID]: validateClickupServiceAccount,
   [LINEAR_SERVICE_ACCOUNT_PROVIDER_ID]: validateLinearServiceAccount,
   [MONDAY_SERVICE_ACCOUNT_PROVIDER_ID]: validateMondayServiceAccount,
   [SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID]: validateShopifyServiceAccount,
@@ -74,6 +79,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [TRELLO_SERVICE_ACCOUNT_PROVIDER_ID]: validateTrelloServiceAccount,
   [CALCOM_SERVICE_ACCOUNT_PROVIDER_ID]: validateCalcomServiceAccount,
   [WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID]: validateWealthboxServiceAccount,
+  [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePipedriveServiceAccount,
 }
 
 export function getTokenServiceAccountValidator(

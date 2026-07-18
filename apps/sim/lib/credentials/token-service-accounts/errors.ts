@@ -24,21 +24,54 @@ export class TokenServiceAccountValidationError extends Error {
 const ERROR_SNIPPET_MAX_LENGTH = 500
 
 /**
+ * Transient statuses a provider token/verification endpoint can return that
+ * say nothing about the submitted credentials (throttling, request timeout) —
+ * they must map to `provider_unavailable`, never `invalid_credentials`.
+ */
+export function isTransientProviderStatus(status: number): boolean {
+  return status === 408 || status === 429
+}
+
+export interface FetchProviderOptions {
+  /**
+   * Validation code thrown when the host does not resolve (`ENOTFOUND` only —
+   * the transient `EAI_AGAIN` stays `provider_unavailable`). For user-supplied
+   * hosts (e.g. a Salesforce My Domain), a non-resolving host means the pasted
+   * host is wrong — not that the provider is down — so callers map it to
+   * `site_not_found`.
+   */
+  dnsFailureCode?: TokenServiceAccountValidationCode
+  /** Log-detail reason accompanying a DNS-resolution failure. */
+  dnsFailureReason?: string
+}
+
+/**
  * Fetches a provider verification endpoint, mapping network-level failures
  * (DNS, TLS, connection reset) to `provider_unavailable` so they never escape
  * as raw undici errors — whose `cause` can carry connection details — and are
- * never blamed on the pasted token.
+ * never blamed on the pasted token. DNS-resolution failures can optionally be
+ * mapped to a different code via {@link FetchProviderOptions}.
  */
 const PROVIDER_FETCH_TIMEOUT_MS = 10_000
 
 export async function fetchProvider(
   url: string,
   init: RequestInit,
-  step: string
+  step: string,
+  options?: FetchProviderOptions
 ): Promise<Response> {
   try {
     return await fetch(url, { ...init, signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS) })
-  } catch {
+  } catch (error) {
+    const causeCode = (error as { cause?: { code?: unknown } })?.cause?.code
+    // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
+    // resolver failure and stays provider_unavailable.
+    if (options?.dnsFailureCode && causeCode === 'ENOTFOUND') {
+      throw new TokenServiceAccountValidationError(options.dnsFailureCode, 400, {
+        step,
+        reason: options.dnsFailureReason ?? 'host does not resolve',
+      })
+    }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step,
       reason: 'network error reaching provider',

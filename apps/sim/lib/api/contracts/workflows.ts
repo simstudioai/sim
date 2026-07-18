@@ -222,6 +222,8 @@ export const workflowListItemSchema = z.object({
   updatedAt: z.string(),
   archivedAt: z.string().nullable(),
   locked: z.boolean(),
+  /** Defaulted so a new client tolerates an old server's response during rollout. */
+  forkSyncExcluded: z.boolean().default(false),
   isDeployed: z.boolean().optional(),
 })
 
@@ -281,6 +283,7 @@ export const updateWorkflowBodySchema = z.object({
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
   locked: z.boolean().optional(),
+  forkSyncExcluded: z.boolean().optional(),
 })
 
 export type UpdateWorkflowBody = z.input<typeof updateWorkflowBodySchema>

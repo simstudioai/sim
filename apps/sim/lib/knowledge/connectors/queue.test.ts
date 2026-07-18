@@ -98,6 +98,7 @@ describe('connector sync queue', () => {
       {
         connectorId: 'connector-1',
         fullSync: true,
+        rehydrate: undefined,
         requestId: 'request-1',
         billingAttribution: BILLING_ATTRIBUTION,
       },
@@ -110,6 +111,20 @@ describe('connector sync queue', () => {
         ],
         region: 'us-east-1',
       }
+    )
+  })
+
+  it('carries the rehydrate flag into the queued payload', async () => {
+    await dispatchSync('connector-1', {
+      billingAttribution: BILLING_ATTRIBUTION,
+      rehydrate: true,
+      requestId: 'request-1',
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'knowledge-connector-sync',
+      expect.objectContaining({ connectorId: 'connector-1', rehydrate: true }),
+      expect.anything()
     )
   })
 

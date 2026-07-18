@@ -1,9 +1,15 @@
 import { useMemo } from 'react'
 import { ShimmerText } from '@/components/ui'
-import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import {
+  CallIntegrationTool,
+  Read as ReadTool,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
-import { getToolCompletedTitle } from '@/lib/copilot/tools/tool-display'
+import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
+import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { getBareIconStyle } from '@/blocks/icon-color'
+import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
 
@@ -38,6 +44,8 @@ interface ToolCallItemProps {
  * rewrite in `toToolData`, the past-tense flip is applied here on success.
  * A `read` of a block or integration schema shows the block's brand icon
  * inline next to its display name (e.g. the Gmail logo before "Read Gmail").
+ * The status-aware rewrite is repeated at this final rendering boundary so
+ * live, replayed, and directly-constructed rows cannot bypass completed verbs.
  */
 export function ToolCallItem({
   toolName,
@@ -51,6 +59,15 @@ export function ToolCallItem({
     const path = params?.path
     return typeof path === 'string' ? getReadTargetBlock(path) : undefined
   }, [toolName, params])
+
+  // Like read's VFS-target resolution above, the gateway uses its exact
+  // discovered toolId only as a deterministic registry lookup. This renders
+  // the real integration brand while Go validates/resolves the operation.
+  const gatewayBlock = useMemo(() => {
+    if (toolName !== CallIntegrationTool.id) return undefined
+    const toolId = params?.toolId ?? extractStreamingStringArgument(streamingArgs, 'toolId')
+    return typeof toolId === 'string' ? getBlockByToolName(toolId) : undefined
+  }, [toolName, params, streamingArgs])
 
   const liveWorkspaceFileTitle = useMemo(() => {
     if (toolName !== WorkspaceFile.id || !streamingArgs) return null
@@ -83,12 +100,9 @@ export function ToolCallItem({
 
   const isExecuting = resolveToolDisplayState(status) === 'spinner'
   const liveTitle = liveWorkspaceFileTitle || displayTitle
-  const title =
-    status === 'success' && liveWorkspaceFileTitle
-      ? (getToolCompletedTitle(liveTitle) ?? liveTitle)
-      : liveTitle
+  const title = getToolStatusDisplayTitle(liveTitle, status)
 
-  const BlockIcon = readBlock?.icon
+  const BlockIcon = (readBlock ?? gatewayBlock ?? getBlockByToolName(toolName))?.icon
 
   return (
     <div className='flex items-center gap-[6px] pl-6'>

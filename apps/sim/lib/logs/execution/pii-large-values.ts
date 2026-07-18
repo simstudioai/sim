@@ -9,6 +9,7 @@ import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/la
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
+import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import {
   PiiRedactionError,
   type PiiRedactionFailureMode,
@@ -23,6 +24,8 @@ export interface RedactLargeValueRefsOptions {
   /** Presidio entity types to mask. Empty = redact all detected PII. */
   entityTypes: string[]
   language: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
   /** Storage scope for materializing and re-storing the masked values. */
   store: LargeValueStoreContext
   /**
@@ -185,6 +188,7 @@ async function maskAndReStore(
   const masked = await redactObjectStrings(nested, {
     entityTypes: options.entityTypes,
     language: options.language,
+    customPatterns: options.customPatterns,
     onFailure: options.onFailure ?? 'scrub',
   })
   return compactExecutionPayload(masked, { ...options.store, requireDurable: true })

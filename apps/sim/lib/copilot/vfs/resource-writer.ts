@@ -57,6 +57,7 @@ export type WorkspaceFileWriteValidation =
       vfsPath: string
       backingVfsPath?: string
       fileName: string
+      /** Null for root targets AND for parent chains that don't exist yet — validation is read-only; missing folders are created at write time. */
       folderId: string | null
     }
   | {
@@ -97,6 +98,12 @@ export function parseWorkspaceFileCreatePath(path: string): {
   }
 }
 
+/**
+ * Resolve a create-mode write target. Pass `createFolders` (the write path) to
+ * create missing parent folders; without it (the validation path) resolution
+ * is read-only — a missing parent chain yields `folderId: null`, since the
+ * folders are created at write time and nothing can conflict there yet.
+ */
 async function resolveCreateTarget(
   workspaceId: string,
   path: string,

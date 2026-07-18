@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
@@ -8,6 +9,7 @@ import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
+import { getUserEmailById } from '@/lib/users/queries'
 import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { type CustomBlockOutput, isCustomBlockType } from '@/blocks/custom/build-config'
@@ -16,17 +18,20 @@ import { Executor } from '@/executor'
 import { BlockType, DEFAULTS, HTTP } from '@/executor/constants'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import type { WorkflowNodeMetadata } from '@/executor/execution/types'
-import type {
-  BlockHandler,
-  ExecutionContext,
-  ExecutionResult,
-  StreamingExecution,
+import {
+  type BlockHandler,
+  type ExecutionContext,
+  type ExecutionResult,
+  START_BLOCK_METADATA_FIELD,
+  type StartBlockRunMetadata,
+  type StreamingExecution,
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { getIterationContext } from '@/executor/utils/iteration-context'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
+import { isRunMetadataEnabled, resolveExecutorStartBlock } from '@/executor/utils/start-block'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -38,6 +43,22 @@ function getValueAtPath(source: unknown, path: string): unknown {
     if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[key]
     return undefined
   }, source)
+}
+
+/**
+ * Recover the trusted run metadata from the executing workflow's seeded
+ * start-block output. Resume restores block states from the snapshot but never
+ * rebuilds `ctx.startRunMetadata`, so the seeded output is the surviving copy.
+ */
+function readSeededStartRunMetadata(ctx: ExecutionContext): StartBlockRunMetadata | undefined {
+  const resolution = resolveExecutorStartBlock(ctx.workflow?.blocks ?? [], {
+    execution: 'manual',
+    isChildWorkflow: false,
+  })
+  if (!resolution || !isRunMetadataEnabled(resolution.block)) return undefined
+
+  const seeded = ctx.blockStates.get(resolution.blockId)?.output?.[START_BLOCK_METADATA_FIELD]
+  return isRecordLike(seeded) ? (seeded as StartBlockRunMetadata) : undefined
 }
 
 /**
@@ -384,6 +405,40 @@ export class WorkflowBlockHandler implements BlockHandler {
         })
       }
 
+      // Trusted run metadata for the child's Start block. Every field describes
+      // the INVOKING run (the caller's email, workspace, and workflow — never the
+      // child's own static, authoring-time-known identity), delivered on a
+      // server-verified channel a consumer's inputs can never spoof.
+      let childStartRunMetadata: StartBlockRunMetadata | undefined
+      const childStartResolution = resolveExecutorStartBlock(childWorkflow.serializedState.blocks, {
+        execution: 'manual',
+        isChildWorkflow: false,
+      })
+      // Resumed executions never rebuild `ctx.startRunMetadata`, so fall back to
+      // the parent's own seeded start-block output — the persisted copy of the
+      // same trusted object, restored from the snapshot on resume.
+      const inherited = ctx.startRunMetadata ?? readSeededStartRunMetadata(ctx)
+      if (childStartResolution && isRunMetadataEnabled(childStartResolution.block)) {
+        // When the parent run already carries trusted metadata, propagate ALL of
+        // it so nested children see one consistent invoking identity (the
+        // original consumer) instead of a mix of original and intermediate.
+        // Inherited email is taken verbatim — a fail-soft null must stay null,
+        // not be re-resolved to the intermediate (publisher) identity.
+        childStartRunMetadata = {
+          userEmail: inherited
+            ? (inherited.userEmail ?? null)
+            : ctx.userId
+              ? await getUserEmailById(ctx.userId)
+              : null,
+          workspaceId: inherited?.workspaceId ?? ctx.workspaceId ?? null,
+          workflowId: inherited?.workflowId ?? ctx.workflowId ?? null,
+          executionId: ctx.executionId,
+          executionType: 'workflow',
+          executionMode: inherited?.executionMode ?? ctx.metadata.executionMode,
+          startTime: new Date().toISOString(),
+        }
+      }
+
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
@@ -403,6 +458,9 @@ export class WorkflowBlockHandler implements BlockHandler {
           // internal tool calls (knowledge, guardrails, MCP, Mothership) can
           // attach the required billing attribution header.
           billingAttribution: childBillingAttribution,
+          // Fall back to the inherited metadata so a toggle-off intermediate
+          // child still carries the trusted identity chain to deeper children.
+          startRunMetadata: childStartRunMetadata ?? inherited,
           abortSignal: ctx.abortSignal,
           // Propagate in-flight block-output redaction into child workflows so
           // nested blocks mask outputs too (recurses: each child forwards it).

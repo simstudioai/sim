@@ -24,7 +24,7 @@ const EMBED_URL_RE =
 
 /**
  * Parse a single embed `src` into the workspace file it references, normalizing the spellings the
- * editor and file agent produce: `/api/files/serve/<key>` (incl. `s3/`/`blob/` prefixes), `/api/files/view/<id>`,
+ * editor and file agent produce: `/api/files/serve/<key>` (incl. `s3/`/`blob/`/`gcs/` prefixes), `/api/files/view/<id>`,
  * and the in-app path `/workspace/<wsId>/files/<id>`. Returns null for absolute, `data:`, or non-workspace
  * URLs (e.g. public `profile-pictures/` assets), which render as-is.
  */
@@ -35,7 +35,9 @@ export function extractEmbeddedFileRef(src: string): EmbeddedFileRef {
     const segs = parsed.pathname.split('/')
     if (segs[1] === 'api' && segs[2] === 'files' && segs[3] === 'serve') {
       let keySegs = segs.slice(4)
-      if (keySegs[0] === 's3' || keySegs[0] === 'blob') keySegs = keySegs.slice(1)
+      if (keySegs[0] === 's3' || keySegs[0] === 'blob' || keySegs[0] === 'gcs') {
+        keySegs = keySegs.slice(1)
+      }
       const raw = keySegs.join('/')
       if (!raw) return null
       const key = decodeURIComponent(raw)

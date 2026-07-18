@@ -56,6 +56,11 @@ export interface ForkPromotePlan {
   archivedTargetIds: string[]
   /** Same as `archivedTargetIds`, with the target workflow name for the preview. */
   archivedTargets: Array<{ id: string; name: string }>
+  /**
+   * Sync-excluded target workflows this promote would have replaced or archived -
+   * left untouched (the target side of "Exclude from sync"), reported for the preview.
+   */
+  excludedTargets: Array<{ id: string; name: string }>
 
   references: ForkReference[]
   unmappedRequired: ForkReference[]
@@ -126,6 +131,121 @@ export function buildPromoteWorkflowIdMap(params: {
   }
   for (const item of items) workflowIdMap.set(item.sourceWorkflowId, item.targetWorkflowId)
   return workflowIdMap
+}
+
+/**
+ * Classify each deployed source workflow into a plan item: `replace` when its
+ * identity-mapped target is still active, `create` otherwise. A source whose state
+ * failed to load is skipped, and a source whose mapped target is sync-excluded is
+ * reported in `excludedTargets` instead of written - the target side of the
+ * "Exclude from sync" contract. Pure - split from the DB reads so it is unit-testable.
+ */
+export function buildForkPromotePlanItems(params: {
+  deployedSourceWorkflows: DeployedWorkflowSummary[]
+  sourceStateIds: ReadonlySet<string>
+  identityMap: Map<string, string>
+  targetActiveIds: ReadonlySet<string>
+  targetNameById: ReadonlyMap<string, string>
+  excludedTargetIds: ReadonlySet<string>
+}): {
+  items: ForkPromotePlanItem[]
+  excludedTargets: Array<{ id: string; name: string }>
+} {
+  const {
+    deployedSourceWorkflows,
+    sourceStateIds,
+    identityMap,
+    targetActiveIds,
+    targetNameById,
+    excludedTargetIds,
+  } = params
+  const items: ForkPromotePlanItem[] = []
+  const excludedTargets: Array<{ id: string; name: string }> = []
+  for (const source of deployedSourceWorkflows) {
+    if (!sourceStateIds.has(source.id)) continue
+
+    const mappedTargetId = identityMap.get(source.id)
+    const activeTargetId =
+      mappedTargetId && targetActiveIds.has(mappedTargetId) ? mappedTargetId : null
+    if (activeTargetId && excludedTargetIds.has(activeTargetId)) {
+      excludedTargets.push({
+        id: activeTargetId,
+        name: targetNameById.get(activeTargetId) ?? source.name,
+      })
+      continue
+    }
+    items.push({
+      sourceWorkflowId: source.id,
+      targetWorkflowId: activeTargetId ?? generateId(),
+      targetName: activeTargetId ? (targetNameById.get(activeTargetId) ?? null) : null,
+      mode: activeTargetId ? 'replace' : 'create',
+      sourceMeta: {
+        name: source.name,
+        description: source.description,
+        folderId: source.folderId,
+        sortOrder: source.sortOrder,
+        isPublicApi: source.isPublicApi,
+      },
+    })
+  }
+  return { items, excludedTargets }
+}
+
+/**
+ * Previously-mapped, still-active targets to archive: their source was DELETED (not
+ * merely undeployed) and nothing in this promote writes them. A sync-excluded target
+ * is never archived - it lands in `excludedTargets` for the preview instead. Pure -
+ * split from the DB reads so it is unit-testable.
+ */
+export function collectForkArchivedTargets(params: {
+  mappingRows: Array<{
+    resourceType: string
+    parentResourceId: string
+    childResourceId: string | null
+  }>
+  sourceIsParent: boolean
+  existingSourceIds: ReadonlySet<string>
+  writtenTargetIds: ReadonlySet<string>
+  targetActiveIds: ReadonlySet<string>
+  targetNameById: ReadonlyMap<string, string>
+  excludedTargetIds: ReadonlySet<string>
+}): {
+  archivedTargetIds: string[]
+  archivedTargets: Array<{ id: string; name: string }>
+  excludedTargets: Array<{ id: string; name: string }>
+} {
+  const {
+    mappingRows,
+    sourceIsParent,
+    existingSourceIds,
+    writtenTargetIds,
+    targetActiveIds,
+    targetNameById,
+    excludedTargetIds,
+  } = params
+  const archivedTargetIds: string[] = []
+  const excludedTargets: Array<{ id: string; name: string }> = []
+  for (const row of mappingRows) {
+    if (row.resourceType !== 'workflow' || row.childResourceId == null) continue
+    const mappedSourceId = sourceIsParent ? row.parentResourceId : row.childResourceId
+    const mappedTargetId = sourceIsParent ? row.childResourceId : row.parentResourceId
+    if (existingSourceIds.has(mappedSourceId)) continue
+    if (writtenTargetIds.has(mappedTargetId)) continue
+    if (!targetActiveIds.has(mappedTargetId)) continue
+    if (excludedTargetIds.has(mappedTargetId)) {
+      excludedTargets.push({
+        id: mappedTargetId,
+        name: targetNameById.get(mappedTargetId) ?? mappedTargetId,
+      })
+      continue
+    }
+    archivedTargetIds.push(mappedTargetId)
+  }
+  const archivedTargets = archivedTargetIds.map((id) => ({
+    id,
+    name: targetNameById.get(id) ?? id,
+  }))
+  return { archivedTargetIds, archivedTargets, excludedTargets }
 }
 
 /**
@@ -200,8 +320,9 @@ export function collectForkUnreferencedCopyables(
  * deployed state. Targets matched by the persisted workflow identity map are
  * replaced; unmatched deployed sources create new targets. A target is archived
  * only when it was previously mapped and its source is no longer deployed -
- * target-native workflows are never touched. Shared by the diff preview and the
- * promote orchestrator.
+ * target-native workflows are never touched. Sync-excluded targets are never
+ * replaced or archived either; they surface on `excludedTargets` for the preview.
+ * Shared by the diff preview and the promote orchestrator.
  */
 export async function computeForkPromotePlan(params: {
   executor: DbOrTx
@@ -269,7 +390,11 @@ export async function computeForkPromotePlan(params: {
 
   const [targetWorkflows, sourceWorkflowRows] = await Promise.all([
     executor
-      .select({ id: workflow.id, name: workflow.name })
+      .select({
+        id: workflow.id,
+        name: workflow.name,
+        forkSyncExcluded: workflow.forkSyncExcluded,
+      })
       .from(workflow)
       .where(and(eq(workflow.workspaceId, targetWorkspaceId), isNull(workflow.archivedAt))),
     executor
@@ -280,37 +405,33 @@ export async function computeForkPromotePlan(params: {
 
   const targetActiveIds = new Set(targetWorkflows.map((w) => w.id))
   const targetNameById = new Map(targetWorkflows.map((w) => [w.id, w.name]))
+  const excludedTargetIds = new Set(
+    targetWorkflows.filter((w) => w.forkSyncExcluded).map((w) => w.id)
+  )
   // Every source workflow that still EXISTS (deployed or not). A mapped target is
   // archived only when its source was DELETED - not merely undeployed. A fresh fork
   // leaves the child's workflows undeployed, so pushing back must not archive the
   // parent's originals; undeployed sources are simply skipped (target left as-is).
+  // Sync-excluded sources are filtered out of `deployedSourceWorkflows` but still
+  // counted here, so excluding a workflow never archives its synced counterpart.
   const existingSourceIds = new Set(sourceWorkflowRows.map((w) => w.id))
 
-  // Build the items and scan references in one pass from the pre-read source states
-  // (loaded before the caller's transaction; see loadSourceDeployedStates).
-  const items: ForkPromotePlanItem[] = []
+  const { items, excludedTargets: replaceProtectedTargets } = buildForkPromotePlanItems({
+    deployedSourceWorkflows,
+    sourceStateIds: new Set(sourceStates.keys()),
+    identityMap,
+    targetActiveIds,
+    targetNameById,
+    excludedTargetIds,
+  })
+
+  // Scan references from the pre-read source states (loaded before the caller's
+  // transaction; see loadSourceDeployedStates). Skipped sources contribute none, so
+  // an excluded workflow's dangling references never gate someone else's sync.
   const referenceByKey = new Map<string, ForkReference>()
-  for (const source of deployedSourceWorkflows) {
-    const sourceState = sourceStates.get(source.id)
+  for (const item of items) {
+    const sourceState = sourceStates.get(item.sourceWorkflowId)
     if (!sourceState) continue
-
-    const mappedTargetId = identityMap.get(source.id)
-    const isReplace = Boolean(mappedTargetId && targetActiveIds.has(mappedTargetId))
-    const targetWorkflowId = isReplace ? (mappedTargetId as string) : generateId()
-    items.push({
-      sourceWorkflowId: source.id,
-      targetWorkflowId,
-      targetName: isReplace ? (targetNameById.get(targetWorkflowId) ?? null) : null,
-      mode: isReplace ? 'replace' : 'create',
-      sourceMeta: {
-        name: source.name,
-        description: source.description,
-        folderId: source.folderId,
-        sortOrder: source.sortOrder,
-        isPublicApi: source.isPublicApi,
-      },
-    })
-
     for (const reference of scanWorkflowReferences(toScannerBlocks(sourceState), resolver)
       .references) {
       referenceByKey.set(`${reference.kind}:${reference.sourceId}`, reference)
@@ -324,20 +445,27 @@ export async function computeForkPromotePlan(params: {
     items,
   })
 
-  const writtenTargetIds = new Set(items.map((item) => item.targetWorkflowId))
-  const archivedTargetIds: string[] = []
-  for (const row of mappingRows) {
-    if (row.resourceType !== 'workflow' || row.childResourceId == null) continue
-    const mappedSourceId = sourceIsParent ? row.parentResourceId : row.childResourceId
-    const mappedTargetId = sourceIsParent ? row.childResourceId : row.parentResourceId
-    if (existingSourceIds.has(mappedSourceId)) continue
-    if (writtenTargetIds.has(mappedTargetId)) continue
-    if (targetActiveIds.has(mappedTargetId)) archivedTargetIds.push(mappedTargetId)
+  const {
+    archivedTargetIds,
+    archivedTargets,
+    excludedTargets: archiveProtectedTargets,
+  } = collectForkArchivedTargets({
+    mappingRows,
+    sourceIsParent,
+    existingSourceIds,
+    writtenTargetIds: new Set(items.map((item) => item.targetWorkflowId)),
+    targetActiveIds,
+    targetNameById,
+    excludedTargetIds,
+  })
+
+  // Replace-protection (source exists) and archive-protection (source deleted) are
+  // disjoint per pair; the map is cheap insurance against duplicate mapping rows.
+  const excludedTargetsById = new Map<string, { id: string; name: string }>()
+  for (const target of [...replaceProtectedTargets, ...archiveProtectedTargets]) {
+    excludedTargetsById.set(target.id, target)
   }
-  const archivedTargets = archivedTargetIds.map((id) => ({
-    id,
-    name: targetNameById.get(id) ?? id,
-  }))
+  const excludedTargets = Array.from(excludedTargetsById.values())
 
   const cascade = await detectForkCascadeReferences({
     executor,
@@ -386,6 +514,7 @@ export async function computeForkPromotePlan(params: {
     workflowIdMap,
     archivedTargetIds,
     archivedTargets,
+    excludedTargets,
     references: allReferences,
     unmappedRequired,
     unmappedOptional,

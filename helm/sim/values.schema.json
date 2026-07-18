@@ -212,6 +212,14 @@
               "type": "string",
               "description": "Set to 'true' to force TLS on connect. Defaults to true when SMTP_PORT=465."
             },
+            "GMAIL_CREDENTIALS_JSON": {
+              "type": "string",
+              "description": "Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider."
+            },
+            "GMAIL_SENDER": {
+              "type": "string",
+              "description": "Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)."
+            },
             "GOOGLE_CLIENT_ID": {
               "type": "string",
               "description": "Google OAuth client ID"

@@ -9,7 +9,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import {
   decrementStorageUsageForBillingContextInTx,
@@ -83,6 +83,8 @@ interface ListWorkspaceFilesOptions {
   folders?: WorkspaceFileFolderRecord[]
   hydrateFolderPaths?: boolean
   includeReservedSystemFiles?: boolean
+  /** Propagate storage errors when an incomplete list would be unsafe. */
+  throwOnError?: boolean
 }
 
 /**
@@ -577,8 +579,7 @@ export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique
 /**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
  * Links the existing workspaceFiles metadata record (created by the storage service
- * during upload) to the same user's chat by setting chatId and context='mothership'.
- * A row already linked to a different chat is never re-parented.
+ * during upload) to the chat by setting chatId and context='mothership'.
  * Falls back to inserting a new record if none exists for the key.
  *
  * Allocates a collision-free `displayName` (the partial unique index on
@@ -592,20 +593,24 @@ export async function trackChatUpload(
   s3Key: string,
   fileName: string,
   contentType: string,
-  size: number
+  size: number,
+  messageId?: string
 ): Promise<{ displayName: string }> {
   for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
     const candidate = suffixedName(fileName, n)
     try {
       const updated = await db
         .update(workspaceFiles)
-        .set({ chatId, context: 'mothership', displayName: candidate })
+        .set({
+          chatId,
+          messageId: messageId ?? null,
+          context: 'mothership',
+          displayName: candidate,
+        })
         .where(
           and(
             eq(workspaceFiles.key, s3Key),
             eq(workspaceFiles.workspaceId, workspaceId),
-            eq(workspaceFiles.userId, userId),
-            or(isNull(workspaceFiles.chatId), eq(workspaceFiles.chatId, chatId)),
             isNull(workspaceFiles.deletedAt)
           )
         )
@@ -627,6 +632,7 @@ export async function trackChatUpload(
         workspaceId,
         context: 'mothership',
         chatId,
+        messageId: messageId ?? null,
         originalName: fileName,
         displayName: candidate,
         contentType,
@@ -797,6 +803,7 @@ export async function listWorkspaceFiles(
       })
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
+    if (options?.throwOnError) throw error
     return []
   }
 }
@@ -1196,7 +1203,11 @@ export async function renameWorkspaceFile(
 }
 
 /**
- * Move and/or rename a workspace file in one row update.
+ * Move and/or rename a workspace file in one atomic row update. Either side
+ * may be a no-op (same folder = pure rename, same name = pure move); when
+ * both are unchanged the record is returned untouched. Conflicts at the
+ * destination throw {@link FileConflictError}. The `renamed`/`moved` flags
+ * report what actually changed, computed from the same read the update uses.
  */
 export async function moveRenameWorkspaceFile(params: {
   workspaceId: string
@@ -1205,6 +1216,7 @@ export async function moveRenameWorkspaceFile(params: {
   newName: string
 }): Promise<{ file: WorkspaceFileRecord; renamed: boolean; moved: boolean }> {
   const normalizedName = normalizeWorkspaceFileItemName(params.newName.trim(), 'File')
+
   const fileRecord = await getWorkspaceFile(params.workspaceId, params.fileId)
   if (!fileRecord) {
     throw new Error('File not found')
@@ -1221,7 +1233,8 @@ export async function moveRenameWorkspaceFile(params: {
     return { file: fileRecord, renamed, moved }
   }
 
-  if (await fileExistsInWorkspace(params.workspaceId, normalizedName, targetFolderId)) {
+  const exists = await fileExistsInWorkspace(params.workspaceId, normalizedName, targetFolderId)
+  if (exists) {
     throw new FileConflictError(normalizedName)
   }
 

@@ -173,7 +173,7 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(mockReadEvents).not.toHaveBeenCalled()
   })
 
-  it('returns the live activeStreamId when redis confirms the lock', async () => {
+  it('returns the live activeStreamId with a status-only snapshot (no events)', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-live',
       type: 'mothership',
@@ -185,15 +185,57 @@ describe('GET /api/mothership/chats/[chatId]', () => {
       updatedAt: new Date('2026-05-11T12:00:00Z'),
     })
     mockGetLatestRunForStream.mockResolvedValueOnce({ status: 'active' })
+    const previewSession = {
+      id: 'preview-1',
+      previewVersion: 1,
+      status: 'active',
+      updatedAt: '2026-05-11T12:00:00Z',
+    }
+    mockReadFilePreviewSessions.mockResolvedValueOnce([previewSession])
 
     const response = await GET(createRequest('chat-live'), makeContext('chat-live'))
     expect(response.status).toBe(200)
     const body = await response.json()
 
     expect(body.chat.activeStreamId).toBe('stream-live')
+    // Events are read only to synthesize the in-flight assistant turn for the
+    // initial paint; the client reconnects to the replay buffer for the rest.
+    // Status and preview sessions ARE shipped so hydration can gate the
+    // reconnect and seed the preview panel before the resume request lands.
     expect(mockReadEvents).toHaveBeenCalledWith('stream-live', '0')
-    expect(body.chat.streamSnapshot).toBeDefined()
-    expect(body.chat.streamSnapshot.status).toBe('active')
+    expect(mockReadFilePreviewSessions).toHaveBeenCalledWith('stream-live')
+    expect(body.chat.streamSnapshot).toEqual({
+      events: [],
+      previewSessions: [previewSession],
+      status: 'active',
+    })
+  })
+
+  it('reports a terminal run status when the stream lock is still visible', async () => {
+    mockGetAccessibleCopilotChat.mockResolvedValueOnce({
+      id: 'chat-finished',
+      type: 'mothership',
+      title: 'Finished',
+      messages: [],
+      resources: [],
+      conversationId: 'stream-finished',
+      createdAt: new Date('2026-05-11T12:00:00Z'),
+      updatedAt: new Date('2026-05-11T12:00:00Z'),
+    })
+    mockGetLatestRunForStream.mockResolvedValueOnce({ status: 'complete' })
+
+    const response = await GET(createRequest('chat-finished'), makeContext('chat-finished'))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+
+    // The run finished but the Redis lock hasn't cleared yet: the client
+    // must see the terminal status so it skips the reconnect entirely.
+    expect(body.chat.activeStreamId).toBe('stream-finished')
+    expect(body.chat.streamSnapshot).toEqual({
+      events: [],
+      previewSessions: [],
+      status: 'complete',
+    })
   })
 
   it('uses the Redis lock owner when it differs from a stale persisted streamId', async () => {

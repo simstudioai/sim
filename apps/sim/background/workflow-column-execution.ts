@@ -22,6 +22,7 @@ import { retryTableAdmission } from '@/lib/table/admission-retry'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
 import { getColumnId } from '@/lib/table/column-keys'
 import { isExecCancelled } from '@/lib/table/deps'
+import { getMaxTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
 import { appendTableEvent } from '@/lib/table/events'
 import type {
   RowData,
@@ -852,11 +853,15 @@ export const workflowGroupCellTask = task({
   id: 'workflow-group-cell',
   machine: 'medium-1x',
   retry: { maxAttempts: 1 },
-  // Combined with `concurrencyKey: tableId`, caps each table's sub-queue to
-  // 20 in-flight cell jobs while letting different tables run in parallel.
+  // Combined with `concurrencyKey: tableId`, caps each table's sub-queue of
+  // in-flight cell jobs while letting different tables run in parallel. The
+  // cap is the highest per-plan dispatch window so the queue never throttles
+  // below a plan's window — the dispatcher window is the real per-run limiter.
+  // Read at trigger.dev deploy time: raising a TABLE_DISPATCH_CONCURRENCY_*
+  // env var above the current max needs a trigger.dev redeploy to take effect.
   queue: {
     name: 'workflow-group-cell',
-    concurrencyLimit: 20,
+    concurrencyLimit: getMaxTableDispatchConcurrency(),
   },
   run: (payload: QueuedWorkflowGroupCellPayload, { signal }) =>
     executeWorkflowGroupCellJob(payload, signal),

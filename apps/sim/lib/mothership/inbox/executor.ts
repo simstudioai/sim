@@ -23,7 +23,6 @@ import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
-import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -215,7 +214,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       attachmentResult,
       workspaceContext,
       integrationTools,
-      userSkillTool,
       userPermission,
       billingAttribution,
       entitlements,
@@ -223,7 +221,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       fetchAttachments(),
       generateWorkspaceContext(ws.id, userId),
       buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-      buildUserSkillTool(ws.id),
       getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
       resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
       computeWorkspaceEntitlements(ws.id, userId),
@@ -247,7 +244,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       workspaceContext,
       ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),
       ...(entitlements.length > 0 ? { entitlements } : {}),
       ...(fileAttachments.length > 0 ? { fileAttachments } : {}),

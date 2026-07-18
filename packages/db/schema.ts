@@ -168,6 +168,7 @@ export const workflow = pgTable(
     deployedAt: timestamp('deployed_at'),
     isPublicApi: boolean('is_public_api').notNull().default(false),
     locked: boolean('locked').notNull().default(false),
+    forkSyncExcluded: boolean('fork_sync_excluded').notNull().default(false),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
@@ -1152,6 +1153,13 @@ export const chat = pgTable(
   }
 )
 
+/** A user-supplied custom regex pattern; matches are replaced verbatim with `replacement`. */
+export interface CustomPiiPattern {
+  name: string
+  regex: string
+  replacement: string
+}
+
 /** Per-stage PII redaction policy stored on a {@link PiiRedactionRule}. */
 export interface PiiStagePolicy {
   enabled: boolean
@@ -1159,6 +1167,8 @@ export interface PiiStagePolicy {
   entityTypes: string[]
   /** Language whose Presidio recognizers apply (e.g. 'en', 'es'); defaults to English. */
   language?: string
+  /** User-supplied custom regex patterns applied alongside `entityTypes`. */
+  customPatterns?: CustomPiiPattern[]
 }
 
 /**
@@ -1760,6 +1770,16 @@ export const workspaceFiles = pgTable(
     }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
+    /**
+     * Logical id of the copilot message this file was born in (the user message the
+     * upload was attached to). Plain text with no FK: message ids are only unique per
+     * chat — the same id legitimately exists in the source chat and every fork of it,
+     * which is what lets a fork's "copy files at-or-before this message" cut match rows
+     * in both. NULL means "birth unknown / not tracked": rows predating this column and
+     * contexts that don't stamp it. Nulled together with chatId when a file is
+     * materialized to the workspace.
+     */
+    messageId: text('message_id'),
     originalName: text('original_name').notNull(),
     /**
      * Collision-disambiguated name exposed to the copilot VFS as `uploads/<displayName>`.

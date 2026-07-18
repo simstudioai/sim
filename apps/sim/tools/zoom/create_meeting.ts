@@ -21,7 +21,7 @@ export const zoomCreateMeetingTool: ToolConfig<ZoomCreateMeetingParams, ZoomCrea
         required: true,
         visibility: 'user-or-llm',
         description:
-          'The user ID or email address (e.g., "me", "user@example.com", or "AbcDefGHi"). Use "me" for the authenticated user.',
+          'The user ID or email address (e.g., "me", "user@example.com", or "AbcDefGHi"). Use "me" for the authenticated user with OAuth credentials. With a Zoom server-to-server service account, "me" is not supported — provide the target user ID or email address.',
       },
       topic: {
         type: 'string',

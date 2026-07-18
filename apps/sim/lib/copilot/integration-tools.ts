@@ -53,8 +53,15 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
     const service = stripVersionSuffix(block.type)
     const owner = { service, blockType: block.type, preview: block.preview }
     for (const toolId of block.tools.access) {
-      toolToBlock.set(toolId, owner)
-      toolToBlock.set(stripVersionSuffix(toolId), owner)
+      for (const key of [toolId, stripVersionSuffix(toolId)]) {
+        // A preview block must not steal ownership of tools it shares with a
+        // released block (e.g. slack_v2 spreads slack's tools.access), or the
+        // per-viewer filter would hide those tools from everyone without the
+        // preview reveal.
+        const existing = toolToBlock.get(key)
+        if (existing && !existing.preview && owner.preview) continue
+        toolToBlock.set(key, owner)
+      }
     }
   }
 

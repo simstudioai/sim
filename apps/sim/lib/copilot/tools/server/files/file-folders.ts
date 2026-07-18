@@ -8,7 +8,9 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { isWorkflowAliasBackingPath } from '@/lib/copilot/vfs/workflow-aliases'
 import {
+  ensureWorkspaceFileFolderPath,
   findWorkspaceFileFolderIdByPath,
   getWorkspaceFileFolder,
   listWorkspaceFileFolders,
@@ -229,22 +231,23 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
       ).trim()
       if (!name) return { success: false, message: 'name is required' }
 
+      if (pathSegments && isWorkflowAliasBackingPath(`files/${pathSegments.join('/')}`)) {
+        return {
+          success: false,
+          message: `Reserved system path: files/${pathSegments.join('/')} cannot be created or nested into.`,
+        }
+      }
+
       let parentId =
         (await resolveOptionalFolderId(workspaceId, params.parentPath ?? payload?.parentPath)) ??
         nullableStringValue(params.parentId ?? payload?.parentId) ??
         null
       if (pathSegments && pathSegments.length > 1) {
-        const resolvedParentId = await findWorkspaceFileFolderIdByPath(
+        parentId = await ensureWorkspaceFileFolderPath({
           workspaceId,
-          pathSegments.slice(0, -1)
-        )
-        if (!resolvedParentId) {
-          return {
-            success: false,
-            message: `Parent folder not found at files/${pathSegments.slice(0, -1).join('/')}`,
-          }
-        }
-        parentId = resolvedParentId
+          userId: context.userId,
+          pathSegments: pathSegments.slice(0, -1),
+        })
       }
 
       assertServerToolNotAborted(context)
@@ -434,7 +437,7 @@ export const deleteFileFolderServerTool: BaseServerTool<DeleteFileFolderArgs, Fi
       return {
         success: result.deletedItems.folders > 0 || result.deletedItems.files > 0,
         message: `Deleted ${result.deletedItems.folders} file folder${result.deletedItems.folders === 1 ? '' : 's'} and ${result.deletedItems.files} file${result.deletedItems.files === 1 ? '' : 's'}`,
-        data: result.deletedItems,
+        data: { ...result.deletedItems, deletedFolderIds: folderIds },
       }
     } catch (error) {
       return { success: false, message: toError(error).message }

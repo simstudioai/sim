@@ -349,11 +349,16 @@ export async function performUpdateMcpServer(
       currentClientId: currentServer.oauthClientId,
       currentEncryptedClientSecret: currentServer.oauthClientSecret,
     })
-    const shouldClearOauth = urlChanged || credsChanged
     const resolvedAuthType = (updateData.authType ?? currentServer.authType) as McpAuthType
-    if (shouldClearOauth && resolvedAuthType === 'oauth') {
+    const authTypeChanged = resolvedAuthType !== currentServer.authType
+    // Turning OAuth off must revoke and delete its now-orphaned tokens, not just reset the connection.
+    const oauthDisabled = currentServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
+    const shouldClearOauth = urlChanged || credsChanged || oauthDisabled
+    // An auth-type flip (either direction) or OAuth creds/URL change invalidates the connection: reset and clear stale state.
+    if (authTypeChanged || (shouldClearOauth && resolvedAuthType === 'oauth')) {
       updateData.connectionStatus = 'disconnected'
       updateData.lastConnected = null
+      updateData.lastError = null
     }
 
     if (shouldClearOauth) await revokeMcpOauthTokens(params.serverId)
@@ -384,6 +389,8 @@ export async function performUpdateMcpServer(
     const shouldClearCache =
       urlChanged ||
       credsChanged ||
+      params.transport !== undefined ||
+      authTypeChanged ||
       params.enabled !== undefined ||
       params.headers !== undefined ||
       params.timeout !== undefined ||

@@ -97,6 +97,7 @@ describe('Workflow By ID API Route', () => {
         folderId: params.folderId ?? params.currentFolderId ?? null,
         sortOrder: params.sortOrder ?? null,
         locked: params.locked ?? null,
+        forkSyncExcluded: params.forkSyncExcluded ?? null,
         createdAt: new Date(),
         updatedAt: new Date(),
         archivedAt: null,
@@ -916,6 +917,107 @@ describe('Workflow By ID API Route', () => {
       expect(response.status).toBe(200)
       // db.select should NOT have been called since no name/folder change
       expect(mockDbSelect).not.toHaveBeenCalled()
+    })
+
+    it('should deny forkSyncExcluded update for non-admin users', async () => {
+      const mockWorkflow = {
+        id: 'workflow-123',
+        userId: 'user-123',
+        name: 'Test Workflow',
+        workspaceId: 'workspace-456',
+        forkSyncExcluded: false,
+      }
+
+      mockGetSession({ user: { id: 'user-123' } })
+      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
+        workflow: mockWorkflow,
+        workspacePermission: 'write',
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
+        method: 'PUT',
+        body: JSON.stringify({ forkSyncExcluded: true }),
+      })
+      const params = Promise.resolve({ id: 'workflow-123' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(403)
+      const data = await response.json()
+      expect(data.error).toBe('Admin access required to exclude workflows from sync')
+      expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
+    })
+
+    it('should allow admin to toggle forkSyncExcluded and carry it on the response', async () => {
+      const mockWorkflow = {
+        id: 'workflow-123',
+        userId: 'user-123',
+        name: 'Test Workflow',
+        workspaceId: 'workspace-456',
+        forkSyncExcluded: false,
+      }
+
+      mockGetSession({ user: { id: 'user-123' } })
+      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
+        workflow: mockWorkflow,
+        workspacePermission: 'admin',
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
+        method: 'PUT',
+        body: JSON.stringify({ forkSyncExcluded: true }),
+      })
+      const params = Promise.resolve({ id: 'workflow-123' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.workflow.forkSyncExcluded).toBe(true)
+      expect(mockPerformUpdateWorkflow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId: 'workflow-123',
+          forkSyncExcluded: true,
+          currentForkSyncExcluded: false,
+        })
+      )
+    })
+
+    it('should skip the mutability check for an exclusion-only update (locked workflow stays togglable)', async () => {
+      const mockWorkflow = {
+        id: 'workflow-123',
+        userId: 'user-123',
+        name: 'Test Workflow',
+        workspaceId: 'workspace-456',
+        locked: true,
+        forkSyncExcluded: false,
+      }
+
+      mockGetSession({ user: { id: 'user-123' } })
+      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
+        workflow: mockWorkflow,
+        workspacePermission: 'admin',
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
+        method: 'PUT',
+        body: JSON.stringify({ forkSyncExcluded: true }),
+      })
+      const params = Promise.resolve({ id: 'workflow-123' })
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(200)
+      expect(workflowAuthzMockFns.mockAssertWorkflowMutable).not.toHaveBeenCalled()
     })
   })
 

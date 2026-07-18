@@ -10,6 +10,7 @@ import { deepseekProvider } from '@/providers/deepseek'
 import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { kimiProvider } from '@/providers/kimi'
 import { litellmProvider } from '@/providers/litellm'
 import { metaProvider } from '@/providers/meta'
 import { mistralProvider } from '@/providers/mistral'
@@ -42,6 +43,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   nvidia: nvidiaProvider,
   meta: metaProvider,
   zai: zaiProvider,
+  kimi: kimiProvider,
   vllm: vllmProvider,
   litellm: litellmProvider,
   mistral: mistralProvider,

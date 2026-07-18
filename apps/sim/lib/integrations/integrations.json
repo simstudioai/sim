@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-13",
+  "updatedAt": "2026-07-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -3238,6 +3238,324 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics"]
+    },
+    {
+      "type": "clickup",
+      "slug": "clickup",
+      "name": "ClickUp",
+      "description": "Interact with ClickUp",
+      "longDescription": "Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Can also trigger workflows on ClickUp events like task, list, folder, space, and goal changes.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ClickUpIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/clickup",
+      "operations": [
+        {
+          "name": "Create Task",
+          "description": "Create a new task in a ClickUp list"
+        },
+        {
+          "name": "Get Task",
+          "description": "Retrieve a task from ClickUp by ID"
+        },
+        {
+          "name": "Update Task",
+          "description": "Update an existing task in ClickUp"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Delete a task from ClickUp"
+        },
+        {
+          "name": "Get Tasks",
+          "description": "List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)"
+        },
+        {
+          "name": "Search Tasks",
+          "description": "Search tasks across a ClickUp workspace with filters for lists, folders, spaces, statuses, assignees, tags, and due dates (100 tasks per page; increment page until an empty result to paginate)"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Add a comment to a ClickUp task"
+        },
+        {
+          "name": "Get Comments",
+          "description": "Retrieve comments on a ClickUp task, newest first (25 per page; paginate with start and startId)"
+        },
+        {
+          "name": "Update Comment",
+          "description": "Update the content, assignee, or resolved state of a ClickUp task comment"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a comment from a ClickUp task"
+        },
+        {
+          "name": "Upload Attachment",
+          "description": "Upload a file to a ClickUp task as an attachment"
+        },
+        {
+          "name": "Add Tag to Task",
+          "description": "Add an existing space tag to a ClickUp task"
+        },
+        {
+          "name": "Remove Tag from Task",
+          "description": "Remove a tag from a ClickUp task"
+        },
+        {
+          "name": "Get Space Tags",
+          "description": "List the task tags available in a ClickUp space"
+        },
+        {
+          "name": "Get Task Members",
+          "description": "List the workspace members who have explicit access to a ClickUp task"
+        },
+        {
+          "name": "Get List Members",
+          "description": "List the workspace members who have explicit access to a ClickUp list"
+        },
+        {
+          "name": "Get Custom Fields",
+          "description": "List the custom fields accessible in a ClickUp list"
+        },
+        {
+          "name": "Set Custom Field Value",
+          "description": "Set the value of a custom field on a ClickUp task (the value shape depends on the field type)"
+        },
+        {
+          "name": "Remove Custom Field Value",
+          "description": "Remove the value of a custom field from a ClickUp task (does not delete the field itself)"
+        },
+        {
+          "name": "Create Checklist",
+          "description": "Add a new checklist to a ClickUp task"
+        },
+        {
+          "name": "Update Checklist",
+          "description": "Rename or reorder a checklist on a ClickUp task"
+        },
+        {
+          "name": "Delete Checklist",
+          "description": "Delete a checklist from a ClickUp task"
+        },
+        {
+          "name": "Create Checklist Item",
+          "description": "Add an item to a checklist on a ClickUp task"
+        },
+        {
+          "name": "Update Checklist Item",
+          "description": "Update a checklist item on a ClickUp task — rename, assign, resolve, or nest it"
+        },
+        {
+          "name": "Delete Checklist Item",
+          "description": "Delete an item from a checklist on a ClickUp task"
+        },
+        {
+          "name": "Get Time Entries",
+          "description": "List time entries in a ClickUp workspace within a date range (defaults to the last 30 days for the authenticated user)"
+        },
+        {
+          "name": "Create Time Entry",
+          "description": "Create a manual time entry in a ClickUp workspace, optionally linked to a task"
+        },
+        {
+          "name": "Update Time Entry",
+          "description": "Update a time entry in a ClickUp workspace — description, start/end times, task, or billable state"
+        },
+        {
+          "name": "Delete Time Entry",
+          "description": "Delete a time entry from a ClickUp workspace"
+        },
+        {
+          "name": "Start Timer",
+          "description": "Start a timer for the authenticated user in a ClickUp workspace"
+        },
+        {
+          "name": "Stop Timer",
+          "description": "Stop the authenticated user's currently running timer in a ClickUp workspace"
+        },
+        {
+          "name": "Get Running Timer",
+          "description": "Get the currently running time entry in a ClickUp workspace (null when no timer is running)"
+        },
+        {
+          "name": "Get Workspaces",
+          "description": "List the ClickUp workspaces (teams) available to the connected account"
+        },
+        {
+          "name": "Get Spaces",
+          "description": "List the spaces in a ClickUp workspace"
+        },
+        {
+          "name": "Get Folders",
+          "description": "List the folders in a ClickUp space"
+        },
+        {
+          "name": "Get Lists",
+          "description": "List the lists in a ClickUp folder, or the folderless lists in a space when a space ID is provided instead"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a new folder in a ClickUp space"
+        },
+        {
+          "name": "Create List",
+          "description": "Create a new list in a ClickUp folder, or a folderless list in a space when a space ID is provided instead"
+        }
+      ],
+      "operationCount": 38,
+      "triggers": [
+        {
+          "id": "clickup_task_created",
+          "name": "ClickUp Task Created",
+          "description": "Trigger workflow when a task is created in ClickUp"
+        },
+        {
+          "id": "clickup_task_updated",
+          "name": "ClickUp Task Updated",
+          "description": "Trigger workflow when a task is updated in ClickUp"
+        },
+        {
+          "id": "clickup_task_deleted",
+          "name": "ClickUp Task Deleted",
+          "description": "Trigger workflow when a task is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_task_status_updated",
+          "name": "ClickUp Task Status Updated",
+          "description": "Trigger workflow when the status of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_priority_updated",
+          "name": "ClickUp Task Priority Updated",
+          "description": "Trigger workflow when the priority of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_assignee_updated",
+          "name": "ClickUp Task Assignee Updated",
+          "description": "Trigger workflow when the assignees of a task change in ClickUp"
+        },
+        {
+          "id": "clickup_task_due_date_updated",
+          "name": "ClickUp Task Due Date Updated",
+          "description": "Trigger workflow when the due date of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_tag_updated",
+          "name": "ClickUp Task Tag Updated",
+          "description": "Trigger workflow when the tags of a task change in ClickUp"
+        },
+        {
+          "id": "clickup_task_moved",
+          "name": "ClickUp Task Moved",
+          "description": "Trigger workflow when a task is moved to a different list in ClickUp"
+        },
+        {
+          "id": "clickup_task_comment_posted",
+          "name": "ClickUp Task Comment Posted",
+          "description": "Trigger workflow when a comment is posted on a task in ClickUp"
+        },
+        {
+          "id": "clickup_task_comment_updated",
+          "name": "ClickUp Task Comment Updated",
+          "description": "Trigger workflow when a task comment is updated in ClickUp"
+        },
+        {
+          "id": "clickup_task_time_estimate_updated",
+          "name": "ClickUp Task Time Estimate Updated",
+          "description": "Trigger workflow when the time estimate of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_task_time_tracked_updated",
+          "name": "ClickUp Task Time Tracked Updated",
+          "description": "Trigger workflow when the tracked time of a task changes in ClickUp"
+        },
+        {
+          "id": "clickup_list_created",
+          "name": "ClickUp List Created",
+          "description": "Trigger workflow when a list is created in ClickUp"
+        },
+        {
+          "id": "clickup_list_updated",
+          "name": "ClickUp List Updated",
+          "description": "Trigger workflow when a list is updated in ClickUp"
+        },
+        {
+          "id": "clickup_list_deleted",
+          "name": "ClickUp List Deleted",
+          "description": "Trigger workflow when a list is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_folder_created",
+          "name": "ClickUp Folder Created",
+          "description": "Trigger workflow when a folder is created in ClickUp"
+        },
+        {
+          "id": "clickup_folder_updated",
+          "name": "ClickUp Folder Updated",
+          "description": "Trigger workflow when a folder is updated in ClickUp"
+        },
+        {
+          "id": "clickup_folder_deleted",
+          "name": "ClickUp Folder Deleted",
+          "description": "Trigger workflow when a folder is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_space_created",
+          "name": "ClickUp Space Created",
+          "description": "Trigger workflow when a space is created in ClickUp"
+        },
+        {
+          "id": "clickup_space_updated",
+          "name": "ClickUp Space Updated",
+          "description": "Trigger workflow when a space is updated in ClickUp"
+        },
+        {
+          "id": "clickup_space_deleted",
+          "name": "ClickUp Space Deleted",
+          "description": "Trigger workflow when a space is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_goal_created",
+          "name": "ClickUp Goal Created",
+          "description": "Trigger workflow when a goal is created in ClickUp"
+        },
+        {
+          "id": "clickup_goal_updated",
+          "name": "ClickUp Goal Updated",
+          "description": "Trigger workflow when a goal is updated in ClickUp"
+        },
+        {
+          "id": "clickup_goal_deleted",
+          "name": "ClickUp Goal Deleted",
+          "description": "Trigger workflow when a goal is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_created",
+          "name": "ClickUp Key Result Created",
+          "description": "Trigger workflow when a key result is created in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_updated",
+          "name": "ClickUp Key Result Updated",
+          "description": "Trigger workflow when a key result is updated in ClickUp"
+        },
+        {
+          "id": "clickup_key_result_deleted",
+          "name": "ClickUp Key Result Deleted",
+          "description": "Trigger workflow when a key result is deleted in ClickUp"
+        },
+        {
+          "id": "clickup_webhook",
+          "name": "ClickUp Webhook",
+          "description": "Trigger workflow on any ClickUp event (subscribes to all events)"
+        }
+      ],
+      "triggerCount": 29,
+      "authType": "oauth",
+      "oauthServiceId": "clickup",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "ticketing", "automation"]
     },
     {
       "type": "cloudflare",
@@ -14916,6 +15234,281 @@
       "category": "tools",
       "integrationType": "hr",
       "tags": ["hiring"]
+    },
+    {
+      "type": "rocketlane",
+      "slug": "rocketlane",
+      "name": "Rocketlane",
+      "description": "Manage client onboarding projects, tasks, time tracking, and invoices",
+      "longDescription": "Integrate Rocketlane into your workflow. Rocketlane is a professional-services automation platform for client onboarding and project delivery. Create and manage projects, tasks, phases, custom fields, time entries, time-offs, spaces, documents, resource allocations, and invoices.",
+      "bgColor": "#000000",
+      "iconName": "RocketlaneIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/rocketlane",
+      "operations": [
+        {
+          "name": "Create Project",
+          "description": "Create a new Rocketlane project with a customer, owner, dates, team members, templates, financials, and custom fields"
+        },
+        {
+          "name": "Get Project",
+          "description": "Retrieve a Rocketlane project by its unique identifier"
+        },
+        {
+          "name": "List Projects",
+          "description": "List Rocketlane projects with optional filters, sorting, and token-based pagination"
+        },
+        {
+          "name": "Update Project",
+          "description": "Update a Rocketlane project by ID, including name, dates, visibility, owner, status, and custom fields"
+        },
+        {
+          "name": "Archive Project",
+          "description": "Archive a Rocketlane project by ID, making it dormant while preserving its details and history"
+        },
+        {
+          "name": "Delete Project",
+          "description": "Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super Users, and Project Owners can delete)"
+        },
+        {
+          "name": "Add Project Members",
+          "description": "Add team members and customer stakeholders to a Rocketlane project"
+        },
+        {
+          "name": "Remove Project Members",
+          "description": "Remove team members from a Rocketlane project"
+        },
+        {
+          "name": "Import Template",
+          "description": "Import a project template into an existing Rocketlane project"
+        },
+        {
+          "name": "List Placeholders",
+          "description": "List the placeholders of a Rocketlane project"
+        },
+        {
+          "name": "Assign Placeholder",
+          "description": "Assign a placeholder in a Rocketlane project to a user"
+        },
+        {
+          "name": "Unassign Placeholder",
+          "description": "Unassign a placeholder from its user in a Rocketlane project"
+        },
+        {
+          "name": "Create Task",
+          "description": "Create a new task in a Rocketlane project"
+        },
+        {
+          "name": "Get Task",
+          "description": "Retrieve detailed information about a Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "List Tasks",
+          "description": "Retrieve all Rocketlane tasks with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Task",
+          "description": "Update the properties of an existing Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "Delete Task",
+          "description": "Permanently delete a Rocketlane task by its unique identifier"
+        },
+        {
+          "name": "Move Task to Phase",
+          "description": "Move a Rocketlane task to a given phase, associating the task with that phase"
+        },
+        {
+          "name": "Add Task Assignees",
+          "description": "Add members as assignees to a Rocketlane task"
+        },
+        {
+          "name": "Remove Task Assignees",
+          "description": "Remove assignees from a Rocketlane task"
+        },
+        {
+          "name": "Add Task Followers",
+          "description": "Add members as followers to a Rocketlane task"
+        },
+        {
+          "name": "Remove Task Followers",
+          "description": "Remove followers from a Rocketlane task"
+        },
+        {
+          "name": "Add Task Dependencies",
+          "description": "Add finish-to-start dependencies between a Rocketlane task and other tasks"
+        },
+        {
+          "name": "Remove Task Dependencies",
+          "description": "Remove dependencies from a Rocketlane task"
+        },
+        {
+          "name": "Create Phase",
+          "description": "Create a new phase in a Rocketlane project"
+        },
+        {
+          "name": "Get Phase",
+          "description": "Retrieve a single Rocketlane phase by ID"
+        },
+        {
+          "name": "List Phases",
+          "description": "List phases of a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Phase",
+          "description": "Update the name, dates, status, or privacy of an existing Rocketlane phase"
+        },
+        {
+          "name": "Delete Phase",
+          "description": "Permanently delete a Rocketlane phase by ID"
+        },
+        {
+          "name": "Create Field",
+          "description": "Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE and MULTIPLE_CHOICE field types"
+        },
+        {
+          "name": "Get Field",
+          "description": "Retrieve a single Rocketlane field by ID"
+        },
+        {
+          "name": "List Fields",
+          "description": "List fields in your Rocketlane account, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Field",
+          "description": "Update the label, description, enabled state, or privacy of an existing Rocketlane field"
+        },
+        {
+          "name": "Delete Field",
+          "description": "Permanently delete a Rocketlane field by ID"
+        },
+        {
+          "name": "Add Field Option",
+          "description": "Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field"
+        },
+        {
+          "name": "Update Field Option",
+          "description": "Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane field"
+        },
+        {
+          "name": "Create Time Entry",
+          "description": "Create a time entry in Rocketlane against an adhoc activity, task, project phase, or project"
+        },
+        {
+          "name": "Get Time Entry",
+          "description": "Get a single Rocketlane time entry by ID"
+        },
+        {
+          "name": "List Time Entries",
+          "description": "List Rocketlane time entries with optional filters, sorting, and cursor-based pagination"
+        },
+        {
+          "name": "Search Time Entries",
+          "description": "Search Rocketlane time entries with filters, sorting, and pagination (deprecated by Rocketlane in favor of listing time entries with filters)"
+        },
+        {
+          "name": "Update Time Entry",
+          "description": "Update a Rocketlane time entry by ID. The activityName, notes, billable, and minutes properties can be updated"
+        },
+        {
+          "name": "Delete Time Entry",
+          "description": "Permanently delete a Rocketlane time entry by ID"
+        },
+        {
+          "name": "List Time Entry Categories",
+          "description": "List the time entry categories configured in Rocketlane"
+        },
+        {
+          "name": "Create Time-Off",
+          "description": "Create a time-off for a team member in Rocketlane. Holidays and weekends within the date range are automatically excluded from the duration."
+        },
+        {
+          "name": "Get Time-Off",
+          "description": "Retrieve a Rocketlane time-off by its ID"
+        },
+        {
+          "name": "List Time-Offs",
+          "description": "List time-offs in Rocketlane with optional date, type, and user filters, sorting, and pagination"
+        },
+        {
+          "name": "Delete Time-Off",
+          "description": "Permanently delete a Rocketlane time-off by its ID"
+        },
+        {
+          "name": "Get User",
+          "description": "Retrieve a Rocketlane user by their ID"
+        },
+        {
+          "name": "List Users",
+          "description": "List users in your Rocketlane account, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Create Space",
+          "description": "Create a new space in a Rocketlane project"
+        },
+        {
+          "name": "Get Space",
+          "description": "Retrieve a Rocketlane space by its ID"
+        },
+        {
+          "name": "List Spaces",
+          "description": "List spaces in a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Space",
+          "description": "Update a Rocketlane space by its ID"
+        },
+        {
+          "name": "Delete Space",
+          "description": "Permanently delete a Rocketlane space by its ID"
+        },
+        {
+          "name": "Create Space Document",
+          "description": "Create a new space document in a Rocketlane space"
+        },
+        {
+          "name": "Get Space Document",
+          "description": "Retrieve a Rocketlane space document by its ID"
+        },
+        {
+          "name": "List Space Documents",
+          "description": "List space documents in a Rocketlane project, with optional filters, sorting, and pagination"
+        },
+        {
+          "name": "Update Space Document",
+          "description": "Update a Rocketlane space document by its ID"
+        },
+        {
+          "name": "Delete Space Document",
+          "description": "Permanently delete a Rocketlane space document by its ID"
+        },
+        {
+          "name": "List Resource Allocations",
+          "description": "List resource allocations in Rocketlane within a date range, with optional member, project, and placeholder filters, sorting, and pagination"
+        },
+        {
+          "name": "Get Invoice",
+          "description": "Retrieve a Rocketlane invoice by its ID"
+        },
+        {
+          "name": "List Invoices",
+          "description": "Search invoices in Rocketlane with date, amount, company, invoice-number, and status filters, sorting, and pagination"
+        },
+        {
+          "name": "Get Invoice Line Items",
+          "description": "List line items of a Rocketlane invoice"
+        },
+        {
+          "name": "Get Invoice Payments",
+          "description": "List payments recorded against a Rocketlane invoice"
+        }
+      ],
+      "operationCount": 64,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["project-management", "automation"]
     },
     {
       "type": "rootly",
