@@ -13,7 +13,7 @@ canonical: https://www.sim.ai/library/byok-multi-model-ai-agent-builder
 draft: false
 faq:
   - q: "Which providers are BYOK-eligible?"
-    a: "Sim accepts your own keys for the major providers including OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Mistral, Azure, AWS Bedrock, Vertex AI, and OpenRouter. You enter each key per provider, and Sim routes calls for that provider's models directly through your account. Eligibility tracks the provider's own API access, so any model you can reach with your key works in Sim."
+    a: "Sim accepts your own keys for major LLM providers including OpenAI, Anthropic, Google, xAI, and Mistral, along with providers like Together AI, Fireworks, and Baseten. You enter each key per provider, and Sim routes calls for that provider's models directly through your account. Sim supports more providers for hosted execution than for BYOK key entry, so the BYOK list is the set whose keys you can save and use directly."
   - q: "Can I mix hosted, BYOK, and local keys within one agent?"
     a: "Yes. A single agent can call a hosted model in one step, a BYOK model in another, and a local model through Ollama or vLLM in a third. Each block chooses its own model and execution mode, so you assign the cheapest or most private option to each task without splitting your agent across tools."
   - q: "How is billing separated per mode?"
