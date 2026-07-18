@@ -1,6 +1,17 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
+import {
+  createPinnedFetch,
+  createPinnedFetchWithDispatcher,
+} from '@/lib/core/security/input-validation.server'
 import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
+
+/** Pinned fetch for the live MCP transport, plus a handle to release its sockets. */
+export interface PinnedMcpFetch {
+  /** Pinned fetch to hand to the MCP transport's `fetch` option. */
+  fetch: typeof fetch
+  /** Tears down the underlying HTTP/2 Agent; call when the MCP client disconnects. */
+  close: () => Promise<void>
+}
 
 /**
  * Pinned fetch for the long-lived MCP transport, which reuses one Agent across
@@ -9,10 +20,15 @@ import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
  * the transport enables it. h2 is *not* used for one-shot flows (OAuth discovery,
  * auth-type probe), where a per-request Agent would leave idle h2 sessions with
  * no reuse benefit. Pinning is unaffected: the pinned lookup forces the socket to
- * `resolvedIP` regardless of negotiated protocol.
+ * `resolvedIP` regardless of negotiated protocol. The returned `close` binds the
+ * Agent's teardown to the transport lifecycle so h2 sessions don't linger past
+ * disconnect.
  */
-export function createPinnedMcpFetch(resolvedIP: string): typeof fetch {
-  return createPinnedFetch(resolvedIP, { allowH2: true })
+export function createPinnedMcpFetch(resolvedIP: string): PinnedMcpFetch {
+  const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP, {
+    allowH2: true,
+  })
+  return { fetch: pinnedFetch, close: () => dispatcher.destroy() }
 }
 
 /**

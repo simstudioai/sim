@@ -444,6 +444,19 @@ export function createPinnedFetch(
   resolvedIP: string,
   options?: { allowH2?: boolean }
 ): typeof fetch {
+  return createPinnedFetchWithDispatcher(resolvedIP, options).fetch
+}
+
+/**
+ * Same as {@link createPinnedFetch} but also returns the underlying `Agent` so a
+ * caller with a defined connection lifetime (e.g. a long-lived MCP transport) can
+ * tear the Agent down on close instead of waiting for its idle timeout. Closing
+ * the Agent is what releases any pooled keep-alive / HTTP/2 sockets it holds.
+ */
+export function createPinnedFetchWithDispatcher(
+  resolvedIP: string,
+  options?: { allowH2?: boolean }
+): { fetch: typeof fetch; dispatcher: Agent } {
   const dispatcher = new Agent({
     allowH2: options?.allowH2 ?? false,
     connect: { lookup: createPinnedLookup(resolvedIP) },
@@ -459,7 +472,7 @@ export function createPinnedFetch(
     return response as unknown as Response
   }
 
-  return pinned
+  return { fetch: pinned, dispatcher }
 }
 
 /**

@@ -73,6 +73,7 @@ export class McpClient {
   private onToolsChanged?: McpToolsChangedCallback
   private authProvider?: McpClientOptions['authProvider']
   private isConnected = false
+  private closePinnedTransport?: () => Promise<void>
 
   constructor(options: McpClientOptions) {
     this.config = options.config
@@ -95,10 +96,12 @@ export class McpClient {
       throw new McpError('OAuth MCP server requires an authProvider')
     }
     const useOauth = this.config.authType === 'oauth'
+    const pinned = resolvedIP ? createPinnedMcpFetch(resolvedIP) : undefined
+    this.closePinnedTransport = pinned?.close
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       requestInit: { headers: this.config.headers },
-      ...(resolvedIP ? { fetch: createPinnedMcpFetch(resolvedIP) } : {}),
+      ...(pinned ? { fetch: pinned.fetch } : {}),
     })
 
     this.client = new Client(
@@ -212,6 +215,12 @@ export class McpClient {
       await this.client.close()
     } catch (error) {
       logger.warn(`Error during disconnect from ${this.config.name}:`, error)
+    }
+
+    try {
+      await this.closePinnedTransport?.()
+    } catch (error) {
+      logger.warn(`Error closing pinned transport for ${this.config.name}:`, error)
     }
 
     this.isConnected = false

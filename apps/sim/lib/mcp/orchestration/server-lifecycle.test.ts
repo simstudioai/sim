@@ -14,9 +14,10 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClearCache, mockOauthCredsChanged } = vi.hoisted(() => ({
+const { mockClearCache, mockOauthCredsChanged, mockRevokeOauthTokens } = vi.hoisted(() => ({
   mockClearCache: vi.fn(),
   mockOauthCredsChanged: vi.fn(),
+  mockRevokeOauthTokens: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -41,7 +42,7 @@ vi.mock('@/lib/mcp/domain-check', () => ({
 vi.mock('@/lib/mcp/oauth', () => ({
   detectMcpAuthType: vi.fn(),
   oauthCredsChanged: mockOauthCredsChanged,
-  revokeMcpOauthTokens: vi.fn(),
+  revokeMcpOauthTokens: mockRevokeOauthTokens,
 }))
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: { clearCache: mockClearCache },
@@ -136,5 +137,7 @@ describe('MCP server lifecycle orchestration', () => {
         lastError: null,
       })
     )
+    // ...and revoke the now-orphaned OAuth tokens rather than leaving them stored and valid.
+    expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1')
   })
 })
