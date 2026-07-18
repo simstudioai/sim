@@ -72,7 +72,7 @@ const STATUS_UPDATE_CAS_ATTEMPTS = 3
 const STATUS_METADATA_RACE_RETRY_ATTEMPTS = 3
 
 type CacheMutationResult = 'applied' | 'superseded' | 'unavailable'
-type SuccessfulPublicationResult = 'published' | Exclude<CacheMutationResult, 'applied'>
+type StatusPublicationResult = 'published' | Exclude<CacheMutationResult, 'applied'>
 
 export type McpServerDiscoveryState =
   | 'cached'
@@ -763,7 +763,7 @@ class McpService {
     config: McpServerConfig,
     mutation: CacheMutation | null,
     tools: McpTool[]
-  ): Promise<SuccessfulPublicationResult> {
+  ): Promise<StatusPublicationResult> {
     const cacheApplied = await this.applyServerCacheMutation(
       workspaceId,
       config.id,
@@ -786,57 +786,25 @@ class McpService {
     })
     if (statusApplied) return 'published'
 
-    // A connection-config edit advances mutation ownership, while metadata-only
-    // edits only bump updatedAt. Probe ownership without changing cache state:
-    // superseded results must reload the winner, but metadata races can keep
-    // and return these valid live tools without publishing stale DB status.
-    const ownership = await this.applyServerCacheMutation(
+    const retryResult = await this.retryStatusPublicationAfterMetadataRace(
       workspaceId,
-      config.id,
+      config,
       mutation,
-      null,
-      []
+      (configUpdatedAt) =>
+        this.updateServerStatus(config.id, workspaceId, {
+          outcome: 'connected',
+          toolCount: tools.length,
+          configUpdatedAt,
+          publicationOrder: new Date(mutation.id),
+        })
     )
-    if (ownership === 'superseded') return 'superseded'
-
-    const currentConfig = await this.getServerConfig(config.id, workspaceId)
-    if (
-      !currentConfig ||
-      !config.discoveryRevision ||
-      currentConfig.discoveryRevision !== config.discoveryRevision
-    ) {
+    if (retryResult === 'superseded') {
       await this.applyServerCacheMutation(workspaceId, config.id, mutation, null, [
         serverCacheKey(workspaceId, config.id),
         failureCacheKey(workspaceId, config.id),
       ])
-      return 'superseded'
     }
-    return 'unavailable'
-  }
-
-  private async getCurrentConfigForOwnedDiscoveryMutation(
-    workspaceId: string,
-    config: McpServerConfig,
-    mutation: CacheMutation
-  ): Promise<McpServerConfig | null> {
-    const ownership = await this.applyServerCacheMutation(
-      workspaceId,
-      config.id,
-      mutation,
-      null,
-      []
-    )
-    if (ownership !== 'applied') return null
-
-    const currentConfig = await this.getServerConfig(config.id, workspaceId)
-    if (
-      !currentConfig ||
-      !config.discoveryRevision ||
-      currentConfig.discoveryRevision !== config.discoveryRevision
-    ) {
-      return null
-    }
-    return currentConfig
+    return retryResult
   }
 
   private async retryStatusPublicationAfterMetadataRace(
@@ -844,17 +812,38 @@ class McpService {
     config: McpServerConfig,
     mutation: CacheMutation,
     publishStatus: (configUpdatedAt: string) => Promise<boolean>
-  ): Promise<boolean> {
+  ): Promise<StatusPublicationResult> {
     for (let attempt = 0; attempt < STATUS_METADATA_RACE_RETRY_ATTEMPTS; attempt++) {
-      const currentConfig = await this.getCurrentConfigForOwnedDiscoveryMutation(
+      const ownership = await this.applyServerCacheMutation(
         workspaceId,
-        config,
-        mutation
+        config.id,
+        mutation,
+        null,
+        []
       )
-      if (!currentConfig) return false
-      if (await publishStatus(currentConfig.updatedAt!)) return true
+      if (ownership === 'superseded') return 'superseded'
+      if (ownership === 'unavailable') return 'unavailable'
+
+      let currentConfig: McpServerConfig | null
+      try {
+        currentConfig = await this.getServerConfig(config.id, workspaceId)
+      } catch (error) {
+        logger.warn(`Failed to reread server ${config.id} for status publication`, {
+          workspaceId,
+          error: getMcpSafeErrorDiagnostics(error),
+        })
+        return 'unavailable'
+      }
+      if (
+        !currentConfig ||
+        !config.discoveryRevision ||
+        currentConfig.discoveryRevision !== config.discoveryRevision
+      ) {
+        return 'superseded'
+      }
+      if (await publishStatus(currentConfig.updatedAt!)) return 'published'
     }
-    return false
+    return 'unavailable'
   }
 
   private async publishFailedDiscovery(
@@ -891,7 +880,7 @@ class McpService {
     // that affects discovery. Keep the failed publication only while this
     // mutation still owns the cache and the connection configuration is
     // unchanged, then retry the status CAS against the row's current token.
-    const retriedStatusApplied = await this.retryStatusPublicationAfterMetadataRace(
+    const retryResult = await this.retryStatusPublicationAfterMetadataRace(
       workspaceId,
       config,
       mutation,
@@ -903,7 +892,7 @@ class McpService {
           publicationOrder: new Date(mutation.id),
         })
     )
-    if (retriedStatusApplied) return true
+    if (retryResult === 'published') return true
 
     // Do not leave a negative-cache entry for a failure that lost the
     // database publication CAS.
@@ -938,13 +927,14 @@ class McpService {
     // Metadata-only edits share discovery state with the original row. Retry
     // only while this mutation still owns the cache and the discovery-relevant
     // configuration has not changed.
-    return this.retryStatusPublicationAfterMetadataRace(
+    const retryResult = await this.retryStatusPublicationAfterMetadataRace(
       workspaceId,
       config,
       mutation,
       (configUpdatedAt) =>
         this.markServerOauthPending(config.id, workspaceId, configUpdatedAt, new Date(mutation.id))
     )
+    return retryResult === 'published'
   }
 
   async discoverTools(

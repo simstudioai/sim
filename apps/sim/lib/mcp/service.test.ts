@@ -875,18 +875,56 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(cacheStore.has(serverKey)).toBe(false)
   })
 
-  it('keeps valid live tools when a metadata-only edit wins the database CAS', async () => {
+  it('publishes successful discovery after repeated metadata-only renames win the database CAS', async () => {
     const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
-    mockGetWorkspaceServersRows.mockResolvedValueOnce([dbRow('mcp-a', 'A')]).mockResolvedValueOnce([
-      dbRow('mcp-a', 'Renamed A', {
-        description: 'Updated display-only description',
-        updatedAt: new Date('2026-01-01T00:00:01Z'),
-      }),
-    ])
-    mockListTools.mockResolvedValueOnce([tool('still-valid', 'mcp-a')])
-    mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+    const original = dbRow('mcp-a', 'A')
+    const renamed = dbRow('mcp-a', 'Renamed A', {
+      description: 'Updated display-only description',
+      updatedAt: new Date('2026-01-01T00:00:01Z'),
     })
+    const renamedAgain = dbRow('mcp-a', 'Renamed A Again', {
+      description: 'Another display-only description',
+      updatedAt: new Date('2026-01-01T00:00:02Z'),
+    })
+    mockGetWorkspaceServersRows
+      .mockResolvedValueOnce([original])
+      .mockResolvedValueOnce([renamed])
+      .mockResolvedValueOnce([renamedAgain])
+      .mockResolvedValue([renamedAgain])
+    mockListTools.mockResolvedValueOnce([tool('still-valid', 'mcp-a')])
+    mockUpdateReturning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'mcp-a' }])
+
+    await expect(
+      mcpService.discoverServerToolsWithMetadata(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    ).resolves.toEqual({
+      tools: [tool('still-valid', 'mcp-a')],
+      state: 'published',
+    })
+
+    const successfulStatusWrites = mockUpdateSet.mock.calls
+      .map(([update]) => update)
+      .filter((update) => update.connectionStatus === 'connected')
+    expect(successfulStatusWrites).toHaveLength(3)
+    expect(successfulStatusWrites.at(-1)).toEqual(
+      expect.objectContaining({ connectionStatus: 'connected', toolCount: 1 })
+    )
+    expect(cacheStore.get(serverKey)?.tools).toEqual([tool('still-valid', 'mcp-a')])
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenLastCalledWith(
+      serverKey,
+      expect.any(Number),
+      null,
+      []
+    )
+  })
+
+  it('keeps valid live tools when successful status publication retries are exhausted', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockResolvedValueOnce([tool('still-valid', 'mcp-a')])
+    mockUpdateReturning.mockResolvedValue([])
 
     await expect(
       mcpService.discoverServerToolsWithMetadata(USER_ID, 'mcp-a', WORKSPACE_ID, true)
@@ -895,13 +933,11 @@ describe('McpService.discoverTools per-server caching', () => {
       state: 'unavailable',
     })
 
+    const successfulStatusWrites = mockUpdateSet.mock.calls
+      .map(([update]) => update)
+      .filter((update) => update.connectionStatus === 'connected')
+    expect(successfulStatusWrites).toHaveLength(4)
     expect(cacheStore.get(serverKey)?.tools).toEqual([tool('still-valid', 'mcp-a')])
-    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenLastCalledWith(
-      serverKey,
-      expect.any(Number),
-      null,
-      []
-    )
   })
 
   it('publishes a failed discovery after repeated metadata-only renames win the database CAS', async () => {
