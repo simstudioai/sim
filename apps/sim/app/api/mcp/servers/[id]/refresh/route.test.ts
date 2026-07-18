@@ -277,6 +277,40 @@ describe('MCP server refresh route', () => {
     )
   })
 
+  it('returns the winning cached tools without syncing workflows from the losing refresh', async () => {
+    mockDiscoverServerTools.mockResolvedValueOnce({
+      tools: [
+        {
+          name: 'winner-search',
+          description: 'Search tool from the winning refresh',
+          inputSchema: {},
+          serverId: 'server-1',
+          serverName: 'OAuth Server',
+        },
+      ],
+      state: 'winner-cache',
+    })
+    mockSelect.mockReturnValueOnce(selectRows([persistedServer]))
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'connected',
+        error: null,
+        toolCount: 1,
+        workflowsUpdated: 0,
+        updatedWorkflowIds: [],
+      })
+    )
+    expect(mockSelect).toHaveBeenCalledTimes(2)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
   it('fails closed without syncing workflows when discovery is superseded', async () => {
     mockDiscoverServerTools.mockResolvedValueOnce({
       tools: [],

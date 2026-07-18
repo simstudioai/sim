@@ -69,6 +69,7 @@ export function getTimestampMillisecondBounds(timestamp: string): {
 const FAILURE_CACHE_SENTINEL: McpTool[] = []
 const CACHE_MUTATION_BEGIN_ATTEMPTS = 2
 const STATUS_UPDATE_CAS_ATTEMPTS = 3
+const STATUS_METADATA_RACE_RETRY_ATTEMPTS = 3
 
 type CacheMutationResult = 'applied' | 'superseded' | 'unavailable'
 type SuccessfulPublicationResult = 'published' | Exclude<CacheMutationResult, 'applied'>
@@ -813,6 +814,49 @@ class McpService {
     return 'unavailable'
   }
 
+  private async getCurrentConfigForOwnedDiscoveryMutation(
+    workspaceId: string,
+    config: McpServerConfig,
+    mutation: CacheMutation
+  ): Promise<McpServerConfig | null> {
+    const ownership = await this.applyServerCacheMutation(
+      workspaceId,
+      config.id,
+      mutation,
+      null,
+      []
+    )
+    if (ownership !== 'applied') return null
+
+    const currentConfig = await this.getServerConfig(config.id, workspaceId)
+    if (
+      !currentConfig ||
+      !config.discoveryRevision ||
+      currentConfig.discoveryRevision !== config.discoveryRevision
+    ) {
+      return null
+    }
+    return currentConfig
+  }
+
+  private async retryStatusPublicationAfterMetadataRace(
+    workspaceId: string,
+    config: McpServerConfig,
+    mutation: CacheMutation,
+    publishStatus: (configUpdatedAt: string) => Promise<boolean>
+  ): Promise<boolean> {
+    for (let attempt = 0; attempt < STATUS_METADATA_RACE_RETRY_ATTEMPTS; attempt++) {
+      const currentConfig = await this.getCurrentConfigForOwnedDiscoveryMutation(
+        workspaceId,
+        config,
+        mutation
+      )
+      if (!currentConfig) return false
+      if (await publishStatus(currentConfig.updatedAt!)) return true
+    }
+    return false
+  }
+
   private async publishFailedDiscovery(
     workspaceId: string,
     config: McpServerConfig,
@@ -843,6 +887,24 @@ class McpService {
     })
     if (statusApplied) return true
 
+    // A metadata-only edit can advance updatedAt without changing anything
+    // that affects discovery. Keep the failed publication only while this
+    // mutation still owns the cache and the connection configuration is
+    // unchanged, then retry the status CAS against the row's current token.
+    const retriedStatusApplied = await this.retryStatusPublicationAfterMetadataRace(
+      workspaceId,
+      config,
+      mutation,
+      (configUpdatedAt) =>
+        this.updateServerStatus(config.id, workspaceId, {
+          outcome: 'failed',
+          error: message,
+          configUpdatedAt,
+          publicationOrder: new Date(mutation.id),
+        })
+    )
+    if (retriedStatusApplied) return true
+
     // Do not leave a negative-cache entry for a failure that lost the
     // database publication CAS.
     await this.applyServerCacheMutation(workspaceId, config.id, mutation, null, [
@@ -865,11 +927,23 @@ class McpService {
     )
     if (cacheApplied !== 'applied' || !mutation) return false
 
-    return this.markServerOauthPending(
+    const statusApplied = await this.markServerOauthPending(
       config.id,
       workspaceId,
       config.updatedAt!,
       new Date(mutation.id)
+    )
+    if (statusApplied) return true
+
+    // Metadata-only edits share discovery state with the original row. Retry
+    // only while this mutation still owns the cache and the discovery-relevant
+    // configuration has not changed.
+    return this.retryStatusPublicationAfterMetadataRace(
+      workspaceId,
+      config,
+      mutation,
+      (configUpdatedAt) =>
+        this.markServerOauthPending(config.id, workspaceId, configUpdatedAt, new Date(mutation.id))
     )
   }
 

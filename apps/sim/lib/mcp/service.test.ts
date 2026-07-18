@@ -904,6 +904,178 @@ describe('McpService.discoverTools per-server caching', () => {
     )
   })
 
+  it('publishes a failed discovery after repeated metadata-only renames win the database CAS', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const failureKey = `${serverKey}:failure`
+    const original = dbRow('mcp-a', 'A', {
+      statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+    })
+    const renamed = dbRow('mcp-a', 'Renamed A', {
+      description: 'Updated display-only description',
+      updatedAt: new Date('2026-01-01T00:00:01Z'),
+      statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+    })
+    const renamedAgain = dbRow('mcp-a', 'Renamed A Again', {
+      description: 'Another display-only description',
+      updatedAt: new Date('2026-01-01T00:00:02Z'),
+      statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+    })
+    mockGetWorkspaceServersRows
+      .mockResolvedValueOnce([original])
+      .mockResolvedValueOnce([renamed])
+      .mockResolvedValueOnce([renamed])
+      .mockResolvedValueOnce([renamed])
+      .mockResolvedValueOnce([renamed])
+      .mockResolvedValueOnce([renamedAgain])
+      .mockResolvedValueOnce([renamedAgain])
+      .mockResolvedValueOnce([renamedAgain])
+      .mockResolvedValueOnce([renamedAgain])
+      .mockResolvedValue([renamedAgain])
+    mockUpdateReturning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'mcp-a' }])
+    mockListTools.mockRejectedValueOnce(new Error('Permanent discovery failure'))
+    cacheStore.set(serverKey, {
+      tools: [tool('previous-tool', 'mcp-a')],
+      expiry: Date.now() + 60_000,
+    })
+
+    await expect(
+      mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    ).rejects.toThrow('Permanent discovery failure')
+
+    const failureStatusWrites = mockUpdateSet.mock.calls
+      .map(([update]) => update)
+      .filter((update) => update.lastError === 'Connection failed')
+    expect(failureStatusWrites).toHaveLength(7)
+    expect(failureStatusWrites.at(-1)).toEqual(
+      expect.objectContaining({ connectionStatus: 'disconnected', toolCount: 0 })
+    )
+    expect(cacheStore.has(serverKey)).toBe(false)
+    expect(cacheStore.has(failureKey)).toBe(true)
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenCalledWith(
+      serverKey,
+      expect.any(Number),
+      null,
+      []
+    )
+  })
+
+  it('publishes OAuth pending after repeated metadata-only renames win the database CAS', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const original = dbRow('mcp-a', 'A')
+    const renamed = dbRow('mcp-a', 'Renamed A', {
+      description: 'Updated display-only description',
+      updatedAt: new Date('2026-01-01T00:00:01Z'),
+    })
+    const renamedAgain = dbRow('mcp-a', 'Renamed A Again', {
+      description: 'Another display-only description',
+      updatedAt: new Date('2026-01-01T00:00:02Z'),
+    })
+    mockGetWorkspaceServersRows
+      .mockResolvedValueOnce([original])
+      .mockResolvedValueOnce([renamed])
+      .mockResolvedValueOnce([renamedAgain])
+      .mockResolvedValue([renamedAgain])
+    mockUpdateReturning
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'mcp-a' }])
+    mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))
+    cacheStore.set(serverKey, {
+      tools: [tool('previous-tool', 'mcp-a')],
+      expiry: Date.now() + 60_000,
+    })
+
+    await expect(
+      mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    ).rejects.toThrow('OAuth authorization required')
+
+    const oauthStatusWrites = mockUpdateSet.mock.calls
+      .map(([update]) => update)
+      .filter((update) => update.connectionStatus === 'disconnected' && update.lastError === null)
+    expect(oauthStatusWrites).toHaveLength(3)
+    expect(cacheStore.has(serverKey)).toBe(false)
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenCalledWith(
+      serverKey,
+      expect.any(Number),
+      null,
+      []
+    )
+  })
+
+  it('does not retry failed status publication after a connection-config edit', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const failureKey = `${serverKey}:failure`
+    const original = dbRow('mcp-a', 'A', {
+      statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+    })
+    const reconfigured = dbRow('mcp-a', 'A', {
+      url: 'https://changed-config.example.com/mcp',
+      updatedAt: new Date('2026-01-01T00:00:01Z'),
+      statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+    })
+    mockGetWorkspaceServersRows
+      .mockResolvedValueOnce([original])
+      .mockResolvedValueOnce([original])
+      .mockResolvedValueOnce([original])
+      .mockResolvedValueOnce([original])
+      .mockResolvedValue([reconfigured])
+    mockUpdateReturning.mockResolvedValue([])
+    mockListTools.mockRejectedValueOnce(new Error('Permanent discovery failure'))
+
+    await expect(
+      mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    ).rejects.toThrow('Permanent discovery failure')
+
+    const failureStatusWrites = mockUpdateSet.mock.calls
+      .map(([update]) => update)
+      .filter((update) => update.lastError === 'Connection failed')
+    expect(failureStatusWrites).toHaveLength(3)
+    expect(cacheStore.has(failureKey)).toBe(false)
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenLastCalledWith(
+      serverKey,
+      expect.any(Number),
+      null,
+      [failureKey]
+    )
+  })
+
+  it('does not retry OAuth status publication after a connection-config edit', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const original = dbRow('mcp-a', 'A')
+    const reconfigured = dbRow('mcp-a', 'A', {
+      url: 'https://changed-config.example.com/mcp',
+      updatedAt: new Date('2026-01-01T00:00:01Z'),
+    })
+    mockGetWorkspaceServersRows
+      .mockResolvedValueOnce([original])
+      .mockResolvedValueOnce([reconfigured])
+      .mockResolvedValue([reconfigured])
+    mockUpdateReturning.mockResolvedValue([])
+    mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))
+
+    await expect(
+      mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    ).rejects.toThrow('OAuth authorization required')
+
+    const oauthStatusWrites = mockUpdateSet.mock.calls
+      .map(([update]) => update)
+      .filter((update) => update.connectionStatus === 'disconnected' && update.lastError === null)
+    expect(oauthStatusWrites).toHaveLength(1)
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenLastCalledWith(
+      serverKey,
+      expect.any(Number),
+      null,
+      []
+    )
+  })
+
   it('supersedes an older discovery before it can publish status', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {

@@ -240,7 +240,7 @@ export const POST = withRouteHandler(
           )
           .limit(1)
 
-        if (discoveryError === null && discoveryState !== 'superseded') {
+        if (discoveryError === null && discoveryState === 'published') {
           try {
             syncResult = await syncToolSchemasToWorkflows(
               workspaceId,
