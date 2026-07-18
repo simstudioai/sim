@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -90,6 +91,7 @@ type DiscoveryOutcome =
       kind: 'fetched'
       tools: McpTool[]
       resolvedConfig: McpServerConfig
+      sourceConfig: McpServerConfig
       resolvedIP: string | null
       mutation: CacheMutation | null
     }
@@ -108,6 +110,42 @@ type DiscoveryOutcome =
 interface CacheMutation {
   scopeKey: string
   id: number
+}
+
+interface DiscoveryRevisionInput {
+  transport: string | null
+  url: string | null
+  authType: string | null
+  oauthClientId: string | null
+  oauthClientSecret: string | null
+  headers: unknown
+  timeout: number | null
+  retries: number | null
+  enabled: boolean
+}
+
+function getDiscoveryRevision(config: DiscoveryRevisionInput): string {
+  const headers =
+    config.headers && typeof config.headers === 'object' && !Array.isArray(config.headers)
+      ? Object.entries(config.headers as Record<string, unknown>).sort(([left], [right]) =>
+          left.localeCompare(right)
+        )
+      : []
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        transport: config.transport,
+        url: config.url,
+        authType: config.authType,
+        oauthClientId: config.oauthClientId,
+        oauthClientSecret: config.oauthClientSecret,
+        headers,
+        timeout: config.timeout,
+        retries: config.retries,
+        enabled: config.enabled,
+      })
+    )
+    .digest('hex')
 }
 
 type ServerStatusUpdate =
@@ -275,6 +313,7 @@ class McpService {
       enabled: server.enabled,
       createdAt: server.createdAt.toISOString(),
       updatedAt: server.updatedAt.toISOString(),
+      discoveryRevision: getDiscoveryRevision(server),
     }
   }
 
@@ -305,6 +344,7 @@ class McpService {
         enabled: server.enabled,
         createdAt: server.createdAt.toISOString(),
         updatedAt: server.updatedAt.toISOString(),
+        discoveryRevision: getDiscoveryRevision(server),
       }))
       .filter((config) => isMcpDomainAllowed(config.url))
   }
@@ -712,7 +752,21 @@ class McpService {
       null,
       []
     )
-    return ownership === 'superseded' ? 'superseded' : 'unavailable'
+    if (ownership === 'superseded') return 'superseded'
+
+    const currentConfig = await this.getServerConfig(config.id, workspaceId)
+    if (
+      !currentConfig ||
+      !config.discoveryRevision ||
+      currentConfig.discoveryRevision !== config.discoveryRevision
+    ) {
+      await this.applyServerCacheMutation(workspaceId, config.id, mutation, null, [
+        serverCacheKey(workspaceId, config.id),
+        failureCacheKey(workspaceId, config.id),
+      ])
+      return 'superseded'
+    }
+    return 'unavailable'
   }
 
   private async publishFailedDiscovery(
@@ -827,7 +881,14 @@ class McpService {
               logger.debug(
                 `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
               )
-              return { kind: 'fetched', tools, resolvedConfig, resolvedIP, mutation }
+              return {
+                kind: 'fetched',
+                tools,
+                resolvedConfig,
+                sourceConfig: config,
+                resolvedIP,
+                mutation,
+              }
             } finally {
               await client.disconnect()
             }
@@ -861,7 +922,7 @@ class McpService {
           if (outcome.kind === 'fetched') {
             const publication = await this.publishSuccessfulDiscovery(
               workspaceId,
-              outcome.resolvedConfig,
+              outcome.sourceConfig,
               outcome.mutation,
               outcome.tools
             )
@@ -1038,7 +1099,7 @@ class McpService {
           logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
           const publication = await this.publishSuccessfulDiscovery(
             workspaceId,
-            resolvedConfig,
+            config,
             mutation,
             tools
           )

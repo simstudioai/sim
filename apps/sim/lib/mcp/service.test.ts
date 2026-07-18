@@ -796,20 +796,16 @@ describe('McpService.discoverTools per-server caching', () => {
   })
 
   it('does not return or cache tools discovered from a stale server configuration', async () => {
-    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockGetWorkspaceServersRows.mockResolvedValueOnce([dbRow('mcp-a', 'A')]).mockResolvedValueOnce([
+      dbRow('mcp-a', 'A', {
+        url: 'https://changed-config.example.com/mcp',
+        updatedAt: new Date('2026-01-01T00:00:01Z'),
+      }),
+    ])
     mockListTools.mockResolvedValueOnce([tool('stale-tool', 'mcp-a')])
     const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
     mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({
-        returning: vi.fn().mockImplementation(async () => {
-          // Connection-changing edits invalidate both cache entries and advance
-          // mutation ownership after updating the database row.
-          await mockCacheAdapter.beginMutation(serverKey)
-          cacheStore.delete(serverKey)
-          cacheStore.delete(`${serverKey}:failure`)
-          return []
-        }),
-      }),
+      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
     })
 
     const tools = await mcpService.discoverTools(USER_ID, WORKSPACE_ID, true)
@@ -830,7 +826,12 @@ describe('McpService.discoverTools per-server caching', () => {
 
   it('keeps valid live tools when a metadata-only edit wins the database CAS', async () => {
     const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
-    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockGetWorkspaceServersRows.mockResolvedValueOnce([dbRow('mcp-a', 'A')]).mockResolvedValueOnce([
+      dbRow('mcp-a', 'Renamed A', {
+        description: 'Updated display-only description',
+        updatedAt: new Date('2026-01-01T00:00:01Z'),
+      }),
+    ])
     mockListTools.mockResolvedValueOnce([tool('still-valid', 'mcp-a')])
     mockUpdateSet.mockReturnValueOnce({
       where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
