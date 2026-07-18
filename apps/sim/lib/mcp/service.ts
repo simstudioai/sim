@@ -103,13 +103,17 @@ function isTimeoutError(error: unknown): boolean {
 
 /**
  * A pooled connection is dead and must be retired so the caller's retry rebuilds
- * fresh: a stale session (400/404), a closed transport, a timeout (no response —
- * possibly wedged), or a reset socket. Benign tool/consent errors and healthy
- * upstream responses (429/5xx) keep the connection warm.
+ * fresh: a stale session (400/404), an auth failure (401 — a rotated/revoked
+ * credential; the rebuild re-resolves it), a closed transport, a timeout (no
+ * response — possibly wedged), or a reset socket. Benign tool/consent errors and
+ * healthy upstream responses (429/5xx) keep the connection warm.
  */
 function isDeadConnectionError(error: unknown): boolean {
+  if (error instanceof UnauthorizedError) {
+    return true
+  }
   if (error instanceof StreamableHTTPError) {
-    return error.code === 404 || error.code === 400
+    return error.code === 404 || error.code === 400 || error.code === 401
   }
   if (error instanceof McpError && error.code === ErrorCode.ConnectionClosed) {
     return true

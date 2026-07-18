@@ -14,11 +14,13 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClearCache, mockOauthCredsChanged, mockRevokeOauthTokens } = vi.hoisted(() => ({
-  mockClearCache: vi.fn(),
-  mockOauthCredsChanged: vi.fn(),
-  mockRevokeOauthTokens: vi.fn(),
-}))
+const { mockClearCache, mockOauthCredsChanged, mockRevokeOauthTokens, mockEvictServer } =
+  vi.hoisted(() => ({
+    mockClearCache: vi.fn(),
+    mockOauthCredsChanged: vi.fn(),
+    mockRevokeOauthTokens: vi.fn(),
+    mockEvictServer: vi.fn(),
+  }))
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/db', () => ({
@@ -47,10 +49,16 @@ vi.mock('@/lib/mcp/oauth', () => ({
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: { clearCache: mockClearCache },
 }))
+vi.mock('@/lib/mcp/connection-pool', () => ({
+  mcpConnectionPool: { evictServer: mockEvictServer },
+}))
 vi.mock('@/lib/mcp/utils', () => ({ generateMcpServerId: vi.fn() }))
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-import { performUpdateMcpServer } from '@/lib/mcp/orchestration/server-lifecycle'
+import {
+  performDeleteMcpServer,
+  performUpdateMcpServer,
+} from '@/lib/mcp/orchestration/server-lifecycle'
 
 describe('MCP server lifecycle orchestration', () => {
   beforeEach(() => {
@@ -139,5 +147,20 @@ describe('MCP server lifecycle orchestration', () => {
     )
     // ...and revoke the now-orphaned OAuth tokens rather than leaving them stored and valid.
     expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1')
+  })
+
+  it('evicts the deleted server from the connection pool (row is already gone from clearCache)', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'server-1', workspaceId: 'workspace-1', name: 'Example', transport: 'streamable-http' },
+    ])
+
+    const result = await performDeleteMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockEvictServer).toHaveBeenCalledWith('server-1', expect.any(String))
   })
 })

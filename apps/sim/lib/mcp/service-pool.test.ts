@@ -7,6 +7,7 @@
  * dead-connection error poisons the lease. Pool internals are unit-tested in
  * `connection-pool.test.ts`.
  */
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -168,5 +169,15 @@ describe('McpService connection reuse wiring', () => {
     ).rejects.toThrow()
 
     expect(mockRelease).toHaveBeenCalledWith(false)
+  })
+
+  it('poisons the lease on an auth failure so a rotated credential is re-resolved', async () => {
+    mockCallTool.mockRejectedValue(new UnauthorizedError('token rejected'))
+
+    await expect(
+      mcpService.executeTool(USER_ID, 'server-1', { name: 'do', arguments: {} }, WORKSPACE_ID)
+    ).rejects.toThrow()
+
+    expect(mockRelease).toHaveBeenCalledWith(true)
   })
 })

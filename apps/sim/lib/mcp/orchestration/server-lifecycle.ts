@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { mcpConnectionPool } from '@/lib/mcp/connection-pool'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -438,6 +439,9 @@ export async function performDeleteMcpServer(
 
     if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
+    // The row is already gone, so clearCache's row-enumeration can't reach it —
+    // evict the deleted server's pooled connections explicitly.
+    await mcpConnectionPool?.evictServer(params.serverId, 'server deleted')
     await mcpService.clearCache(params.workspaceId)
     const source =
       params.source === 'settings' || params.source === 'tool_input' ? params.source : undefined
