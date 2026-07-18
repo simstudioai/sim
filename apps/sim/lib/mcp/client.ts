@@ -226,16 +226,16 @@ export class McpClient {
     }
 
     const configuredTimeout = this.config.timeout
+    // Idle timeout honors the per-server config but never exceeds the absolute
+    // discovery ceiling, so tools/list can't hang the UI past that cap.
     const idleTimeoutMs = Math.min(
       configuredTimeout !== undefined && Number.isFinite(configuredTimeout) && configuredTimeout > 0
         ? Math.floor(configuredTimeout)
         : MCP_CLIENT_CONSTANTS.LIST_TOOLS_TIMEOUT_MS,
-      getMaxExecutionTimeout()
-    )
-    const maxTotalTimeoutMs = Math.max(
-      idleTimeoutMs,
+      getMaxExecutionTimeout(),
       MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS
     )
+    const maxTotalTimeoutMs = MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS
 
     try {
       const result: ListToolsResult = await this.client.listTools(undefined, {

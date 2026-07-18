@@ -64,6 +64,7 @@ vi.mock('@/lib/core/execution-limits', () => ({
 }))
 
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { McpClient } from './client'
 import type { McpClientOptions, McpServerConfig } from './types'
 
@@ -82,6 +83,9 @@ describe('McpClient notification handler', () => {
     vi.clearAllMocks()
     mockSdkConnect.mockResolvedValue(undefined)
     mockSdkListTools.mockResolvedValue({ tools: [] })
+    // clearAllMocks resets call history but not implementations; re-establish the
+    // default so a per-test override can't bleed into later tests.
+    vi.mocked(getMaxExecutionTimeout).mockReturnValue(30_000)
   })
 
   it('fires onToolsChanged when a notification arrives while connected', async () => {
@@ -171,6 +175,22 @@ describe('McpClient notification handler', () => {
         resetTimeoutOnProgress: true,
         onprogress: expect.any(Function),
       })
+    )
+  })
+
+  it('clamps a configured tools/list timeout to the absolute discovery ceiling', async () => {
+    vi.mocked(getMaxExecutionTimeout).mockReturnValue(120_000)
+    const client = new McpClient({
+      config: { ...createConfig(), timeout: 300_000 },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await client.listTools()
+
+    expect(mockSdkListTools).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ timeout: 60_000, maxTotalTimeout: 60_000 })
     )
   })
 
