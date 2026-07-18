@@ -313,6 +313,11 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
                 onCheckedChange={handleAccessChange}
               />
             </div>
+            <p className='mt-[9px] text-[var(--text-muted)] text-caption'>
+              {skill.workspaceShared
+                ? 'Everyone in this workspace can use this skill.'
+                : 'Only the members below can use this skill.'}
+            </p>
           </DetailSection>
         )}
 
