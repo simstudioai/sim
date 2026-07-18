@@ -252,6 +252,31 @@ describe('McpConnectionPool', () => {
     expect(create).toHaveBeenCalledTimes(2)
   })
 
+  it('does not pool a connection whose create finished after the server was evicted', async () => {
+    let resolveCreate: ((client: McpClient) => void) | undefined
+    const created = new Promise<McpClient>((resolve) => {
+      resolveCreate = resolve
+    })
+    const staleClient = makeFakeClient()
+    const freshClient = makeFakeClient()
+    const create = vi
+      .fn<() => Promise<McpClient>>()
+      .mockImplementationOnce(() => created)
+      .mockImplementation(async () => freshClient)
+
+    const acquireP = pool.acquire(params('s1:w1:u1', create))
+    // Server config changes while the connect is still in flight.
+    await pool.evictServer('s1', 'config changed')
+    resolveCreate?.(staleClient)
+    const lease = await acquireP
+
+    // The stale-config connection is disconnected, not pooled; a fresh one is built.
+    expect(staleClient.disconnect).toHaveBeenCalledTimes(1)
+    expect(lease.client).toBe(freshClient)
+    expect(create).toHaveBeenCalledTimes(2)
+    await lease.release()
+  })
+
   it('bypasses the pool once disposed (connects without caching)', async () => {
     const client = makeFakeClient()
     const create = vi.fn(async () => client)

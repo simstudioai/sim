@@ -66,6 +66,8 @@ interface PoolEntry {
 export class McpConnectionPool {
   private entries = new Map<string, PoolEntry>()
   private pending = new Map<string, Promise<PoolEntry>>()
+  /** Per-server counter bumped by `evictServer`; an in-flight create built against an older value is retired on completion. */
+  private serverGenerations = new Map<string, number>()
   private idleCheckTimer: ReturnType<typeof setInterval> | null = null
   private disposed = false
 
@@ -94,7 +96,10 @@ export class McpConnectionPool {
       const reusable = await this.tryReuse(current)
       if (reusable) return reusable
     }
-    return this.createEntry(params)
+    const created = await this.createEntry(params)
+    // Evicted (config edit/delete) mid-create → don't borrow the stale connection.
+    if (created.retired && !this.disposed) return this.resolveEntry(params)
+    return created
   }
 
   /** Return `entry` if in-age, connected, and live; else retire it and return null. */
@@ -132,6 +137,7 @@ export class McpConnectionPool {
     if (inFlight) return inFlight
 
     const creation = (async () => {
+      const generation = this.serverGenerations.get(params.serverId) ?? 0
       const client = await params.create()
       const now = Date.now()
       const entry: PoolEntry = {
@@ -145,7 +151,9 @@ export class McpConnectionPool {
         retired: false,
         closing: false,
       }
-      if (this.disposed) {
+      // Disposed, or the server was evicted (config edit/delete) while connecting:
+      // don't pool a connection built against the old config.
+      if (this.disposed || (this.serverGenerations.get(params.serverId) ?? 0) !== generation) {
         entry.retired = true
         void client.disconnect().catch(() => {})
         return entry
@@ -197,6 +205,9 @@ export class McpConnectionPool {
 
   /** Retire every connection for a server (all users) — config changed or deleted. */
   async evictServer(serverId: string, reason: string): Promise<void> {
+    // Bump first so an in-flight create for this server retires on completion
+    // instead of pooling a connection built against the now-stale config.
+    this.serverGenerations.set(serverId, (this.serverGenerations.get(serverId) ?? 0) + 1)
     for (const entry of this.entries.values()) {
       if (entry.serverId === serverId) {
         logger.info(`Evicting pooled MCP connection ${entry.key}: ${reason}`)
