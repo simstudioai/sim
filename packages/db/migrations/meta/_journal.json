@@ -1835,13 +1835,6 @@
       "when": 1784224314431,
       "tag": "0262_strong_storm",
       "breakpoints": true
-    },
-    {
-      "idx": 263,
-      "version": "7",
-      "when": 1784229167264,
-      "tag": "0263_flat_hulk",
-      "breakpoints": true
     }
   ]
 }
