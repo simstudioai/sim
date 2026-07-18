@@ -1,0 +1,127 @@
+---
+slug: best-relay-app-alternatives-2026
+title: 'Best Relay.app Alternatives in 2026'
+description: Relay.app is shutting down in 2026. Compare the best Relay.app alternatives - Sim, n8n, Zapier, Make, and Gumloop - with license, self-host, and migration-effort breakdowns to switch before your deadline.
+date: 2026-07-17
+updated: 2026-07-17
+authors:
+  - andrew
+readingTime: 12
+tags: [Relay.app Alternatives, Workflow Automation, AI Agents, Sim]
+ogImage: /library/best-relay-app-alternatives-2026/cover.jpg
+canonical: https://www.sim.ai/library/best-relay-app-alternatives-2026
+draft: false
+faq:
+  - q: "When does Relay.app shut down?"
+    a: "Relay.app announced its shutdown on July 16, 2026. Free accounts and all their data get permanently deleted after August 15, 2026 at 23:59 PT. Paying customers keep full access free through September 14, 2026 at 23:59 PT."
+  - q: "Can I export my Relay.app workflows?"
+    a: "Data export is available now through your Relay.app account. Existing workflows keep running during the wind-down, so you have time to pull everything before the deadlines. Relay's own team offers transition help at support@relay.app."
+  - q: "Is Sim really free?"
+    a: "Yes. Sim's free tier is not feature-limited, so you get the full builder rather than a stripped demo. Paid plans exist for enterprise needs like SSO and higher limits, but the core product costs nothing to run."
+  - q: "Is Sim open source?"
+    a: "Yes. Sim ships under the Apache 2.0 license, which lets you inspect, modify, and self-host the code without a vendor license fee. You can run it in your own infrastructure, including air-gapped environments with no outbound connection."
+  - q: "Do I need to code to self-host Sim?"
+    a: "No coding is required to build workflows in Sim. Self-hosting does involve standard deployment steps like running the container and pointing it at a database, so you need someone comfortable with basic server setup. Once it is running, the builder works the same as the hosted version."
+---
+
+## TL;DR
+
+Relay.app announced its shutdown on July 16, 2026, which is why this list exists. Free accounts and all their data get permanently deleted after August 15, 2026 at 23:59 PT. Paying customers keep full access free through September 14, 2026 at 23:59 PT.
+
+- **Top pick: Sim.** Built AI-native, Apache 2.0 licensed, self-hostable, with a free tier that isn't feature-limited.
+- **n8n** wins for complex multi-step integrations with deep branching and a large node ecosystem.
+- **Zapier** wins for non-technical teams that want zero self-hosting and the widest app catalog.
+- **Make** wins for teams that debug and build visually on a scenario canvas.
+- **Gumloop** wins for LLM-heavy agent pipelines built around purpose-made AI primitives.
+
+## What happened to Relay.app
+
+Relay.app announced on July 16, 2026 that it is shutting down, and the platform winds down in two phases you need to act on now. Free accounts and all their data get permanently deleted after August 15, 2026 at 23:59 PT. Paying customers keep full access at no charge through September 14, 2026 at 23:59 PT.
+
+Paying customers also get a temporary boost during the wind-down. Relay adds 25,000 extra steps and 10,000 AI credits per month for 60 days, which buys time to rebuild and test a replacement before access ends.
+
+Two things are already locked. New signups are off, and free-to-paid upgrades no longer work, so you cannot add capacity on Relay itself. Existing workflows keep running throughout the wind-down, and data export is available right now, so pull your workflows and data before your deadline rather than after.
+
+If you hit trouble exporting, Relay's own team is offering transition support at support@relay.app.
+
+## What is the closest alternative to Relay.app?
+
+Sim is the closest match to Relay.app on both architecture and workflow model. Both were built AI-native from the start rather than adding LLM steps onto an older automation engine, so the way you chain triggers, AI actions, and data feels familiar coming from Relay.
+
+That closeness matters for migration effort, not just feature checkboxes. When the underlying model resembles what you already know, you spend your 60 days rebuilding logic instead of relearning how a tool thinks. Sim also runs a free tier that isn't feature-limited and can self-host under Apache 2.0, which removes the licensing and cost surprises that push some Relay users to shop around.
+
+Closest is not the same as best for every job. If your workflows lean on hundreds of pre-built integrations, a marketing team needs zero setup, or you live inside a visual debugging canvas all day, another tool will serve you better than the nearest architectural cousin. The sections below match each real use case to the tool that wins it, so you can pick on what your workflows actually do rather than on which product looks most like Relay on paper.
+
+## Best Relay.app alternative overall: Sim
+
+Sim is the closest working replacement for most Relay users, because it was built AI-native from the start rather than bolted onto an older automation engine. If you liked how Relay treated AI steps as first-class parts of a workflow instead of add-ons, that same model carries over directly, which is what makes the migration fast.
+
+Sim runs under the Apache 2.0 license, so you can self-host it, fork it, or run it fully air-gapped with no vendor lock-in. That matters if the reason you're leaving Relay is that a hosted-only tool can disappear on 30 days notice. When you own the deployment, no shutdown announcement forces your hand again. You can run Sim on your own infrastructure and keep every workflow under your control.
+
+The free tier is genuinely free, not a trial that strips out the features you need. You get the full builder, real AI steps, and no artificial cap on which blocks you can use. For a Relay migrator on the free plan facing the August 15 data deletion, that means you can rebuild without paying to evaluate whether the tool fits.
+
+Data lives inside Sim rather than in a separate service you have to wire up. Native Tables, Files, and Knowledge Bases give your workflows structured storage, document handling, and retrieval that agents can query, all in one place. You aren't stitching a database and a vector store to your automation layer. That single detail cuts a lot of the plumbing that made other platforms slow to set up.
+
+Real-time multiplayer lets more than one person edit the same workflow at once, the way you'd edit a shared document. If your Relay setup was maintained by a small team, you keep that collaborative build model instead of dropping back to one editor at a time.
+
+For larger deployments, Sim offers SSO and SAML, bring-your-own-key so you use your own model provider credentials and billing, SOC 2 Type II compliance, and an Admin API for provisioning and governance. That path exists if you need to justify the tool to a security team or manage many users, and it's the same product, not a separate enterprise fork.
+
+Here is the honest tradeoff. Sim's library of pre-built, third-party integrations is smaller than what n8n or Zapier ship today. If your Relay workflows lean on a long tail of niche SaaS connectors, you'll hit some that Sim doesn't have out of the box yet, and you'll cover the gap with a generic HTTP or API block instead of a one-click node. For workflows built on common services and AI steps, you won't notice. For a handful of obscure apps, you will, and it's worth checking your connector list before you commit.
+
+Migrating in practice means rebuilding your workflows in Sim's editor rather than importing a file, since there's no direct Relay import. That sounds heavier than it is. Because both tools share the AI-native workflow model, most Relay flows map onto Sim blocks one to one, and the free tier lets you rebuild and test the whole thing before the deletion deadline. Start with your highest-traffic workflow, confirm it runs, then move the rest.
+
+## Best Relay.app alternative for complex multi-step integrations: n8n
+
+If your Relay workflows fan out into dozens of conditional branches and hit niche APIs, n8n handles that depth better than Sim does today. n8n ships with more than 400 pre-built integration nodes, and its branching, looping, and merge logic lets you build deeply nested conditional paths without dropping into custom code for every fork. For a workflow that pulls from six data sources, routes each result through different logic, and reconnects the outputs downstream, n8n's node graph gives you finer control than Sim's builder.
+
+That maturity comes from years of community contributions, so the long tail of integrations you relied on in Relay is more likely to already exist as an n8n node. You can also chain error-handling paths and retry logic per node, which matters when one flaky API shouldn't break the entire run.
+
+The tradeoff is operational weight. n8n is powerful, but its self-hosted version puts the upgrades, scaling, and database maintenance on you, and running it reliably in production is closer to managing infrastructure than clicking through a builder. The cloud plan removes that burden, but n8n's Sustainable Use License restricts commercial hosting and resale in ways the standard open-source licenses do not, so read the terms before you build a business process on top of it.
+
+n8n also treats AI as a set of nodes added to an existing automation engine rather than a core primitive. For a Relay user who leaned on AI steps every day, that means more wiring to reach the same result. If your workflows are integration-heavy and AI-light, that wiring is a fair price.
+
+## Best Relay.app alternative for non-technical teams: Zapier
+
+Zapier is the right move if your team is in marketing or ops, wants zero infrastructure to manage, and mostly needs straightforward trigger-action automations. Nothing else on this list matches its onboarding for people who have never touched a workflow tool. You connect two apps, pick a trigger, pick an action, and the automation runs without anyone opening a terminal or thinking about hosting.
+
+The app catalog is where Zapier earns its place. With integrations into thousands of services, you rarely hit a moment where the tool you use every day is missing. A Relay user coming from a similar no-code mindset will find the mental model familiar, and simple chains like "new form submission creates a CRM record and sends a Slack message" take minutes to build.
+
+The cost is why Zapier isn't the default recommendation for a Relay migrator. Zapier prices per task, so every step in every run counts against your quota, and multi-step automations that fire often burn through plans faster than people expect. What felt cheap during a marketing pilot gets expensive once the same automation runs thousands of times a month, and the pricing tiers climb steeply as your task volume grows.
+
+Zapier also stays deliberately simple, which limits you when a workflow needs real branching logic or heavy AI steps. For a team whose automations are linear and whose priority is never managing servers, that tradeoff is easy to accept.
+
+## Best Relay.app alternative for visual workflow design: Make
+
+If you spent most of your Relay time staring at the canvas, tracing how data moved from one step to the next, Make is the closest thing to that experience. Its scenario builder lays out every module as a node you can click into, and the visual data-mapping shows you the exact shape of data passing between steps. When a run fails, you see which module broke and what payload it choked on, which makes debugging non-linear flows with branches and error handlers far less painful than reading logs.
+
+Make also handles iterators, aggregators, and routers well, so a workflow that fans out over an array and merges results back stays legible on the canvas instead of collapsing into nested logic you can't follow.
+
+The reason Make isn't the top pick for a Relay migrator is architecture. Make was built for app-to-app integration, and its AI features arrived later as modules you drop into an existing scenario rather than as the foundation the platform runs on. If your Relay workflows leaned on AI steps, prompts, and agent-style decisions, you will feel that retrofit. You end up wiring an OpenAI or Anthropic module into a flow that treats the model as one more connector, not as the thing driving the logic. Make is also closed-source with no self-host option, so if you left Relay partly to own your stack, Make won't give you that.
+
+## Best Relay.app alternative for AI agent building: Gumloop
+
+Choose Gumloop if your Relay workflows lean heavily on LLM steps and you want purpose-built AI nodes rather than generic actions with an AI call stapled on. Gumloop was designed around agent pipelines from the start, so scraping, extraction, summarization, and chained model calls come as first-class primitives instead of workarounds. For someone whose Relay use was mostly "read this, reason about it, write that," Gumloop maps cleanly onto how you already think.
+
+Gumloop's AI tooling is genuinely strong for prompt-driven flows. You can wire an agent that pulls data, runs it through a model, checks the output, and routes based on the result without building each piece yourself. That saves real setup time when the workflow is mostly cognition rather than integration.
+
+The tradeoff is maturity and reach. Gumloop's integration catalog is narrower than n8n's or Zapier's, so if your automation touches a long tail of niche apps, you will hit gaps. It is also closed-source with no self-hosting path, which rules it out if you need to run workflows air-gapped or keep data on your own infrastructure.
+
+For a Relay migrator, Sim still wins on those exact points. Sim was built AI-native like Gumloop, but it ships under Apache 2.0, self-hosts including air-gapped, and gives you native Tables, Files, and Knowledge Bases for the data your agents read and write. You get Gumloop's AI-first model without giving up ownership or deployment control.
+
+## Comparing Relay.app alternatives side by side
+
+Here is how the five tools compare on the factors that decide a migration inside 60 days.
+
+| Tool | Pricing model | License | Self-host | AI-native architecture | Migration effort |
+| --- | --- | --- | --- | --- | --- |
+| **Sim** | Free tier with no feature limits, paid enterprise | Apache 2.0 | Yes, including air-gapped | Built AI-native | Low |
+| **n8n** | Per-execution paid tiers, free self-host | Sustainable Use (source-available) | Yes | Retrofitted | Medium |
+| **Zapier** | Per-task subscription | Proprietary | No | Retrofitted | Low |
+| **Make** | Per-operation subscription | Proprietary | No | Retrofitted | Medium |
+| **Gumloop** | Per-credit subscription | Proprietary | No | Built AI-native | Low |
+
+Read the license and self-host columns together if you handle regulated or private data. Only Sim and n8n let you run workflows on your own infrastructure, and only Sim carries a permissive Apache 2.0 license with an air-gapped option. If AI steps sit at the center of your workflows, the architecture column narrows your real choices to Sim and Gumloop, since the other three added AI to an engine designed before it.
+
+## How we evaluated these Relay.app alternatives
+
+We ranked these five tools against the criteria that decide how fast a Relay user can actually switch: license, self-host capability, AI-native design, migration effort, and pricing model. Speed to migrate carried the most weight because you have a hard deadline, not a research window. A tool that requires rebuilding every workflow from scratch fails you no matter how strong its feature list looks. License and self-host mattered next, since anyone burned by a hosted shutdown has a real reason to want code they control and data they can keep.
