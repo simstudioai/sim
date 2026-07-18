@@ -79,6 +79,10 @@ export class McpConnectionPool {
       return { client, release: () => client.disconnect().catch(() => {}) }
     }
     const entry = await this.resolveEntry(params)
+    // A concurrent evict/release/idle could have retired + started disconnecting
+    // this entry during the resolve's `await` gap; `closing` (not `retired`, which
+    // a usable one-shot also sets) means the socket is going away — get a fresh one.
+    if (entry.closing) return this.acquire(params)
     entry.borrowers++
     entry.lastActivityAt = Date.now()
     return { client: entry.client, release: (poison) => this.release(entry, poison ?? false) }
@@ -92,6 +96,10 @@ export class McpConnectionPool {
     if (current) {
       const reusable = await this.tryReuse(current)
       if (reusable) return reusable
+      // tryReuse awaited a ping and retired `current`; a concurrent acquire may
+      // have pooled a replacement meanwhile, so re-resolve rather than blindly
+      // creating (which would overwrite and leak that replacement).
+      return this.resolveEntry(params)
     }
     return this.createEntry(params)
   }

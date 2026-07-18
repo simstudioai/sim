@@ -284,6 +284,44 @@ describe('McpConnectionPool', () => {
     await next.release()
   })
 
+  it('reuses a concurrently-pooled replacement rather than orphaning it (recreate race)', async () => {
+    // stale's ping is deferred per-call so we can fully resolve one acquire before
+    // the other's ping settles — the exact interleaving that used to leak.
+    const releasePing: Array<(alive: boolean) => void> = []
+    const stale = makeFakeClient()
+    ;(stale.ping as ReturnType<typeof vi.fn>).mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          releasePing.push((alive) => (alive ? resolve({}) : reject(new Error('dead'))))
+        })
+    )
+    const fresh = makeFakeClient()
+    const create = vi
+      .fn<() => Promise<McpClient>>()
+      .mockResolvedValueOnce(stale)
+      .mockResolvedValueOnce(fresh)
+
+    await borrow(pool, params('s1:w1:u1', create))
+    vi.setSystemTime(Date.now() + 61 * 1000)
+
+    const pA = pool.acquire(params('s1:w1:u1', create))
+    const pB = pool.acquire(params('s1:w1:u1', create))
+    while (releasePing.length < 2) await Promise.resolve()
+
+    // A's ping fails → A retires stale, rebuilds `fresh`, pools it, clears pending.
+    releasePing[0](false)
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    // B's ping fails → B must reuse the pooled `fresh`, not create a third client.
+    releasePing[1](false)
+
+    const [la, lb] = await Promise.all([pA, pB])
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(la.client).toBe(fresh)
+    expect(lb.client).toBe(fresh)
+    await la.release()
+    await lb.release()
+  })
+
   it('bypasses the pool once disposed (connects without caching)', async () => {
     const client = makeFakeClient()
     const create = vi.fn(async () => client)
