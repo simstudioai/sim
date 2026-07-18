@@ -9,11 +9,11 @@ import {
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
-import { describeError, getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
-import { sanitizeForLogging } from '@/lib/core/security/redaction'
+import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
+import { createPinnedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
   McpConnectionError,
@@ -43,9 +43,15 @@ type ConnectionOutcome =
   | 'cancelled'
   | 'error'
 
-function classifyConnectionOutcome(error: unknown): ConnectionOutcome {
-  if (error instanceof McpOauthRedirectRequired || error instanceof UnauthorizedError) {
+function classifyConnectionOutcome(
+  error: unknown,
+  authType: McpServerConfig['authType']
+): ConnectionOutcome {
+  if (error instanceof McpOauthRedirectRequired) {
     return 'authorization_required'
+  }
+  if (error instanceof UnauthorizedError) {
+    return authType === 'oauth' ? 'authorization_required' : 'unauthorized'
   }
   const message = getErrorMessage(error, '').toLowerCase()
   if (message.includes('connection attempt cancelled')) return 'cancelled'
@@ -92,7 +98,7 @@ export class McpClient {
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       requestInit: { headers: this.config.headers },
-      ...(resolvedIP ? { fetch: createPinnedFetch(resolvedIP) } : {}),
+      ...(resolvedIP ? { fetch: createPinnedMcpFetch(resolvedIP) } : {}),
     })
 
     this.client = new Client(
@@ -109,7 +115,9 @@ export class McpClient {
     this.client.onerror = (error) => {
       logger.warn(`MCP transport error for ${this.config.name}`, {
         serverId: this.config.id,
-        error: sanitizeForLogging(getErrorMessage(error, 'Unknown transport error'), 200),
+        phase: 'transport',
+        sessionIdPresent: Boolean(this.transport.sessionId),
+        error: getMcpSafeErrorDiagnostics(error),
       })
     }
   }
@@ -178,23 +186,19 @@ export class McpClient {
     } catch (error) {
       this.isConnected = false
       const errorMessage = getErrorMessage(error, 'Unknown error')
-      const describedError = describeError(error)
-      const outcome = classifyConnectionOutcome(error)
+      const outcome = classifyConnectionOutcome(error, this.config.authType)
       logger.error(`Failed to connect to MCP server ${this.config.name}`, {
         ...diagnostics,
         durationMs: Date.now() - startedAt,
-        error: {
-          name: sanitizeForLogging(describedError.name, 100),
-          code: describedError.code ? sanitizeForLogging(describedError.code, 100) : undefined,
-          errno: describedError.errno ? sanitizeForLogging(describedError.errno, 100) : undefined,
-          syscall: describedError.syscall
-            ? sanitizeForLogging(describedError.syscall, 100)
-            : undefined,
-        },
+        error: getMcpSafeErrorDiagnostics(error),
         outcome,
       })
       if (outcome === 'authorization_required') {
         this.connectionStatus.lastError = undefined
+        throw error
+      }
+      if (error instanceof UnauthorizedError) {
+        this.connectionStatus.lastError = 'Authentication failed'
         throw error
       }
       this.connectionStatus.lastError = errorMessage
@@ -236,6 +240,7 @@ export class McpClient {
       MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS
     )
     const maxTotalTimeoutMs = MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS
+    const startedAt = Date.now()
 
     try {
       const result: ListToolsResult = await this.client.listTools(undefined, {
@@ -265,7 +270,15 @@ export class McpClient {
         serverName: this.config.name,
       }))
     } catch (error) {
-      logger.error(`Failed to list tools from server ${this.config.name}:`, error)
+      logger.error(`Failed to list tools from server ${this.config.name}`, {
+        serverId: this.config.id,
+        phase: 'tools/list',
+        durationMs: Date.now() - startedAt,
+        idleTimeoutMs,
+        maxTotalTimeoutMs,
+        sessionIdPresent: Boolean(this.transport.sessionId),
+        error: getMcpSafeErrorDiagnostics(error),
+      })
       throw error
     }
   }

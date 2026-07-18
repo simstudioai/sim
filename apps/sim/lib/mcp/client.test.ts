@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockLogger, mockSdkConnect, mockSdkListTools } = vi.hoisted(() => ({
@@ -263,6 +264,55 @@ describe('McpClient notification handler', () => {
     await expect(client.connect()).rejects.toThrow('Upstream rejected')
 
     expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(secret)
+  })
+
+  it('does not misclassify rejected static headers as an OAuth authorization flow', async () => {
+    mockSdkConnect.mockRejectedValueOnce(new UnauthorizedError('Static token rejected'))
+    const client = new McpClient({
+      config: {
+        ...createConfig(),
+        authType: 'headers',
+        headers: { Authorization: 'Bearer rejected-static-token' },
+      },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await expect(client.connect()).rejects.toBeInstanceOf(UnauthorizedError)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to connect'),
+      expect.objectContaining({ outcome: 'unauthorized' })
+    )
+    expect(client.getStatus().lastError).toBe('Authentication failed')
+  })
+
+  it('logs tools/list failures without echoed credentials or session identifiers', async () => {
+    const secret = 'opaque-tools-list-credential'
+    mockSdkListTools.mockRejectedValueOnce(new Error(`Upstream rejected ${secret}`))
+    const client = new McpClient({
+      config: {
+        ...createConfig(),
+        authType: 'headers',
+        headers: { 'X-Custom-Credential': secret },
+      },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await expect(client.listTools()).rejects.toThrow(secret)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to list tools'),
+      expect.objectContaining({
+        phase: 'tools/list',
+        serverId: 'server-1',
+        sessionIdPresent: true,
+        error: expect.objectContaining({ name: 'Error' }),
+      })
+    )
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain(secret)
+    expect(logged).not.toContain('test-session')
   })
 
   it('passes configured headers for OAuth transports as well as header auth transports', () => {
