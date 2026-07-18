@@ -66,6 +66,7 @@ export const CREDENTIAL_TAG_TYPES = [
   'credential_id',
   'link',
   'secret_input',
+  'folder_access',
 ] as const
 
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
@@ -194,6 +195,11 @@ function isCredentialTagData(value: unknown): value is CredentialTagData {
       return false
     }
     return typeof value.name === 'string' && value.name.trim().length > 0
+  }
+  // folder_access is a value-less action chip (optional `name` hints at the
+  // folder the user is being asked to grant, e.g. "Desktop").
+  if (value.type === 'folder_access') {
+    return value.name === undefined || typeof value.name === 'string'
   }
   if (value.redacted === true) return value.value === undefined || typeof value.value === 'string'
   return typeof value.value === 'string'
@@ -734,11 +740,89 @@ function SecretInputDisplay({ data }: { data: CredentialTagData }) {
   )
 }
 
+/**
+ * Folder icon for the local-folder grant chip (matches the credential chip
+ * icon sizing).
+ */
+const FolderGrantIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'>
+    <path
+      d='M1.5 4.5A1.5 1.5 0 0 1 3 3h3.2l1.6 1.8H13A1.5 1.5 0 0 1 14.5 6.3v5.2A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5v-7z'
+      stroke='currentColor'
+      strokeWidth='1.2'
+      strokeLinejoin='round'
+    />
+  </svg>
+)
+
+/**
+ * Inline grant chip rendered for
+ * `<credential>{"type":"folder_access","name":"Desktop"}</credential>`.
+ * Clicking opens the desktop app's native folder picker (read-only grant,
+ * same flow as the local_mount_directory tool). Renders nothing outside the
+ * desktop app — there is no local filesystem bridge to grant against.
+ */
+function FolderAccessDisplay({ data }: { data: CredentialTagData }) {
+  const [picking, setPicking] = useState(false)
+  const [grantedName, setGrantedName] = useState<string | null>(null)
+
+  const bridge = typeof window !== 'undefined' ? window.simDesktop : undefined
+  if (!bridge?.localFilesystem) return null
+
+  const hint = (data.name ?? '').trim()
+  const label = grantedName
+    ? `Access granted — ${grantedName}`
+    : hint
+      ? `Grant access to ${hint}`
+      : 'Grant access to a local folder'
+
+  const handleClick = async () => {
+    if (picking || grantedName) return
+    setPicking(true)
+    try {
+      const response = await bridge.localFilesystem({ operation: 'mount_directory' })
+      if (response.ok && 'mount' in response.data && response.data.mount) {
+        setGrantedName(response.data.mount.name)
+        toast.success(`Granted access to ${response.data.mount.name}`)
+      }
+    } catch {
+      toast.error("Couldn't open the folder picker. Please try again.")
+    } finally {
+      setPicking(false)
+    }
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={() => void handleClick()}
+      disabled={picking || grantedName !== null}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 text-left transition-colors',
+        grantedName === null && !picking && 'hover-hover:bg-[var(--surface-5)]',
+        picking && 'opacity-60'
+      )}
+    >
+      <FolderGrantIcon className='size-[16px] shrink-0' />
+      <span className='flex-1 text-[var(--text-body)] text-sm'>
+        {picking ? 'Choose a folder…' : label}
+      </span>
+      {grantedName === null && (
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      )}
+    </button>
+  )
+}
+
 function CredentialDisplay({ data }: { data: CredentialTagData }) {
   const { canEdit } = useUserPermissionsContext()
 
   if (data.type === 'secret_input') {
     return <SecretInputDisplay data={data} />
+  }
+
+  if (data.type === 'folder_access') {
+    return <FolderAccessDisplay data={data} />
   }
 
   if (data.type === 'link') {

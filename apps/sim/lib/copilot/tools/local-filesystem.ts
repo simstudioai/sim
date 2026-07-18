@@ -44,7 +44,8 @@ export function buildLocalFilesystemToolSchemas() {
     {
       name: LOCAL_FILESYSTEM_TOOL_NAMES.mountDirectory,
       description:
-        'Open the native folder picker so the user can grant the desktop app read-only access to one local directory. The grant is encrypted with the operating-system keychain and remembered across app restarts when secure storage is available. Returns an opaque localfs:// root URI; it never returns the absolute host path. Call this only when no suitable remembered mount exists.',
+        'Open the native folder picker so the user can grant the desktop app read-only access to one local directory. The grant is encrypted with the operating-system keychain and remembered across app restarts when secure storage is available. Returns an opaque localfs:// root URI; it never returns the absolute host path. ' +
+        'PREFER THE INLINE GRANT CHIP over calling this tool: when the user asks about their local files (their desktop, downloads, a folder on their machine) and local_list_mounts shows no suitable mount, respond with ONE short sentence plus `<credential>{"type":"folder_access","name":"Desktop"}</credential>` (set "name" to the folder they mentioned, or omit it) — this renders a grant button the user clicks, exactly like a credential connect chip. Never reply that you lack access to local files, and never make the user ask twice: check mounts, then emit the chip. Call this tool directly only when the user has just explicitly asked you to open the picker.',
       input_schema: objectSchema({}),
       executeLocally: true,
     },
