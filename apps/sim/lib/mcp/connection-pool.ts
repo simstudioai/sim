@@ -17,9 +17,10 @@
  * disconnect the client themselves.
  *
  * Config-change invalidation is the caller's job via `evictServer` (wired to the
- * service's `clearCache`), not a per-acquire timestamp check — `updatedAt` is also
- * bumped by status telemetry, so it can't distinguish a config edit. Cross-process,
- * a config edit is bounded by max age (and self-heals when a stale connection errors).
+ * service's `evictServerConnections`), not a per-acquire timestamp check — `updatedAt`
+ * is also bumped by status telemetry, so it can't distinguish a config edit.
+ * Cross-process, a config edit is bounded by max age (self-heals when a stale
+ * connection errors).
  */
 
 import { createLogger } from '@sim/logger'
@@ -243,10 +244,13 @@ export class McpConnectionPool {
       clearInterval(this.idleCheckTimer)
       this.idleCheckTimer = null
     }
-    const clients = [...this.entries.values()].map((e) => e.client)
+    const entries = [...this.entries.values()]
+    // Mark retired before disconnecting so an in-flight liveness ping observes it
+    // and can't hand out a torn-down client (the retired-before-disconnect invariant).
+    for (const entry of entries) entry.retired = true
     this.entries.clear()
     this.pending.clear()
-    void Promise.allSettled(clients.map((client) => client.disconnect()))
+    void Promise.allSettled(entries.map((entry) => entry.client.disconnect()))
   }
 }
 

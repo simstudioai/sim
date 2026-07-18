@@ -337,6 +337,30 @@ class McpService {
   }
 
   /**
+   * A `create` thunk for {@link withServerClient} that resolves env vars + SSRF-pins
+   * and connects. Deferred so a pool hit skips this work; `extraHeaders` (per-request)
+   * are merged in and force the caller to bypass the pool.
+   */
+  private buildClient(
+    config: McpServerConfig,
+    userId: string,
+    workspaceId: string,
+    extraHeaders?: Record<string, string>
+  ): () => Promise<McpClient> {
+    return async () => {
+      const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+        config,
+        userId,
+        workspaceId
+      )
+      if (extraHeaders) {
+        resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
+      }
+      return this.createClient(resolvedConfig, resolvedIP, userId)
+    }
+  }
+
+  /**
    * Run `fn` against a connected client. When `allowPool`, borrow from the warm
    * pool (`create` runs only on a miss, so a hit skips env resolution + DNS); a
    * dead-connection error retires it, benign tool/consent errors keep it warm.
@@ -399,25 +423,13 @@ class McpService {
         }
 
         const hasExtraHeaders = Boolean(extraHeaders && Object.keys(extraHeaders).length > 0)
-        const create = async () => {
-          const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
-            config,
-            userId,
-            workspaceId
-          )
-          if (hasExtraHeaders) {
-            resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
-          }
-          return this.createClient(resolvedConfig, resolvedIP, userId)
-        }
-
         const result = await this.withServerClient(
           {
             key: this.poolKey(serverId, workspaceId, userId),
             serverId,
             allowPool: !hasExtraHeaders,
           },
-          create,
+          this.buildClient(config, userId, workspaceId, hasExtraHeaders ? extraHeaders : undefined),
           (client) => client.callTool(toolCall)
         )
         logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
@@ -649,21 +661,13 @@ class McpService {
           }
 
           try {
-            const create = async () => {
-              const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
-                config,
-                userId,
-                workspaceId
-              )
-              return this.createClient(resolvedConfig, resolvedIP, userId)
-            }
             const tools = await this.withServerClient(
               {
                 key: this.poolKey(config.id, workspaceId, userId),
                 serverId: config.id,
                 allowPool: true,
               },
-              create,
+              this.buildClient(config, userId, workspaceId),
               (client) => client.listTools()
             )
             logger.debug(
@@ -870,21 +874,13 @@ class McpService {
         }
         authType = config.authType
 
-        const create = async () => {
-          const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
-            config,
-            userId,
-            workspaceId
-          )
-          return this.createClient(resolvedConfig, resolvedIP, userId)
-        }
         const tools = await this.withServerClient(
           {
             key: this.poolKey(serverId, workspaceId, userId),
             serverId,
             allowPool: true,
           },
-          create,
+          this.buildClient(config, userId, workspaceId),
           (client) => client.listTools()
         )
         logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
@@ -946,21 +942,13 @@ class McpService {
 
       for (const config of servers) {
         try {
-          const create = async () => {
-            const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
-              config,
-              userId,
-              workspaceId
-            )
-            return this.createClient(resolvedConfig, resolvedIP, userId)
-          }
           const tools = await this.withServerClient(
             {
               key: this.poolKey(config.id, workspaceId, userId),
               serverId: config.id,
               allowPool: true,
             },
-            create,
+            this.buildClient(config, userId, workspaceId),
             (client) => client.listTools()
           )
 
