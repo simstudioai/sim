@@ -1,11 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipInput, Search } from '@sim/emcn'
-import { createLogger } from '@sim/logger'
+import { useEffect, useRef, useState } from 'react'
+import { Chip, ChipInput, Search } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
@@ -17,10 +16,8 @@ import {
   skillSearchParam,
   skillSearchUrlKeys,
 } from '@/app/workspace/[workspaceId]/skills/search-params'
-import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
+import { useSkills } from '@/hooks/queries/skills'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-
-const logger = createLogger('SkillsSettings')
 
 const SKILLS_LABEL = 'Skills'
 
@@ -68,22 +65,33 @@ function SkillSection({ label, children }: SkillSectionProps) {
 
 export function Skills() {
   const params = useParams()
+  const router = useRouter()
   const workspaceId = (params?.workspaceId as string) || ''
+  const skillsHref = `/workspace/${workspaceId}/skills`
 
   const { data: skills = [], isLoading, error } = useSkills(workspaceId)
-  const deleteSkillMutation = useDeleteSkill()
 
   const [searchTerm, setSearchTermParam] = useQueryState(skillSearchParam.key, {
     ...skillSearchParam.parser,
     ...skillSearchUrlKeys,
   })
-  const [editingSkillId, setEditingSkillId] = useQueryState(skillIdParam.key, {
+  const [legacySkillId, setLegacySkillId] = useQueryState(skillIdParam.key, {
     ...skillIdParam.parser,
     ...skillIdUrlKeys,
   })
   const [showAddForm, setShowAddForm] = useState(false)
-  const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+  /**
+   * Legacy deep links opened the edit modal via `?skillId=`; skills now have a
+   * dedicated detail page. Redirect once, stripping the param.
+   */
+  const redirectedLegacyId = useRef(false)
+  useEffect(() => {
+    if (!legacySkillId || redirectedLegacyId.current) return
+    redirectedLegacyId.current = true
+    setLegacySkillId(null, { history: 'replace' })
+    router.replace(`${skillsHref}/${legacySkillId}`)
+  }, [legacySkillId, setLegacySkillId, router, skillsHref])
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
@@ -91,9 +99,6 @@ export function Skills() {
    * so it reads the instant value too.
    */
   const setSearchTerm = useDebouncedSearchSetter(setSearchTermParam)
-
-  /** Derive the skill being edited from the loaded list — never store the object in the URL. */
-  const editingSkill = editingSkillId ? (skills.find((s) => s.id === editingSkillId) ?? null) : null
 
   const filteredSkills = skills.filter((s) => {
     if (!searchTerm.trim()) return true
@@ -104,46 +109,15 @@ export function Skills() {
     )
   })
 
-  const handleDeleteClick = (skillId: string) => {
-    const s = skills.find((sk) => sk.id === skillId)
-    if (!s) return
-
-    setSkillToDelete({ id: skillId, name: s.name })
-    setShowDeleteDialog(true)
-  }
-
-  const handleDeleteSkill = async () => {
-    if (!skillToDelete) return
-
-    setShowDeleteDialog(false)
-
-    try {
-      await deleteSkillMutation.mutateAsync({
-        workspaceId,
-        skillId: skillToDelete.id,
-      })
-      logger.info(`Deleted skill: ${skillToDelete.id}`)
-    } catch (error) {
-      logger.error('Error deleting skill:', error)
-    } finally {
-      setSkillToDelete(null)
-    }
-  }
-
-  const handleSkillSaved = () => {
-    setShowAddForm(false)
-    setEditingSkillId(null)
-  }
-
   const showNoResults = searchTerm.trim() && filteredSkills.length === 0
 
-  const handleOpenAddForm = () => {
-    setEditingSkillId(null)
-    setShowAddForm(true)
-  }
-
   const addButton = (
-    <Chip variant='primary' onClick={handleOpenAddForm} disabled={isLoading} leftIcon={Plus}>
+    <Chip
+      variant='primary'
+      onClick={() => setShowAddForm(true)}
+      disabled={isLoading}
+      leftIcon={Plus}
+    >
       Add to Sim
     </Chip>
   )
@@ -177,7 +151,7 @@ export function Skills() {
                     key={s.id}
                     name={s.name}
                     description={s.description}
-                    onClick={() => setEditingSkillId(s.id)}
+                    onClick={() => router.push(`${skillsHref}/${s.id}`)}
                   />
                 ))}
               </SkillSection>
@@ -191,35 +165,11 @@ export function Skills() {
       </div>
 
       <SkillModal
-        open={showAddForm || !!editingSkill}
+        open={showAddForm}
         onOpenChange={(open) => {
-          if (!open) {
-            setShowAddForm(false)
-            setEditingSkillId(null)
-          }
+          if (!open) setShowAddForm(false)
         }}
-        onSave={handleSkillSaved}
-        onDelete={(skillId) => {
-          setEditingSkillId(null)
-          handleDeleteClick(skillId)
-        }}
-        initialValues={editingSkill ?? undefined}
-      />
-
-      <ChipConfirmModal
-        open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
-        srTitle='Delete Skill'
-        title='Delete Skill'
-        text={[
-          'Are you sure you want to delete ',
-          { text: skillToDelete?.name ?? 'this skill', bold: true },
-          '? This action cannot be undone.',
-        ]}
-        confirm={{
-          label: 'Delete',
-          onClick: handleDeleteSkill,
-        }}
+        onSave={() => setShowAddForm(false)}
       />
     </div>
   )

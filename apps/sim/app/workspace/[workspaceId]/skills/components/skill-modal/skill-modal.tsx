@@ -9,18 +9,17 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
-  ChipSwitch,
   chipFieldSurfaceClass,
   cn,
 } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import {
-  ACCESS_OPTIONS,
-  SkillMembersSection,
-} from '@/app/workspace/[workspaceId]/skills/components/skill-members'
-import { parseSkillMarkdown } from '@/app/workspace/[workspaceId]/skills/components/utils'
+  isSkillNameConflictError,
+  parseSkillMarkdown,
+} from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
 
@@ -39,7 +38,6 @@ interface SkillModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: () => void
-  onDelete?: (skillId: string) => void
   initialValues?: SkillDefinition
 }
 
@@ -52,25 +50,14 @@ interface FieldErrors {
   general?: string
 }
 
-type TabValue = 'create' | 'import' | 'members'
+type TabValue = 'create' | 'import'
 
 const CREATE_TABS = [
   { value: 'create', label: 'Create' },
   { value: 'import', label: 'Import' },
 ] as const
 
-const EDIT_TABS = [
-  { value: 'create', label: 'Details' },
-  { value: 'members', label: 'Members' },
-] as const
-
-export function SkillModal({
-  open,
-  onOpenChange,
-  onSave,
-  onDelete,
-  initialValues,
-}: SkillModalProps) {
+export function SkillModal({ open, onOpenChange, onSave, initialValues }: SkillModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -80,7 +67,6 @@ export function SkillModal({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [content, setContent] = useState('')
-  const [workspaceSharedDraft, setWorkspaceSharedDraft] = useState(true)
   /**
    * Bumped to remount the seed-once rich Content editor whenever `content` is set programmatically — a
    * reset from a changed `initialValues` or a destructured SKILL.md paste — so the editor re-seeds (an
@@ -98,9 +84,6 @@ export function SkillModal({
     setName(initialValues?.name ?? '')
     setDescription(initialValues?.description ?? '')
     setContent(initialValues?.content ?? '')
-    // The sharing draft only drives the CREATE flow's Access switch; edits
-    // read/write sharing live through the Members tab.
-    setWorkspaceSharedDraft(true)
     setErrors({})
     setActiveTab('create')
     setContentSeed((seed) => seed + 1)
@@ -148,18 +131,20 @@ export function SkillModal({
           updates: { name, description, content },
         })
       } else {
+        // New skills default to workspace-shared; restricting and member
+        // management live on the skill detail page.
         await createSkill.mutateAsync({
           workspaceId,
-          skill: { name, description, content, workspaceShared: workspaceSharedDraft },
+          skill: { name, description, content },
         })
       }
       onSave()
     } catch (error) {
-      const message =
-        error instanceof Error && error.message.includes('is unavailable')
-          ? error.message
-          : 'Failed to save skill. Please try again.'
-      setErrors({ general: message })
+      if (isSkillNameConflictError(error)) {
+        setErrors({ name: getErrorMessage(error, 'This skill name is already taken.') })
+      } else {
+        setErrors({ general: 'Failed to save skill. Please try again.' })
+      }
     } finally {
       setSaving(false)
     }
@@ -209,22 +194,15 @@ export function SkillModal({
       </ChipModalHeader>
 
       <ChipModalBody>
-        {!isBuiltin && (
+        {!isEditing && (
           <ChipModalTabs
-            tabs={isEditing ? EDIT_TABS : CREATE_TABS}
+            tabs={CREATE_TABS}
             value={activeTab}
             onChange={(value) => setActiveTab(value as TabValue)}
           />
         )}
 
-        {activeTab === 'members' && initialValues && !isBuiltin ? (
-          <SkillMembersSection
-            skillId={initialValues.id}
-            workspaceId={workspaceId}
-            isAdmin={isSkillAdmin}
-            workspaceShared={initialValues.workspaceShared}
-          />
-        ) : activeTab === 'create' || isEditing ? (
+        {activeTab === 'create' || isEditing ? (
           <>
             <ChipModalField
               type='input'
@@ -276,25 +254,6 @@ export function SkillModal({
               />
             </ChipModalField>
 
-            {!isEditing && (
-              <ChipModalField
-                type='custom'
-                title='Access'
-                hint={
-                  workspaceSharedDraft
-                    ? 'Everyone in the workspace can use this skill.'
-                    : 'Only you and workspace admins can use this skill until you add members.'
-                }
-              >
-                <ChipSwitch
-                  aria-label='Skill access'
-                  options={ACCESS_OPTIONS}
-                  value={workspaceSharedDraft ? 'workspace' : 'restricted'}
-                  onChange={(value) => setWorkspaceSharedDraft(value === 'workspace')}
-                />
-              </ChipModalField>
-            )}
-
             <ChipModalError>{errors.general}</ChipModalError>
           </>
         ) : (
@@ -306,18 +265,6 @@ export function SkillModal({
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
           cancelDisabled={isBuiltin}
-          secondaryActions={
-            isEditing && onDelete
-              ? [
-                  {
-                    label: 'Delete',
-                    onClick: () => onDelete(initialValues.id),
-                    variant: 'destructive',
-                    disabled: readOnly,
-                  },
-                ]
-              : undefined
-          }
           primaryAction={{
             label: saving ? 'Saving...' : isEditing ? 'Update' : 'Create',
             onClick: handleSave,

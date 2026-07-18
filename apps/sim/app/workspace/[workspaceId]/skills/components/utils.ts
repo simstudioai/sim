@@ -1,4 +1,5 @@
 import JSZip from 'jszip'
+import { isApiClientError } from '@/lib/api/client/errors'
 
 interface ParsedSkill {
   name: string
@@ -112,4 +113,12 @@ export async function extractSkillFromZip(
 
   const content = await zip.file(candidates[0])!.async('string')
   return content
+}
+/**
+ * Whether a skill save failed on the per-workspace unique-name constraint
+ * (HTTP 409). Surfaces as an inline Name-field error at the callsites; the
+ * server message names the conflicting skill.
+ */
+export function isSkillNameConflictError(error: unknown): boolean {
+  return isApiClientError(error) && error.status === 409
 }

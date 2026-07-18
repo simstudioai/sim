@@ -2,11 +2,11 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Chip, toast } from '@sim/emcn'
-import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Plus } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
+import { isSkillNameConflictError } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SuggestedSkill } from '@/blocks/types'
 import { useCreateSkill, useSkills } from '@/hooks/queries/skills'
 
@@ -81,7 +81,7 @@ export function IntegrationSkillsSection({
     } catch (error) {
       // A name conflict means someone already added this skill but restricted
       // it — retrying can never succeed, so say what to actually do.
-      if (getErrorMessage(error, '').includes('is unavailable')) {
+      if (isSkillNameConflictError(error)) {
         toast.error(
           `"${skill.name}" already exists in this workspace but isn't shared with you — ask a skill admin for access`
         )
