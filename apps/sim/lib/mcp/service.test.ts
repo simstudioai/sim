@@ -53,24 +53,6 @@ const {
       cacheMutations.set(scopeKey, mutationId)
       return mutationId
     }),
-    setIfCurrentMutation: vi.fn(
-      async (
-        scopeKey: string,
-        mutationId: number,
-        key: string,
-        tools: unknown[],
-        ttlMs: number
-      ) => {
-        if (cacheMutations.get(scopeKey) !== mutationId) return false
-        cacheStore.set(key, { tools, expiry: Date.now() + ttlMs })
-        return true
-      }
-    ),
-    deleteIfCurrentMutation: vi.fn(async (scopeKey: string, mutationId: number, key: string) => {
-      if (cacheMutations.get(scopeKey) !== mutationId) return false
-      cacheStore.delete(key)
-      return true
-    }),
     applyMutationIfCurrent: vi.fn(
       async (
         scopeKey: string,

@@ -2,7 +2,7 @@ import { OAuthError, ServerError } from '@modelcontextprotocol/sdk/server/auth/e
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -29,10 +29,9 @@ const DCR_UNSUPPORTED_MESSAGE =
   "This server doesn't support OAuth client registration. Configure a token instead."
 
 function isDynamicClientRegistrationUnsupported(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message.toLowerCase().includes('does not support dynamic client registration')
-  )
+  return getErrorMessage(error, '')
+    .toLowerCase()
+    .includes('does not support dynamic client registration')
 }
 
 export function surfaceOauthError(error: unknown): string {

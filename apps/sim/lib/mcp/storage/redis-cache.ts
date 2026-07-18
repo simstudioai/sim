@@ -18,22 +18,6 @@ redis.call('SET', KEYS[1], tostring(mutationId), 'PX', ARGV[1])
 return mutationId
 `
 
-const SET_IF_CURRENT_MUTATION = `
-if redis.call('GET', KEYS[1]) ~= ARGV[1] then
-  return 0
-end
-redis.call('SET', KEYS[2], ARGV[2], 'PX', ARGV[3])
-return 1
-`
-
-const DELETE_IF_CURRENT_MUTATION = `
-if redis.call('GET', KEYS[1]) ~= ARGV[1] then
-  return 0
-end
-redis.call('DEL', KEYS[2])
-return 1
-`
-
 const APPLY_MUTATION_IF_CURRENT = `
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then
   return 0
@@ -120,54 +104,6 @@ export class RedisMcpCache implements McpCacheStorageAdapter {
       return mutationId
     } catch (error) {
       logger.error('Redis cache mutation start error:', error)
-      throw error
-    }
-  }
-
-  async setIfCurrentMutation(
-    scopeKey: string,
-    mutationId: number,
-    key: string,
-    tools: McpTool[],
-    ttlMs: number
-  ): Promise<boolean> {
-    try {
-      const entry: McpCacheEntry = {
-        tools,
-        expiry: Date.now() + ttlMs,
-      }
-      const result = await this.redis.eval(
-        SET_IF_CURRENT_MUTATION,
-        2,
-        this.getMutationKey(scopeKey),
-        this.getKey(key),
-        String(mutationId),
-        JSON.stringify(entry),
-        String(ttlMs)
-      )
-      return result === 1
-    } catch (error) {
-      logger.error('Redis conditional cache set error:', error)
-      throw error
-    }
-  }
-
-  async deleteIfCurrentMutation(
-    scopeKey: string,
-    mutationId: number,
-    key: string
-  ): Promise<boolean> {
-    try {
-      const result = await this.redis.eval(
-        DELETE_IF_CURRENT_MUTATION,
-        2,
-        this.getMutationKey(scopeKey),
-        this.getKey(key),
-        String(mutationId)
-      )
-      return result === 1
-    } catch (error) {
-      logger.error('Redis conditional cache delete error:', error)
       throw error
     }
   }

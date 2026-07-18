@@ -55,50 +55,6 @@ describe('RedisMcpCache ordered mutations', () => {
     )
   })
 
-  it('reports whether a tool cache write still owns the current mutation', async () => {
-    redis.eval.mockResolvedValueOnce(1).mockResolvedValueOnce(0)
-
-    await expect(
-      cache.setIfCurrentMutation('workspace:w:server:s', 7, 'workspace:w:server:s', [tool], 60_000)
-    ).resolves.toBe(true)
-    await expect(
-      cache.setIfCurrentMutation(
-        'workspace:w:server:s',
-        6,
-        'workspace:w:server:s:failure',
-        [],
-        60_000
-      )
-    ).resolves.toBe(false)
-
-    expect(redis.eval).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining("redis.call('SET'"),
-      2,
-      'mcp:tools-mutation:workspace:w:server:s',
-      'mcp:tools:workspace:w:server:s',
-      '7',
-      expect.stringContaining('new-tool'),
-      '60000'
-    )
-  })
-
-  it('guards cache deletion with the same mutation id', async () => {
-    redis.eval.mockResolvedValueOnce(0)
-
-    await expect(
-      cache.deleteIfCurrentMutation('workspace:w:server:s', 6, 'workspace:w:server:s:failure')
-    ).resolves.toBe(false)
-
-    expect(redis.eval).toHaveBeenCalledWith(
-      expect.stringContaining("redis.call('DEL'"),
-      2,
-      'mcp:tools-mutation:workspace:w:server:s',
-      'mcp:tools:workspace:w:server:s:failure',
-      '6'
-    )
-  })
-
   it('atomically replaces the complete cache state for the current mutation', async () => {
     redis.eval.mockResolvedValueOnce(1)
 

@@ -97,28 +97,6 @@ export class MemoryMcpCache implements McpCacheStorageAdapter {
     return mutationId
   }
 
-  async setIfCurrentMutation(
-    scopeKey: string,
-    mutationId: number,
-    key: string,
-    tools: McpTool[],
-    ttlMs: number
-  ): Promise<boolean> {
-    if (this.mutationVersions.get(scopeKey) !== mutationId) return false
-    await this.set(key, tools, ttlMs)
-    return true
-  }
-
-  async deleteIfCurrentMutation(
-    scopeKey: string,
-    mutationId: number,
-    key: string
-  ): Promise<boolean> {
-    if (this.mutationVersions.get(scopeKey) !== mutationId) return false
-    await this.delete(key)
-    return true
-  }
-
   async applyMutationIfCurrent(
     scopeKey: string,
     mutationId: number,

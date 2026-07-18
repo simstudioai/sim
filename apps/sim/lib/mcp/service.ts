@@ -169,11 +169,7 @@ function isOauthAuthorizationError(error: unknown, authType: McpServerConfig['au
   )
 }
 
-function getDiscoveryFailureMessage(
-  error: unknown,
-  authType: McpServerConfig['authType'],
-  fallback: string
-): string {
+function getDiscoveryFailureMessage(error: unknown, authType: McpServerConfig['authType']): string {
   if (authType !== 'oauth' && error instanceof UnauthorizedError) {
     return 'Authentication failed'
   }
@@ -197,7 +193,7 @@ function getDiscoveryFailureMessage(
   ) {
     return 'Unable to reach the MCP server'
   }
-  return fallback === 'Unknown error' ? 'Connection failed' : fallback
+  return 'Connection failed'
 }
 
 function isTimeoutError(error: unknown): boolean {
@@ -898,7 +894,7 @@ class McpService {
             }
             return {
               kind: 'error',
-              message: getDiscoveryFailureMessage(error, config.authType, 'Unknown error'),
+              message: getDiscoveryFailureMessage(error, config.authType),
               originalError: error,
               config,
               mutation,
@@ -1137,7 +1133,7 @@ class McpService {
               config,
               mutation,
               error,
-              getDiscoveryFailureMessage(error, config.authType, 'Connection failed')
+              getDiscoveryFailureMessage(error, config.authType)
             )
           }
         }
@@ -1200,7 +1196,7 @@ class McpService {
             status: 'error',
             toolCount: 0,
             lastSeen: undefined,
-            error: getDiscoveryFailureMessage(error, config.authType, 'Connection failed'),
+            error: getDiscoveryFailureMessage(error, config.authType),
           })
         }
       }

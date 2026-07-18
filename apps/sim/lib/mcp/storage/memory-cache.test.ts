@@ -175,16 +175,20 @@ describe('MemoryMcpCache', () => {
       expect(newer).toBeGreaterThan(older)
 
       expect(
-        await cache.setIfCurrentMutation(
+        await cache.applyMutationIfCurrent(
           'server-1',
           newer,
-          'server-1:tools',
-          [createTool('new-tool')],
-          60000
+          { key: 'server-1:tools', tools: [createTool('new-tool')], ttlMs: 60000 },
+          []
         )
       ).toBe(true)
       expect(
-        await cache.setIfCurrentMutation('server-1', older, 'server-1:failure', [], 60000)
+        await cache.applyMutationIfCurrent(
+          'server-1',
+          older,
+          { key: 'server-1:failure', tools: [], ttlMs: 60000 },
+          []
+        )
       ).toBe(false)
 
       expect((await cache.get('server-1:tools'))?.tools).toEqual([createTool('new-tool')])
@@ -218,12 +222,11 @@ describe('MemoryMcpCache', () => {
       await cache.clear()
 
       expect(
-        await cache.setIfCurrentMutation(
+        await cache.applyMutationIfCurrent(
           'server-1',
           mutation,
-          'server-1:tools',
-          [createTool('stale-tool')],
-          60000
+          { key: 'server-1:tools', tools: [createTool('stale-tool')], ttlMs: 60000 },
+          []
         )
       ).toBe(false)
       expect(await cache.get('server-1:tools')).toBeNull()

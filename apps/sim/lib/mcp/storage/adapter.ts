@@ -22,14 +22,6 @@ export interface McpCacheStorageAdapter {
    * same value orders database publication for an end-to-end consistent state.
    */
   beginMutation(scopeKey: string): Promise<number>
-  setIfCurrentMutation(
-    scopeKey: string,
-    mutationId: number,
-    key: string,
-    tools: McpTool[],
-    ttlMs: number
-  ): Promise<boolean>
-  deleteIfCurrentMutation(scopeKey: string, mutationId: number, key: string): Promise<boolean>
   /** Atomically applies one server's complete cache state if this mutation still owns it. */
   applyMutationIfCurrent(
     scopeKey: string,
