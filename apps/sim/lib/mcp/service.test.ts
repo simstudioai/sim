@@ -1004,6 +1004,58 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockListTools).toHaveBeenCalledTimes(2)
   })
 
+  it('reacquires mutation ownership after cache invalidation during retry backoff', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+
+      let rejectFirstAttempt: ((error: Error) => void) | undefined
+      let markFirstAttemptStarted: (() => void) | undefined
+      const firstAttemptStarted = new Promise<void>((resolve) => {
+        markFirstAttemptStarted = resolve
+      })
+      mockListTools
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectFirstAttempt = reject
+              markFirstAttemptStarted?.()
+            })
+        )
+        .mockResolvedValueOnce([tool('retry-winner', 'mcp-a')])
+
+      const discovery = mcpService.discoverServerToolsWithMetadata(
+        USER_ID,
+        'mcp-a',
+        WORKSPACE_ID,
+        true
+      )
+      await firstAttemptStarted
+
+      rejectFirstAttempt?.(new Error('Request timed out'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockListTools).toHaveBeenCalledTimes(1)
+
+      await mcpService.clearCache(WORKSPACE_ID)
+      expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(2)
+
+      await vi.runAllTimersAsync()
+      await expect(discovery).resolves.toEqual({
+        tools: [tool('retry-winner', 'mcp-a')],
+        state: 'published',
+      })
+
+      expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(3)
+      expect(cacheStore.get(serverKey)?.tools).toEqual([tool('retry-winner', 'mcp-a')])
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ connectionStatus: 'connected', toolCount: 1 })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('persists and negative-caches per-server UnauthorizedError for headers auth', async () => {
     const reflectedCredential = 'Bearer static-secret-for-server-discovery'
     mockGetWorkspaceServersRows.mockResolvedValue([

@@ -1069,9 +1069,8 @@ class McpService {
       }
     }
 
-    const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
-
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
       let config: McpServerConfig | null = null
       try {
         logger.info(
