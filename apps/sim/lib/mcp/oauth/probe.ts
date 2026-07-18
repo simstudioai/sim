@@ -1,9 +1,8 @@
 import { extractWWWAuthenticateParams } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
-import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
 import { isLoopbackHostname } from '@/lib/core/utils/urls'
-import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
+import { createPinnedMcpFetch, createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import type { McpAuthType } from '@/lib/mcp/types'
 
 const logger = createLogger('McpOauthProbe')
@@ -34,7 +33,7 @@ export async function detectMcpAuthType(
   }
 
   const probeFetch: FetchLike = resolvedIP
-    ? createPinnedFetch(resolvedIP)
+    ? createPinnedMcpFetch(resolvedIP)
     : createSsrfGuardedMcpFetch()
 
   const controller = new AbortController()

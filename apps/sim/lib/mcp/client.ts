@@ -11,9 +11,9 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
+import { createPinnedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
   McpConnectionError,
@@ -98,7 +98,7 @@ export class McpClient {
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       requestInit: { headers: this.config.headers },
-      ...(resolvedIP ? { fetch: createPinnedFetch(resolvedIP) } : {}),
+      ...(resolvedIP ? { fetch: createPinnedMcpFetch(resolvedIP) } : {}),
     })
 
     this.client = new Client(
