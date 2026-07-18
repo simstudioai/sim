@@ -1072,6 +1072,10 @@ class McpService {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
       let config: McpServerConfig | null = null
+      // Begin a fresh mutation per attempt. A retry that succeeds after a
+      // concurrent clearCache must publish under a current ownership id — a
+      // stale pre-loop id would lose the CAS and drop otherwise-valid tools.
+      const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
       try {
         logger.info(
           `[${requestId}] Discovering tools from server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`

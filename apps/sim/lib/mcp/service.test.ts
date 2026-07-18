@@ -517,6 +517,23 @@ describe('McpService.discoverTools per-server caching', () => {
     )
   })
 
+  it('acquires a fresh mutation on each discovery retry so a retried result still publishes', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockCacheAdapter.beginMutation.mockClear()
+    mockListTools
+      .mockRejectedValueOnce(new Error('Request timed out'))
+      .mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+
+    expect(tools).toEqual([tool('a1', 'mcp-a')])
+    expect(cacheStore.get(serverKey)?.tools).toEqual([tool('a1', 'mcp-a')])
+    // One begin per attempt: the retry publishes under a current ownership id
+    // instead of a stale pre-loop id that a concurrent clearCache could supersede.
+    expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps an older ordered publisher from superseding a retry-acquired mutation', async () => {
     const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
