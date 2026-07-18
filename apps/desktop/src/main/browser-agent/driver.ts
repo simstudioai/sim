@@ -24,16 +24,12 @@ import {
   clickElement,
   collectSnapshot,
   getViewportInfo,
-  hasTakeoverBanner,
   hoverElement,
-  isTakeoverDone,
   pageContainsText,
   pressKeyOnPage,
   readPageText,
-  removeTakeoverBanner,
   scrollPage,
   selectOptionInElement,
-  showTakeoverBanner,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
 import * as session from '@/main/browser-agent/session'
@@ -73,6 +69,14 @@ function recordNotice(notice: string): void {
   if (pendingNotices.length < 10) pendingNotices.push(notice)
 }
 
+/**
+ * Takeover state lives here (session-level, not in the page) so the panel's
+ * takeover strip survives navigations and tab switches. The reason rides
+ * every page-state push; the panel's Done chip sends `takeover-done`.
+ */
+let takeoverReason: string | null = null
+let takeoverDone = false
+
 function pageStateFor(contents: WebContents): BrowserPageState {
   return {
     url: contents.getURL(),
@@ -80,6 +84,7 @@ function pageStateFor(contents: WebContents): BrowserPageState {
     loading: contents.isLoading(),
     canGoBack: contents.navigationHistory.canGoBack(),
     canGoForward: contents.navigationHistory.canGoForward(),
+    ...(takeoverReason !== null ? { takeoverReason } : {}),
   }
 }
 
@@ -344,34 +349,38 @@ export function parseKeyCombo(combo: string): ParsedCombo {
 
 /**
  * Hands control to the user IN THE PANEL: the page is already natively
- * interactive there, so a banner on the page explains what to do and carries
- * the "Done" button; the tool resolves when the user clicks it.
+ * interactive there, so the panel chrome shows a takeover strip (driven by
+ * `takeoverReason` on page-state pushes) with the Done chip; the tool
+ * resolves when that chip sends the `takeover-done` panel action. Nothing is
+ * injected into the page, so the strip never covers page content and
+ * survives navigations.
  */
 async function runTakeover(reason: string): Promise<unknown> {
   const tab = session.ensureTab()
   const contents = tab.view.webContents
-  await execInPage(contents, showTakeoverBanner, [reason]).catch(() => {})
+  takeoverReason = reason
+  takeoverDone = false
+  pushPageState(contents)
 
   const startedAt = Date.now()
-  while (Date.now() - startedAt < TAKEOVER_MAX_MS) {
-    await sleep(TAKEOVER_POLL_MS)
-    if (!session.hasSession() || contents.isDestroyed()) {
-      throw new ToolError(
-        'The browser session was closed during takeover. Ask the user what happened, then reopen with browser_navigate.'
-      )
+  try {
+    while (Date.now() - startedAt < TAKEOVER_MAX_MS) {
+      await sleep(TAKEOVER_POLL_MS)
+      if (!session.hasSession() || contents.isDestroyed()) {
+        throw new ToolError(
+          'The browser session was closed during takeover. Ask the user what happened, then reopen with browser_navigate.'
+        )
+      }
+      if (takeoverDone) {
+        return { completed: true, elapsedMs: Date.now() - startedAt }
+      }
     }
-    const done = await execInPage(contents, isTakeoverDone, []).catch(() => false)
-    if (done) {
-      await execInPage(contents, removeTakeoverBanner, []).catch(() => {})
-      return { completed: true, elapsedMs: Date.now() - startedAt }
-    }
-    // The banner disappears on navigation; keep it visible until the user is done.
-    const bannerVisible = await execInPage(contents, hasTakeoverBanner, []).catch(() => true)
-    if (!bannerVisible) {
-      await execInPage(contents, showTakeoverBanner, [reason]).catch(() => {})
-    }
+    throw new ToolError('Takeover timed out after 12 hours without the user finishing.')
+  } finally {
+    takeoverReason = null
+    takeoverDone = false
+    if (!contents.isDestroyed()) pushPageState(contents)
   }
-  throw new ToolError('Takeover timed out after 12 hours without the user finishing.')
 }
 
 // ---------------------------------------------------------------------------
@@ -620,6 +629,12 @@ export async function executeTool(
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */
 export async function handlePanelAction(action: BrowserPanelAction): Promise<void> {
+  // The Done chip on the panel's takeover strip: hands control back to the
+  // agent. Meaningful only while a takeover is actually waiting.
+  if (action.action === 'takeover-done') {
+    if (takeoverReason !== null) takeoverDone = true
+    return
+  }
   // Navigate bootstraps the session: the user can open the panel manually
   // (before the agent ever touched the browser) and drive it from the URL
   // bar. The other chrome actions need an existing page.

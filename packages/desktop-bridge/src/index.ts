@@ -23,7 +23,7 @@ export interface SimDesktopBrowserAgentApi {
    * rejects for tool-level failures (those ride `ok: false`).
    */
   executeTool(tool: BrowserToolName, params: Record<string, unknown>): Promise<BrowserToolResponse>
-  /** Browser-chrome commands from the panel header (URL bar, back, reload). */
+  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
   panelAction(action: BrowserPanelAction): void
   /**
    * Report where the browser panel sits in the window (CSS pixels relative

@@ -20,9 +20,6 @@ export interface PageActionError {
   error: string
 }
 
-export const TAKEOVER_BANNER_ID = '__sim-takeover-banner'
-export const TAKEOVER_DONE_ATTR = 'data-sim-takeover-done'
-
 /**
  * Builds the page snapshot: a structural outline (headings, landmarks) with
  * interactive elements carrying numeric ids, walking open shadow roots and
@@ -79,7 +76,6 @@ export function collectSnapshot(): unknown {
   let truncated = false
 
   const isVisible = (el: Element): boolean => {
-    if (el.closest('#__sim-takeover-banner')) return false
     const rect = el.getBoundingClientRect()
     if (rect.width <= 0 || rect.height <= 0) return false
     const doc = el.ownerDocument
@@ -440,43 +436,4 @@ export function getViewportInfo(): unknown {
     width: window.innerWidth,
     height: window.innerHeight,
   }
-}
-
-export function showTakeoverBanner(reason: string): unknown {
-  document.documentElement.removeAttribute('data-sim-takeover-done')
-  if (document.getElementById('__sim-takeover-banner')) return { shown: true }
-  const bar = document.createElement('div')
-  bar.id = '__sim-takeover-banner'
-  bar.style.cssText =
-    'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#18181b;color:#fff;' +
-    'font:14px system-ui,sans-serif;padding:10px 16px;display:flex;align-items:center;' +
-    'gap:12px;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.35)'
-  const label = document.createElement('span')
-  label.textContent = `Sim handed you control: ${reason}`
-  const button = document.createElement('button')
-  button.textContent = 'Done — give control back to Sim'
-  button.style.cssText =
-    'background:#6f5ff2;color:#fff;border:0;border-radius:6px;padding:6px 12px;' +
-    'font:600 13px system-ui,sans-serif;cursor:pointer'
-  button.addEventListener('click', () => {
-    document.documentElement.setAttribute('data-sim-takeover-done', '1')
-    bar.remove()
-  })
-  bar.append(label, button)
-  document.documentElement.append(bar)
-  return { shown: true }
-}
-
-export function isTakeoverDone(): boolean {
-  return document.documentElement.getAttribute('data-sim-takeover-done') === '1'
-}
-
-export function hasTakeoverBanner(): boolean {
-  return Boolean(document.getElementById('__sim-takeover-banner'))
-}
-
-export function removeTakeoverBanner(): boolean {
-  document.getElementById('__sim-takeover-banner')?.remove()
-  document.documentElement.removeAttribute('data-sim-takeover-done')
-  return true
 }
