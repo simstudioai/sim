@@ -798,8 +798,18 @@ describe('McpService.discoverTools per-server caching', () => {
   it('does not return or cache tools discovered from a stale server configuration', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools.mockResolvedValueOnce([tool('stale-tool', 'mcp-a')])
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
     mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockImplementation(async () => {
+          // Connection-changing edits invalidate both cache entries and advance
+          // mutation ownership after updating the database row.
+          await mockCacheAdapter.beginMutation(serverKey)
+          cacheStore.delete(serverKey)
+          cacheStore.delete(`${serverKey}:failure`)
+          return []
+        }),
+      }),
     })
 
     const tools = await mcpService.discoverTools(USER_ID, WORKSPACE_ID, true)
@@ -815,7 +825,31 @@ describe('McpService.discoverTools per-server caching', () => {
       },
       [`workspace:${WORKSPACE_ID}:server:mcp-a:failure`]
     )
-    expect(cacheStore.has(`workspace:${WORKSPACE_ID}:server:mcp-a`)).toBe(false)
+    expect(cacheStore.has(serverKey)).toBe(false)
+  })
+
+  it('keeps valid live tools when a metadata-only edit wins the database CAS', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockResolvedValueOnce([tool('still-valid', 'mcp-a')])
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+    })
+
+    await expect(
+      mcpService.discoverServerToolsWithMetadata(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    ).resolves.toEqual({
+      tools: [tool('still-valid', 'mcp-a')],
+      state: 'unavailable',
+    })
+
+    expect(cacheStore.get(serverKey)?.tools).toEqual([tool('still-valid', 'mcp-a')])
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenLastCalledWith(
+      serverKey,
+      expect.any(Number),
+      null,
+      []
+    )
   })
 
   it('supersedes an older discovery before it can publish status', async () => {

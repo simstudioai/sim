@@ -701,14 +701,18 @@ class McpService {
     })
     if (statusApplied) return 'published'
 
-    // A config change or newer discovery won the database CAS after the cache
-    // mutation. Remove this result only if its mutation is still current; a
-    // newer cache publisher must never be disturbed.
-    await this.applyServerCacheMutation(workspaceId, config.id, mutation, null, [
-      serverCacheKey(workspaceId, config.id),
-      failureCacheKey(workspaceId, config.id),
-    ])
-    return 'superseded'
+    // A connection-config edit advances mutation ownership, while metadata-only
+    // edits only bump updatedAt. Probe ownership without changing cache state:
+    // superseded results must reload the winner, but metadata races can keep
+    // and return these valid live tools without publishing stale DB status.
+    const ownership = await this.applyServerCacheMutation(
+      workspaceId,
+      config.id,
+      mutation,
+      null,
+      []
+    )
+    return ownership === 'superseded' ? 'superseded' : 'unavailable'
   }
 
   private async publishFailedDiscovery(

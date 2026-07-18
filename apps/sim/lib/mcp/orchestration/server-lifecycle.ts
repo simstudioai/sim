@@ -384,6 +384,8 @@ export async function performUpdateMcpServer(
     const shouldClearCache =
       urlChanged ||
       credsChanged ||
+      params.transport !== undefined ||
+      params.authType !== undefined ||
       params.enabled !== undefined ||
       params.headers !== undefined ||
       params.timeout !== undefined ||
