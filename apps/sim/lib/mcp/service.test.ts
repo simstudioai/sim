@@ -966,6 +966,7 @@ describe('McpService.discoverTools per-server caching', () => {
     ).resolves.toEqual({
       tools: [tool('still-valid', 'mcp-a')],
       state: 'published',
+      publicationOrder: expect.any(Date),
     })
 
     const successfulStatusWrites = mockUpdateSet.mock.calls
@@ -1553,6 +1554,7 @@ describe('McpService.discoverTools per-server caching', () => {
       await expect(discovery).resolves.toEqual({
         tools: [tool('retry-winner', 'mcp-a')],
         state: 'published',
+        publicationOrder: expect.any(Date),
       })
 
       expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(3)

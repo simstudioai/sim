@@ -194,6 +194,7 @@ export const POST = withRouteHandler(
         let syncResult: SyncResult = { updatedCount: 0, updatedWorkflowIds: [] }
         let discoveredTools: McpTool[] = []
         let discoveryState: McpServerDiscoveryState | null = null
+        let discoveryPublicationOrder: Date | null = null
         let discoveryError: string | null = null
         let oauthAuthorizationRequired = false
 
@@ -206,6 +207,7 @@ export const POST = withRouteHandler(
           )
           discoveredTools = discovery.tools
           discoveryState = discovery.state
+          discoveryPublicationOrder = discovery.publicationOrder ?? null
           logger.info(
             `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`
           )
@@ -240,7 +242,12 @@ export const POST = withRouteHandler(
           )
           .limit(1)
 
-        if (discoveryError === null && discoveryState === 'published') {
+        const publicationBaseline = discoveryPublicationOrder ?? server.lastToolsRefresh
+        const newerPublicationWonRace =
+          refreshedServer?.lastToolsRefresh != null &&
+          (publicationBaseline == null || refreshedServer.lastToolsRefresh > publicationBaseline)
+
+        if (discoveryError === null && discoveryState === 'published' && !newerPublicationWonRace) {
           try {
             syncResult = await syncToolSchemasToWorkflows(
               workspaceId,
@@ -265,10 +272,6 @@ export const POST = withRouteHandler(
         let connectionStatus = refreshedServer?.connectionStatus ?? 'error'
         let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
         let toolCount = refreshedServer?.toolCount ?? discoveredTools.length
-        const newerPublicationWonRace =
-          refreshedServer?.lastToolsRefresh != null &&
-          (server.lastToolsRefresh == null ||
-            refreshedServer.lastToolsRefresh > server.lastToolsRefresh)
         const newerSuccessWonRace =
           connectionStatus === 'connected' &&
           newerPublicationWonRace &&

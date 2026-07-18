@@ -375,6 +375,48 @@ describe('MCP server refresh route', () => {
     }
   )
 
+  it('does not sync published tools after a newer cache invalidation', async () => {
+    const publicationOrder = new Date(initialServer.lastToolsRefresh.getTime() + 30_000)
+    mockDiscoverServerTools.mockResolvedValueOnce({
+      tools: [
+        {
+          name: 'stale-search',
+          description: 'Search tool published before invalidation',
+          inputSchema: {},
+          serverId: 'server-1',
+          serverName: 'OAuth Server',
+        },
+      ],
+      state: 'published',
+      publicationOrder,
+    })
+    const cacheInvalidatedServer = {
+      ...initialServer,
+      lastConnected: publicationOrder,
+      lastToolsRefresh: new Date(publicationOrder.getTime() + 30_000),
+      toolCount: 0,
+    }
+    mockSelect.mockReturnValueOnce(selectRows([cacheInvalidatedServer]))
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'connected',
+        error: null,
+        toolCount: 0,
+        workflowsUpdated: 0,
+        updatedWorkflowIds: [],
+      })
+    )
+    expect(mockSelect).toHaveBeenCalledTimes(2)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
   it('preserves a newer successful refresh when discovery is superseded', async () => {
     mockDiscoverServerTools.mockResolvedValueOnce({
       tools: [],

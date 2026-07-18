@@ -85,6 +85,7 @@ export type McpServerDiscoveryState =
 export interface McpServerDiscoveryResult {
   tools: McpTool[]
   state: McpServerDiscoveryState
+  publicationOrder?: Date
 }
 
 type DiscoveryOutcome =
@@ -1216,7 +1217,8 @@ class McpService {
             }
             return { tools, state: 'unavailable' }
           }
-          return { tools, state: 'published' }
+          if (!mutation) return { tools, state: 'unavailable' }
+          return { tools, state: 'published', publicationOrder: new Date(mutation.id) }
         } finally {
           await client.disconnect()
         }
