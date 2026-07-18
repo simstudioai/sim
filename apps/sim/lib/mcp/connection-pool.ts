@@ -15,6 +15,11 @@
  * so a stale `onClose` can't disconnect a replacement stored under the same key.
  * Pools are per-process. Callers must release every acquired lease and must not
  * disconnect the client themselves.
+ *
+ * Config-change invalidation is the caller's job via `evictServer` (wired to the
+ * service's `clearCache`), not a per-acquire timestamp check — `updatedAt` is also
+ * bumped by status telemetry, so it can't distinguish a config edit. Cross-process,
+ * a config edit is bounded by max age (and self-heals when a stale connection errors).
  */
 
 import { createLogger } from '@sim/logger'
@@ -36,8 +41,6 @@ export interface AcquireParams {
   key: string
   /** Server id, for bulk `evictServer` on config change/delete. */
   serverId: string
-  /** Server config `updatedAt`; a newer value than the pooled entry rebuilds it. */
-  configUpdatedAt?: string
   /** Builds and connects a fresh client; invoked once per miss (single-flight). */
   create: () => Promise<McpClient>
 }
@@ -53,19 +56,11 @@ interface PoolEntry {
   serverId: string
   client: McpClient
   createdAt: number
-  configUpdatedAtMs: number
   lastActivityAt: number
   lastLivenessCheckAt: number
   borrowers: number
   retired: boolean
   closing: boolean
-}
-
-/** ISO → epoch ms; `0` (unknown) is always ≤ a real stamp, so it never rebuilds. */
-function toEpochMs(iso: string | undefined): number {
-  if (!iso) return 0
-  const ms = Date.parse(iso)
-  return Number.isNaN(ms) ? 0 : ms
 }
 
 export class McpConnectionPool {
@@ -89,30 +84,22 @@ export class McpConnectionPool {
   private async resolveEntry(params: AcquireParams): Promise<PoolEntry> {
     const pending = this.pending.get(params.key)
     if (pending) {
-      // A joiner may hold a newer config than the create used; rebuild if so.
       const entry = await pending
-      if (!entry.retired && toEpochMs(params.configUpdatedAt) <= entry.configUpdatedAtMs) {
-        return entry
-      }
-      this.retire(entry)
+      if (!entry.retired) return entry
       return this.resolveEntry(params)
     }
 
     const current = this.entries.get(params.key)
     if (current) {
-      const reusable = await this.tryReuse(params, current)
+      const reusable = await this.tryReuse(current)
       if (reusable) return reusable
     }
     return this.createEntry(params)
   }
 
-  /** Return `entry` if config-fresh, in-age, connected, and live; else retire it and return null. */
-  private async tryReuse(params: AcquireParams, entry: PoolEntry): Promise<PoolEntry | null> {
+  /** Return `entry` if in-age, connected, and live; else retire it and return null. */
+  private async tryReuse(entry: PoolEntry): Promise<PoolEntry | null> {
     const now = Date.now()
-    if (toEpochMs(params.configUpdatedAt) > entry.configUpdatedAtMs) {
-      this.retire(entry)
-      return null
-    }
     if (now - entry.createdAt > MAX_CONNECTION_AGE_MS) {
       this.retire(entry)
       return null
@@ -126,6 +113,9 @@ export class McpConnectionPool {
         .ping(LIVENESS_PING_TIMEOUT_MS)
         .then(() => true)
         .catch(() => false)
+      // A concurrent poison/evict/age eviction may have retired this during the
+      // ping await; don't hand out a connection that's already closing.
+      if (entry.retired) return null
       if (!alive) {
         this.retire(entry)
         return null
@@ -149,7 +139,6 @@ export class McpConnectionPool {
         serverId: params.serverId,
         client,
         createdAt: now,
-        configUpdatedAtMs: toEpochMs(params.configUpdatedAt),
         lastActivityAt: now,
         lastLivenessCheckAt: now,
         borrowers: 0,

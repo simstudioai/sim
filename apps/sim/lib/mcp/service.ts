@@ -101,12 +101,29 @@ function isTimeoutError(error: unknown): boolean {
   return getErrorMessage(error, '').toLowerCase().includes('timed out')
 }
 
-/** A pooled connection is dead and must be retired — a stale session or a closed transport, not a benign tool/consent error. */
+/**
+ * A pooled connection is dead and must be retired so the caller's retry rebuilds
+ * fresh: a stale session (400/404), a closed transport, a timeout (no response —
+ * possibly wedged), or a reset socket. Benign tool/consent errors and healthy
+ * upstream responses (429/5xx) keep the connection warm.
+ */
 function isDeadConnectionError(error: unknown): boolean {
   if (error instanceof StreamableHTTPError) {
     return error.code === 404 || error.code === 400
   }
-  return error instanceof McpError && error.code === ErrorCode.ConnectionClosed
+  if (error instanceof McpError && error.code === ErrorCode.ConnectionClosed) {
+    return true
+  }
+  if (isTimeoutError(error)) {
+    return true
+  }
+  const message = getErrorMessage(error, '').toLowerCase()
+  return (
+    message.includes('econnreset') ||
+    message.includes('econnrefused') ||
+    message.includes('epipe') ||
+    message.includes('socket hang up')
+  )
 }
 
 /** Transient failures a read-only `tools/list` may safely retry (idempotent, unlike `tools/call`); excludes OAuth and terminal 4xx. */
@@ -327,7 +344,7 @@ class McpService {
    * Otherwise connect one-shot and always disconnect.
    */
   private async withServerClient<T>(
-    opts: { key: string; serverId: string; configUpdatedAt?: string; allowPool: boolean },
+    opts: { key: string; serverId: string; allowPool: boolean },
     create: () => Promise<McpClient>,
     fn: (client: McpClient) => Promise<T>
   ): Promise<T> {
@@ -336,7 +353,6 @@ class McpService {
       const lease = await pool.acquire({
         key: opts.key,
         serverId: opts.serverId,
-        configUpdatedAt: opts.configUpdatedAt,
         create,
       })
       let poison = false
@@ -400,7 +416,6 @@ class McpService {
           {
             key: this.poolKey(serverId, workspaceId, userId),
             serverId,
-            configUpdatedAt: config.updatedAt,
             allowPool: !hasExtraHeaders,
           },
           create,
@@ -644,7 +659,6 @@ class McpService {
               {
                 key: this.poolKey(config.id, workspaceId, userId),
                 serverId: config.id,
-                configUpdatedAt: config.updatedAt,
                 allowPool: true,
               },
               () => this.createClient(resolvedConfig, resolvedIP, userId),
@@ -863,7 +877,6 @@ class McpService {
           {
             key: this.poolKey(serverId, workspaceId, userId),
             serverId,
-            configUpdatedAt: config.updatedAt,
             allowPool: true,
           },
           create,
@@ -940,7 +953,6 @@ class McpService {
             {
               key: this.poolKey(config.id, workspaceId, userId),
               serverId: config.id,
-              configUpdatedAt: config.updatedAt,
               allowPool: true,
             },
             create,

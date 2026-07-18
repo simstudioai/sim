@@ -41,13 +41,17 @@ function makeFakeClient(init: { connected?: boolean; pingRejects?: boolean } = {
 }
 
 /** Acquire + immediately release (models a completed borrow). */
-async function borrow(pool: McpConnectionPool, params: AcquireParams, poison = false): Promise<void> {
+async function borrow(
+  pool: McpConnectionPool,
+  params: AcquireParams,
+  poison = false
+): Promise<void> {
   const lease = await pool.acquire(params)
   await lease.release(poison)
 }
 
-function params(key: string, create: () => Promise<McpClient>, configUpdatedAt?: string): AcquireParams {
-  return { key, serverId: key.split(':')[0], configUpdatedAt, create }
+function params(key: string, create: () => Promise<McpClient>): AcquireParams {
+  return { key, serverId: key.split(':')[0], create }
 }
 
 describe('McpConnectionPool', () => {
@@ -108,23 +112,6 @@ describe('McpConnectionPool', () => {
     expect(createB).toHaveBeenCalledTimes(1)
   })
 
-  it('rebuilds and disconnects the old connection when the config changes', async () => {
-    const oldClient = makeFakeClient()
-    const newClient = makeFakeClient()
-    const create = vi
-      .fn<() => Promise<McpClient>>()
-      .mockResolvedValueOnce(oldClient)
-      .mockResolvedValueOnce(newClient)
-
-    await borrow(pool, params('s1:w1:u1', create, '2026-01-01T00:00:00.000Z'))
-    const lease = await pool.acquire(params('s1:w1:u1', create, '2026-01-02T00:00:00.000Z'))
-
-    expect(create).toHaveBeenCalledTimes(2)
-    expect(oldClient.disconnect).toHaveBeenCalledTimes(1)
-    expect(lease.client).toBe(newClient)
-    await lease.release()
-  })
-
   it('rebuilds after the max connection age', async () => {
     const oldClient = makeFakeClient()
     const newClient = makeFakeClient()
@@ -139,6 +126,7 @@ describe('McpConnectionPool', () => {
 
     expect(create).toHaveBeenCalledTimes(2)
     expect(oldClient.disconnect).toHaveBeenCalledTimes(1)
+    expect(lease.client).toBe(newClient)
     await lease.release()
   })
 
@@ -234,7 +222,10 @@ describe('McpConnectionPool', () => {
 
   it('idle-evicts a connection once no borrower holds it', async () => {
     const client = makeFakeClient()
-    await borrow(pool, params('s1:w1:u1', async () => client))
+    await borrow(
+      pool,
+      params('s1:w1:u1', async () => client)
+    )
 
     await vi.advanceTimersByTimeAsync(6 * 60 * 1000)
     expect(client.disconnect).toHaveBeenCalledTimes(1)
@@ -248,13 +239,14 @@ describe('McpConnectionPool', () => {
       .mockResolvedValueOnce(oldClient)
       .mockResolvedValueOnce(newClient)
 
-    // Force a rebuild via config change; oldClient is now retired, newClient pooled.
-    await borrow(pool, params('s1:w1:u1', create, '2026-01-01T00:00:00.000Z'))
-    await borrow(pool, params('s1:w1:u1', create, '2026-01-02T00:00:00.000Z'))
-
-    // The old client's late close must NOT drop the replacement.
+    // oldClient's transport closes → retired; the next acquire pools newClient.
+    await borrow(pool, params('s1:w1:u1', create))
     oldClient.__fireClose()
-    await borrow(pool, params('s1:w1:u1', create, '2026-01-02T00:00:00.000Z'))
+    await borrow(pool, params('s1:w1:u1', create))
+
+    // A late duplicate close from the old client must NOT drop the replacement.
+    oldClient.__fireClose()
+    await borrow(pool, params('s1:w1:u1', create))
 
     // Still 2 creates — the replacement survived the stale close.
     expect(create).toHaveBeenCalledTimes(2)
