@@ -19,6 +19,7 @@ const {
   mockCacheAdapter,
   mockUpdateSet,
   mockUpdateReturning,
+  cacheStore,
 } = vi.hoisted(() => {
   const mockListTools = vi.fn()
   const mockConnect = vi.fn()
@@ -28,6 +29,8 @@ const {
   // local .env points at (unreachable in CI/sandbox → hangs). Honors TTL via
   // an expiry timestamp so negative-cache assertions behave like production.
   const cacheStore = new Map<string, { tools: unknown[]; expiry: number }>()
+  const cacheMutations = new Map<string, number>()
+  let nextMutationId = 0
   const mockCacheAdapter = {
     get: vi.fn(async (key: string) => {
       const entry = cacheStore.get(key)
@@ -44,12 +47,39 @@ const {
     delete: vi.fn(async (key: string) => {
       cacheStore.delete(key)
     }),
+    beginMutation: vi.fn(async (scopeKey: string) => {
+      const mutationId = ++nextMutationId
+      cacheMutations.set(scopeKey, mutationId)
+      return mutationId
+    }),
+    setIfCurrentMutation: vi.fn(
+      async (
+        scopeKey: string,
+        mutationId: number,
+        key: string,
+        tools: unknown[],
+        ttlMs: number
+      ) => {
+        if (cacheMutations.get(scopeKey) !== mutationId) return false
+        cacheStore.set(key, { tools, expiry: Date.now() + ttlMs })
+        return true
+      }
+    ),
+    deleteIfCurrentMutation: vi.fn(async (scopeKey: string, mutationId: number, key: string) => {
+      if (cacheMutations.get(scopeKey) !== mutationId) return false
+      cacheStore.delete(key)
+      return true
+    }),
     clear: vi.fn(async () => {
       cacheStore.clear()
+      for (const scopeKey of cacheMutations.keys()) {
+        cacheMutations.set(scopeKey, ++nextMutationId)
+      }
     }),
     dispose: () => {},
   }
   return {
+    cacheStore,
     mockCacheAdapter,
     MockMcpClient: vi.fn().mockImplementation(
       class {
@@ -356,14 +386,18 @@ describe('McpService.discoverTools per-server caching', () => {
           statusConfig: { consecutiveFailures: 1, lastSuccessfulDiscovery: null },
         })
       )
-      expect(mockCacheAdapter.set).toHaveBeenCalledWith(
+      expect(mockCacheAdapter.setIfCurrentMutation).toHaveBeenCalledWith(
+        `workspace:${WORKSPACE_ID}:server:mcp-a`,
+        expect.any(Number),
         `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
         [],
         expect.any(Number)
       )
     })
     expect(JSON.stringify(mockUpdateSet.mock.calls)).not.toContain(reflectedCredential)
-    expect(JSON.stringify(mockCacheAdapter.set.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockCacheAdapter.setIfCurrentMutation.mock.calls)).not.toContain(
+      reflectedCredential
+    )
     expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
 
     mockListTools.mockClear()
@@ -387,7 +421,9 @@ describe('McpService.discoverTools per-server caching', () => {
         })
       )
     })
-    expect(mockCacheAdapter.set).not.toHaveBeenCalledWith(
+    expect(mockCacheAdapter.setIfCurrentMutation).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
       `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
       [],
       expect.any(Number)
@@ -472,6 +508,114 @@ describe('McpService.discoverTools per-server caching', () => {
     )
   })
 
+  it('persists an allowlisted message when an upstream error reflects a custom credential', async () => {
+    const reflectedCredential = 'opaque-custom-header-value'
+    mockGetWorkspaceServersRows.mockResolvedValue([
+      dbRow('mcp-a', 'A', {
+        statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+      }),
+    ])
+    mockListTools.mockRejectedValueOnce(
+      new Error(`Provider rejected X-Custom-Credential: ${reflectedCredential}`)
+    )
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      reflectedCredential
+    )
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastError: 'Connection failed',
+        toolCount: 0,
+      })
+    )
+    expect(JSON.stringify(mockUpdateSet.mock.calls)).not.toContain(reflectedCredential)
+  })
+
+  it('does not return or cache tools discovered from a stale server configuration', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockResolvedValueOnce([tool('stale-tool', 'mcp-a')])
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([]) }),
+    })
+
+    const tools = await mcpService.discoverTools(USER_ID, WORKSPACE_ID, true)
+
+    expect(tools).toEqual([])
+    expect(mockCacheAdapter.setIfCurrentMutation).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      `workspace:${WORKSPACE_ID}:server:mcp-a`,
+      expect.anything(),
+      expect.any(Number)
+    )
+  })
+
+  it('waits for bulk discovery status publication before returning', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    let releaseStatus: (() => void) | undefined
+    const pendingStatus = new Promise<void>((resolve) => {
+      releaseStatus = resolve
+    })
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockReturnValue(pendingStatus.then(() => [{ id: 'mcp-a' }])),
+      }),
+    })
+
+    let settled = false
+    const discovery = mcpService.discoverTools(USER_ID, WORKSPACE_ID, true).finally(() => {
+      settled = true
+    })
+
+    await vi.waitFor(() => expect(mockListTools).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    releaseStatus?.()
+    await expect(discovery).resolves.toEqual([tool('a1', 'mcp-a')])
+  })
+
+  it('keeps a newer successful cache entry when an older failure finishes later', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+
+    let rejectOlder: ((error: Error) => void) | undefined
+    const olderList = new Promise<never>((_resolve, reject) => {
+      rejectOlder = reject
+    })
+    mockListTools.mockReturnValueOnce(olderList).mockResolvedValueOnce([tool('new-tool', 'mcp-a')])
+
+    let releaseOlderFailureCache: (() => void) | undefined
+    const olderFailureCacheGate = new Promise<void>((resolve) => {
+      releaseOlderFailureCache = resolve
+    })
+    const defaultSet = mockCacheAdapter.setIfCurrentMutation.getMockImplementation()
+    mockCacheAdapter.setIfCurrentMutation.mockImplementationOnce(
+      async (scopeKey: string, mutationId: number, key: string, tools: unknown[], ttl: number) => {
+        if (key.endsWith(':failure')) await olderFailureCacheGate
+        return defaultSet?.(scopeKey, mutationId, key, tools, ttl) ?? false
+      }
+    )
+
+    const older = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, false)
+    await vi.waitFor(() => expect(mockListTools).toHaveBeenCalledTimes(1))
+    rejectOlder?.(new Error('Older request failed'))
+
+    const newer = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    await expect(newer).resolves.toEqual([tool('new-tool', 'mcp-a')])
+
+    releaseOlderFailureCache?.()
+    await expect(older).rejects.toThrow('Older request failed')
+
+    expect(cacheStore.get(`workspace:${WORKSPACE_ID}:server:mcp-a`)?.tools).toEqual([
+      tool('new-tool', 'mcp-a'),
+    ])
+    expect(cacheStore.has(`workspace:${WORKSPACE_ID}:server:mcp-a:failure`)).toBe(false)
+  })
+
   it('retries a transient tools/list timeout and succeeds on the second attempt', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools
@@ -507,7 +651,9 @@ describe('McpService.discoverTools per-server caching', () => {
       })
     )
     expect(JSON.stringify(mockUpdateSet.mock.calls)).not.toContain(reflectedCredential)
-    expect(JSON.stringify(mockCacheAdapter.set.mock.calls)).not.toContain(reflectedCredential)
+    expect(JSON.stringify(mockCacheAdapter.setIfCurrentMutation.mock.calls)).not.toContain(
+      reflectedCredential
+    )
     expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
 
     mockListTools.mockClear()
@@ -531,7 +677,9 @@ describe('McpService.discoverTools per-server caching', () => {
         lastError: null,
       })
     )
-    expect(mockCacheAdapter.set).not.toHaveBeenCalledWith(
+    expect(mockCacheAdapter.setIfCurrentMutation).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
       `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
       [],
       expect.any(Number)

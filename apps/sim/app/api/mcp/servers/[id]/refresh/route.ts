@@ -208,6 +208,25 @@ export const POST = withRouteHandler(
           })
         }
 
+        const [refreshedServer] = await db
+          .select({
+            name: mcpServers.name,
+            url: mcpServers.url,
+            connectionStatus: mcpServers.connectionStatus,
+            lastConnected: mcpServers.lastConnected,
+            lastError: mcpServers.lastError,
+            toolCount: mcpServers.toolCount,
+          })
+          .from(mcpServers)
+          .where(
+            and(
+              eq(mcpServers.id, serverId),
+              eq(mcpServers.workspaceId, workspaceId),
+              isNull(mcpServers.deletedAt)
+            )
+          )
+          .limit(1)
+
         if (discoveryError === null) {
           try {
             syncResult = await syncToolSchemasToWorkflows(
@@ -215,7 +234,10 @@ export const POST = withRouteHandler(
               serverId,
               discoveredTools,
               requestId,
-              { url: server.url ?? undefined, name: server.name ?? undefined }
+              {
+                url: refreshedServer?.url ?? undefined,
+                name: refreshedServer?.name ?? undefined,
+              }
             )
           } catch (error) {
             // Discovery already persisted status and cached tools; a workflow-sync
@@ -227,31 +249,9 @@ export const POST = withRouteHandler(
           }
         }
 
-        const now = new Date()
-
-        const [refreshedServer] = await db
-          .update(mcpServers)
-          .set({
-            lastToolsRefresh: now,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(mcpServers.id, serverId),
-              eq(mcpServers.workspaceId, workspaceId),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-          .returning({
-            connectionStatus: mcpServers.connectionStatus,
-            lastConnected: mcpServers.lastConnected,
-            lastError: mcpServers.lastError,
-            toolCount: mcpServers.toolCount,
-          })
-
         let connectionStatus = refreshedServer?.connectionStatus ?? 'error'
         let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
-        const toolCount = refreshedServer?.toolCount ?? discoveredTools.length
+        let toolCount = refreshedServer?.toolCount ?? discoveredTools.length
 
         if (discoveryError !== null && connectionStatus === 'connected') {
           const newerSuccessWonRace =
@@ -261,11 +261,8 @@ export const POST = withRouteHandler(
           if (!newerSuccessWonRace) {
             connectionStatus = 'disconnected'
             lastError = discoveryError
+            toolCount = 0
           }
-        }
-
-        if (connectionStatus === 'connected') {
-          await mcpService.clearCache(workspaceId)
         }
 
         return createMcpSuccessResponse({

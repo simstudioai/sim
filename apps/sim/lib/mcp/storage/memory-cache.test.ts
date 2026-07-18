@@ -165,6 +165,46 @@ describe('MemoryMcpCache', () => {
     })
   })
 
+  describe('ordered mutations', () => {
+    it('prevents an older discovery from overwriting a newer cache result', async () => {
+      const older = await cache.beginMutation('server-1')
+      const newer = await cache.beginMutation('server-1')
+
+      expect(
+        await cache.setIfCurrentMutation(
+          'server-1',
+          newer,
+          'server-1:tools',
+          [createTool('new-tool')],
+          60000
+        )
+      ).toBe(true)
+      expect(
+        await cache.setIfCurrentMutation('server-1', older, 'server-1:failure', [], 60000)
+      ).toBe(false)
+
+      expect((await cache.get('server-1:tools'))?.tools).toEqual([createTool('new-tool')])
+      expect(await cache.get('server-1:failure')).toBeNull()
+    })
+
+    it('invalidates in-flight mutations when the cache is cleared', async () => {
+      const mutation = await cache.beginMutation('server-1')
+
+      await cache.clear()
+
+      expect(
+        await cache.setIfCurrentMutation(
+          'server-1',
+          mutation,
+          'server-1:tools',
+          [createTool('stale-tool')],
+          60000
+        )
+      ).toBe(false)
+      expect(await cache.get('server-1:tools')).toBeNull()
+    })
+  })
+
   describe('clear', () => {
     it('removes all entries from cache', async () => {
       const tools = [createTool('tool-1')]

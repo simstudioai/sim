@@ -7,6 +7,8 @@ const logger = createLogger('McpMemoryCache')
 
 export class MemoryMcpCache implements McpCacheStorageAdapter {
   private cache = new Map<string, McpCacheEntry>()
+  private mutationVersions = new Map<string, number>()
+  private nextMutationId = 0
   private readonly maxCacheSize = MCP_CONSTANTS.MAX_CACHE_SIZE
   private cleanupInterval: NodeJS.Timeout | null = null
 
@@ -88,8 +90,39 @@ export class MemoryMcpCache implements McpCacheStorageAdapter {
     this.cache.delete(key)
   }
 
+  async beginMutation(scopeKey: string): Promise<number> {
+    const mutationId = ++this.nextMutationId
+    this.mutationVersions.set(scopeKey, mutationId)
+    return mutationId
+  }
+
+  async setIfCurrentMutation(
+    scopeKey: string,
+    mutationId: number,
+    key: string,
+    tools: McpTool[],
+    ttlMs: number
+  ): Promise<boolean> {
+    if (this.mutationVersions.get(scopeKey) !== mutationId) return false
+    await this.set(key, tools, ttlMs)
+    return true
+  }
+
+  async deleteIfCurrentMutation(
+    scopeKey: string,
+    mutationId: number,
+    key: string
+  ): Promise<boolean> {
+    if (this.mutationVersions.get(scopeKey) !== mutationId) return false
+    await this.delete(key)
+    return true
+  }
+
   async clear(): Promise<void> {
     this.cache.clear()
+    for (const scopeKey of this.mutationVersions.keys()) {
+      this.mutationVersions.set(scopeKey, ++this.nextMutationId)
+    }
   }
 
   dispose(): void {
@@ -98,6 +131,7 @@ export class MemoryMcpCache implements McpCacheStorageAdapter {
       this.cleanupInterval = null
     }
     this.cache.clear()
+    this.mutationVersions.clear()
     logger.info('Memory cache disposed')
   }
 }

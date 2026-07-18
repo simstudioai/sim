@@ -25,6 +25,15 @@ import { createMcpErrorResponse } from '@/lib/mcp/utils'
 const logger = createLogger('McpOauthStartAPI')
 const OAUTH_START_TTL_MS = 10 * 60 * 1000
 const MAX_SURFACED_ERROR_LENGTH = 250
+const DCR_UNSUPPORTED_MESSAGE =
+  "This server doesn't support OAuth client registration. Configure a token instead."
+
+function isDynamicClientRegistrationUnsupported(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.toLowerCase().includes('does not support dynamic client registration')
+  )
+}
 
 export function surfaceOauthError(error: unknown): string {
   // Spec-compliant OAuth servers throw typed subclasses with clean RFC 6749 fields.
@@ -147,6 +156,9 @@ export const GET = withRouteHandler(
             status: 'redirect',
             authorizationUrl: e.authorizationUrl,
           })
+        }
+        if (isDynamicClientRegistrationUnsupported(e)) {
+          return createMcpErrorResponse(toError(e), DCR_UNSUPPORTED_MESSAGE, 422)
         }
         throw e
       }

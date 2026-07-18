@@ -81,6 +81,8 @@ function selectRows(rows: unknown[]) {
 describe('MCP server refresh route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSelect.mockReset()
+    mockSelect.mockReturnValue(selectRows([persistedServer]))
     mockSelect.mockReturnValueOnce(selectRows([initialServer]))
     mockUpdateSet.mockReturnValue({
       where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([persistedServer]) }),
@@ -112,11 +114,7 @@ describe('MCP server refresh route', () => {
     mockDiscoverServerTools.mockRejectedValueOnce(
       new Error(`Upstream reflected ${reflectedSecret}`)
     )
-    mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([initialServer]),
-      }),
-    })
+    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -128,6 +126,7 @@ describe('MCP server refresh route', () => {
       expect.objectContaining({
         status: 'disconnected',
         error: 'Internal server error',
+        toolCount: 0,
         workflowsUpdated: 0,
       })
     )
@@ -142,11 +141,7 @@ describe('MCP server refresh route', () => {
       lastConnected: new Date(Date.now() + 60_000),
       toolCount: 7,
     }
-    mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([newerSuccessfulServer]),
-      }),
-    })
+    mockSelect.mockReturnValueOnce(selectRows([newerSuccessfulServer]))
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -162,7 +157,7 @@ describe('MCP server refresh route', () => {
         workflowsUpdated: 0,
       })
     )
-    expect(mockClearCache).toHaveBeenCalledWith('workspace-1')
+    expect(mockClearCache).not.toHaveBeenCalled()
   })
 
   it('does not 500 when workflow sync fails after a successful discovery', async () => {
@@ -178,9 +173,7 @@ describe('MCP server refresh route', () => {
     // The route's server lookup consumes the first select (beforeEach). The sync's
     // workflow select is left unmocked, so it throws — exercising the guard that
     // keeps a secondary sync failure from turning a successful refresh into a 500.
-    mockUpdateSet.mockReturnValueOnce({
-      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([initialServer]) }),
-    })
+    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
