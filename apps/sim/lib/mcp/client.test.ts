@@ -299,6 +299,22 @@ describe('McpClient notification handler', () => {
     expect(mockPinnedClose).toHaveBeenCalledTimes(1)
   })
 
+  it('does not destroy the pinned transport Agent twice when a failed connect is followed by disconnect', async () => {
+    mockSdkConnect.mockRejectedValueOnce(new Error('connect boom'))
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      resolvedIP: '203.0.113.10',
+    })
+
+    await expect(client.connect()).rejects.toThrow()
+    // The caller (e.g. withConnectTimeout) may still call disconnect() afterward;
+    // teardown must be idempotent so the Agent is destroyed exactly once.
+    await client.disconnect()
+
+    expect(mockPinnedClose).toHaveBeenCalledTimes(1)
+  })
+
   it('does not misclassify rejected static headers as an OAuth authorization flow', async () => {
     mockSdkConnect.mockRejectedValueOnce(new UnauthorizedError('Static token rejected'))
     const client = new McpClient({

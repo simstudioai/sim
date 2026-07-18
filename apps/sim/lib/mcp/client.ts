@@ -162,7 +162,7 @@ export class McpClient {
         await this.client.close().catch((error) => {
           logger.warn(`Error closing cancelled connection to ${this.config.name}:`, error)
         })
-        await this.closeTransportAgent()
+        // The Agent is released by the shared catch below, which this throw enters.
         throw new McpConnectionError('Connection attempt cancelled', this.config.name)
       }
 
@@ -231,10 +231,15 @@ export class McpClient {
    * Tears down the pinned transport's HTTP/2 Agent, releasing its sockets. Must run
    * on every terminal path — successful disconnect, and failed or cancelled connect —
    * since a failed `connect()` discards this client without a `disconnect()` call.
+   * Idempotent: the handle is cleared before use so repeat calls (a failed connect
+   * followed by the caller's `disconnect()`) never destroy the same Agent twice.
    */
   private async closeTransportAgent(): Promise<void> {
+    const close = this.closePinnedTransport
+    if (!close) return
+    this.closePinnedTransport = undefined
     try {
-      await this.closePinnedTransport?.()
+      await close()
     } catch (error) {
       logger.warn(`Error closing pinned transport for ${this.config.name}:`, error)
     }
