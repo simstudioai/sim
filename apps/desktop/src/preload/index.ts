@@ -7,6 +7,7 @@ import type {
 } from '@sim/browser-protocol'
 import type {
   DesktopUpdateStatus,
+  LauncherShortcutSettings,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
   SimDesktopApi,
@@ -42,8 +43,33 @@ const api: SimDesktopApi = {
     ipcRenderer.invoke('settings:get'),
   settingsSave: (origin: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('settings:save', origin),
+  settingsGetLauncherShortcut: (): Promise<LauncherShortcutSettings | null> =>
+    ipcRenderer.invoke('settings:launcher-shortcut-get'),
+  settingsSaveLauncherShortcut: (shortcut: string): Promise<LauncherShortcutSettings | null> =>
+    ipcRenderer.invoke('settings:launcher-shortcut-set', shortcut),
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),
+  launcher: {
+    openChat: (target: { workspaceId: string; chatId?: string }): void => {
+      ipcRenderer.send('launcher:open-chat', target)
+    },
+    openApp: (): void => {
+      ipcRenderer.send('launcher:open-app')
+    },
+    close: (): void => {
+      ipcRenderer.send('launcher:close')
+    },
+    resize: (height: number): void => {
+      ipcRenderer.send('launcher:resize', height)
+    },
+    onShown: (callback: () => void): (() => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('launcher:shown', listener)
+      return () => {
+        ipcRenderer.removeListener('launcher:shown', listener)
+      }
+    },
+  },
   browserAgent: {
     executeTool: (
       tool: BrowserToolName,

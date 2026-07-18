@@ -36,6 +36,72 @@ describe('parseKeyCombo', () => {
   })
 })
 
+describe('buildKeyDispatchPlan', () => {
+  let driver: DriverModule
+
+  beforeEach(async () => {
+    driver = await freshDriver()
+  })
+
+  it('carries text for printable keys so Blink inserts the character', () => {
+    const [down, up] = driver.buildKeyDispatchPlan(driver.parseKeyCombo('a'), 'linux')
+    expect(down).toMatchObject({ type: 'keyDown', text: 'a', key: 'a', modifiers: 0 })
+    expect(up).toMatchObject({ type: 'keyUp', key: 'a' })
+  })
+
+  it('sends Enter with a carriage return so defaults fire (form submit)', () => {
+    const [down] = driver.buildKeyDispatchPlan(driver.parseKeyCombo('Enter'), 'linux')
+    expect(down).toMatchObject({ type: 'keyDown', text: '\r', windowsVirtualKeyCode: 13 })
+  })
+
+  it('sends editing keys as rawKeyDown without text', () => {
+    const [down] = driver.buildKeyDispatchPlan(driver.parseKeyCombo('Backspace'), 'linux')
+    expect(down.type).toBe('rawKeyDown')
+    expect(down.text).toBeUndefined()
+  })
+
+  it('maps Cmd shortcuts to Blink editing commands on macOS only', () => {
+    const combo = driver.parseKeyCombo('Cmd+A')
+    const [macDown] = driver.buildKeyDispatchPlan(combo, 'darwin')
+    expect(macDown.commands).toEqual(['selectAll'])
+    expect(macDown.modifiers).toBe(4)
+    const [linuxDown] = driver.buildKeyDispatchPlan(combo, 'linux')
+    expect(linuxDown.commands).toBeUndefined()
+  })
+
+  it('treats Control shortcuts as Cmd on macOS (the model does not know the host OS)', () => {
+    const combo = driver.parseKeyCombo('Control+A')
+    const [macDown] = driver.buildKeyDispatchPlan(combo, 'darwin')
+    expect(macDown.commands).toEqual(['selectAll'])
+    expect(macDown.modifiers).toBe(4) // ctrl normalized away, meta set
+    // On Linux/Windows Ctrl+A is Blink-native; no rewrite.
+    const [linuxDown] = driver.buildKeyDispatchPlan(combo, 'linux')
+    expect(linuxDown.modifiers).toBe(2)
+    expect(linuxDown.commands).toBeUndefined()
+  })
+
+  it('does not rewrite non-editing Control combos on macOS', () => {
+    const [down] = driver.buildKeyDispatchPlan(driver.parseKeyCombo('Control+K'), 'darwin')
+    expect(down.modifiers).toBe(2)
+    expect(down.commands).toBeUndefined()
+  })
+
+  it('maps Cmd+Shift+Z to redo and Cmd+Z to undo on macOS', () => {
+    const [redo] = driver.buildKeyDispatchPlan(driver.parseKeyCombo('Cmd+Shift+Z'), 'darwin')
+    expect(redo.commands).toEqual(['redo'])
+    const [undo] = driver.buildKeyDispatchPlan(driver.parseKeyCombo('Cmd+Z'), 'darwin')
+    expect(undo.commands).toEqual(['undo'])
+  })
+
+  it('encodes the CDP modifier bitmask (Alt=1 Ctrl=2 Meta=4 Shift=8)', () => {
+    const [down] = driver.buildKeyDispatchPlan(driver.parseKeyCombo('Control+Shift+K'), 'linux')
+    expect(down.modifiers).toBe(2 | 8)
+    // Modified letters must not carry text — they are shortcuts, not typing.
+    expect(down.type).toBe('rawKeyDown')
+    expect(down.text).toBeUndefined()
+  })
+})
+
 describe('executeTool', () => {
   let driver: DriverModule
 

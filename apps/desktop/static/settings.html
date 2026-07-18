@@ -69,11 +69,33 @@
       input:focus {
         border-color: var(--accent);
       }
+      select {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+        outline: none;
+      }
+      select:focus {
+        border-color: var(--accent);
+      }
+      .section {
+        margin-top: 20px;
+      }
       .hint {
         font-size: 11px;
         color: var(--muted);
         line-height: 1.5;
         margin-top: 8px;
+      }
+      .warning {
+        font-size: 12px;
+        color: var(--error);
+        margin-top: 8px;
+        min-height: 16px;
       }
       .error {
         font-size: 12px;
@@ -117,6 +139,18 @@
       Changing the server keeps a separate sign-in per server.
     </div>
     <div class="error" id="error"></div>
+
+    <div class="section">
+      <h1>Quick Ask</h1>
+      <label for="shortcut">Global shortcut</label>
+      <select id="shortcut"></select>
+      <div class="hint">
+        Summons the Quick Ask panel from anywhere, even when Sim is in the background. Changes
+        apply immediately.
+      </div>
+      <div class="warning" id="shortcut-warning"></div>
+    </div>
+
     <div class="actions">
       <button id="cancel">Cancel</button>
       <button class="primary" id="save">Save</button>
@@ -125,11 +159,43 @@
       const bridge = window.simDesktop
       const input = document.getElementById('origin')
       const errorEl = document.getElementById('error')
+      const shortcutSelect = document.getElementById('shortcut')
+      const shortcutWarning = document.getElementById('shortcut-warning')
+
+      const SHORTCUT_LABELS = {
+        'Alt+Space': '⌥ Space',
+        'Command+Shift+Space': '⌘ ⇧ Space',
+        'Control+Space': '⌃ Space',
+        disabled: 'Disabled',
+      }
 
       bridge?.settingsGet().then((settings) => {
         input.value = settings.origin
         input.focus()
         input.select()
+      })
+
+      function renderShortcut(state) {
+        if (!state) return
+        shortcutSelect.replaceChildren(
+          ...state.presets.map((preset) => {
+            const option = document.createElement('option')
+            option.value = preset
+            option.textContent = SHORTCUT_LABELS[preset] || preset
+            option.selected = preset === state.shortcut
+            return option
+          })
+        )
+        shortcutWarning.textContent =
+          state.status === 'failed'
+            ? 'This shortcut is in use by another app (like ChatGPT or Raycast). Pick a different one.'
+            : ''
+      }
+
+      bridge?.settingsGetLauncherShortcut().then(renderShortcut)
+
+      shortcutSelect.addEventListener('change', async () => {
+        renderShortcut(await bridge?.settingsSaveLauncherShortcut(shortcutSelect.value))
       })
 
       async function save() {

@@ -11,6 +11,7 @@ import { attachContextMenu } from '@/main/context-menu'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createHandoffManager } from '@/main/handoff'
 import { registerIpcHandlers } from '@/main/ipc'
+import { createLauncherWindow } from '@/main/launcher-window'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
@@ -25,7 +26,9 @@ import {
   tearDownSession,
 } from '@/main/session-lifecycle'
 import { closeSettingsWindow, openSettingsWindow } from '@/main/settings-window'
+import { createLauncherShortcutManager, LAUNCHER_SHORTCUT_PRESETS } from '@/main/shortcuts'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
+import { installTray } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater } from '@/main/updater'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
@@ -162,6 +165,52 @@ function main(): void {
     openSettingsWindow({ preloadPath, isPackaged: app.isPackaged, getMainWindow })
   }
 
+  /**
+   * Brings the main window to front (creating it if needed), optionally
+   * navigating it to an in-app route first — the seam used by the tray menu
+   * and the launcher's open-in-Sim action.
+   */
+  async function openMainWindowAt(route?: string): Promise<void> {
+    if (!getMainWindow()) {
+      await createAndLoadMainWindow()
+    }
+    const win = getMainWindow()
+    if (!win) {
+      return
+    }
+    if (route) {
+      void win.loadURL(`${appOrigin()}${route}`).catch(() => {})
+    }
+    if (win.isMinimized()) {
+      win.restore()
+    }
+    win.show()
+    win.focus()
+    // Panel-type windows never activate the app, so opening from the
+    // launcher needs an explicit activation to take over from the app the
+    // user was in.
+    app.focus({ steal: true })
+  }
+
+  const launcher = createLauncherWindow({
+    appOrigin,
+    partition: () => partitionForOrigin(appOrigin()),
+    preloadPath,
+    isPackaged: app.isPackaged,
+    themeBackground: () => config.get('themeBackground'),
+    openMainWindow: () => void openMainWindowAt(),
+    events,
+  })
+
+  function toggleLauncher(): void {
+    // The launcher shares the app partition; make sure its session policies
+    // (permissions, downloads, telemetry) exist before the window loads.
+    configureSessionForOrigin(appOrigin())
+    launcher.toggle()
+  }
+
+  const launcherShortcut = createLauncherShortcutManager(toggleLauncher)
+
   async function applyOrigin(raw: string) {
     const previousOrigin = appOrigin()
     const result = config.setOrigin(raw)
@@ -176,6 +225,9 @@ function main(): void {
     events.record('origin_changed')
     await localFilesystem.forgetAll()
     handoff.clear()
+    // The launcher window is bound to the old origin's partition; the next
+    // summon recreates it against the new origin.
+    launcher.destroy()
     const win = getMainWindow()
     if (win) {
       mainWindow = null
@@ -249,6 +301,37 @@ function main(): void {
       closeSettings: closeSettingsWindow,
       applyOrigin,
       localFilesystem,
+      launcher: {
+        openChat: (target) => {
+          launcher.hide()
+          const route = target.chatId
+            ? `/workspace/${target.workspaceId}/chat/${target.chatId}`
+            : `/workspace/${target.workspaceId}/home`
+          void openMainWindowAt(route)
+        },
+        openApp: () => {
+          launcher.hide()
+          void openMainWindowAt()
+        },
+        hide: () => launcher.hide(),
+        resize: (height) => launcher.resize(height),
+      },
+      launcherShortcut: {
+        get: () => ({
+          shortcut: launcherShortcut.current(),
+          presets: [...LAUNCHER_SHORTCUT_PRESETS],
+          status: launcherShortcut.status(),
+        }),
+        set: (raw) => {
+          const status = launcherShortcut.apply(raw)
+          config.set('launcherShortcut', launcherShortcut.current())
+          return {
+            shortcut: launcherShortcut.current(),
+            presets: [...LAUNCHER_SHORTCUT_PRESETS],
+            status,
+          }
+        },
+      },
     })
     await createAndLoadMainWindow()
     installApplicationMenu({
@@ -262,7 +345,28 @@ function main(): void {
       checkForUpdates: () => checkForUpdatesInteractive({ getWindow: getMainWindow, events }),
       eventLogPath: events.filePath,
     })
+    launcherShortcut.apply(config.get('launcherShortcut'))
+    if (config.get('trayEnabled') ?? true) {
+      installTray({
+        partition: () => partitionForOrigin(appOrigin()),
+        appOrigin,
+        lastRoute: () => config.get('lastRoute'),
+        launcherShortcut: () => launcherShortcut.current(),
+        openMainWindow: (route) => void openMainWindowAt(route),
+        toggleLauncher,
+        openSettings,
+        checkForUpdates: () => checkForUpdatesInteractive({ getWindow: getMainWindow, events }),
+      })
+    }
     initUpdater({ getWindow: getMainWindow, events })
+
+    // Prewarm Quick Ask a moment after startup so its first summon is instant
+    // (window + remote route already loaded). Deferred so it never competes
+    // with the main window's initial load.
+    setTimeout(() => {
+      configureSessionForOrigin(appOrigin())
+      launcher.prewarm()
+    }, 3000)
   })
 }
 

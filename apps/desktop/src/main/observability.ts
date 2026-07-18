@@ -21,6 +21,7 @@ export type DesktopEventName =
   | 'sign_out'
   | 'origin_changed'
   | 'handoff_started'
+  | 'launcher_load_failed'
 
 export interface EventRecorder {
   readonly filePath: string

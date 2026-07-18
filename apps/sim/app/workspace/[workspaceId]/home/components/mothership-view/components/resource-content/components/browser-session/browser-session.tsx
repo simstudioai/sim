@@ -33,6 +33,51 @@ export function resolveUrlBarInput(raw: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(input)}`
 }
 
+/** Overlay presence is polled on a coarser cadence than geometry. */
+const OVERLAY_CHECK_INTERVAL_MS = 100
+
+/** Sample-point inset, clear of borders, scrollbars, and rounded corners. */
+const OVERLAY_SAMPLE_INSET_PX = 12
+
+/**
+ * True when some overlay (modal, popover, dropdown) is painted over part of
+ * the panel host. The native agent-browser view renders above ALL page DOM —
+ * no z-index can beat it — so while anything covers the host rect the view
+ * must be hidden instead.
+ *
+ * Detection is hit-testing, not selector matching: `elementFromPoint` on a
+ * 3x3 grid inside the host rect. Normally every point resolves to the host
+ * (or a descendant). A DOM element from outside the host means a portal is
+ * actually painted there. This is self-correcting by construction: it can
+ * only see what genuinely renders on top. Tooltips and other
+ * `pointer-events: none` layers are transparent to hit-testing, so hovering
+ * chrome never blinks the page; `<html>`/`<body>` results (hit-test
+ * fall-through when a modal disables body pointer events) are backdrops, not
+ * overlays, and don't count.
+ */
+export function isPanelObscuredByOverlay(host: HTMLElement, hostRect: DOMRect): boolean {
+  const inset = OVERLAY_SAMPLE_INSET_PX
+  if (hostRect.width <= inset * 2 || hostRect.height <= inset * 2) {
+    return false
+  }
+  const xs = [hostRect.left + inset, hostRect.left + hostRect.width / 2, hostRect.right - inset]
+  const ys = [hostRect.top + inset, hostRect.top + hostRect.height / 2, hostRect.bottom - inset]
+  for (const x of xs) {
+    for (const y of ys) {
+      const top = document.elementFromPoint(x, y)
+      if (
+        top !== null &&
+        top !== document.documentElement &&
+        top !== document.body &&
+        !host.contains(top)
+      ) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 export function BrowserSession() {
   const pageState = useBrowserSessionStore((state) => state.pageState)
   const sessionAlive = useBrowserSessionStore((state) => state.sessionAlive)
@@ -47,27 +92,43 @@ export function BrowserSession() {
   // once a second as a liveness heartbeat — the main process treats bounds as
   // a short lease and hides the view when reports stop, so a reloaded or
   // crashed renderer can never leave the page stuck over the app. Unmount
-  // additionally reports null for an instant hide.
+  // additionally reports null for an instant hide. While a modal/popover/menu
+  // overlaps the rect the view is hidden (null bounds) so overlays are never
+  // painted under the native view.
   useEffect(() => {
     let rafId = 0
     let last = ''
     let lastSentAt = 0
+    let obscured = false
+    let lastOverlayCheckAt = 0
     const tick = () => {
       const host = hostRef.current
       if (host) {
         const rect = host.getBoundingClientRect()
-        const bounds = {
-          x: Math.round(rect.x),
-          y: Math.round(rect.y),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        }
-        const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
         const now = Date.now()
-        if ((key !== last || now - lastSentAt > 1000) && bounds.width > 0 && bounds.height > 0) {
-          last = key
-          lastSentAt = now
-          reportBrowserPanelBounds(bounds)
+        if (now - lastOverlayCheckAt > OVERLAY_CHECK_INTERVAL_MS) {
+          lastOverlayCheckAt = now
+          obscured = isPanelObscuredByOverlay(host, rect)
+        }
+        if (obscured) {
+          if (last !== 'obscured') {
+            last = 'obscured'
+            lastSentAt = now
+            reportBrowserPanelBounds(null)
+          }
+        } else {
+          const bounds = {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          }
+          const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
+          if ((key !== last || now - lastSentAt > 1000) && bounds.width > 0 && bounds.height > 0) {
+            last = key
+            lastSentAt = now
+            reportBrowserPanelBounds(bounds)
+          }
         }
       }
       rafId = requestAnimationFrame(tick)

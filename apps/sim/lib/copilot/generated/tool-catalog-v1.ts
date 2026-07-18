@@ -445,7 +445,10 @@ export const BrowserPressKey: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      key: { type: 'string', description: "Key or combination, e.g. 'Enter' or 'Control+A'." },
+      key: {
+        type: 'string',
+        description: "Key or combination, e.g. 'Enter', 'Backspace', or 'Cmd+A'.",
+      },
     },
     required: ['key'],
   },
@@ -576,7 +579,10 @@ export const BrowserType: ToolCatalogEntry = {
         description: 'The element id to act on (from the most recent browser_snapshot).',
       },
       submit: { type: 'boolean', description: 'Press Enter after typing. Default false.' },
-      text: { type: 'string', description: 'The text to type.' },
+      text: {
+        type: 'string',
+        description: "The text to type. Replaces the element's current content.",
+      },
     },
     required: ['elementId', 'text'],
   },

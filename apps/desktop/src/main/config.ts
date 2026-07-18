@@ -23,6 +23,9 @@ export interface DesktopSettings {
   lastRoute?: string
   themeBackground?: 'dark' | 'light'
   blockThirdPartyAnalytics?: boolean
+  /** Quick Ask launcher accelerator — one of the presets in shortcuts.ts, or 'disabled'. */
+  launcherShortcut?: string
+  trayEnabled?: boolean
 }
 
 export type OriginValidation = { ok: true; origin: string } | { ok: false; error: string }

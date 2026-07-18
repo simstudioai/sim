@@ -1,9 +1,12 @@
 /**
  * CDP instrumentation for agent tabs via `webContents.debugger`: auto-handles
  * the page states that would otherwise wedge automation (JS dialogs, file
- * choosers) and captures screenshots that work even while the view is hidden.
- * The user sees and drives the real embedded page, so there is no screencast
- * and no synthetic input here.
+ * choosers), captures screenshots that work even while the view is hidden,
+ * and dispatches TRUSTED input (key events, text insertion). Trusted input
+ * goes through Blink's real input pipeline — unlike synthetic DOM
+ * `KeyboardEvent`s, it triggers default actions (select-all, deletion, caret
+ * movement, character insertion) and is honored by code editors. The user
+ * sees and drives the real embedded page, so there is no screencast.
  */
 import { createLogger } from '@sim/logger'
 import type { WebContents } from 'electron'
@@ -88,4 +91,30 @@ export async function captureScreenshot(contents: WebContents): Promise<string> 
     quality: 80,
   })
   return `data:image/jpeg;base64,${result.data}`
+}
+
+/** One half of a trusted key press (`Input.dispatchKeyEvent` params). */
+export interface CdpKeyEvent {
+  type: 'keyDown' | 'rawKeyDown' | 'keyUp'
+  modifiers: number
+  key: string
+  code: string
+  windowsVirtualKeyCode: number
+  nativeVirtualKeyCode: number
+  text?: string
+  /** Blink editing commands to run with the event (macOS shortcut parity). */
+  commands?: string[]
+}
+
+/** Dispatches one trusted key event through Blink's input pipeline. */
+export async function dispatchKeyEvent(contents: WebContents, event: CdpKeyEvent): Promise<void> {
+  await send(contents, 'Input.dispatchKeyEvent', event as unknown as Record<string, unknown>)
+}
+
+/**
+ * Inserts text at the focused element's selection (replacing it) through the
+ * native IME path — works in plain fields and code editors alike.
+ */
+export async function insertText(contents: WebContents, text: string): Promise<void> {
+  await send(contents, 'Input.insertText', { text })
 }

@@ -4,12 +4,16 @@
  * live page state.
  *
  * Perception drives through injected page functions (element registry with a
- * structural outline); actuation is synthetic DOM events from those same
- * functions. The user needs no input translation at all — the real page is
- * embedded in the Sim window, so their clicks and typing are native. Tool
- * calls serialize through a queue — one real browser can only do one thing at
- * a time — and every call is bounded by a watchdog so the Sim side always
- * gets a response instead of waiting out its own timeout against silence.
+ * structural outline). Keyboard actuation (press_key, type) goes through
+ * TRUSTED CDP input events — synthetic DOM KeyboardEvents never trigger
+ * default editing actions (select-all, deletion, character insertion) and are
+ * ignored by code editors, so they exist only as a fallback. Clicks still use
+ * injected functions (element-targeted, no coordinate math). The user needs
+ * no input translation at all — the real page is embedded in the Sim window,
+ * so their clicks and typing are native. Tool calls serialize through a
+ * queue — one real browser can only do one thing at a time — and every call
+ * is bounded by a watchdog so the Sim side always gets a response instead of
+ * waiting out its own timeout against silence.
  */
 import type {
   BrowserPageState,
@@ -23,12 +27,14 @@ import * as cdp from '@/main/browser-agent/cdp'
 import {
   clickElement,
   collectSnapshot,
+  focusElementForTyping,
   getViewportInfo,
   hasTakeoverBanner,
   hoverElement,
   isTakeoverDone,
   pageContainsText,
   pressKeyOnPage,
+  readActiveElementState,
   readPageText,
   removeTakeoverBanner,
   scrollPage,
@@ -339,6 +345,101 @@ export function parseKeyCombo(combo: string): ParsedCombo {
 }
 
 // ---------------------------------------------------------------------------
+// Trusted key dispatch (CDP Input.dispatchKeyEvent)
+// ---------------------------------------------------------------------------
+
+/** CDP `Input` modifier bitmask: Alt=1, Ctrl=2, Meta=4, Shift=8. */
+function cdpModifiers(combo: ParsedCombo): number {
+  return (combo.alt ? 1 : 0) | (combo.ctrl ? 2 : 0) | (combo.meta ? 4 : 0) | (combo.shift ? 8 : 0)
+}
+
+function editingCommandFor(combo: ParsedCombo): string | null {
+  switch (combo.key.toLowerCase()) {
+    case 'a':
+      return 'selectAll'
+    case 'c':
+      return 'copy'
+    case 'x':
+      return 'cut'
+    case 'v':
+      return 'paste'
+    case 'z':
+      return combo.shift ? 'redo' : 'undo'
+    default:
+      return null
+  }
+}
+
+/**
+ * On macOS the editing shortcuts are bound in the system menu layer, which
+ * CDP key events never traverse — so Blink must be told the editing command
+ * explicitly (same technique as Puppeteer/Playwright). The model doesn't know
+ * the host OS and often says "Control+A", so on macOS Ctrl is treated as Cmd
+ * for these shortcuts: both must select all, not silently no-op. On other
+ * platforms Ctrl+key is handled inside Blink and needs no help.
+ */
+function normalizeComboForPlatform(combo: ParsedCombo, platform: NodeJS.Platform): ParsedCombo {
+  if (platform !== 'darwin' || !combo.ctrl || combo.meta || editingCommandFor(combo) === null) {
+    return combo
+  }
+  return { ...combo, ctrl: false, meta: true }
+}
+
+function macEditingCommands(combo: ParsedCombo, platform: NodeJS.Platform): string[] {
+  if (platform !== 'darwin' || !combo.meta) return []
+  const command = editingCommandFor(combo)
+  return command ? [command] : []
+}
+
+/**
+ * Builds the trusted keyDown/keyUp pair for a combo. Printable keys without
+ * ctrl/meta carry `text` so Blink inserts the character; Enter carries "\r"
+ * so it activates defaults (form submission, newline). Everything else is a
+ * rawKeyDown, which still drives Blink's default editing actions (Backspace
+ * deletes, arrows move the caret, Ctrl/Cmd+A selects all).
+ */
+export function buildKeyDispatchPlan(
+  rawCombo: ParsedCombo,
+  platform: NodeJS.Platform = process.platform
+): [cdp.CdpKeyEvent, cdp.CdpKeyEvent] {
+  const combo = normalizeComboForPlatform(rawCombo, platform)
+  const modifiers = cdpModifiers(combo)
+  const base = {
+    modifiers,
+    key: combo.key,
+    code: combo.code,
+    windowsVirtualKeyCode: combo.keyCode,
+    nativeVirtualKeyCode: combo.keyCode,
+  }
+  const printable = combo.key.length === 1 && !combo.ctrl && !combo.meta
+  const text = combo.key === 'Enter' ? '\r' : printable ? combo.key : undefined
+  const commands = macEditingCommands(combo, platform)
+  const down: cdp.CdpKeyEvent = {
+    ...base,
+    type: text !== undefined ? 'keyDown' : 'rawKeyDown',
+    ...(text !== undefined ? { text } : {}),
+    ...(commands.length > 0 ? { commands } : {}),
+  }
+  return [down, { ...base, type: 'keyUp' }]
+}
+
+/** Presses a combo through the trusted pipeline. Throws on CDP failure. */
+async function dispatchKeyCombo(contents: WebContents, combo: ParsedCombo): Promise<void> {
+  const [down, up] = buildKeyDispatchPlan(combo)
+  await cdp.dispatchKeyEvent(contents, down)
+  await cdp.dispatchKeyEvent(contents, up)
+}
+
+/**
+ * Post-action readback so the model sees the real effect (selection size,
+ * value length) instead of assuming the key "worked".
+ */
+async function activeElementState(contents: WebContents): Promise<Record<string, unknown>> {
+  const state = await execInPage(contents, readActiveElementState, []).catch(() => null)
+  return typeof state === 'object' && state !== null ? (state as Record<string, unknown>) : {}
+}
+
+// ---------------------------------------------------------------------------
 // Takeover
 // ---------------------------------------------------------------------------
 
@@ -504,28 +605,62 @@ async function executeToolInner(
     }
 
     case 'browser_type': {
+      const elementId = requireNum(params, 'elementId')
+      const text = requireStr(params, 'text')
+      const submit = params.submit === true
       const contents = session.requireTab().view.webContents
-      return unwrapPageResult(
-        await execInPage(contents, typeIntoElement, [
-          requireNum(params, 'elementId'),
-          requireStr(params, 'text'),
-          params.submit === true,
-        ])
-      )
+
+      // Native path: focus + select current content, then insert through the
+      // IME pipeline so the text REPLACES what's there — the only write path
+      // code editors (CodeMirror/Monaco) honor. The DOM selection set by the
+      // page function covers plain fields; the real select-all keystroke
+      // right after covers editors that track selection in their own model
+      // (their keymaps handle it synchronously, where DOM-selection sync is
+      // async and can lose a race with the insert). Falls back to the
+      // synthetic value-setter when CDP is unavailable.
+      unwrapPageResult(await execInPage(contents, focusElementForTyping, [elementId]))
+      try {
+        await dispatchKeyCombo(
+          contents,
+          parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
+        )
+        await cdp.insertText(contents, text)
+      } catch {
+        return unwrapPageResult(
+          await execInPage(contents, typeIntoElement, [elementId, text, submit])
+        )
+      }
+      if (submit) {
+        await dispatchKeyCombo(contents, parseKeyCombo('Enter')).catch(() => {})
+      }
+      const state = await activeElementState(contents)
+      return { typed: true, replacedExisting: true, submitted: submit, ...state }
     }
 
     case 'browser_press_key': {
       const combo = parseKeyCombo(requireStr(params, 'key'))
       const contents = session.requireTab().view.webContents
-      return await execInPage(contents, pressKeyOnPage, [
-        combo.key,
-        combo.code,
-        combo.keyCode,
-        combo.ctrl,
-        combo.meta,
-        combo.shift,
-        combo.alt,
-      ])
+      try {
+        await dispatchKeyCombo(contents, combo)
+      } catch {
+        // CDP unavailable (debugger detached): synthetic DOM fallback. It
+        // cannot trigger default editing actions, so say so in the result.
+        const fallback = await execInPage(contents, pressKeyOnPage, [
+          combo.key,
+          combo.code,
+          combo.keyCode,
+          combo.ctrl,
+          combo.meta,
+          combo.shift,
+          combo.alt,
+        ])
+        return {
+          ...(typeof fallback === 'object' && fallback !== null ? fallback : {}),
+          note: 'Delivered as a synthetic page event; editing shortcuts may not take effect.',
+        }
+      }
+      const state = await activeElementState(contents)
+      return { pressed: requireStr(params, 'key'), ...state }
     }
 
     case 'browser_scroll': {
