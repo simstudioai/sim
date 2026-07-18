@@ -315,7 +315,7 @@ export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
             </div>
             <p className='mt-[9px] text-[var(--text-muted)] text-caption'>
               {skill.workspaceShared
-                ? 'Everyone in this workspace can use this skill.'
+                ? 'Everyone in this workspace can use this skill. Permissions below still apply for editing the skill.'
                 : 'Only the members below can use this skill.'}
             </p>
           </DetailSection>
