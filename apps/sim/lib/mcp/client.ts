@@ -104,6 +104,17 @@ export class McpClient {
         capabilities: {},
       }
     )
+
+    // The SDK invokes onerror for out-of-band transport failures (SSE
+    // disconnects, exhausted reconnects) that are not tied to an in-flight
+    // request. Without a handler these are silently dropped, so wire one for
+    // observability. See @modelcontextprotocol/sdk Protocol.onerror.
+    this.client.onerror = (error) => {
+      logger.warn(`MCP transport error for ${this.config.name}`, {
+        serverId: this.config.id,
+        error: sanitizeForLogging(getErrorMessage(error, 'Unknown transport error'), 200),
+      })
+    }
   }
 
   /**
@@ -217,9 +228,34 @@ export class McpClient {
       throw new McpConnectionError('Not connected to server', this.config.name)
     }
 
+    const configuredTimeout = this.config.timeout
+    const idleTimeoutMs = Math.min(
+      configuredTimeout !== undefined && Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? Math.floor(configuredTimeout)
+        : MCP_CLIENT_CONSTANTS.LIST_TOOLS_TIMEOUT_MS,
+      getMaxExecutionTimeout()
+    )
+    const maxTotalTimeoutMs = Math.max(
+      idleTimeoutMs,
+      MCP_CLIENT_CONSTANTS.LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS
+    )
+
     try {
       const result: ListToolsResult = await this.client.listTools(undefined, {
-        timeout: MCP_CLIENT_CONSTANTS.LIST_TOOLS_TIMEOUT_MS,
+        // `timeout` bounds silence between progress notifications; `maxTotalTimeout`
+        // is the hard ceiling regardless of progress. `resetTimeoutOnProgress` only
+        // takes effect when an `onprogress` callback is supplied (the SDK sets the
+        // request progressToken only then), so both are passed together.
+        timeout: idleTimeoutMs,
+        maxTotalTimeout: maxTotalTimeoutMs,
+        resetTimeoutOnProgress: true,
+        onprogress: (progress) => {
+          logger.debug(`Tool discovery progress from ${this.config.name}`, {
+            serverId: this.config.id,
+            progress: progress.progress,
+            total: progress.total,
+          })
+        },
       })
 
       if (!result.tools || !Array.isArray(result.tools)) {

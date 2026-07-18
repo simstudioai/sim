@@ -3,7 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockSdkConnect } = vi.hoisted(() => ({
+const { mockLogger, mockSdkConnect, mockSdkListTools } = vi.hoisted(() => ({
   mockLogger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -11,6 +11,7 @@ const { mockLogger, mockSdkConnect } = vi.hoisted(() => ({
     warn: vi.fn(),
   },
   mockSdkConnect: vi.fn().mockResolvedValue(undefined),
+  mockSdkListTools: vi.fn().mockResolvedValue({ tools: [] }),
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -37,7 +38,7 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
             .mockImplementation((_schema: unknown, handler: () => Promise<void>) => {
               capturedNotificationHandler = handler
             }),
-          listTools: vi.fn().mockResolvedValue({ tools: [] }),
+          listTools: mockSdkListTools,
         })
       }
     }
@@ -80,6 +81,7 @@ describe('McpClient notification handler', () => {
     capturedNotificationHandler = null
     vi.clearAllMocks()
     mockSdkConnect.mockResolvedValue(undefined)
+    mockSdkListTools.mockResolvedValue({ tools: [] })
   })
 
   it('fires onToolsChanged when a notification arrives while connected', async () => {
@@ -150,6 +152,26 @@ describe('McpClient notification handler', () => {
     await client.connect()
 
     expect(mockSdkConnect).toHaveBeenCalledWith(expect.anything(), { timeout: 30_000 })
+  })
+
+  it('bounds tools/list with an idle timeout, hard cap, and progress reset', async () => {
+    const client = new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    await client.connect()
+    await client.listTools()
+
+    expect(mockSdkListTools).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        timeout: 30_000,
+        maxTotalTimeout: 60_000,
+        resetTimeoutOnProgress: true,
+        onprogress: expect.any(Function),
+      })
+    )
   })
 
   it('logs connection diagnostics without header values', async () => {

@@ -1,10 +1,12 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { and, eq, isNull, lte, or } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -85,7 +87,52 @@ function getDiscoveryFailureMessage(
   if (authType !== 'oauth' && error instanceof UnauthorizedError) {
     return 'Authentication failed'
   }
+  if (isTimeoutError(error)) {
+    return 'The MCP server took too long to respond and timed out'
+  }
   return getErrorMessage(error, fallback)
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (error instanceof McpError && error.code === ErrorCode.RequestTimeout) {
+    return true
+  }
+  return getErrorMessage(error, '').toLowerCase().includes('timed out')
+}
+
+/**
+ * Transient transport failures that a read-only `tools/list` may safely retry.
+ * `tools/list` is idempotent, so re-issuing it after a timeout, dropped
+ * connection, or 5xx/429 cannot double-apply side effects — unlike `tools/call`,
+ * which is never retried on these. OAuth-authorization and terminal 4xx errors
+ * are intentionally excluded: they need re-auth or a config fix, not a retry.
+ * The MCP TypeScript SDK does not retry POST requests itself (only SSE streams),
+ * so the app owns this.
+ */
+function isRetryableDiscoveryError(error: unknown): boolean {
+  if (isTimeoutError(error)) return true
+  if (error instanceof McpError) {
+    return error.code === ErrorCode.ConnectionClosed
+  }
+  if (error instanceof StreamableHTTPError) {
+    // 404/400 = stale/malformed session id: retrying rebuilds the client with no
+    // session id, which re-initializes per MCP spec. 429/5xx = transient upstream.
+    const code = error.code
+    return (
+      code === 404 ||
+      code === 400 ||
+      code === 429 ||
+      (typeof code === 'number' && code >= 500 && code <= 599)
+    )
+  }
+  const message = getErrorMessage(error, '').toLowerCase()
+  return (
+    message.includes('econnreset') ||
+    message.includes('socket hang up') ||
+    message.includes('etimedout') ||
+    message.includes('fetch failed') ||
+    message.includes('network')
+  )
 }
 
 class McpService {
@@ -772,12 +819,12 @@ class McpService {
           await client.disconnect()
         }
       } catch (error) {
-        if (this.isSessionError(error) && attempt < maxRetries - 1) {
+        if (isRetryableDiscoveryError(error) && attempt < maxRetries - 1) {
           logger.warn(
-            `[${requestId}] Session error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
+            `[${requestId}] Transient error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
             error
           )
-          await sleep(100)
+          await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 2000 }))
           continue
         }
         // Drop positive cache so a follow-up doesn't return stale tools.

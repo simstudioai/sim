@@ -51,7 +51,20 @@ export function sanitizeHeaders(
 export const MCP_CLIENT_CONSTANTS = {
   CLIENT_TIMEOUT: DEFAULT_EXECUTION_TIMEOUT_MS,
   AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
-  LIST_TOOLS_TIMEOUT_MS: 10_000,
+  /**
+   * Idle timeout for a `tools/list` request. Raised from the former aggressive
+   * 10s toward the MCP TypeScript SDK's 60s default (`DEFAULT_REQUEST_TIMEOUT_MSEC`)
+   * so a legitimately slow-to-enumerate server is not spuriously failed with
+   * `McpError -32001`. Combined with `resetTimeoutOnProgress`, this is the gap
+   * allowed between progress notifications, not the absolute ceiling.
+   */
+  LIST_TOOLS_TIMEOUT_MS: 30_000,
+  /**
+   * Absolute ceiling for a `tools/list` request regardless of progress, mirroring
+   * the SDK's `maxTotalTimeout` safeguard. Matches the SDK's 60s default so a
+   * server emitting continuous progress still cannot hang discovery indefinitely.
+   */
+  LIST_TOOLS_MAX_TOTAL_TIMEOUT_MS: 60_000,
   FAILURE_CACHE_TTL_MS: 120_000,
 } as const
 
