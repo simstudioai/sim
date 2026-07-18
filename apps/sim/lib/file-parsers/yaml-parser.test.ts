@@ -50,6 +50,22 @@ describe('parseYAMLBuffer', () => {
     await expect(parseYAMLBuffer(Buffer.from(bomb))).rejects.toBeInstanceOf(YamlComplexityError)
   })
 
+  it('rejects a key-amplification bomb (aliased object with a long key)', async () => {
+    const longKey = 'k'.repeat(2000)
+    const lines: string[] = [`l0: &l0 {${longKey}: 1}`]
+    for (let i = 1; i <= 8; i++) {
+      lines.push(
+        `l${i}: &l${i} [${Array(10)
+          .fill(`*l${i - 1}`)
+          .join(',')}]`
+      )
+    }
+    lines.push(`root: [${Array(10).fill('*l8').join(',')}]`)
+    const bomb = lines.join('\n')
+    expect(Buffer.byteLength(bomb)).toBeLessThan(4096)
+    await expect(parseYAMLBuffer(Buffer.from(bomb))).rejects.toBeInstanceOf(YamlComplexityError)
+  })
+
   it('surfaces malformed YAML as an Invalid YAML error', async () => {
     await expect(parseYAMLBuffer(Buffer.from('key: "unterminated\n'))).rejects.toThrow(
       /Invalid YAML/
@@ -74,5 +90,26 @@ describe('assertYamlWithinLimits', () => {
     const node: Record<string, unknown> = {}
     node.self = node
     expect(() => assertYamlWithinLimits(node)).toThrow(YamlComplexityError)
+  })
+
+  it('charges object keys, not just values', () => {
+    const hugeKey = 'k'.repeat(70 * 1024 * 1024)
+    expect(() => assertYamlWithinLimits({ [hugeKey]: 1 })).toThrow(YamlComplexityError)
+  })
+
+  it('rejects a large plain-text value only when it truly exceeds the size cap', () => {
+    // ~10 MB of plain ASCII serializes ~1:1 and must be accepted (no false positive).
+    expect(() => assertYamlWithinLimits({ text: 'a'.repeat(10 * 1024 * 1024) })).not.toThrow()
+    // ~70 MB exceeds the 64 MB cap and must be rejected.
+    expect(() => assertYamlWithinLimits({ text: 'a'.repeat(70 * 1024 * 1024) })).toThrow(
+      YamlComplexityError
+    )
+  })
+
+  it('charges the true escaped length of escape-heavy strings', () => {
+    // ~11M control chars each serialize to a six-char \uXXXX escape (~66 MB > 64 MB).
+    const escapeHeavy = ''.repeat(11 * 1024 * 1024)
+    expect(() => assertYamlWithinLimits({ text: escapeHeavy })).toThrow(YamlComplexityError)
+    expect(escapeHeavy.length).toBeLessThan(64 * 1024 * 1024)
   })
 })
