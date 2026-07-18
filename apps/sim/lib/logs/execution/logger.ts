@@ -669,6 +669,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const working = await redactLargeValueRefs(payload, {
       entityTypes: config.entityTypes,
       language: config.language,
+      customPatterns: config.customPatterns,
       store: {
         workspaceId,
         workflowId: storeContext.workflowId ?? undefined,
@@ -680,6 +681,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     return redactPIIFromExecution(working, {
       entityTypes: config.entityTypes,
       language: config.language,
+      customPatterns: config.customPatterns,
     })
   }
 

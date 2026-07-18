@@ -2973,6 +2973,130 @@ describe('Cost Field Handling', () => {
     Object.assign(tools, originalTools)
   })
 
+  it('emits _serviceCost for copilot executions using a hosted key', async () => {
+    const mockTool = {
+      id: 'test_copilot_hosted_cost',
+      name: 'Test Copilot Hosted Cost',
+      description: 'A hosted-key tool invoked by the copilot',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'exa',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/copilot-cost',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_copilot_hosted_cost = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    // Copilot flow: no executionContext option; scope comes from _context,
+    // which the copilot tool-executor stamps with copilotToolExecution.
+    const result = await executeTool('test_copilot_hosted_cost', {
+      _context: {
+        userId: 'user-123',
+        workspaceId: 'workspace-456',
+        copilotToolExecution: true,
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.output.cost).toEqual({ total: 0.005 })
+    expect(result.output._serviceCost).toEqual({ service: 'exa', cost: 0.005 })
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('does not emit _serviceCost for workflow executions using a hosted key', async () => {
+    const mockTool = {
+      id: 'test_workflow_hosted_cost',
+      name: 'Test Workflow Hosted Cost',
+      description: 'A hosted-key tool invoked by a workflow',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/workflow-cost',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_workflow_hosted_cost = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const mockContext = createToolExecutionContext({ userId: 'user-123' } as any)
+    const result = await executeTool(
+      'test_workflow_hosted_cost',
+      {},
+      { executionContext: mockContext }
+    )
+
+    expect(result.success).toBe(true)
+    // Workflow executions bill through the execution ledger; emitting
+    // _serviceCost here would double-bill via Go's service-charge path.
+    expect(result.output.cost).toEqual({ total: 0.005 })
+    expect(result.output._serviceCost).toBeUndefined()
+
+    Object.assign(tools, originalTools)
+  })
+
   it('should use custom pricing getCost function', async () => {
     const mockGetCost = vi.fn().mockReturnValue({
       cost: 0.015,

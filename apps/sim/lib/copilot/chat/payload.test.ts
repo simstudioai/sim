@@ -185,11 +185,11 @@ describe('buildIntegrationToolSchemas', () => {
 
     expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'gmail_send' }),
-      { surface: 'copilot' }
+      { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
     )
     expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'brandfetch_search' }),
-      { surface: 'copilot' }
+      { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
     )
   })
 

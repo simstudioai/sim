@@ -177,7 +177,7 @@ async function executeImport(
     }
   }
 
-  const { name: rawName, description: workflowDescription } = extractWorkflowMetadata(parsed)
+  const { name: rawName } = extractWorkflowMetadata(parsed)
 
   const workflowId = generateId()
   const now = new Date()
@@ -189,7 +189,6 @@ async function executeImport(
     workspaceId,
     folderId: null,
     name: dedupedName,
-    description: workflowDescription,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,

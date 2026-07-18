@@ -144,7 +144,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
           filename: `${seed.workflowName}.json`,
           workspaceId,
           nameOverride: seed.workflowName,
-          descriptionOverride: seed.workflowDescription || 'Imported from landing template',
+          descriptionOverride: seed.workflowDescription || undefined,
           createWorkflow: async ({ name, description, workspaceId }) => {
             return requestJson(createWorkflowContract, {
               body: {

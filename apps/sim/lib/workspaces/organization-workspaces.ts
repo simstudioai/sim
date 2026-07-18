@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAuditBatch } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -409,6 +410,32 @@ export async function detachOrganizationWorkspaces(
 
     return [...workspaceIds].sort()
   })
+
+  const workspacesById = new Map(
+    organizationWorkspaces.map((organizationWorkspace) => [
+      organizationWorkspace.id,
+      organizationWorkspace,
+    ])
+  )
+  recordAuditBatch(
+    detachedWorkspaceIds.map((detachedWorkspaceId) => {
+      const detachedWorkspace = workspacesById.get(detachedWorkspaceId)
+      return {
+        workspaceId: detachedWorkspaceId,
+        actorId: null,
+        actorName: 'Billing System',
+        action: AuditAction.WORKSPACE_UPDATED,
+        resourceType: AuditResourceType.WORKSPACE,
+        resourceId: detachedWorkspaceId,
+        description: 'Workspace detached from organization after its subscription ended',
+        metadata: {
+          organizationId,
+          previousBilledAccountUserId: detachedWorkspace?.billedAccountUserId ?? null,
+          newBilledAccountUserId: organizationOwnerId ?? detachedWorkspace?.ownerId ?? null,
+        },
+      }
+    })
+  )
 
   logger.info('Detached organization workspaces', {
     organizationId,

@@ -1,11 +1,13 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { and, eq, isNull } from 'drizzle-orm'
+import { backoffWithJitter } from '@sim/utils/retry'
+import { and, eq, isNull, lte, or } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
@@ -65,6 +67,64 @@ type DiscoveryOutcome =
   // originalError preserves the type so markServerUnhealthy's instanceof
   // exemption survives the getErrorMessage call.
   | { kind: 'error'; message: string; originalError: unknown }
+
+type ServerStatusUpdate =
+  | { outcome: 'connected'; toolCount: number }
+  | { outcome: 'failed'; error: string; discoveryStartedAt?: Date }
+
+function isOauthAuthorizationError(error: unknown, authType: McpServerConfig['authType']): boolean {
+  return (
+    error instanceof McpOauthAuthorizationRequiredError ||
+    (authType === 'oauth' && error instanceof UnauthorizedError)
+  )
+}
+
+function getDiscoveryFailureMessage(
+  error: unknown,
+  authType: McpServerConfig['authType'],
+  fallback: string
+): string {
+  if (authType !== 'oauth' && error instanceof UnauthorizedError) {
+    return 'Authentication failed'
+  }
+  if (isTimeoutError(error)) {
+    return 'The MCP server took too long to respond and timed out'
+  }
+  return getErrorMessage(error, fallback)
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (error instanceof McpError && error.code === ErrorCode.RequestTimeout) {
+    return true
+  }
+  return getErrorMessage(error, '').toLowerCase().includes('timed out')
+}
+
+/** Transient failures a read-only `tools/list` may safely retry (idempotent, unlike `tools/call`); excludes OAuth and terminal 4xx. */
+function isRetryableDiscoveryError(error: unknown): boolean {
+  if (isTimeoutError(error)) return true
+  if (error instanceof McpError) {
+    return error.code === ErrorCode.ConnectionClosed
+  }
+  if (error instanceof StreamableHTTPError) {
+    // 404/400 = stale session (retry re-initializes); 429/5xx = transient upstream.
+    const code = error.code
+    return (
+      code === 404 ||
+      code === 400 ||
+      code === 429 ||
+      (typeof code === 'number' && code >= 500 && code <= 599)
+    )
+  }
+  const message = getErrorMessage(error, '').toLowerCase()
+  return (
+    message.includes('econnreset') ||
+    message.includes('socket hang up') ||
+    message.includes('etimedout') ||
+    message.includes('fetch failed') ||
+    message.includes('network')
+  )
+}
 
 class McpService {
   private cacheAdapter: McpCacheStorageAdapter
@@ -311,11 +371,30 @@ class McpService {
   private async updateServerStatus(
     serverId: string,
     workspaceId: string,
-    success: boolean,
-    error?: string,
-    toolCount?: number
-  ): Promise<void> {
+    update: ServerStatusUpdate
+  ): Promise<boolean> {
     try {
+      const now = new Date()
+
+      if (update.outcome === 'connected') {
+        await db
+          .update(mcpServers)
+          .set({
+            connectionStatus: 'connected',
+            lastConnected: now,
+            lastError: null,
+            toolCount: update.toolCount,
+            lastToolsRefresh: now,
+            statusConfig: {
+              consecutiveFailures: 0,
+              lastSuccessfulDiscovery: now.toISOString(),
+            },
+            updatedAt: now,
+          })
+          .where(eq(mcpServers.id, serverId))
+        return true
+      }
+
       const [currentServer] = await db
         .select({ statusConfig: mcpServers.statusConfig })
         .from(mcpServers)
@@ -337,49 +416,42 @@ class McpService {
         lastSuccessfulDiscovery: storedConfig?.lastSuccessfulDiscovery ?? null,
       }
 
-      const now = new Date()
+      const newFailures = currentConfig.consecutiveFailures + 1
+      const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
 
-      if (success) {
-        await db
-          .update(mcpServers)
-          .set({
-            connectionStatus: 'connected',
-            lastConnected: now,
-            lastError: null,
-            toolCount: toolCount ?? 0,
-            lastToolsRefresh: now,
-            statusConfig: {
-              consecutiveFailures: 0,
-              lastSuccessfulDiscovery: now.toISOString(),
-            },
-            updatedAt: now,
-          })
-          .where(eq(mcpServers.id, serverId))
-      } else {
-        const newFailures = currentConfig.consecutiveFailures + 1
-        const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
-
-        await db
-          .update(mcpServers)
-          .set({
-            connectionStatus: isErrorState ? 'error' : 'disconnected',
-            lastError: error || 'Unknown error',
-            statusConfig: {
-              consecutiveFailures: newFailures,
-              lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
-            },
-            updatedAt: now,
-          })
-          .where(eq(mcpServers.id, serverId))
-
-        if (isErrorState) {
-          logger.warn(
-            `Server ${serverId} marked as error after ${newFailures} consecutive failures`
+      const updatedServers = await db
+        .update(mcpServers)
+        .set({
+          connectionStatus: isErrorState ? 'error' : 'disconnected',
+          lastError: update.error || 'Unknown error',
+          statusConfig: {
+            consecutiveFailures: newFailures,
+            lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
+          },
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(mcpServers.id, serverId),
+            eq(mcpServers.workspaceId, workspaceId),
+            isNull(mcpServers.deletedAt),
+            update.discoveryStartedAt
+              ? or(
+                  isNull(mcpServers.lastConnected),
+                  lte(mcpServers.lastConnected, update.discoveryStartedAt)
+                )
+              : undefined
           )
-        }
+        )
+        .returning({ id: mcpServers.id })
+
+      if (isErrorState && updatedServers.length > 0) {
+        logger.warn(`Server ${serverId} marked as error after ${newFailures} consecutive failures`)
       }
+      return updatedServers.length > 0
     } catch (err) {
       logger.error(`Failed to update server status for ${serverId}:`, err)
+      return false
     }
   }
 
@@ -390,9 +462,10 @@ class McpService {
   private async markServerUnhealthy(
     workspaceId: string,
     serverId: string,
-    error: unknown
+    error: unknown,
+    authType: McpServerConfig['authType']
   ): Promise<void> {
-    if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
+    if (isOauthAuthorizationError(error, authType)) {
       return
     }
     try {
@@ -403,6 +476,40 @@ class McpService {
       )
     } catch (err) {
       logger.warn(`Failed to write failure cache for server ${serverId}:`, err)
+    }
+  }
+
+  private async markServerOauthPending(
+    serverId: string,
+    workspaceId: string,
+    discoveryStartedAt?: Date
+  ): Promise<boolean> {
+    try {
+      const updatedServers = await db
+        .update(mcpServers)
+        .set({
+          connectionStatus: 'disconnected',
+          lastError: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(mcpServers.id, serverId),
+            eq(mcpServers.workspaceId, workspaceId),
+            isNull(mcpServers.deletedAt),
+            discoveryStartedAt
+              ? or(
+                  isNull(mcpServers.lastConnected),
+                  lte(mcpServers.lastConnected, discoveryStartedAt)
+                )
+              : undefined
+          )
+        )
+        .returning({ id: mcpServers.id })
+      return updatedServers.length > 0
+    } catch (error) {
+      logger.warn(`Failed to mark OAuth server ${serverId} disconnected:`, error)
+      return false
     }
   }
 
@@ -429,6 +536,7 @@ class McpService {
     forceRefresh = false
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
+    const discoveryStartedAt = new Date()
 
     try {
       logger.info(`[${requestId}] Discovering MCP tools for workspace ${workspaceId}`)
@@ -479,15 +587,12 @@ class McpService {
               await client.disconnect()
             }
           } catch (error) {
-            if (
-              error instanceof McpOauthAuthorizationRequiredError ||
-              error instanceof UnauthorizedError
-            ) {
+            if (isOauthAuthorizationError(error, config.authType)) {
               return { kind: 'oauth-pending' }
             }
             return {
               kind: 'error',
-              message: getErrorMessage(error, 'Unknown error'),
+              message: getDiscoveryFailureMessage(error, config.authType, 'Unknown error'),
               originalError: error,
             }
           }
@@ -516,7 +621,10 @@ class McpService {
           fetchedCount++
           allTools.push(...outcome.tools)
           deferredSideEffects.push(
-            this.updateServerStatus(server.id, workspaceId, true, undefined, outcome.tools.length)
+            this.updateServerStatus(server.id, workspaceId, {
+              outcome: 'connected',
+              toolCount: outcome.tools.length,
+            })
           )
           cacheWrites.push(
             this.cacheAdapter
@@ -536,18 +644,9 @@ class McpService {
           // Mark disconnected so the UI surfaces the re-auth button.
           logger.info(`[${requestId}] Skipping server ${server.name}: OAuth authorization pending`)
           deferredSideEffects.push(
-            db
-              .update(mcpServers)
-              .set({
-                connectionStatus: 'disconnected',
-                lastError: null,
-                updatedAt: new Date(),
-              })
-              .where(eq(mcpServers.id, server.id))
-              .then(() => undefined)
-              .catch((err) => {
-                logger.warn(`[${requestId}] Failed to mark server ${server.id} disconnected:`, err)
-              })
+            this.markServerOauthPending(server.id, workspaceId, discoveryStartedAt).then(
+              () => undefined
+            )
           )
           return
         }
@@ -561,13 +660,26 @@ class McpService {
           `[${requestId}] Failed to discover tools from server ${server.name}: ${outcome.message}`
         )
         deferredSideEffects.push(
-          this.updateServerStatus(server.id, workspaceId, false, outcome.message),
-          this.markServerUnhealthy(workspaceId, server.id, outcome.originalError),
-          this.cacheAdapter
-            .delete(serverCacheKey(workspaceId, server.id))
-            .catch((err) =>
-              logger.warn(`[${requestId}] Cache delete failed for ${server.name}:`, err)
-            )
+          this.updateServerStatus(server.id, workspaceId, {
+            outcome: 'failed',
+            error: outcome.message,
+            discoveryStartedAt,
+          }).then(async (statusApplied) => {
+            if (!statusApplied) return
+            await Promise.allSettled([
+              this.markServerUnhealthy(
+                workspaceId,
+                server.id,
+                outcome.originalError,
+                server.authType
+              ),
+              this.cacheAdapter
+                .delete(serverCacheKey(workspaceId, server.id))
+                .catch((err) =>
+                  logger.warn(`[${requestId}] Cache delete failed for ${server.name}:`, err)
+                ),
+            ])
+          })
         )
       })
 
@@ -636,6 +748,7 @@ class McpService {
     forceRefresh: boolean
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
+    const discoveryStartedAt = new Date()
     const maxRetries = 2
 
     if (!forceRefresh) {
@@ -658,6 +771,7 @@ class McpService {
     }
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      let authType: McpServerConfig['authType']
       try {
         logger.info(
           `[${requestId}] Discovering tools from server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`
@@ -667,6 +781,7 @@ class McpService {
         if (!config) {
           throw new Error(`Server ${serverId} not found or not accessible`)
         }
+        authType = config.authType
 
         const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
           config,
@@ -685,30 +800,42 @@ class McpService {
                 logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err)
               ),
             this.clearServerFailure(workspaceId, serverId),
-            this.updateServerStatus(serverId, workspaceId, true, undefined, tools.length),
+            this.updateServerStatus(serverId, workspaceId, {
+              outcome: 'connected',
+              toolCount: tools.length,
+            }),
           ])
           return tools
         } finally {
           await client.disconnect()
         }
       } catch (error) {
-        if (this.isSessionError(error) && attempt < maxRetries - 1) {
+        if (isRetryableDiscoveryError(error) && attempt < maxRetries - 1) {
           logger.warn(
-            `[${requestId}] Session error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
+            `[${requestId}] Transient error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
             error
           )
-          await sleep(100)
+          await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 2000 }))
           continue
         }
         // Drop positive cache so a follow-up doesn't return stale tools.
-        await Promise.allSettled([
-          this.cacheAdapter
-            .delete(serverCacheKey(workspaceId, serverId))
-            .catch((err) =>
-              logger.warn(`[${requestId}] Cache delete failed for ${serverId}:`, err)
-            ),
-          this.markServerUnhealthy(workspaceId, serverId, error),
-        ])
+        const statusApplied = isOauthAuthorizationError(error, authType)
+          ? await this.markServerOauthPending(serverId, workspaceId, discoveryStartedAt)
+          : await this.updateServerStatus(serverId, workspaceId, {
+              outcome: 'failed',
+              error: getDiscoveryFailureMessage(error, authType, 'Connection failed'),
+              discoveryStartedAt,
+            })
+        if (statusApplied) {
+          await Promise.allSettled([
+            this.cacheAdapter
+              .delete(serverCacheKey(workspaceId, serverId))
+              .catch((err) =>
+                logger.warn(`[${requestId}] Cache delete failed for ${serverId}:`, err)
+              ),
+            this.markServerUnhealthy(workspaceId, serverId, error, authType),
+          ])
+        }
         throw error
       }
     }
@@ -747,10 +874,7 @@ class McpService {
             error: undefined,
           })
         } catch (error) {
-          if (
-            error instanceof McpOauthAuthorizationRequiredError ||
-            error instanceof UnauthorizedError
-          ) {
+          if (isOauthAuthorizationError(error, config.authType)) {
             summaries.push({
               id: config.id,
               name: config.name,
@@ -771,7 +895,7 @@ class McpService {
             status: 'error',
             toolCount: 0,
             lastSeen: undefined,
-            error: getErrorMessage(error, 'Connection failed'),
+            error: getDiscoveryFailureMessage(error, config.authType, 'Connection failed'),
           })
         }
       }

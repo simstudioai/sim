@@ -103,6 +103,8 @@ export const env = createEnv({
     ENTERPRISE_TABLE_ROWS_LIMIT:           z.number().optional(),                  // Max rows per table on enterprise tier (default: 1000000)
     TABLE_MAX_ROW_SIZE_BYTES:              z.number().optional(),                  // Max serialized size in bytes of a single user-table row (default: 409600)
     TABLE_MAX_PAGE_BYTES:                  z.number().optional(),                  // Dev-preview: byte budget per row-page read; pages cut early past it (unset = disabled)
+    TABLE_DISPATCH_CONCURRENCY_FREE:       z.number().optional(),                  // Rows one table run executes in parallel on free tier (default: 20)
+    TABLE_DISPATCH_CONCURRENCY_PAID:       z.number().optional(),                  // Rows one table run executes in parallel on paid tiers (default: 50)
 
     // Credit-tier Stripe prices (monthly)
     STRIPE_PRICE_TIER_25_MO:               z.string().min(1).optional(),           // Pro: $25/mo (6,000 credits)
@@ -132,6 +134,8 @@ export const env = createEnv({
     SMTP_USER:                             z.string().min(1).optional(),           // SMTP username
     SMTP_PASS:                             z.string().min(1).optional(),           // SMTP password
     SMTP_SECURE:                           z.boolean().optional(),                 // Force TLS on connect (defaults to true on port 465); read via envBoolean to handle string values from process.env
+    GMAIL_CREDENTIALS_JSON:                z.string().optional(),                  // Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
+    GMAIL_SENDER:                          z.string().min(1).optional(),           // Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 
     // SMS & Messaging
     TWILIO_ACCOUNT_SID:                    z.string().min(1).optional(),           // Twilio Account SID for SMS sending
@@ -154,6 +158,9 @@ export const env = createEnv({
     ZAI_API_KEY_1:                         z.string().min(1).optional(),           // Primary Z.ai API key for load balancing
     ZAI_API_KEY_2:                         z.string().min(1).optional(),           // Additional Z.ai API key for load balancing
     ZAI_API_KEY_3:                         z.string().min(1).optional(),           // Additional Z.ai API key for load balancing
+    KIMI_API_KEY_1:                        z.string().min(1).optional(),           // Primary Kimi (Moonshot AI) API key for load balancing
+    KIMI_API_KEY_2:                        z.string().min(1).optional(),           // Additional Kimi API key for load balancing
+    KIMI_API_KEY_3:                        z.string().min(1).optional(),           // Additional Kimi API key for load balancing
     XAI_API_KEY_1:                         z.string().min(1).optional(),           // Primary xAI API key for load balancing
     XAI_API_KEY_2:                         z.string().min(1).optional(),           // Additional xAI API key for load balancing
     XAI_API_KEY_3:                         z.string().min(1).optional(),           // Additional xAI API key for load balancing
@@ -272,6 +279,18 @@ export const env = createEnv({
     AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: z.string().optional(),          // Azure container for profile pictures
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: z.string().optional(),                 // Azure container for OpenGraph images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: z.string().optional(),            // Azure container for workspace logos
+
+    // Cloud Storage - Google Cloud Storage
+    GCS_PROJECT_ID:                        z.string().optional(),                  // GCP project ID (optional — inferred from credentials/ADC when unset)
+    GCS_CREDENTIALS_JSON:                  z.string().optional(),                  // Inline service-account JSON. Omit to use Application Default Credentials (Workload Identity, GOOGLE_APPLICATION_CREDENTIALS)
+    GCS_BUCKET_NAME:                       z.string().optional(),                  // GCS bucket for general file storage (enables GCS)
+    GCS_KB_BUCKET_NAME:                    z.string().optional(),                  // GCS bucket for knowledge base files
+    GCS_EXECUTION_FILES_BUCKET_NAME:       z.string().optional(),                  // GCS bucket for workflow execution files
+    GCS_CHAT_BUCKET_NAME:                  z.string().optional(),                  // GCS bucket for chat logos
+    GCS_COPILOT_BUCKET_NAME:               z.string().optional(),                  // GCS bucket for copilot files
+    GCS_PROFILE_PICTURES_BUCKET_NAME:      z.string().optional(),                  // GCS bucket for profile pictures
+    GCS_OG_IMAGES_BUCKET_NAME:             z.string().optional(),                  // GCS bucket for OpenGraph images
+    GCS_WORKSPACE_LOGOS_BUCKET_NAME:       z.string().optional(),                  // GCS bucket for workspace logos
 
 
     // Admission & Burst Protection

@@ -436,11 +436,13 @@ export async function listForkCopyableResources(
         .from(workflow)
         // Match listDeployedWorkflows: a workflow only counts as copyable when it has an
         // actually-active deployment version, not just the isDeployed flag, so the fork
-        // modal's preflight count never over-reports "ghost" deployed workflows.
+        // modal's preflight count never over-reports "ghost" deployed workflows. Sync-excluded
+        // workflows are likewise omitted so the count matches what createFork actually copies.
         .where(
           and(
             eq(workflow.workspaceId, workspaceId),
             eq(workflow.isDeployed, true),
+            eq(workflow.forkSyncExcluded, false),
             isNull(workflow.archivedAt),
             exists(
               executor

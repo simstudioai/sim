@@ -19,7 +19,10 @@ import type {
 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
+import {
+  getAccessibleEnvCredentials,
+  getAccessibleOAuthCredentials,
+} from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -52,7 +55,6 @@ export interface WorkspaceMdData {
   workflows: Array<{
     id: string
     name: string
-    description?: string | null
     isDeployed: boolean
     lastRunAt?: Date | null
     folderPath?: string | null
@@ -155,7 +157,6 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
       const workflowDir = canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath })
       parts.push(`${indent}  VFS dir: \`${workflowDir}\``)
       parts.push(`${indent}  VFS state path: \`${workflowDir}/state.json\``)
-      if (wf.description) parts.push(`${indent}  ${wf.description}`)
       // `deployed` is a structural flag (kept); `lastRunAt` is intentionally
       // omitted — it changes on every run and would bust the cached prompt
       // prefix that carries this inventory. Current run data lives in
@@ -356,6 +357,7 @@ async function buildWorkspaceMdData(
       tables,
       files,
       credentials,
+      envCredentials,
       customTools,
       mcpServerRows,
       skillRows,
@@ -368,7 +370,6 @@ async function buildWorkspaceMdData(
         .select({
           id: workflow.id,
           name: workflow.name,
-          description: workflow.description,
           isDeployed: workflow.isDeployed,
           lastRunAt: workflow.lastRunAt,
           folderId: workflow.folderId,
@@ -411,6 +412,8 @@ async function buildWorkspaceMdData(
       listWorkspaceFiles(workspaceId),
 
       getAccessibleOAuthCredentials(workspaceId, userId),
+
+      getAccessibleEnvCredentials(workspaceId, userId),
 
       listCustomTools({ userId, workspaceId }),
 
@@ -517,7 +520,13 @@ async function buildWorkspaceMdData(
         displayName: c.displayName,
         role: c.role,
       })),
-      envVariables: [],
+      // Names only: make newly saved personal/workspace secrets visible to the
+      // next Mothership turn without ever putting their values on the wire.
+      // De-duplicate conflicts (the same key may exist in both scopes) and sort
+      // for byte-stable prompt snapshots.
+      envVariables: [...new Set(envCredentials.map((credential) => credential.envKey))].sort(
+        stableCompare
+      ),
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       customBlocks: customBlockSummaries,
       mcpServers: mcpServerRows,
@@ -584,7 +593,6 @@ export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
     id: wf.id,
     name: wf.name,
     path: canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath }),
-    ...(wf.description ? { description: wf.description } : {}),
     ...(wf.isDeployed ? { isDeployed: true } : {}),
     ...(wf.folderPath ? { folderPath: wf.folderPath } : {}),
   }))

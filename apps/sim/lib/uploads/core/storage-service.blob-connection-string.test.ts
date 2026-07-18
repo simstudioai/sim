@@ -21,6 +21,7 @@ const { mockHeadBlobObject, mockGetBlobServiceClient, mockGenerateBlobSASQueryPa
 vi.mock('@/lib/uploads/config', () => ({
   USE_S3_STORAGE: false,
   USE_BLOB_STORAGE: true,
+  USE_GCS_STORAGE: false,
   // Connection-string-only: accountName/accountKey intentionally absent.
   getStorageConfig: () => ({
     containerName: 'workspace-files',

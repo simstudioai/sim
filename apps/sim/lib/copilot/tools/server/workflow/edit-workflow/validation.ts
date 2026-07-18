@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
@@ -17,7 +18,7 @@ import { getModelOptions } from '@/blocks/utils'
 import { EDGE, normalizeName } from '@/executor/constants'
 import { isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
 import { getTool } from '@/tools/utils'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 import type {
   EdgeHandleValidationResult,
   EditWorkflowOperation,
@@ -55,12 +56,27 @@ export function validateInputsForBlock(
   blockId: string
 ): ValidationResult {
   const errors: ValidationError[] = []
+
+  // Synthesized by sanitizeForCopilot in the read view; derived, never stored.
+  // Rejected before the unknown-block-type early return below so it can never be
+  // written regardless of block type.
+  if (TRIGGER_WEBHOOK_URL_FIELD in inputs) {
+    errors.push({
+      blockId,
+      blockType,
+      field: TRIGGER_WEBHOOK_URL_FIELD,
+      value: inputs[TRIGGER_WEBHOOK_URL_FIELD],
+      error: `"${TRIGGER_WEBHOOK_URL_FIELD}" is read-only. The webhook URL is auto-assigned by Sim and cannot be changed by the agent or the user.`,
+    })
+    inputs = omit(inputs, [TRIGGER_WEBHOOK_URL_FIELD])
+  }
+
   const blockConfig = getBlock(blockType)
 
   if (!blockConfig) {
     // Unknown block type - return inputs as-is (let it fail later if invalid)
     validationLogger.warn(`Unknown block type: ${blockType}, skipping validation`)
-    return { validInputs: inputs, errors: [] }
+    return { validInputs: inputs, errors }
   }
 
   const validatedInputs: Record<string, any> = {}
@@ -94,6 +110,19 @@ export function validateInputsForBlock(
           error: `Unknown input field "${key}" for block type "${blockType}"`,
         })
       }
+      continue
+    }
+
+    // Display-only fields (e.g. webhookUrlDisplay, samplePayload) are computed or
+    // static in the UI; a written value would be dead state the UI never shows.
+    if (subBlockConfig.readOnly === true) {
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Field "${key}" on block type "${blockType}" is a read-only display field and cannot be set`,
+      })
       continue
     }
 

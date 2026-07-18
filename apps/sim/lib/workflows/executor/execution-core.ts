@@ -693,6 +693,7 @@ async function executeWorkflowCoreImpl(
       const inputOpts = {
         entityTypes: piiRedaction.input.entityTypes,
         language: piiRedaction.input.language,
+        customPatterns: piiRedaction.input.customPatterns,
         onFailure: 'throw' as const,
       }
       processedInput = await redactLargeValueRefsInValue(processedInput, {
@@ -722,6 +723,7 @@ async function executeWorkflowCoreImpl(
       const blockOutputOpts = {
         entityTypes: piiRedaction.blockOutputs.entityTypes,
         language: piiRedaction.blockOutputs.language,
+        customPatterns: piiRedaction.blockOutputs.customPatterns,
         onFailure: 'throw' as const,
       }
       const largeRefOpts = {

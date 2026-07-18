@@ -106,10 +106,10 @@ export function CredentialSelector({
     if (credentialKind === 'custom-bot') {
       return rawCredentials.filter((cred) => cred.type === 'service_account')
     }
-    return isTriggerMode
+    return isTriggerMode && !subBlock.allowServiceAccounts
       ? rawCredentials.filter((cred) => cred.type !== 'service_account')
       : rawCredentials
-  }, [rawCredentials, isTriggerMode, credentialKind])
+  }, [rawCredentials, isTriggerMode, credentialKind, subBlock.allowServiceAccounts])
 
   const selectedCredential = useMemo(
     () => credentials.find((cred) => cred.id === selectedId),

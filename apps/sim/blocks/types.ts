@@ -372,6 +372,13 @@ export interface SubBlockConfig {
    * connect row opens the custom-bot setup modal instead of the OAuth flow.
    */
   credentialKind?: 'custom-bot'
+  /**
+   * Opts a trigger-mode `oauth-input` selector into listing service-account
+   * credentials, which are otherwise excluded in trigger mode. Set only when the
+   * trigger's server-side polling path can resolve the provider's service-account
+   * token (see `resolveOAuthCredential` in `@/lib/webhooks/polling/utils`).
+   */
+  allowServiceAccounts?: boolean
   // Selector properties — declarative mapping to a SelectorKey
   selectorKey?: SelectorKey
   selectorAllowSearch?: boolean

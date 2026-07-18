@@ -712,6 +712,15 @@ export function postProcessToolOutput(toolId: string, output: Record<string, unk
 /**
  * Apply post-execution hosted-key cost tracking to a successful tool result.
  * Reports custom dimension usage, calculates cost, and merges it into the output.
+ *
+ * Billing capture differs by caller:
+ * - Workflow executions bill `output.cost.total` through trace spans and the
+ *   execution ledger (`recordUsage`), so the `cost` field alone suffices.
+ * - Copilot tool executions have no execution ledger. Their only billing hook
+ *   is Go's `extractServiceCost`, which reads a top-level `_serviceCost` field
+ *   from the tool result and charges it through the per-round update-cost
+ *   callback (the same path the media tools use). Without it, hosted-key spend
+ *   from copilot-dispatched integration tools is never charged.
  */
 async function applyHostedKeyCostToResult(
   finalResult: ToolResponse,
@@ -737,12 +746,16 @@ async function applyHostedKeyCostToResult(
   hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
 
   if (hostedKeyCost > 0) {
+    const { copilotToolExecution } = resolveToolScope(params, executionContext)
     finalResult.output = {
       ...finalResult.output,
       cost: {
         ...metadata,
         total: hostedKeyCost,
       },
+      // Copilot-only: workflow runs must not emit _serviceCost or the cost
+      // would be billed twice (execution ledger + Go service charge).
+      ...(copilotToolExecution ? { _serviceCost: { service: provider, cost: hostedKeyCost } } : {}),
     }
   }
 }

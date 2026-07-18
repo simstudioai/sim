@@ -75,6 +75,7 @@ vi.mock('@/lib/uploads/config', () => ({
     return mockUseS3Storage.value
   },
   UPLOAD_DIR: '/uploads',
+  getServeStoragePrefix: () => (mockUseBlobStorage.value ? 'blob' : 's3'),
   getStorageConfig: mockGetStorageConfig,
   isUsingCloudStorage: mockIsUsingCloudStorage,
   getStorageProvider: mockGetStorageProvider,

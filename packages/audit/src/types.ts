@@ -188,6 +188,8 @@ export const AuditAction = {
   WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
   WORKFLOW_LOCKED: 'workflow.locked',
   WORKFLOW_UNLOCKED: 'workflow.unlocked',
+  WORKFLOW_FORK_SYNC_EXCLUDED: 'workflow.fork_sync_excluded',
+  WORKFLOW_FORK_SYNC_INCLUDED: 'workflow.fork_sync_included',
   WORKFLOW_VARIABLES_UPDATED: 'workflow.variables_updated',
   WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled',
   WORKFLOW_EXPORTED: 'workflow.exported',

@@ -439,8 +439,11 @@ export const CreateWorkflow: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      description: { type: 'string', description: 'Optional workflow description.' },
-      folderId: { type: 'string', description: 'Optional folder ID.' },
+      folderPath: {
+        type: 'string',
+        description:
+          'Optional canonical workflow-folder VFS path copied from glob("workflows/**"), for example "workflows/Dream" or "workflows/Client%20Work/Intake". Omit for the workspace root.',
+      },
       name: { type: 'string', description: 'Workflow name.' },
       workspaceId: { type: 'string', description: 'Optional workspace ID.' },
     },
@@ -844,7 +847,7 @@ export const DeployCustomBlock: ToolCatalogEntry = {
       iconUrl: {
         type: 'string',
         description:
-          'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an external image URL. Omit to use the organization\'s default icon',
+          'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an https image URL. Omit to use the organization\'s default icon',
       },
       inputs: {
         type: 'array',

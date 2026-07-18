@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Chip,
   ChipConfirmModal,
+  chipGeometryClass,
   chipVariants,
   cn,
   DropdownMenu,
@@ -644,7 +645,8 @@ function WorkspaceHeaderImpl({
           type='button'
           aria-label='Switch workspace'
           className={cn(
-            'mx-0.5 h-[30px] items-center gap-2 rounded-lg px-2',
+            chipGeometryClass,
+            'mx-0.5',
             isCollapsed ? 'flex' : 'inline-flex min-w-0 max-w-full'
           )}
           title={activeWorkspace?.name}

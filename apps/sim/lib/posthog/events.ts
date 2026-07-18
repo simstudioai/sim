@@ -706,6 +706,20 @@ export interface PostHogEventMap {
     locked: boolean
   }
 
+  /** A workflow's fork-sync exclusion ("Exclude from sync") was toggled on or off. */
+  workflow_fork_sync_exclusion_toggled: {
+    workflow_id: string
+    workspace_id?: string
+    fork_sync_excluded: boolean
+  }
+
+  /** A batch of workflows was marked or unmarked "Exclude from sync" from the Forks settings. */
+  fork_excluded_workflows_updated: {
+    workspace_id: string
+    workflow_count: number
+    fork_sync_excluded: boolean
+  }
+
   workflow_schedule_created: {
     workflow_id: string
     workspace_id: string

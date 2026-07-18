@@ -27,8 +27,7 @@ vi.mock('@/lib/uploads', () => ({
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
-  BLOB_CHAT_CONFIG: {},
-  S3_CHAT_CONFIG: {},
+  getStorageConfig: vi.fn(() => ({})),
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({

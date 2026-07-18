@@ -14,6 +14,7 @@
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
+  --output-panel-width: 560px; /* OUTPUT_PANEL_WIDTH.DEFAULT */
   --auth-primary-btn-bg: #ffffff;
   --auth-primary-btn-border: #ffffff;
   --auth-primary-btn-text: #000000;

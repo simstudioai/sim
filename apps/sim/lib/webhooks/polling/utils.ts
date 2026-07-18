@@ -8,6 +8,7 @@ import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
+  resolveServiceAccountToken,
 } from '@/app/api/auth/oauth/utils'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
@@ -202,6 +203,13 @@ export async function resolveOAuthCredential(
       throw new Error(
         `Failed to resolve OAuth account for credential ${credentialId}, webhook ${webhookData.id}`
       )
+    }
+    if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+      const { accessToken: serviceAccountToken } = await resolveServiceAccountToken(
+        resolved.credentialId,
+        resolved.providerId
+      )
+      return serviceAccountToken
     }
     const rows = await db.select().from(account).where(eq(account.id, resolved.accountId)).limit(1)
     if (!rows.length) {
