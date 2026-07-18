@@ -68,6 +68,7 @@ export function getTimestampMillisecondBounds(timestamp: string): {
 
 const FAILURE_CACHE_SENTINEL: McpTool[] = []
 const CACHE_MUTATION_BEGIN_ATTEMPTS = 2
+const CACHE_INVALIDATION_ATTEMPTS = 3
 const STATUS_UPDATE_CAS_ATTEMPTS = 3
 const STATUS_METADATA_RACE_RETRY_ATTEMPTS = 3
 
@@ -702,45 +703,35 @@ class McpService {
     return null
   }
 
-  private async bestEffortInvalidateServerCache(
-    workspaceId: string,
-    serverId: string
-  ): Promise<void> {
-    const keys = [serverCacheKey(workspaceId, serverId), failureCacheKey(workspaceId, serverId)]
-    const results = await Promise.allSettled(keys.map((key) => this.cacheAdapter.delete(key)))
-    const failures = results.flatMap((result) =>
-      result.status === 'rejected' ? [getMcpSafeErrorDiagnostics(result.reason)] : []
-    )
-    if (failures.length > 0) {
-      logger.warn(`Failed best-effort cache invalidation for server ${serverId}`, {
-        workspaceId,
-        failures,
-      })
-    }
-  }
-
   private async invalidateServerCache(workspaceId: string, serverId: string): Promise<void> {
-    const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
-    if (!mutation) {
-      // During a total cache-backend outage there is no cross-process token we
-      // can advance, so this can only be best effort. Deleting both keys still
-      // prevents stale reads whenever the backend accepts ordinary commands.
-      await this.bestEffortInvalidateServerCache(workspaceId, serverId)
+    const keys = [serverCacheKey(workspaceId, serverId), failureCacheKey(workspaceId, serverId)]
+    for (let attempt = 0; attempt < CACHE_INVALIDATION_ATTEMPTS; attempt++) {
+      // Reacquire a fresh ownership token after every unavailable transition.
+      // This orders the retry after work that completed during the unknown
+      // attempt, while work starting later can still supersede the new token.
+      const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
+      if (!mutation) continue
+
+      const cacheApplied = await this.applyServerCacheMutation(
+        workspaceId,
+        serverId,
+        mutation,
+        null,
+        keys
+      )
+      if (cacheApplied === 'superseded') return
+      if (cacheApplied === 'unavailable') continue
+
+      await this.markServerCacheInvalidated(serverId, workspaceId, new Date(mutation.id))
       return
     }
-    const cacheApplied = await this.applyServerCacheMutation(
-      workspaceId,
-      serverId,
-      mutation,
-      null,
-      [serverCacheKey(workspaceId, serverId), failureCacheKey(workspaceId, serverId)]
-    )
-    if (cacheApplied === 'superseded') return
-    if (cacheApplied === 'unavailable') {
-      await this.bestEffortInvalidateServerCache(workspaceId, serverId)
-    }
 
-    await this.markServerCacheInvalidated(serverId, workspaceId, new Date(mutation.id))
+    // Without an ownership-checked transition, deleting either key can erase
+    // a newer process's winner. Leave cache and database state unchanged.
+    logger.warn(`Cache invalidation unavailable for server ${serverId}`, {
+      workspaceId,
+      attempts: CACHE_INVALIDATION_ATTEMPTS,
+    })
   }
 
   private async getCurrentCachedTools(

@@ -333,6 +333,38 @@ describe('MCP server refresh route', () => {
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 
+  it('preserves a newer successful refresh when discovery is superseded', async () => {
+    mockDiscoverServerTools.mockResolvedValueOnce({
+      tools: [],
+      state: 'superseded',
+    })
+    const newerSuccessfulServer = {
+      ...initialServer,
+      lastConnected: new Date(initialServer.lastConnected.getTime() + 60_000),
+      lastToolsRefresh: new Date(initialServer.lastToolsRefresh.getTime() + 60_000),
+      toolCount: 7,
+    }
+    mockSelect.mockReturnValueOnce(selectRows([newerSuccessfulServer]))
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'connected',
+        error: null,
+        toolCount: 7,
+        workflowsUpdated: 0,
+        updatedWorkflowIds: [],
+      })
+    )
+    expect(mockSelect).toHaveBeenCalledTimes(2)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
   it('fails closed without syncing workflows when discovery is superseded', async () => {
     mockDiscoverServerTools.mockResolvedValueOnce({
       tools: [],

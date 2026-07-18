@@ -265,8 +265,15 @@ export const POST = withRouteHandler(
         let connectionStatus = refreshedServer?.connectionStatus ?? 'error'
         let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
         let toolCount = refreshedServer?.toolCount ?? discoveredTools.length
+        const newerSuccessWonRace =
+          connectionStatus === 'connected' &&
+          refreshedServer?.lastToolsRefresh != null &&
+          (server.lastToolsRefresh == null ||
+            refreshedServer.lastToolsRefresh > server.lastToolsRefresh) &&
+          refreshedServer.lastConnected != null &&
+          (server.lastConnected == null || refreshedServer.lastConnected > server.lastConnected)
 
-        if (discoveryState === 'superseded') {
+        if (discoveryState === 'superseded' && !newerSuccessWonRace) {
           connectionStatus = 'disconnected'
           lastError = 'Tool discovery was superseded by a newer refresh. Please retry.'
           toolCount = 0
@@ -280,13 +287,6 @@ export const POST = withRouteHandler(
         }
 
         if (discoveryError !== null && connectionStatus === 'connected') {
-          const newerSuccessWonRace =
-            refreshedServer?.lastToolsRefresh != null &&
-            (server.lastToolsRefresh == null ||
-              refreshedServer.lastToolsRefresh > server.lastToolsRefresh) &&
-            refreshedServer.lastConnected != null &&
-            (server.lastConnected == null || refreshedServer.lastConnected > server.lastConnected)
-
           if (!newerSuccessWonRace) {
             connectionStatus = 'disconnected'
             lastError = oauthAuthorizationRequired ? null : discoveryError

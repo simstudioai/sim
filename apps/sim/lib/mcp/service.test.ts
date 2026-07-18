@@ -716,7 +716,7 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
   })
 
-  it('best-effort deletes both cache keys when invalidation cannot be ordered', async () => {
+  it('preserves cache and database state when invalidation cannot be ordered', async () => {
     const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
     const failureKey = `${serverKey}:failure`
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
@@ -725,19 +725,21 @@ describe('McpService.discoverTools per-server caching', () => {
       expiry: Date.now() + 60_000,
     })
     cacheStore.set(failureKey, { tools: [], expiry: Date.now() + 60_000 })
-    mockCacheAdapter.beginMutation
-      .mockRejectedValueOnce(new Error('cache ordering unavailable'))
-      .mockRejectedValueOnce(new Error('cache ordering unavailable'))
+    for (let attempt = 0; attempt < 6; attempt++) {
+      mockCacheAdapter.beginMutation.mockRejectedValueOnce(new Error('cache ordering unavailable'))
+    }
 
     await mcpService.clearCache(WORKSPACE_ID)
 
-    expect(cacheStore.has(serverKey)).toBe(false)
-    expect(cacheStore.has(failureKey)).toBe(false)
-    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(serverKey)
-    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(failureKey)
+    expect(cacheStore.get(serverKey)?.tools).toEqual([tool('stale-tool', 'mcp-a')])
+    expect(cacheStore.has(failureKey)).toBe(true)
+    expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(6)
+    expect(mockCacheAdapter.applyMutationIfCurrent).not.toHaveBeenCalled()
+    expect(mockCacheAdapter.delete).not.toHaveBeenCalled()
+    expect(mockUpdateSet).not.toHaveBeenCalled()
   })
 
-  it('best-effort deletes both cache keys and publishes the barrier when ordered invalidation fails', async () => {
+  it('reacquires ownership after a transient atomic invalidation failure', async () => {
     const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
     const failureKey = `${serverKey}:failure`
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
@@ -752,15 +754,77 @@ describe('McpService.discoverTools per-server caching', () => {
 
     await mcpService.clearCache(WORKSPACE_ID)
 
-    const mutationId = mockCacheAdapter.applyMutationIfCurrent.mock.calls[0][1]
+    const firstMutationId = mockCacheAdapter.applyMutationIfCurrent.mock.calls[0][1]
+    const successfulMutationId = mockCacheAdapter.applyMutationIfCurrent.mock.calls[1][1]
+    expect(successfulMutationId).toBeGreaterThan(firstMutationId)
+    expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(2)
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenCalledTimes(2)
     expect(cacheStore.has(serverKey)).toBe(false)
     expect(cacheStore.has(failureKey)).toBe(false)
-    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(serverKey)
-    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(failureKey)
+    expect(mockCacheAdapter.delete).not.toHaveBeenCalled()
     expect(mockUpdateSet).toHaveBeenCalledWith({
       toolCount: 0,
-      lastToolsRefresh: new Date(mutationId),
+      lastToolsRefresh: new Date(successfulMutationId),
     })
+  })
+
+  it('preserves a newer winner acquired between invalidation retry begin and apply', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const failureKey = `${serverKey}:failure`
+    const winner = tool('winner-tool', 'mcp-a')
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    cacheStore.set(serverKey, {
+      tools: [tool('stale-tool', 'mcp-a')],
+      expiry: Date.now() + 60_000,
+    })
+    cacheStore.set(failureKey, { tools: [], expiry: Date.now() + 60_000 })
+    const defaultApply = mockCacheAdapter.applyMutationIfCurrent.getMockImplementation()
+    mockCacheAdapter.applyMutationIfCurrent
+      .mockRejectedValueOnce(new Error('atomic invalidation unavailable'))
+      .mockImplementationOnce(async (scopeKey, mutationId, setEntry, deleteKeys) => {
+        const newerMutationId = await mockCacheAdapter.beginMutation(scopeKey)
+        await defaultApply?.(
+          scopeKey,
+          newerMutationId,
+          { key: serverKey, tools: [winner], ttlMs: 60_000 },
+          [failureKey]
+        )
+        return defaultApply?.(scopeKey, mutationId, setEntry, deleteKeys) ?? false
+      })
+
+    await mcpService.clearCache(WORKSPACE_ID)
+
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenCalledTimes(2)
+    expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(3)
+    expect(cacheStore.get(serverKey)?.tools).toEqual([winner])
+    expect(cacheStore.has(failureKey)).toBe(false)
+    expect(mockCacheAdapter.delete).not.toHaveBeenCalled()
+    expect(mockUpdateSet).not.toHaveBeenCalled()
+  })
+
+  it('bounds persistent atomic invalidation failures without raw deletes', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const failureKey = `${serverKey}:failure`
+    const reflectedCredential = 'opaque-cache-provider-message'
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    cacheStore.set(serverKey, {
+      tools: [tool('stale-tool', 'mcp-a')],
+      expiry: Date.now() + 60_000,
+    })
+    cacheStore.set(failureKey, { tools: [], expiry: Date.now() + 60_000 })
+    for (let attempt = 0; attempt < 3; attempt++) {
+      mockCacheAdapter.applyMutationIfCurrent.mockRejectedValueOnce(new Error(reflectedCredential))
+    }
+
+    await mcpService.clearCache(WORKSPACE_ID)
+
+    expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(3)
+    expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenCalledTimes(3)
+    expect(cacheStore.get(serverKey)?.tools).toEqual([tool('stale-tool', 'mcp-a')])
+    expect(cacheStore.has(failureKey)).toBe(true)
+    expect(mockCacheAdapter.delete).not.toHaveBeenCalled()
+    expect(mockUpdateSet).not.toHaveBeenCalled()
+    expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
   })
 
   it('preserves a newer cache winner when invalidation is superseded', async () => {
