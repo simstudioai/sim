@@ -66,6 +66,7 @@ export function getTimestampMillisecondBounds(timestamp: string): {
 }
 
 const FAILURE_CACHE_SENTINEL: McpTool[] = []
+const CACHE_MUTATION_BEGIN_ATTEMPTS = 2
 
 type DiscoveryOutcome =
   | { kind: 'cached'; tools: McpTool[] }
@@ -511,41 +512,11 @@ class McpService {
     deleteKeys: string[]
   ): Promise<boolean> {
     if (!mutation) {
-      const operations = [
-        ...(setEntry
-          ? [
-              {
-                kind: 'set',
-                run: () => this.cacheAdapter.set(setEntry.key, setEntry.tools, setEntry.ttlMs),
-              },
-            ]
-          : []),
-        ...deleteKeys.map((key) => ({
-          kind: 'delete',
-          run: () => this.cacheAdapter.delete(key),
-        })),
-      ]
-      const results = await Promise.allSettled(
-        operations.map(({ run }) => Promise.resolve().then(run))
-      )
-      const failedOperations = results.flatMap((result, index) =>
-        result.status === 'rejected'
-          ? [
-              {
-                kind: operations[index].kind,
-                error: getMcpSafeErrorDiagnostics(result.reason),
-              },
-            ]
-          : []
-      )
-      if (failedOperations.length > 0) {
-        logger.warn(`Failed to update cache fallback for server ${serverId}`, {
-          workspaceId,
-          failedOperations,
-        })
-      }
-      // Cache availability must not block the authoritative database status.
-      return true
+      // An unordered fallback cannot safely publish discovery state. An older
+      // ordered mutation could overwrite it and then lose the database CAS,
+      // while an unguarded delete could erase a newer publisher's result.
+      // Fail closed so cache and database publication remain one ordered unit.
+      return false
     }
     try {
       return await this.cacheAdapter.applyMutationIfCurrent(
@@ -559,7 +530,7 @@ class McpService {
         workspaceId,
         error: getMcpSafeErrorDiagnostics(error),
       })
-      return true
+      return false
     }
   }
 
@@ -614,18 +585,47 @@ class McpService {
     serverId: string
   ): Promise<CacheMutation | null> {
     const scopeKey = serverCacheKey(workspaceId, serverId)
-    try {
-      return { scopeKey, id: await this.cacheAdapter.beginMutation(scopeKey) }
-    } catch (error) {
-      logger.warn(`Failed to order cache mutation for server ${serverId}`, {
-        error: getMcpSafeErrorDiagnostics(error),
+    let lastError: unknown
+    for (let attempt = 0; attempt < CACHE_MUTATION_BEGIN_ATTEMPTS; attempt++) {
+      try {
+        return { scopeKey, id: await this.cacheAdapter.beginMutation(scopeKey) }
+      } catch (error) {
+        lastError = error
+      }
+    }
+    logger.warn(`Failed to order cache mutation for server ${serverId}`, {
+      attempts: CACHE_MUTATION_BEGIN_ATTEMPTS,
+      error: getMcpSafeErrorDiagnostics(lastError),
+    })
+    return null
+  }
+
+  private async bestEffortInvalidateServerCache(
+    workspaceId: string,
+    serverId: string
+  ): Promise<void> {
+    const keys = [serverCacheKey(workspaceId, serverId), failureCacheKey(workspaceId, serverId)]
+    const results = await Promise.allSettled(keys.map((key) => this.cacheAdapter.delete(key)))
+    const failures = results.flatMap((result) =>
+      result.status === 'rejected' ? [getMcpSafeErrorDiagnostics(result.reason)] : []
+    )
+    if (failures.length > 0) {
+      logger.warn(`Failed best-effort cache invalidation for server ${serverId}`, {
+        workspaceId,
+        failures,
       })
-      return null
     }
   }
 
   private async invalidateServerCache(workspaceId: string, serverId: string): Promise<void> {
     const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
+    if (!mutation) {
+      // During a total cache-backend outage there is no cross-process token we
+      // can advance, so this can only be best effort. Deleting both keys still
+      // prevents stale reads whenever the backend accepts ordinary commands.
+      await this.bestEffortInvalidateServerCache(workspaceId, serverId)
+      return
+    }
     await this.applyServerCacheMutation(workspaceId, serverId, mutation, null, [
       serverCacheKey(workspaceId, serverId),
       failureCacheKey(workspaceId, serverId),
