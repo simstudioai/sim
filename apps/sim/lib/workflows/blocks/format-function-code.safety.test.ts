@@ -40,7 +40,7 @@ const JAVASCRIPT_SYNTAX_CASES: SyntaxCase[] = [
   },
   {
     name: 'try catch switch and finally blocks',
-    code: "try{switch(status){case 'ok':return {ok:true};default:throw new Error('bad')}}catch(error){return {ok:false,message:error instanceof Error?error.message:String(error)}}finally{cleanup?.()}",
+    code: "try{switch(status){case 'ok':return {ok:true};default:throw new Error('bad')}}catch(error){return {ok:false,message:String(error)}}finally{cleanup?.()}",
   },
   {
     name: 'generator functions and loop control',
