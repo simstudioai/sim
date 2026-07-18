@@ -1,0 +1,86 @@
+name: Desktop E2E
+
+# Smoke coverage of the real Electron shell, plus an advisory canary leg
+# against electron@latest so Chromium-cadence breakage surfaces before an
+# upgrade is attempted (U18/U22).
+
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - '.github/workflows/desktop-e2e.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E (${{ matrix.electron }})
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        electron: [pinned, latest]
+    continue-on-error: ${{ matrix.electron == 'latest' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Switch to electron@latest (canary)
+        if: matrix.electron == 'latest'
+        working-directory: apps/desktop
+        run: bun add -d electron@latest
+
+      - name: Bundle main and preload
+        working-directory: apps/desktop
+        run: bun run build
+
+      - name: Run Playwright _electron smoke suite
+        working-directory: apps/desktop
+        run: bunx playwright test
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-e2e-results-${{ matrix.electron }}
+          path: apps/desktop/test-results
+          retention-days: 7
+
+  package-smoke:
+    name: Unsigned package smoke
+    runs-on: macos-14
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Bundle and package unsigned
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          bun run build
+          bunx electron-builder --mac dir --publish never

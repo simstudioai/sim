@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>Sim — Settings</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #0c0c0c;
+        --muted: #6b6b6b;
+        --border: #e4e4e4;
+        --accent: #701ffc;
+        --accent-fg: #ffffff;
+        --error: #dc2626;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c0c0c;
+          --fg: #f4f4f4;
+          --muted: #9a9a9a;
+          --border: #262626;
+          --error: #f87171;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 16px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+      input {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+        outline: none;
+        user-select: text;
+      }
+      input:focus {
+        border-color: var(--accent);
+      }
+      .hint {
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.5;
+        margin-top: 8px;
+      }
+      .error {
+        font-size: 12px;
+        color: var(--error);
+        margin-top: 8px;
+        min-height: 16px;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 16px;
+      }
+      button {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg);
+        border-radius: 8px;
+        padding: 7px 14px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-fg);
+      }
+      button:active {
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Server</h1>
+    <label for="origin">Server URL</label>
+    <input id="origin" type="url" spellcheck="false" placeholder="https://sim.ai" />
+    <div class="hint">
+      Point Sim at a self-hosted instance. Must be HTTPS (HTTP is allowed for localhost only).
+      Changing the server keeps a separate sign-in per server.
+    </div>
+    <div class="error" id="error"></div>
+    <div class="actions">
+      <button id="cancel">Cancel</button>
+      <button class="primary" id="save">Save</button>
+    </div>
+    <script>
+      const bridge = window.simDesktop
+      const input = document.getElementById('origin')
+      const errorEl = document.getElementById('error')
+
+      bridge?.settingsGet().then((settings) => {
+        input.value = settings.origin
+        input.focus()
+        input.select()
+      })
+
+      async function save() {
+        errorEl.textContent = ''
+        const result = await bridge?.settingsSave(input.value)
+        if (result && !result.ok) {
+          errorEl.textContent = result.error || 'Invalid server URL'
+        }
+      }
+
+      document.getElementById('save').addEventListener('click', save)
+      document.getElementById('cancel').addEventListener('click', () => bridge?.settingsClose())
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') save()
+        if (event.key === 'Escape') bridge?.settingsClose()
+      })
+    </script>
+  </body>
+</html>

@@ -1,0 +1,49 @@
+appId: ai.sim.desktop
+productName: Sim
+copyright: Copyright © 2026 Sim
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**
+  - static/**
+  - package.json
+
+asar: true
+
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  strictlyRequireAllFuses: true
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
+  icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Sim uses your microphone for voice input to agents.
+  notarize: true
+
+dmg:
+  sign: false
+
+npmRebuild: false
+
+publish:
+  provider: github
+  owner: simstudioai
+  repo: sim

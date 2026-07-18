@@ -1,0 +1,140 @@
+name: Desktop Release (macOS)
+
+# Builds, signs, notarizes, and uploads the desktop app to an existing GitHub
+# release. Ordering is load-bearing: scripts/create-single-release.ts skips
+# creation when the tag already exists, so this workflow must never create the
+# release itself — it only uploads assets after create-release ran (wired via
+# workflow_call from ci.yml with needs: [create-release]).
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Release tag (vX.Y.Z) to attach desktop artifacts to
+        required: true
+        type: string
+      publish:
+        description: Upload artifacts to the GitHub release
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release tag (vX.Y.Z) to attach desktop artifacts to
+        required: true
+        type: string
+      publish:
+        description: Upload artifacts to the GitHub release
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-sign-notarize:
+    name: Build, Sign, Notarize
+    runs-on: macos-14
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-cache-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Inject release version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          SEMVER="${VERSION#v}"
+          if ! [[ "$SEMVER" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.].+)?$ ]]; then
+            echo "Refusing to build: '$VERSION' is not a vX.Y.Z release tag" >&2
+            exit 1
+          fi
+          npm pkg set version="$SEMVER" --prefix apps/desktop
+          INJECTED="$(node -p "require('./apps/desktop/package.json').version")"
+          if [ "$INJECTED" != "$SEMVER" ]; then
+            echo "Version injection mismatch: wanted $SEMVER got $INJECTED" >&2
+            exit 1
+          fi
+
+      - name: Bundle main and preload
+        working-directory: apps/desktop
+        run: bun run build
+
+      - name: Write App Store Connect API key
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/appstoreconnect"
+          printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
+
+      - name: Package, sign, and notarize
+        working-directory: apps/desktop
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Absolute path — @electron/notarize reads this via Node fs, which
+          # does not expand a leading '~'.
+          APPLE_API_KEY: ${{ runner.temp }}/appstoreconnect/AuthKey.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bunx electron-builder --mac --publish never
+
+      - name: Validate signature and notarization
+        run: |
+          DMG="$(ls apps/desktop/release/*.dmg | head -1)"
+          xcrun stapler validate "$DMG"
+          hdiutil attach "$DMG" -mountpoint /tmp/sim-dmg -nobrowse -quiet
+          spctl --assess --type execute --verbose /tmp/sim-dmg/*.app
+          codesign --verify --deep --strict /tmp/sim-dmg/*.app
+          hdiutil detach /tmp/sim-dmg -quiet
+
+      - name: Upload artifacts to the release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          # *-mac.yml, not latest-mac.yml: a prerelease build emits
+          # beta-mac.yml / alpha-mac.yml, so the hardcoded name would miss it.
+          gh release upload "$VERSION" \
+            apps/desktop/release/*.dmg \
+            apps/desktop/release/*.zip \
+            apps/desktop/release/*.blockmap \
+            apps/desktop/release/*-mac.yml \
+            --clobber
+
+      - name: Upload artifacts to the workflow run
+        if: ${{ !inputs.publish }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-desktop-${{ inputs.version }}
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/*-mac.yml
+          retention-days: 7

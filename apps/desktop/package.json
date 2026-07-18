@@ -1,0 +1,44 @@
+{
+  "name": "@sim/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Sim desktop app for macOS — Electron shell around the hosted web app",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "dev": "bun run scripts/build.ts && electron .",
+    "start": "electron .",
+    "package:dir": "bun run build && electron-builder --mac dir --publish never",
+    "package:mac": "bun run build && electron-builder --mac --publish never",
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@sim/logger": "workspace:*",
+    "@sim/security": "workspace:*",
+    "@sim/utils": "workspace:*",
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@sim/tsconfig": "workspace:*",
+    "@types/node": "24.2.1",
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
+  }
+}

@@ -446,3 +446,16 @@ jobs:
         env:
           GH_PAT: ${{ secrets.GITHUB_TOKEN }}
         run: bun run scripts/create-single-release.ts ${{ needs.detect-version.outputs.version }}
+
+  # Desktop macOS artifacts attach to the release created above. Ordering is
+  # load-bearing: create-single-release.ts skips creation when the tag already
+  # exists, so the desktop job must never run before create-release.
+  desktop-release:
+    name: Desktop Release
+    needs: [detect-version, create-release]
+    if: needs.detect-version.outputs.is_release == 'true'
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      version: ${{ needs.detect-version.outputs.version }}
+      publish: true
+    secrets: inherit
