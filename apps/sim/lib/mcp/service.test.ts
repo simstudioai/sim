@@ -505,6 +505,67 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockListTools).not.toHaveBeenCalled()
   })
 
+  it('falls back to unordered cache writes when mutation ordering is unavailable', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const failureKey = `${serverKey}:failure`
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    cacheStore.set(failureKey, { tools: [], expiry: Date.now() + 60_000 })
+    mockCacheAdapter.beginMutation.mockRejectedValueOnce(new Error('cache ordering unavailable'))
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+
+    expect(tools).toEqual([tool('a1', 'mcp-a')])
+    expect(cacheStore.get(serverKey)?.tools).toEqual([tool('a1', 'mcp-a')])
+    expect(cacheStore.has(failureKey)).toBe(false)
+    expect(mockCacheAdapter.set).toHaveBeenCalledWith(
+      serverKey,
+      [tool('a1', 'mcp-a')],
+      expect.any(Number)
+    )
+    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(failureKey)
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionStatus: 'connected', toolCount: 1 })
+    )
+  })
+
+  it('publishes database status when both ordered and fallback cache writes fail', async () => {
+    const reflectedCredential = 'opaque-cache-provider-message'
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockCacheAdapter.beginMutation.mockRejectedValueOnce(new Error(reflectedCredential))
+    mockCacheAdapter.set.mockRejectedValueOnce(new Error(reflectedCredential))
+    mockCacheAdapter.delete.mockRejectedValueOnce(new Error(reflectedCredential))
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    await expect(
+      mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    ).resolves.toEqual([tool('a1', 'mcp-a')])
+
+    expect(mockUpdateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionStatus: 'connected', toolCount: 1 })
+    )
+    expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
+  })
+
+  it('falls back to unordered deletes when cache invalidation cannot be ordered', async () => {
+    const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+    const failureKey = `${serverKey}:failure`
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    cacheStore.set(serverKey, {
+      tools: [tool('stale-tool', 'mcp-a')],
+      expiry: Date.now() + 60_000,
+    })
+    cacheStore.set(failureKey, { tools: [], expiry: Date.now() + 60_000 })
+    mockCacheAdapter.beginMutation.mockRejectedValueOnce(new Error('cache ordering unavailable'))
+
+    await mcpService.clearCache(WORKSPACE_ID)
+
+    expect(cacheStore.has(serverKey)).toBe(false)
+    expect(cacheStore.has(failureKey)).toBe(false)
+    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(serverKey)
+    expect(mockCacheAdapter.delete).toHaveBeenCalledWith(failureKey)
+  })
+
   it('does not negative-cache OAuth-required errors', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))

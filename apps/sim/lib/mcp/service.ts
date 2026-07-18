@@ -4,7 +4,7 @@ import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { describeError, getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { and, eq, gte, isNull, lt, lte, or } from 'drizzle-orm'
@@ -17,6 +17,7 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
+import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import {
   getOrCreateOauthRow,
   loadPreregisteredClient,
@@ -144,16 +145,6 @@ function getDiscoveryFailureMessage(
   return fallback === 'Unknown error' ? 'Connection failed' : fallback
 }
 
-function getSafeErrorDiagnostics(error: unknown) {
-  const described = describeError(error)
-  return {
-    name: described.name,
-    code: described.code,
-    errno: described.errno,
-    syscall: described.syscall,
-  }
-}
-
 function isTimeoutError(error: unknown): boolean {
   if (error instanceof McpError && error.code === ErrorCode.RequestTimeout) {
     return true
@@ -202,7 +193,7 @@ class McpService {
       this.unsubscribeConnectionManager = mcpConnectionManager.subscribe((event) => {
         this.invalidateServerCache(event.workspaceId, event.serverId).catch((error) => {
           logger.warn(`Failed to invalidate cache for ${event.serverName} on listChanged`, {
-            error: getSafeErrorDiagnostics(error),
+            error: getMcpSafeErrorDiagnostics(error),
           })
         })
       })
@@ -519,7 +510,43 @@ class McpService {
     setEntry: McpCacheMutationSet | null,
     deleteKeys: string[]
   ): Promise<boolean> {
-    if (!mutation) return true
+    if (!mutation) {
+      const operations = [
+        ...(setEntry
+          ? [
+              {
+                kind: 'set',
+                run: () => this.cacheAdapter.set(setEntry.key, setEntry.tools, setEntry.ttlMs),
+              },
+            ]
+          : []),
+        ...deleteKeys.map((key) => ({
+          kind: 'delete',
+          run: () => this.cacheAdapter.delete(key),
+        })),
+      ]
+      const results = await Promise.allSettled(
+        operations.map(({ run }) => Promise.resolve().then(run))
+      )
+      const failedOperations = results.flatMap((result, index) =>
+        result.status === 'rejected'
+          ? [
+              {
+                kind: operations[index].kind,
+                error: getMcpSafeErrorDiagnostics(result.reason),
+              },
+            ]
+          : []
+      )
+      if (failedOperations.length > 0) {
+        logger.warn(`Failed to update cache fallback for server ${serverId}`, {
+          workspaceId,
+          failedOperations,
+        })
+      }
+      // Cache availability must not block the authoritative database status.
+      return true
+    }
     try {
       return await this.cacheAdapter.applyMutationIfCurrent(
         mutation.scopeKey,
@@ -530,7 +557,7 @@ class McpService {
     } catch (error) {
       logger.warn(`Failed to atomically update cache for server ${serverId}`, {
         workspaceId,
-        error: getSafeErrorDiagnostics(error),
+        error: getMcpSafeErrorDiagnostics(error),
       })
       return true
     }
@@ -591,7 +618,7 @@ class McpService {
       return { scopeKey, id: await this.cacheAdapter.beginMutation(scopeKey) }
     } catch (error) {
       logger.warn(`Failed to order cache mutation for server ${serverId}`, {
-        error: getSafeErrorDiagnostics(error),
+        error: getMcpSafeErrorDiagnostics(error),
       })
       return null
     }
@@ -599,7 +626,6 @@ class McpService {
 
   private async invalidateServerCache(workspaceId: string, serverId: string): Promise<void> {
     const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
-    if (!mutation) return
     await this.applyServerCacheMutation(workspaceId, serverId, mutation, null, [
       serverCacheKey(workspaceId, serverId),
       failureCacheKey(workspaceId, serverId),
@@ -982,7 +1008,7 @@ class McpService {
         if (isRetryableDiscoveryError(error) && attempt < maxRetries - 1) {
           logger.warn(
             `[${requestId}] Transient error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1})`,
-            { error: getSafeErrorDiagnostics(error) }
+            { error: getMcpSafeErrorDiagnostics(error) }
           )
           await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 2000 }))
           continue

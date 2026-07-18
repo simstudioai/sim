@@ -9,10 +9,10 @@ import {
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
-import { describeError, getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
-import { sanitizeForLogging } from '@/lib/core/security/redaction'
+import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import {
   type McpClientOptions,
@@ -58,16 +58,6 @@ function classifyConnectionOutcome(
   if (message.includes('timeout') || message.includes('timed out')) return 'timeout'
   if (message.includes('401') || message.includes('unauthorized')) return 'unauthorized'
   return 'error'
-}
-
-function getSafeErrorDiagnostics(error: unknown) {
-  const describedError = describeError(error)
-  return {
-    name: sanitizeForLogging(describedError.name, 100),
-    code: describedError.code ? sanitizeForLogging(describedError.code, 100) : undefined,
-    errno: describedError.errno ? sanitizeForLogging(describedError.errno, 100) : undefined,
-    syscall: describedError.syscall ? sanitizeForLogging(describedError.syscall, 100) : undefined,
-  }
 }
 
 interface McpClientConnectOptions {
@@ -127,7 +117,7 @@ export class McpClient {
         serverId: this.config.id,
         phase: 'transport',
         sessionIdPresent: Boolean(this.transport.sessionId),
-        error: getSafeErrorDiagnostics(error),
+        error: getMcpSafeErrorDiagnostics(error),
       })
     }
   }
@@ -200,7 +190,7 @@ export class McpClient {
       logger.error(`Failed to connect to MCP server ${this.config.name}`, {
         ...diagnostics,
         durationMs: Date.now() - startedAt,
-        error: getSafeErrorDiagnostics(error),
+        error: getMcpSafeErrorDiagnostics(error),
         outcome,
       })
       if (outcome === 'authorization_required') {
@@ -287,7 +277,7 @@ export class McpClient {
         idleTimeoutMs,
         maxTotalTimeoutMs,
         sessionIdPresent: Boolean(this.transport.sessionId),
-        error: getSafeErrorDiagnostics(error),
+        error: getMcpSafeErrorDiagnostics(error),
       })
       throw error
     }
