@@ -67,6 +67,10 @@ export function getTimestampMillisecondBounds(timestamp: string): {
 
 const FAILURE_CACHE_SENTINEL: McpTool[] = []
 const CACHE_MUTATION_BEGIN_ATTEMPTS = 2
+const STATUS_UPDATE_CAS_ATTEMPTS = 3
+
+type CacheMutationResult = 'applied' | 'superseded' | 'unavailable'
+type SuccessfulPublicationResult = 'published' | Exclude<CacheMutationResult, 'applied'>
 
 type DiscoveryOutcome =
   | { kind: 'cached'; tools: McpTool[] }
@@ -455,49 +459,58 @@ class McpService {
         return updatedServers.length > 0
       }
 
-      const [currentServer] = await db
-        .select({ statusConfig: mcpServers.statusConfig })
-        .from(mcpServers)
-        .where(
-          and(
-            eq(mcpServers.id, serverId),
-            eq(mcpServers.workspaceId, workspaceId),
-            isNull(mcpServers.deletedAt)
+      for (let attempt = 0; attempt < STATUS_UPDATE_CAS_ATTEMPTS; attempt++) {
+        const [currentServer] = await db
+          .select({ statusConfig: mcpServers.statusConfig })
+          .from(mcpServers)
+          .where(
+            and(
+              eq(mcpServers.id, serverId),
+              eq(mcpServers.workspaceId, workspaceId),
+              isNull(mcpServers.deletedAt)
+            )
           )
-        )
-        .limit(1)
+          .limit(1)
 
-      const storedConfig = currentServer?.statusConfig as Partial<McpServerStatusConfig> | null
-      const currentConfig: McpServerStatusConfig = {
-        consecutiveFailures:
-          typeof storedConfig?.consecutiveFailures === 'number'
-            ? storedConfig.consecutiveFailures
-            : 0,
-        lastSuccessfulDiscovery: storedConfig?.lastSuccessfulDiscovery ?? null,
+        if (!currentServer) return false
+        const storedConfig = currentServer.statusConfig as Partial<McpServerStatusConfig> | null
+        const currentConfig: McpServerStatusConfig = {
+          consecutiveFailures:
+            typeof storedConfig?.consecutiveFailures === 'number'
+              ? storedConfig.consecutiveFailures
+              : 0,
+          lastSuccessfulDiscovery: storedConfig?.lastSuccessfulDiscovery ?? null,
+        }
+        const newFailures = currentConfig.consecutiveFailures + 1
+        const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
+        const statusConfigMatches = currentServer.statusConfig
+          ? eq(mcpServers.statusConfig, currentServer.statusConfig)
+          : isNull(mcpServers.statusConfig)
+
+        const updatedServers = await db
+          .update(mcpServers)
+          .set({
+            connectionStatus: isErrorState ? 'error' : 'disconnected',
+            lastError: update.error || 'Unknown error',
+            toolCount: 0,
+            lastToolsRefresh: update.publicationOrder,
+            statusConfig: {
+              consecutiveFailures: newFailures,
+              lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
+            },
+          })
+          .where(and(publicationConditions, statusConfigMatches))
+          .returning({ id: mcpServers.id })
+
+        if (updatedServers.length === 0) continue
+        if (isErrorState) {
+          logger.warn(
+            `Server ${serverId} marked as error after ${newFailures} consecutive failures`
+          )
+        }
+        return true
       }
-
-      const newFailures = currentConfig.consecutiveFailures + 1
-      const isErrorState = newFailures >= MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES
-
-      const updatedServers = await db
-        .update(mcpServers)
-        .set({
-          connectionStatus: isErrorState ? 'error' : 'disconnected',
-          lastError: update.error || 'Unknown error',
-          toolCount: 0,
-          lastToolsRefresh: update.publicationOrder,
-          statusConfig: {
-            consecutiveFailures: newFailures,
-            lastSuccessfulDiscovery: currentConfig.lastSuccessfulDiscovery,
-          },
-        })
-        .where(publicationConditions)
-        .returning({ id: mcpServers.id })
-
-      if (isErrorState && updatedServers.length > 0) {
-        logger.warn(`Server ${serverId} marked as error after ${newFailures} consecutive failures`)
-      }
-      return updatedServers.length > 0
+      return false
     } catch (err) {
       logger.error(`Failed to update server status for ${serverId}:`, err)
       return false
@@ -510,27 +523,28 @@ class McpService {
     mutation: CacheMutation | null,
     setEntry: McpCacheMutationSet | null,
     deleteKeys: string[]
-  ): Promise<boolean> {
+  ): Promise<CacheMutationResult> {
     if (!mutation) {
       // An unordered fallback cannot safely publish discovery state. An older
       // ordered mutation could overwrite it and then lose the database CAS,
       // while an unguarded delete could erase a newer publisher's result.
       // Fail closed so cache and database publication remain one ordered unit.
-      return false
+      return 'unavailable'
     }
     try {
-      return await this.cacheAdapter.applyMutationIfCurrent(
+      const applied = await this.cacheAdapter.applyMutationIfCurrent(
         mutation.scopeKey,
         mutation.id,
         setEntry,
         deleteKeys
       )
+      return applied ? 'applied' : 'superseded'
     } catch (error) {
       logger.warn(`Failed to atomically update cache for server ${serverId}`, {
         workspaceId,
         error: getMcpSafeErrorDiagnostics(error),
       })
-      return false
+      return 'unavailable'
     }
   }
 
@@ -632,12 +646,27 @@ class McpService {
     ])
   }
 
+  private async getCurrentCachedTools(
+    workspaceId: string,
+    serverId: string
+  ): Promise<McpTool[] | null> {
+    try {
+      return (await this.cacheAdapter.get(serverCacheKey(workspaceId, serverId)))?.tools ?? null
+    } catch (error) {
+      logger.warn(`Failed to read current cache winner for server ${serverId}`, {
+        workspaceId,
+        error: getMcpSafeErrorDiagnostics(error),
+      })
+      return null
+    }
+  }
+
   private async publishSuccessfulDiscovery(
     workspaceId: string,
     config: McpServerConfig,
     mutation: CacheMutation | null,
     tools: McpTool[]
-  ): Promise<boolean> {
+  ): Promise<SuccessfulPublicationResult> {
     const cacheApplied = await this.applyServerCacheMutation(
       workspaceId,
       config.id,
@@ -649,7 +678,8 @@ class McpService {
       },
       [failureCacheKey(workspaceId, config.id)]
     )
-    if (!cacheApplied || !mutation) return false
+    if (cacheApplied !== 'applied') return cacheApplied
+    if (!mutation) return 'unavailable'
 
     const statusApplied = await this.updateServerStatus(config.id, workspaceId, {
       outcome: 'connected',
@@ -657,7 +687,7 @@ class McpService {
       configUpdatedAt: config.updatedAt!,
       publicationOrder: new Date(mutation.id),
     })
-    if (statusApplied) return true
+    if (statusApplied) return 'published'
 
     // A config change or newer discovery won the database CAS after the cache
     // mutation. Remove this result only if its mutation is still current; a
@@ -666,7 +696,7 @@ class McpService {
       serverCacheKey(workspaceId, config.id),
       failureCacheKey(workspaceId, config.id),
     ])
-    return false
+    return 'superseded'
   }
 
   private async publishFailedDiscovery(
@@ -689,7 +719,7 @@ class McpService {
           },
       [serverCacheKey(workspaceId, config.id)]
     )
-    if (!cacheApplied || !mutation) return false
+    if (cacheApplied !== 'applied' || !mutation) return false
 
     const statusApplied = await this.updateServerStatus(config.id, workspaceId, {
       outcome: 'failed',
@@ -719,7 +749,7 @@ class McpService {
       null,
       [serverCacheKey(workspaceId, config.id), failureCacheKey(workspaceId, config.id)]
     )
-    if (!cacheApplied || !mutation) return false
+    if (cacheApplied !== 'applied' || !mutation) return false
 
     return this.markServerOauthPending(
       config.id,
@@ -813,28 +843,34 @@ class McpService {
             }
           }
           if (outcome.kind === 'fetched') {
-            const published = await this.publishSuccessfulDiscovery(
+            const publication = await this.publishSuccessfulDiscovery(
               workspaceId,
               outcome.resolvedConfig,
               outcome.mutation,
               outcome.tools
             )
-            if (!published) {
+            if (publication !== 'published') {
               logger.info(
-                `[${requestId}] Ignoring superseded discovery result for server ${server.id}`
+                `[${requestId}] Discovery state was not published for server ${server.id}`,
+                { reason: publication }
               )
             }
+            const responseTools =
+              publication === 'published' || publication === 'unavailable'
+                ? outcome.tools
+                : ((await this.getCurrentCachedTools(workspaceId, server.id)) ?? [])
             return {
-              tools: published ? outcome.tools : [],
+              tools: responseTools,
               cached: 0,
               fetched: 1,
-              failed: published ? 0 : 1,
-              liveConnection: published
-                ? {
-                    resolvedConfig: outcome.resolvedConfig,
-                    resolvedIP: outcome.resolvedIP,
-                  }
-                : null,
+              failed: publication === 'superseded' && responseTools.length === 0 ? 1 : 0,
+              liveConnection:
+                publication === 'published'
+                  ? {
+                      resolvedConfig: outcome.resolvedConfig,
+                      resolvedIP: outcome.resolvedIP,
+                    }
+                  : null,
             }
           }
           if (outcome.kind === 'oauth-pending') {
@@ -974,17 +1010,19 @@ class McpService {
         try {
           const tools = await client.listTools()
           logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
-          const published = await this.publishSuccessfulDiscovery(
+          const publication = await this.publishSuccessfulDiscovery(
             workspaceId,
             resolvedConfig,
             mutation,
             tools
           )
-          if (!published) {
-            logger.info(
-              `[${requestId}] Ignoring superseded discovery result for server ${serverId}`
-            )
-            return []
+          if (publication !== 'published') {
+            logger.info(`[${requestId}] Discovery state was not published for server ${serverId}`, {
+              reason: publication,
+            })
+            if (publication === 'superseded') {
+              return (await this.getCurrentCachedTools(workspaceId, serverId)) ?? []
+            }
           }
           return tools
         } finally {

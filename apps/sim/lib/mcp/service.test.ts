@@ -556,7 +556,7 @@ describe('McpService.discoverTools per-server caching', () => {
     await expect(newer).resolves.toEqual([tool('new-tool', 'mcp-a')])
 
     resolveOlder?.([tool('old-tool', 'mcp-a')])
-    await expect(older).resolves.toEqual([])
+    await expect(older).resolves.toEqual([tool('new-tool', 'mcp-a')])
 
     expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(3)
     expect(cacheStore.get(serverKey)?.tools).toEqual([tool('new-tool', 'mcp-a')])
@@ -613,7 +613,7 @@ describe('McpService.discoverTools per-server caching', () => {
     }
   })
 
-  it('fails a newer discovery closed while an older mutation remains the owner', async () => {
+  it('returns live tools without publishing when cache ownership is unavailable', async () => {
     const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
 
@@ -633,7 +633,7 @@ describe('McpService.discoverTools per-server caching', () => {
       .mockRejectedValueOnce(new Error('ordering unavailable'))
       .mockRejectedValueOnce(new Error('ordering unavailable'))
     const newer = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
-    await expect(newer).resolves.toEqual([])
+    await expect(newer).resolves.toEqual([tool('unowned-new-tool', 'mcp-a')])
 
     resolveOlder?.([tool('owned-old-tool', 'mcp-a')])
     await expect(older).resolves.toEqual([tool('owned-old-tool', 'mcp-a')])
@@ -645,7 +645,7 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(mockUpdateSet).toHaveBeenCalledTimes(1)
   })
 
-  it('fails discovery publication closed when mutation ownership stays unavailable', async () => {
+  it('returns live tools but skips publication when mutation ownership stays unavailable', async () => {
     const reflectedCredential = 'opaque-cache-provider-message'
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockCacheAdapter.beginMutation
@@ -655,7 +655,7 @@ describe('McpService.discoverTools per-server caching', () => {
 
     await expect(
       mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
-    ).resolves.toEqual([])
+    ).resolves.toEqual([tool('a1', 'mcp-a')])
 
     expect(mockCacheAdapter.applyMutationIfCurrent).not.toHaveBeenCalled()
     expect(mockCacheAdapter.set).not.toHaveBeenCalled()
@@ -664,7 +664,22 @@ describe('McpService.discoverTools per-server caching', () => {
     expect(JSON.stringify(mockLogger?.warn.mock.calls)).not.toContain(reflectedCredential)
   })
 
-  it('fails discovery publication closed when the atomic cache transition fails', async () => {
+  it('returns bulk live tools without publication when mutation ownership is unavailable', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+    mockCacheAdapter.beginMutation
+      .mockRejectedValueOnce(new Error('cache ordering unavailable'))
+      .mockRejectedValueOnce(new Error('cache ordering unavailable'))
+    mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
+
+    await expect(mcpService.discoverTools(USER_ID, WORKSPACE_ID, true)).resolves.toEqual([
+      tool('a1', 'mcp-a'),
+    ])
+
+    expect(mockCacheAdapter.applyMutationIfCurrent).not.toHaveBeenCalled()
+    expect(mockUpdateSet).not.toHaveBeenCalled()
+  })
+
+  it('returns live tools but skips publication when the atomic cache transition fails', async () => {
     const reflectedCredential = 'opaque-atomic-cache-provider-message'
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockCacheAdapter.applyMutationIfCurrent.mockRejectedValueOnce(new Error(reflectedCredential))
@@ -672,7 +687,7 @@ describe('McpService.discoverTools per-server caching', () => {
 
     await expect(
       mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
-    ).resolves.toEqual([])
+    ).resolves.toEqual([tool('a1', 'mcp-a')])
 
     expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(1)
     expect(mockCacheAdapter.applyMutationIfCurrent).toHaveBeenCalledTimes(1)
@@ -1049,6 +1064,45 @@ describe('McpService.discoverTools per-server caching', () => {
     )
   })
 
+  it('recomputes a failure count after a concurrent status update wins the CAS', async () => {
+    const beforeSuccess = dbRow('mcp-a', 'A', {
+      statusConfig: { consecutiveFailures: 2, lastSuccessfulDiscovery: null },
+    })
+    const afterSuccess = dbRow('mcp-a', 'A', {
+      statusConfig: {
+        consecutiveFailures: 0,
+        lastSuccessfulDiscovery: '2030-02-01T00:00:00.000Z',
+      },
+    })
+    mockGetWorkspaceServersRows
+      .mockResolvedValueOnce([beforeSuccess])
+      .mockResolvedValueOnce([beforeSuccess])
+      .mockResolvedValueOnce([afterSuccess])
+    mockUpdateReturning.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'mcp-a' }])
+    mockListTools.mockRejectedValueOnce(new Error('Connection refused'))
+
+    await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
+      'Connection refused'
+    )
+
+    const failureUpdates = mockUpdateSet.mock.calls
+      .map(([update]) => update)
+      .filter((update) => update.lastError === 'Connection failed')
+    expect(failureUpdates).toEqual([
+      expect.objectContaining({
+        connectionStatus: 'error',
+        statusConfig: { consecutiveFailures: 3, lastSuccessfulDiscovery: null },
+      }),
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        statusConfig: {
+          consecutiveFailures: 1,
+          lastSuccessfulDiscovery: '2030-02-01T00:00:00.000Z',
+        },
+      }),
+    ])
+  })
+
   it('persists OAuth-required discovery as disconnected without a failure error', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))
@@ -1068,12 +1122,13 @@ describe('McpService.discoverTools per-server caching', () => {
   it('does not negative-cache a failure older than a successful discovery', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools.mockRejectedValueOnce(new Error('Older request failed'))
-    mockUpdateReturning.mockResolvedValueOnce([])
+    mockUpdateReturning.mockResolvedValue([])
 
     await expect(mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)).rejects.toThrow(
       'Older request failed'
     )
 
+    mockUpdateReturning.mockResolvedValue([{ id: 'server-1' }])
     mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
     const tools = await mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID)
 
