@@ -100,7 +100,12 @@ function looksLikeLanguageComparison(
   source: string,
   language: FormattableCodeLanguage
 ): boolean {
-  if (source[index - 1] === '<' || source[index + length] === '>') return true
+  const followsLeftAngleBracket = source[index - 1] === '<'
+  const followedByRightAngleBracket = source[index + length] === '>'
+  const followedByRightShiftOperator = source.startsWith('>>', index + length)
+  if (followsLeftAngleBracket || (followedByRightAngleBracket && !followedByRightShiftOperator)) {
+    return true
+  }
 
   const sourceBeforeReference = source.slice(0, index).trimEnd()
   const sourceAfterReference = source.slice(index + length).trimStart()

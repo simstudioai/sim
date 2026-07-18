@@ -108,6 +108,23 @@ return { input, result };`,
     })
   })
 
+  it('preserves Sim references followed by right-shift operators', async () => {
+    const cases = [
+      ['<start.value>>>2', '<start.value> >> 2'],
+      ['<start.value>>>>2', '<start.value> >>> 2'],
+    ]
+
+    for (const [shift, expectedShift] of cases) {
+      const code = `const shifted=${shift};return shifted;`
+
+      await expect(formatFunctionCode(code, CodeLanguage.JavaScript)).resolves.toEqual({
+        code: `const shifted = ${expectedShift};\nreturn shifted;`,
+        changed: true,
+        error: null,
+      })
+    }
+  })
+
   it('preserves statement boundaries around Sim references', async () => {
     const code = 'const items=<start.items>;[1,2].forEach(console.log);'
 
