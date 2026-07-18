@@ -230,7 +230,7 @@ export const POST = withRouteHandler(
           )
           .limit(1)
 
-        if (discoveryError === null) {
+        if (discoveryError === null && discoveryState !== 'superseded') {
           try {
             syncResult = await syncToolSchemasToWorkflows(
               workspaceId,
@@ -256,7 +256,11 @@ export const POST = withRouteHandler(
         let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
         let toolCount = refreshedServer?.toolCount ?? discoveredTools.length
 
-        if (
+        if (discoveryState === 'superseded') {
+          connectionStatus = 'disconnected'
+          lastError = 'Tool discovery was superseded by a newer refresh. Please retry.'
+          toolCount = 0
+        } else if (
           discoveryError === null &&
           (discoveryState === 'unavailable' || discoveryState === 'winner-cache')
         ) {

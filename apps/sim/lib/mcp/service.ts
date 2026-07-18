@@ -633,6 +633,45 @@ class McpService {
     }
   }
 
+  /**
+   * Publish an invalidation's cache-order token without changing connection
+   * health. A list_changed notification comes from a live connection, while
+   * configuration lifecycle code persists its own intended connection state.
+   */
+  private async markServerCacheInvalidated(
+    serverId: string,
+    workspaceId: string,
+    publicationOrder: Date
+  ): Promise<boolean> {
+    try {
+      const updatedServers = await db
+        .update(mcpServers)
+        .set({
+          toolCount: 0,
+          lastToolsRefresh: publicationOrder,
+        })
+        .where(
+          and(
+            eq(mcpServers.id, serverId),
+            eq(mcpServers.workspaceId, workspaceId),
+            isNull(mcpServers.deletedAt),
+            or(
+              isNull(mcpServers.lastToolsRefresh),
+              lte(mcpServers.lastToolsRefresh, publicationOrder)
+            )
+          )
+        )
+        .returning({ id: mcpServers.id })
+      return updatedServers.length > 0
+    } catch (error) {
+      logger.warn(`Failed to publish cache invalidation for server ${serverId}`, {
+        workspaceId,
+        error: getMcpSafeErrorDiagnostics(error),
+      })
+      return false
+    }
+  }
+
   private async isServerUnhealthy(workspaceId: string, serverId: string): Promise<boolean> {
     try {
       const entry = await this.cacheAdapter.get(failureCacheKey(workspaceId, serverId))
@@ -688,10 +727,16 @@ class McpService {
       await this.bestEffortInvalidateServerCache(workspaceId, serverId)
       return
     }
-    await this.applyServerCacheMutation(workspaceId, serverId, mutation, null, [
-      serverCacheKey(workspaceId, serverId),
-      failureCacheKey(workspaceId, serverId),
-    ])
+    const cacheApplied = await this.applyServerCacheMutation(
+      workspaceId,
+      serverId,
+      mutation,
+      null,
+      [serverCacheKey(workspaceId, serverId), failureCacheKey(workspaceId, serverId)]
+    )
+    if (cacheApplied !== 'applied') return
+
+    await this.markServerCacheInvalidated(serverId, workspaceId, new Date(mutation.id))
   }
 
   private async getCurrentCachedTools(
@@ -1070,7 +1115,6 @@ class McpService {
     }
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const mutation = await this.beginServerCacheMutation(workspaceId, serverId)
       let config: McpServerConfig | null = null
       // Begin a fresh mutation per attempt. A retry that succeeds after a
       // concurrent clearCache must publish under a current ownership id — a

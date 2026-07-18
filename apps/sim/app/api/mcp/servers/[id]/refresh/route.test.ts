@@ -4,17 +4,19 @@
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClearCache, mockDiscoverServerTools, mockSelect, mockUpdateSet } = vi.hoisted(() => ({
-  mockClearCache: vi.fn(),
-  mockDiscoverServerTools: vi.fn(),
-  mockSelect: vi.fn(),
-  mockUpdateSet: vi.fn(),
-}))
+const { mockClearCache, mockDiscoverServerTools, mockSelect, mockUpdate, mockUpdateSet } =
+  vi.hoisted(() => ({
+    mockClearCache: vi.fn(),
+    mockDiscoverServerTools: vi.fn(),
+    mockSelect: vi.fn(),
+    mockUpdate: vi.fn(),
+    mockUpdateSet: vi.fn(),
+  }))
 
 vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
-    update: vi.fn().mockReturnValue({ set: mockUpdateSet }),
+    update: mockUpdate.mockReturnValue({ set: mockUpdateSet }),
   },
 }))
 
@@ -224,5 +226,31 @@ describe('MCP server refresh route', () => {
         toolCount: 1,
       })
     )
+  })
+
+  it('fails closed without syncing workflows when discovery is superseded', async () => {
+    mockDiscoverServerTools.mockResolvedValueOnce({
+      tools: [],
+      state: 'superseded',
+    })
+    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'disconnected',
+        error: 'Tool discovery was superseded by a newer refresh. Please retry.',
+        toolCount: 0,
+        workflowsUpdated: 0,
+        updatedWorkflowIds: [],
+      })
+    )
+    expect(mockSelect).toHaveBeenCalledTimes(2)
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 })

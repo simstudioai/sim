@@ -329,6 +329,15 @@ describe('McpService.discoverTools per-server caching', () => {
 
     await mcpService.clearCache(WORKSPACE_ID)
 
+    const [discoveryUpdate, invalidationUpdate] = mockUpdateSet.mock.calls.map(([update]) => update)
+    expect(invalidationUpdate).toEqual({
+      toolCount: 0,
+      lastToolsRefresh: expect.any(Date),
+    })
+    expect(invalidationUpdate.lastToolsRefresh.getTime()).toBeGreaterThan(
+      discoveryUpdate.lastToolsRefresh.getTime()
+    )
+
     mockListTools.mockClear()
     mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])
     await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
@@ -965,6 +974,174 @@ describe('McpService.discoverTools per-server caching', () => {
 
     releaseStatus?.()
     await expect(discovery).resolves.toEqual([tool('a1', 'mcp-a')])
+  })
+
+  it('publishes a newer invalidation barrier while successful status publication is pending', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+      const discoveryStartedAt = new Date('2100-02-01T00:00:00.000Z')
+      const invalidatedAt = new Date('2100-02-01T00:00:01.000Z')
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+      mockListTools.mockResolvedValueOnce([tool('stale-tool', 'mcp-a')])
+
+      let releaseDiscoveryStatus: ((rows: { id: string }[]) => void) | undefined
+      mockUpdateReturning.mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseDiscoveryStatus = resolve
+        })
+      )
+
+      vi.setSystemTime(discoveryStartedAt)
+      const discovery = mcpService.discoverServerToolsWithMetadata(
+        USER_ID,
+        'mcp-a',
+        WORKSPACE_ID,
+        true
+      )
+      await vi.waitFor(() =>
+        expect(mockUpdateSet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            connectionStatus: 'connected',
+            lastToolsRefresh: discoveryStartedAt,
+          })
+        )
+      )
+      expect(cacheStore.get(serverKey)?.tools).toEqual([tool('stale-tool', 'mcp-a')])
+
+      vi.setSystemTime(invalidatedAt)
+      await mcpService.clearCache(WORKSPACE_ID)
+
+      const invalidationUpdate = mockUpdateSet.mock.calls
+        .map(([update]) => update)
+        .find(
+          (update) =>
+            update.toolCount === 0 && update.lastToolsRefresh?.getTime() === invalidatedAt.getTime()
+        )
+      expect(invalidationUpdate).toEqual({
+        toolCount: 0,
+        lastToolsRefresh: invalidatedAt,
+      })
+      expect(cacheStore.has(serverKey)).toBe(false)
+
+      // The real lastToolsRefresh predicate rejects this older publication
+      // after the invalidation barrier wins the database race.
+      releaseDiscoveryStatus?.([])
+      await expect(discovery).resolves.toEqual({ tools: [], state: 'superseded' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('publishes a newer invalidation barrier while failed status publication is pending', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+      const failureKey = `${serverKey}:failure`
+      const discoveryStartedAt = new Date('2100-03-01T00:00:00.000Z')
+      const invalidatedAt = new Date('2100-03-01T00:00:01.000Z')
+      mockGetWorkspaceServersRows.mockResolvedValue([
+        dbRow('mcp-a', 'A', {
+          statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
+        }),
+      ])
+      mockListTools.mockRejectedValueOnce(new Error('Permanent discovery failure'))
+
+      let releaseDiscoveryStatus: ((rows: { id: string }[]) => void) | undefined
+      mockUpdateReturning
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            releaseDiscoveryStatus = resolve
+          })
+        )
+        .mockResolvedValueOnce([{ id: 'mcp-a' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+
+      vi.setSystemTime(discoveryStartedAt)
+      const discovery = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+      await vi.waitFor(() =>
+        expect(mockUpdateSet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            connectionStatus: 'disconnected',
+            lastError: 'Connection failed',
+            lastToolsRefresh: discoveryStartedAt,
+          })
+        )
+      )
+      expect(cacheStore.has(failureKey)).toBe(true)
+
+      vi.setSystemTime(invalidatedAt)
+      await mcpService.clearCache(WORKSPACE_ID)
+
+      expect(mockUpdateSet).toHaveBeenCalledWith({
+        toolCount: 0,
+        lastToolsRefresh: invalidatedAt,
+      })
+      expect(cacheStore.has(serverKey)).toBe(false)
+      expect(cacheStore.has(failureKey)).toBe(false)
+
+      releaseDiscoveryStatus?.([])
+      await expect(discovery).rejects.toThrow('Permanent discovery failure')
+      expect(
+        mockUpdateSet.mock.calls
+          .map(([update]) => update)
+          .filter((update) => update.lastError === 'Connection failed')
+          .every((update) => update.lastToolsRefresh?.getTime() === discoveryStartedAt.getTime())
+      ).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('publishes a newer invalidation barrier while OAuth status publication is pending', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const serverKey = `workspace:${WORKSPACE_ID}:server:mcp-a`
+      const discoveryStartedAt = new Date('2100-04-01T00:00:00.000Z')
+      const invalidatedAt = new Date('2100-04-01T00:00:01.000Z')
+      mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
+      mockListTools.mockRejectedValueOnce(new McpOauthAuthorizationRequiredError('mcp-a', 'A'))
+
+      let releaseDiscoveryStatus: ((rows: { id: string }[]) => void) | undefined
+      mockUpdateReturning.mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseDiscoveryStatus = resolve
+        })
+      )
+
+      vi.setSystemTime(discoveryStartedAt)
+      const discovery = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+      await vi.waitFor(() =>
+        expect(mockUpdateSet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            connectionStatus: 'disconnected',
+            lastError: null,
+            lastToolsRefresh: discoveryStartedAt,
+          })
+        )
+      )
+
+      vi.setSystemTime(invalidatedAt)
+      await mcpService.clearCache(WORKSPACE_ID)
+
+      const invalidationUpdate = mockUpdateSet.mock.calls
+        .map(([update]) => update)
+        .find(
+          (update) =>
+            update.toolCount === 0 && update.lastToolsRefresh?.getTime() === invalidatedAt.getTime()
+        )
+      expect(invalidationUpdate).toEqual({
+        toolCount: 0,
+        lastToolsRefresh: invalidatedAt,
+      })
+      expect(cacheStore.has(serverKey)).toBe(false)
+
+      releaseDiscoveryStatus?.([])
+      await expect(discovery).rejects.toThrow('OAuth authorization required')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps a newer successful cache entry when an older failure finishes later', async () => {
