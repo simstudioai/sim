@@ -15,8 +15,10 @@ const { mockCreatePinnedFetch, mockCreateSsrfGuardedMcpFetch, mockPinnedFetch, m
     }
   })
 
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  createPinnedFetch: mockCreatePinnedFetch,
+}))
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
-  createPinnedMcpFetch: mockCreatePinnedFetch,
   createSsrfGuardedMcpFetch: mockCreateSsrfGuardedMcpFetch,
 }))
 

@@ -3,12 +3,13 @@ import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
 import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
 
 /**
- * Pinned fetch for all MCP traffic. MCP servers are commonly deployed behind
- * HTTP/2 fronts (CDNs, cloud LBs), and undici's Agent is h1.1-only unless opted
- * into h2 via ALPN — so every MCP connection enables it. This is the single
- * source of the "MCP implies h2" decision; the base `createPinnedFetch` keeps
- * its h1.1 default for non-MCP consumers. Pinning is unaffected: the pinned
- * lookup forces the socket to `resolvedIP` regardless of negotiated protocol.
+ * Pinned fetch for the long-lived MCP transport, which reuses one Agent across
+ * a connection's requests. MCP servers are commonly behind HTTP/2 fronts (CDNs,
+ * cloud LBs), and undici's Agent is h1.1-only unless opted into h2 via ALPN, so
+ * the transport enables it. h2 is *not* used for one-shot flows (OAuth discovery,
+ * auth-type probe), where a per-request Agent would leave idle h2 sessions with
+ * no reuse benefit. Pinning is unaffected: the pinned lookup forces the socket to
+ * `resolvedIP` regardless of negotiated protocol.
  */
 export function createPinnedMcpFetch(resolvedIP: string): typeof fetch {
   return createPinnedFetch(resolvedIP, { allowH2: true })
@@ -37,7 +38,7 @@ export function createSsrfGuardedMcpFetch(): FetchLike {
   return (async (url, init) => {
     const target = typeof url === 'string' ? url : url.href
     const resolvedIP = await validateMcpServerSsrf(target)
-    const pinnedFetch: FetchLike = resolvedIP ? createPinnedMcpFetch(resolvedIP) : globalThis.fetch
+    const pinnedFetch: FetchLike = resolvedIP ? createPinnedFetch(resolvedIP) : globalThis.fetch
     return pinnedFetch(url, init)
   }) satisfies FetchLike
 }

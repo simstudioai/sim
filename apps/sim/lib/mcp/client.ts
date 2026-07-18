@@ -111,7 +111,6 @@ export class McpClient {
       }
     )
 
-    // Observe out-of-band transport errors the SDK would otherwise drop silently.
     this.client.onerror = (error) => {
       logger.warn(`MCP transport error for ${this.config.name}`, {
         serverId: this.config.id,
@@ -230,8 +229,6 @@ export class McpClient {
     }
 
     const configuredTimeout = this.config.timeout
-    // Idle timeout honors the per-server config but never exceeds the absolute
-    // discovery ceiling, so tools/list can't hang the UI past that cap.
     const idleTimeoutMs = Math.min(
       configuredTimeout !== undefined && Number.isFinite(configuredTimeout) && configuredTimeout > 0
         ? Math.floor(configuredTimeout)

@@ -88,11 +88,53 @@ describe('MCP server lifecycle orchestration', () => {
 
     expect(result.success).toBe(true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ authType: 'oauth' }))
-    // Flipping to OAuth must reset the server to disconnected — it hasn't
-    // completed an auth flow, so it can't remain 'connected'.
+    // Flipping to OAuth must reset to disconnected — it hasn't completed an auth flow.
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ connectionStatus: 'disconnected', lastConnected: null })
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+      })
     )
     expect(mockClearCache).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('resets an OAuth server to disconnected when its auth type flips to headers', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: 'https://example.com/mcp',
+        authType: 'oauth',
+        oauthClientId: 'client-1',
+        oauthClientSecret: 'secret-1',
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      authType: 'headers',
+    })
+
+    expect(result.success).toBe(true)
+    // Flipping away from OAuth must reset too — no stale 'connected'/lastError until re-discovery.
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authType: 'headers',
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+      })
+    )
   })
 })

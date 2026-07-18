@@ -31,7 +31,7 @@ describe('createSsrfGuardedMcpFetch', () => {
     await fetchLike('https://attacker.example/revoke', { method: 'POST' })
 
     expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith('https://attacker.example/revoke')
-    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', { allowH2: true })
+    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
     expect(sentinelFetch).toHaveBeenCalledWith('https://attacker.example/revoke', {
       method: 'POST',
     })
@@ -54,7 +54,7 @@ describe('createSsrfGuardedMcpFetch', () => {
     await fetchLike(new URL('https://attacker.example/discover'))
 
     expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith('https://attacker.example/discover')
-    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', { allowH2: true })
+    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
   })
 
   it('falls back to global fetch when validation returns no IP', async () => {
