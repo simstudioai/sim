@@ -105,10 +105,7 @@ export class McpClient {
       }
     )
 
-    // The SDK invokes onerror for out-of-band transport failures (SSE
-    // disconnects, exhausted reconnects) that are not tied to an in-flight
-    // request. Without a handler these are silently dropped, so wire one for
-    // observability. See @modelcontextprotocol/sdk Protocol.onerror.
+    // Observe out-of-band transport errors the SDK would otherwise drop silently.
     this.client.onerror = (error) => {
       logger.warn(`MCP transport error for ${this.config.name}`, {
         serverId: this.config.id,
@@ -242,10 +239,7 @@ export class McpClient {
 
     try {
       const result: ListToolsResult = await this.client.listTools(undefined, {
-        // `timeout` bounds silence between progress notifications; `maxTotalTimeout`
-        // is the hard ceiling regardless of progress. `resetTimeoutOnProgress` only
-        // takes effect when an `onprogress` callback is supplied (the SDK sets the
-        // request progressToken only then), so both are passed together.
+        // resetTimeoutOnProgress only takes effect when onprogress is supplied.
         timeout: idleTimeoutMs,
         maxTotalTimeout: maxTotalTimeoutMs,
         resetTimeoutOnProgress: true,
