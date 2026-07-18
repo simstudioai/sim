@@ -43,7 +43,7 @@ vi.mock('@/lib/mcp/middleware', () => ({
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: {
     clearCache: mockClearCache,
-    discoverServerTools: mockDiscoverServerTools,
+    discoverServerToolsWithMetadata: mockDiscoverServerTools,
   },
 }))
 
@@ -57,6 +57,7 @@ const initialServer = {
   connectionStatus: 'connected',
   lastError: null,
   lastConnected: new Date('2026-01-01T00:00:00.000Z'),
+  lastToolsRefresh: new Date('2026-01-01T00:00:00.000Z'),
   toolCount: 4,
   statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
 }
@@ -139,6 +140,7 @@ describe('MCP server refresh route', () => {
     const newerSuccessfulServer = {
       ...initialServer,
       lastConnected: new Date(Date.now() + 60_000),
+      lastToolsRefresh: new Date(Date.now() + 60_000),
       toolCount: 7,
     }
     mockSelect.mockReturnValueOnce(selectRows([newerSuccessfulServer]))
@@ -161,15 +163,18 @@ describe('MCP server refresh route', () => {
   })
 
   it('does not 500 when workflow sync fails after a successful discovery', async () => {
-    mockDiscoverServerTools.mockResolvedValueOnce([
-      {
-        name: 'search',
-        description: 'Search tool',
-        inputSchema: {},
-        serverId: 'server-1',
-        serverName: 'OAuth Server',
-      },
-    ])
+    mockDiscoverServerTools.mockResolvedValueOnce({
+      tools: [
+        {
+          name: 'search',
+          description: 'Search tool',
+          inputSchema: {},
+          serverId: 'server-1',
+          serverName: 'OAuth Server',
+        },
+      ],
+      state: 'published',
+    })
     // The route's server lookup consumes the first select (beforeEach). The sync's
     // workflow select is left unmocked, so it throws — exercising the guard that
     // keeps a secondary sync failure from turning a successful refresh into a 500.
@@ -187,6 +192,36 @@ describe('MCP server refresh route', () => {
         status: 'connected',
         workflowsUpdated: 0,
         updatedWorkflowIds: [],
+      })
+    )
+  })
+
+  it('reports live tools when cache degradation prevents status publication', async () => {
+    mockDiscoverServerTools.mockResolvedValueOnce({
+      tools: [
+        {
+          name: 'search',
+          description: 'Search tool',
+          inputSchema: {},
+          serverId: 'server-1',
+          serverName: 'OAuth Server',
+        },
+      ],
+      state: 'unavailable',
+    })
+    mockSelect.mockReturnValueOnce(selectRows([persistedServer]))
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+    const body = await response.json()
+
+    expect(body.data).toEqual(
+      expect.objectContaining({
+        status: 'connected',
+        error: null,
+        toolCount: 1,
       })
     )
   })

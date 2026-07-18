@@ -548,7 +548,7 @@ describe('McpService.discoverTools per-server caching', () => {
       )
       .mockResolvedValueOnce([tool('new-tool', 'mcp-a')])
 
-    const older = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, false)
+    const older = mcpService.discoverServerToolsWithMetadata(USER_ID, 'mcp-a', WORKSPACE_ID, false)
     await vi.waitFor(() => expect(mockListTools).toHaveBeenCalledTimes(1))
 
     mockCacheAdapter.beginMutation.mockRejectedValueOnce(new Error('transient ordering failure'))
@@ -556,7 +556,10 @@ describe('McpService.discoverTools per-server caching', () => {
     await expect(newer).resolves.toEqual([tool('new-tool', 'mcp-a')])
 
     resolveOlder?.([tool('old-tool', 'mcp-a')])
-    await expect(older).resolves.toEqual([tool('new-tool', 'mcp-a')])
+    await expect(older).resolves.toEqual({
+      tools: [tool('new-tool', 'mcp-a')],
+      state: 'winner-cache',
+    })
 
     expect(mockCacheAdapter.beginMutation).toHaveBeenCalledTimes(3)
     expect(cacheStore.get(serverKey)?.tools).toEqual([tool('new-tool', 'mcp-a')])
@@ -632,8 +635,11 @@ describe('McpService.discoverTools per-server caching', () => {
     mockCacheAdapter.beginMutation
       .mockRejectedValueOnce(new Error('ordering unavailable'))
       .mockRejectedValueOnce(new Error('ordering unavailable'))
-    const newer = mcpService.discoverServerTools(USER_ID, 'mcp-a', WORKSPACE_ID, true)
-    await expect(newer).resolves.toEqual([tool('unowned-new-tool', 'mcp-a')])
+    const newer = mcpService.discoverServerToolsWithMetadata(USER_ID, 'mcp-a', WORKSPACE_ID, true)
+    await expect(newer).resolves.toEqual({
+      tools: [tool('unowned-new-tool', 'mcp-a')],
+      state: 'unavailable',
+    })
 
     resolveOlder?.([tool('owned-old-tool', 'mcp-a')])
     await expect(older).resolves.toEqual([tool('owned-old-tool', 'mcp-a')])

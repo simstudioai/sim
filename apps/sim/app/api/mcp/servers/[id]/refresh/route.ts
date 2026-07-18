@@ -9,7 +9,7 @@ import { mcpServerIdParamsSchema } from '@/lib/api/contracts/mcp'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
-import { mcpService } from '@/lib/mcp/service'
+import { type McpServerDiscoveryState, mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
 import {
   categorizeError,
@@ -188,16 +188,18 @@ export const POST = withRouteHandler(
 
         let syncResult: SyncResult = { updatedCount: 0, updatedWorkflowIds: [] }
         let discoveredTools: McpTool[] = []
+        let discoveryState: McpServerDiscoveryState | null = null
         let discoveryError: string | null = null
-        const discoveryStartedAt = new Date()
 
         try {
-          discoveredTools = await mcpService.discoverServerTools(
+          const discovery = await mcpService.discoverServerToolsWithMetadata(
             userId,
             serverId,
             workspaceId,
             true
           )
+          discoveredTools = discovery.tools
+          discoveryState = discovery.state
           logger.info(
             `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`
           )
@@ -214,6 +216,7 @@ export const POST = withRouteHandler(
             url: mcpServers.url,
             connectionStatus: mcpServers.connectionStatus,
             lastConnected: mcpServers.lastConnected,
+            lastToolsRefresh: mcpServers.lastToolsRefresh,
             lastError: mcpServers.lastError,
             toolCount: mcpServers.toolCount,
           })
@@ -253,10 +256,20 @@ export const POST = withRouteHandler(
         let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
         let toolCount = refreshedServer?.toolCount ?? discoveredTools.length
 
+        if (
+          discoveryError === null &&
+          (discoveryState === 'unavailable' || discoveryState === 'winner-cache')
+        ) {
+          connectionStatus = 'connected'
+          lastError = null
+          toolCount = discoveredTools.length
+        }
+
         if (discoveryError !== null && connectionStatus === 'connected') {
           const newerSuccessWonRace =
-            refreshedServer?.lastConnected != null &&
-            refreshedServer.lastConnected > discoveryStartedAt
+            refreshedServer?.lastToolsRefresh != null &&
+            (server.lastToolsRefresh == null ||
+              refreshedServer.lastToolsRefresh > server.lastToolsRefresh)
 
           if (!newerSuccessWonRace) {
             connectionStatus = 'disconnected'

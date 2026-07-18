@@ -72,6 +72,18 @@ const STATUS_UPDATE_CAS_ATTEMPTS = 3
 type CacheMutationResult = 'applied' | 'superseded' | 'unavailable'
 type SuccessfulPublicationResult = 'published' | Exclude<CacheMutationResult, 'applied'>
 
+export type McpServerDiscoveryState =
+  | 'cached'
+  | 'published'
+  | 'winner-cache'
+  | 'superseded'
+  | 'unavailable'
+
+export interface McpServerDiscoveryResult {
+  tools: McpTool[]
+  state: McpServerDiscoveryState
+}
+
 type DiscoveryOutcome =
   | { kind: 'cached'; tools: McpTool[] }
   | {
@@ -188,7 +200,7 @@ class McpService {
   private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
   private unsubscribeConnectionManager?: () => void
   // Keyed on (workspaceId, serverId, userId) — OAuth-scoped tokens vary per user.
-  private inflightServerDiscovery = new Map<string, Promise<McpTool[]>>()
+  private inflightServerDiscovery = new Map<string, Promise<McpServerDiscoveryResult>>()
 
   constructor() {
     this.cacheAdapter = createMcpCacheAdapter()
@@ -942,6 +954,16 @@ class McpService {
     workspaceId: string,
     forceRefresh = false
   ): Promise<McpTool[]> {
+    return (await this.discoverServerToolsWithMetadata(userId, serverId, workspaceId, forceRefresh))
+      .tools
+  }
+
+  async discoverServerToolsWithMetadata(
+    userId: string,
+    serverId: string,
+    workspaceId: string,
+    forceRefresh = false
+  ): Promise<McpServerDiscoveryResult> {
     const inflightKey = `${workspaceId}:${serverId}:${userId}:${forceRefresh ? 'force' : 'cache'}`
     const existing = this.inflightServerDiscovery.get(inflightKey)
     if (existing) return existing
@@ -963,7 +985,7 @@ class McpService {
     serverId: string,
     workspaceId: string,
     forceRefresh: boolean
-  ): Promise<McpTool[]> {
+  ): Promise<McpServerDiscoveryResult> {
     const requestId = generateRequestId()
     const maxRetries = 2
 
@@ -972,7 +994,7 @@ class McpService {
         const cached = await this.cacheAdapter.get(serverCacheKey(workspaceId, serverId))
         if (cached) {
           logger.debug(`[${requestId}] Cache hit for server ${serverId}`)
-          return cached.tools
+          return { tools: cached.tools, state: 'cached' }
         }
       } catch (error) {
         logger.warn(`[${requestId}] Cache read failed for server ${serverId}:`, error)
@@ -1021,10 +1043,14 @@ class McpService {
               reason: publication,
             })
             if (publication === 'superseded') {
-              return (await this.getCurrentCachedTools(workspaceId, serverId)) ?? []
+              const winner = await this.getCurrentCachedTools(workspaceId, serverId)
+              return winner
+                ? { tools: winner, state: 'winner-cache' }
+                : { tools: [], state: 'superseded' }
             }
+            return { tools, state: 'unavailable' }
           }
-          return tools
+          return { tools, state: 'published' }
         } finally {
           await client.disconnect()
         }
