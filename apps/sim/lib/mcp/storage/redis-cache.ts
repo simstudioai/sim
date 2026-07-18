@@ -1,45 +1,17 @@
 import { createLogger } from '@sim/logger'
 import type Redis from 'ioredis'
 import type { McpTool } from '@/lib/mcp/types'
-import type { McpCacheEntry, McpCacheMutationSet, McpCacheStorageAdapter } from './adapter'
+import type { McpCacheEntry, McpCacheStorageAdapter } from './adapter'
 
 const logger = createLogger('McpRedisCache')
 
 const REDIS_KEY_PREFIX = 'mcp:tools:'
-const MUTATION_KEY_PREFIX = 'mcp:tools-mutation:'
-const MUTATION_TTL_MS = 24 * 60 * 60 * 1000
-
-const BEGIN_MUTATION = `
-local current = tonumber(redis.call('GET', KEYS[1]) or '0')
-local redisTime = redis.call('TIME')
-local now = tonumber(redisTime[1]) * 1000 + math.floor(tonumber(redisTime[2]) / 1000)
-local mutationId = math.max(current + 1, now)
-redis.call('SET', KEYS[1], tostring(mutationId), 'PX', ARGV[1])
-return mutationId
-`
-
-const APPLY_MUTATION_IF_CURRENT = `
-if redis.call('GET', KEYS[1]) ~= ARGV[1] then
-  return 0
-end
-if ARGV[2] == '1' then
-  redis.call('SET', KEYS[2], ARGV[3], 'PX', ARGV[4])
-end
-for index = 3, #KEYS do
-  redis.call('DEL', KEYS[index])
-end
-return 1
-`
 
 export class RedisMcpCache implements McpCacheStorageAdapter {
   constructor(private redis: Redis) {}
 
   private getKey(key: string): string {
     return `${REDIS_KEY_PREFIX}${key}`
-  }
-
-  private getMutationKey(scopeKey: string): string {
-    return `${MUTATION_KEY_PREFIX}${scopeKey}`
   }
 
   async get(key: string): Promise<McpCacheEntry | null> {
@@ -89,86 +61,11 @@ export class RedisMcpCache implements McpCacheStorageAdapter {
     }
   }
 
-  async beginMutation(scopeKey: string): Promise<number> {
-    try {
-      const mutationKey = this.getMutationKey(scopeKey)
-      const mutationId = await this.redis.eval(
-        BEGIN_MUTATION,
-        1,
-        mutationKey,
-        String(MUTATION_TTL_MS)
-      )
-      if (typeof mutationId !== 'number') {
-        throw new Error('Redis did not return an MCP cache mutation id')
-      }
-      return mutationId
-    } catch (error) {
-      logger.error('Redis cache mutation start error:', error)
-      throw error
-    }
-  }
-
-  async applyMutationIfCurrent(
-    scopeKey: string,
-    mutationId: number,
-    setEntry: McpCacheMutationSet | null,
-    deleteKeys: string[]
-  ): Promise<boolean> {
-    try {
-      const entry = setEntry
-        ? JSON.stringify({
-            tools: setEntry.tools,
-            expiry: Date.now() + setEntry.ttlMs,
-          } satisfies McpCacheEntry)
-        : ''
-      const keys = [
-        this.getMutationKey(scopeKey),
-        setEntry ? this.getKey(setEntry.key) : this.getMutationKey(scopeKey),
-        ...deleteKeys.map((key) => this.getKey(key)),
-      ]
-      const result = await this.redis.eval(
-        APPLY_MUTATION_IF_CURRENT,
-        keys.length,
-        ...keys,
-        String(mutationId),
-        setEntry ? '1' : '0',
-        entry,
-        String(setEntry?.ttlMs ?? 0)
-      )
-      return result === 1
-    } catch (error) {
-      logger.error('Redis atomic cache mutation error:', error)
-      throw error
-    }
-  }
-
   async clear(): Promise<void> {
     try {
       let cursor = '0'
-      // Invalidate existing mutation owners before deleting their cache
-      // entries. An old writer either commits before this point and is then
-      // deleted, or observes the advanced id and cannot commit afterward.
-      do {
-        const [nextCursor, keys] = await this.redis.scan(
-          cursor,
-          'MATCH',
-          `${MUTATION_KEY_PREFIX}*`,
-          'COUNT',
-          100
-        )
-        cursor = nextCursor
-        if (keys.length > 0) {
-          const transaction = this.redis.multi()
-          for (const key of keys) {
-            transaction.incr(key)
-            transaction.pexpire(key, MUTATION_TTL_MS)
-          }
-          await transaction.exec()
-        }
-      } while (cursor !== '0')
-
-      cursor = '0'
       let deletedCount = 0
+
       do {
         const [nextCursor, keys] = await this.redis.scan(
           cursor,

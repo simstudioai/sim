@@ -3,21 +3,18 @@
  */
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 
-const { mockClearCache, mockDiscoverServerTools, mockSelect, mockUpdate, mockUpdateSet } =
-  vi.hoisted(() => ({
-    mockClearCache: vi.fn(),
-    mockDiscoverServerTools: vi.fn(),
-    mockSelect: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockUpdateSet: vi.fn(),
-  }))
+const { mockClearCache, mockDiscoverServerTools, mockSelect, mockUpdateSet } = vi.hoisted(() => ({
+  mockClearCache: vi.fn(),
+  mockDiscoverServerTools: vi.fn(),
+  mockSelect: vi.fn(),
+  mockUpdateSet: vi.fn(),
+}))
 
 vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
-    update: mockUpdate.mockReturnValue({ set: mockUpdateSet }),
+    update: vi.fn().mockReturnValue({ set: mockUpdateSet }),
   },
 }))
 
@@ -46,7 +43,7 @@ vi.mock('@/lib/mcp/middleware', () => ({
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: {
     clearCache: mockClearCache,
-    discoverServerToolsWithMetadata: mockDiscoverServerTools,
+    discoverServerTools: mockDiscoverServerTools,
   },
 }))
 
@@ -57,11 +54,9 @@ const initialServer = {
   workspaceId: 'workspace-1',
   name: 'OAuth Server',
   url: 'https://example.com/mcp',
-  authType: 'oauth',
   connectionStatus: 'connected',
   lastError: null,
   lastConnected: new Date('2026-01-01T00:00:00.000Z'),
-  lastToolsRefresh: new Date('2026-01-01T00:00:00.000Z'),
   toolCount: 4,
   statusConfig: { consecutiveFailures: 0, lastSuccessfulDiscovery: null },
 }
@@ -86,8 +81,6 @@ function selectRows(rows: unknown[]) {
 describe('MCP server refresh route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSelect.mockReset()
-    mockSelect.mockReturnValue(selectRows([persistedServer]))
     mockSelect.mockReturnValueOnce(selectRows([initialServer]))
     mockUpdateSet.mockReturnValue({
       where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([persistedServer]) }),
@@ -95,9 +88,7 @@ describe('MCP server refresh route', () => {
   })
 
   it('preserves the service-persisted OAuth pending status', async () => {
-    mockDiscoverServerTools.mockRejectedValueOnce(
-      new McpOauthAuthorizationRequiredError('server-1', 'OAuth Server')
-    )
+    mockDiscoverServerTools.mockRejectedValueOnce(new Error('OAuth authorization required'))
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -116,53 +107,16 @@ describe('MCP server refresh route', () => {
     )
   })
 
-  it('preserves OAuth pending when the status reread is still stale connected', async () => {
-    mockDiscoverServerTools.mockRejectedValueOnce(
-      new McpOauthAuthorizationRequiredError('server-1', 'OAuth Server')
-    )
-    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
-
-    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-      method: 'POST',
-    }) as NextRequest
-    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-    const body = await response.json()
-
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        status: 'disconnected',
-        error: null,
-        toolCount: 0,
-        workflowsUpdated: 0,
-      })
-    )
-  })
-
-  it('reports a sanitized discovery timeout when persistence leaves disconnected without an error', async () => {
-    mockDiscoverServerTools.mockRejectedValueOnce(new Error('upstream request timeout'))
-
-    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-      method: 'POST',
-    }) as NextRequest
-    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-    const body = await response.json()
-
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        status: 'disconnected',
-        error: 'Request timed out',
-        toolCount: 0,
-        workflowsUpdated: 0,
-      })
-    )
-  })
-
   it('reports the discovery failure when status persistence leaves a stale connected row', async () => {
     const reflectedSecret = 'Bearer reflected-static-token'
     mockDiscoverServerTools.mockRejectedValueOnce(
       new Error(`Upstream reflected ${reflectedSecret}`)
     )
-    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([initialServer]),
+      }),
+    })
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -174,7 +128,6 @@ describe('MCP server refresh route', () => {
       expect.objectContaining({
         status: 'disconnected',
         error: 'Internal server error',
-        toolCount: 0,
         workflowsUpdated: 0,
       })
     )
@@ -187,10 +140,13 @@ describe('MCP server refresh route', () => {
     const newerSuccessfulServer = {
       ...initialServer,
       lastConnected: new Date(Date.now() + 60_000),
-      lastToolsRefresh: new Date(Date.now() + 60_000),
       toolCount: 7,
     }
-    mockSelect.mockReturnValueOnce(selectRows([newerSuccessfulServer]))
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([newerSuccessfulServer]),
+      }),
+    })
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -206,52 +162,25 @@ describe('MCP server refresh route', () => {
         workflowsUpdated: 0,
       })
     )
-    expect(mockClearCache).not.toHaveBeenCalled()
-  })
-
-  it('reports the discovery failure when only cache invalidation advanced', async () => {
-    mockDiscoverServerTools.mockRejectedValueOnce(new Error('Connection failed'))
-    const cacheInvalidatedServer = {
-      ...initialServer,
-      lastToolsRefresh: new Date(initialServer.lastToolsRefresh.getTime() + 60_000),
-      toolCount: 0,
-    }
-    mockSelect.mockReturnValueOnce(selectRows([cacheInvalidatedServer]))
-
-    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-      method: 'POST',
-    }) as NextRequest
-    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-    const body = await response.json()
-
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        status: 'disconnected',
-        error: 'Internal server error',
-        toolCount: 0,
-        workflowsUpdated: 0,
-      })
-    )
-    expect(mockClearCache).not.toHaveBeenCalled()
+    expect(mockClearCache).toHaveBeenCalledWith('workspace-1')
   })
 
   it('does not 500 when workflow sync fails after a successful discovery', async () => {
-    mockDiscoverServerTools.mockResolvedValueOnce({
-      tools: [
-        {
-          name: 'search',
-          description: 'Search tool',
-          inputSchema: {},
-          serverId: 'server-1',
-          serverName: 'OAuth Server',
-        },
-      ],
-      state: 'published',
-    })
+    mockDiscoverServerTools.mockResolvedValueOnce([
+      {
+        name: 'search',
+        description: 'Search tool',
+        inputSchema: {},
+        serverId: 'server-1',
+        serverName: 'OAuth Server',
+      },
+    ])
     // The route's server lookup consumes the first select (beforeEach). The sync's
     // workflow select is left unmocked, so it throws — exercising the guard that
     // keeps a secondary sync failure from turning a successful refresh into a 500.
-    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
+    mockUpdateSet.mockReturnValueOnce({
+      where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([initialServer]) }),
+    })
 
     const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
       method: 'POST',
@@ -267,211 +196,5 @@ describe('MCP server refresh route', () => {
         updatedWorkflowIds: [],
       })
     )
-  })
-
-  it('reports live tools when cache degradation prevents status publication', async () => {
-    mockDiscoverServerTools.mockResolvedValueOnce({
-      tools: [
-        {
-          name: 'search',
-          description: 'Search tool',
-          inputSchema: {},
-          serverId: 'server-1',
-          serverName: 'OAuth Server',
-        },
-      ],
-      state: 'unavailable',
-    })
-    mockSelect.mockReturnValueOnce(selectRows([persistedServer]))
-
-    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-      method: 'POST',
-    }) as NextRequest
-    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-    const body = await response.json()
-
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        status: 'connected',
-        error: null,
-        toolCount: 1,
-      })
-    )
-  })
-
-  it('returns the winning cached tools without syncing workflows from the losing refresh', async () => {
-    mockDiscoverServerTools.mockResolvedValueOnce({
-      tools: [
-        {
-          name: 'winner-search',
-          description: 'Search tool from the winning refresh',
-          inputSchema: {},
-          serverId: 'server-1',
-          serverName: 'OAuth Server',
-        },
-      ],
-      state: 'winner-cache',
-    })
-    mockSelect.mockReturnValueOnce(selectRows([persistedServer]))
-
-    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-      method: 'POST',
-    }) as NextRequest
-    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-    const body = await response.json()
-
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        status: 'connected',
-        error: null,
-        toolCount: 1,
-        workflowsUpdated: 0,
-        updatedWorkflowIds: [],
-      })
-    )
-    expect(mockSelect).toHaveBeenCalledTimes(2)
-    expect(mockUpdate).not.toHaveBeenCalled()
-  })
-
-  it.each(['unavailable', 'winner-cache'] as const)(
-    'preserves a newer cache invalidation over %s discovery tools',
-    async (state) => {
-      mockDiscoverServerTools.mockResolvedValueOnce({
-        tools: [
-          {
-            name: 'stale-search',
-            description: 'Search tool loaded before invalidation',
-            inputSchema: {},
-            serverId: 'server-1',
-            serverName: 'OAuth Server',
-          },
-        ],
-        state,
-      })
-      const cacheInvalidatedServer = {
-        ...initialServer,
-        lastToolsRefresh: new Date(initialServer.lastToolsRefresh.getTime() + 60_000),
-        toolCount: 0,
-      }
-      mockSelect.mockReturnValueOnce(selectRows([cacheInvalidatedServer]))
-
-      const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-        method: 'POST',
-      }) as NextRequest
-      const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-      const body = await response.json()
-
-      expect(body.data).toEqual(
-        expect.objectContaining({
-          status: 'connected',
-          error: null,
-          toolCount: 0,
-          workflowsUpdated: 0,
-          updatedWorkflowIds: [],
-        })
-      )
-      expect(mockSelect).toHaveBeenCalledTimes(2)
-      expect(mockUpdate).not.toHaveBeenCalled()
-    }
-  )
-
-  it('does not sync published tools after a newer cache invalidation', async () => {
-    const publicationOrder = new Date(initialServer.lastToolsRefresh.getTime() + 30_000)
-    mockDiscoverServerTools.mockResolvedValueOnce({
-      tools: [
-        {
-          name: 'stale-search',
-          description: 'Search tool published before invalidation',
-          inputSchema: {},
-          serverId: 'server-1',
-          serverName: 'OAuth Server',
-        },
-      ],
-      state: 'published',
-      publicationOrder,
-    })
-    const cacheInvalidatedServer = {
-      ...initialServer,
-      lastConnected: publicationOrder,
-      lastToolsRefresh: new Date(publicationOrder.getTime() + 30_000),
-      toolCount: 0,
-    }
-    mockSelect.mockReturnValueOnce(selectRows([cacheInvalidatedServer]))
-
-    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-      method: 'POST',
-    }) as NextRequest
-    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-    const body = await response.json()
-
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        status: 'connected',
-        error: null,
-        toolCount: 0,
-        workflowsUpdated: 0,
-        updatedWorkflowIds: [],
-      })
-    )
-    expect(mockSelect).toHaveBeenCalledTimes(2)
-    expect(mockUpdate).not.toHaveBeenCalled()
-  })
-
-  it('preserves a newer successful refresh when discovery is superseded', async () => {
-    mockDiscoverServerTools.mockResolvedValueOnce({
-      tools: [],
-      state: 'superseded',
-    })
-    const newerSuccessfulServer = {
-      ...initialServer,
-      lastConnected: new Date(initialServer.lastConnected.getTime() + 60_000),
-      lastToolsRefresh: new Date(initialServer.lastToolsRefresh.getTime() + 60_000),
-      toolCount: 7,
-    }
-    mockSelect.mockReturnValueOnce(selectRows([newerSuccessfulServer]))
-
-    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-      method: 'POST',
-    }) as NextRequest
-    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-    const body = await response.json()
-
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        status: 'connected',
-        error: null,
-        toolCount: 7,
-        workflowsUpdated: 0,
-        updatedWorkflowIds: [],
-      })
-    )
-    expect(mockSelect).toHaveBeenCalledTimes(2)
-    expect(mockUpdate).not.toHaveBeenCalled()
-  })
-
-  it('fails closed without syncing workflows when discovery is superseded', async () => {
-    mockDiscoverServerTools.mockResolvedValueOnce({
-      tools: [],
-      state: 'superseded',
-    })
-    mockSelect.mockReturnValueOnce(selectRows([initialServer]))
-
-    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
-      method: 'POST',
-    }) as NextRequest
-    const response = await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
-    const body = await response.json()
-
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        status: 'disconnected',
-        error: 'Tool discovery was superseded by a newer refresh. Please retry.',
-        toolCount: 0,
-        workflowsUpdated: 0,
-        updatedWorkflowIds: [],
-      })
-    )
-    expect(mockSelect).toHaveBeenCalledTimes(2)
-    expect(mockUpdate).not.toHaveBeenCalled()
   })
 })

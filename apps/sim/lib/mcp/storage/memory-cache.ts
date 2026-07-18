@@ -1,14 +1,12 @@
 import { createLogger } from '@sim/logger'
 import type { McpTool } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
-import type { McpCacheEntry, McpCacheMutationSet, McpCacheStorageAdapter } from './adapter'
+import type { McpCacheEntry, McpCacheStorageAdapter } from './adapter'
 
 const logger = createLogger('McpMemoryCache')
 
 export class MemoryMcpCache implements McpCacheStorageAdapter {
   private cache = new Map<string, McpCacheEntry>()
-  private mutationVersions = new Map<string, number>()
-  private nextMutationId = 0
   private readonly maxCacheSize = MCP_CONSTANTS.MAX_CACHE_SIZE
   private cleanupInterval: NodeJS.Timeout | null = null
 
@@ -90,38 +88,7 @@ export class MemoryMcpCache implements McpCacheStorageAdapter {
     this.cache.delete(key)
   }
 
-  async beginMutation(scopeKey: string): Promise<number> {
-    const mutationId = Math.max(this.nextMutationId + 1, Date.now())
-    this.nextMutationId = mutationId
-    this.mutationVersions.set(scopeKey, mutationId)
-    return mutationId
-  }
-
-  async applyMutationIfCurrent(
-    scopeKey: string,
-    mutationId: number,
-    setEntry: McpCacheMutationSet | null,
-    deleteKeys: string[]
-  ): Promise<boolean> {
-    if (this.mutationVersions.get(scopeKey) !== mutationId) return false
-
-    if (setEntry) {
-      this.cache.set(setEntry.key, {
-        tools: setEntry.tools,
-        expiry: Date.now() + setEntry.ttlMs,
-      })
-    }
-    for (const key of deleteKeys) this.cache.delete(key)
-    this.evictIfNeeded()
-    return true
-  }
-
   async clear(): Promise<void> {
-    for (const scopeKey of this.mutationVersions.keys()) {
-      const mutationId = Math.max(this.nextMutationId + 1, Date.now())
-      this.nextMutationId = mutationId
-      this.mutationVersions.set(scopeKey, mutationId)
-    }
     this.cache.clear()
   }
 
@@ -131,7 +98,6 @@ export class MemoryMcpCache implements McpCacheStorageAdapter {
       this.cleanupInterval = null
     }
     this.cache.clear()
-    this.mutationVersions.clear()
     logger.info('Memory cache disposed')
   }
 }

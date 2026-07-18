@@ -30,8 +30,6 @@ export interface McpServerConfig {
   statusConfig?: McpServerStatusConfig
   createdAt?: string
   updatedAt?: string
-  /** Internal hash of fields that affect discovery; excludes display-only metadata. */
-  discoveryRevision?: string
 }
 
 export interface McpVersionInfo {

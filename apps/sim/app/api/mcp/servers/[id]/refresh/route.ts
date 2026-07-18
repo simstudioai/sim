@@ -1,4 +1,3 @@
-import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { db } from '@sim/db'
 import { mcpServers, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -10,12 +9,8 @@ import { mcpServerIdParamsSchema } from '@/lib/api/contracts/mcp'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
-import { type McpServerDiscoveryState, mcpService } from '@/lib/mcp/service'
-import {
-  McpOauthAuthorizationRequiredError,
-  type McpTool,
-  type McpToolSchema,
-} from '@/lib/mcp/types'
+import { mcpService } from '@/lib/mcp/service'
+import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
 import {
   categorizeError,
   createMcpErrorResponse,
@@ -193,71 +188,34 @@ export const POST = withRouteHandler(
 
         let syncResult: SyncResult = { updatedCount: 0, updatedWorkflowIds: [] }
         let discoveredTools: McpTool[] = []
-        let discoveryState: McpServerDiscoveryState | null = null
-        let discoveryPublicationOrder: Date | null = null
         let discoveryError: string | null = null
-        let oauthAuthorizationRequired = false
+        const discoveryStartedAt = new Date()
 
         try {
-          const discovery = await mcpService.discoverServerToolsWithMetadata(
+          discoveredTools = await mcpService.discoverServerTools(
             userId,
             serverId,
             workspaceId,
             true
           )
-          discoveredTools = discovery.tools
-          discoveryState = discovery.state
-          discoveryPublicationOrder = discovery.publicationOrder ?? null
           logger.info(
             `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`
           )
         } catch (error) {
-          oauthAuthorizationRequired =
-            server.authType === 'oauth' &&
-            (error instanceof McpOauthAuthorizationRequiredError ||
-              error instanceof UnauthorizedError)
           discoveryError = truncate(categorizeError(error).message, 200, '')
           logger.warn(`[${requestId}] Failed to connect to server ${serverId}`, {
             error: discoveryError,
           })
         }
 
-        const [refreshedServer] = await db
-          .select({
-            name: mcpServers.name,
-            url: mcpServers.url,
-            connectionStatus: mcpServers.connectionStatus,
-            lastConnected: mcpServers.lastConnected,
-            lastToolsRefresh: mcpServers.lastToolsRefresh,
-            lastError: mcpServers.lastError,
-            toolCount: mcpServers.toolCount,
-          })
-          .from(mcpServers)
-          .where(
-            and(
-              eq(mcpServers.id, serverId),
-              eq(mcpServers.workspaceId, workspaceId),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-          .limit(1)
-
-        const publicationBaseline = discoveryPublicationOrder ?? server.lastToolsRefresh
-        const newerPublicationWonRace =
-          refreshedServer?.lastToolsRefresh != null &&
-          (publicationBaseline == null || refreshedServer.lastToolsRefresh > publicationBaseline)
-
-        if (discoveryError === null && discoveryState === 'published' && !newerPublicationWonRace) {
+        if (discoveryError === null) {
           try {
             syncResult = await syncToolSchemasToWorkflows(
               workspaceId,
               serverId,
               discoveredTools,
               requestId,
-              {
-                url: refreshedServer?.url ?? undefined,
-                name: refreshedServer?.name ?? undefined,
-              }
+              { url: server.url ?? undefined, name: server.name ?? undefined }
             )
           } catch (error) {
             // Discovery already persisted status and cached tools; a workflow-sync
@@ -269,43 +227,45 @@ export const POST = withRouteHandler(
           }
         }
 
+        const now = new Date()
+
+        const [refreshedServer] = await db
+          .update(mcpServers)
+          .set({
+            lastToolsRefresh: now,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(mcpServers.id, serverId),
+              eq(mcpServers.workspaceId, workspaceId),
+              isNull(mcpServers.deletedAt)
+            )
+          )
+          .returning({
+            connectionStatus: mcpServers.connectionStatus,
+            lastConnected: mcpServers.lastConnected,
+            lastError: mcpServers.lastError,
+            toolCount: mcpServers.toolCount,
+          })
+
         let connectionStatus = refreshedServer?.connectionStatus ?? 'error'
         let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
-        let toolCount = refreshedServer?.toolCount ?? discoveredTools.length
-        const newerSuccessWonRace =
-          connectionStatus === 'connected' &&
-          newerPublicationWonRace &&
-          refreshedServer.lastConnected != null &&
-          (server.lastConnected == null || refreshedServer.lastConnected > server.lastConnected)
-
-        if (discoveryState === 'superseded' && !newerSuccessWonRace) {
-          connectionStatus = 'disconnected'
-          lastError = 'Tool discovery was superseded by a newer refresh. Please retry.'
-          toolCount = 0
-        } else if (
-          discoveryError === null &&
-          !newerPublicationWonRace &&
-          (discoveryState === 'unavailable' || discoveryState === 'winner-cache')
-        ) {
-          connectionStatus = 'connected'
-          lastError = null
-          toolCount = discoveredTools.length
-        }
+        const toolCount = refreshedServer?.toolCount ?? discoveredTools.length
 
         if (discoveryError !== null && connectionStatus === 'connected') {
+          const newerSuccessWonRace =
+            refreshedServer?.lastConnected != null &&
+            refreshedServer.lastConnected > discoveryStartedAt
+
           if (!newerSuccessWonRace) {
             connectionStatus = 'disconnected'
-            lastError = oauthAuthorizationRequired ? null : discoveryError
-            toolCount = 0
+            lastError = discoveryError
           }
-        } else if (
-          discoveryError !== null &&
-          connectionStatus === 'disconnected' &&
-          lastError === null &&
-          !oauthAuthorizationRequired
-        ) {
-          lastError = discoveryError
-          toolCount = 0
+        }
+
+        if (connectionStatus === 'connected') {
+          await mcpService.clearCache(workspaceId)
         }
 
         return createMcpSuccessResponse({
