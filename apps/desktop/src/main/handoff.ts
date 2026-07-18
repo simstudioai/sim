@@ -147,11 +147,19 @@ export function createHandoffManager(
   }
 }
 
+/** Outcome of a token redeem. `status` is the verify endpoint's HTTP status,
+ * or 0 for a network/exec error, or -1 when the window was unavailable. */
+export const REDEEM_OK_STATUS = 200
+export const REDEEM_NETWORK_ERROR = 0
+export const REDEEM_WINDOW_UNAVAILABLE = -1
+
 /**
  * Builds the renderer-side script that redeems a one-time token. Running it in
  * the app-origin renderer makes the request genuinely same-origin, so
  * better-auth's trustedOrigins/CSRF checks pass and the Set-Cookie lands in the
- * app partition.
+ * app partition. Resolves to the HTTP status (or 0 on a network error) so a
+ * failure surfaces the real cause — 403 = untrusted origin, 400 = bad/expired
+ * token, 0 = unreachable.
  */
 export function buildRedeemScript(token: string): string {
   const body = JSON.stringify(JSON.stringify({ token }))
@@ -163,40 +171,41 @@ export function buildRedeemScript(token: string): string {
       credentials: 'include',
       body: ${body},
     })
-    return response.ok
+    return response.status
   } catch {
-    return false
+    return ${REDEEM_NETWORK_ERROR}
   }
 })()`
 }
 
 /**
- * Redeems a one-time token from the app-partition renderer. If the window is
- * currently off-origin (offline page, in-window IdP flow) it first loads the
- * login page so the redeem fetch is same-origin.
+ * Redeems a one-time token from the app-partition renderer and returns the
+ * verify endpoint's HTTP status (200 on success). If the window is currently
+ * off-origin (offline page, in-window IdP flow) it first loads the login page
+ * so the redeem fetch is same-origin.
  */
 export async function redeemToken(
   win: BrowserWindow,
   origin: string,
   token: string
-): Promise<boolean> {
+): Promise<number> {
   if (win.isDestroyed()) {
-    return false
+    return REDEEM_WINDOW_UNAVAILABLE
   }
   const contents = win.webContents
   if (!contents.getURL().startsWith(`${origin}/`)) {
     try {
       await win.loadURL(`${origin}/login`)
     } catch {
-      return false
+      return REDEEM_WINDOW_UNAVAILABLE
     }
   }
   try {
-    const result = await contents.executeJavaScript(buildRedeemScript(token), true)
-    return result === true
+    const status = await contents.executeJavaScript(buildRedeemScript(token), true)
+    return typeof status === 'number' ? status : REDEEM_NETWORK_ERROR
   } catch (error) {
     logger.error('Token redeem failed', { error })
-    return false
+    return REDEEM_NETWORK_ERROR
   }
 }
 
@@ -219,8 +228,11 @@ export interface AuthFlow {
  * back on /login.
  */
 export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
-  const failInWindow = async (win: BrowserWindow, reason: string) => {
-    deps.events.record('handoff_redeem_fail', { reason })
+  const failInWindow = async (win: BrowserWindow, reason: string, status?: number) => {
+    deps.events.record(
+      'handoff_redeem_fail',
+      status === undefined ? { reason } : { reason, status }
+    )
     void dialog.showMessageBox(win, {
       type: 'error',
       message: 'Sign-in failed',
@@ -250,8 +262,9 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
         return
       }
       const origin = deps.origin()
-      if (!(await redeemToken(win, origin, callback.token))) {
-        await failInWindow(win, 'redeem')
+      const status = await redeemToken(win, origin, callback.token)
+      if (status !== REDEEM_OK_STATUS) {
+        await failInWindow(win, 'redeem', status)
         return
       }
       deps.events.record('handoff_redeem_ok')

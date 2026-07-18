@@ -12,8 +12,8 @@ const { mockGetSession, mockGenerateOneTimeToken, mockRedirect } = vi.hoisted(()
 }))
 
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { generateOneTimeToken: mockGenerateOneTimeToken, getSession: vi.fn() } },
-  getSession: mockGetSession,
+  auth: { api: { generateOneTimeToken: mockGenerateOneTimeToken, getSession: mockGetSession } },
+  getSession: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -68,6 +68,15 @@ describe('DesktopAuthPage', () => {
   it('mints a token and redirects straight to the 127.0.0.1 loopback callback', async () => {
     await expect(DesktopAuthPage(pageProps({ state: VALID_STATE, port: '54321' }))).rejects.toThrow(
       `NEXT_REDIRECT:http://127.0.0.1:54321/auth/callback?token=tok123456&state=${VALID_STATE}`
+    )
+  })
+
+  it('reads the session fresh (bypassing the cookie cache) so it never mints against a dead session', async () => {
+    await expect(DesktopAuthPage(pageProps({ state: VALID_STATE, port: '54321' }))).rejects.toThrow(
+      'NEXT_REDIRECT:'
+    )
+    expect(mockGetSession).toHaveBeenCalledWith(
+      expect.objectContaining({ query: { disableCookieCache: true } })
     )
   })
 

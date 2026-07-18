@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { auth, getSession } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import {
   buildDesktopAuthPath,
   buildLoopbackUrl,
@@ -51,14 +51,20 @@ export default async function DesktopAuthPage({ searchParams }: DesktopAuthPageP
     return <InvalidRequest />
   }
 
-  const session = await getSession()
+  // Force a DB-backed session read (bypass the cookie cache). A cache-only
+  // session can outlive its DB row after a sign-out/revoke, and minting a
+  // one-time token against a dead session makes /one-time-token/verify fail
+  // with "Session not found" (400) on redeem. A fresh read sends the user to
+  // re-login instead of minting a doomed token.
+  const hdrs = await headers()
+  const session = await auth.api.getSession({ headers: hdrs, query: { disableCookieCache: true } })
   if (!session?.user) {
     redirect(`/login?callbackUrl=${encodeURIComponent(buildDesktopAuthPath(state, port))}`)
   }
 
   let token: string | null = null
   try {
-    const response = await auth.api.generateOneTimeToken({ headers: await headers() })
+    const response = await auth.api.generateOneTimeToken({ headers: hdrs })
     token = response?.token ?? null
   } catch {
     token = null

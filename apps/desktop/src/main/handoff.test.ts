@@ -27,11 +27,12 @@ function makeDeps(overrides: Partial<HandoffManagerDeps> = {}): HandoffManagerDe
 }
 
 describe('buildRedeemScript', () => {
-  it('embeds the token JSON-escaped and targets the verify endpoint', () => {
+  it('embeds the token JSON-escaped, targets the verify endpoint, and returns the status', () => {
     const script = buildRedeemScript('abc"def')
     expect(script).toContain('/api/auth/one-time-token/verify')
     expect(script).toContain("credentials: 'include'")
     expect(script).toContain(JSON.stringify(JSON.stringify({ token: 'abc"def' })))
+    expect(script).toContain('return response.status')
   })
 })
 
