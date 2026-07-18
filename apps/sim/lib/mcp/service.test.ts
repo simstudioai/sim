@@ -180,7 +180,7 @@ vi.mock('@/lib/mcp/storage', () => ({
   getMcpCacheType: () => 'memory',
 }))
 
-import { mcpService } from '@/lib/mcp/service'
+import { getTimestampMillisecondBounds, mcpService } from '@/lib/mcp/service'
 import { McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 
 const mockLogger = vi.mocked(loggerMock.createLogger).mock.results.at(-1)?.value
@@ -217,6 +217,23 @@ function tool(name: string, serverId: string) {
     serverName: serverId,
   }
 }
+
+describe('getTimestampMillisecondBounds', () => {
+  it('includes PostgreSQL sub-millisecond precision but excludes the next millisecond', () => {
+    const { startInclusive, endExclusive } = getTimestampMillisecondBounds(
+      '2026-01-01T00:00:00.123Z'
+    )
+    const startMicroseconds = startInclusive.getTime() * 1_000
+    const endMicroseconds = endExclusive.getTime() * 1_000
+    const isWithinBounds = (candidateMicroseconds: number) =>
+      candidateMicroseconds >= startMicroseconds && candidateMicroseconds < endMicroseconds
+
+    // PostgreSQL can retain any of these extra microseconds even though the
+    // JavaScript Date used as the generation token is truncated to .123.
+    expect(isWithinBounds(startMicroseconds + 999)).toBe(true)
+    expect(isWithinBounds(endMicroseconds)).toBe(false)
+  })
+})
 
 describe('McpService.discoverTools per-server caching', () => {
   beforeEach(async () => {

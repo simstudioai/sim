@@ -7,7 +7,7 @@ import { createLogger } from '@sim/logger'
 import { describeError, getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { and, eq, isNull, lte, or } from 'drizzle-orm'
+import { and, eq, gte, isNull, lt, lte, or } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
@@ -51,6 +51,17 @@ function serverCacheKey(workspaceId: string, serverId: string): string {
 
 function failureCacheKey(workspaceId: string, serverId: string): string {
   return `workspace:${workspaceId}:server:${serverId}:failure`
+}
+
+export function getTimestampMillisecondBounds(timestamp: string): {
+  startInclusive: Date
+  endExclusive: Date
+} {
+  const startInclusive = new Date(timestamp)
+  return {
+    startInclusive,
+    endExclusive: new Date(startInclusive.getTime() + 1),
+  }
 }
 
 const FAILURE_CACHE_SENTINEL: McpTool[] = []
@@ -417,12 +428,13 @@ class McpService {
   ): Promise<boolean> {
     try {
       const now = new Date()
-      const configUpdatedAt = new Date(update.configUpdatedAt)
+      const configUpdatedAt = getTimestampMillisecondBounds(update.configUpdatedAt)
       const publicationConditions = and(
         eq(mcpServers.id, serverId),
         eq(mcpServers.workspaceId, workspaceId),
         isNull(mcpServers.deletedAt),
-        eq(mcpServers.updatedAt, configUpdatedAt),
+        gte(mcpServers.updatedAt, configUpdatedAt.startInclusive),
+        lt(mcpServers.updatedAt, configUpdatedAt.endExclusive),
         or(
           isNull(mcpServers.lastToolsRefresh),
           lte(mcpServers.lastToolsRefresh, update.discoveryStartedAt)
@@ -531,6 +543,7 @@ class McpService {
     discoveryStartedAt: Date
   ): Promise<boolean> {
     try {
+      const configUpdatedAtBounds = getTimestampMillisecondBounds(configUpdatedAt)
       const updatedServers = await db
         .update(mcpServers)
         .set({
@@ -544,7 +557,8 @@ class McpService {
             eq(mcpServers.id, serverId),
             eq(mcpServers.workspaceId, workspaceId),
             isNull(mcpServers.deletedAt),
-            eq(mcpServers.updatedAt, new Date(configUpdatedAt)),
+            gte(mcpServers.updatedAt, configUpdatedAtBounds.startInclusive),
+            lt(mcpServers.updatedAt, configUpdatedAtBounds.endExclusive),
             or(
               isNull(mcpServers.lastToolsRefresh),
               lte(mcpServers.lastToolsRefresh, discoveryStartedAt)
