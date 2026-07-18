@@ -120,38 +120,51 @@ export function hasSession(): boolean {
   return tabs.some((tab) => !tab.view.webContents.isDestroyed())
 }
 
+/** The view currently attached to the host window (attach only on change —
+ * re-adding an attached view re-stacks it and can flicker the composite). */
+let attachedView: WebContentsView | null = null
+let lastAppliedBounds = ''
+
 /**
  * Repositions the active view over the panel rect inside the main window
  * (re-parenting if the main window was recreated), and detaches it when the
  * panel is hidden. CSS pixels scale to DIP by the main page's zoom factor.
+ * Idempotent: repeated calls with unchanged inputs perform no view mutations.
  */
 function layout(): void {
   const win = getMainWindow()
   const active = activeTab()
+  const showing = active !== null && panelBounds !== null && win !== null
 
-  // Detach every view that should not be showing.
-  for (const tab of tabs) {
-    if (tab !== active || panelBounds === null || win === null) {
-      hostedWindow?.contentView.removeChildView(tab.view)
-      win?.contentView.removeChildView(tab.view)
+  if (!showing || hostedWindow !== win || attachedView !== active?.view) {
+    if (attachedView) {
+      hostedWindow?.contentView.removeChildView(attachedView)
+      attachedView = null
+      lastAppliedBounds = ''
     }
   }
-  if (!active || panelBounds === null || win === null) {
+  if (!showing || !active || !win || panelBounds === null) {
     return
   }
 
-  if (hostedWindow !== win) {
+  if (attachedView !== active.view) {
+    win.contentView.addChildView(active.view)
     hostedWindow = win
+    attachedView = active.view
   }
-  win.contentView.addChildView(active.view)
   const zoom = win.webContents.getZoomFactor()
-  active.view.setBounds({
+  const bounds = {
     x: Math.round(panelBounds.x * zoom),
     y: Math.round(panelBounds.y * zoom),
     width: Math.max(1, Math.round(panelBounds.width * zoom)),
     height: Math.max(1, Math.round(panelBounds.height * zoom)),
-  })
-  active.view.setVisible(true)
+  }
+  const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`
+  if (boundsKey !== lastAppliedBounds) {
+    lastAppliedBounds = boundsKey
+    active.view.setBounds(bounds)
+    active.view.setVisible(true)
+  }
 }
 
 /** Renderer-reported panel rect (null = panel hidden/unmounted). */
@@ -214,8 +227,11 @@ export function closeTab(tabId: string): void {
   const index = tabs.findIndex((entry) => entry.id === tabId)
   if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
   const [tab] = tabs.splice(index, 1)
-  hostedWindow?.contentView.removeChildView(tab.view)
-  getMainWindow()?.contentView.removeChildView(tab.view)
+  if (attachedView === tab.view) {
+    hostedWindow?.contentView.removeChildView(tab.view)
+    attachedView = null
+    lastAppliedBounds = ''
+  }
   tab.view.webContents.close()
   if (activeTabId === tab.id) {
     activeTabId = tabs.length > 0 ? tabs[tabs.length - 1].id : null

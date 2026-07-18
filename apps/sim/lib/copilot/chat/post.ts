@@ -82,10 +82,17 @@ const ResourceAttachmentSchema = z.object({
     'log',
     'scheduledtask',
     'generic',
+    'browser',
   ]),
   id: z.string().min(1),
   title: z.string().optional(),
   active: z.boolean().optional(),
+  /**
+   * Live page URL for `browser` attachments. The agent browser lives in the
+   * desktop app, so the client supplies its state — the server has nothing
+   * to resolve it from.
+   */
+  url: z.string().max(2048).optional(),
 })
 
 const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
@@ -99,6 +106,12 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   log: 'Log',
   scheduledtask: 'Scheduled Task',
   generic: 'Resource',
+  browser: 'Browser',
+}
+
+/** Ephemeral client-side panels are context-only: never persisted to the chat. */
+function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {
+  return resource.type !== 'browser'
 }
 
 const ChatContextSchema = z.object({
@@ -282,6 +295,20 @@ async function resolveAgentContexts(params: {
   if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0 && workspaceId) {
     const results = await Promise.allSettled(
       resourceAttachments.map(async (resource) => {
+        // The live browser panel resolves from the attachment itself: its
+        // page state is client-held (the desktop app's embedded browser),
+        // not a workspace entity the server could look up.
+        if (resource.type === 'browser') {
+          if (!resource.url) return null
+          const title = resource.title?.trim()
+          return {
+            type: 'active_resource',
+            tag: resource.active ? '@active_tab' : '@open_tab',
+            content: `The user's live browser panel (driven by the browser subagent) is open on: ${
+              title ? `"${title}" — ` : ''
+            }${resource.url}`,
+          }
+        }
         const ctx = await resolveActiveResourceContext(
           resource.type,
           resource.id,
@@ -854,14 +881,17 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
-        await persistChatResources(
-          actualChatId,
-          body.resourceAttachments.map((r) => ({
-            type: r.type,
-            id: r.id,
-            title: r.title ?? GENERIC_RESOURCE_TITLE[r.type],
-          }))
-        )
+        const persistable = body.resourceAttachments.filter(isPersistableAttachment)
+        if (persistable.length > 0) {
+          await persistChatResources(
+            actualChatId,
+            persistable.map((r) => ({
+              type: r.type,
+              id: r.id,
+              title: r.title ?? GENERIC_RESOURCE_TITLE[r.type],
+            }))
+          )
+        }
       }
 
       let pendingStreamWaitMs = 0

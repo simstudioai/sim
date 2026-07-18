@@ -90,6 +90,7 @@ import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-so
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -3288,17 +3289,22 @@ export function useChat(
         abortControllerRef.current = abortController
 
         const currentActiveId = activeResourceIdRef.current
-        // The live browser panel is a client-side surface, not a
-        // server-resolvable resource — it must never ride resourceAttachments
-        // (the request schema rejects it, failing the whole send).
-        const currentResources = resourcesRef.current.filter((r) => r.type !== 'browser')
+        // The live browser panel's page state is client-held (the desktop
+        // app's embedded browser): its attachment carries the current URL and
+        // title so the server can inject them as @open_tab/@active_tab
+        // context. With no page loaded there is nothing to say — drop it.
+        const browserPageState = useBrowserSessionStore.getState().pageState
+        const currentResources = resourcesRef.current.filter(
+          (r) => r.type !== 'browser' || Boolean(browserPageState?.url)
+        )
         const resourceAttachments =
           currentResources.length > 0
             ? currentResources.map((r) => ({
                 type: r.type,
                 id: r.id,
-                title: r.title,
+                title: r.type === 'browser' ? browserPageState?.title?.trim() || r.title : r.title,
                 active: r.id === currentActiveId,
+                ...(r.type === 'browser' ? { url: browserPageState?.url } : {}),
               }))
             : undefined
 
