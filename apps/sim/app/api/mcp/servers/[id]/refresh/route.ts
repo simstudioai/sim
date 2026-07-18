@@ -265,11 +265,13 @@ export const POST = withRouteHandler(
         let connectionStatus = refreshedServer?.connectionStatus ?? 'error'
         let lastError = refreshedServer ? refreshedServer.lastError : discoveryError
         let toolCount = refreshedServer?.toolCount ?? discoveredTools.length
-        const newerSuccessWonRace =
-          connectionStatus === 'connected' &&
+        const newerPublicationWonRace =
           refreshedServer?.lastToolsRefresh != null &&
           (server.lastToolsRefresh == null ||
-            refreshedServer.lastToolsRefresh > server.lastToolsRefresh) &&
+            refreshedServer.lastToolsRefresh > server.lastToolsRefresh)
+        const newerSuccessWonRace =
+          connectionStatus === 'connected' &&
+          newerPublicationWonRace &&
           refreshedServer.lastConnected != null &&
           (server.lastConnected == null || refreshedServer.lastConnected > server.lastConnected)
 
@@ -279,6 +281,7 @@ export const POST = withRouteHandler(
           toolCount = 0
         } else if (
           discoveryError === null &&
+          !newerPublicationWonRace &&
           (discoveryState === 'unavailable' || discoveryState === 'winner-cache')
         ) {
           connectionStatus = 'connected'
